@@ -2102,6 +2102,65 @@ mod tests {
         sent
     }
 
+    /// W3-10 T6: a key of a native password edit that the gate decides
+    /// after 250 ms comes back from the shared check as Late and not as a
+    /// key of a password field. It is withheld either way, and no count, no
+    /// late value and no withheld reading differs from the same key decided
+    /// at 100 ms. A pump that took the key at once notes no lag for it.
+    #[test]
+    fn a_password_edit_key_decided_at_300_ms_moves_no_number_that_one_at_100_ms_does_not() {
+        let front = 7;
+        let run = |after_ms: u32| {
+            let (mut state, handoff, writer) = lag_rig();
+            let producer = handoff.producer();
+            let tick = 50_000u32;
+            state.gate.read_at(
+                tick.wrapping_sub(400),
+                crate::secure_input::windows::FieldState::Clear,
+                None,
+            );
+            let key = state.gate.hold(tick, true, front);
+            let answer = state
+                .gate
+                .decide(&key, tick.wrapping_add(after_ms), front, true)
+                .map(|(answer, rule)| (answer.map(|_| ()), rule));
+            state.held.push_back((
+                key,
+                KeyStroke {
+                    vkey: 0x41,
+                    released: false,
+                },
+                None,
+            ));
+            release_held_at(
+                &mut state,
+                &producer,
+                false,
+                (tick.wrapping_add(after_ms), front),
+                || true,
+            );
+            let held_left = state.held.len();
+            let numbers = numbers(&state, &handoff);
+            (answer, held_left, numbers, sent(&writer))
+        };
+        let at_100 = run(100);
+        let at_300 = run(300);
+        println!(
+            "TF password-edit at_100_ms={:?} at_300_ms={:?}",
+            at_100.0, at_300.0
+        );
+        assert!(matches!(at_100.0, Some((Err(_), _))), "{:?}", at_100.0);
+        assert!(matches!(at_300.0, Some((Err(_), _))), "{:?}", at_300.0);
+        assert_eq!((at_100.1, at_300.1), (0, 0));
+        assert_eq!(
+            at_100.2, at_300.2,
+            "a number differs for the key decided at 300 ms"
+        );
+        assert_eq!((at_100.3, at_300.3), (0, 0));
+        assert!(at_300.2 .2, "keys_withheld did not read yes");
+        assert!(!at_300.2 .0, "the late value moved");
+    }
+
     #[test]
     fn five_keys_of_a_password_field_handled_300_ms_late_move_no_number() {
         let (mut state, handoff, writer) = lag_rig();
@@ -2257,6 +2316,7 @@ mod tests {
     /// its messages, brought to the front so that the keys that a test sends
     /// go to it; a window that nobody pumps would hold the detector's read.
     struct OwnWindow {
+        hwnd: usize,
         stop: Arc<AtomicBool>,
         thread: Option<std::thread::JoinHandle<()>>,
     }
@@ -2276,7 +2336,9 @@ mod tests {
             let (tx, rx) = std::sync::mpsc::channel();
             let thread_stop = Arc::clone(&stop);
             let thread = std::thread::spawn(move || {
-                let class = windows::core::HSTRING::from("STATIC");
+                // An edit of the native kind, so that the gate reads it Clear
+                // and only the rule under test withholds a key (W3-10 T3).
+                let class = windows::core::HSTRING::from("EDIT");
                 // SAFETY: the class name is a live HSTRING; the window belongs
                 // to this thread, which destroys it before it ends.
                 let Ok(hwnd) = (unsafe {
@@ -2295,7 +2357,7 @@ mod tests {
                         None,
                     )
                 }) else {
-                    let _ = tx.send(false);
+                    let _ = tx.send((0usize, false));
                     return;
                 };
                 let alt = |released: bool| INPUT {
@@ -2339,10 +2401,52 @@ mod tests {
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
                 // SAFETY: GetForegroundWindow takes no argument.
-                let _ = tx.send(unsafe { GetForegroundWindow() } == hwnd);
+                if unsafe { GetForegroundWindow() } != hwnd {
+                    use windows::Win32::System::Threading::{
+                        AttachThreadInput, GetCurrentThreadId,
+                    };
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        BringWindowToTop, GetWindowThreadProcessId,
+                    };
+                    // SAFETY: the two threads' input is joined only around
+                    // the window calls on this thread's window.
+                    unsafe {
+                        let other = GetWindowThreadProcessId(GetForegroundWindow(), None);
+                        let this = GetCurrentThreadId();
+                        if other != 0 && other != this {
+                            let _ = AttachThreadInput(this, other, true);
+                            let _ = BringWindowToTop(hwnd);
+                            let _ = SetForegroundWindow(hwnd);
+                            let _ = AttachThreadInput(this, other, false);
+                        }
+                    }
+                    for _ in 0..30 {
+                        pump();
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                }
+                // SAFETY: SetFocus takes this thread's window handle.
+                unsafe {
+                    let _ = windows::Win32::UI::Input::KeyboardAndMouse::SetFocus(Some(hwnd));
+                }
+                pump();
+                // SAFETY: GetForegroundWindow takes no argument.
+                let in_front = unsafe { GetForegroundWindow() } == hwnd;
+                let _ = tx.send((hwnd.0 as usize, in_front));
                 while !thread_stop.load(Ordering::SeqCst) {
                     pump();
-                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    // Wait on the queue, so that a read of the edit by the
+                    // detector is answered at once.
+                    // SAFETY: no handle is passed; the call waits for this
+                    // thread's queue or the time.
+                    let _ = unsafe {
+                        windows::Win32::UI::WindowsAndMessaging::MsgWaitForMultipleObjectsEx(
+                            None,
+                            20,
+                            windows::Win32::UI::WindowsAndMessaging::QS_ALLINPUT,
+                            windows::Win32::UI::WindowsAndMessaging::MWMO_INPUTAVAILABLE,
+                        )
+                    };
                 }
                 // SAFETY: the window belongs to this thread and is destroyed
                 // once.
@@ -2351,16 +2455,24 @@ mod tests {
                 }
                 pump();
             });
-            let in_front = rx
+            let (hwnd, in_front) = rx
                 .recv_timeout(std::time::Duration::from_secs(5))
-                .unwrap_or(false);
+                .unwrap_or((0, false));
             (
                 OwnWindow {
+                    hwnd,
                     stop,
                     thread: Some(thread),
                 },
                 in_front,
             )
+        }
+
+        fn is_in_front(&self) -> bool {
+            use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+            // SAFETY: GetForegroundWindow takes no argument.
+            let foreground = unsafe { GetForegroundWindow() };
+            self.hwnd != 0 && foreground.0 as usize == self.hwnd
         }
     }
 
@@ -2376,8 +2488,12 @@ mod tests {
     /// K6 of W3-7, from the verify step's probe: a key of a password field
     /// and a click of the same tick from the pointer pump, with both sources
     /// running, leave the key withheld, as a click one tick period later does.
+    /// And a key after a click of the same tick through the pointer pump's
+    /// route waits for a read that shows a move (W3-10 T3; the route's gate
+    /// is one with no detector for that case, so that no read of the window
+    /// in front comes between). It sends no input, so no window of its own
+    /// is asked for; 12-test runs it with the library.
     #[test]
-    #[ignore = "functional: needs an interactive Windows desktop; a step of the windows job names it"]
     fn a_click_of_the_same_tick_from_the_pointer_pump_leaves_a_password_key_withheld() {
         use crate::secure_input::windows::FieldState;
         use windows::Win32::UI::WindowsAndMessaging::RI_MOUSE_LEFT_BUTTON_DOWN;
@@ -2405,11 +2521,25 @@ mod tests {
         };
         let same_tick = answer(0);
         let one_period_later = answer(16);
+        let detached = Arc::new(PasswordGate::new());
+        let route_gate = clicks().gate.replace(Arc::clone(&detached));
+        let key_after_a_click_waits = {
+            let tick = super::super::now_tick();
+            detached.read_at(tick, FieldState::Clear, None);
+            click_from_the_pointer_pump(RI_MOUSE_LEFT_BUTTON_DOWN as u16, tick.wrapping_add(20));
+            let key = detached.hold(tick.wrapping_add(20), false, 0);
+            detached.read_at(tick.wrapping_add(120), FieldState::Clear, Some(false));
+            detached.read_at(tick.wrapping_add(150), FieldState::Clear, Some(false));
+            detached
+                .decide(&key, tick.wrapping_add(260), 0, false)
+                .map(|(answer, _)| answer.is_ok())
+        };
+        clicks().gate = route_gate;
         let pointer_stopped = pointer.shutdown();
         let keyboard_stopped = keyboard.shutdown();
         let _ = registrations();
         println!(
-            "TF same-tick keyboard_started={} pointer_started={} withheld_with_a_click_of_the_same_tick={same_tick:?} withheld_with_a_click_16_ms_later={one_period_later:?} pointer_stopped={} keyboard_stopped={}",
+            "TF same-tick keyboard_started={} pointer_started={} withheld_with_a_click_of_the_same_tick={same_tick:?} withheld_with_a_click_16_ms_later={one_period_later:?} key_after_a_click_of_the_same_tick_decided={key_after_a_click_waits:?} pointer_stopped={} keyboard_stopped={}",
             keyboard_started.is_ok(),
             pointer_started.is_ok(),
             pointer_stopped.is_ok(),
@@ -2429,15 +2559,21 @@ mod tests {
             Some(true),
             "a click of the same tick cleared a key of a password field"
         );
+        assert_eq!(
+            key_after_a_click_waits, None,
+            "a key after a click of the same tick was decided before a read showed a move"
+        );
     }
 
     /// K5 and Q1 (d) of W3-7, from the verify step's probe: a real key that
     /// the keyboard's own pump takes late, because the pump is held in the
     /// register call of the mouse handover, while the gate read Password at
     /// the key and a focus mark of a later move reaches the gate. No key is
-    /// recorded, and a key taken 300 ms late moves no count.
+    /// recorded, and a key taken 300 ms late moves no count. The keys go to
+    /// an edit of the test's own in front, which the gate reads Clear, so
+    /// that the order rule alone withholds them; a round counts only while
+    /// that edit is in front (W3-10 T3). 12-test runs it with the library.
     #[test]
-    #[ignore = "functional: needs an interactive Windows desktop; a step of the windows job names it"]
     fn a_key_that_a_held_pump_takes_late_is_not_recorded_and_moves_no_count() {
         use crate::secure_input::windows::FieldState;
         use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -2520,6 +2656,7 @@ mod tests {
                         }
                     }
                 }
+                let front_at_the_send = own.is_in_front();
                 // SAFETY: the slice holds two live INPUT values and the size
                 // argument is the size of one INPUT.
                 let accepted = unsafe {
@@ -2534,13 +2671,17 @@ mod tests {
                 let keystroke_events = events.try_iter().filter(|keystroke| *keystroke).count();
                 let after = keyboard.health().counters;
                 println!(
-                    "TF held-pump round={name} hold_ms={hold_ms} pump_was_held={held} accepted={accepted} keystroke_events={keystroke_events} late_value_before={} late_value_after={} keys_withheld={}",
+                    "TF held-pump round={name} hold_ms={hold_ms} pump_was_held={held} own_window_in_front={front_at_the_send} accepted={accepted} keystroke_events={keystroke_events} late_value_before={} late_value_after={} keys_withheld={}",
                     before.late_events, after.late_events, after.keys_withheld
                 );
                 if name == "held-300" {
                     late_300 = (after.late_events, after.keys_withheld);
                 }
-                recorded.push(keystroke_events);
+                recorded.push((
+                    front_at_the_send && (hold_ms == 0 || held),
+                    hold_ms,
+                    keystroke_events,
+                ));
             }
         }
         let stopped = keyboard.shutdown();
@@ -2556,8 +2697,23 @@ mod tests {
             "INCONCLUSIVE: the keyboard source did not start"
         );
         assert_eq!(recorded.len(), 6, "INCONCLUSIVE: the rounds did not run");
+        assert!(in_front, "INCONCLUSIVE: own_window_in_front=false");
+        let counted = recorded.iter().filter(|(counted, _, _)| *counted).count();
+        let held_counted = recorded
+            .iter()
+            .filter(|(counted, hold_ms, _)| *counted && *hold_ms > 0)
+            .count();
+        println!("TF held-pump counted_rounds={counted} held_rounds_counted={held_counted}");
+        assert!(
+            held_counted >= 1,
+            "INCONCLUSIVE: no round with a held pump counted"
+        );
         assert_eq!(
-            recorded.iter().sum::<usize>(),
+            recorded
+                .iter()
+                .filter(|(counted, _, _)| *counted)
+                .map(|(_, _, events)| events)
+                .sum::<usize>(),
             0,
             "a key typed while the gate read Password was recorded"
         );

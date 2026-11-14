@@ -375,6 +375,17 @@ fn fixture_main() {
     let plain = window.edit(WS_TABSTOP, 10);
     let second = window.edit(WS_TABSTOP, 78);
     let password = window.edit(WS_TABSTOP | WINDOW_STYLE(ES_PASSWORD as u32), 44);
+    const EM_GETPASSWORDCHAR: u32 = 0x00D2;
+    // The password edit's own mask character, set again at each reset, so
+    // that a phase after phase D's reveal runs on a masked edit (W3-10 T1).
+    // SAFETY: SendMessageW passes plain values to this thread's edit control.
+    let mask = unsafe { SendMessageW(password, EM_GETPASSWORDCHAR, None, None) }.0 as usize;
+    let masked = |hwnd: HWND| {
+        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongW, GWL_STYLE};
+        // SAFETY: GetWindowLongW reads the style of this thread's edit control.
+        let style = unsafe { GetWindowLongW(hwnd, GWL_STYLE) } as u32;
+        style & ES_PASSWORD as u32 != 0
+    };
     let enable_second = |on: bool| {
         // SAFETY: EnableWindow takes a handle of this thread's edit control.
         unsafe {
@@ -474,9 +485,12 @@ fn fixture_main() {
                         window.activate();
                     }
                     // SAFETY: SendMessageW passes a plain value to this
-                    // thread's edit control; 0 takes a mask away.
+                    // thread's edit controls; 0 takes the plain edit's mask
+                    // away, and the password edit gets its own mask again.
                     unsafe {
                         let _ = SendMessageW(plain, EM_SETPASSWORDCHAR, Some(WPARAM(0)), None);
+                        let _ =
+                            SendMessageW(password, EM_SETPASSWORDCHAR, Some(WPARAM(mask)), None);
                     }
                     clear_text(plain);
                     clear_text(second);
@@ -502,7 +516,7 @@ fn fixture_main() {
                         "STALLC state fg={} focus_plain={} focus_password={} plain_len={} \
                          password_len={} second_len={} letters_plain={} letters_password={} \
                          letters_second={} letters_other={} tabs_plain={} tabs_password={} \
-                         tabs_second={} tabs_other={}",
+                         tabs_second={} tabs_other={} password_masked={}",
                         flag(window.is_foreground()),
                         flag(focus == plain),
                         flag(focus == password),
@@ -516,7 +530,8 @@ fn fixture_main() {
                         tabs[0],
                         tabs[1],
                         tabs[2],
-                        tabs[3]
+                        tabs[3],
+                        flag(masked(password))
                     );
                 }
                 CMD_FOCUS => {
@@ -1049,6 +1064,9 @@ struct Decisions {
     letters_late: u32,
     letters_withheld: u32,
     tabs_withheld: u32,
+    /// Letters and Tabs withheld with a Password reading (W3-10 T1).
+    letters_withheld_password: u32,
+    tabs_withheld_password: u32,
     lost_at_stop: u32,
     /// The rule that decided the first letter, as its index in `RULES`.
     first_letter_rule: i64,
@@ -1084,6 +1102,13 @@ impl Decisions {
             }
             if key.class == KeyClass::Tab && d.first_tab_rule < 0 {
                 d.first_tab_rule = rule_index(key.rule);
+            }
+            match (key.class, key.verdict) {
+                (KeyClass::Printable, Verdict::WithheldPassword) => {
+                    d.letters_withheld_password += 1
+                }
+                (KeyClass::Tab, Verdict::WithheldPassword) => d.tabs_withheld_password += 1,
+                _ => {}
             }
             match (key.class, key.verdict) {
                 (KeyClass::Printable, Verdict::Recorded) => d.letters_recorded += 1,
@@ -1122,21 +1147,25 @@ fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u
     let seen = events.drain_for(Duration::from_millis(900));
     let decided = Decisions::of(&seam::take());
     let state = fixture.ask(CMD_STATE, 0, "state");
+    // W3-10 T2: the control counts the keystroke events that reached the
+    // sink, not the seam's verdicts, so a source that clears keys and pushes
+    // none fails it.
+    let reached = seen
+        .iter()
+        .filter(|e| e.modality == Modality::Keystroke)
+        .count();
     say(
         test,
         format!(
             "control={which} fg={} focus_plain={} letters_sent={CONTROL_LETTERS} accepted={accepted} \
-             letters_plain={} keystroke_events={} letters_recorded={}",
+             letters_plain={} keystroke_events={reached} letters_recorded_by_the_seam={}",
             get(&reset, "fg"),
             get(&reset, "focused"),
             get(&state, "letters_plain"),
-            seen.iter()
-                .filter(|e| e.modality == Modality::Keystroke)
-                .count(),
             decided.letters_recorded,
         ),
     );
-    decided.letters_recorded
+    u32::try_from(reached).unwrap_or(u32::MAX)
 }
 
 #[derive(Debug, Default)]
@@ -1151,6 +1180,9 @@ pub(super) struct Totals {
     pub(super) late_moved: u64,
     pub(super) withheld_set: u32,
     pub(super) rounds_with_a_recorded_letter: u32,
+    /// Counted rounds in which a letter or the Tab was not withheld with a
+    /// Password reading (W3-10 T1; asserted by phase E alone).
+    pub(super) rounds_not_withheld_by_the_password_field: u32,
 }
 
 impl Totals {
@@ -1165,6 +1197,8 @@ impl Totals {
         self.late_moved += other.late_moved;
         self.withheld_set += other.withheld_set;
         self.rounds_with_a_recorded_letter += other.rounds_with_a_recorded_letter;
+        self.rounds_not_withheld_by_the_password_field +=
+            other.rounds_not_withheld_by_the_password_field;
     }
 }
 
@@ -1361,6 +1395,13 @@ fn run_rounds(
             totals.tabs_recorded += decided.tabs_recorded;
             totals.other_recorded += decided.other_recorded;
             totals.rounds_with_a_recorded_letter += u32::from(decided.letters_recorded > 0);
+            let letters_decided =
+                decided.letters_recorded + decided.letters_withheld + decided.letters_late;
+            totals.rounds_not_withheld_by_the_password_field += u32::from(
+                decided.letters_withheld_password != letters_decided
+                    || letters_decided == 0
+                    || decided.tabs_withheld_password != 1,
+            );
         }
     }
     totals
@@ -1463,9 +1504,16 @@ impl FieldWindow {
         test: &str,
         events: &Events,
         keyboard: &RawInputSource,
-    ) -> (Totals, u32, u32) {
+    ) -> (Totals, u32, u32, bool) {
         let mut fixture = self.fixture();
         let first = control(test, "before", &mut fixture, events);
+        // W3-10 T1: phase E runs on the masked password edit; the reset of
+        // the control has masked it again after phase D's reveal.
+        let masked = get(&fixture.ask(CMD_STATE, 0, "state"), "password_masked") == 1;
+        say(
+            test,
+            format!("phase=E password_edit_masked_at_the_start={}", flag(masked)),
+        );
         let phase = Phase {
             rounds: 20,
             letters_through_the_wait: false,
@@ -1473,7 +1521,7 @@ impl FieldWindow {
         };
         let totals = run_rounds(test, &mut fixture, events, keyboard, phase);
         let last = control(test, "after", &mut fixture, events);
-        (totals, first, last)
+        (totals, first, last, masked)
     }
 }
 

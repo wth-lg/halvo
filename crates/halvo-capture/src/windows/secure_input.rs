@@ -2276,6 +2276,26 @@ mod tests {
         assert_eq!(reading(&gate, &key, 2_251), Some(Err(Withheld::Unknown)));
     }
 
+    /// W3-10 T4, the correction's point (2): a Tab pressed in a plain field
+    /// sets its own latch, and a Password or an Unknown mark that reaches
+    /// the gate while the Tab is held withholds the Tab itself, although an
+    /// own read after its hold reads Clear.
+    #[test]
+    fn a_focus_key_is_withheld_when_a_password_or_unknown_mark_comes_while_it_is_held() {
+        let cases = [
+            (FieldState::Password, Withheld::Active),
+            (FieldState::Unknown, Withheld::Unknown),
+        ];
+        for (mark, withheld) in cases {
+            let gate = plain();
+            let tab = key(&gate, 2_000);
+            gate.latch(2_000);
+            gate.field_at(2_040, mark);
+            gate.read_at(2_130, FieldState::Clear, Some(true));
+            assert_eq!(reading(&gate, &tab, 2_200), Some(Err(withheld)), "{mark:?}");
+        }
+    }
+
     #[test]
     fn a_key_with_no_reading_yet_is_unknown_and_a_password_field_withholds_at_once() {
         let gate = PasswordGate::new();

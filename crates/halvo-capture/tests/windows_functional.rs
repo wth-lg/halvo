@@ -4118,7 +4118,7 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         type_letters_slowly(LETTERS);
         let d = keys(&events.drain_for(Duration::from_secs(1)));
 
-        let (e, e_control_before, e_control_after) =
+        let (e, e_control_before, e_control_after, e_masked) =
             fields.phase_e("fixture-native", &events, &keyboard);
 
         drop(fields);
@@ -4176,8 +4176,10 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
             format!(
                 "phase=E rounds={} counted_rounds={} letters_recorded={} tabs_recorded={} other_recorded={} \
                  letters_landed_in_the_password_field={} control_before={e_control_before} \
-                 control_after={e_control_after}",
+                 control_after={e_control_after} password_edit_masked={e_masked} \
+                 rounds_not_withheld_by_the_password_field={}",
                 e.rounds, e.counted, e.letters_recorded, e.tabs_recorded, e.other_recorded, e.letters_landed,
+                e.rounds_not_withheld_by_the_password_field,
             ),
         );
         say(
@@ -4219,6 +4221,17 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         assert_eq!(
             e.letters_recorded, 0,
             "phase E: a key typed right after Tab into the password field was recorded"
+        );
+        // W3-10 T1: on the masked edit, with the program acting at once, every
+        // letter and the Tab of a counted round are withheld with a Password
+        // reading, and none by NotClearedInTime or as Unknown.
+        assert!(
+            e_masked,
+            "INCONCLUSIVE: phase E's password edit was not masked at its start"
+        );
+        assert_eq!(
+            e.rounds_not_withheld_by_the_password_field, 0,
+            "phase E: a key of a counted round was not withheld by a reading of the password field"
         );
         assert_eq!(
             e.other_recorded, 0,

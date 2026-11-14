@@ -74,7 +74,10 @@ function reset() {
   plain.type = 'text'; password.type = 'password'; plain.value = ''; password.value = '';
   password.tabIndex = phase === 'tab-after' ? -1 : 0;
   c.text = 0; c.password = 0; c.tp = 0; c.tt = 0; c.downs = 0; c.round++;
-  armed = true;
+  // The burst's swap is armed 1 s after the reset, so that the control's
+  // letters before it go into the text input (W3-10 T5).
+  armed = phase !== 'burst';
+  if (phase === 'burst') later(1000, () => { armed = true; });
   if (phase === 'cold' || phase === 'show-hide' || phase === 'show-control') password.focus();
   else if (phase === 'swap-focus') { button.focus(); later(300, () => plain.focus()); }
   else plain.focus();
@@ -438,6 +441,11 @@ impl Keyboard {
     fn settle(&self, span: Duration) {
         let _ = self.events.drain_for(span);
     }
+
+    /// The keystroke events that reach the sink within `span`.
+    fn keystrokes_for(&self, span: Duration) -> usize {
+        count(&self.events.drain_for(span), Modality::Keystroke)
+    }
 }
 
 /// The element that the gate's last reading of a browser's process saw.
@@ -759,15 +767,6 @@ fn swap_round(
             std::thread::sleep(Duration::from_millis(300));
             i64::from(type_letters_slowly(5) / 2)
         }
-        "burst" => {
-            std::thread::sleep(Duration::from_millis(300));
-            let mut burst = Vec::new();
-            for _ in 0..5 {
-                burst.push(key_input(VK_A, false));
-                burst.push(key_input(VK_A, true));
-            }
-            i64::from(send(&burst) / 2)
-        }
         "show-hide" => {
             std::thread::sleep(Duration::from_millis(500));
             let first = i64::from(type_letters_slowly(3) / 2);
@@ -948,9 +947,42 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
         for round in 0..5 {
-            let (r, _) = swap_round(test, name, &keyboard, hwnd, "burst", round);
+            let start = reset(&keyboard, hwnd).unwrap_or_default();
+            let front = foreground_window() == hwnd;
+            // W3-10 T5: the control shows the gate open on the text input
+            // before the burst: its letters reach the sink.
+            let control_sent = i64::from(type_letters_slowly(3) / 2);
+            let control = keyboard.keystrokes_for(Duration::from_millis(600));
+            let _ = seam::take();
+            std::thread::sleep(Duration::from_millis(250));
+            let gate_before = keyboard.source.field_state();
+            let mut burst = Vec::new();
+            for _ in 0..5 {
+                burst.push(key_input(VK_A, false));
+                burst.push(key_input(VK_A, true));
+            }
+            let sent = i64::from(send(&burst) / 2);
+            let mut r = end_round(&keyboard, hwnd, sent, front);
+            let open = gate_before == Some(FieldState::Clear);
+            r.counted = front
+                && start.focus == "plain"
+                && control == 3
+                && open
+                && r.page.text == control_sent
+                && r.page.password == sent;
             counted += u32::from(r.counted);
-            recorded += r.password_letters_recorded();
+            let password_recorded = r.keys.letters as i64;
+            if r.counted {
+                recorded += password_recorded;
+            }
+            say(
+                test,
+                format!(
+                    "browser={name} phase=burst round={round} control_letters_sent={control_sent} \
+                     control_keystroke_events={control} gate_before_the_burst={gate_before:?} {}",
+                    r.line()
+                ),
+            );
         }
         let _ = keyboard.stop();
         say(
@@ -959,8 +991,8 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
-            counted >= 3,
-            "INCONCLUSIVE: the burst counted {counted} rounds"
+            counted >= 1,
+            "the burst counted no round that began from an open gate"
         );
     });
     total.load(Ordering::SeqCst)
