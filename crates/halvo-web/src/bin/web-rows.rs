@@ -119,18 +119,16 @@ fn epoch_us() -> u64 {
         .map_or(0, |d| d.as_micros() as u64)
 }
 
-/// Whether a crash handler that began at or after `since_us` still runs.
-fn handler_runs(since_us: u64) -> bool {
-    procs::table().unwrap_or_default().iter().any(|p| {
-        p.started_us >= since_us
-            && (p
-                .exe
-                .as_deref()
-                .and_then(|e| e.file_name())
-                .is_some_and(|n| n.to_string_lossy().contains("crashpad_handler"))
-                || halvo_web::checks::command_args(p.pid)
-                    .is_some_and(|a| a.iter().any(|x| x.contains("--type=crashpad-handler"))))
-    })
+/// The word of the crash handlers that began at or after `since_us` of the browser `program`:
+/// `runs`, `unread` or `gone` (`crash_row::handler_state`, CP-189 G8).
+fn handler_word(since_us: u64, program: &Path) -> &'static str {
+    let table = procs::table().ok();
+    crash_row::handler_state(
+        table.as_deref(),
+        since_us,
+        program,
+        &halvo_web::checks::command_args,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -208,11 +206,16 @@ async fn crash_reading_at(
     let waited = Instant::now();
     tokio::time::sleep(Duration::from_millis(500)).await;
     let handler = loop {
-        if !handler_runs(since_us) {
+        let word = handler_word(since_us, browser);
+        if word == "gone" {
             break "gone";
         }
         if waited.elapsed() > STOP_WAIT {
-            break "stop_wait";
+            break if word == "unread" {
+                "unread"
+            } else {
+                "stop_wait"
+            };
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     };

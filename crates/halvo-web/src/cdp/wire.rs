@@ -439,12 +439,13 @@ pub(crate) fn storage_fulfil(
         .build()
 }
 
-/// Whether `headers` hold a Location line, its name read without regard to the case of its
-/// letters.
+/// Whether `headers` hold a Location line with a value, its name read without regard to the case
+/// of its letters; a Location whose value is empty or blank names no place to go, so a 301 to 308
+/// with it is no redirect and gets the line (CP-189 G8).
 pub(crate) fn has_location(headers: &[HeaderEntry]) -> bool {
     headers
         .iter()
-        .any(|h| h.name.eq_ignore_ascii_case("location"))
+        .any(|h| h.name.eq_ignore_ascii_case("location") && !h.value.trim().is_empty())
 }
 
 /// What becomes of a response once its way was tried: sent when the browser took it, failed and

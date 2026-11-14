@@ -289,7 +289,9 @@ fn deciding(places: &[Place], f: &File) -> bool {
 
 /// The row's result of one system and browser (CP-165 (2) (b), CP-186 T2), read in this order:
 /// (a) `notrun` (`control_no_dump`) when the control's changed files hold no dump at a place that
-/// is no report place of the system, for then nothing showed that the browser's crash was taken;
+/// is neither a report place of the system nor the system's temporary directory, where another
+/// program may leave a dump during the control (CP-189 G8), for then nothing showed that the
+/// browser's crash was taken;
 /// (b) `miss` when the crash with the means left a file outside the profile, at a deciding place,
 /// that the start with no crash did not leave (`beyond`), when anything was sent after the crash
 /// (`sent`), or when the stop did not remove the profile and the temporary directory in the
@@ -298,7 +300,9 @@ fn deciding(places: &[Place], f: &File) -> bool {
 /// that its crash was taken (`Executor::crash` drops the command's answer), and also `miss`
 /// (`removed_outside`) when the reading with the means removed a file that stood before the
 /// row's first reading (`removals`, `deciding`); (d) `notrun`
-/// (`handler`) when its crash handler still ran when the listing was taken; (e) `ok`.
+/// (`handler`) when its crash handler's word is not `gone`: it still ran when the listing was
+/// taken, or the table or the arguments of the browser's process were unread (`handler_state`);
+/// (e) `ok`.
 pub fn result(
     places: &[Place],
     origin: &Listing,
@@ -309,7 +313,7 @@ pub fn result(
 ) -> Verdict {
     if !control
         .iter()
-        .any(|f| !f.removed && is_dump(f) && deciding(places, f))
+        .any(|f| !f.removed && is_dump(f) && deciding(places, f) && f.place != SYSTEM_TEMP)
     {
         return Verdict::of("notrun", "control_no_dump");
     }
@@ -339,25 +343,45 @@ pub fn result(
     Verdict::of("ok", "-")
 }
 
-/// The word of a reading's crash handler.
+/// The word of a reading's crash handler (CP-186 T2 (d), CP-189 G8), read from `table` for the
+/// processes that began at or after `since_us`: `runs` when one is a crash handler (its program's
+/// file name holds `crashpad_handler`, or an argument holds `--type=crashpad-handler`); `unread`
+/// when the table could not be read, or when the arguments of a process of the browser's
+/// `program` could not be read, for then nothing shows whether it is a handler (CP-145: an unread
+/// table is never an empty one); `gone` otherwise. The row reads every word but `gone` as notrun.
 pub fn handler_state(
     table: Option<&[crate::procs::Proc]>,
     since_us: u64,
-    _program: &Path,
+    program: &Path,
     args: &dyn Fn(u32) -> Option<Vec<String>>,
 ) -> &'static str {
-    let runs = table.unwrap_or_default().iter().any(|p| {
-        p.started_us >= since_us
-            && (p
-                .exe
-                .as_deref()
-                .and_then(|e| e.file_name())
-                .is_some_and(|n| n.to_string_lossy().contains("crashpad_handler"))
-                || args(p.pid)
-                    .is_some_and(|a| a.iter().any(|x| x.contains("--type=crashpad-handler"))))
-    });
-    if runs {
-        "runs"
+    let Some(table) = table else {
+        return "unread";
+    };
+    let program = program.to_string_lossy();
+    let mut unread = false;
+    for p in table.iter().filter(|p| p.started_us >= since_us) {
+        let named = p
+            .exe
+            .as_deref()
+            .and_then(|e| e.file_name())
+            .is_some_and(|n| n.to_string_lossy().contains("crashpad_handler"));
+        let a = args(p.pid);
+        if named
+            || a.as_ref()
+                .is_some_and(|a| a.iter().any(|x| x.contains("--type=crashpad-handler")))
+        {
+            return "runs";
+        }
+        let of_browser = p.exe.as_deref().is_some_and(|e| {
+            crate::checks::same_path_on(&e.to_string_lossy(), &program, cfg!(windows))
+        });
+        if of_browser && a.is_none() {
+            unread = true;
+        }
+    }
+    if unread {
+        "unread"
     } else {
         "gone"
     }
