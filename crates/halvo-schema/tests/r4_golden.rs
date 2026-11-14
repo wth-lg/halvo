@@ -468,7 +468,7 @@ impl Leaf {
 impl Drop for Leaf {
     fn drop(&mut self) {
         if let Some(line) = remove(&self.0) {
-            eprintln!("{line}");
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{line}\n"));
         }
     }
 }
@@ -741,4 +741,33 @@ fn leaf_of_a_comparison_that_matches_is_gone() {
         .filter(|name| name.starts_with(&own))
         .collect();
     assert!(left.is_empty(), "{left:?}");
+}
+
+#[test]
+fn leaf_removal_line_reaches_the_standard_error_of_the_process() {
+    if std::env::var(LEAF_CHILD).as_deref() == Ok("line") {
+        let held = leaf("r4-golden-leaf-line");
+        std::fs::remove_dir_all(held.path()).unwrap();
+        drop(held);
+        return;
+    }
+    let place = Path::new(env!("CARGO_TARGET_TMPDIR")).join("r4-golden-leaf-line-");
+    for nocapture in [false, true] {
+        let out = leaf_child(
+            "leaf_removal_line_reaches_the_standard_error_of_the_process",
+            "line",
+            nocapture,
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let lines: Vec<&str> = stderr
+            .lines()
+            .filter(|line| line.starts_with("leaf not removed: "))
+            .collect();
+        assert_eq!(lines.len(), 1, "nocapture {nocapture}: {stderr}");
+        assert!(
+            lines[0].contains(&place.display().to_string()),
+            "{}",
+            lines[0]
+        );
+    }
 }

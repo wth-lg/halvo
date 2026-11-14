@@ -141,7 +141,7 @@ impl Leaf {
 impl Drop for Leaf {
     fn drop(&mut self) {
         if let Some(line) = remove(&self.0) {
-            eprintln!("{line}");
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{line}\n"));
         }
     }
 }
@@ -348,4 +348,33 @@ fn leaf_whose_path_is_gone_drops_without_a_panic() {
     std::fs::remove_dir_all(held.path()).unwrap();
     let dropped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || drop(held)));
     assert!(dropped.is_ok());
+}
+
+#[test]
+fn leaf_removal_line_reaches_the_standard_error_of_the_process() {
+    if std::env::var(LEAF_CHILD).as_deref() == Ok("line") {
+        let held = leaf("r5-names-leaf-line");
+        std::fs::remove_dir_all(held.path()).unwrap();
+        drop(held);
+        return;
+    }
+    let place = Path::new(env!("CARGO_TARGET_TMPDIR")).join("r5-names-leaf-line-");
+    for nocapture in [false, true] {
+        let out = leaf_child(
+            "leaf_removal_line_reaches_the_standard_error_of_the_process",
+            "line",
+            nocapture,
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let lines: Vec<&str> = stderr
+            .lines()
+            .filter(|line| line.starts_with("leaf not removed: "))
+            .collect();
+        assert_eq!(lines.len(), 1, "nocapture {nocapture}: {stderr}");
+        assert!(
+            lines[0].contains(&place.display().to_string()),
+            "{}",
+            lines[0]
+        );
+    }
 }
