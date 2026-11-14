@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use halvo_schema::executable::{ActionClass, Digest, EffectId, EffectState};
 use serde_json::Value;
 
-use crate::not_made::followed;
+use crate::not_made::{followed, stopped_after};
 use crate::{effect_step, Decided, Decision, Effect, EffectMove, StepCause};
 
 fn traces() -> String {
@@ -127,6 +127,7 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
     let mut moves = 0u64;
     let mut differ = Vec::new();
     let mut met = BTreeSet::new();
+    let mut after_refused = 0u64;
     for line in lines {
         let trace: Value = match serde_json::from_str(line) {
             Ok(v) => v,
@@ -142,11 +143,16 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
             panic!("trace {n} has no moves");
         };
         let mut gone = false;
+        let mut refused_not_made = false;
         for (i, m) in steps.iter().enumerate() {
             moves += 1;
             if !followed(text(m, "move"), gone) {
-                gone = gone || (text(m, "move") == "not_made" && text(m, "answer") == "ok");
+                gone = stopped_after(gone, text(m, "move"), text(m, "answer") == "ok");
+                refused_not_made = refused_not_made || !gone;
                 continue;
+            }
+            if refused_not_made {
+                after_refused += 1;
             }
             let effect_class = class(text(m, "class"));
             let mv = step_move(m, effect_class);
@@ -184,6 +190,10 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
         }
     }
     assert_eq!(Some(traces), count, "the traces of the first line's count");
+    assert!(
+        after_refused > 0,
+        "effect_step was given {after_refused} moves after a refused not_made"
+    );
     assert!(
         differ.is_empty(),
         "effect_step differs from the model at {} of {moves} moves, first: {:?}",

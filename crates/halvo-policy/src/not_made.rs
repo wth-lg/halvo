@@ -53,3 +53,20 @@ impl NotMadeCause {
 pub(crate) fn followed(kind: &str, after_not_made: bool) -> bool {
     kind != "not_made" && !after_not_made
 }
+
+/// The stop after a move: set once a `not_made` move is accepted and kept from then on; a refused `not_made` leaves
+/// it as it was, so the moves after a refused one are still given to `effect_step` (the coordinator's rulings
+/// CP-144 (1) and CP-194, C3).
+pub(crate) fn stopped_after(after_not_made: bool, kind: &str, accepted: bool) -> bool {
+    after_not_made || (kind == "not_made" && accepted)
+}
+
+#[test]
+fn a_refused_not_made_does_not_stop_the_following_and_an_accepted_one_does() {
+    assert!(!stopped_after(false, "not_made", false));
+    assert!(stopped_after(false, "not_made", true));
+    assert!(!stopped_after(false, "begin", true));
+    assert!(!stopped_after(false, "lose", false));
+    assert!(stopped_after(true, "begin", false));
+    assert!(stopped_after(true, "not_made", false));
+}

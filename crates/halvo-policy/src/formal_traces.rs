@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use halvo_schema::executable::{ActionClass, Digest, EffectId, EffectState};
 use serde_json::Value;
 
-use crate::not_made::{followed, NotMadeCause};
+use crate::not_made::{followed, stopped_after, NotMadeCause};
 use crate::{effect_step, Decided, Decision, Effect, EffectMove};
 
 const MOVE_KEYS: [&str; 11] = [
@@ -515,7 +515,7 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
                             i + 1
                         ));
                     }
-                    gone = gone || (kind == NOT_MADE && m.ok);
+                    gone = stopped_after(gone, kind, m.ok);
                     continue;
                 }
                 let effect = now.map(|s| Effect {
