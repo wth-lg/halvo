@@ -77,7 +77,8 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
 TERM, INT or HUP stops the runner in every mode but --self-test, which keeps
 the traps of lib.sh and exits with the signal's status and no STOPPED line.
 From the first signal on the runner starts no new step of the run (it still
-waits for the running test as below, and it removes its scratch), prints
+waits for the running test or shielded step as below, and it removes its
+scratch), prints
 exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count line for
 a step that the signal ended, and exits with 143, 130 or 129 for that first
 signal. From the first signal on the runner ignores TERM, INT and HUP, and so
@@ -90,14 +91,17 @@ The line by phase:
   the read of the rows files, the name check    STOPPED mutation (signal S; no row had started)
   the print of --list                           STOPPED mutation (signal S; no row had started)
   the --only selection                          STOPPED mutation (signal S; no row had started)
-  the cargo build of the copy, unmutated        STOPPED mutation:<row> (signal S; no test was running)
-  or of a mutant                                or (signal S; the running build of the copy did not end within 60 s and was killed)
-  a gate check                                  STOPPED mutation:<row> (signal S; no test was running)
-                                                or (signal S; the running check-NAME did not end within 60 s and was killed)
+  a cargo build of the copy, ended in the bound STOPPED mutation:<row> (signal S; no test was running)
+  a cargo build of the copy, past the bound     STOPPED mutation:<row> (signal S; the running build of the copy did not end within 60 s and was killed)
+  a gate check, ended in the bound              STOPPED mutation:<row> (signal S; no test was running)
+  a gate check, past the bound                  STOPPED mutation:<row> (signal S; the running check-NAME did not end within 60 s and was killed)
   a short step of a row                         STOPPED mutation:<row> (signal S; no test was running)
   the test                                      STOPPED mutation:<row> (signal S; the running case was let end)
                                                 or (signal S; the running case did not end within 60 s and was killed)
   the tail: the expected list, the count line   STOPPED mutation:<last row> (signal S; no test was running)
+
+A cargo build of the copy is the unmutated build or the build of a mutant on a
+file that cargo builds; either one gives either form.
 
 A cargo test runs with TERM, INT and HUP ignored, so that its case runs to its
 end and its own guard removes what it made; a gate self-test case keeps them at
@@ -107,28 +111,42 @@ then it kills the group, and what the case made may be left; so it is under a
 caller that sends KILL sooner. A test runs with its standard input from
 /dev/null and QUIT ignored. A gate check and the cargo build of the copy
 (unmutated or of a mutant) run with TERM, INT and HUP ignored too, and with
-their standard input from /dev/null; on the signal the runner starts no next
-step and waits up to 60 s for that step to end, then stops it and every
-process below it by KILL, and the STOPPED line names it; what the step made
-may be left then, as under a caller that sends KILL sooner. The build of a
-mutant on any other file (sh -n, cc, perl -c, swiftc) is not shielded. A step
-that ends a child of its own by TERM, INT or HUP gets no such end under the
-shield: a verify child past its deadline ends by the check's KILL 5 s later.
+their standard input from /dev/null. TERM and HUP stay ignored for the whole
+step, but a compiler may set its own handler for INT: rustc does, so an INT
+to the group ends a running rustc, and that build reads as failed (FAIL
+unmutated:build, or the mutant does not build, never a caught row) and leaves
+nothing but the failed build in the throwaway copy. On the signal the runner
+starts no next step and waits up to 60 s for that step to end, then stops it
+and every process below it by KILL, and the STOPPED line names it; what the
+step made may be left then, as under a caller that sends KILL sooner. The
+build of a mutant on any other file (sh -n, cc, perl -c, swiftc) is not
+shielded. A step that ends a child of its own by TERM, INT or HUP gets no such
+end under the shield: a verify child past its deadline ends by the check's
+KILL 5 s later.
 Limits: a signal that comes after a test or a shielded step has started and
 before the runner waits for it is acted on when the step ends by itself, with
 its own limit (900 s for a cargo test, 300 s for a gate case, the check's own
 deadlines for a gate check, none for a build) as its bound; a signal that
-comes after the process of a shielded step has started and before that process
-has read that no signal was recorded lets the step start, and the runner waits
-for it as for a running step. The helper for timed runs sends KILL 5 s after
-its TERM, and at once when the runner has ended: under it a shielded step that
-needs longer than that is killed and what it made may be left. A
+comes after the runner has started the process of a shielded step lets the
+step start, because that process reads only the signals recorded before it
+started, and the runner waits for it as for a running step. The helper for
+timed runs sends KILL 5 s after its TERM, and at once when the runner has
+ended, so under it the shield lets a step end only when the step ends within
+5 s; a longer one is killed and what it made may be left. A
 step whose own exit status says that a signal ended it (129, 130, 137 or 143)
 is never read as an answer: with a signal of the runner's own within 2 s the
 run ends as a stop, and without one it ends with exit 2 and the line
   FAIL step:<step> (ended by signal S; the runner got no signal)
 A runner that was started with a signal ignored, as a shell does for INT in a
-background job, cannot trap that signal.
+background job, cannot trap that signal. After the first signal only KILL or
+QUIT ends the runner before its wait and the removal of its scratch are done.
+QUIT is not caught: it ends the runner at once with 131, no STOPPED line and
+its scratch left, and a shielded step or test runs on, because it was started
+with QUIT ignored. A KILL of the runner alone leaves its scratch too; a
+shielded step or test that was running goes on with TERM, INT and HUP ignored;
+a step that the kill at the bound had already stopped stays stopped while its
+process group has another member and goes on when the group is orphaned; KILL
+to each of its processes ends them.
 
 Exit status: 0 when no line is FAIL (and, with --strict, nothing is open),
 1 otherwise, 2 when a step that the runner needs failed (git, the copy of
