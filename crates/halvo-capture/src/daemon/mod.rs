@@ -874,6 +874,28 @@ mod tests {
         }
     }
 
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn a_release_build_refuses_the_three_gate_modes_as_usage() {
+        let dirs = dirs();
+        let d = dirs.store.as_str();
+        for line in [
+            &["--timed-run", "5", "--store-dir", d][..],
+            &[
+                "--verify-store",
+                "--store-dir",
+                d,
+                "--marker",
+                "M4rker.release",
+            ][..],
+            &["--verify-deletion", "--store-dir", d][..],
+        ] {
+            let refused = parse(args(line), &dirs.account);
+            assert!(refused.is_err(), "{line:?} gave {refused:?}");
+        }
+        assert_eq!(exit::USAGE, 64, "the binary's status for a usage refusal");
+    }
+
     #[cfg(unix)]
     #[test]
     fn an_argument_that_is_not_utf8_gives_usage() {

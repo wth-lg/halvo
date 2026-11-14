@@ -1,9 +1,10 @@
 #!/bin/sh
 # jobs: macos
-# rule: The ignored test two_million_floor_records_grow_the_owner_by_at_most_the_bound runs in a release build of the lib's tests, passes as exactly one test and prints its growth line over 2,000,000 records with the child's elapsed_ms; its heap bytes-in-use line is printed and not held (ruling DM-10).
+# rule: The ignored test two_million_floor_records_grow_the_owner_by_at_most_the_bound runs in a release build of the lib's tests, passes as exactly one test and prints its growth line over 2,000,000 records with the child's elapsed_ms; its heap bytes-in-use line is printed and not held (ruling DM-10); and in the same build the test a_release_build_refuses_the_three_gate_modes_as_usage, which exists without debug assertions alone, passes as exactly one test with its seconds printed.
 set -u
 name=26-daemon-owner-growth
 test_name=daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound
+release_test=daemon::tests::a_release_build_refuses_the_three_gate_modes_as_usage
 growth_pattern='owner_growth_bytes=[0-9][0-9]* records=2000000 elapsed_ms=[0-9][0-9]*'
 
 fail() {
@@ -11,13 +12,16 @@ fail() {
   exit 1
 }
 
-outcome_defect() {
+count_defect() {
   [ "$1" -eq 0 ] || { printf 'cargo test exited %s\n' "$1"; return 1; }
   counts=$(awk '/^test result: / { for (i = 1; i < NF; i++) { if ($(i + 1) == "passed;") p += $i; if ($(i + 1) == "failed;") f += $i } } END { print p + 0, f + 0 }' "$2")
-  if [ "$counts" != '1 0' ]; then
-    printf 'the filter ran %s passed and %s failed tests, and exactly 1 must pass\n' "${counts% *}" "${counts#* }"
-    return 1
-  fi
+  [ "$counts" = '1 0' ] && return 0
+  printf 'the filter ran %s passed and %s failed tests, and exactly 1 must pass\n' "${counts% *}" "${counts#* }"
+  return 1
+}
+
+outcome_defect() {
+  count_defect "$1" "$2" || return 1
   grep -q -o "$growth_pattern" "$2" && return 0
   printf 'the test printed no growth line over 2,000,000 records\n'
   return 1
@@ -32,6 +36,11 @@ measure() {
   growth=$(grep -m 1 -o "$growth_pattern" "$CI_D_ARTIFACTS/test.txt")
   [ -z "$growth" ] || printf '%s\n' "$growth"
   found=$(outcome_defect "$code" "$CI_D_ARTIFACTS/test.txt") || fail "$found"
+  cargo test --release --locked -p halvo-capture --lib -- --exact "$release_test" > "$CI_D_ARTIFACTS/release-modes.txt" 2>&1
+  code=$?
+  result=$(grep -m 1 '^test result: ' "$CI_D_ARTIFACTS/release-modes.txt")
+  printf 'release refusal of the gate modes: %s\n' "${result:-no result line}"
+  found=$(count_defect "$code" "$CI_D_ARTIFACTS/release-modes.txt") || fail "the release refusal of the gate modes: $found"
   printf 'PASS %s\n' "$name"
 }
 
@@ -39,6 +48,14 @@ case_of() {
   printf '%s\n' "$3" > "$work/$1"
   got=PASS
   outcome_defect "$2" "$work/$1" > /dev/null || got=FAIL
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$4" "$got"
+  if [ "$got" != "$4" ]; then wrong="$wrong $1"; elif [ "$4" = FAIL ]; then rejected=$((rejected + 1)); fi
+}
+
+case_release() {
+  printf '%s\n' "$3" > "$work/$1"
+  got=PASS
+  count_defect "$2" "$work/$1" > /dev/null || got=FAIL
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$4" "$got"
   if [ "$got" != "$4" ]; then wrong="$wrong $1"; elif [ "$4" = FAIL ]; then rejected=$((rejected + 1)); fi
 }
@@ -79,6 +96,18 @@ $growth
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 554 filtered out; finished in 32.00s" FAIL
   case_of exit-101-after-a-pass-line 101 "$passed" FAIL
   case_of no-result-line 0 'error: could not compile' FAIL
+  case_release release-test-passed 0 "running 1 test
+test daemon::tests::a_release_build_refuses_the_three_gate_modes_as_usage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 557 filtered out; finished in 0.00s" PASS
+  case_release release-test-absent-as-in-a-debug-build 0 'running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 558 filtered out; finished in 0.00s' FAIL
+  case_release release-test-failed 101 "running 1 test
+test daemon::tests::a_release_build_refuses_the_three_gate_modes_as_usage ... FAILED
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 557 filtered out; finished in 0.01s" FAIL
+  case_release release-test-no-result-line 0 'error: could not compile' FAIL
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
