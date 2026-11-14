@@ -38,7 +38,10 @@ link come from it. A change elsewhere in the workspace does not need them.
    was wrapped under the same root. The one exception is an error whose
    report says that the root step itself failed: the report then names the
    root that stays, every later step was still tried, and the next
-   delete-all on the same handle destroys that root. `Ok` means that the
+   delete-all on the same handle destroys that root while the roots
+   directory holds a file that can be that root's at its own name (the
+   witness); a root renamed aside, or a roots directory that left its name,
+   stays left and is named (ruling ST-46 K5). `Ok` means that the
    directory holds no store. An error carries a report that says of the
    root, the key file, the database files and the count of segment files
    what is on disk, and no step after the one that failed was skipped.
@@ -1284,11 +1287,13 @@ What the code does since store-3, each sentence with the test that shows it.
   entry stands at `store.key` and `store.key.tmp` after the call, never that
   this call removed a key file (ruling ST-46 K1). A directory of the store that
   cannot be removed is counted in `files_left`. The tail on a store
-  directory that it cannot open, or whose lock it cannot take for a reason
-  other than a holder, runs the root step without the lock and answers
-  `DeleteIncomplete` with `key_file_gone` no and the store's files as left;
-  its root reads destroyed only when the step itself found and destroyed
-  it. `Locked` stays `Locked` with nothing done, and on Windows a sharing
+  directory that it cannot open runs no root step: the root reads left, the
+  roots read not listed, and it answers `DeleteIncomplete` with
+  `key_file_gone` no and the store's files as left. The tail whose lock it
+  cannot take for a reason other than a holder runs the root step for the
+  named root alone, with its witness, and answers the same; its root reads
+  destroyed only when the step itself found and destroyed it (ruling ST-45
+  H1, ST-46 K5). `Locked` stays `Locked` with nothing done, and on Windows a sharing
   violation at the open of the store directory or of `writer.lock` is
   `Locked` (ruling ST-44 F2, ST-41 (3)). Tests:
   `a_partial_root_file_with_the_root_bytes_that_stays_leaves_delete_all_ok`,
@@ -1345,12 +1350,23 @@ What the code does since store-3, each sentence with the test that shows it.
   `an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_clears_it`,
   `an_open_answers_a_fifo_or_a_link_at_create_pending_and_a_fifo_at_its_root_within_a_bound`.
 - The kill table `a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind`
-  ends a child before each counted file-system call of write, write then a
-  pass, shred, delete-all, create and open (216 calls in the last run of
-  the builder on the Mac of the team) and finds each end state true. It
-  reads the end state of the unkilled run of each operation too, and of a
-  finished delete-all: `store.key` gone, the named root gone and the old
-  wrapped key no longer unwraps. A partial root file counts as a root
+  ends a child once before each counted call of write, write then a pass,
+  shred, delete-all, create and open, and finds each end state true: 222
+  rows at the round's head (write 30, write then pass 30, shred 22,
+  delete-all 40, create 87, open 13), printed by the run of the test at
+  752a5f45 on the Mac of the team (`KILL rows=222`) and by the hosted macos
+  job of scratch/r1-store-3-11. The interposer counts write, pwrite,
+  ftruncate, fsync, fcntl, rename, unlink, unlinkat, rmdir, mkdir, renameat,
+  linkat, mkdirat and fchmod; it does not count `openat` with the create
+  flag (the create of every new file), `fchmodat`, `flock`, or any path
+  call of SQLite under the volume form, its removal of `store.db-wal` among
+  them, so no kill falls before those. It reads the end state of the
+  unkilled run of each operation too: of a finished delete-all,
+  `store.key` gone, the named root gone and the old wrapped key no longer
+  unwraps; of the shred, every expired segment's key row NULL and its read
+  answering `Sealed`. After a kill in write, write then a pass, shred or
+  open the store opens; no row of those names another answer (ruling
+  ST-46 K4 (b)). A partial root file counts as a root
   file, and a pending mark that reads owed names no root; a row of a create
   killed between its `create_root` and the second write of its mark is the
   named limit (i) of ruling ST-44 F3 and prints it, and one row that starts
@@ -1393,7 +1409,9 @@ What the code does since store-3, each sentence with the test that shows it.
 - A code of SQLite at an open or a create is answered after one more look
   through the handle, by one table on the primary code: 11 and 26
   `DatabaseUnreadable`, 13 `Io(StorageFull)`, 5 and 6 `Locked`, every other
-  code `Io(Other)` (`code_answer`, store/db.rs).
+  code `Io(Other)` (`code_answer`, store/db.rs). `verify_key` and
+  `require_schema` (through `unreadable_or_db_error`) are two further
+  places that map a code, beside that table (ruling ST-46 K5 N8).
 
 The swap race of `the_swap_race_counts_in_both_windows_under_the_volume_name`
 (P8) has no pass condition. Its counts on the Mac of the team, 20 rounds for
@@ -1437,7 +1455,11 @@ set, and the root's own volume name answers the root.
   capability and the stat of its root under its own number, and takes the
   kept name only on a volume that reads NO before and after that answer,
   where the limit of ruling ST-30 (1)(b) stands; this Mac's data volume
-  reads YES on all three, so the NO branch is shown by a seam alone. A
+  reads YES on all three, so the NO branch is shown by a seam alone. On a
+  volume that does not say whether it keeps file numbers (its reading is
+  UNKNOWN) the store does not open, and the answer reads as a directory
+  that left its name, `Obstructed { StoreDirectory, DirectoryNotAtItsName }`,
+  although the directory still stands at its name (ruling ST-46 K5 N3). A
   program of the same user that writes into the store directory can make
   both instants of the log's check read as it likes. L3: a directory that is removed, or moved to
   another volume, while a connection is open answers `Obstructed` for the
@@ -1499,7 +1521,14 @@ set, and the root's own volume name answers the root.
   file, because the protected form has no fixed length. A root file that a
   program renamed aside, with a file of the right length put at its name,
   reads destroyed while the renamed file can still unwrap; binding the
-  reading to the file's identity is store-3b's. A rename alone, or with a
+  reading to the file's identity is store-3b's. So does a directory put at
+  the old roots name that holds a file of the root file's length at the
+  root's name: that file is the witness, the handle's delete destroys every
+  root file there and reads its own root destroyed while the moved root
+  still unwraps. It needs a program that puts that file there; store-3b's
+  held handle and the identity of the roots directory close it, and
+  store-3b takes the case as a test that fails first (ruling ST-46 K6, the
+  verifier's issue 3). A rename alone, or with a
   link, an empty file or a file of another length put at the name, reads
   left, because the step's own look met no root file there (ruling ST-46
   K1). `destroy_root_at`, which the cleanup of a create and the custody's
