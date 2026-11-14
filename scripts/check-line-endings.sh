@@ -360,7 +360,7 @@ self_test() {
   expect 'the same file is accepted once .gitattributes holds that line' 0 "$(pass_line 1)"
 
   start_fixture_with_the_lines_of_this_repository() {
-    start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf' 'docs/baseline/r1-gate-bounds.txt text eol=lf' 'mutants.rows text eol=lf' 'mutants.expected text eol=lf'
+    start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf' 'docs/baseline/r1-gate-bounds.txt text eol=lf' 'mutants.rows text eol=lf' 'mutants.expected text eol=lf' '/scripts/r3/egress/fixtures.txt text eol=lf'
   }
 
   start_fixture_with_the_lines_of_this_repository

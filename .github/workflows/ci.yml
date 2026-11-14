@@ -168,7 +168,7 @@ jobs:
           if [ -n "$crlf_files" ]; then
             echo "git checked out these files with CRLF:"
             echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
+            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf' and '/scripts/r3/egress/fixtures.txt text eol=lf', and no later line may take eol=lf from these files."
             exit 1
           fi
           sh scripts/check-commit-messages.sh --self-test
