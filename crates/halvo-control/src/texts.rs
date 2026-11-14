@@ -688,10 +688,10 @@ mod tests {
         value: &'static str,
         state: crate::proto::SourceState,
         mark: bool,
-        keyboard: Option<&'static str>,
-        screen: Option<&'static str>,
-        class: &'static str,
-        why_off: &'static str,
+        windows_keyboard_sentence: Option<&'static str>,
+        screen_sentence_while_off: Option<&'static str>,
+        typing_class: &'static str,
+        screen_why_while_off: &'static str,
     }
 
     const WHY_ON: &str = "lets Halvo note screen activity, a record that the screen changed with no stored image; system audio stays off";
@@ -708,14 +708,20 @@ mod tests {
         };
         let stopped = SourceState::Stopped { by_user: false };
         let by_user = SourceState::Stopped { by_user: true };
-        let row = |value, state, mark, keyboard, screen, class, why_off| LineRow {
+        let row = |value,
+                   state,
+                   mark,
+                   windows_keyboard_sentence,
+                   screen_sentence_while_off,
+                   typing_class,
+                   screen_why_while_off| LineRow {
             value,
             state,
             mark,
-            keyboard,
-            screen,
-            class,
-            why_off,
+            windows_keyboard_sentence,
+            screen_sentence_while_off,
+            typing_class,
+            screen_why_while_off,
         };
         vec![
             row(
@@ -878,8 +884,8 @@ mod tests {
             value,
             state,
             mark,
-            keyboard,
-            screen,
+            windows_keyboard_sentence,
+            screen_sentence_while_off,
             ..
         } in line_rows()
         {
@@ -892,7 +898,10 @@ mod tests {
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
-                            keyboard.map(|t| (KeyClass, t)).into_iter().collect(),
+                            windows_keyboard_sentence
+                                .map(|t| (KeyClass, t))
+                                .into_iter()
+                                .collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
                         ]
                         .concat(),
@@ -906,7 +915,10 @@ mod tests {
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
-                            keyboard.map(|t| (KeyClass, t)).into_iter().collect(),
+                            windows_keyboard_sentence
+                                .map(|t| (KeyClass, t))
+                                .into_iter()
+                                .collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
                         ]
                         .concat(),
@@ -924,7 +936,10 @@ mod tests {
                                 (KeyClass, KEY_CLASS_ON),
                                 (PointerClass, POINTER_ON),
                             ],
-                            screen.map(|t| (ScreenActivity, t)).into_iter().collect(),
+                            screen_sentence_while_off
+                                .map(|t| (ScreenActivity, t))
+                                .into_iter()
+                                .collect(),
                         ]
                         .concat(),
                     ),
@@ -941,7 +956,10 @@ mod tests {
                                 (KeyClass, K0),
                                 (PointerClass, POINTER_ON),
                             ],
-                            screen.map(|t| (ScreenActivity, t)).into_iter().collect(),
+                            screen_sentence_while_off
+                                .map(|t| (ScreenActivity, t))
+                                .into_iter()
+                                .collect(),
                         ]
                         .concat(),
                     ),
@@ -997,7 +1015,7 @@ mod tests {
                     value,
                     state,
                     mark,
-                    class,
+                    typing_class,
                     ..
                 } in line_rows()
                 {
@@ -1014,7 +1032,7 @@ mod tests {
                         ],
                         guard,
                     );
-                    let want = cell(platform, guard, class);
+                    let want = cell(platform, guard, typing_class);
                     let want_typed_ahead = (want == PM).then_some(TA);
                     let got = texts(&status);
                     if got.passwords != want {
@@ -1078,7 +1096,7 @@ mod tests {
                 value,
                 state,
                 mark,
-                why_off,
+                screen_why_while_off,
                 ..
             } in line_rows()
             {
@@ -1091,7 +1109,11 @@ mod tests {
                     on,
                     PasswordGuard::Os,
                 );
-                let want = if switch_on { WHY_ON } else { why_off };
+                let want = if switch_on {
+                    WHY_ON
+                } else {
+                    screen_why_while_off
+                };
                 let held = &status.fields().onboarding.permissions;
                 let got = onboarding_rows(&status);
                 let mut want_rows = held.clone();
