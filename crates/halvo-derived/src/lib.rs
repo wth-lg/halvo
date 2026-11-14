@@ -75,8 +75,9 @@
 //! - A request is not one transaction of the database: each typed commit and the state call commits on its own, and a
 //!   stop between two of them leaves the earlier ones stored; so does an error answer or a panic of a handler behind an
 //!   earlier store of the same request.
-//! - An open fails while its entries give a stored kind another retention class, or a workflow key under which a
-//!   stored row names another workflow than its workflow column holds; the crate holds no migration for either.
+//! - An open fails while its entries give a stored kind another retention class or another family, a workflow key
+//!   under which a stored row names another workflow than its workflow column holds, or no workflow key while a
+//!   stored row of the kind names a workflow; the crate holds no migration for any of them.
 //! - A summary one or two days after the clock's day is stored and counted in the report, and no step sees it until
 //!   the clock reaches its day.
 //! - The list of the check `scripts/r2/ci.d/50-derived.sh` names the crate's tests by hand. The check runs the crate's
@@ -141,8 +142,9 @@ impl Store {
     /// write-ahead log, foreign keys, the page-cache cap) does not read back as set from the store's one connection,
     /// the connection of all its writes and reads, after it sets it, and when an existing database holds another
     /// schema. It also fails, with `OpenError::Stored`, before it writes anything, where rows of a kind
-    /// are stored that the kind's entry cannot follow: rows stored under another retention class than the entry gives,
-    /// or rows that the store deletes with one workflow while their record names another, or none, under the entry's
+    /// are stored that the kind's entry cannot follow: rows stored under another retention class or another family
+    /// than the entry gives, rows that the store deletes with one workflow while their record names another, or none,
+    /// under the entry's workflow key, or rows that the store deletes with a workflow while the entry gives no
     /// workflow key; an open with the earlier entry then works as before. The tables and their indexes are created
     /// only in a database that holds no table. At every open the store reconciles: it runs the truncating checkpoint,
     /// adds a revision of 0 for each family of `entries` that has none, fills the workflow column of each row of a

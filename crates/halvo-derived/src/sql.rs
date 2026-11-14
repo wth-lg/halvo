@@ -173,6 +173,7 @@ catalogue! {
     EXPIRE_WINDOW = concat!("SELECT id, family FROM rows WHERE ", expiry_has_come!("rows"));
     BOUND_GONE = "UPDATE rows SET gone = day + ?2 WHERE kind = ?1 AND gone > day + ?2";
     STORED_OTHER_CLASS = "SELECT id FROM rows WHERE kind = ?1 AND class <> ?2 LIMIT 1";
+    STORED_OTHER_FAMILY = "SELECT id FROM rows WHERE kind = ?1 AND family <> ?2 LIMIT 1";
     STORED_OTHER_WORKFLOW = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL \
         AND json_extract(body, ?2) IS NOT workflow LIMIT 1";
     STORED_WORKFLOW_HELD = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL LIMIT 1";

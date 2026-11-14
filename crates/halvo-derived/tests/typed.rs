@@ -936,6 +936,37 @@ fn an_open_refuses_an_entry_that_drops_the_workflow_key_of_stored_rows_and_chang
     assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
 }
 
+static PAIR_FAMILY: KindEntry = KindEntry {
+    family: "test_other",
+    ..PAIR_A
+};
+
+/// C3.9 (the review of U5.1b, its P5; U5.1d, part 5): an entry that gives a stored kind another family makes the open
+/// fail by name before it writes anything: with the clock past every bound, the rows, the revisions (no revision of
+/// the new family among them) and meta are as they were, and an open with the earlier entry opens as before.
+#[test]
+fn an_open_refuses_an_entry_that_gives_a_stored_kind_another_family_and_changes_nothing() {
+    let scratch = Scratch::new("pair-other-family");
+    let clock = TestClock::at_day(DAY);
+    let (first, second) = two_workflows(&scratch, &clock);
+    pair(&scratch, &clock, &first, &second);
+    let before = tables(&scratch);
+    clock.set_day(DAY + 400);
+    let refused =
+        open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_FAMILY]).map(drop);
+    assert_eq!(
+        refused,
+        Err(OpenError::Stored {
+            kind: "test_pair",
+            fault: StoredFault::Family,
+        })
+    );
+    assert_eq!(tables(&scratch), before);
+    clock.set_day(DAY);
+    drop(open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_A]).unwrap());
+    assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
+}
+
 #[test]
 fn a_window_record_that_names_one_segment_twice_is_stored_once_and_goes_with_its_purge() {
     let scratch = Scratch::new("segment-twice");

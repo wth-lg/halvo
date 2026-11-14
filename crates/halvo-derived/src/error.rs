@@ -82,6 +82,8 @@ pub enum StoredFault {
     WorkflowKey,
     /// The entry gives no workflow key while a stored row of the kind names the workflow that it is deleted with.
     DroppedWorkflowKey,
+    /// The entry gives another family than a stored row of the kind was stored under.
+    Family,
 }
 
 impl fmt::Display for OpenError {
@@ -123,6 +125,13 @@ impl fmt::Display for OpenError {
             } => write!(
                 f,
                 "rows of the kind {kind} name a workflow while its entry gives no workflow key"
+            ),
+            OpenError::Stored {
+                kind,
+                fault: StoredFault::Family,
+            } => write!(
+                f,
+                "rows of the kind {kind} are stored under another family than its entry gives"
             ),
             OpenError::Fault(fault) => fault.fmt(f),
         }

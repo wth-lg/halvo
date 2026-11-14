@@ -562,7 +562,7 @@ impl Db {
     }
 
     /// Refuses the open, before anything is written, where stored rows of a kind cannot follow its entry: a row stored
-    /// under another retention class than the entry gives, a row whose workflow column holds an id while its record
+    /// under another retention class or another family than the entry gives, a row whose workflow column holds an id while its record
     /// holds no id, or another one, under the entry's workflow key, or, for an entry that gives no workflow key, a row
     /// whose workflow column holds an id. A row whose workflow column is null is no fault under an entry that gives a
     /// key: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow run among them.
@@ -578,6 +578,18 @@ impl Db {
                 return Err(OpenError::Stored {
                     kind: entry.name,
                     fault: StoredFault::Class,
+                });
+            }
+            let family = one(
+                &self.conn,
+                sql::STORED_OTHER_FAMILY,
+                rusqlite::params![entry.name, entry.family],
+                |r| r.get::<_, i64>(0),
+            )?;
+            if family.is_some() {
+                return Err(OpenError::Stored {
+                    kind: entry.name,
+                    fault: StoredFault::Family,
                 });
             }
             let found = match entry.workflow_key {
