@@ -445,7 +445,7 @@ fn compose_takes_and_refuses_each_fixture_of_the_reader_as_the_reader_does() {
     let names: std::collections::BTreeSet<&str> = cases.iter().map(|c| c.0.as_str()).collect();
     assert_eq!(
         cases.len(),
-        155,
+        158,
         "the cases of tools/fixture-server/site-cases.jsonl"
     );
     assert_eq!(names.len(), cases.len());

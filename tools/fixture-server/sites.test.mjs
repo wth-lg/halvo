@@ -619,7 +619,7 @@ test('checker: usage and parameters refusals', () => {
 test('site data: every case of the shared list of crates/halvo-sample gets its verdict and its rule here', () => {
   const dir = scratch();
   const cases = sharedCases();
-  assert.equal(cases.length, 155);
+  assert.equal(cases.length, 158);
   assert.equal(new Set(cases.map((c) => c.name)).size, cases.length);
   assert.equal(new Set(cases.map((c) => caseKey(c.files))).size, cases.length);
   for (const [k, c] of cases.entries()) {
