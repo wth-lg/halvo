@@ -685,7 +685,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
 
     fn fail(&mut self, fault: WriteFault, now: Instants) {
         self.frozen = true;
-        let counted = !matches!(fault, WriteFault::Io(_)) && !fault.is_no_space();
+        let counted = counts_toward_tries(fault);
         let cause = cause_of(fault);
         let (retry_at, delay, same, since, changed) = match self.drain {
             Drain::Healthy => (
@@ -765,12 +765,33 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 }
 
+/// SQLite's primary codes that are of the class of Io at a write: I/O (10),
+/// busy (5) and locked (6) (contracts.md C11.3; ruling PR-30 PR4).
+const DB_CODES_OF_THE_IO_CLASS: [i32; 3] = [10, 5, 6];
+
+/// The counted class at a write: the primary codes of the open's sealed row
+/// of contracts.md C11.3, corrupt (11) and not a database (26), and 0, the
+/// code of a failed mint of the segment id. Any other code is held and not
+/// counted. Nothing holds this list in step with the store's own table.
+const DB_CODES_COUNTED: [i32; 3] = [11, 26, 0];
+
+/// Whether a write's fault counts toward the three tries of
+/// REJECT_AFTER_SAME_FAULTS.
+fn counts_toward_tries(fault: WriteFault) -> bool {
+    match fault {
+        WriteFault::Db(code) => DB_CODES_COUNTED.contains(&(code & 0xff)),
+        WriteFault::Refused | WriteFault::Sealed => true,
+        WriteFault::Io(_) | WriteFault::AlreadyWritten { .. } => false,
+    }
+}
+
 fn cause_of(fault: WriteFault) -> DrainCause {
     if fault.is_no_space() {
         return DrainCause::NoSpace;
     }
     match fault {
         WriteFault::Io(_) => DrainCause::Io,
+        WriteFault::Db(code) if DB_CODES_OF_THE_IO_CLASS.contains(&(code & 0xff)) => DrainCause::Io,
         WriteFault::AlreadyWritten { .. }
         | WriteFault::Refused
         | WriteFault::Db(_)
@@ -1141,6 +1162,59 @@ mod tests {
             0,
             "an I/O fault dropped the batch"
         );
+    }
+
+    #[test]
+    fn the_class_of_each_write_fault_counts_and_names_it() {
+        let table = [
+            (WriteFault::Db(5), false, DrainCause::Io),
+            (WriteFault::Db(6), false, DrainCause::Io),
+            (WriteFault::Db(10), false, DrainCause::Io),
+            (WriteFault::Db(266), false, DrainCause::Io),
+            (WriteFault::Db(11), true, DrainCause::Db),
+            (WriteFault::Db(26), true, DrainCause::Db),
+            (WriteFault::Db(0), true, DrainCause::Db),
+            (WriteFault::Db(1), false, DrainCause::Db),
+            (WriteFault::Db(13), false, DrainCause::NoSpace),
+            (WriteFault::Io(io::ErrorKind::Other), false, DrainCause::Io),
+            (WriteFault::Refused, true, DrainCause::Db),
+            (WriteFault::Sealed, true, DrainCause::Db),
+        ];
+        for (fault, counted, cause) in table {
+            assert_eq!(
+                (counts_toward_tries(fault), cause_of(fault)),
+                (counted, cause),
+                "{fault:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn three_due_tries_answered_busy_leave_the_batch_held() {
+        let mut harness = Harness::new();
+        let busy = WriteFault::Db(5);
+        harness.store.script_writes([
+            WriteScript::Fail(busy),
+            WriteScript::Fail(busy),
+            WriteScript::Fail(busy),
+        ]);
+        resumed(&mut harness);
+        for _ in 0..5 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 3);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            snapshot.events_lost, 0,
+            "three busy answers dropped the batch"
+        );
+        assert_eq!(snapshot.events_pending, 5);
+        assert!(rejected(&harness).is_empty());
     }
 
     #[test]
