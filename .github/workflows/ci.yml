@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -16,7 +17,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,39 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r7-backend-static 21-r7-backend-test 23-r7-machine-paths 24-r7-wall 10-r7-layout 20-r7-stub 25-r7-backend-licenses 26-r7-pnpm-step
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r7-backend-static 21-r7-backend-test 23-r7-machine-paths 24-r7-wall 10-r7-layout 20-r7-stub 25-r7-backend-licenses 26-r7-pnpm-step
+      - name: Unit 5.6 tests in a loop
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        env:
+          LOOP_N: "200"
+          WORKERD_N: "20"
+        run: |
+          set +e
+          cd backend
+          node_files="test/metering/delete-order.node.test.ts test/metering/delete-bound-engines.node.test.ts test/contract/entries.node.test.ts test/metering/cuts.node.test.ts"
+          node_line='Tests  94 passed (94)'
+          start=$(date +%s)
+          node_pass=0
+          i=0
+          while [ "$i" -lt "$LOOP_N" ]; do
+            i=$((i + 1))
+            out=$(node_modules/.bin/vitest run --project node $node_files 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+            if printf '%s\n' "$out" | grep -qF "$node_line"; then node_pass=$((node_pass + 1)); else printf '%s\n' "$out" | grep -E 'FAIL|Tests ' | head -20; fi
+          done
+          node_end=$(date +%s)
+          workerd_pass=0
+          i=0
+          while [ "$i" -lt "$WORKERD_N" ]; do
+            i=$((i + 1))
+            out=$(sh scripts/with-env.sh node_modules/.bin/vitest run --project workerd test/metering/delete-bound-engines.test.ts 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
+            if printf '%s\n' "$out" | grep -qF 'Tests  1 passed (1)'; then workerd_pass=$((workerd_pass + 1)); else printf '%s\n' "$out" | grep -E 'FAIL|Tests |Error' | head -20; fi
+          done
+          end=$(date +%s)
+          echo "unit 5.6 loop: node runs=$LOOP_N passed=$node_pass seconds=$((node_end - start)); workerd runs=$WORKERD_N passed=$workerd_pass seconds=$((end - node_end))"
+          [ "$node_pass" = "$LOOP_N" ] && [ "$workerd_pass" = "$WORKERD_N" ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -144,21 +151,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r7-backend-static 23-r7-machine-paths 24-r7-wall 10-r7-layout 20-r7-stub 26-r7-pnpm-step
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r7-backend-static 23-r7-machine-paths 24-r7-wall 10-r7-layout 20-r7-stub 26-r7-pnpm-step
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
