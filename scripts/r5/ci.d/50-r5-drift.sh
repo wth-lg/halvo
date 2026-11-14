@@ -622,6 +622,8 @@ self_test() {
   set_rejected set-line-missing
   awk '/^set=heldout$/ { h = 1 } /^PASS / { p = 1 } { if (p) tail = tail $0 "\n"; else if (h) held = held $0 "\n"; else dev = dev $0 "\n" } END { printf "%s%s%s", held, dev, tail }' "$work/two-sets.out" >"$work/sets-in-the-other-order.out" || broken
   set_rejected sets-in-the-other-order
+  awk '/^spread=/ { next } { print } /^set=dev$/ { print "spread=same" }' "$work/two-sets.out" >"$work/spread-below-dev.out" || broken
+  set_rejected spread-below-dev
 
   fixture one-set
   check PASS 'readers same=2 of=2'
