@@ -114,6 +114,10 @@ check() {
     STUB_CALLS=$work/$1/calls
     TMPDIR=$work/$1/tmp
     export CI_D_REPO STUB_CALLS TMPDIR
+    if [ -n "$dates" ]; then
+      PATH=$work/$dates/bin:$PATH
+      export PATH
+    fi
     unset GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA
     if [ -n "$event" ]; then
       GITHUB_EVENT_NAME=$event
@@ -158,6 +162,7 @@ check() {
   ref=refs/heads/a-branch
   sha=$commit1
   script=$0
+  dates=
 }
 
 signalled() {
@@ -214,6 +219,16 @@ runner() {
 }
 
 # shellcheck disable=SC2016
+stand_in_date() {
+  mkdir -p "$work/$1/bin" || exit 2
+  dates=$1
+  shift
+  printf '%s\n' "$@" >"$work/$dates/bin/date.values" || exit 2
+  printf '%s\n' '#!/bin/sh' 'here=${0%/*}' 'n=0' '[ ! -f "$here/date.n" ] || read -r n <"$here/date.n"' 'n=$((n + 1))' 'printf "%s\n" "$n" >"$here/date.n"' 'sed -n "${n}p" "$here/date.values"' >"$work/$dates/bin/date" || exit 2
+  chmod +x "$work/$dates/bin/date" || exit 2
+}
+
+# shellcheck disable=SC2016
 self_test() {
   make_scratch
   work=$scratch
@@ -235,6 +250,7 @@ self_test() {
   counted='mutation rows: 1 caught, 0 failed, 0 open, 0 transitional, 0 for the measuring Mac not run, 0 expected names with no row'
   rejected=0
   wrong=
+  dates=
   event=push
   ref=refs/heads/a-branch
   sha=$commit1
@@ -246,6 +262,12 @@ self_test() {
   check rows-type-checked-and-timed PASS "PASS mutation:shredded-key-survives (applies and type-checks)${nl}phase apply-only " "$apply_only"
   runner anchor-moved "$only; printf \"PASS mutation:checkpoint-not-verified (applies and type-checks)\\nFAIL mutation:shredded-key-survives (the substitution did not apply)\\n\"; exit 1"
   check anchor-moved FAIL 'mutation-test.sh --apply-only exited 1: FAIL mutation:shredded-key-survives (the substitution did not apply))' "$apply_only"
+  runner rows-apply-timed-by-the-clock "$applies; exit 9"
+  stand_in_date rows-apply-timed-by-the-clock 1000 1007
+  check rows-apply-timed-by-the-clock PASS "${nl}phase apply-only 7 s${nl}" "$apply_only"
+  runner anchor-moved-is-timed-by-the-clock "$only; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\"; exit 1"
+  stand_in_date anchor-moved-is-timed-by-the-clock 1000 1007
+  check anchor-moved-is-timed-by-the-clock FAIL "${nl}phase apply-only 7 s${nl}FAIL $name (mutation-test.sh --apply-only exited 1" "$apply_only"
   runner runner-exits-2 "$only; printf \"PASS mutation:shredded-key-survives (applies and type-checks)\\n\"; exit 2"
   check runner-exits-2 FAIL 'mutation-test.sh --apply-only exited 2: it printed no FAIL line)' "$apply_only"
   runner fail-line-with-exit-0 "$only; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\""
@@ -312,6 +334,10 @@ self_test() {
   runner push-to-main-row-not-caught "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
   check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
+  runner push-to-main-budget-is-timed-by-the-clock "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
+  ref=refs/heads/main
+  stand_in_date push-to-main-budget-is-timed-by-the-clock 1000 1007 2000 2042
+  check push-to-main-budget-is-timed-by-the-clock FAIL "${nl}phase budget 42 s${nl}" "$order1"
   runner push-to-main-not-caught-with-exit-0 "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-not-caught-with-exit-0 FAIL 'mutation-test.sh --budget 240 exited 0 and printed: FAIL mutation:segment-roundtrip-broken' "$order1"
