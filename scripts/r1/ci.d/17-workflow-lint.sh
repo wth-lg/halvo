@@ -372,6 +372,13 @@ EOF
       }
       firstofstep = 1
       if (low !~ /rust-cache/) return
+      code = line
+      sub(/ #.*$/, "", code)
+      if (decode(code) !~ /rust-cache/) {
+        add(NR, shown(line) " is the first line of a step and names the action rust-cache in its comment; this lint reads the action" q "s name on the first line of a job" q "s Rust cache step alone, the line " shown(PIN_USES) ", and in no comment; take the name out of the comment" held("pin_uses"))
+        if (job != "") e17[jid] = 1
+        return
+      }
       nc[jid]++
       cl[jid, nc[jid]] = NR
       if (line == PIN_USES) {
@@ -898,6 +905,8 @@ EOF
   check first-step-at-eight-blanks FAIL ".github/workflows/ci.yml line 13: '        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' is the first line in the steps of the job macos and stands at 8 blanks; this lint reads a step as beginning at six blanks, a dash and a blank; write the step so"
   lines no-on-block 5 - 4 - 3 - 2 -
   check no-on-block FAIL ".github/workflows/ci.yml: no line of the file is 'on:' alone in column 1; this lint reads the events under that line, with the line '  schedule:' and under it the line '${pin_cron}'; write them; the pin holds this line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines n27-checkout-comment-names-the-action 13 "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # before rust-cache"
+  check n27-checkout-comment-names-the-action FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 13: '      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # before rust-cache' is the first line of a step and names the action rust-cache in its comment; this lint reads the action's name on the first line of a job's Rust cache step alone, the line '${pin_uses}', and in no comment; take the name out of the comment; the pin holds this line in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
