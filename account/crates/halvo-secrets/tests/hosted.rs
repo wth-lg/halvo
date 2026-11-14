@@ -209,6 +209,36 @@ mod by_reference {
             "\na removal by the reference of a replaced keychain item kept the new item: {kept}"
         );
     }
+
+    #[test]
+    fn the_switch_that_keeps_a_read_from_asking_the_person_is_as_it_was_after_each_operation() {
+        on_a_hosted_runner();
+        let before = SecKeychain::user_interaction_allowed().expect("the switch is read");
+        let store = store("switch");
+        let mut seen = Vec::new();
+        let mut look = |op: &str| {
+            let now = SecKeychain::user_interaction_allowed().expect("the switch is read");
+            seen.push(format!("{op}={now}"));
+            assert_eq!(now, before, "the switch after {op}");
+        };
+        let _ = store.read();
+        look("read");
+        let _ = store.write(&secret(HELD));
+        look("write");
+        let _ = store.delete_if_holds(&secret(&held_one_byte_off(1)));
+        look("delete-if-holds");
+        let _ = store.remove(StoreKind::File);
+        look("remove");
+        let _ = store.delete();
+        look("delete");
+        let _ = store.remove(StoreKind::Keychain);
+        look("remove-keychain");
+        assert!(matches!(store.read(), Read::NotStored));
+        println!(
+            "\nthe switch that keeps a read from asking was {before} before and {} after",
+            seen.join(" ")
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
