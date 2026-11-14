@@ -164,7 +164,7 @@ impl FixtureWindow {
         foreground_window() == self.hwnd
     }
 
-    fn activate(&self) -> (bool, u8) {
+    fn activate(&self) -> Option<Front> {
         // SAFETY: the three calls take this thread's window handle by value.
         unsafe {
             let _ = ShowWindow(self.hwnd, SW_SHOW);
@@ -173,7 +173,7 @@ impl FixtureWindow {
         }
         pump_thread(Duration::from_millis(200));
         if self.is_foreground() {
-            return (true, 1);
+            return Some(Front::SetForeground);
         }
         send(&[key_input(VK_MENU, false)]);
         // SAFETY: SetForegroundWindow takes a window handle by value.
@@ -183,7 +183,7 @@ impl FixtureWindow {
         send(&[key_input(VK_MENU, true)]);
         pump_thread(Duration::from_millis(200));
         if self.is_foreground() {
-            return (true, 2);
+            return Some(Front::AltKey);
         }
         let mut pid = 0u32;
         // SAFETY: `pid` is a live u32 that the call writes into.
@@ -203,7 +203,7 @@ impl FixtureWindow {
         }
         pump_thread(Duration::from_millis(200));
         if self.is_foreground() {
-            return (true, 3);
+            return Some(Front::JoinedInput);
         }
         // SAFETY: ShowWindow takes this thread's window handle by value.
         unsafe {
@@ -211,8 +211,42 @@ impl FixtureWindow {
             let _ = ShowWindow(self.hwnd, SW_RESTORE);
         }
         pump_thread(Duration::from_millis(200));
-        let there = self.is_foreground();
-        (there, if there { 4 } else { 0 })
+        self.is_foreground().then_some(Front::MinimizeRestore)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Front {
+    SetForeground = 1,
+    AltKey = 2,
+    JoinedInput = 3,
+    MinimizeRestore = 4,
+}
+
+impl Front {
+    fn code(front: Option<Front>) -> i64 {
+        front.map_or(0, |front| front as i64)
+    }
+
+    fn of_code(code: i64) -> Option<Front> {
+        [
+            Front::SetForeground,
+            Front::AltKey,
+            Front::JoinedInput,
+            Front::MinimizeRestore,
+        ]
+        .into_iter()
+        .find(|front| *front as i64 == code)
+    }
+
+    fn name(front: Option<Front>) -> &'static str {
+        match front {
+            Some(Front::SetForeground) => "set-foreground",
+            Some(Front::AltKey) => "alt-key-unlock",
+            Some(Front::JoinedInput) => "attach-thread-input",
+            Some(Front::MinimizeRestore) => "minimize-restore",
+            None => "none",
+        }
     }
 }
 
@@ -298,11 +332,11 @@ fn post(window: usize, code: usize, arg: usize) {
     }
 }
 
-fn stall(stall_ms: u64, serve_sent: bool) {
+fn stall(stall_ms: u64, wait: Wait) {
     if stall_ms == 0 {
         return;
     }
-    if !serve_sent {
+    if wait == Wait::Sleeps {
         std::thread::sleep(Duration::from_millis(stall_ms));
         return;
     }
@@ -329,11 +363,34 @@ fn stall(stall_ms: u64, serve_sent: bool) {
     }
 }
 
-type Wander = (Instant, Duration, Instant, u64, Vec<(u128, u128)>);
+struct Wander {
+    began: Instant,
+    span: Duration,
+    next: Instant,
+    seed: u64,
+    intervals: Vec<(u128, u128)>,
+}
 
-const FIELD_PLAIN: usize = 0;
-const FIELD_PASSWORD: usize = 1;
-const FIELD_SECOND: usize = 2;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FixtureField {
+    Plain = 0,
+    Password = 1,
+    Second = 2,
+}
+
+impl FixtureField {
+    fn wire(self) -> usize {
+        self as usize
+    }
+
+    fn of_wire(wire: usize) -> FixtureField {
+        match wire {
+            1 => FixtureField::Password,
+            2 => FixtureField::Second,
+            _ => FixtureField::Plain,
+        }
+    }
+}
 const WANDER_TIMER: usize = 1;
 
 fn fixture_main() {
@@ -364,13 +421,13 @@ fn fixture_main() {
         }
     };
     enable_second(false);
-    let field = |index: usize| match index {
-        FIELD_PASSWORD => password,
-        FIELD_SECOND => second,
-        _ => plain,
+    let field = |wire: usize| match FixtureField::of_wire(wire) {
+        FixtureField::Password => password,
+        FixtureField::Second => second,
+        FixtureField::Plain => plain,
     };
     pump_thread(Duration::from_millis(300));
-    let (foreground, method) = window.activate();
+    let front = window.activate();
     let first = if std::env::var_os(FIRST_PASSWORD_ENV).is_some() {
         password
     } else {
@@ -400,7 +457,11 @@ fn fixture_main() {
         }
         post(target, CMD_QUIT, 0);
     });
-    println!("STALLC ready fg={} method={method}", flag(foreground));
+    println!(
+        "STALLC ready fg={} method={}",
+        flag(front.is_some()),
+        Front::code(front)
+    );
     let mut letters = [0u32; 4];
     let mut tabs = [0u32; 4];
     let mut wander: Option<Wander> = None;
@@ -412,7 +473,14 @@ fn fixture_main() {
             break;
         }
         if msg.message == WM_TIMER && msg.hwnd == window.hwnd && msg.wParam.0 == WANDER_TIMER {
-            if let Some((began, span, next, seed, intervals)) = wander.as_mut() {
+            if let Some(Wander {
+                began,
+                span,
+                next,
+                seed,
+                intervals,
+            }) = wander.as_mut()
+            {
                 if began.elapsed() >= *span {
                     if let Some(open) = intervals.last_mut().filter(|(_, end)| *end == 0) {
                         open.1 = unix_ms();
@@ -453,7 +521,7 @@ fn fixture_main() {
                 CMD_RESET => {
                     let reactivated = !window.is_foreground();
                     if reactivated {
-                        window.activate();
+                        let _ = window.activate();
                     }
                     // SAFETY: SendMessageW passes a plain value to this
                     // thread's edit controls.
@@ -547,13 +615,13 @@ fn fixture_main() {
                     println!("STALLC aimed ok={}", flag(aimed));
                 }
                 CMD_WANDER => {
-                    wander = Some((
-                        Instant::now(),
-                        Duration::from_millis(arg as u64),
-                        Instant::now(),
-                        7,
-                        Vec::new(),
-                    ));
+                    wander = Some(Wander {
+                        began: Instant::now(),
+                        span: Duration::from_millis(arg as u64),
+                        next: Instant::now(),
+                        seed: 7,
+                        intervals: Vec::new(),
+                    });
                     // SAFETY: the timer belongs to this thread's window and
                     // is killed when the wander ends.
                     unsafe {
@@ -583,7 +651,12 @@ fn fixture_main() {
                         std::thread::sleep(Duration::from_millis(TWO_STEP_MS));
                         focus_on(password);
                     }
-                    stall(stall_ms, arg & ARG_SERVE_SENT != 0);
+                    let wait = if arg & ARG_SERVE_SENT != 0 {
+                        Wait::ServesSent
+                    } else {
+                        Wait::Sleeps
+                    };
+                    stall(stall_ms, wait);
                     let (plain_len, password_len) = (text_len(plain), text_len(password));
                     if arg & ARG_SELF_FOCUS != 0 {
                         focus_on(password);
@@ -675,7 +748,7 @@ fn other_window_in_front(stall_ms: u64) -> std::thread::JoinHandle<()> {
         std::thread::sleep(Duration::from_millis(stall_ms / 2));
         let other =
             FixtureWindow::create_named("HalvoVerifyStallOther", "halvo-verify-stall-other");
-        other.activate();
+        let _ = other.activate();
         pump_thread(Duration::from_millis(stall_ms / 2 + 300));
         drop(other);
         // SAFETY: SetForegroundWindow takes a handle value.
@@ -719,7 +792,7 @@ pub(super) struct Fixture {
     stdin: ChildStdin,
     lines: mpsc::Receiver<(String, Fields)>,
     foreground: bool,
-    method: i64,
+    front: Option<Front>,
 }
 
 impl Fixture {
@@ -767,17 +840,17 @@ impl Fixture {
             stdin,
             lines,
             foreground: false,
-            method: 0,
+            front: None,
         };
         let ready = fixture.expect("ready", Duration::from_secs(40));
         fixture.foreground = get(&ready, "fg") == 1;
-        fixture.method = get(&ready, "method");
+        fixture.front = Front::of_code(get(&ready, "method"));
         say(
             test,
             format!(
                 "fixture_process_started=true fixture_window_foreground={} method={}",
                 flag(fixture.foreground),
-                fixture.method
+                Front::code(fixture.front)
             ),
         );
         fixture
@@ -833,13 +906,7 @@ pub(super) struct FieldWindow {
 impl FieldWindow {
     pub(super) fn open(test: &str, first: Field) -> FieldWindow {
         let fixture = Fixture::open(test, first == Field::Password);
-        let method = match fixture.method {
-            1 => "set-foreground",
-            2 => "alt-key-unlock",
-            3 => "attach-thread-input",
-            4 => "minimize-restore",
-            _ => "none",
-        };
+        let method = Front::name(fixture.front);
         say(
             test,
             format!(
@@ -862,20 +929,23 @@ impl FieldWindow {
 
     pub(super) fn focus(&self, field: Field) -> bool {
         let index = match field {
-            Field::Plain => FIELD_PLAIN,
-            Field::Password => FIELD_PASSWORD,
+            Field::Plain => FixtureField::Plain,
+            Field::Password => FixtureField::Password,
         };
-        let focused = get(&self.fixture().ask(CMD_FOCUS, index, "focused"), "ok") == 1;
+        let focused = get(
+            &self.fixture().ask(CMD_FOCUS, index.wire(), "focused"),
+            "ok",
+        ) == 1;
         std::thread::sleep(Duration::from_millis(50));
         focused
     }
 
     pub(super) fn click(&self, field: Field) -> bool {
         let index = match field {
-            Field::Plain => FIELD_PLAIN,
-            Field::Password => FIELD_PASSWORD,
+            Field::Plain => FixtureField::Plain,
+            Field::Password => FixtureField::Password,
         };
-        let aimed = get(&self.fixture().ask(CMD_AIM, index, "aimed"), "ok") == 1;
+        let aimed = get(&self.fixture().ask(CMD_AIM, index.wire(), "aimed"), "ok") == 1;
         if aimed {
             send(&[
                 mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
@@ -1005,8 +1075,8 @@ struct Decisions {
     letters_withheld_password: u32,
     tabs_withheld_password: u32,
     lost_at_stop: u32,
-    first_letter_rule: i64,
-    first_tab_rule: i64,
+    first_letter_rule: Option<seam::Rule>,
+    first_tab_rule: Option<seam::Rule>,
 }
 
 const RULES: [seam::Rule; 8] = [
@@ -1027,18 +1097,18 @@ fn rule_index(rule: Option<seam::Rule>) -> i64 {
 
 impl Decisions {
     fn of(decided: &[seam::Decided]) -> Decisions {
+        let first_rule = |class: KeyClass| {
+            decided
+                .iter()
+                .find(|key| key.class == class)
+                .and_then(|key| key.rule)
+        };
         let mut d = Decisions {
-            first_letter_rule: -1,
-            first_tab_rule: -1,
+            first_letter_rule: first_rule(KeyClass::Printable),
+            first_tab_rule: first_rule(KeyClass::Tab),
             ..Decisions::default()
         };
         for key in decided {
-            if key.class == KeyClass::Printable && d.first_letter_rule < 0 {
-                d.first_letter_rule = rule_index(key.rule);
-            }
-            if key.class == KeyClass::Tab && d.first_tab_rule < 0 {
-                d.first_tab_rule = rule_index(key.rule);
-            }
             match (key.class, key.verdict) {
                 (KeyClass::Printable, Verdict::WithheldPassword) => {
                     d.letters_withheld_password += 1
@@ -1070,9 +1140,9 @@ fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u
     let reset = fixture.ask(CMD_RESET, 0, "reset");
     for _ in 0..3 {
         std::thread::sleep(Duration::from_millis(250));
-        let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
+        let _ = fixture.ask(CMD_FOCUS, FixtureField::Password.wire(), "focused");
         std::thread::sleep(Duration::from_millis(250));
-        let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
+        let _ = fixture.ask(CMD_FOCUS, FixtureField::Plain.wire(), "focused");
     }
     let _ = events.drain_for(Duration::from_millis(400));
     let _ = seam::take();
@@ -1159,9 +1229,9 @@ fn run_rounds(
         }
         let reset = fixture.ask(CMD_RESET, reset_arg, "reset");
         if phase.lead == Lead::Enter {
-            let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
+            let _ = fixture.ask(CMD_FOCUS, FixtureField::Password.wire(), "focused");
             std::thread::sleep(Duration::from_millis(250));
-            let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
+            let _ = fixture.ask(CMD_FOCUS, FixtureField::Plain.wire(), "focused");
         }
         let _ = events.drain_for(Duration::from_millis(400));
         let _ = seam::take();
@@ -1291,8 +1361,8 @@ fn run_rounds(
                 decided.letters_late,
                 decided.tabs_withheld,
                 decided.lost_at_stop,
-                decided.first_letter_rule,
-                decided.first_tab_rule,
+                rule_index(decided.first_letter_rule),
+                rule_index(decided.first_tab_rule),
                 get(&ack, "fg"),
                 get(&ack, start_focus),
                 get(&ack, "plain_len"),
@@ -1809,18 +1879,18 @@ fn native_round(
     round: u32,
     fixture: &mut Fixture,
     events: &Events,
-    (start, landing): (usize, &str),
+    (start, landing): (FixtureField, &str),
     act: impl FnOnce(&mut Fixture) -> bool,
 ) -> (bool, u32) {
     let reset = fixture.ask(CMD_RESET, 0, "reset");
-    let other = if start == FIELD_PLAIN {
-        FIELD_PASSWORD
+    let other = if start == FixtureField::Plain {
+        FixtureField::Password
     } else {
-        FIELD_PLAIN
+        FixtureField::Plain
     };
-    let _ = fixture.ask(CMD_FOCUS, other, "focused");
+    let _ = fixture.ask(CMD_FOCUS, other.wire(), "focused");
     std::thread::sleep(Duration::from_millis(250));
-    let _ = fixture.ask(CMD_FOCUS, start, "focused");
+    let _ = fixture.ask(CMD_FOCUS, start.wire(), "focused");
     let _ = events.drain_for(Duration::from_millis(400));
     let _ = seam::take();
     let _ = seam::take_marks();
@@ -1844,7 +1914,7 @@ fn native_round(
             get(&state, &format!("letters_{landing}")),
             decided.letters_recorded + decided.letters_withheld + decided.letters_late,
             decided.letters_recorded,
-            decided.first_letter_rule,
+            rule_index(decided.first_letter_rule),
             u8::from(counted),
         ),
     );
@@ -1854,7 +1924,7 @@ fn native_round(
 fn native_phase(
     test: &'static str,
     phase: &'static str,
-    start: usize,
+    start: FixtureField,
     landing: &'static str,
     act: fn(&mut Fixture) -> bool,
 ) {
@@ -1912,9 +1982,18 @@ fn native_phase(
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask() {
-    native_phase("stall-mask", "mask", FIELD_PLAIN, "plain", |fixture| {
-        get(&fixture.ask(CMD_MASK, FIELD_PLAIN, "masked"), "ok") == 1
-    });
+    native_phase(
+        "stall-mask",
+        "mask",
+        FixtureField::Plain,
+        "plain",
+        |fixture| {
+            get(
+                &fixture.ask(CMD_MASK, FixtureField::Plain.wire(), "masked"),
+                "ok",
+            ) == 1
+        },
+    );
 }
 
 #[test]
@@ -1923,11 +2002,11 @@ fn a_focus_notice_that_the_system_does_not_deliver_changes_nothing() {
     native_phase(
         "stall-stale-focus",
         "stale-focus",
-        FIELD_PASSWORD,
+        FixtureField::Password,
         "password",
         |fixture| {
             let notified = get(
-                &fixture.ask(CMD_NOTIFY_FOCUS, FIELD_PLAIN, "notified"),
+                &fixture.ask(CMD_NOTIFY_FOCUS, FixtureField::Plain.wire(), "notified"),
                 "ok",
             ) == 1;
             std::thread::sleep(Duration::from_millis(150));

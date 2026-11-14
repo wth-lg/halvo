@@ -4387,6 +4387,7 @@ struct Browser {
     name: &'static str,
     paths: &'static [&'static str],
     chromium: bool,
+    renamed_copy_keys_reach_the_page: bool,
 }
 
 const CHROME: Browser = Browser {
@@ -4396,6 +4397,7 @@ const CHROME: Browser = Browser {
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
     ],
     chromium: true,
+    renamed_copy_keys_reach_the_page: true,
 };
 
 const EDGE: Browser = Browser {
@@ -4405,6 +4407,7 @@ const EDGE: Browser = Browser {
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     ],
     chromium: true,
+    renamed_copy_keys_reach_the_page: true,
 };
 
 const FIREFOX: Browser = Browser {
@@ -4414,6 +4417,7 @@ const FIREFOX: Browser = Browser {
         r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
     ],
     chromium: false,
+    renamed_copy_keys_reach_the_page: false,
 };
 
 struct PageCounts {

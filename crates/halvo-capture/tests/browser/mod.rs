@@ -1228,7 +1228,12 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
         let landed = plain.page.text == 5 && password.page.password == 5;
         let read_the_copy = plain_element.contains("file=renamed-browser.exe");
         assert!(
-            front && if browser.chromium { landed } else { read_the_copy },
+            front
+                && if browser.renamed_copy_keys_reach_the_page {
+                    landed
+                } else {
+                    read_the_copy
+                },
             "INCONCLUSIVE: the copy's window was not in front, or the copy did not take the letters"
         );
         assert_eq!(
