@@ -106,26 +106,52 @@ if command -v cygpath >/dev/null 2>&1; then
   cargo_home=$(cygpath -u "$cargo_home")
 fi
 script_path=$cargo_home/bin:$PATH
+cargo_bin=$cargo_home
+while :; do
+  case $cargo_bin in
+    ?*/) cargo_bin=${cargo_bin%/} ;;
+    *) break ;;
+  esac
+done
+cargo_bin=$cargo_bin/bin
 own_path=
 path_rest=$PATH:
 while [ -n "$path_rest" ]; do
   path_entry=${path_rest%%:*}
   path_rest=${path_rest#*:}
-  case $path_entry in
-    "$cargo_home/bin" | "$cargo_home/bin/") ;;
-    *) own_path=$own_path${own_path:+:}$path_entry ;;
-  esac
+  path_cut=$path_entry
+  while :; do
+    case $path_cut in
+      ?*/) path_cut=${path_cut%/} ;;
+      *) break ;;
+    esac
+  done
+  [ "$path_cut" = "$cargo_bin" ] && continue
+  # shellcheck disable=SC3013
+  [ -n "$path_entry" ] && [ "$path_entry" -ef "$cargo_bin" ] && continue
+  own_path=$own_path${own_path:+:}$path_entry
 done
 PATH=$own_path
 export PATH
 perl_cmd=$(command -v perl) || perl_cmd=perl
+own_git_names=$(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
 
 own_git() {
-  GIT_CONFIG_GLOBAL=/dev/null git -c core.attributesFile=/dev/null "$@"
+  (
+    for own_git_name in $own_git_names; do
+      unset "$own_git_name"
+    done
+    GIT_CONFIG_GLOBAL=/dev/null exec git -c core.attributesFile=/dev/null "$@"
+  )
 }
 
 own_git_index() {
-  GIT_INDEX_FILE=$tree_index GIT_CONFIG_GLOBAL=/dev/null git -c core.attributesFile=/dev/null "$@"
+  (
+    for own_git_name in $own_git_names; do
+      unset "$own_git_name"
+    done
+    GIT_INDEX_FILE=$tree_index GIT_CONFIG_GLOBAL=/dev/null exec git -c core.attributesFile=/dev/null "$@"
+  )
 }
 
 cdup=$(own_git rev-parse --show-cdup 2>/dev/null)
@@ -914,6 +940,17 @@ own_run() {
       XDG_CONFIG_HOME=$HOME/config
       export HOME GIT_CONFIG_GLOBAL XDG_CONFIG_HOME
     fi
+    if [ -n "$case_git_count" ]; then
+      GIT_CONFIG_COUNT=1
+      GIT_CONFIG_KEY_0=core.checkStat
+      GIT_CONFIG_VALUE_0=minimal
+      export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+    fi
+    if [ -n "$case_git_names" ]; then
+      GIT_AUTHOR_NAME='A Caller'
+      GIT_CASE_VALUE="two  words, and a tab${tab}here"
+      export GIT_AUTHOR_NAME GIT_CASE_VALUE
+    fi
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
     printf 'a line on standard input\n' | ${case_switch_set:+env "RUN_CI_D_NESTED=$case_switch"} ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh ${case_worker:+-c "$worker_wrap"} "$self" "$@" 2>&1 9<<EOF &
@@ -1065,6 +1102,8 @@ case_reset() {
   case_witness=
   case_env=
   case_git_home=
+  case_git_count=
+  case_git_names=
   case_cargo_home=
 }
 
@@ -1318,7 +1357,25 @@ own_self_test() {
     chmod +x "$case_cargo_home/bin/git" || wrong="$wrong stand-in-git-not-made"
   case_path=$case_cargo_home/bin
   case_witness=yes
+  stand_in_cargo=$case_cargo_home
   own_case git-in-the-cargo-bin-directory-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
+  case_cargo_home=$stand_in_cargo/
+  case_path=$stand_in_cargo/bin
+  case_witness=yes
+  own_case git-in-the-cargo-bin-directory-named-with-a-slash-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  if ! command -v cygpath >/dev/null 2>&1; then
+    new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
+      git -C "$fixture" add tracked.txt >/dev/null 2>&1 && fixture_commit &&
+      add_script r1 10-a.sh "$good" "[ \"\${GIT_CONFIG_COUNT:-}\" = 1 ] || { printf 'FAIL 10-a (no setting of the caller)\\n'; exit 1; }; sleep 1 && cp -p \"\$CI_D_REPO/tracked.txt\" \"\$CI_D_ARTIFACTS/kept\" && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -r \"\$CI_D_ARTIFACTS/kept\" \"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+    case_git_count=yes
+    case_witness=yes
+    own_case git-setting-of-the-caller-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  fi
+  new_repo && add_script r1 10-a.sh "$good" '[ "${GIT_AUTHOR_NAME:-}" = "A Caller" ] && [ "${GIT_CASE_VALUE:-}" = "two  words, and a tab	here" ] || { printf "FAIL 10-a (the GIT_ names of the caller changed)\n"; exit 1; }; printf "PASS 10-a\n"'
+  case_git_names=yes
+  case_witness=yes
+  own_case git-names-of-the-caller-reach-a-script-unchanged 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" "$same_filter && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -t 200001010000 \"\$CI_D_REPO/tracked.txt\" && git -C \"\$CI_D_REPO\" -c core.attributesFile=\"\$CI_D_ARTIFACTS/attributes\" -c filter.same.clean=\"cat '\$CI_D_ARTIFACTS/kept'\" update-index -q --refresh; printf 'PASS 10-a\\n'"
   case_witness=yes
   own_case stat-data-written-into-the-index-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
