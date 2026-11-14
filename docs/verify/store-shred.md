@@ -1354,8 +1354,9 @@ What the code does since store-3, each sentence with the test that shows it.
   shred, delete-all, create and open, and finds each end state true: 222
   rows at the round's head (write 30, write then pass 30, shred 22,
   delete-all 40, create 87, open 13), printed by the run of the test at
-  752a5f45 on the Mac of the team (`KILL rows=222`) and by the hosted macos
-  job of scratch/r1-store-3-11. The interposer counts write, pwrite,
+  752a5f45 on the Mac of the team (`KILL rows=222`); the hosted macos job
+  of scratch/r1-store-3-11 (run 43599024646) passed it 20 of 20 times in
+  its loop, which prints no row count. The interposer counts write, pwrite,
   ftruncate, fsync, fcntl, rename, unlink, unlinkat, rmdir, mkdir, renameat,
   linkat, mkdirat and fchmod; it does not count `openat` with the create
   flag (the create of every new file), `fchmodat`, `flock`, or any path
