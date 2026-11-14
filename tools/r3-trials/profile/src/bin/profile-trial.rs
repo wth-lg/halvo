@@ -1456,6 +1456,7 @@ mod tests {
     fn the_outer_item_3_reads_the_last_inner_line_of_the_programs_output() {
         let mut inner = None;
         for l in [
+            "egress_run c browser_started=yes task=ok cause=-",
             "egress_set x",
             "egress_run c browser_started=no task=miss cause=start",
             "other",
