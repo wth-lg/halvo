@@ -1,5 +1,8 @@
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
+use std::panic::PanicHookInfo;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use halvo_learn_store::{Clock, LearnStep};
 use halvo_schema::learning::names::Mark;
@@ -370,11 +373,92 @@ pub fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get().min(4))
 }
 
+/// Why one play gave no result: the error that it returned, or the message and the place, file and line, of its
+/// panic, the message with its control characters escaped so that it stays on one line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Failure {
+    Error(String),
+    Panic {
+        message: String,
+        file: String,
+        line: u32,
+    },
+}
+
+impl Failure {
+    /// The words of the refusal's detail after the train.
+    pub fn detail(&self) -> String {
+        match self {
+            Failure::Error(detail) => detail.clone(),
+            Failure::Panic {
+                message,
+                file,
+                line,
+            } => format!("the play panicked: {message} at {file}:{line}"),
+        }
+    }
+}
+
+thread_local! {
+    static PLAYING: Cell<bool> = const { Cell::new(false) };
+    static PANICKED: RefCell<Option<Failure>> = const { RefCell::new(None) };
+}
+
+static HOOK: Mutex<()> = Mutex::new(());
+
+type Hook = Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+fn one_line(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_control() {
+                c.escape_default().to_string()
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
+}
+
+fn panic_of(info: &PanicHookInfo<'_>) -> Failure {
+    let (file, line) = info
+        .location()
+        .map_or(("an unknown file".to_owned(), 0), |l| {
+            (one_line(l.file()), l.line())
+        });
+    Failure::Panic {
+        message: one_line(info.payload_as_str().unwrap_or("a panic with no message")),
+        file,
+        line,
+    }
+}
+
+fn with_the_panic_hook<T>(plays: impl FnOnce() -> T) -> T {
+    let _held = HOOK.lock().unwrap_or_else(PoisonError::into_inner);
+    let before: Arc<Hook> = Arc::new(std::panic::take_hook());
+    let others = Arc::clone(&before);
+    std::panic::set_hook(Box::new(move |info| {
+        if PLAYING.get() {
+            PANICKED.set(Some(panic_of(info)));
+        } else {
+            others(info);
+        }
+    }));
+    let out = plays();
+    drop(std::panic::take_hook());
+    match Arc::try_unwrap(before) {
+        Ok(hook) => std::panic::set_hook(hook),
+        Err(shared) => std::panic::set_hook(Box::new(move |info| shared(info))),
+    }
+    out
+}
+
 /// Every play of the trains, each train in both streams in the order of `Stream::BOTH`, in the order of the trains,
-/// spread over `threads` threads, each play made by `play_one`. A play that panics gives the error "the play
-/// panicked" at its own place, and the thread goes on with the next play, so every place holds its own result; what
-/// the panic hook writes to standard error stays beside the command's one line.
-pub fn play_all<F>(trains: &[Train], threads: usize, play_one: F) -> Vec<Result<Played, String>>
+/// spread over `threads` threads, each play made by `play_one`. It takes the panic hook before the plays and gives it
+/// back after them (L0.3, the coordinator's ruling LM-69): a panic inside a play writes nothing, gives the failure
+/// `Panic` with its message and place at the play's own place, and the thread goes on with the next play, so every
+/// place holds its own result; a panic on another thread goes to the hook that was there before.
+pub fn play_all<F>(trains: &[Train], threads: usize, play_one: F) -> Vec<Result<Played, Failure>>
 where
     F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
 {
@@ -383,36 +467,49 @@ where
         .flat_map(|t| Stream::BOTH.map(|s| (t, s)))
         .collect();
     let next = AtomicUsize::new(0);
-    let mut out: Vec<Option<Result<Played, String>>> = vec![None; plays.len()];
-    let done: Vec<Vec<(usize, Result<Played, String>)>> = std::thread::scope(|scope| {
-        let workers: Vec<_> = (0..threads.max(1))
-            .map(|_| {
-                scope.spawn(|| {
-                    let mut mine = Vec::new();
-                    loop {
-                        let at = next.fetch_add(1, Ordering::Relaxed);
-                        let Some((train, stream)) = plays.get(at) else {
-                            return mine;
-                        };
-                        let one = || play_one(train, *stream);
-                        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(one)) {
-                            Ok(result) => mine.push((at, result)),
-                            Err(_) => mine.push((at, Err("the play panicked".to_owned()))),
+    let mut out: Vec<Option<Result<Played, Failure>>> = vec![None; plays.len()];
+    let done: Vec<Vec<(usize, Result<Played, Failure>)>> = with_the_panic_hook(|| {
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..threads.max(1))
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut mine = Vec::new();
+                        loop {
+                            let at = next.fetch_add(1, Ordering::Relaxed);
+                            let Some((train, stream)) = plays.get(at) else {
+                                return mine;
+                            };
+                            let one = || play_one(train, *stream);
+                            PLAYING.set(true);
+                            let result =
+                                std::panic::catch_unwind(std::panic::AssertUnwindSafe(one));
+                            PLAYING.set(false);
+                            match result {
+                                Ok(result) => mine.push((at, result.map_err(Failure::Error))),
+                                Err(_) => mine.push((
+                                    at,
+                                    Err(PANICKED.take().unwrap_or(Failure::Panic {
+                                        message: "a panic that the hook did not see".to_owned(),
+                                        file: "an unknown file".to_owned(),
+                                        line: 0,
+                                    })),
+                                )),
+                            }
                         }
-                    }
+                    })
                 })
-            })
-            .collect();
-        workers
-            .into_iter()
-            .map(|w| w.join().unwrap_or_default())
-            .collect()
+                .collect();
+            workers
+                .into_iter()
+                .map(|w| w.join().unwrap_or_default())
+                .collect()
+        })
     });
     for (at, result) in done.into_iter().flatten() {
         out[at] = Some(result);
     }
     out.into_iter()
-        .map(|r| r.unwrap_or_else(|| Err("a play that no thread ran".to_owned())))
+        .map(|r| r.unwrap_or_else(|| Err(Failure::Error("a play that no thread ran".to_owned()))))
         .collect()
 }
 
@@ -423,7 +520,8 @@ pub fn report(trains: &[Train]) -> Result<Report, Refusal> {
 }
 
 /// `report` with the thread count and the function that plays one train in one stream given: the command passes
-/// `threads()` and `play`.
+/// `threads()` and `play`. A play that failed refuses with `store` and the train of its place: the first play in
+/// place order that panicked, else the first that failed.
 pub fn report_with<F>(trains: &[Train], threads: usize, play_one: F) -> Result<Report, Refusal>
 where
     F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
@@ -434,18 +532,23 @@ where
             format!("the sample holds {} trains, not {TRAINS}", trains.len()),
         ));
     }
-    let played = play_all(trains, threads, play_one)
-        .into_iter()
+    let results = play_all(trains, threads, play_one);
+    let first = results
+        .iter()
         .enumerate()
-        .map(|(at, result)| {
-            result.map_err(|detail| {
-                Refusal::new(
-                    Cause::Store,
-                    format!("train {}: {detail}", at / Stream::BOTH.len() + 1),
-                )
-            })
-        })
-        .collect::<Result<Vec<Played>, Refusal>>()?;
+        .filter_map(|(at, result)| result.as_ref().err().map(|failure| (at, failure)))
+        .min_by_key(|(at, failure)| (!matches!(failure, Failure::Panic { .. }), *at));
+    if let Some((at, failure)) = first {
+        return Err(Refusal::new(
+            Cause::Store,
+            format!(
+                "train {}: {}",
+                at / Stream::BOTH.len() + 1,
+                failure.detail()
+            ),
+        ));
+    }
+    let played: Vec<Played> = results.into_iter().flatten().collect();
     Ok(line(trains.len(), &played))
 }
 

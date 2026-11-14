@@ -4,8 +4,8 @@ use halvo_schema::learning::names::Mark;
 
 use crate::cli::Cause;
 use crate::routine::{
-    line, newest, play, play_all, read_sample, report, report_with, run, threads, Event, Played,
-    Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
+    line, newest, play, play_all, read_sample, report, report_with, run, threads, Event, Failure,
+    Played, Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
 };
 
 fn sample() -> Vec<Train> {
@@ -559,7 +559,7 @@ fn marked(train: &Train, stream: Stream) -> Played {
     }
 }
 
-fn place_holds_its_own(train: &Train, stream: Stream, result: &Result<Played, String>) -> bool {
+fn place_holds_its_own(train: &Train, stream: Stream, result: &Result<Played, Failure>) -> bool {
     result.as_ref() == Ok(&marked(train, stream))
 }
 
@@ -585,17 +585,16 @@ fn routine_a_failed_play_names_its_own_train_at_an_even_and_an_odd_place() {
 #[test]
 fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_its_result() {
     let trains = marked_trains();
-    let panicking = |train: &Train, stream: Stream| {
-        if train.days[0] == 120 && stream == Stream::Replay {
-            panic!("a play that panics");
-        }
-        Ok(marked(train, stream))
-    };
+    let panicking = panics_at_train_120_replay;
     for threads in [1, 4] {
         let refusal = report_with(&trains, threads, panicking).expect_err("a refusal");
         assert_eq!(refusal.cause, Cause::Store);
-        assert_eq!(refusal.detail, "train 120: the play panicked");
         let results = play_all(&trains, threads, panicking);
+        let Err(failure) = &results[2 * 119 + 1] else {
+            panic!("place {} holds a result", 2 * 119 + 1);
+        };
+        assert!(matches!(failure, Failure::Panic { file, .. } if file == file!()));
+        assert_eq!(refusal.detail, format!("train 120: {}", failure.detail()));
         assert_eq!(results.len(), 2 * TRAINS);
         let places: Vec<(&Train, Stream)> = trains
             .iter()
@@ -603,7 +602,7 @@ fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_it
             .collect();
         for (at, ((train, stream), result)) in places.iter().zip(&results).enumerate() {
             if at == 2 * 119 + 1 {
-                assert_eq!(result, &Err("the play panicked".to_owned()));
+                assert_eq!(result.as_ref().err(), Some(failure));
             } else {
                 assert!(
                     place_holds_its_own(train, *stream, result),
@@ -611,5 +610,74 @@ fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_it
                 );
             }
         }
+    }
+}
+
+const PANIC_CHILD: &str = "HALVO_LEARN_GATE_PANIC_CHILD";
+
+fn panics_at_train_120_replay(train: &Train, stream: Stream) -> Result<Played, String> {
+    if train.days[0] == 120 && stream == Stream::Replay {
+        panic!("a play that panics, on line {}", line!());
+    }
+    Ok(marked(train, stream))
+}
+
+#[test]
+fn routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message(
+) {
+    let name = "tests::routine::routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message";
+    if std::env::var_os(PANIC_CHILD).is_some() {
+        match report_with(&marked_trains(), 4, panics_at_train_120_replay) {
+            Ok(_) => std::process::exit(0),
+            Err(refusal) => {
+                eprintln!("{}", refusal.line());
+                std::process::exit(2);
+            }
+        }
+    }
+    let child = std::process::Command::new(std::env::current_exe().expect("the test binary"))
+        .args([name, "--exact", "--nocapture", "--test-threads=1"])
+        .env(PANIC_CHILD, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child run");
+    let err = String::from_utf8(child.stderr).expect("UTF-8 on standard error");
+    assert_eq!(child.status.code(), Some(2), "{err}");
+    let at = err
+        .split("on line ")
+        .nth(1)
+        .map(|rest| rest.chars().take_while(char::is_ascii_digit).collect())
+        .unwrap_or_else(|| "none".to_owned());
+    assert_eq!(
+        err,
+        format!(
+            "REFUSED store: train 120: the play panicked: a play that panics, on line {at} at {}:{at}\n",
+            file!()
+        )
+    );
+}
+
+#[test]
+fn routine_the_refusal_names_the_first_panic_in_place_order_before_an_earlier_error_on_one_line() {
+    let trains = marked_trains();
+    let failing = |train: &Train, stream: Stream| match (train.days[0], stream) {
+        (5, Stream::Summaries) => Err("broken".to_owned()),
+        (130, Stream::Summaries) => panic!("a later panic"),
+        (120, Stream::Replay) => panic!("the first panic\nof two lines\r, a \\ and a \"quote\""),
+        _ => Ok(marked(train, stream)),
+    };
+    for threads in [1, 4] {
+        let refusal = report_with(&trains, threads, failing).expect_err("a refusal");
+        assert_eq!(refusal.cause, Cause::Store);
+        let detail = refusal.detail.clone();
+        assert_eq!(
+            detail.split(" at ").next(),
+            Some(
+                r#"train 120: the play panicked: the first panic\nof two lines\r, a \ and a "quote""#
+            ),
+            "{detail}"
+        );
+        assert!(detail.contains(&format!(" at {}:", file!())), "{detail}");
+        assert!(!refusal.line().contains(['\n', '\r']), "{detail}");
     }
 }
