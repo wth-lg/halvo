@@ -1022,13 +1022,14 @@ struct Decisions {
     first_tab_rule: i64,
 }
 
-const RULES: [seam::Rule; 6] = [
+const RULES: [seam::Rule; 7] = [
     seam::Rule::PasswordEdit,
     seam::Rule::NotClearedInTime,
     seam::Rule::AnotherThreadInFront,
     seam::Rule::StateAtTheKey,
     seam::Rule::MarkAfterTheKey,
     seam::Rule::ReadAfterTheHold,
+    seam::Rule::NoClickRoute,
 ];
 
 fn rule_index(rule: Option<seam::Rule>) -> i64 {

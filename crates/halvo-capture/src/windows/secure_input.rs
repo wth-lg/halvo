@@ -207,6 +207,9 @@ pub enum Rule {
     MarkAfterTheKey,
     /// An own read after the key's hold read Clear, with every mark between.
     ReadAfterTheHold,
+    /// No mouse registration routed the clicks to the gate during the key's
+    /// hold (W3-4 (f), W3-7 L7).
+    NoClickRoute,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -481,9 +484,24 @@ struct Marks {
     /// Focus events and latches seen, for the kept password element.
     moves: u64,
     stopping: bool,
+    /// The tick from which no mouse registration has routed the clicks to
+    /// the gate, while none stands (W3-7 L7).
+    clicks_lost: Option<u32>,
+    /// The last time with no click route, from its start to its end.
+    clicks_gap: Option<(u32, u32)>,
 }
 
 impl Marks {
+    /// Whether the key's hold, from its OS time to the end of its hold,
+    /// meets a time with no click route.
+    fn clicks_unseen_for(&self, key: u32) -> bool {
+        let end = key.wrapping_add(ms(KEY_HOLD));
+        self.clicks_lost.is_some_and(|lost| not_after(lost, end))
+            || self
+                .clicks_gap
+                .is_some_and(|(lost, back)| not_after(lost, end) && not_after(key, back))
+    }
+
     fn push(&mut self, at: Option<u32>, began: u32, mark: Mark) {
         if self.entries.len() == MARKS_KEPT {
             self.entries.pop_front();
@@ -599,6 +617,9 @@ pub struct PasswordGate {
     shared: Arc<Shared>,
     #[cfg(target_os = "windows")]
     detector: Mutex<Option<detector::Running>>,
+    /// The thread of a detector whose stop timed out (W3-7 O8).
+    #[cfg(target_os = "windows")]
+    stale: Mutex<Option<std::thread::JoinHandle<Result<(), crate::source::CaptureError>>>>,
     #[cfg(target_os = "windows")]
     removals: detector::Removals,
 }
@@ -617,6 +638,33 @@ impl PasswordGate {
             seen: self.shared.lock().next_seq,
             password_edit,
             front,
+        }
+    }
+
+    /// From `tick` no mouse registration routes the clicks to the gate:
+    /// every key whose hold meets that time is withheld until the route
+    /// stands again (W3-7 L7).
+    pub(crate) fn clicks_lost(&self, tick: u32) {
+        note_mark(
+            "clicks-lost",
+            Some(FieldState::Unknown),
+            None,
+            Some(tick),
+            tick,
+            None,
+        );
+        let mut marks = self.shared.lock();
+        if marks.clicks_lost.is_none() {
+            marks.clicks_lost = Some(tick);
+        }
+    }
+
+    /// The click route stands again from `tick`.
+    pub(crate) fn clicks_back(&self, tick: u32) {
+        note_mark("clicks-back", None, None, Some(tick), tick, None);
+        let mut marks = self.shared.lock();
+        if let Some(lost) = marks.clicks_lost.take() {
+            marks.clicks_gap = Some((lost, tick));
         }
     }
 
@@ -658,6 +706,9 @@ impl PasswordGate {
     ) -> Option<(Result<KeystrokeClearance, Withheld>, Rule)> {
         let judged = {
             let mut marks = self.shared.lock();
+            if marks.clicks_unseen_for(key.tick) {
+                return Some((Err(Withheld::Unknown), Rule::NoClickRoute));
+            }
             let judged = judge(&marks.entries, key, now, front, password_edit_now);
             if let Judgment::Wait(from) = judged {
                 marks.ask_read(from);
@@ -822,6 +873,10 @@ mod detector {
     pub(super) struct Removals {
         pub(super) handler: HandlerRemover,
         pub(super) desktop_hook: DesktopHookRemover,
+        /// Called before each own read of the detector's loop, so that a
+        /// test can hold the detector in a read (W3-7 O8).
+        #[cfg(test)]
+        pub(super) before_read: fn(),
     }
 
     fn remove_handler(
@@ -843,6 +898,8 @@ mod detector {
             Removals {
                 handler: remove_handler,
                 desktop_hook: unhook_desktop,
+                #[cfg(test)]
+                before_read: || {},
             }
         }
     }
@@ -887,6 +944,7 @@ mod detector {
             if detector.is_some() {
                 return Ok(());
             }
+            self.wait_for_the_stale_detector()?;
             self.shared.started(tick());
             let wake = Arc::new(Event::new()?);
             let (ready, started) = std::sync::mpsc::channel();
@@ -920,6 +978,33 @@ mod detector {
             }
         }
 
+        /// A start after a stop that timed out waits for the earlier
+        /// detector's thread for the stop's deadline, and is refused while
+        /// that thread runs: a new start would let it run on (W3-7 O8).
+        fn wait_for_the_stale_detector(&self) -> Result<(), CaptureError> {
+            let mut stale = self
+                .stale
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Some(old) = stale.take() else {
+                return Ok(());
+            };
+            let deadline = crate::windows::INPUT_STOP_DEADLINE;
+            let began = std::time::Instant::now();
+            while !old.is_finished() && began.elapsed() < deadline {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            if !old.is_finished() {
+                *stale = Some(old);
+                return Err(CaptureError::Timeout {
+                    stage: "wait for the earlier password detector to end",
+                    ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
+                });
+            }
+            let _ = old.join();
+            Ok(())
+        }
+
         pub(crate) fn detach(&self, deadline: std::time::Duration) -> Result<(), CaptureError> {
             let taken = self
                 .detector
@@ -937,6 +1022,10 @@ mod detector {
             };
             while !join.is_finished() {
                 if began.elapsed() >= deadline {
+                    *self
+                        .stale
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(join);
                     return Err(CaptureError::Timeout {
                         stage: "stop the password detector",
                         ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
@@ -1429,6 +1518,8 @@ mod detector {
                 }
             });
             if wait == 0 {
+                #[cfg(test)]
+                (removals.before_read)();
                 own_read(shared, &reader);
                 continue;
             }
@@ -1645,6 +1736,7 @@ mod detector {
             let both = PasswordGate::with_removals(Removals {
                 handler: handler_refused,
                 desktop_hook: desktop_refused,
+                ..Removals::default()
             });
             both.attach().expect("the detector starts");
             let both = both.detach(crate::windows::INPUT_STOP_DEADLINE);
@@ -1656,6 +1748,62 @@ mod detector {
             let hook = hook.detach(crate::windows::INPUT_STOP_DEADLINE);
             assert_eq!(both, Err(refused_at("RemoveFocusChangedEventHandler")));
             assert_eq!(hook, Err(refused_at("UnhookWinEvent")));
+        }
+
+        static HOLD_READS: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+
+        fn read_held() {
+            while HOLD_READS.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+
+        /// W3-7 O8: a detector held in a read past the stop's deadline, then
+        /// a second attach: the attach waits for the old thread and is
+        /// refused while it runs; once it has ended an attach starts one.
+        #[test]
+        fn an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs() {
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            let gate = PasswordGate::with_removals(Removals {
+                before_read: read_held,
+                ..Removals::default()
+            });
+            gate.attach().expect("the detector starts");
+            HOLD_READS.store(true, Ordering::SeqCst);
+            let now = tick();
+            let key = gate.hold(now, false, 0);
+            let _ = gate.decide(&key, now, 0, false);
+            std::thread::sleep(Duration::from_millis(300));
+            let stopped = gate.detach(Duration::from_millis(200));
+            let second = gate.attach();
+            let running_after_the_second = gate
+                .detector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some();
+            HOLD_READS.store(false, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(300));
+            let third = gate.attach();
+            let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            assert!(
+                matches!(stopped, Err(CaptureError::Timeout { .. })),
+                "{stopped:?}"
+            );
+            assert_eq!(
+                second,
+                Err(CaptureError::Timeout {
+                    stage: "wait for the earlier password detector to end",
+                    ms: 1_000,
+                })
+            );
+            assert!(
+                !running_after_the_second,
+                "a second detector runs beside the held one"
+            );
+            assert_eq!(third, Ok(()));
+            assert_eq!(detached, Ok(()));
         }
 
         #[test]

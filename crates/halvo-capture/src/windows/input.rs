@@ -143,6 +143,11 @@ fn clicks() -> std::sync::MutexGuard<'static, ClickRoute> {
 
 const WM_TAKE_MOUSE: u32 = WM_APP + 1;
 
+/// A test's message that holds the pump in its dispatch for the
+/// milliseconds that it carries (W3-7 O4).
+#[cfg(test)]
+const WM_HOLD_FOR_TEST: u32 = WM_APP + 2;
+
 fn mouse_registration(hwnd: HWND) -> RAWINPUTDEVICE {
     RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_GENERIC,
@@ -152,14 +157,45 @@ fn mouse_registration(hwnd: HWND) -> RAWINPUTDEVICE {
     }
 }
 
+/// The keyboard's window registers the mouse when no source has it. While
+/// the registration fails, the gate withholds every key (W3-7 L7), and the
+/// gate's poll tries again until the registration stands.
 fn keyboard_takes_mouse(hwnd: HWND, register: RegisterCall) -> windows::core::Result<()> {
     let mut route = clicks();
     if route.owner.is_some() {
         return Ok(());
     }
-    register(&mouse_registration(hwnd))?;
-    route.owner = Some(RawDevice::Keyboard);
-    Ok(())
+    let asked = super::now_tick();
+    match register(&mouse_registration(hwnd)) {
+        Ok(()) => {
+            route.owner = Some(RawDevice::Keyboard);
+            if let Some(gate) = &route.gate {
+                gate.clicks_back(super::now_tick());
+            }
+            Ok(())
+        }
+        Err(error) => {
+            if let Some(gate) = &route.gate {
+                gate.clicks_lost(asked);
+            }
+            Err(error)
+        }
+    }
+}
+
+/// The keyboard's window takes the mouse again when no source has it, with
+/// the register call of its start.
+fn keyboard_takes_mouse_again() {
+    let (window, register) = {
+        let route = clicks();
+        if route.owner.is_some() {
+            return;
+        }
+        (route.keyboard_window, route.keyboard_register)
+    };
+    if let (Some(window), Some(register)) = (window, register) {
+        let _ = keyboard_takes_mouse(HWND(window as *mut core::ffi::c_void), register);
+    }
 }
 
 fn keyboard_lets_mouse_go(remove: RemoveCall) -> windows::core::Result<()> {
@@ -174,9 +210,19 @@ fn keyboard_lets_mouse_go(remove: RemoveCall) -> windows::core::Result<()> {
     remove(&removal_of(RawDevice::Pointer))
 }
 
-fn pointer_lets_mouse_go() {
-    let mut route = clicks();
+/// The pointer source gives the mouse up, with the route's lock held since
+/// before its registration was removed: the gate withholds keys from the
+/// removal until the keyboard's window has the mouse (W3-7 L7, O4), and no
+/// other start or stop comes between the removal and the change of the
+/// owner (O6). A pointer that no longer owns the mouse changes nothing.
+fn pointer_lets_mouse_go(mut route: std::sync::MutexGuard<'static, ClickRoute>, removed_at: u32) {
+    if route.owner != Some(RawDevice::Pointer) {
+        return;
+    }
     route.owner = None;
+    if let Some(gate) = &route.gate {
+        gate.clicks_lost(removed_at);
+    }
     if let Some(window) = route.keyboard_window {
         // SAFETY: PostMessageW takes a window handle and plain values; a
         // window that is gone makes the call fail and changes nothing.
@@ -586,6 +632,8 @@ struct StartCalls {
     create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
     register_device: RegisterCall,
     remove_device: RemoveCall,
+    /// Makes the keyboard pump's poll timer; 0 when it fails.
+    set_timer: fn() -> usize,
 }
 
 const SYSTEM_CALLS: StartCalls = StartCalls {
@@ -594,7 +642,16 @@ const SYSTEM_CALLS: StartCalls = StartCalls {
     create_window: create_message_window,
     register_device: register_raw_input_device,
     remove_device: register_raw_input_device,
+    set_timer: set_poll_timer,
 };
+
+fn set_poll_timer() -> usize {
+    // SAFETY: SetTimer with no window makes a timer of this thread, whose
+    // callback has the TIMERPROC signature; the pump dispatches it.
+    unsafe {
+        windows::Win32::UI::WindowsAndMessaging::SetTimer(None, 0, GATE_POLL_MS, Some(gate_poll))
+    }
+}
 
 pub(crate) const REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE)";
 
@@ -872,10 +929,12 @@ unsafe extern "system" fn wnd_proc(
             DefWindowProcW(hwnd, msg, wparam, lparam)
         }
         WM_TAKE_MOUSE => {
-            let register = clicks().keyboard_register;
-            if let Some(register) = register {
-                let _ = keyboard_takes_mouse(hwnd, register);
-            }
+            keyboard_takes_mouse_again();
+            LRESULT(0)
+        }
+        #[cfg(test)]
+        WM_HOLD_FOR_TEST => {
+            std::thread::sleep(std::time::Duration::from_millis(lparam.0 as u64));
             LRESULT(0)
         }
         WM_DESTROY => {
@@ -987,9 +1046,16 @@ impl CaptureSource for RawInputSource {
     fn shutdown(&mut self) -> Result<(), CaptureError> {
         let stopped = self.life.shutdown();
         if let Err(CaptureError::Timeout { .. }) = stopped {
-            let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
             if self.device == RawDevice::Keyboard {
+                let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
                 let _ = keyboard_lets_mouse_go(self.calls.remove_device);
+            } else {
+                // W3-7 O4: the pump that did not stop in time still owns
+                // the mouse; its registration is removed here and the
+                // keyboard's window is told to take the mouse.
+                let route = clicks();
+                let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
+                pointer_lets_mouse_go(route, super::now_tick());
             }
         }
         let Some(gate) = &self.gate else {
@@ -1027,7 +1093,8 @@ struct DeviceGuard<'a> {
     removed: Removed,
     remove: RemoveCall,
     signal: &'a super::StopSignal,
-    _claim: DeviceClaim,
+    /// Let go after the click route has changed (W3-7 O6).
+    claim: Option<DeviceClaim>,
 }
 
 impl Drop for DeviceGuard<'_> {
@@ -1097,17 +1164,29 @@ fn run_raw_input(
         dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
-    let registered = (calls.register_device)(&dev);
+    // The pointer's registration replaces the keyboard's mouse
+    // registration, so it is made with the owner's change under the route's
+    // lock (W3-7 O6).
+    let registered = if device == RawDevice::Pointer {
+        let mut route = clicks();
+        let registered = (calls.register_device)(&dev);
+        if registered.is_ok() {
+            route.owner = Some(RawDevice::Pointer);
+        }
+        registered
+    } else {
+        (calls.register_device)(&dev)
+    };
     if let Err(error) = registered {
         ready.report(Err(super::os_error("RegisterRawInputDevices", &error)));
         return;
     }
-    let device_guard = DeviceGuard {
+    let mut device_guard = DeviceGuard {
         device,
         removed,
         remove: calls.remove_device,
         signal,
-        _claim: claim,
+        claim: Some(claim),
     };
     if device == RawDevice::Keyboard {
         {
@@ -1124,24 +1203,16 @@ fn run_raw_input(
             )));
             return;
         }
-    } else {
-        clicks().owner = Some(RawDevice::Pointer);
     }
 
     super::ensure_message_queue();
     let poll = if device == RawDevice::Keyboard {
-        // SAFETY: SetTimer with no window makes a timer of this thread, whose
-        // callback has the TIMERPROC signature; the pump below dispatches it.
-        let poll = unsafe {
-            windows::Win32::UI::WindowsAndMessaging::SetTimer(
-                None,
-                0,
-                GATE_POLL_MS,
-                Some(gate_poll),
-            )
-        };
+        let poll = (calls.set_timer)();
         if poll == 0 {
-            ready.report(Err(super::last_os_error("SetTimer")));
+            let error = super::last_os_error("SetTimer");
+            // W3-7 O5: a start that fails here leaves no click route set.
+            let _ = keyboard_lets_mouse_go(calls.remove_device);
+            ready.report(Err(error));
             return;
         }
         Some(poll)
@@ -1150,14 +1221,18 @@ fn run_raw_input(
     };
     ready.report(Ok(()));
     super::pump_messages(signal);
-    drop(device_guard);
     if device == RawDevice::Keyboard {
+        drop(device_guard);
         signal.report_removal(
             MOUSE_REMOVE_STAGE,
             keyboard_lets_mouse_go(calls.remove_device),
         );
     } else {
-        pointer_lets_mouse_go();
+        let claim = device_guard.claim.take();
+        let route = clicks();
+        drop(device_guard);
+        pointer_lets_mouse_go(route, super::now_tick());
+        drop(claim);
     }
     INPUT_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
@@ -1176,6 +1251,7 @@ fn run_raw_input(
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
+    keyboard_takes_mouse_again();
     INPUT_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             if let Some(gate) = state.gate.as_mut() {
@@ -1188,6 +1264,7 @@ unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::secure_input::windows::Rule;
 
     #[test]
     fn a_cleared_key_maps_to_a_keystroke_packet() {
@@ -1425,6 +1502,251 @@ mod tests {
             "the raw button-down left no latch in the keyboard's gate"
         );
         assert_eq!(keyboard_stopped, Ok(()));
+    }
+
+    /// A mouse registration call that fails while `FAIL_MOUSE` is set, and
+    /// one that holds its thread for `HOLD_AFTER_MOUSE_MS` after a mouse
+    /// registration that it made; both are counted.
+    static FAIL_MOUSE: AtomicBool = AtomicBool::new(false);
+    static HOLD_AFTER_MOUSE_MS: AtomicU64 = AtomicU64::new(0);
+
+    fn register_mouse_seam(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        let mouse =
+            device.usUsage == RawDevice::Pointer.hid_usage() && device.dwFlags != RIDEV_REMOVE;
+        if mouse && FAIL_MOUSE.load(Ordering::SeqCst) {
+            return Err(windows::core::Error::from_hresult(
+                windows::Win32::Foundation::E_ACCESSDENIED,
+            ));
+        }
+        let made = register_counted(device);
+        let hold = if mouse {
+            HOLD_AFTER_MOUSE_MS.swap(0, Ordering::SeqCst)
+        } else {
+            0
+        };
+        if hold > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(hold));
+        }
+        made
+    }
+
+    fn calls_with_the_mouse_seam() -> StartCalls {
+        StartCalls {
+            register_device: register_mouse_seam,
+            remove_device: register_counted,
+            ..SYSTEM_CALLS
+        }
+    }
+
+    /// The rule that decides a key typed at `tick`, at 300 ms after it.
+    fn rule_for_a_key_at(gate: &PasswordGate, tick: u32) -> Option<Rule> {
+        let key = gate.hold(tick, false, 0);
+        gate.decide(&key, tick.wrapping_add(300), 0, false)
+            .map(|(_, rule)| rule)
+    }
+
+    fn wait_for(limit: std::time::Duration, mut done: impl FnMut() -> bool) -> bool {
+        let deadline = std::time::Instant::now() + limit;
+        loop {
+            if done() {
+                return true;
+            }
+            if std::time::Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    /// W3-7 L7: a mouse registration that fails at the hand-over holds the
+    /// gate closed, and the keyboard's window registers the mouse when the
+    /// call stands again.
+    #[test]
+    fn a_failed_mouse_registration_at_the_hand_over_holds_the_gate_closed_until_it_stands() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        FAIL_MOUSE.store(false, Ordering::SeqCst);
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard =
+            RawInputSource::with_calls(RawDevice::Keyboard, calls_with_the_mouse_seam());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let keyboard_window = clicks().keyboard_window;
+        let gate = clicks().gate.clone().expect("the keyboard's gate");
+        let mut pointer = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        FAIL_MOUSE.store(true, Ordering::SeqCst);
+        let pointer_stopped = pointer.shutdown();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let owner_while_failing = clicks().owner;
+        let rule_while_failing = rule_for_a_key_at(&gate, super::super::now_tick());
+        FAIL_MOUSE.store(false, Ordering::SeqCst);
+        let stood = wait_for(std::time::Duration::from_secs(2), || {
+            keyboard_window.is_some_and(mouse_registered_again_for)
+        });
+        let owner_after = clicks().owner;
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let rule_after = rule_for_a_key_at(&gate, super::super::now_tick());
+        let keyboard_stopped = keyboard.shutdown();
+        let _ = registrations();
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert!(pointer_started.is_ok(), "{pointer_started:?}");
+        assert_eq!(pointer_stopped, Ok(()));
+        assert_eq!(owner_while_failing, None);
+        assert_eq!(rule_while_failing, Some(Rule::NoClickRoute));
+        assert!(
+            stood,
+            "the keyboard's window did not register the mouse when the call stood again"
+        );
+        assert_eq!(owner_after, Some(RawDevice::Keyboard));
+        assert_ne!(rule_after, Some(Rule::NoClickRoute));
+        assert_eq!(keyboard_stopped, Ok(()));
+    }
+
+    /// W3-7 O4: a pointer whose pump does not stop in time gives the mouse
+    /// to the keyboard's window, and the gate withholds the keys between.
+    #[test]
+    fn a_pointer_stop_that_times_out_hands_the_mouse_to_the_keyboard() {
+        use windows::Win32::UI::WindowsAndMessaging::{FindWindowExW, PostMessageW};
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let keyboard_window = clicks().keyboard_window;
+        let gate = clicks().gate.clone().expect("the keyboard's gate");
+        let mut pointer = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        // SAFETY: the class name is a static wide string; HWND_MESSAGE
+        // searches the message-only windows.
+        let pointer_window = unsafe {
+            FindWindowExW(
+                Some(HWND_MESSAGE),
+                None,
+                RawDevice::Pointer.class_name(),
+                None,
+            )
+        };
+        let held = pointer_window.as_ref().is_ok_and(|window| {
+            // SAFETY: PostMessageW takes a window handle and plain values.
+            unsafe {
+                PostMessageW(Some(*window), WM_HOLD_FOR_TEST, WPARAM(0), LPARAM(4_000)).is_ok()
+            }
+        });
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let _ = registrations();
+        let pointer_stopped = pointer.shutdown();
+        let stopped_at = super::super::now_tick();
+        let taken = wait_for(std::time::Duration::from_secs(1), || {
+            keyboard_window.is_some_and(mouse_registered_again_for)
+        });
+        let owner_after = clicks().owner;
+        let rule_at_the_stop = rule_for_a_key_at(&gate, stopped_at.wrapping_sub(50));
+        std::thread::sleep(std::time::Duration::from_millis(4_200));
+        let owner_after_the_hold = clicks().owner;
+        let keyboard_stopped = keyboard.shutdown();
+        let _ = registrations();
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert!(pointer_started.is_ok(), "{pointer_started:?}");
+        assert!(held, "the test could not hold the pointer's pump");
+        assert!(
+            matches!(pointer_stopped, Err(CaptureError::Timeout { .. })),
+            "{pointer_stopped:?}"
+        );
+        assert!(
+            taken,
+            "the keyboard's window had no mouse registration within 1 s of the Timeout"
+        );
+        assert_eq!(owner_after, Some(RawDevice::Keyboard));
+        assert_eq!(rule_at_the_stop, Some(Rule::NoClickRoute));
+        assert_eq!(owner_after_the_hold, Some(RawDevice::Keyboard));
+        assert_eq!(keyboard_stopped, Ok(()));
+    }
+
+    fn no_timer() -> usize {
+        0
+    }
+
+    /// W3-7 O5: a keyboard start that fails at its timer leaves no click
+    /// route, so that the next start registers the mouse for its window.
+    #[test]
+    fn a_keyboard_start_that_fails_at_its_timer_leaves_no_click_route() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut failing = RawInputSource::with_calls(
+            RawDevice::Keyboard,
+            StartCalls {
+                set_timer: no_timer,
+                ..calls_for_tests()
+            },
+        );
+        let failed = failing.begin(crate::source::SourceContext::new(sink.clone()));
+        let owner_after_the_failure = clicks().owner;
+        let _ = registrations();
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let started = keyboard.begin(crate::source::SourceContext::new(sink));
+        let window = clicks().keyboard_window;
+        let calls = REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let stopped = keyboard.shutdown();
+        let _ = registrations();
+        let mouse = RawDevice::Pointer.hid_usage();
+        assert!(
+            matches!(&failed, Err(CaptureError::Os { stage, .. }) if *stage == "SetTimer"),
+            "{failed:?}"
+        );
+        assert_eq!(owner_after_the_failure, None);
+        assert!(started.is_ok(), "{started:?}");
+        assert!(
+            window.is_some_and(|window| calls.contains(&(mouse, false, window))),
+            "the second start registered no mouse for its window"
+        );
+        assert_eq!(stopped, Ok(()));
+    }
+
+    /// W3-7 O6: the pointer's registration and the change of the owner are
+    /// one step, so a keyboard stop between them does not remove the
+    /// pointer's registration.
+    #[test]
+    fn a_keyboard_stop_during_the_pointers_registration_leaves_the_pointers_mouse() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        HOLD_AFTER_MOUSE_MS.store(400, Ordering::SeqCst);
+        let starting = std::thread::spawn(move || {
+            let mut pointer =
+                RawInputSource::with_calls(RawDevice::Pointer, calls_with_the_mouse_seam());
+            let started = pointer.begin(crate::source::SourceContext::new(sink));
+            (pointer, started)
+        });
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let keyboard_stopped = keyboard.shutdown();
+        let (mut pointer, pointer_started) = starting.join().expect("the pointer's start");
+        let owner = clicks().owner;
+        let calls = registrations();
+        let pointer_stopped = pointer.shutdown();
+        let _ = registrations();
+        HOLD_AFTER_MOUSE_MS.store(0, Ordering::SeqCst);
+        let mouse = RawDevice::Pointer.hid_usage();
+        let last_mouse_call = calls
+            .iter()
+            .rev()
+            .find(|(usage, _)| *usage == mouse)
+            .copied();
+        assert!(keyboard_started.is_ok(), "{keyboard_started:?}");
+        assert!(pointer_started.is_ok(), "{pointer_started:?}");
+        assert_eq!(keyboard_stopped, Ok(()));
+        assert_eq!(owner, Some(RawDevice::Pointer));
+        assert_eq!(
+            last_mouse_call,
+            Some((mouse, false)),
+            "the keyboard's stop removed the pointer's mouse registration: {calls:?}"
+        );
+        assert_eq!(pointer_stopped, Ok(()));
     }
 
     #[test]
