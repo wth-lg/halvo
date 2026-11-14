@@ -568,6 +568,11 @@ expect_measure() {
   esac
   tmp_top=$(cd "$scratch/tmp-$case_name" && pwd -P) || exit 2
   grep -F "|node gate/fixtures/concurrency/records.mjs" "$dir/state/calls" 2>/dev/null | grep -q -F "with-env|$tmp_top/" || got=$got-without-the-records-run-in-the-export
+  tests_at=$(grep -n -F '|node_modules/.bin/vitest run ' "$dir/state/calls" 2>/dev/null | sed -n '1s/:.*//p')
+  records_at=$(grep -n -F '|node gate/fixtures/concurrency/records.mjs' "$dir/state/calls" 2>/dev/null | sed -n '1s/:.*//p')
+  if [ -n "$tests_at" ] && { [ -z "$records_at" ] || [ "$records_at" -lt "$tests_at" ]; }; then
+    got=$got-with-the-records-before-the-tests
+  fi
   [ -f "$dir/out/records-state/written" ] || got=$got-without-the-state-under-the-artifacts
   verdict "$1" "$got" "$case_name"
 }
@@ -821,6 +826,18 @@ let failed = 0;'
   commit_stub_records the-summary-twice
   expect_records FAIL the-summary-twice 'the last line of'
 
+  stub_records a-right-output-with-exit-1 1 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-right-output-with-exit-1
+  expect_records FAIL a-right-output-with-exit-1 "check 50's records exited 1; the lines are records.txt"
+
+  stub_records a-tmpdir-inside-the-checkout 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-tmpdir-inside-the-checkout
+  mkdir -p "$scratch/a-tmpdir-inside-the-checkout/tmp" || exit 2
+  tmpdir_kept=${TMPDIR:-}
+  TMPDIR=$scratch/a-tmpdir-inside-the-checkout/tmp
+  expect_records FAIL a-tmpdir-inside-the-checkout 'inside the checkout or the artifacts'
+  TMPDIR=$tmpdir_kept
+
   stub_records the-commit-holds-backend-node-modules 0 "$good_line" "$bad_line" "$summary_line"
   printf 'a file of the commit\n' >"$scratch/the-commit-holds-backend-node-modules/backend/node_modules/tracked.txt" || exit 2
   git_commit "$scratch/the-commit-holds-backend-node-modules" the-commit-holds-backend-node-modules backend/scripts/with-env.sh backend/gate backend/node_modules/tracked.txt
@@ -886,6 +903,14 @@ EOF
     printf 'printf %s >gate/fixtures/concurrency/records/good-a.json\n' "'{\"rewritten\": true}\\n'" >>"$scratch/$flag_case/state/stand-in.sh"
     expect_measure FAIL "$flag_case" '' "a tracked file carries the index flag ${flagged#*:} after the node tests: $records_dir/good-a.json"
   done
+
+  measure_fixture the-node-tests-commit-a-record 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
+  stand_in the-node-tests-commit-a-record <<'EOF'
+printf '{}\n' >gate/fixtures/concurrency/records/good-c.json || exit 1
+git -C .. add -- backend/gate/fixtures/concurrency/records/good-c.json || exit 1
+git -C .. -c maintenance.auto=false commit -q -m 'a node test commits a record' || exit 1
+EOF
+  expect_measure FAIL the-node-tests-commit-a-record 'records exit=0 at-commit=1 as-expected=1 problems=0 last-line=ok' "a tracked file differs from the commit after the node tests: $records_dir/good-c.json"
 
   measure_fixture the-checkout-is-dirty-before-the-run 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"
   printf 'left by an earlier step\n' >>"$scratch/the-checkout-is-dirty-before-the-run/docs/note.txt" || exit 2
