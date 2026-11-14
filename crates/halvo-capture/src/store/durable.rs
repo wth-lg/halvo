@@ -156,7 +156,7 @@ impl Dir {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) use unix_dir::volume_of;
+pub(crate) use unix_dir::{volume_of, EntryIdentity};
 
 #[cfg(target_os = "macos")]
 mod unix_dir {
@@ -230,7 +230,19 @@ mod unix_dir {
         Ok(st)
     }
 
-    pub(crate) fn volume_of(fd: RawFd) -> io::Result<(u32, PathBuf, [i32; 2])> {
+    pub(crate) struct EntryIdentity {
+        pub(crate) kind: EntryKind,
+        pub(crate) device: u64,
+        pub(crate) file_number: u64,
+    }
+
+    pub(crate) struct Volume {
+        pub(crate) flags: u32,
+        pub(crate) mount_point: PathBuf,
+        pub(crate) fsid: [i32; 2],
+    }
+
+    pub(crate) fn volume_of(fd: RawFd) -> io::Result<Volume> {
         // SAFETY: libc::statfs is plain data, for which all-zero bytes are a valid value.
         let mut st: libc::statfs = unsafe { std::mem::zeroed() };
         // SAFETY: st is a statfs that outlives the call, which writes only into it,
@@ -238,13 +250,13 @@ mod unix_dir {
         checked(unsafe { libc::fstatfs(fd, &mut st) })?;
         // SAFETY: f_mntonname is a NUL-terminated array that the call filled.
         let mount = unsafe { CStr::from_ptr(st.f_mntonname.as_ptr()) };
-        Ok((
-            st.f_flags,
-            PathBuf::from(OsStr::from_bytes(mount.to_bytes())),
+        Ok(Volume {
+            flags: st.f_flags,
+            mount_point: PathBuf::from(OsStr::from_bytes(mount.to_bytes())),
             // SAFETY: fsid_t is a C struct of two i32 values, the size of [i32; 2],
             // and every bit pattern of either is a valid value.
-            unsafe { std::mem::transmute::<libc::fsid_t, [i32; 2]>(st.f_fsid) },
-        ))
+            fsid: unsafe { std::mem::transmute::<libc::fsid_t, [i32; 2]>(st.f_fsid) },
+        })
     }
 
     fn kind(st: &libc::stat) -> EntryKind {
@@ -491,13 +503,17 @@ mod unix_dir {
             Ok(u64::from(stat_of(self.fd.as_raw_fd())?.st_nlink))
         }
 
-        pub(crate) fn volume(&self) -> io::Result<(u32, PathBuf, [i32; 2])> {
+        pub(crate) fn volume(&self) -> io::Result<Volume> {
             volume_of(self.fd.as_raw_fd())
         }
 
-        pub(crate) fn entry_identity(&self, name: &OsStr) -> io::Result<(EntryKind, u64, u64)> {
+        pub(crate) fn entry_identity(&self, name: &OsStr) -> io::Result<EntryIdentity> {
             let st = stat_at(self.fd.as_raw_fd(), name)?;
-            Ok((kind(&st), st.st_dev as u64, st.st_ino))
+            Ok(EntryIdentity {
+                kind: kind(&st),
+                device: st.st_dev as u64,
+                file_number: st.st_ino,
+            })
         }
 
         pub(crate) fn into_file(self) -> File {
@@ -1024,6 +1040,21 @@ mod tests {
 
     fn name(text: &str) -> &OsStr {
         OsStr::new(text)
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_identity_of_an_entry_that_is_a_link_reads_link_and_names_the_link_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("target"), b"target").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("target"), dir.path().join("link")).unwrap();
+        let handle = held(&dir);
+        let link = handle.entry_identity(name("link")).unwrap();
+        let target = handle.entry_identity(name("target")).unwrap();
+        assert_eq!(link.kind, EntryKind::Link);
+        assert_eq!(target.kind, EntryKind::File);
+        assert_ne!(link.file_number, target.file_number);
+        assert_eq!(link.device, target.device);
     }
 
     #[test]

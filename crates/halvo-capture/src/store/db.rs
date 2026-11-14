@@ -510,19 +510,19 @@ pub(crate) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
     if let Some(readings) = name_seams::volume_answer() {
         return readings;
     }
-    let Ok((flags, mount, fsid)) = store_dir.volume() else {
+    let Ok(volume) = store_dir.volume() else {
         return VolumeReadings {
             flag: None,
             capability: None,
             root: None,
         };
     };
-    let flag = Some(flags & libc::MNT_DOVOLFS as u32 != 0);
-    let root_dir = Dir::open(&mount).ok();
+    let flag = Some(volume.flags & libc::MNT_DOVOLFS as u32 != 0);
+    let root_dir = Dir::open(&volume.mount_point).ok();
     let capability_at_the_volume_root = |root: &Dir| {
         let fd = root.raw_descriptor();
         match durable::volume_of(fd) {
-            Ok((_, _, id)) if id == fsid => path_from_id(fd),
+            Ok(root_volume) if root_volume.fsid == volume.fsid => path_from_id(fd),
             _ => None,
         }
     };
@@ -1541,7 +1541,11 @@ fn hex_lower(bytes: &[u8; 32]) -> Zeroizing<String> {
 fn held_look(conn: &Connection, store_dir: &Dir, form: NameForm) -> StoreResult<()> {
     let outside = || obstructed(StoreName::Database, Met::DatabaseOutsideTheDirectory);
     let (kind, device, file_number) = match store_dir.entry_identity(OsStr::new(DATABASE_FILE)) {
-        Ok(found) => found,
+        Ok(durable::EntryIdentity {
+            kind,
+            device,
+            file_number,
+        }) => (kind, device, file_number),
         Err(e) if e.kind() == ErrorKind::NotFound => return Err(outside()),
         Err(e) => return Err(io_error(e)),
     };
