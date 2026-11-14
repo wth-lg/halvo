@@ -1210,11 +1210,13 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     answer_handback_reading(ports, ledger, limits, item, ask, choice, &mut read)
 }
 
-/// `answer_handback` with `read` as the one read of the owner's events after a refusal `seq` of
-/// the rows that waited in the ledger or after a failed log of the press's row: it takes the
+/// `answer_handback` with `read` as the one read of the owner's events: after a refusal `seq` of
+/// the rows that waited in the ledger, after a failed log of the press's row, or, where the kept
+/// rows decide and the move has read nothing, before their result goes to the run. It takes the
 /// events into the ledger and says what it showed. Where it shows the agent switched off beside
 /// its run, nothing of the press is logged or handed to the run, the waiting rows stay for the
-/// rest of the switch-off, and the move answers `unknown_item` (ruling RD-52 (b) rule 3).
+/// rest of the switch-off, and the move answers `unknown_item` (ruling RD-52 (b) rule 3); where
+/// the read before a kept row's result fails, the move answers `no_service` and hands nothing.
 pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1250,7 +1252,12 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
         answer: &answer,
         result,
     };
-    if !flush_reading(ports, ledger, limits, read).map_err(|e| cause_of(&e))? {
+    let made = std::cell::Cell::new(false);
+    let mut reading = |l: &mut Ledger| {
+        made.set(true);
+        read(l)
+    };
+    if !flush_reading(ports, ledger, limits, &mut reading).map_err(|e| cause_of(&e))? {
         return Err(Cause::UnknownItem);
     }
     let decided = if ledger.unsure.contains(item) {
@@ -1259,7 +1266,15 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
         press.decide(ledger.closing(item).map(|e| &e.what))
     };
     let decided = match decided {
-        Decided::LogOwnRow => match log_press(ports, ledger, &press, &row, stamp, read) {
+        Decided::Own(_) | Decided::Other(_) if !made.get() => match reading(ledger) {
+            Read::Off => return Err(Cause::UnknownItem),
+            Read::Failed => return Err(Cause::NoService),
+            Read::Taken => press.decide(ledger.closing(item).map(|e| &e.what)),
+        },
+        decided => decided,
+    };
+    let decided = match decided {
+        Decided::LogOwnRow => match log_press(ports, ledger, &press, &row, stamp, &mut reading) {
             Ok(decided) => decided,
             Err(e) => {
                 if !ledger.unsure.contains(item) {
@@ -1415,10 +1430,12 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
 }
 
 /// `answer_bind` with `read` as the read after a refusal `seq` of the rows that waited in the
-/// ledger or of its own row, which the coordinator hands: a read that shows the agent switched
-/// off beside its run stores no row of the press,
-/// sends no answer and answers `unknown_item`, as for a step that is no longer open, and the
-/// step stays for the rest of the switch-off (ruling RD-52 (b) rule 3, RD-101 item 5 (a)).
+/// ledger or of its own row, and as the one read before a stored answer that the run did not take
+/// is sent again, which the coordinator hands: a read that shows the agent switched off beside
+/// its run stores no row of the press, sends no answer and answers `unknown_item`, as for a step
+/// that is no longer open, and the step stays for the rest of the switch-off (ruling RD-52 (b)
+/// rule 3, RD-101 item 5 (a)); a read before a stored answer that fails answers `no_service` and
+/// sends nothing.
 pub fn answer_bind_reading<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1435,6 +1452,7 @@ pub fn answer_bind_reading<P: Owner + Runs + Clock>(
     if table.is_stopped(&held.ask.run) {
         return Err(Cause::State);
     }
+    let again = held.state == BindState::Recorded(result);
     match held.state {
         BindState::Recorded(stored) if stored == result => {}
         BindState::Recorded(BindResult::Decline) => return Err(Cause::State),
@@ -1456,6 +1474,13 @@ pub fn answer_bind_reading<P: Owner + Runs + Clock>(
                 }
             }
             held.state = BindState::Recorded(result);
+        }
+    }
+    if again {
+        match read(ledger) {
+            Read::Off => return Err(Cause::UnknownItem),
+            Read::Failed => return Err(Cause::NoService),
+            Read::Taken => {}
         }
     }
     match ports.answer_bind(&held.ask.run, result) {
