@@ -882,6 +882,60 @@ fn a_refused_open_changes_no_row_no_revision_and_no_value_of_meta() {
     assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
 }
 
+static PAIR_NONE: KindEntry = KindEntry {
+    workflow_key: None,
+    ..PAIR_A
+};
+
+/// C3.9 (inbox entry 85 (a); U5.1d, part 2): an entry that gives no workflow key for a kind whose stored rows name the
+/// workflow that they go with makes the open fail by name before it writes anything: with the clock past every bound,
+/// the rows, the revisions and meta are as they were, and an open with the earlier entry opens as before. The control:
+/// the same entry opens over stored rows of the kind that it stored itself, which name no workflow.
+#[test]
+fn an_open_refuses_an_entry_that_drops_the_workflow_key_of_stored_rows_and_changes_nothing() {
+    let scratch = Scratch::new("pair-dropped-key");
+    let clock = TestClock::at_day(DAY);
+    let (first, second) = two_workflows(&scratch, &clock);
+    pair(&scratch, &clock, &first, &second);
+    let before = tables(&scratch);
+    clock.set_day(DAY + 400);
+    let refused =
+        open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_NONE]).map(drop);
+    assert_eq!(
+        refused,
+        Err(OpenError::Stored {
+            kind: "test_pair",
+            fault: StoredFault::DroppedWorkflowKey,
+        })
+    );
+    assert_eq!(tables(&scratch), before);
+    clock.set_day(DAY);
+    drop(open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_A]).unwrap());
+    assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
+
+    let scratch = Scratch::new("pair-never-keyed");
+    let (first, second) = two_workflows(&scratch, &clock);
+    let records: Records = Rc::new(RefCell::new(vec![TypedRecord {
+        kind: "test_pair",
+        json: format!(r#"{{"v":1,"workflow":"{first}","target":"{second}"}}"#),
+    }]));
+    let mut store =
+        open_entries(&scratch, with_step(&clock, &records, vec![]), &[&PAIR_NONE]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    drop(store);
+    assert_eq!(
+        count(
+            &scratch,
+            "SELECT count(*) FROM rows WHERE kind = 'test_pair' AND workflow IS NULL"
+        ),
+        1
+    );
+    drop(open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_NONE]).unwrap());
+    assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
+}
+
 #[test]
 fn a_window_record_that_names_one_segment_twice_is_stored_once_and_goes_with_its_purge() {
     let scratch = Scratch::new("segment-twice");

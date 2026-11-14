@@ -175,6 +175,7 @@ catalogue! {
     STORED_OTHER_CLASS = "SELECT id FROM rows WHERE kind = ?1 AND class <> ?2 LIMIT 1";
     STORED_OTHER_WORKFLOW = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL \
         AND json_extract(body, ?2) IS NOT workflow LIMIT 1";
+    STORED_WORKFLOW_HELD = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL LIMIT 1";
     WORKFLOW_FILL = "UPDATE rows SET workflow = json_extract(body, ?2) WHERE kind = ?1 AND workflow IS NULL";
     REVISION_READ = "SELECT n FROM revisions WHERE family = ?1";
     COUNT_CLASS = "SELECT count(*) FROM rows WHERE class = ?1";

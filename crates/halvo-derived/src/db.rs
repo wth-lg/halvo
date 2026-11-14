@@ -562,9 +562,10 @@ impl Db {
     }
 
     /// Refuses the open, before anything is written, where stored rows of a kind cannot follow its entry: a row stored
-    /// under another retention class than the entry gives, or a row whose workflow column holds an id while its
-    /// record holds no id, or another one, under the entry's workflow key. A row whose workflow column is null is no
-    /// fault: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow run among them.
+    /// under another retention class than the entry gives, a row whose workflow column holds an id while its record
+    /// holds no id, or another one, under the entry's workflow key, or, for an entry that gives no workflow key, a row
+    /// whose workflow column holds an id. A row whose workflow column is null is no fault under an entry that gives a
+    /// key: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow run among them.
     fn check_stored(&self) -> Result<(), OpenError> {
         for entry in &self.entries {
             let class = one(
@@ -579,19 +580,24 @@ impl Db {
                     fault: StoredFault::Class,
                 });
             }
-            if let Some(key) = entry.workflow_key {
-                let other = one(
+            let found = match entry.workflow_key {
+                Some(key) => one(
                     &self.conn,
                     sql::STORED_OTHER_WORKFLOW,
                     rusqlite::params![entry.name, format!("$.{key}")],
                     |r| r.get::<_, i64>(0),
-                )?;
-                if other.is_some() {
-                    return Err(OpenError::Stored {
-                        kind: entry.name,
-                        fault: StoredFault::WorkflowKey,
-                    });
-                }
+                )?
+                .map(|_| StoredFault::WorkflowKey),
+                None => one(&self.conn, sql::STORED_WORKFLOW_HELD, [entry.name], |r| {
+                    r.get::<_, i64>(0)
+                })?
+                .map(|_| StoredFault::DroppedWorkflowKey),
+            };
+            if let Some(fault) = found {
+                return Err(OpenError::Stored {
+                    kind: entry.name,
+                    fault,
+                });
             }
         }
         Ok(())
