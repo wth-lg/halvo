@@ -66,23 +66,23 @@ pub type GuardInstall<R> = fn(&WebviewWindow<R>, EngineSite, Sender<GuardAnswer>
 /// request that refuses each address but the two of `REQUEST_HOSTS`, and the two
 /// navigation handlers, beside `app::ENGINE_ARGS` at creation; on macOS the
 /// navigation delegate in front of wry's, the data store's proxy at no address,
-/// and the content rule list `RULE_LIST`, compiled into `site.rules_dir`.
+/// the engine's peer-connection and link-preconnect preferences turned off and
+/// read back, and the content rule list `RULE_LIST`, compiled into
+/// `site.rules_dir`.
 ///
-/// Hosted run 43512109011, with every means in: on Windows (job 132184675643)
-/// the window opened 0 connections, sent 0 requests and made 0 lookups for every
-/// step of ruling AP-9's list whose control reached the job's listeners, but a
-/// peer connection to an address in numbers sent 5 datagrams (log line 6158;
-/// with no layer 5). On macOS (job 132184676476) the same held, but a link
-/// clicked by script, a link with a target and a download link, each to an
-/// address in numbers, opened 1 connection with 0 requests and 0 lookups (log
-/// lines 7339, 7354 and 7444; with no layer 1 each), and a peer connection sent
-/// 4 datagrams to an address in numbers, 4 to a hosts-file name and 3 to a
-/// resolver name after 2 lookups of that name (log lines 7534, 7539 and 7544;
-/// with no layer the same). Of frames on macOS the run shows this alone: a
-/// frame of each of the three addresses opened 0 connections with these means in
-/// and the content policy and the runtime's rule out (log lines 7416, 7421 and
-/// 7426; with no layer 1 each), and 0 with these means out and the content
-/// policy in (log lines 7415, 7420 and 7425).
+/// Hosted run 43541710304, with these means in and the content policy, the
+/// runtime's rule and the script of every frame out: on Windows (job
+/// 132283525539) and on macOS (job 132283525260) the window opened 0
+/// connections, sent 0 requests, made 0 lookups and sent 0 datagrams for every
+/// step of rulings AP-9 and AP-10 whose control reached the job's listeners. That
+/// holds for a peer connection whose remote description carries a marked fragment
+/// (with no layer 230 datagrams that carried the marker on Windows and 247 on
+/// macOS, log lines 5205 and 11003) and on macOS for a link clicked by script, a
+/// link with a target and a download link to an address in numbers (with no
+/// layer 1 connection each, log lines 10428, 10483 and 10703). Of frames on macOS
+/// the run shows this alone: a frame of each of the three addresses opened 0
+/// connections with these means in and the content policy and the runtime's rule
+/// out (log lines 10636, 10647 and 10658; with no layer 1 each).
 pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Sender<GuardAnswer>) {
     let unreached = answer.clone();
     let asked = window.with_webview(move |webview| platform::install(&webview, &site, answer));

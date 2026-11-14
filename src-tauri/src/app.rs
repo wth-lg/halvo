@@ -174,12 +174,12 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
 /// runtime's own reader refuses is allowed by the runtime without the rule
 /// (tauri-runtime-wry 2.12.3); it is reached only by script in the page, and
 /// the means of `engine::guard` decide it at the engine. On Windows a navigation
-/// to https://xn--zz.com/p?q#f, a form that the reader refuses, opened 10
+/// to https://xn--zz.com/p?q#f, a form that the reader refuses, opened 8
 /// connections with no layer, and 0 connections, 0 requests and 0 lookups with
-/// every engine means in (hosted run 43512109011, job 132184675643, log lines
-/// 5961 and 5958). On macOS that form and its http twin reached the job's
-/// listener with no layer neither (job 132184676476, log lines 7329 to 7338), so
-/// the run shows nothing of such a form at the engine there.
+/// every engine means in (hosted run 43541710304, job 132283525539, log lines
+/// 4839 and 4836). On macOS none of the 70 forms that the reader refuses left
+/// the app or reached a listener with no layer (job 132283525260, log line
+/// 11265).
 pub fn may_navigate(address: &str) -> bool {
     Url::parse(address).is_ok_and(|url| is_app_url(&url))
 }
