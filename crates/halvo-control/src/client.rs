@@ -79,6 +79,10 @@ pub enum ClientError {
     StateDoesNotHoldTogether(crate::proto::StatusError),
     #[error("the daemon answered {kind} to this request")]
     UnexpectedReply { kind: &'static str },
+    /// An `already_deleted` that answers no request of this call: one to another verb, to a
+    /// delete with no id, or one that names the armed id (inbox entry 111 (d)).
+    #[error("the daemon answered already_deleted to this request")]
+    AlreadyDeletedToThisRequest(AlreadyDeleted),
     #[error("the control channel failed: {0}")]
     Io(std::io::Error),
 }
@@ -139,6 +143,13 @@ pub enum DeleteOutcome {
 /// an id, and only when the reply names another id as the current store.
 pub fn already_deleted_answers(armed: Option<StoreId>, already: &AlreadyDeleted) -> bool {
     armed.is_some_and(|armed| armed != already.current)
+}
+
+fn unexpected(reply: Reply) -> ClientError {
+    match reply {
+        Reply::AlreadyDeleted(already) => ClientError::AlreadyDeletedToThisRequest(already),
+        other => ClientError::UnexpectedReply { kind: other.kind() },
+    }
 }
 
 /// The client of protocol v1. Each call makes one connection, sends one request and reads
@@ -301,7 +312,7 @@ impl<C: Connector> Client<C> {
         let changes_capture = matches!(request, Request::Pause | Request::Resume);
         match (changes_capture, self.call(request)?) {
             (false, Reply::Status(status)) | (true, Reply::CaptureChanged(status)) => Ok(status),
-            (_, other) => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            (_, other) => Err(unexpected(other)),
         }
     }
 
@@ -318,7 +329,7 @@ impl<C: Connector> Client<C> {
     pub fn inventory(&self) -> Result<InventoryReply, ClientError> {
         match self.call(Request::Inventory)? {
             Reply::Inventory(inventory) => Ok(inventory),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -333,7 +344,7 @@ impl<C: Connector> Client<C> {
     pub fn stop(&self) -> Result<Stopped, ClientError> {
         match self.call(Request::Stop)? {
             Reply::Stopped(stopped) => Ok(stopped),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -346,14 +357,14 @@ impl<C: Connector> Client<C> {
                 Ok(DeleteOutcome::AlreadyDeleted(already))
             }
             Reply::DeleteRefused => Ok(DeleteOutcome::Refused),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
     pub fn set_storage_cap(&self, cap: StorageCap) -> Result<CapSet, ClientError> {
         match self.call(Request::SetStorageCap { bytes: cap })? {
             Reply::CapSet(set) => Ok(set),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -363,7 +374,7 @@ impl<C: Connector> Client<C> {
     ) -> Result<RequestOutcome, ClientError> {
         match self.call(Request::RequestPermission { permission })? {
             Reply::PermissionRequested(requested) => Ok(requested.outcome),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -1089,6 +1100,47 @@ mod tests {
         daemon.set_raw_reply(already_deleted_frame(FIXTURE_STORE_ID));
         let (client, _) = client(daemon);
         assert!(client.delete_all(Some(store_id(7))).is_ok());
+    }
+
+    #[test]
+    fn e111_d_an_already_deleted_that_answers_no_request_is_its_own_error_with_the_id_and_not_a_kind_string(
+    ) {
+        let current = FIXTURE_STORE_ID;
+        let answered = |call: &dyn Fn(&Client<ScriptedConnector>) -> Result<(), ClientError>| {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(already_deleted_frame(current));
+            let (client, _) = client(daemon);
+            call(&client)
+        };
+        let calls: [(
+            &str,
+            &dyn Fn(&Client<ScriptedConnector>) -> Result<(), ClientError>,
+        ); 6] = [
+            ("delete-all with the id it names", &|c| {
+                c.delete_all(Some(current)).map(|_| ())
+            }),
+            ("delete-all with no id", &|c| c.delete_all(None).map(|_| ())),
+            ("status", &|c| c.status().map(|_| ())),
+            ("pause", &|c| c.pause().map(|_| ())),
+            ("stop", &|c| c.stop().map(|_| ())),
+            ("set-cap", &|c| {
+                c.set_storage_cap(StorageCap::MIN).map(|_| ())
+            }),
+        ];
+        for (call, run) in calls {
+            match answered(run) {
+                Err(ClientError::AlreadyDeletedToThisRequest(already)) => {
+                    assert_eq!(already.current, current, "{call}");
+                }
+                other => panic!("{call}: {other:?}"),
+            }
+        }
+        let error =
+            ClientError::AlreadyDeletedToThisRequest(crate::proto::AlreadyDeleted { current });
+        assert_eq!(
+            error.to_string(),
+            "the daemon answered already_deleted to this request"
+        );
     }
 
     #[test]
