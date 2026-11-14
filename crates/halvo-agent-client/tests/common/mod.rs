@@ -461,11 +461,12 @@ impl Human for People {
     }
 }
 
-/// The secret store: one answer for every name.
-pub struct Vault(pub Mutex<SecretReply>);
+/// The secret store: one answer for every name, and the count of its reads.
+pub struct Vault(pub Mutex<SecretReply>, pub AtomicUsize);
 
 impl Secrets for Vault {
     fn read(&self, _name: &Name) -> SecretReply {
+        self.1.fetch_add(1, Ordering::SeqCst);
         self.0.lock().unwrap().clone()
     }
 }
@@ -496,7 +497,7 @@ impl Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
         let people = Arc::new(People::default());
-        let vault = Arc::new(Vault(Mutex::new(SecretReply::None)));
+        let vault = Arc::new(Vault(Mutex::new(SecretReply::None), AtomicUsize::new(0)));
         let rec = Arc::new(Recorder::default());
         let parts = Parts {
             link: store.clone(),

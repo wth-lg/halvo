@@ -733,3 +733,84 @@ fn a_bind_after_a_done_handback_of_each_sign_in_reason_is_taken() {
         rig.sup.kill(&run).unwrap();
     }
 }
+
+/// Every call of a caller's trait that a frame can make, counted.
+fn trait_calls(rig: &Rig) -> (usize, usize, usize, usize) {
+    (
+        rig.people.asked_confirms.load(Ordering::SeqCst),
+        rig.people.handbacks.lock().unwrap().len(),
+        rig.people.asked_origins.lock().unwrap().len(),
+        rig.vault.1.load(Ordering::SeqCst),
+    )
+}
+
+fn frame_out_of_turn(name: &str) -> String {
+    match name {
+        "confirm" => confirm(None).replacen("ask ", "send ", 1),
+        "handback" => sign_in().replacen("ask ", "send ", 1),
+        "bind" => bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        "secret" => r#"send {"t":"secret","ref":"fixture_token"}"#.to_owned(),
+        _ => "browser".to_owned(),
+    }
+}
+
+/// A runner that stores its `finish` and then sends the frame `name`: the run ends at once by the path
+/// `after_finish`, with no call of a caller's trait and no reply but the finish's (ruling CP-193 item 1).
+fn after_finish(name: &str) {
+    let finish = common::ask_finish();
+    let frame = frame_out_of_turn(name);
+    let (rig, script, end) = out_of_turn(
+        "after-finish",
+        &[
+            "hello",
+            "on-eof hang",
+            &finish,
+            "log finished",
+            &frame,
+            "idle",
+        ],
+        &[],
+    );
+    assert!(end.finish.is_some(), "{name}: the finish was stored");
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::AfterFinish,
+            browser: false
+        }),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(trait_calls(&rig), (0, 0, 0, 0), "{name}");
+    assert_eq!(
+        script.replies().len(),
+        1,
+        "{name}: a reply other than the finish's: {}",
+        script.log()
+    );
+}
+
+#[test]
+fn a_confirm_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("confirm");
+}
+
+#[test]
+fn a_handback_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("handback");
+}
+
+#[test]
+fn a_bind_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("bind");
+}
+
+#[test]
+fn a_secret_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("secret");
+}
+
+#[test]
+fn a_browser_frame_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("browser");
+}

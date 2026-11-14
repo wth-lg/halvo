@@ -479,7 +479,21 @@ impl Running<'_> {
         }
     }
 
+    /// Answers one frame of the running run. After a stored `finish` a `confirm`, `handback`, `bind`, `secret` or
+    /// `browser` frame is a frame out of turn: no trait is called, no reply is written and the run is lost, by the
+    /// path `after_finish` (ruling CP-193 item 1). A request while the runner waits for a reply is lost too.
     fn on_frame(&mut self, frame: FromRunner) -> Flow {
+        let after_finish = matches!(
+            frame,
+            FromRunner::Confirm(_)
+                | FromRunner::Handback(_)
+                | FromRunner::Bind(_)
+                | FromRunner::Secret(_)
+                | FromRunner::Browser(_)
+        );
+        if after_finish && self.ending.finish.is_some() {
+            return Flow::Lost;
+        }
         let request = !matches!(frame, FromRunner::Progress(_) | FromRunner::Done(_));
         if request && self.acts.waiting() {
             return Flow::Lost;
