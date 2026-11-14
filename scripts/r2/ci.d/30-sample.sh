@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: from the files of HEAD, halvo-sample build of the golden script writes its committed files byte for byte and check-labels passes on them under both rules; each development body is built twice from its committed scripts, once into its place of scripts/r2/body.sh and once into the check's own directory, both print one manifest hash, that of its committed manifest, both hold exactly the files and hashes that the manifest names, and check-labels passes on the placed body under both rules; no tracked file changes.
+# rule: from the files of HEAD, every input file that the check reads has the mode 100644 in HEAD's tree; halvo-sample build of the golden script writes its committed files byte for byte and check-labels passes on them under both rules; compose and split build the split scripts again from the rates file and the site files, byte for byte; each development body is built twice from its committed scripts, once into its place of scripts/r2/body.sh and once into the check's own directory from every entry of its scripts directory, both print one manifest hash, that of its committed manifest, both hold exactly the files and hashes that the manifest names, and check-labels passes on the placed body under both rules; no tracked file changes.
 set -u
 name=30-sample
 if [ ! -f "${CI_D_REPO:-.}/scripts/r2/body.sh" ]; then
@@ -9,7 +9,7 @@ if [ ! -f "${CI_D_REPO:-.}/scripts/r2/body.sh" ]; then
 fi
 # shellcheck source=scripts/r2/body.sh
 . "${CI_D_REPO:-.}/scripts/r2/body.sh"
-keys='cargo-build golden-build golden-files golden-generated golden-recorded gen-dev-build-1 gen-dev-manifest-1 gen-dev-build-2 gen-dev-manifest-2 gen-dev-committed gen-dev-files gen-dev-labels gen-unseen-build-1 gen-unseen-manifest-1 gen-unseen-build-2 gen-unseen-manifest-2 gen-unseen-committed gen-unseen-files gen-unseen-labels'
+keys='cargo-build modes golden-build golden-files golden-generated golden-recorded split-compose split-split split-seen split-unseen gen-dev-build-1 gen-dev-manifest-1 gen-dev-build-2 gen-dev-manifest-2 gen-dev-committed gen-dev-files gen-dev-labels gen-unseen-build-1 gen-unseen-manifest-1 gen-unseen-build-2 gen-unseen-manifest-2 gen-unseen-committed gen-unseen-files gen-unseen-labels'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -33,8 +33,19 @@ judge() {
   [ -z "$twice" ] || fail "the result $twice stands twice"
   while IFS=' ' read -r key value; do
     case $key in
-      cargo-build | golden-build | golden-generated | golden-recorded | gen-*-build-1 | gen-*-build-2 | gen-*-labels)
+      cargo-build | golden-build | golden-generated | golden-recorded | split-compose | split-split | gen-*-build-1 | gen-*-build-2 | gen-*-labels)
         [ "$value" = 0 ] || fail "$key exited $value"
+        ;;
+      modes)
+        [ "$value" = same ] || fail "$key: input files whose mode in HEAD is not 100644: ${value#differ }"
+        ;;
+      split-seen | split-unseen)
+        if [ "$value" != same ]; then
+          n=${value#differ }
+          n=${n%% *}
+          printf '%s\n' "$n" | grep -Eqx '[0-9]+' || n=unknown
+          fail "$key: the rebuilt split scripts differ from HEAD: $n"
+        fi
         ;;
       golden-files)
         if [ "$value" != same ]; then
@@ -100,6 +111,23 @@ sample() {
   "$bin" "$@"
 }
 
+modes_of() {
+  awk '{ n++; if ($1 != "100644") d++ } END { if (!n) print "empty"; else if (d) print "differ " d; else print "same" }' "$1"
+}
+
+with_entries() {
+  (
+    cd "$1" || exit 2
+    shift
+    for f in ./* ./.[!.]* ./..?*; do
+      if [ -e "$f" ] || [ -L "$f" ]; then
+        set -- "$@" "$f"
+      fi
+    done
+    "$@"
+  )
+}
+
 sha() {
   if command -v sha256sum >/dev/null 2>&1; then
     sum=$(sha256sum <"$1") || return 1
@@ -142,8 +170,9 @@ measure() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   results=$work/results.txt
   : >"$results" || fail "the results cannot be written"
-  git archive --output="$work/head.tar" HEAD -- fixtures/r2/golden fixtures/r2/scripts/seen fixtures/r2/scripts/unseen \
-    fixtures/r2/dev/seen/manifest.toml fixtures/r2/dev/unseen/manifest.toml ||
+  inputs='fixtures/r2/golden fixtures/r2/scripts fixtures/r2/dev/seen/manifest.toml fixtures/r2/dev/unseen/manifest.toml tools/fixture-server/sites'
+  # shellcheck disable=SC2086 # the list of input paths is split on purpose
+  git archive --output="$work/head.tar" HEAD -- $inputs ||
     fail "git archive of the inputs at HEAD failed"
   mkdir "$work/head" || fail "mkdir failed"
   tar -xf "$work/head.tar" -C "$work/head" || fail "the inputs of HEAD cannot be unpacked"
@@ -151,6 +180,10 @@ measure() {
   g=$head/golden
   cargo build --locked -q -p halvo-sample
   record cargo-build "$?"
+  # shellcheck disable=SC2086 # the list of input paths is split on purpose
+  git ls-tree -r HEAD -- $inputs >"$work/modes.txt" || fail "git ls-tree of the inputs at HEAD failed"
+  modes=$(modes_of "$work/modes.txt") || fail "the modes of the inputs cannot be read"
+  record modes "$modes"
   bin=$(r2_body_bin "$CI_D_REPO") || fail "the build directory cannot be read"
   sample build --seed 1 --out "$work/golden" "$g/script.jsonl" "$g/marked.jsonl" >"$CI_D_ARTIFACTS/golden-build.txt"
   record golden-build "$?"
@@ -162,6 +195,18 @@ measure() {
   record golden-generated "$?"
   sample check-labels --rule recorded "$g" >"$CI_D_ARTIFACTS/golden-recorded.txt"
   record golden-recorded "$?"
+  started=$(date +%s) || fail "date failed"
+  split_seed=$(sed -n 's/^seed = //p' "$head/scripts/rates.toml") || fail "the rates file cannot be read"
+  with_entries "$work/head/tools/fixture-server/sites" sample compose --rates "$head/scripts/rates.toml" --out "$work/composed" >"$work/compose.txt" 2>&1
+  record split-compose "$?"
+  with_entries "$work/composed" sample split --sides seen,unseen --seed "$split_seed" --out "$work/split" >"$work/split.txt" 2>&1
+  record split-split "$?"
+  for side in seen unseen; do
+    files=$(same_tree "$work/split/$side" "$head/scripts/$side") || fail "the rebuilt split scripts cannot be compared"
+    record "split-$side" "$files"
+  done
+  ended=$(date +%s) || fail "date failed"
+  printf 'split scripts rebuilt and compared in %s s\n' "$((ended - started))"
   for pair in gen-dev:seen gen-unseen:unseen; do
     tier=${pair%%:*}
     side=${pair#*:}
@@ -172,7 +217,7 @@ measure() {
     code=$?
     cat "$work/$tier-body.txt" || fail "the body line of $tier cannot be read"
     record "$tier-build-1" "$code"
-    (cd "$head/scripts/$side" && sample build --tier "$tier" --seed "$seed" --out "$work/$tier-2" ./*.jsonl) >"$CI_D_ARTIFACTS/$tier-build-2.txt"
+    with_entries "$head/scripts/$side" sample build --tier "$tier" --seed "$seed" --out "$work/$tier-2" >"$CI_D_ARTIFACTS/$tier-build-2.txt"
     record "$tier-build-2" "$?"
     for n in 1 2; do
       line=$(sed -n 's/^manifest //p' "$CI_D_ARTIFACTS/$tier-build-$n.txt") || fail "the output of build cannot be read"
@@ -204,10 +249,15 @@ measure() {
 passing_results() {
   cat <<'EOF'
 cargo-build 0
+modes same
 golden-build 0
 golden-files same
 golden-generated 0
 golden-recorded 0
+split-compose 0
+split-split 0
+split-seen same
+split-unseen same
 gen-dev-build-1 0
 gen-dev-manifest-1 1111111111111111111111111111111111111111111111111111111111111111
 gen-dev-build-2 0
@@ -286,6 +336,44 @@ body_fixtures() {
   body_case missing 'files that differ: 0, missing: 1, extra: 0, the first streams/gen-dev-s001/labels.jsonl'
   body_case extra 'files that differ: 0, missing: 0, extra: 1, the first streams/gen-dev-s001/day-002.jsonl'
   body_case manifest-byte 'files that differ: 1, missing: 0, extra: 0, the first manifest.toml'
+}
+
+modes_case() {
+  printf '%s' "$3" >"$work/modes-$1.txt" || self_fail "the modes fixture $1 cannot be written"
+  got=$(modes_of "$work/modes-$1.txt") || got=unread
+  if [ "$got" != "$2" ]; then
+    wrong="$wrong modes-$1"
+  elif [ "$got" != same ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
+modes_fixtures() {
+  h=0123456789abcdef0123456789abcdef01234567
+  modes_case plain same "100644 blob $h	fixtures/r2/golden/script.jsonl
+100644 blob $h	fixtures/r2/scripts/rates.toml
+"
+  modes_case executable 'differ 1' "100644 blob $h	fixtures/r2/golden/script.jsonl
+100755 blob $h	fixtures/r2/scripts/rates.toml
+"
+  modes_case link 'differ 2' "120000 blob $h	fixtures/r2/golden/script.jsonl
+100755 blob $h	fixtures/r2/scripts/rates.toml
+"
+  modes_case none empty ''
+}
+
+entries_fixture() {
+  mkdir -p "$work/entries/sub" || self_fail "the entries fixture cannot be made"
+  for f in a.jsonl .b.jsonl ..c.jsonl c.json; do
+    printf 'x\n' >"$work/entries/$f" || self_fail "the entries fixture cannot be written"
+  done
+  with_entries "$work/entries" printf '%s\n' >"$work/entries.txt" || self_fail "the entries cannot be listed"
+  got=$(LC_ALL=C sort "$work/entries.txt") || got=unread
+  [ "$got" = "./..c.jsonl
+./.b.jsonl
+./a.jsonl
+./c.json
+./sub" ] || wrong="$wrong entries"
 }
 
 # The stand-in for the binary: a few lines of sh, written at test time, that copy the body fixture to the
@@ -378,6 +466,14 @@ self_test() {
   check unseen-two-hashes FAIL 's/^gen-unseen-manifest-2 2/gen-unseen-manifest-2 5/'
   check unseen-not-the-committed-hash FAIL 's/^gen-unseen-committed 2/gen-unseen-committed 6/'
   check unseen-files-differ FAIL 's/^gen-unseen-files same$/gen-unseen-files differ/'
+  check modes-differ FAIL 's/^modes same$/modes differ 1/' '' "FAIL $name (modes: input files whose mode in HEAD is not 100644: 1)"
+  check modes-empty FAIL 's/^modes same$/modes empty/'
+  check modes-missing FAIL '/^modes /d'
+  check split-compose-refused FAIL 's/^split-compose 0$/split-compose 2/'
+  check split-split-refused FAIL 's/^split-split 0$/split-split 2/'
+  check split-seen-differs FAIL 's|^split-seen same$|split-seen differ 3 s001.jsonl|' '' "FAIL $name (split-seen: the rebuilt split scripts differ from HEAD: 3)"
+  check split-unseen-differs FAIL 's/^split-unseen same$/split-unseen differ 1/'
+  check split-unseen-missing FAIL '/^split-unseen /d'
   check unseen-labels-fail FAIL 's/^gen-unseen-labels 0$/gen-unseen-labels 1/'
   check tracked-file-changed FAIL 's/^//' 'tracked-gen-dev-build-1 changed'
   check unknown-result FAIL 's/^//' 'gen-dev-other 0'
@@ -395,6 +491,8 @@ self_test() {
   check dev-files-count-alone-for-a-short-day FAIL 's|^gen-dev-files same$|gen-dev-files differ 0 3 0 streams/gen-dev-s001/day-1.jsonl|' '' \
     "FAIL $name (gen-dev-files: files that differ: 0, missing: 3, extra: 0)"
   body_fixtures
+  modes_fixtures
+  entries_fixture
   stand_in
   ensure_case whole reused
   ensure_case stale built
