@@ -133,6 +133,12 @@ fn a_path_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
     }
     let o = run(&["leak", &s(&t), &s(&dir.join("real")), &linked]);
     refused(&o, "path");
+    fs::create_dir_all(dir.join("below")).expect("a directory beside the link");
+    let o = common::run_in(
+        &dir.join("below"),
+        &["leak", &s(&t), &format!("..{sep}linked{sep}")],
+    );
+    refused(&o, "path");
 }
 
 #[test]
