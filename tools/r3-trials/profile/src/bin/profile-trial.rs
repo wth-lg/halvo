@@ -1107,22 +1107,10 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
         out(&format!("notrun item=3 {cell} cause=scratch"));
         return ExitCode::from(1);
     };
-    let list_copy = format!("target/r3-profile/fixtures-{}.txt", std::process::id());
-    let copied = std::fs::read_to_string(args.repo.join(EGRESS_LIST)).and_then(|text| {
-        let (lf, removed) = product::list_with_lf(&text);
-        std::fs::create_dir_all(args.repo.join("target/r3-profile"))?;
-        std::fs::write(args.repo.join(&list_copy), lf)?;
-        Ok(removed)
-    });
-    let Ok(removed) = copied else {
-        out(&format!("notrun item=3 {cell} cause=list"));
-        return ExitCode::from(1);
-    };
-    eprintln!("egress_list {cell} crlf_line_ends_removed={removed}");
     let mut cmd = Command::new("sh");
     cmd.current_dir(&args.repo)
         .arg("scripts/egress/check.sh")
-        .arg(&list_copy)
+        .arg(EGRESS_LIST)
         .arg("--")
         .arg(&me)
         .args([

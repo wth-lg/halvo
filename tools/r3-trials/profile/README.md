@@ -272,12 +272,10 @@ Readings fixed before the runs:
   set's lines; the first set's lines stand in this file.
 - `--sandbox-off` is a control and never a cell: it adds `--no-sandbox` and prints an
   `egress_control` line in place of the `egress` line.
-- On Windows the checkout writes `scripts/r3/egress/fixtures.txt` with CRLF line ends: no `eol=lf`
-  attribute covers that path, and the check's list reader refuses a CR (run 43543961191 refused both
-  calls). Item 3 therefore writes the list's bytes with each CRLF made LF to
-  `target/r3-profile/fixtures-<pid>.txt` and passes that copy; standard error says how many line ends
-  it changed (3 on hosted-win, 0 on the Macs). An `eol=lf` line for the file in the root
-  `.gitattributes` would end the need, and it is not this unit's file.
+- On Windows the checkout wrote `scripts/r3/egress/fixtures.txt` with CRLF line ends, since no
+  `eol=lf` attribute covered that path, and the check's list reader refuses a CR (run 43543961191
+  refused both calls). Run 43547292129 passed an LF copy of the list. From c2f235af the root
+  `.gitattributes` gives the file `eol=lf`, and item 3 passes the tracked file itself.
 
 ### Item 3 in lines (run 43547292129 and this Mac)
 

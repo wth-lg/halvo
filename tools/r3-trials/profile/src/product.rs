@@ -146,14 +146,6 @@ pub fn set_lines(port: u16) -> Vec<String> {
     lines
 }
 
-/// The list file's bytes as the egress check reads them, with the CR of each CRLF line end
-/// removed, and the count removed: a checkout with `core.autocrlf=true` (Git for Windows) writes the
-/// tracked list with CRLF, which the check's list reader refuses.
-pub fn list_with_lf(text: &str) -> (String, usize) {
-    let removed = text.matches("\r\n").count();
-    (text.replace("\r\n", "\n"), removed)
-}
-
 /// The cause words of the egress check's refusal lines (`REFUSED <cause>: <detail>`), joined by
 /// commas, or `-`; the detail, which can name a path, is left out.
 pub fn refusal_causes(check_stderr: &str) -> String {
@@ -328,12 +320,18 @@ mod tests {
     }
 
     #[test]
-    fn the_list_reaches_the_check_with_lf_line_ends() {
-        assert_eq!(
-            list_with_lf("[fixed]\r\n[agent]\r\n127.0.0.1:18090\r\n"),
-            ("[fixed]\n[agent]\n127.0.0.1:18090\n".to_string(), 3)
-        );
-        assert_eq!(list_with_lf("[fixed]\n"), ("[fixed]\n".to_string(), 0));
+    fn the_list_is_checked_out_with_lf_line_ends() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let attributes = std::fs::read_to_string(root.join(".gitattributes")).expect("attributes");
+        assert!(attributes
+            .lines()
+            .any(|l| l == format!("/{EGRESS_LIST} text eol=lf")));
+        let list = std::fs::read(root.join(EGRESS_LIST)).expect("the list file");
+        assert!(!list.contains(&b'\r'));
+    }
+
+    #[test]
+    fn the_refusal_cause_is_read_without_its_detail() {
         assert_eq!(
             refusal_causes("REFUSED list: C:/x/fixtures.txt line 1\negress x\n"),
             "list"
