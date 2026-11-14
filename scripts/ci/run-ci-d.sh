@@ -20,7 +20,10 @@ st_jobs_set=${CI_D_SELF_TEST_JOBS+set}
 st_jobs=${CI_D_SELF_TEST_JOBS-}
 ck_jobs_set=${CI_D_CHECK_JOBS+set}
 ck_jobs=${CI_D_CHECK_JOBS-}
+st_limit_set=${CI_D_SCRIPT_LIMIT_S+set}
 st_limit=${CI_D_SCRIPT_LIMIT_S-1200}
+st_own_limit=$st_limit
+[ -n "$st_limit_set" ] || st_own_limit=2300
 st_perl="setpgrp(0, 0); my \$f = delete \$ENV{RUN_CI_D_PID_FILE}; if (defined \$f) { open(my \$h, '>', \$f) or exit 127; print \$h \"\$\$\\n\"; close(\$h) or exit 127; } \$SIG{INT} = \$SIG{QUIT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
 mode=run
 job=
@@ -200,6 +203,28 @@ inspect() {
       ;;
     *)
       refusal="its '# lane:' line is neither '# lane: free' nor '# lane: alone'; a check that names no lane runs in the cargo lane"
+      return 1
+      ;;
+  esac
+  script_limit=$(sed -n '1,10{/^# limit:/p;}' "$script_file")
+  script_limit=${script_limit%"$(printf '\r')"}
+  case $script_limit in
+    '') ;;
+    *"$nl"*)
+      refusal="its first 10 lines hold more than one '# limit:' line"
+      return 1
+      ;;
+    '# limit: '[1-9]*)
+      script_limit=${script_limit#'# limit: '}
+      case $script_limit in
+        *[!0-9]* | ??????????*)
+          refusal="its '# limit:' line is not a whole number of seconds from 1 to 999999999"
+          return 1
+          ;;
+      esac
+      ;;
+    *)
+      refusal="its '# limit:' line is not a whole number of seconds from 1 to 999999999"
       return 1
       ;;
   esac
@@ -427,7 +452,9 @@ st_drop() {
 }
 
 st_add() {
-  eval "st_kind_$st_n=script st_file_$st_n=\$1 st_name_$st_n=\$2 st_lane_$st_n=\$3 st_state_$st_n=waiting"
+  st_a_limit=$st_limit
+  [ -n "$st_limit_set" ] || [ -z "$4" ] || [ "$4" -le "$st_a_limit" ] || st_a_limit=$4
+  eval "st_kind_$st_n=script st_file_$st_n=\$1 st_name_$st_n=\$2 st_lane_$st_n=\$3 st_lim_$st_n=\$st_a_limit st_state_$st_n=waiting"
   st_n=$((st_n + 1))
 }
 
@@ -452,7 +479,7 @@ st_own() {
     own_self_test
     : >"$st_d/done"
   ) </dev/null >"$st_d/out" 2>"$st_d/err" &
-  eval "st_kind_$st_n=own st_name_$st_n=run-ci-d"
+  eval "st_kind_$st_n=own st_name_$st_n=run-ci-d st_lim_$st_n=\$st_own_limit"
   st_n=$((st_n + 1))
   st_track "$((st_n - 1))" "$!" "$st_d"
 }
@@ -511,7 +538,7 @@ st_queue() {
   else
     st_wait_below "$st_jobs"
   fi
-  st_add "$st_q_file" "$st_q_name" "$script_lane"
+  st_add "$st_q_file" "$st_q_name" "$script_lane" "$script_limit"
   st_start "$((st_n - 1))" || return
   [ -z "$st_q_solo" ] || st_wait_below 1
 }
@@ -674,7 +701,7 @@ st_poll() {
   st_count=0
   st_ended=
   for st_i in $st_running; do
-    eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i st_t=\$st_since_$st_i"
+    eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i st_t=\$st_since_$st_i st_lm=\$st_lim_$st_i"
     if [ -e "$st_d/done" ]; then
       eval "st_state_$st_i=done"
       st_naps=0
@@ -685,7 +712,7 @@ st_poll() {
         eval "st_state_$st_i=lost"
       fi
       st_naps=0
-    elif [ "$((st_now - st_t))" -ge "$st_limit" ]; then
+    elif [ "$((st_now - st_t))" -ge "$st_lm" ]; then
       st_stop "$st_i"
       st_naps=0
     else
@@ -705,7 +732,7 @@ st_poll() {
 }
 
 st_print() {
-  eval "st_d=\$st_dir_$1 st_k=\$st_kind_$1 st_x=\$st_state_$1 st_t=\$st_since_$1 script_name=\$st_name_$1"
+  eval "st_d=\$st_dir_$1 st_k=\$st_kind_$1 st_x=\$st_state_$1 st_t=\$st_since_$1 st_lm=\$st_lim_$1 script_name=\$st_name_$1"
   st_tag=$script_name
   [ "$mode" != self-test ] || st_tag=self-test:$script_name
   [ ! -e "$st_d/out" ] || cat "$st_d/out"
@@ -719,7 +746,7 @@ st_print() {
     st_vl=
     [ ! -s "$st_d/verdict" ] || read -r st_vs st_vl <"$st_d/verdict"
     case $st_x:$st_vs in
-      timeout:*) record FAIL "FAIL self-test:run-ci-d (time limit $st_limit s)" ;;
+      timeout:*) record FAIL "FAIL self-test:run-ci-d (time limit $st_lm s)" ;;
       *:PASS | *:FAIL) record "$st_vs" "$st_vl" ;;
       *) record FAIL 'FAIL self-test:run-ci-d (it ended without a verdict)' ;;
     esac
@@ -736,7 +763,7 @@ st_print() {
   last=
   [ ! -e "$st_d/out" ] || last=$(tail -n 1 "$st_d/out")
   case $st_x:$code in
-    timeout:*) record FAIL "FAIL $st_tag (time limit $st_limit s)" ;;
+    timeout:*) record FAIL "FAIL $st_tag (time limit $st_lm s)" ;;
     lost:* | *:none) record FAIL "FAIL $st_tag (it ended without an exit status)" ;;
     *) judge ;;
   esac
@@ -1397,6 +1424,36 @@ own_self_test() {
   case_path=$tmp/late-date
   case_max_s=15
   own_case default-limit-of-a-self-test-reached-at-1200-s 1 'FAIL self-test:10-a (time limit 1200 s)' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+    printf '1200\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_witness=yes
+  own_case limit-line-raises-the-limit-of-its-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+    printf '1500\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_max_s=15
+  case_witness=yes
+  own_case limit-line-reached 1 'FAIL 10-a (time limit 1500 s)' macos
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" 'trap "" TERM; sleep 60 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"'
+  case_limit=2
+  case_max_s=20
+  case_witness=yes
+  own_case limit-of-the-caller-before-the-limit-line 1 'FAIL 10-a (time limit 2 s)' macos
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 20m" "$pass_a"
+  own_case limit-line-that-is-no-whole-number 1 "FAIL 10-a (its '# limit:' line is not a whole number of seconds from 1 to 999999999)" --rules
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500$nl# limit: 1800" "$pass_a"
+  own_case two-limit-lines 1 "FAIL 10-a (its first 10 lines hold more than one '# limit:' line)" --rules
+  mkdir -p "$tmp/jump-date" &&
+    printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r jump ]; then\n  now=$(%s +%%s) || exit 1\n  if [ -e jump.used ]; then read -r jump <jump; echo "$((now + jump))"; else : >jump.used; echo "$now"; fi\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/jump-date/date" &&
+    chmod +x "$tmp/jump-date/date"
+  new_repo && printf '1200\n' >"$fixture/jump"
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=slow
+  case_path=$tmp/jump-date
+  case_max_s=40
+  case_witness=yes
+  own_case own-cases-past-1200-s-pass-below-their-limit 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
@@ -2004,7 +2061,7 @@ for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
   if [ "$mode" = self-test ]; then
     st_queue
   else
-    st_add "$script_file" "$script_name" "$script_lane"
+    st_add "$script_file" "$script_name" "$script_lane" "$script_limit"
   fi
 done
 
