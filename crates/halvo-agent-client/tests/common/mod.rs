@@ -33,12 +33,11 @@ pub fn peer() -> PathBuf {
 }
 
 pub fn scratch(name: &str) -> PathBuf {
-    let n = COUNT.fetch_add(1, Ordering::SeqCst);
-    let d = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("agent-client")
-        .join(format!("{name}-{}-{n}-{}", std::process::id(), nanos()));
-    fs::create_dir_all(&d).unwrap();
-    d
+    halvo_test_dir::make(
+        &Path::new(env!("CARGO_TARGET_TMPDIR")).join("agent-client"),
+        name,
+    )
+    .unwrap()
 }
 
 fn nanos() -> u128 {

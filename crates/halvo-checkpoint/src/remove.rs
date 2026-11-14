@@ -306,14 +306,8 @@ mod tests {
     fn scratch(name: &str) -> PathBuf {
         let exe = std::env::current_exe().expect("the test binary");
         let target = exe.ancestors().nth(3).expect("the target directory");
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let dir = target
-            .join("tmp")
-            .join("halvo-checkpoint-unit")
-            .join(format!("{name}-{}-{nanos}", std::process::id()));
-        fs::create_dir_all(&dir).expect("make the scratch directory");
+        let dir = halvo_test_dir::make(&target.join("tmp").join("halvo-checkpoint-unit"), name)
+            .expect("make the scratch directory");
         dir.canonicalize().expect("the canonical directory")
     }
 

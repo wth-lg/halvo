@@ -1556,6 +1556,7 @@ name = "halvo-agent-client"
 version = "0.0.0"
 dependencies = [
  "halvo-schema",
+ "halvo-test-dir",
 ]
 
 [[package]]
@@ -1627,6 +1628,7 @@ dependencies = [
 name = "halvo-checkpoint"
 version = "0.0.0"
 dependencies = [
+ "halvo-test-dir",
  "sha2",
  "windows-sys 0.61.2",
 ]
