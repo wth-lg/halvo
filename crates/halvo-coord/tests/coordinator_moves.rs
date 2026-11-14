@@ -6529,3 +6529,98 @@ fn rd52d_a_read_that_first_shows_the_hold_of_a_queued_agent_drops_its_start() {
     assert_eq!(c.queued(), vec![], "the start left the queue");
     assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
 }
+
+/// RD-99 item 2, a named limit until U2.4g: the runner's end of a run whose own read first shows a
+/// switch-off that the owner stored unseen by the board stops nothing and sends no `set_state`.
+/// Once for a run that waits on a handback item and once for a working run: after the end no
+/// `set_state` of any state and no `cancel`; the item lapses with `run_ended` once and the run
+/// ends with its own cause; the row is Off with Switch on and Delete and no Start now; the next
+/// tick starts nothing and raises no item; Start now answers `hold`.
+#[test]
+fn rd99_an_end_whose_read_first_shows_a_stored_switch_off_stops_nothing_and_sends_no_state() {
+    use halvo_coord::types::Control;
+    for way in ["stuck", "working"] {
+        for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+            let case = format!("{way} {order:?}");
+            let (c, run, item) = if way == "stuck" {
+                let (c, run, item) = waiting("stuck");
+                assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+                (c, run, Some(item))
+            } else {
+                let c = coordinator(&[MANUAL], Limits::PRODUCT);
+                let run = start(&c, 0);
+                lose_the_next_holds_reply(&c, order);
+                assert_eq!(
+                    c.control(&agent(0), Action::SwitchOff),
+                    Err(Cause::NoService),
+                    "{case}"
+                );
+                c.ports().loss.set(None);
+                let lost: Vec<halvo_coord::types::Event> =
+                    c.ports().lost.borrow_mut().drain(..).collect();
+                c.ports().ports.events.borrow_mut().extend(lost);
+                assert_eq!(hold_sets(&c, 0), 1, "{case}: the owner holds the hold");
+                assert_ne!(
+                    row_line(&c.snapshot(), 0),
+                    text("line.working.stopping"),
+                    "{case}: the board does not hold it"
+                );
+                (c, run, None)
+            };
+            let m = mark(&c);
+            c.ports().ports.end_runner(&run);
+            let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+            assert!(states_sent(&c, m).is_empty(), "{case}: no set_state");
+            assert_eq!(cancels_of(&c, m, &run), 0, "{case}: no cancel");
+            if let Some(item) = &item {
+                assert_eq!(
+                    step_rows(&c, item),
+                    ["lapsed:run_ended"],
+                    "{case}: the item lapses with run_ended once"
+                );
+            }
+            let ends: Vec<RunEnd> = events(&c)
+                .iter()
+                .filter_map(|w| match w {
+                    What::RunEnded { run: r, cause } if *r == run => Some(*cause),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(ends, [RunEnd::Completed], "{case}: the run's own end");
+            let s = c.snapshot();
+            assert_eq!(row_line(&s, 0), text("line.off.person"), "{case}: Off");
+            let controls = controls_of(&c, 0);
+            assert!(
+                controls.contains(&Control::SwitchOn) && controls.contains(&Control::Delete),
+                "{case}: {controls:?}"
+            );
+            assert!(!controls.contains(&Control::RunNow), "{case}: {controls:?}");
+            let started_before = started(&c).len();
+            let raised_before = events(&c)
+                .iter()
+                .filter(|w| matches!(w, What::ItemRaised { .. }))
+                .count();
+            c.ports().ports.set_clock(T0 + 1_000, DAY);
+            c.tick();
+            assert_eq!(
+                started(&c).len(),
+                started_before,
+                "{case}: the tick starts nothing"
+            );
+            let raised_after = events(&c)
+                .iter()
+                .filter(|w| matches!(w, What::ItemRaised { .. }))
+                .count();
+            assert_eq!(
+                raised_after, raised_before,
+                "{case}: the tick raises nothing"
+            );
+            assert!(c.snapshot().items.is_empty(), "{case}: no card");
+            assert_eq!(
+                c.control(&agent(0), Action::RunNow),
+                Err(Cause::Hold),
+                "{case}: Start now answers hold"
+            );
+        }
+    }
+}
