@@ -1,11 +1,11 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 6 of 6 on macOS and 8 of 8 on Windows) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
 set -u
 name=46-r4-dialog-ran
 off='hosted alone: not run on this machine'
 targets='dialog_hosted 4 5
-guard_hosted 6 8'
+guard_hosted 7 8'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -35,14 +35,18 @@ decide() {
   [ "$offs" = 0 ] || broke "a target printed the line that it was not run, $offs times"
   while read -r target count; do
     line="$target end: cases ran $count of $count, failed 0"
+    case $target in
+      guard_hosted) tail=', helped 0, moments at a press 0, retries [0-9]+' ;;
+      *) tail= ;;
+    esac
     ends=$(grep -c "^$target end: " "$log")
-    exact=$(grep -c -x -F "$line" "$log")
+    exact=$(grep -c -x -E "$line$tail" "$log")
     printf '%s: end lines %s, of them the line of %s of %s with none failed %s\n' "$target" "$ends" "$count" "$count" "$exact"
     if [ "$ends" != 1 ]; then
       broke "$target printed $ends end lines, not one"
     elif [ "$exact" != 1 ]; then
       found=$(grep "^$target end: " "$log")
-      broke "$target printed \"$found\", not \"$line\""
+      broke "$target printed \"$found\", not \"$line$tail\""
     fi
   done <<EOF
 $want
@@ -161,12 +165,13 @@ EOF
   wrong=
   running='     Running tests/dialog_hosted.rs (target/debug/deps/dialog_hosted-0123456789abcdef)'
   mac_dialog='dialog_hosted end: cases ran 4 of 4, failed 0'
-  mac_guard='guard_hosted end: cases ran 6 of 6, failed 0'
+  counts=', helped 0, moments at a press 0, retries'
+  mac_guard="guard_hosted end: cases ran 7 of 7, failed 0$counts 0"
   win_dialog='dialog_hosted end: cases ran 5 of 5, failed 0'
-  win_guard='guard_hosted end: cases ran 8 of 8, failed 0'
+  win_guard="guard_hosted end: cases ran 8 of 8, failed 0$counts 2"
 
   output macos "$running" 'dialog_hosted case macos press_allow PASS' "$mac_dialog" "$mac_guard"
-  check macos-own-lines PASS 'guard_hosted: end lines 1, of them the line of 6 of 6 with none failed 1' macos
+  check macos-own-lines PASS 'guard_hosted: end lines 1, of them the line of 7 of 7 with none failed 1' macos
   output windows "$running" "$win_dialog" "$win_guard"
   check windows-own-lines PASS 'dialog_hosted: end lines 1, of them the line of 5 of 5 with none failed 1' windows
   output off "$off" "$mac_guard"
@@ -179,8 +184,8 @@ EOF
   check macos-short-count FAIL 'dialog_hosted printed "dialog_hosted end: cases ran 3 of 4, failed 0", not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output short-flag 'dialog_hosted end: cases ran 3 of 4, failed 0, FAIL: not every case ran' "$mac_guard"
   check macos-short-count-with-its-mark FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
-  output win-short "$win_dialog" 'guard_hosted end: cases ran 7 of 8, failed 0'
-  check windows-short-count FAIL 'not "guard_hosted end: cases ran 8 of 8, failed 0"' windows
+  output win-short "$win_dialog" "guard_hosted end: cases ran 7 of 8, failed 0$counts 0"
+  check windows-short-count FAIL 'not "guard_hosted end: cases ran 8 of 8, failed 0, helped 0' windows
   output win-count "$win_dialog" "$win_guard"
   check macos-job-with-the-windows-count FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output mac-count "$mac_dialog" "$mac_guard"
@@ -191,6 +196,14 @@ EOF
   check macos-a-failed-case FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
   check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
+  output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 1, moments at a press 0, retries 0'
+  check macos-a-helped-show FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0, helped 1' macos
+  output press-moment "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 2, retries 0'
+  check macos-a-report-taken-at-a-press FAIL 'moments at a press 2, retries 0", not' macos
+  output retries "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 0, retries 13'
+  check macos-retries-of-any-count PASS 'the line of 7 of 7 with none failed 1' macos
+  output no-counts "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0'
+  check macos-a-guard-line-with-no-counts FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0", not' macos
   output no-guard "$mac_dialog"
   check macos-no-guard-line FAIL 'guard_hosted printed 0 end lines, not one' macos
   output two "$mac_dialog" "$mac_dialog" "$mac_guard"

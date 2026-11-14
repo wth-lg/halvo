@@ -6,10 +6,15 @@
 //! control 100 ms after the report leaves the dialog open; a press after the hold answers; a
 //! refused press starts the hold anew; a second show holds again; a press 100 ms after the
 //! window became active again leaves it open; and at each report the dialog's window was the
-//! active window. A show that has not reported itself in 1 s is brought to the front once a
-//! second, for at most 8 s, with a line that says what was active before it; the target makes its
-//! app finish launching and become the active app first, as the app is when a person asks for the
-//! dialog. On macOS a press is the button's `performClick:`, the
+//! active window. No show is helped (ruling RD-103 item 6): a case brings a dialog to the front
+//! only when it names that, and none does; a show that has not reported itself in 3 s with no
+//! press fails, and is then pressed once so that its lines go on. The end line counts the uses of
+//! the front before a report, the reports made at a press and the retries of a last press; the
+//! first two must be 0. The target makes its app finish launching and become the active app at
+//! its start, as the app is when a person asks for the dialog. On macOS the target's own
+//! observers print the pair (the app active, the alert's window key) at each of the four notices,
+//! each press prints the pair and the modal fact, and each show prints which reading made its
+//! report. On macOS a press is the button's `performClick:`, the
 //! system's click call, or the button's action sent through the application, as a key equivalent
 //! sends it; on Windows a press is the message TDM_CLICK_BUTTON for the allowing id, the rejecting
 //! id and the cancel response that the Escape key and the close control give, or the message
@@ -31,6 +36,7 @@ const OFF: &str = "hosted alone: not run on this machine";
 const BOUND: Duration = Duration::from_secs(10);
 const SETTLE: Duration = Duration::from_millis(150);
 const REPORT_WAIT: Duration = Duration::from_secs(1);
+const UNHELPED: Duration = Duration::from_secs(3);
 const FRONT_LIMIT: Duration = Duration::from_secs(8);
 
 fn arm() -> Duration {
@@ -79,6 +85,22 @@ static REPORTS: AtomicUsize = AtomicUsize::new(0);
 static ACTIVE_AT_REPORT: AtomicBool = AtomicBool::new(false);
 static REPORT_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static DONE: AtomicBool = AtomicBool::new(false);
+static PRESSED_BEFORE_REPORT: AtomicBool = AtomicBool::new(false);
+static HELPED: AtomicUsize = AtomicUsize::new(0);
+static PRESS_MOMENTS: AtomicUsize = AtomicUsize::new(0);
+static RETRIES: AtomicUsize = AtomicUsize::new(0);
+static SHOW_AT: Mutex<Option<Instant>> = Mutex::new(None);
+static LABEL: Mutex<String> = Mutex::new(String::new());
+
+/// The label of the show that runs and the milliseconds since it began.
+fn now_in_show() -> (String, u128) {
+    let label = LABEL.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    let at = SHOW_AT
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .map_or(0, |at| at.elapsed().as_millis());
+    (label, at)
+}
 
 fn reported() -> Option<Instant> {
     *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner)
@@ -94,7 +116,10 @@ fn on_screen(active: bool) {
         .get_or_insert_with(Instant::now);
 }
 
-fn begin_show() {
+fn begin_show(label: &str) {
+    *LABEL.lock().unwrap_or_else(PoisonError::into_inner) = label.to_string();
+    *SHOW_AT.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
+    PRESSED_BEFORE_REPORT.store(false, Ordering::SeqCst);
     REPORTS.store(0, Ordering::SeqCst);
     ACTIVE_AT_REPORT.store(false, Ordering::SeqCst);
     *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
@@ -109,6 +134,8 @@ trait Ui<C> {
     fn front(&self) -> String;
     fn close(&self);
     fn word(control: C) -> String;
+    /// The reading that made a report that no press came before: a notice or the repeating one.
+    fn kind(&self) -> &'static str;
 }
 
 fn sleep_until(at: Instant) {
@@ -130,14 +157,26 @@ fn wait(limit: Duration, done: impl Fn() -> bool) -> bool {
 }
 
 /// Drives one show's presses from the report on: the failures that it found.
-fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>]) -> Vec<String> {
+fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: bool) -> Vec<String> {
     let start = Instant::now();
     let mut failures = Vec::new();
     let mut fronts = 0;
-    while !wait(REPORT_WAIT, || reported().is_some()) && start.elapsed() < FRONT_LIMIT {
+    while help && !wait(REPORT_WAIT, || reported().is_some()) && start.elapsed() < FRONT_LIMIT {
         fronts += 1;
+        HELPED.fetch_add(1, Ordering::SeqCst);
         let state = ui.front();
         println!("guard_hosted reading {label}: no report yet, brought to the front {fronts} times; {state}");
+    }
+    if !wait(UNHELPED, || reported().is_some()) {
+        failures.push(format!(
+            "no report in {} s with no press and no help",
+            UNHELPED.as_secs()
+        ));
+        if let Some(first) = presses.first() {
+            PRESSED_BEFORE_REPORT.store(true, Ordering::SeqCst);
+            ui.press(first.control);
+            wait(Duration::from_secs(2), || reported().is_some());
+        }
     }
     let Some(base) = reported() else {
         failures.push("the dialog never reported itself on screen".into());
@@ -186,6 +225,7 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>]) -> Vec<St
             break;
         }
         again += 1;
+        RETRIES.fetch_add(1, Ordering::SeqCst);
         std::thread::sleep(arm() + Duration::from_millis(200));
         ui.press(press.control);
         println!("guard_hosted reading {label}: the press after the hold pressed again, {again} times, as the window became active again after it");
@@ -253,8 +293,11 @@ fn end(verdicts: &[Verdict], listed: usize) -> ! {
         && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted");
     let short = hosted && verdicts.len() != listed;
     println!(
-        "guard_hosted end: cases ran {} of {listed}, failed {failed}{}",
+        "guard_hosted end: cases ran {} of {listed}, failed {failed}, helped {}, moments at a press {}, retries {}{}",
         verdicts.len(),
+        HELPED.load(Ordering::SeqCst),
+        PRESS_MOMENTS.load(Ordering::SeqCst),
+        RETRIES.load(Ordering::SeqCst),
         if short {
             ", FAIL: not every case ran"
         } else {
@@ -279,14 +322,21 @@ fn case<C: Copy + Send + Sync + 'static, U: Ui<C> + Clone + Send + 'static>(
         } else {
             name.to_string()
         };
-        begin_show();
+        begin_show(&label);
         let driver = std::thread::spawn({
             let ui = ui.clone();
             let label = label.clone();
-            move || drive(&ui, &label, presses)
+            move || drive(&ui, &label, presses, false)
         });
         let answer = show();
         DONE.store(true, Ordering::SeqCst);
+        let kind = if PRESSED_BEFORE_REPORT.load(Ordering::SeqCst) {
+            PRESS_MOMENTS.fetch_add(1, Ordering::SeqCst);
+            "a press"
+        } else {
+            ui.kind()
+        };
+        println!("guard_hosted reading {label}: report made by {kind}");
         match driver.join() {
             Ok(found) => failures.extend(found.into_iter().map(|f| format!("{label}: {f}"))),
             Err(_) => failures.push(format!("{label}: the driver panicked")),
@@ -318,24 +368,29 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod cases {
-    use super::{arm, case, end, on_screen, print, Press, Show, Ui};
+    use super::{arm, case, end, now_in_show, on_screen, print, Press, Show, Ui};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
-    use objc2::runtime::{AnyClass, AnyObject, Sel};
-    use objc2::{class, msg_send};
-    use objc2_app_kit::NSWindowDidBecomeKeyNotification;
-    use objc2_foundation::NSString;
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject, NSObject, Sel};
+    use objc2::{class, define_class, msg_send, sel, MainThreadMarker, MainThreadOnly};
+    use objc2_app_kit::{
+        NSApplicationDidBecomeActiveNotification, NSApplicationDidResignActiveNotification,
+        NSWindowDidBecomeKeyNotification, NSWindowDidResignKeyNotification,
+    };
+    use objc2_foundation::{NSNotification, NSNotificationCenter, NSPoint, NSRect, NSSize};
     use std::ffi::c_void;
     use std::panic::{catch_unwind, AssertUnwindSafe};
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::mpsc;
-    use std::time::Duration;
+    use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+    use std::sync::{mpsc, Mutex, PoisonError};
+    use std::time::{Duration, Instant};
 
     const REJECT: isize = 1000;
     const ALLOW: isize = 1001;
 
     /// A button by its response, pressed by its click call or by its action sent through the
-    /// application, or the notification that the alert's window became the key window again.
+    /// application, or a real resign and return: a panel of the target takes key, and the alert's
+    /// window takes it back.
     #[derive(Clone, Copy)]
     pub enum Control {
         Click(isize),
@@ -378,9 +433,10 @@ mod cases {
         p(800, Control::Click(ALLOW), false),
         p(1_400, Control::Click(ALLOW), true),
     ];
+    const ALLOW_WITH_NO_PRESS: &[Press<Control>] = &[p(2_000, Control::Click(ALLOW), true)];
 
     type Case = (&'static str, &'static [Show<Control>]);
-    const CASES: [Case; 6] = [
+    const CASES: [Case; 7] = [
         (
             "macos reject_action_at_100ms",
             &[(REJECT_ACTION, ConfirmAnswer::Reject)],
@@ -408,10 +464,127 @@ mod cases {
             "macos allow_click_100ms_after_the_key_window_again",
             &[(ALLOW_AFTER_KEY_AGAIN, ConfirmAnswer::Allow)],
         ),
+        (
+            "macos report_with_no_press_and_no_help",
+            &[(ALLOW_WITH_NO_PRESS, ConfirmAnswer::Allow)],
+        ),
     ];
-    pub const SHOWS: u32 = 7;
+    pub const SHOWS: u32 = 8;
 
     static SHOW: AtomicUsize = AtomicUsize::new(0);
+    static NOTICE_BOTH: Mutex<Option<Instant>> = Mutex::new(None);
+    static PANEL: AtomicPtr<AnyObject> = AtomicPtr::new(std::ptr::null_mut());
+
+    /// The pair now, read on the main thread: whether the app is active and whether the modal
+    /// window is its key window, and whether a modal window exists.
+    ///
+    /// # Safety
+    /// Runs on the main thread.
+    unsafe fn pair_now() -> (bool, bool, bool) {
+        let app = app();
+        let active: bool = msg_send![app, isActive];
+        let window: *mut AnyObject = msg_send![app, modalWindow];
+        let key = !window.is_null() && {
+            let key: bool = msg_send![window, isKeyWindow];
+            key
+        };
+        (active, key, !window.is_null())
+    }
+
+    fn notice(name: &str, note: &NSNotification, become_: bool) {
+        // SAFETY: an observer's method runs on the main thread.
+        let (active, key, modal) = unsafe { pair_now() };
+        let object = note.object().map_or(std::ptr::null(), |o| {
+            Retained::as_ptr(&o).cast::<AnyObject>()
+        });
+        // SAFETY: as above.
+        let window: *mut AnyObject = unsafe { msg_send![app(), modalWindow] };
+        let (label, at) = now_in_show();
+        println!(
+            "guard_hosted notice {label} +{at} ms: {name} active={active} key={key} modal_window={modal} object_is_the_alert={}",
+            !window.is_null() && object == window.cast_const()
+        );
+        if become_ && active && key {
+            NOTICE_BOTH
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get_or_insert_with(Instant::now);
+        }
+    }
+
+    define_class!(
+        // SAFETY: NSObject has no requirement of a subclass, and `Watch` implements no `Drop`.
+        #[unsafe(super(NSObject))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "GuardHostedWatch"]
+        struct Watch;
+
+        impl Watch {
+            #[unsafe(method(becameKey:))]
+            fn became_key(&self, note: &NSNotification) {
+                notice("became key", note, true);
+            }
+
+            #[unsafe(method(becameActive:))]
+            fn became_active(&self, note: &NSNotification) {
+                notice("became active", note, true);
+            }
+
+            #[unsafe(method(resignedKey:))]
+            fn resigned_key(&self, note: &NSNotification) {
+                notice("resigned key", note, false);
+            }
+
+            #[unsafe(method(resignedActive:))]
+            fn resigned_active(&self, note: &NSNotification) {
+                notice("resigned active", note, false);
+            }
+        }
+    );
+
+    fn watch(mtm: MainThreadMarker) {
+        // SAFETY: `init` of NSObject on a newly allocated object.
+        let watch: Retained<Watch> = unsafe { msg_send![Watch::alloc(mtm), init] };
+        let center = NSNotificationCenter::defaultCenter();
+        let target: &AnyObject = &watch;
+        // SAFETY: `watch` answers each selector with a notification and lives for the process.
+        unsafe {
+            for (selector, name) in [
+                (sel!(becameKey:), NSWindowDidBecomeKeyNotification),
+                (
+                    sel!(becameActive:),
+                    NSApplicationDidBecomeActiveNotification,
+                ),
+                (sel!(resignedKey:), NSWindowDidResignKeyNotification),
+                (
+                    sel!(resignedActive:),
+                    NSApplicationDidResignActiveNotification,
+                ),
+            ] {
+                center.addObserver_selector_name_object(target, selector, Some(name), None);
+            }
+        }
+        std::mem::forget(watch);
+    }
+
+    /// The panel of the target that takes key from the alert, made once.
+    ///
+    /// # Safety
+    /// Runs on the main thread.
+    unsafe fn panel() -> *mut AnyObject {
+        let made = PANEL.load(Ordering::SeqCst);
+        if !made.is_null() {
+            return made;
+        }
+        let rect = NSRect::new(NSPoint::new(40.0, 40.0), NSSize::new(240.0, 80.0));
+        let panel: *mut AnyObject = msg_send![class!(NSPanel), alloc];
+        let panel: *mut AnyObject = msg_send![panel, initWithContentRect: rect, styleMask: 1usize, backing: 2usize, defer: false];
+        let _: () = msg_send![panel, setWorksWhenModal: true];
+        let _: () = msg_send![panel, setReleasedWhenClosed: false];
+        let _: () = msg_send![panel, setBecomesKeyOnlyIfNeeded: false];
+        PANEL.store(panel, Ordering::SeqCst);
+        panel
+    }
 
     #[repr(C)]
     struct Queue {
@@ -501,17 +674,21 @@ mod cases {
                     if window.is_null() {
                         return false;
                     }
+                    let (label, at) = now_in_show();
                     let tag = match control {
                         Control::Click(tag) | Control::Action(tag) => tag,
                         Control::Again => {
-                            let center: *mut AnyObject =
-                                msg_send![class!(NSNotificationCenter), defaultCenter];
-                            let name: &NSString = NSWindowDidBecomeKeyNotification;
-                            let _: () =
-                                msg_send![center, postNotificationName: name, object: window];
+                            let panel = panel();
+                            let _: () = msg_send![panel, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
+                            let panel_key: bool = msg_send![panel, isKeyWindow];
+                            let _: () = msg_send![window, makeKeyWindow];
+                            let alert_key: bool = msg_send![window, isKeyWindow];
+                            let _: () = msg_send![panel, orderOut: std::ptr::null_mut::<AnyObject>()];
+                            println!("guard_hosted again {label} +{at} ms: the panel took key={panel_key}, the alert took it back={alert_key}");
                             return true;
                         }
                     };
+                    let (active, key, _) = pair_now();
                     let content: *mut AnyObject = msg_send![window, contentView];
                     let found = button(content, tag, 0);
                     if found.is_null() {
@@ -524,7 +701,12 @@ mod cases {
                             is
                         }
                     });
-                    println!("guard_hosted reading press: target_is_the_hold={held}");
+                    let own: *mut AnyObject = msg_send![found, window];
+                    println!(
+                        "guard_hosted press {label} +{at} ms: {} active={active} key={key} modal={} target_is_the_hold={held}",
+                        Mac::word(control),
+                        own == window
+                    );
                     match control {
                         Control::Click(_) => {
                             let _: () =
@@ -596,20 +778,34 @@ mod cases {
             match control {
                 Control::Click(tag) => format!("the click call on {tag}"),
                 Control::Action(tag) => format!("the action of {tag}"),
-                Control::Again => "the notification that the window became key".into(),
+                Control::Again => "a panel's taking of key and its return to the alert".into(),
+            }
+        }
+
+        fn kind(&self) -> &'static str {
+            let notice = *NOTICE_BOTH.lock().unwrap_or_else(PoisonError::into_inner);
+            let report = super::reported();
+            match (notice, report) {
+                (Some(notice), Some(report)) if notice <= report => "a become notice",
+                (_, Some(_)) => "the repeating reading",
+                _ => "no report",
             }
         }
     }
 
+    /// Whether the alert's window is the active window at the report: the modal session had begun
+    /// (read here, off the main thread, so that a report made before it is seen), and the app is
+    /// active and the modal window its key window (read on the main thread).
     fn active_now() -> bool {
-        // SAFETY: two reads of the shared application's windows, made off the main thread
-        // while the modal session runs, by a test on a hosted runner.
-        unsafe {
-            let app = app();
-            let key: *mut AnyObject = msg_send![app, keyWindow];
-            let modal: *mut AnyObject = msg_send![app, modalWindow];
-            !key.is_null() && key == modal
-        }
+        // SAFETY: one read of a pointer of the shared application off the main thread, by a test
+        // on a hosted runner.
+        let begun = unsafe {
+            let modal: *mut AnyObject = msg_send![app(), modalWindow];
+            !modal.is_null()
+        };
+        // SAFETY: `on_main` runs the read on the main thread.
+        let pair = on_main(|| unsafe { pair_now() });
+        begun && pair.is_some_and(|(active, key, _)| active && key)
     }
 
     /// # Safety
@@ -634,6 +830,9 @@ mod cases {
 
     pub fn run(card: Card) {
         activate();
+        if let Some(mtm) = MainThreadMarker::new() {
+            watch(mtm);
+        }
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
         std::thread::spawn(move || {
@@ -641,6 +840,7 @@ mod cases {
             let mut verdicts = Vec::new();
             for (name, shows) in CASES {
                 let verdict = case(&Mac, name, shows, &|| {
+                    *NOTICE_BOTH.lock().unwrap_or_else(PoisonError::into_inner) = None;
                     SHOW.fetch_add(1, Ordering::SeqCst);
                     dialog.show(&card, arm(), &|| on_screen(active_now()))
                 });
@@ -655,7 +855,7 @@ mod cases {
 
 #[cfg(windows)]
 mod cases {
-    use super::{arm, case, end, on_screen, print, Press, Show, Ui};
+    use super::{arm, case, end, now_in_show, on_screen, print, Press, Show, Ui};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use windows::core::{HSTRING, PCWSTR};
@@ -764,6 +964,11 @@ mod cases {
 
     impl Ui<Control> for Win {
         fn press(&self, control: Control) -> bool {
+            let (label, at) = now_in_show();
+            println!(
+                "guard_hosted press {label} +{at} ms: {}",
+                Win::word(control)
+            );
             let Some(window) = self.window() else {
                 return false;
             };
@@ -815,6 +1020,10 @@ mod cases {
                 Control::Close => "WM_CLOSE".into(),
                 Control::Again => "WM_ACTIVATE".into(),
             }
+        }
+
+        fn kind(&self) -> &'static str {
+            "the activation at TDN_CREATED or WM_ACTIVATE"
         }
     }
 
