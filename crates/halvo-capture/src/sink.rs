@@ -101,10 +101,17 @@ impl SinkCounts {
 }
 
 /// What the channel carries: an event of the old emit, or a floor value.
-enum Item {
+enum Sent {
     Old(CaptureStreamEvent),
     Floor(FloorEvent),
     Fold(FoldEvent),
+}
+
+/// One value on the channel with the count of resume marks that its emit read
+/// before it could block.
+struct Item {
+    sent: Sent,
+    begun: u64,
 }
 
 /// The answer of [`SinkHandle::emit_event`]. It is a plain value: a source
@@ -134,6 +141,7 @@ pub struct SinkHandle {
     tx: SyncSender<Item>,
     sequence: Arc<AtomicU64>,
     counts: Arc<[KindCounters; KINDS]>,
+    resumes: Arc<AtomicU64>,
 }
 
 impl SinkHandle {
@@ -167,7 +175,16 @@ impl SinkHandle {
     /// other kind blocks the calling thread until the writer makes room. When
     /// the writer is gone the value is refused.
     pub fn emit_event(&self, event: FloorEvent) -> Emitted {
-        match self.send(event.kind(), Item::Floor(event)) {
+        self.emit_held(event, || {})
+    }
+
+    /// [`SinkHandle::emit_event`], with `held` run after the emit has read its
+    /// resume mark and before it sends: the seam where a test holds an emit.
+    pub(crate) fn emit_held(&self, event: FloorEvent, held: impl FnOnce()) -> Emitted {
+        let kind = event.kind();
+        let item = self.item(Sent::Floor(event));
+        held();
+        match self.send(kind, item) {
             Ok(EmitOutcome::Queued) => Emitted::Queued,
             Ok(EmitOutcome::Dropped) => Emitted::Dropped,
             Err(SinkError::Disconnected) => Emitted::Refused,
@@ -178,7 +195,7 @@ impl SinkHandle {
     /// back in [`FoldEmitted::Coalesced`] and counts as coalesced for pointer.
     pub fn emit_continuous(&self, fold: FoldEvent) -> FoldEmitted {
         let kind = Modality::Pointer;
-        match self.tx.try_send(Item::Fold(fold)) {
+        match self.tx.try_send(self.item(Sent::Fold(fold))) {
             Ok(()) => {
                 self.counters(kind).accepted.fetch_add(1, Ordering::Relaxed);
                 FoldEmitted::Queued
@@ -210,6 +227,14 @@ impl SinkHandle {
         }
     }
 
+    /// `sent` with the count of resume marks drawn before this read.
+    fn item(&self, sent: Sent) -> Item {
+        Item {
+            sent,
+            begun: self.resumes.load(Ordering::SeqCst),
+        }
+    }
+
     fn counters(&self, kind: Modality) -> &KindCounters {
         &self.counts[kind_index(kind)]
     }
@@ -231,15 +256,15 @@ impl SinkHandle {
 }
 
 fn handed_back(item: Item) -> FoldEvent {
-    match item {
-        Item::Fold(fold) => fold,
-        Item::Old(_) | Item::Floor(_) => unreachable!("emit_continuous sends only a fold"),
+    match item.sent {
+        Sent::Fold(fold) => fold,
+        Sent::Old(_) | Sent::Floor(_) => unreachable!("emit_continuous sends only a fold"),
     }
 }
 
 impl EventSink for SinkHandle {
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
-        self.send(event.modality, Item::Old(event))
+        self.send(event.modality, self.item(Sent::Old(event)))
     }
 }
 
@@ -273,6 +298,7 @@ impl ArrivalNumber {
 pub struct Received {
     arrived: Arrived,
     number: ArrivalNumber,
+    begun: u64,
 }
 
 #[derive(Debug)]
@@ -300,6 +326,12 @@ impl Received {
         self.number.0 < barrier.0
     }
 
+    /// Whether the emit of this event read its resume mark before `mark` was
+    /// drawn, whenever its send landed.
+    pub fn began_before(&self, mark: ResumeMark) -> bool {
+        self.begun < mark.0
+    }
+
     /// The floor value with its number, or this value back, boxed, when it
     /// holds an event of the old emit.
     pub fn into_floor(self) -> Result<FloorReceived, Box<Received>> {
@@ -311,6 +343,7 @@ impl Received {
             Arrived::Old(event) => Err(Box::new(Received {
                 arrived: Arrived::Old(event),
                 number: self.number,
+                begun: self.begun,
             })),
         }
     }
@@ -346,9 +379,14 @@ impl FloorReceived {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Barrier(u64);
 
+/// A resume mark of [`SinkWriter::resume_mark`]. Only that call makes one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResumeMark(u64);
+
 pub struct SinkWriter {
     rx: Receiver<Item>,
     next: Cell<u64>,
+    resumes: Arc<AtomicU64>,
 }
 
 const _: fn() = || {
@@ -367,7 +405,7 @@ impl SinkWriter {
     /// The event gets no [`ArrivalNumber`] and takes none; a floor value
     /// arrives as an event of its kind, time and id with no app and no payload.
     pub fn recv(&self) -> Option<CaptureStreamEvent> {
-        self.rx.recv().ok().map(|item| match arrived(item) {
+        self.rx.recv().ok().map(|item| match arrived(item.sent) {
             Arrived::Old(event) => event,
             Arrived::Floor { shown, .. } => shown,
         })
@@ -390,6 +428,13 @@ impl SinkWriter {
         Barrier(self.next.get())
     }
 
+    /// Draw a resume mark. An event whose emit read its mark before this call
+    /// [`Received::began_before`] it, whenever its send lands; an emit that
+    /// starts after this call returns does not.
+    pub fn resume_mark(&self) -> ResumeMark {
+        ResumeMark(self.resumes.fetch_add(1, Ordering::SeqCst) + 1)
+    }
+
     /// The next number of this writer's counter, for a record that did not
     /// arrive on the channel: the run mark that the owner's entry appends.
     #[cfg(feature = "r2")]
@@ -403,17 +448,18 @@ impl SinkWriter {
         let number = self.next.get();
         self.next.set(number + 1);
         Received {
-            arrived: arrived(item),
+            arrived: arrived(item.sent),
             number: ArrivalNumber(number),
+            begun: item.begun,
         }
     }
 }
 
-fn arrived(item: Item) -> Arrived {
-    match item {
-        Item::Old(event) => Arrived::Old(event),
-        Item::Floor(event) => shown(event),
-        Item::Fold(fold) => shown(fold.into_event()),
+fn arrived(sent: Sent) -> Arrived {
+    match sent {
+        Sent::Old(event) => Arrived::Old(event),
+        Sent::Floor(event) => shown(event),
+        Sent::Fold(fold) => shown(fold.into_event()),
     }
 }
 
@@ -450,14 +496,17 @@ pub fn bounded(capacity: NonZeroUsize) -> (SinkHandle, SinkWriter) {
 
 fn build(capacity: usize) -> (SinkHandle, SinkWriter) {
     let (tx, rx) = sync_channel(capacity);
+    let resumes = Arc::new(AtomicU64::new(0));
     let handle = SinkHandle {
         tx,
         sequence: Arc::new(AtomicU64::new(0)),
         counts: Arc::default(),
+        resumes: resumes.clone(),
     };
     let writer = SinkWriter {
         rx,
         next: Cell::new(0),
+        resumes,
     };
     (handle, writer)
 }

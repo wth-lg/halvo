@@ -1,43 +1,6 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
 
-use crate::model::{from_text, UnknownSpelling};
-
-macro_rules! one_spelling {
-    ($kind:ident, $what:literal, [$($variant:ident => $text:literal),+ $(,)?]) => {
-        impl $kind {
-            pub const fn as_str(self) -> &'static str {
-                match self {
-                    $($kind::$variant => $text),+
-                }
-            }
-        }
-
-        impl FromStr for $kind {
-            type Err = UnknownSpelling;
-
-            fn from_str(text: &str) -> Result<Self, Self::Err> {
-                [$($kind::$variant),+]
-                    .into_iter()
-                    .find(|value| value.as_str() == text)
-                    .ok_or(UnknownSpelling { what: $what })
-            }
-        }
-
-        impl Serialize for $kind {
-            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                serializer.serialize_str(self.as_str())
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $kind {
-            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                from_text(deserializer)
-            }
-        }
-    };
-}
+use crate::model::one_spelling;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Permission {
@@ -46,7 +9,7 @@ pub enum Permission {
     InputMonitoring,
 }
 
-pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
+pub use crate::texts::SCREEN_ACTIVITY_NOT_RECORDED;
 
 impl Permission {
     pub const R1_MACOS: [Permission; 3] = [
@@ -156,9 +119,19 @@ impl FromIterator<Permission> for PermissionSet {
 
 pub const MACOS_FLOOR_MAJOR: u32 = 14;
 
+/// A macOS version, major and minor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MacosVersion {
+    pub major: u32,
+    pub minor: u32,
+}
+
+/// The pane titles of one macOS major version. `observed_on` is the version on which the titles
+/// were seen, or `None` for a row that carries the words of another row until someone sees them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MacosRow {
     pub major: u32,
+    pub observed_on: Option<MacosVersion>,
     pub screen_pane: &'static str,
     pub accessibility_pane: &'static str,
     pub input_monitoring_pane: &'static str,
@@ -179,11 +152,10 @@ const SCREEN_PANE: &str = "Screen & System Audio Recording";
 const INPUT_MONITORING_PANE: &str = "Input Monitoring";
 const ALERT_BUTTON: &str = "Open System Settings";
 
-/// Only the row for 27 was observed, on macOS 27.2. The other rows carry its
-/// words, with the older Accessibility title, until someone observes them.
 pub const MACOS_ROWS: [MacosRow; 4] = [
     MacosRow {
         major: MACOS_FLOOR_MAJOR,
+        observed_on: None,
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Accessibility",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -191,6 +163,7 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
     MacosRow {
         major: 15,
+        observed_on: None,
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Accessibility",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -198,6 +171,7 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
     MacosRow {
         major: 26,
+        observed_on: None,
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Accessibility",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -205,6 +179,10 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
     MacosRow {
         major: 27,
+        observed_on: Some(MacosVersion {
+            major: 27,
+            minor: 2,
+        }),
         screen_pane: SCREEN_PANE,
         accessibility_pane: "Device Control and Data Access",
         input_monitoring_pane: INPUT_MONITORING_PANE,
@@ -756,6 +734,42 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_accessibility_asks_the_system_first_and_opens_the_pane_second() {
+        for grant in [GrantState::NotDetermined, GrantState::NotGranted] {
+            let state = assess(&input(&Permission::R1_MACOS, &[(Accessibility, grant)]));
+            let steps: Vec<WalkbackAction> = state
+                .walkback
+                .iter()
+                .filter(|s| s.permission == Accessibility)
+                .map(|s| s.action)
+                .collect();
+            assert_eq!(
+                steps,
+                [
+                    WalkbackAction::RequestFromSystem,
+                    WalkbackAction::OpenSettingsPane
+                ],
+                "{grant:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_opener_opens_only_a_system_settings_url_of_its_own_table() {
+        for &permission in Permission::ALL {
+            let url = permission.settings_url();
+            assert!(
+                url.starts_with("x-apple.systempreferences:com.apple.preference.security?Privacy_"),
+                "{url}"
+            );
+            assert!(!url.contains(char::is_whitespace), "{url}");
+        }
+        let urls: std::collections::BTreeSet<&str> =
+            Permission::ALL.iter().map(|p| p.settings_url()).collect();
+        assert_eq!(urls.len(), Permission::ALL.len());
+    }
+
+    #[test]
     fn in_every_state_one_restart_step_at_most_comes_last_and_no_text_says_quit() {
         let mut states = 0;
         every_state(|input, state| {
@@ -902,6 +916,34 @@ mod tests {
             );
         }
         assert!(serde_json::from_str::<WalkbackAction>("\"relaunch\"").is_err());
+    }
+
+    #[test]
+    fn each_row_says_on_which_macos_version_its_titles_were_observed_or_that_they_were_not() {
+        let observed: Vec<(u32, Option<MacosVersion>)> = MACOS_ROWS
+            .iter()
+            .map(|row| (row.major, row.observed_on))
+            .collect();
+        assert_eq!(
+            observed,
+            [
+                (14, None),
+                (15, None),
+                (26, None),
+                (
+                    27,
+                    Some(MacosVersion {
+                        major: 27,
+                        minor: 2
+                    })
+                ),
+            ]
+        );
+        for row in &MACOS_ROWS {
+            if let Some(seen) = row.observed_on {
+                assert_eq!(seen.major, row.major);
+            }
+        }
     }
 
     #[test]
@@ -1245,7 +1287,35 @@ mod tests {
         assert!(!state.all_granted);
     }
 
-    const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"}]}"#;
+    const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false},{"permission":"screen_and_system_audio_recording","pane_name":"Screen & System Audio Recording","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture","why":"a third why text","grant":"granted","lost":false,"asked":true}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"},{"permission":"screen_and_system_audio_recording","action":"restart_capture","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture","text":"a third step text"}]}"#;
+
+    const REQUEST_OUTCOMES_JSON: &str = r#"["already_granted","requested"]"#;
+
+    #[test]
+    fn the_golden_json_holds_every_spelling_of_grant_action_and_request_outcome() {
+        for &grant in GrantState::ALL {
+            let text = format!("\"grant\":\"{}\"", grant.as_str());
+            assert!(
+                ONBOARDING_JSON.contains(&text),
+                "the golden JSON lacks {text}"
+            );
+        }
+        for &action in WalkbackAction::ALL {
+            let text = format!("\"action\":\"{}\"", action.as_str());
+            assert!(
+                ONBOARDING_JSON.contains(&text),
+                "the golden JSON lacks {text}"
+            );
+        }
+        assert_eq!(
+            serde_json::to_string(RequestOutcome::ALL).unwrap(),
+            REQUEST_OUTCOMES_JSON
+        );
+        assert_eq!(
+            serde_json::from_str::<Vec<RequestOutcome>>(REQUEST_OUTCOMES_JSON).unwrap(),
+            RequestOutcome::ALL
+        );
+    }
 
     #[test]
     fn the_onboarding_object_has_golden_json_and_reads_back() {
@@ -1280,6 +1350,13 @@ mod tests {
                     false,
                     false,
                 ),
+                row(
+                    Permission::ScreenAndSystemAudioRecording,
+                    "a third why text",
+                    GrantState::Granted,
+                    false,
+                    true,
+                ),
             ],
             lost_grants: vec![Permission::Accessibility],
             all_granted: false,
@@ -1293,6 +1370,11 @@ mod tests {
                     Permission::InputMonitoring,
                     WalkbackAction::RequestFromSystem,
                     "another step text",
+                ),
+                step(
+                    Permission::ScreenAndSystemAudioRecording,
+                    WalkbackAction::RestartCapture,
+                    "a third step text",
                 ),
             ],
         };

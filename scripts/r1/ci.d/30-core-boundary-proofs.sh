@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every proof line of the content floor fails to build with its named error code and its twin builds. The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their five listed uses.
+# rule: Every proof line of the content floor and of the daemon's port fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their five listed uses.
 set -u
 name=30-core-boundary-proofs
 crate=crates/halvo-capture
@@ -40,6 +40,8 @@ captured_text_from_a_string E0308 debug
 app_identity_from_a_string E0308 debug
 site_from_a_string E0308 debug
 event_id_made_outside_its_maker E0603 debug
+segment_write_filled_outside_the_daemon E0451 daemon
+batch_filled_outside_the_daemon E0624 daemon
 synthetic_clearance_in_a_release_build E0425 release
 synthetic_keep_in_a_release_build E0425 release'
 proof_names=$(printf '%s\n' "$PROOFS" | awk '{ printf "%s ", $1 }')
@@ -245,7 +247,15 @@ measure() {
   clean_tree || fail "a tracked file of $crate or of src-tauri differs from HEAD before the build"
   committed=$(git show "HEAD:$proofs_file") || fail "HEAD has no $proofs_file"
   spans_text=$(printf '%s\n' "$committed" | spans)
-  ran=$(printf '%s\n' "$PROOFS" | grep -c '')
+  here=$(uname -s)
+  if [ "$here" = Darwin ]; then
+    runs=$PROOFS
+  else
+    runs=$(printf '%s\n' "$PROOFS" | awk '$3 != "daemon"')
+    away=$(printf '%s\n' "$PROOFS" | awk '$3 == "daemon"' | grep -c '')
+    printf 'daemon proofs: %s, run in the macos job, where a build without tests holds src/daemon/\n' "$away"
+  fi
+  ran=$(printf '%s\n' "$runs" | grep -c '')
   [ "$ran" -gt 0 ] || fail "no proof to run"
   scan . HEAD >"$work/scan.txt"
   status=$?
@@ -271,9 +281,9 @@ measure() {
   fi
   [ "$source_status" = 0 ] || fail "cargo exited $source_status after every source rule passed"
 
-  debug=$(printf '%s\n' "$PROOFS" | awk '$3 == "debug" { print $1 }')
-  release=$(printf '%s\n' "$PROOFS" | awk '$3 == "release" { print $1 }')
-  twins=$(printf '%s\n' "$PROOFS" | awk '{ print $1 "_twin" }')
+  debug=$(printf '%s\n' "$runs" | awk '$3 == "debug" || $3 == "daemon" { print $1 }')
+  release=$(printf '%s\n' "$runs" | awk '$3 == "release" { print $1 }')
+  twins=$(printf '%s\n' "$runs" | awk '{ print $1 "_twin" }')
 
   build "$out/twins.txt" "$twins" ''
   twin_status=$?
@@ -287,11 +297,11 @@ measure() {
 
   failed=0
   messages=$(cat "$out/proofs.txt") || fail "cannot read proofs.txt"
-  listed=$(printf '%s\n' "$PROOFS" | awk '$3 == "debug" { print $1, $2 }')
+  listed=$(printf '%s\n' "$runs" | awk '$3 == "debug" || $3 == "daemon" { print $1, $2 }')
   verdicts=$(judge "$messages" "$spans_text" "$listed") || failed=1
   printf '%s\n' "$verdicts" >"$work/verdicts.txt"
   messages=$(cat "$out/release-proofs.txt") || fail "cannot read release-proofs.txt"
-  listed=$(printf '%s\n' "$PROOFS" | awk '$3 == "release" { print $1, $2 }')
+  listed=$(printf '%s\n' "$runs" | awk '$3 == "release" { print $1, $2 }')
   verdicts=$(judge "$messages" "$spans_text" "$listed") || failed=1
   printf '%s\n' "$verdicts" >>"$work/verdicts.txt"
   if [ "$failed" = 1 ]; then
