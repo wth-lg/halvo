@@ -564,6 +564,38 @@ mod tests {
     }
 
     #[test]
+    fn the_flag_lines_are_the_flags_of_each_product_start_less_the_executors_own() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let relay = rt.block_on(r3_web::relay::Relay::start()).expect("relay");
+        let lines: std::collections::BTreeSet<String> = product_flags().into_iter().collect();
+        for start in [
+            Start::Product {
+                relay: relay.handle(),
+                relay_port: relay.port,
+            },
+            Start::ProductDirect,
+        ] {
+            let started: std::collections::BTreeSet<String> = opts(&start)
+                .flags
+                .into_iter()
+                .filter(|f| !set_by_the_executor(f))
+                .collect();
+            assert_eq!(started, lines, "{}", start.name());
+        }
+    }
+
+    #[test]
+    fn the_refusal_causes_name_every_refused_line() {
+        assert_eq!(
+            refusal_causes("REFUSED list: x\negress y\nREFUSED mode: z\n"),
+            "list,mode"
+        );
+    }
+
+    #[test]
     fn the_egress_port_is_the_agent_entry_of_the_list() {
         let list = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
