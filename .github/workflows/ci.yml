@@ -96,6 +96,24 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: daemon-1 loop of the round's tests
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          set +e
+          step_start=$(date +%s)
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::stop_tests::an_outcome_with_a_loss_prints_its_report_and_line_and_returns_its_status daemon::stop_tests::an_already_written_answer_at_the_shutdown_settle_gives_no_loss daemon::stop_tests::a_signal_wins_over_a_source_that_did_not_stop daemon::stop_tests::a_signal_after_the_window_and_before_the_return_gives_status_2 daemon::stop_tests::a_refusal_that_the_sources_learn_at_their_stop_ends_the_run daemon::owner::tests::three_due_tries_answered_busy_leave_the_batch_held daemon::owner::tests::a_shutdown_after_open_pause_stores_nothing_that_came_after_the_pause daemon::stop_tests::the_line_of_an_unanswered_stop_names_no_healed_fault sink::tests::the_owners_queue_depth_is_the_1024_of_the_ledger daemon::stop_tests::a_usage_refusal_gives_its_text_and_exit_64 daemon::owner::tests::the_class_of_each_write_fault_counts_and_names_it daemon::tests::a_dir_whose_store_key_cannot_be_read_is_refused_by_the_first_three_modes'
+          want=12
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=8 >"$out" 2>&1 && tr -d '\r' <"$out" | grep -q "^test result: ok. $want passed"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (macos): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          echo "daemon-1 loop (macos): the step took $(( $(date +%s) - step_start )) s"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -148,6 +166,24 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: daemon-1 loop of the round's tests
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          set +e
+          step_start=$(date +%s)
+          py=$(command -v python3 || command -v python); bin=$(cargo test --locked -q -p halvo-capture --lib --no-run --message-format json 2>/dev/null | "$py" -c "import json,sys; print([m['executable'] for m in map(json.loads, sys.stdin) if m.get('reason') == 'compiler-artifact' and m.get('executable') and m['target']['name'] == 'halvo_capture'][-1])" | tr -d '\r')
+          names='daemon::stop_tests::an_outcome_with_a_loss_prints_its_report_and_line_and_returns_its_status daemon::stop_tests::an_already_written_answer_at_the_shutdown_settle_gives_no_loss daemon::stop_tests::a_signal_wins_over_a_source_that_did_not_stop daemon::stop_tests::a_signal_after_the_window_and_before_the_return_gives_status_2 daemon::stop_tests::a_refusal_that_the_sources_learn_at_their_stop_ends_the_run daemon::owner::tests::three_due_tries_answered_busy_leave_the_batch_held daemon::owner::tests::a_shutdown_after_open_pause_stores_nothing_that_came_after_the_pause daemon::stop_tests::the_line_of_an_unanswered_stop_names_no_healed_fault sink::tests::the_owners_queue_depth_is_the_1024_of_the_ledger daemon::stop_tests::a_usage_refusal_gives_its_text_and_exit_64 daemon::owner::tests::the_class_of_each_write_fault_counts_and_names_it'
+          want=11
+          out=$(mktemp)
+          pass=0
+          # shellcheck disable=SC2086
+          for _ in $(seq 200); do
+            if "$bin" --exact $names --test-threads=8 >"$out" 2>&1 && tr -d '\r' <"$out" | grep -q "^test result: ok. $want passed"; then pass=$((pass + 1)); else tail -n 30 "$out"; fi
+          done
+          echo "daemon-1 loop (windows): binary $(basename "$bin"): tests $want, runs 200, passes $pass"
+          echo "daemon-1 loop (windows): the step took $(( $(date +%s) - step_start )) s"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
