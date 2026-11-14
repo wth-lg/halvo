@@ -1813,7 +1813,9 @@ impl EncryptedStore {
     /// key file create-only and removes `create.pending`. When a step fails it
     /// destroys the root that it made, removes the key file and the database
     /// files, every step attempted, and answers the step's error, or a
-    /// removal's error when one failed.
+    /// removal's error when one failed. On Windows a store path or a roots
+    /// path of which a part ends in a dot or a space answers
+    /// `Io(InvalidInput)` before anything is made.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -1828,6 +1830,8 @@ impl EncryptedStore {
         retention: Duration,
         after_the_handle: &mut dyn FnMut(),
     ) -> StoreResult<Self> {
+        #[cfg(windows)]
+        refuse_a_part_that_windows_trims(&[Some(dir), custody.roots()])?;
         durable::create_private_dir_all(dir).map_err(io_error)?;
         let store = Dir::open(dir).map_err(store_dir_error)?;
         store.make_private().map_err(io_error)?;
@@ -1994,7 +1998,8 @@ impl EncryptedStore {
     /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back,
     /// and [`CustodyError::RootDenied`] that the root file cannot be read.
     /// No call waits on a
-    /// FIFO.
+    /// FIFO. On Windows a store path or a roots path of which a part ends in a
+    /// dot or a space answers `Io(InvalidInput)` before anything is opened.
     pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, roots, retention, custody_for)
     }
@@ -2005,6 +2010,8 @@ impl EncryptedStore {
         retention: Duration,
         custody_for: impl FnOnce(&CustodyLocator) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
     ) -> StoreResult<Self> {
+        #[cfg(windows)]
+        refuse_a_part_that_windows_trims(&[Some(dir), Some(roots)])?;
         let store = Dir::open(dir).map_err(store_dir_error)?;
         store.make_private().map_err(io_error)?;
         let _writer_lock = DirLock::take(&store)?;
@@ -2431,6 +2438,24 @@ fn sweep_where_no_store_stands(store_dir: &Path, roots: &Path) -> (RootReading, 
         );
     }
     file_root::destroy_roots_in(roots, None, RootStepForm::Sweep)
+}
+
+/// On Windows a create or an open given a store path or a roots path of which
+/// a part ends in a dot or a space answers `Io(InvalidInput)` before it makes
+/// or opens anything, verbatim or not: Win32 trims that end on a path that is
+/// not verbatim, and a create there made its directory at the trimmed sibling
+/// (hosted run 43578145799), so no store of Halvo's making lies under such a
+/// name (ruling ST-45 H6 (b)).
+#[cfg(windows)]
+fn refuse_a_part_that_windows_trims(paths: &[Option<&Path>]) -> StoreResult<()> {
+    if paths
+        .iter()
+        .flatten()
+        .any(|path| durable::has_a_part_that_windows_trims(path))
+    {
+        return Err(StoreError::Io(ErrorKind::InvalidInput));
+    }
+    Ok(())
 }
 
 fn finished(report: DeleteReport) -> StoreResult<DeleteReport> {

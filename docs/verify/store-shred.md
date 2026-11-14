@@ -1284,7 +1284,13 @@ What the code does since store-3, each sentence with the test that shows it.
   dropped (ruling ST-45 H6 (a)); a relative path, a path on a drive with no
   root and a path with a `..` part have none and leave the root unread. A
   roots path of that form leaves the named root unread and listed no
-  (ruling ST-44 F8). Tests:
+  (ruling ST-44 F8). A create and an open given a store path or a roots
+  path of which a part ends in a dot or a space, verbatim or not, answer
+  `Io(InvalidInput)` before they make or open anything, so that no store of
+  Halvo's making lies under such a name: the first hosted run of the test
+  found that a create there made its directory at the trimmed sibling
+  (ruling ST-45 H6 (b)). Tests:
+  `a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name`,
   `a_key_file_version_past_u32_or_below_zero_answers_newer_or_older_store`,
   `the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays`,
   `the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone`,
