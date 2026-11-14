@@ -862,6 +862,8 @@ fn round_inner(
         fixture.reply("left_secure", Duration::from_secs(3));
         if !state_reads(false, Duration::from_secs(2)) {
             round.why_not = "secure input did not read off after the leaving key";
+            std::thread::sleep(bound + MARGIN);
+            round.ahead = recorder.between(ahead_from, SystemTime::now());
             return round;
         }
         fixture.keys(Duration::ZERO, &format!("{RETURN}u"));
@@ -870,6 +872,8 @@ fn round_inner(
     }
     if !state_reads(false, Duration::from_secs(2)) {
         round.why_not = "secure input did not read off before the markers";
+        std::thread::sleep(bound + MARGIN);
+        round.ahead = recorder.between(ahead_from, SystemTime::now());
         return round;
     }
     let markers_from = SystemTime::now();
@@ -1127,6 +1131,16 @@ fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: 
         "{name}: counted rounds whose entries show no reading of on inside the on-time and \
          a drop for on: {}",
         no_proof.join(", ")
+    );
+    let inexact: Vec<String> = rounds
+        .iter()
+        .filter(|round| round.verdict == Some(Verdict::Held) && round.markers != MARKERS.len())
+        .map(|round| format!("wait {} ms: {}", round.wait_ms, round.markers))
+        .collect();
+    assert!(
+        inexact.is_empty(),
+        "{name}: records of the markers other than one for each marker: {}",
+        inexact.join(", ")
     );
     let short: Vec<String> = waits
         .iter()
