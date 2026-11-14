@@ -510,7 +510,9 @@ fn store_once_reading<P: Owner>(
     stamp: Stamp,
     read: &mut dyn FnMut(&mut Ledger) -> Read,
 ) -> Result<bool, PortError> {
-    flush(ports, ledger, limits)?;
+    if !flush_reading(ports, ledger, limits, read)? {
+        return Ok(false);
+    }
     let mut events = ledger.number(whats.clone(), stamp);
     let mut resynced = false;
     loop {
@@ -1208,8 +1210,11 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     answer_handback_reading(ports, ledger, limits, item, ask, choice, &mut read)
 }
 
-/// `answer_handback` with `read` as the one read of the owner's events after a failed log of the
-/// press's row: it takes the events into the ledger and says what it showed.
+/// `answer_handback` with `read` as the one read of the owner's events after a refusal `seq` of
+/// the rows that waited in the ledger or after a failed log of the press's row: it takes the
+/// events into the ledger and says what it showed. Where it shows the agent switched off beside
+/// its run, nothing of the press is logged or handed to the run, the waiting rows stay for the
+/// rest of the switch-off, and the move answers `unknown_item` (ruling RD-52 (b) rule 3).
 pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1245,7 +1250,9 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
         answer: &answer,
         result,
     };
-    flush(ports, ledger, limits).map_err(|e| cause_of(&e))?;
+    if !flush_reading(ports, ledger, limits, read).map_err(|e| cause_of(&e))? {
+        return Err(Cause::UnknownItem);
+    }
     let decided = if ledger.unsure.contains(item) {
         Decided::LogOwnRow
     } else {
@@ -1407,8 +1414,9 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
     answer_bind_reading(ports, ledger, table, limits, held, choice, &mut read)
 }
 
-/// `answer_bind` with `read` as the read after a refusal `seq` of its row, which the
-/// coordinator hands: a read that shows the agent switched off beside its run stores no row,
+/// `answer_bind` with `read` as the read after a refusal `seq` of the rows that waited in the
+/// ledger or of its own row, which the coordinator hands: a read that shows the agent switched
+/// off beside its run stores no row of the press,
 /// sends no answer and answers `unknown_item`, as for a step that is no longer open, and the
 /// step stays for the rest of the switch-off (ruling RD-52 (b) rule 3, RD-101 item 5 (a)).
 pub fn answer_bind_reading<P: Owner + Runs + Clock>(
