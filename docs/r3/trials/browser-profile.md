@@ -95,31 +95,26 @@ verdict profile=ephemeral egress=open browser_bound_bytes=1216348160
 ## Second round (U0.3's second pull request)
 
 Items 1, 2 and 4 ran again under the start that the product carries after U0.7c, and item 3 ran.
-Each browser of items 1 and 2 and of item 4's task shape starts on its debugging pipe, with the
-agent's profile settings and the same-site setting written before the start, the first flag set of
-A13.2, U0.7b's flags for the ways out and the relay's flags, the relay its only route; the steps
-shape runs the web trial's start of U0.7c, which writes no same-site setting (README). The `flag`
-and `pref` lines are that set, the same-site origin given for the gate's port 18090 (each cell wrote
-its own); item 3 added no flag. Flags of the trial that the product does not carry: the mock
-keychain on every macOS start (the product's browser uses the system's key store, A8.3), the port
-flags of the web trial's port-form controls, and `--isolate-origins` of A13.7's rows (CP-93 (5)).
+Each browser of items 1 and 2 and of item 4's task shape starts on its debugging pipe with the
+agent's profile settings and the same-site setting written first, the first flag set of A13.2,
+U0.7b's flags and the relay's, the relay its only route; the steps shape runs the web trial's start
+of U0.7c, without the same-site setting. The `flag` and `pref` lines are that set for the gate's
+port 18090; item 3 added no flag. The trial's flags that the product lacks: the mock keychain on
+macOS (A8.3), the web trial's port-form flags and A13.7's `--isolate-origins` (CP-93 (5)).
 
-What ran. The trial's code is eb189792's; later commits change this file and the README. Every
-hosted cell ran in run 43552018301 (scratch head eb189792 plus the workflow). On `mac` items 1 and 2
-(d66953a4, the same code for them) and item 3 (eb189792) ran with Chrome on the helper's lane on
-2026-11-14, 01:18Z to 03:30Z. The `mac` cell of item 4 is open (`browser machine=mac
-bound_bytes=open`): memory pressure on this Mac reads level 2, the brief takes a peak only at level
-1, and no level 1 is expected until the owner acts on an item of theirs. The cell is filled by `sh
-tools/r3-trials/profile/run.sh --item 4 --browser <Chrome> --port 18191` through the timed-run
-helper while the level reads 1 before and after.
+What ran. Items 1 and 2 ran on `mac` at d66953a4, the hosted cells of items 1, 2 and 4 in run
+43552018301 at eb189792, and item 3 at c9eafc41 on `mac` and in run 43566221064. No later commit
+changes a value that a cell computes: they change tests, checks, help texts, SAFETY notes, lint
+entries, texts, item 3's lines (8b0f1a1e, before item 3 ran) and the place of the web trial's kill
+line printer (cadf0314, a function of the context now); the profile README lists each commit.
 
-Item 3 ran the trial program under `sh scripts/egress/check.sh` with the list of A14.3: the fixture
-and one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s, direct and
-without the relay, which is the executor's and outside the check's tree; the relay's flags that
-close a way out stay. No `--no-sandbox` is given: under the `sandbox` mode Chrome does not start on
-`mac` or `hosted-mac`. With `--sandbox-off`, a control and no cell, it starts and the check logs 3
-denials on each Mac (on `mac` UDP to port 443 with no address). On `hosted-win` the first flag set
-gave `denied=4` and the final set `denied=0`; the list has `eol=lf` in every checkout (c2f235af).
+Item 3 ran the program under `sh scripts/egress/check.sh` with the list of A14.3: the fixture and
+one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s, without the relay.
+No `--no-sandbox` is given; on both Macs `browser_started=no` covers a start that failed after the
+browser's first reply (`cause=start`); there the browser's kept standard error holds `sandbox
+initialization failed`, and the check's own output does not say why. With `--sandbox-off`, a control
+and no cell, it starts, and its count of denials differs from run to run; on `hosted-win` the first
+set showed at least one denial in every run and the final set none (README).
 
 Beside `denied=0` (W-C26.8 item 5): on hosted-win, denied=0 proves that no process of the wrapped
 tree opened a connection, sent a datagram of any IP protocol or resolved a name outside the list
@@ -130,13 +125,20 @@ probe was lost (reports/verifier-13.md, claim 3), the workflow run's report, mea
 On macos-15 and this-mac the browser did not start, so `denied=0` there proves nothing about it.
 
 The token is `windows-only`; the miss on `hosted-mac` is request 7 of plan.md. Each cell of items 1
-to 3 is one run, and the first round's limits of the search stand.
+to 3 is one run; the first round's limits of the search stand. The `hosted` lines of run 43552018301
+hold items 1, 2 and 4 alone, those of run 43566221064 item 3. `browser machine=mac bound_bytes=open`
+stands outside A13.3's form of one bound per machine: this Mac's memory pressure read level 2 at
+every try, and such a cell is taken only at level 1. A reader takes the last verdict line;
+docs/r3/trials/model-cells.md and tools/r3-trials/model/fits.py stand on the first block's
+1,216,348,160 (`mac`, first flag set) until U0.5 computes them again (A13.5).
 
 ```text
 licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
 licence item=windows-sys@0.61.2 spdx=MIT read=2026-11-11 ok=yes
 hosted machine=hosted-mac run=43552018301 sha=e4e87bb8db71ac6295727ab2c3d1fd5a705f3b52
 hosted machine=hosted-win run=43552018301 sha=e4e87bb8db71ac6295727ab2c3d1fd5a705f3b52
+hosted machine=hosted-mac run=43566221064 sha=cf5bb96a34a831e52604afdd91d26ebf5c7eb932
+hosted machine=hosted-win run=43566221064 sha=cf5bb96a34a831e52604afdd91d26ebf5c7eb932
 session machine=mac browser=chrome import=ok second_factor_asked_again=no
 session machine=hosted-mac browser=chrome import=ok second_factor_asked_again=no
 session machine=hosted-mac browser=edge import=ok second_factor_asked_again=no

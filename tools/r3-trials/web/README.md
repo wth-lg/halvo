@@ -366,8 +366,10 @@ that each start takes, and `clippy.toml` refuses `Command::spawn`, `output` and 
 elsewhere in the crate, so a start that skips the lock does not pass clippy where clippy runs on
 this crate. No hosted job runs it there today (the crate has its own workspace, outside the root's
 members); the test `a_start_waits_while_the_start_lock_is_held` pins that `Start::start` takes the
-lock. tokio's process feature is off (Cargo.toml), so `tokio::process::Command::spawn` is not in
-the crate and `clippy.toml` needs no line for it.
+lock. tokio's process feature is on in the build, because chromiumoxide 0.9.1 turns it on, so
+`clippy.toml` also refuses `tokio::process::Command` and chromiumoxide's own starts of a process
+(`Browser::launch`, `BrowserConfig::launch`, its `async_process::Command`): no code of the crate
+uses them, and `hard_kill` in start.rs rests on that no runtime holds a child of the trial.
 
 - macOS: the two pipes are made, and each of their four ends is copied to a number of 10 or more
   with close-on-exec, under the lock. The browser is started by `posix_spawn` with
