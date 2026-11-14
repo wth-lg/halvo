@@ -439,15 +439,31 @@ judge() {
       for (i = 1; i <= d; i++) out = out (i > 1 ? "/" : "") kp[i]
       return out
     }
-    function top_hit(c,   r) {
+    function glob_prefix(r,   n, sg, i, out) {
+      if (r !~ /[*?[]/) return r
+      n = split(r, sg, "/")
+      out = ""
+      for (i = 1; i <= n && sg[i] !~ /[*?[]/; i++) out = out (i > 1 ? "/" : "") sg[i]
+      return out
+    }
+    function top_hit(c,   r, g, what) {
       if (c ~ /^[A-Za-z]:[\/\\]/) return 0
       r = top_path(c)
-      if (!(r in known) || !index(r, "/") || path == "backend/scripts/names-v0.sh") return 0
-      if (side == "backend" && tracked("backend/" r)) return 0
-      if (side == "app" && index(path, "account/schema/") == 1 && (r in copied)) return 0
-      if (side == "backend" && !inside(r)) problem(where, "names " r ", a tracked file of the app, read from the top of the repository: " c fix_top)
-      else if (side == "app" && inside(r)) problem(where, "names " r ", a tracked file of backend/ or formal/r7-ledger/, read from the top of the repository: " c fix_top)
-      else return 0
+      if (path == "backend/scripts/names-v0.sh") return 0
+      if (side == "backend") {
+        g = glob_prefix(r)
+        if (g != r) what = ", a glob over " g ", a tracked directory of the app"
+        else if (r in known) what = ", a tracked file of the app"
+        else what = ", a tracked directory of the app"
+        if (g == "" || !index(r, "/") || !((g in tracked_dir) || (g == r && (r in known)))) return 0
+        if (tracked("backend/" g) || inside(g)) return 0
+        problem(where, "names " r what ", read from the top of the repository: " c fix_top)
+        return 1
+      }
+      if (!(r in known) || !index(r, "/")) return 0
+      if (index(path, "account/schema/") == 1 && (r in copied)) return 0
+      if (!inside(r)) return 0
+      problem(where, "names " r ", a tracked file of backend/ or formal/r7-ledger/, read from the top of the repository: " c fix_top)
       return 1
     }
     function from_top(s,   rest, off, n, i, j, st, en, sv, c) {
@@ -846,7 +862,13 @@ Readings that refuse an honest line, with the form to write in its place:
   repository, whatever stands before it and whatever the file's own
   directory is, so a text in a file of one side that spells in full, with at
   least one slash, a tracked file of the other side from the top is refused:
-  rename the file or reword the text. This reading has three limits, each
+  rename the file or reword the text. In backend/ this reading also refuses
+  a tracked directory of the app spelled so (crates/halvo-capture, as a
+  listing whose files are then read or as cp -R after cd .. && cd ..), and a
+  glob whose part before its first glob character is a tracked directory of
+  the app (crates/halvo-capture/src/*.rs, crates/**/*.rs); a lone name of a
+  top-level directory (join(root, "crates")) is not read so, and a glob
+  whose first part is a glob is not either. This reading has three limits, each
   held by a passing fixture p785-limit-<kind>: a lone name of a top-level
   file (join(dir, "Cargo.toml")) is not read from the top; a path without its
   extension (crates/x/src/lib) is not read from the top; a path that the
@@ -1591,10 +1613,10 @@ const text = readFileSync(here + "/../crates/halvo-capture/src/lib.rs", "utf8");
   case_with j1-backend-python-path-pieces backend/scripts/peek_path.py 'TEXT = Path("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_path.py:1: reads crates'
   case_with j2-backend-python-joinpath backend/scripts/peek_joinpath.py 'TEXT = Path(__file__).parent.joinpath("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_joinpath.py:1: reads crates'
 
-  case_with p785-a-backend-joins-the-repository-root-and-app-pieces backend/scripts/root.mjs 'const src = readFileSync(join(execSync("git rev-parse --show-toplevel").toString().trim(), "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root.mjs:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  case_with p785-a-backend-joins-the-repository-root-and-app-pieces backend/scripts/root.mjs 'const src = readFileSync(join(execSync("git rev-parse --show-toplevel").toString().trim(), "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root.mjs:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
   case_with p785-a-backend-joins-a-root-variable-and-app-pieces backend/scripts/root2.mjs 'const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
-const src = readFileSync(join(repoRoot, "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root2.mjs:2: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
-  case_with p785-b-backend-joins-os-pardir-and-app-pieces backend/scripts/pd.py 'text = open(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "crates", "halvo-capture", "src", "lib.rs")).read()' 'backend/scripts/pd.py:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+const src = readFileSync(join(repoRoot, "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root2.mjs:2: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  case_with p785-b-backend-joins-os-pardir-and-app-pieces backend/scripts/pd.py 'text = open(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "crates", "halvo-capture", "src", "lib.rs")).read()' 'backend/scripts/pd.py:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
   case_with p785-c-backend-cds-up-twice-and-reads-a-plain-app-path backend/scripts/cd2.sh 'cd .. && cd .. && cat crates/halvo-capture/src/lib.rs' 'backend/scripts/cd2.sh:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
   case_with p785-a-shell-twin-reads-the-app-after-the-root backend/scripts/top.sh 'TOP=$(git rev-parse --show-toplevel)
 cat "$TOP/crates/halvo-capture/src/lib.rs"' 'backend/scripts/top.sh:2: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
@@ -1714,6 +1736,18 @@ esac' 'read:scripts/k8.sh'
   put account/schema/vendor.sh 'cp ./backend/src/types.ts types.ts'
   stage
   expect FAIL f1c-l1-another-backend-file-in-account-schema 'account/schema/vendor.sh:1: names backend/src/types.ts, a tracked file of backend/ or formal/r7-ledger/, read from the top'
+
+  case_with f1c-e57-a-backend-lists-an-app-directory-and-reads-its-files backend/scripts/list.mjs 'const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+for (const f of readdirSync(join(repoRoot, "crates", "halvo-capture", "src"))) console.log(readFileSync(join(repoRoot, "crates", "halvo-capture", "src", f), "utf8"));' 'backend/scripts/list.mjs:2: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  case_with f1c-e57-a-backend-globs-an-app-directory backend/scripts/glob.mjs 'const root = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+const files = globSync("crates/halvo-capture/src/*.rs", { cwd: root });' 'backend/scripts/glob.mjs:2: names crates/halvo-capture/src/*.rs, a glob over crates/halvo-capture/src, a tracked directory of the app, read from the top'
+  case_with f1c-e57-a-backend-globs-an-app-directory-in-the-shell backend/scripts/glob.sh 'cd .. && cd .. && cat crates/halvo-capture/src/*.rs' 'backend/scripts/glob.sh:1: names crates/halvo-capture/src/*.rs, a glob over crates/halvo-capture/src, a tracked directory of the app'
+  case_with f1c-e57-a-backend-globs-under-a-top-level-app-directory backend/scripts/glob2.mjs 'const files = globSync("crates/**/*.rs", { cwd: root });' 'backend/scripts/glob2.mjs:1: names crates/**/*.rs, a glob over crates, a tracked directory of the app'
+  case_with f1c-l2-a-backend-copies-an-app-crate-after-two-cds backend/scripts/cd3.sh 'cd .. && cd .. && cp -R crates/halvo-capture dist/capture' 'backend/scripts/cd3.sh:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  pass_with f1c-l2-a-backend-copies-its-own-directory-after-two-cds backend/scripts/cd4.sh 'cd .. && cd .. && cp -R backend/gate/checks dist/checks' 'read:backend/scripts/cd4.sh'
+  pass_with f1c-e57-a-backend-globs-a-directory-of-its-own-side-too backend/scripts/glob3.mjs 'const all = globSync("scripts/*.sh", { cwd: join(here, "..") });' 'read:backend/scripts/glob3.mjs'
+  pass_with f1c-e57-a-backend-globs-a-directory-that-nobody-tracks backend/scripts/glob4.mjs 'const out = globSync("dist/out/*.js", { cwd: join(here, "..") });' 'read:backend/scripts/glob4.mjs'
+  pass_with f1c-e57-a-lone-top-level-app-directory-is-not-read-from-the-top backend/scripts/lone.mjs 'const all = readdirSync(join(repoRoot, "crates"));' 'read:backend/scripts/lone.mjs'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
