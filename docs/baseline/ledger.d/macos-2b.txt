@@ -1,2 +1,8 @@
 ledger process=daemon name=held_keys bytes=4718592 kind=by-construction source=macos::input::tests::the_held_keys_at_their_cap_stay_under_the_bytes_of_the_ledger
 measured earlier run=43573022064 note=the_last_macos_alone_scratch_run_before_ruling_MA-22_L1
+measured run=43604085133 commit=4fa8e2955e89fa2eb2940bdbd7b992f26d1287cb scratch=b776261d5b1743f487d006491209c901f5bf2dc8 figures=form_a_2000ms:rounds=124,counted=124,recorded_rounds=3,recorded_cases=A:3;form_a_150ms:rounds=40,counted=40,recorded_rounds=0;whole_burst_2ms:rounds=5,counted=4,recorded_rounds=0;whole_pace_26ms:rounds=5,counted=5,recorded_rounds=0;mended_click_loop:62_counted,passed;sleep_drops=0_in_313_drop_lines;late_by_the_entry=0;measure:readings=792,readings_by_the_step=2016,spacing_p50_us=17577,gap_of_the_test_ms=350
+measured blob path=crates/halvo-capture/src/macos/input.rs id=4070f469a83b19eeeb1bfb22e7346dae54d4572e
+measured blob path=crates/halvo-capture/src/secure_input_macos.rs id=2473ae42068dc8cf91ab690fd3783babce0e8d03
+measured blob path=crates/halvo-capture/src/secure_input_macos_hold.rs id=85d2788e9b3fed52c6bdc7733d5bd286a503a4cb
+measured blob path=crates/halvo-capture/tests/macos_stall_fixture.rs id=442cfaeba71a7d3e575f215fb9eb62649c35d219
+measured blob path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m id=943559e1831e0b037fe1af8d550b148521f6f0e2
