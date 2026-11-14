@@ -1019,10 +1019,8 @@ mod tests {
         let _ = other.wait();
         for fd in [on.to_browser.as_raw_fd(), on.from_browser.as_raw_fd()] {
             // SAFETY: F_GETFD reads the flags of an open descriptor of this process.
-            assert_eq!(
-                unsafe { libc::fcntl(fd, libc::F_GETFD) } & libc::FD_CLOEXEC,
-                libc::FD_CLOEXEC
-            );
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            assert_eq!(flags & libc::FD_CLOEXEC, libc::FD_CLOEXEC);
         }
         on.child.kill();
         // SAFETY: the two spare descriptors are owned here and closed once.

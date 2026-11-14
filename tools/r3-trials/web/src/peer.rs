@@ -321,13 +321,10 @@ mod sys {
 
     pub fn sockets(_pids: &[u32]) -> Vec<Socket> {
         let mut out = Vec::new();
-        // SAFETY, for this closure and the three below it (TCP and UDP, IPv4 and IPv6): `table`
-        // gives each closure a buffer and its size in bytes, and each passes both on to a call of
-        // the one IP Helper family (GetExtendedTcpTable or GetExtendedUdpTable) that writes at most
-        // `*size` bytes into the buffer and reports a larger need through `size`. The four calls
-        // differ only in the family and the row type, so one reason holds for all four.
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedTcpTable(p, size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: `table` gives a buffer and its size in bytes; the call writes at most `*size`
+            // bytes into the buffer and reports a larger need through `size`.
+            unsafe { GetExtendedTcpTable(p, size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0) }
         }) {
             for r in rows::<MIB_TCPROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -345,8 +342,9 @@ mod sys {
                 });
             }
         }
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedTcpTable(p, size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: as for the IPv4 table above: a buffer and its size from `table`.
+            unsafe { GetExtendedTcpTable(p, size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0) }
         }) {
             for r in rows::<MIB_TCP6ROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -364,8 +362,9 @@ mod sys {
                 });
             }
         }
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedUdpTable(p, size, 0, AF_INET as u32, UDP_TABLE_OWNER_PID, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: as for the TCP tables above: a buffer and its size from `table`.
+            unsafe { GetExtendedUdpTable(p, size, 0, AF_INET as u32, UDP_TABLE_OWNER_PID, 0) }
         }) {
             for r in rows::<MIB_UDPROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -380,8 +379,9 @@ mod sys {
                 });
             }
         }
-        if let Some(buf) = table(|p, size| unsafe {
-            GetExtendedUdpTable(p, size, 0, AF_INET6 as u32, UDP_TABLE_OWNER_PID, 0)
+        if let Some(buf) = table(|p, size| {
+            // SAFETY: as for the TCP tables above: a buffer and its size from `table`.
+            unsafe { GetExtendedUdpTable(p, size, 0, AF_INET6 as u32, UDP_TABLE_OWNER_PID, 0) }
         }) {
             for r in rows::<MIB_UDP6ROW_OWNER_PID>(&buf) {
                 out.push(Socket {
@@ -428,12 +428,11 @@ mod sys {
             if ok == 0 {
                 continue;
             }
-            // SAFETY: both handles are open handles of this process; the call reads the objects
-            // that they name and nothing else.
-            if ours
-                .iter()
-                .any(|o| unsafe { CompareObjectHandles(dup, *o as HANDLE) } != 0)
-            {
+            if ours.iter().any(|o| {
+                // SAFETY: both handles are open handles of this process; the call reads the objects
+                // that they name and nothing else.
+                unsafe { CompareObjectHandles(dup, *o as HANDLE) != 0 }
+            }) {
                 found.push(*v);
             }
             // SAFETY: the duplicate is owned here and closed once.
