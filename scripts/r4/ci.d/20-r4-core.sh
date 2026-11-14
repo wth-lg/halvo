@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, each of which keeps its clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, the crates that the app links start no child but the two named limits, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
+# rule: No allow of clippy's disallowed_methods stands outside test code of halvo-coord, halvo-coord-app and halvo-coord-store, by clippy with that lint forbidden over their library, binary and example targets and by a scan of their sources and manifests, each of them keeps the committed clippy.toml with Command::new, spawn, output and status, a normal build of the workspace resolves tauri with neither unstable nor test, the crates that the app links start no child but the two named limits, every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
 set -u
 name=20-r4-core
 
@@ -321,43 +321,43 @@ open my $out, '>', $outfile or exit 2;
 my $found = 0;
 
 if ($mode eq 'allow') {
-  my @crates = @rest;
+  my ($expected, @crates) = @rest;
+  my $want;
+  {
+    open my $e, '<', $expected or exit 2;
+    binmode $e;
+    local $/;
+    $want = <$e>;
+    close $e;
+  }
   my ($rust, $tests, $product) = (0, 0, 0);
   my %has = map { $_ => 1 } keys %blob;
-  my @methods = map { "std::process::Command::$_" } qw(new spawn output status);
+  for my $cfg (grep { m{(?:\A|/)\.cargo/config(?:\.toml)?\z} } sort keys %has) {
+    print $out "allow $cfg stands\n";
+    $found++;
+  }
   for my $cr (@crates) {
     next unless $has{"$cr/Cargo.toml"};
     my $toml = $blob{"$cr/clippy.toml"};
-    my @missing = defined $toml ? grep { $toml !~ /path\s*=\s*"\Q$_\E"/ } @methods : ('clippy.toml');
-    for my $m (@missing) { print $out "allow $cr/clippy.toml lacks $m\n"; $found++ }
+    if (!defined $toml || $toml ne $want) { print $out "allow $cr/clippy.toml differs\n"; $found++ }
     if ($has{"$cr/.clippy.toml"}) { print $out "allow $cr/.clippy.toml stands\n"; $found++ }
     my @rs = sort grep { m{\A\Q$cr\E/.+\.rs\z} } keys %blob;
     $rust += @rs;
-    my @intests = grep { m{\A\Q$cr\E/tests/} } @rs;
-    $tests += @intests;
-    my %declared;
-    for my $f (grep { !m{\A\Q$cr\E/tests/} } @rs) {
-      for my $ch (children($f)) { $declared{$ch->[0]} = 1 if defined $ch->[0] }
-    }
-    my @roots = grep { !m{\A\Q$cr\E/tests/} && !$declared{$_} } @rs;
-    my ($kind) = walk(@roots);
-    for my $f (grep { !m{\A\Q$cr\E/tests/} } @rs) {
-      if (($kind->{$f} // 'product') eq 'test') { $tests++; next }
+    for my $f (@rs) {
+      if ($f =~ m{\A\Q$cr\E/tests/}) { $tests++; next }
       $product++;
-      my $re = qr/\bdisallowed_methods?\b|\b(?:allow|expect)\s*\([^()]*?(?:\bclippy\s*::\s*(?:all|style)\b|\bwarnings\b)|#\s*!?\s*\[\s*path\s*=|\binclude\s*!/;
+      my $re = qr/\bdisallowed_methods?\b|\b(?:allow|expect)\s*\([^()]*?(?:\bclippy\s*::\s*(?:all|style)\b|\bwarnings\b|\$)|#\s*!?\s*\[[^\]]*?\bpath\s*=|\binclude\s*!/;
       for my $h (hits($f, $re)) { print $out "allow $f:$h->[0]\n"; $found++ }
     }
   }
-  my @tomls = grep { $has{$_} } ('Cargo.toml', '.cargo/config.toml', '.cargo/config', map { "$_/Cargo.toml" } @crates);
+  my @tomls = grep { $has{$_} } ('Cargo.toml', map { "$_/Cargo.toml" } @crates);
   for my $t (@tomls) {
-    my $cfg = $t =~ m{\A\.cargo/};
     my $i = 0;
     for my $line (split /\n/, $blob{$t}) {
       $i++;
       next if $line =~ /\A\s*#/;
-      my $bad = $line =~ /\bdisallowed_methods?\b|\bclippy\s*::\s*(?:all|style)\b|cap-lints/
-        || $line =~ /\b(?:all|style|warnings)\b\s*=\s*(?:\{[^}]*\blevel\s*=\s*)?"(?:allow|expect)"/
-        || ($cfg && $line =~ /warnings|"\s*-A|--allow/);
+      my $bad = $line =~ /\bdisallowed_methods?\b|\bclippy\s*::|cap-lints/
+        || $line =~ /\A\s*(?:\[\s*)?(?:["']?workspace["']?\s*\.\s*)?["']?lints["']?\s*[.=\]]/;
       if ($bad) { print $out "allow $t:$i\n"; $found++ }
     }
   }
@@ -421,6 +421,17 @@ exit($found ? 1 : 0);
 EOF
 }
 
+lint_config() {
+  cat <<'EOF'
+disallowed-methods = [
+  { path = "std::process::Command::new", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+  { path = "std::process::Command::spawn", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+  { path = "std::process::Command::output", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+  { path = "std::process::Command::status", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+]
+EOF
+}
+
 blobs() {
   label=$1
   shift
@@ -430,15 +441,31 @@ blobs() {
 }
 
 lint_allows() {
-  blobs allow crates/halvo-coord crates/halvo-coord-app crates/halvo-coord-store Cargo.toml .cargo
+  if [ -n "${CLIPPY_CONF_DIR:-}" ]; then
+    printf 'allow CLIPPY_CONF_DIR is set\n'
+    fail allow
+  fi
+  lint_config >"$artifacts/clippy.toml.expected" || fail setup
+  blobs allow crates/halvo-coord crates/halvo-coord-app crates/halvo-coord-store Cargo.toml .cargo crates/.cargo
   perl "$scan" allow "$artifacts/allow.list" "$artifacts/allow.blobs" "$artifacts/allow.txt" \
-    crates/halvo-coord crates/halvo-coord-app crates/halvo-coord-store
+    "$artifacts/clippy.toml.expected" crates/halvo-coord crates/halvo-coord-app crates/halvo-coord-store
   code=$?
   case $code in
     0) ;;
     1) fail allow ;;
     *) fail setup ;;
   esac
+  set --
+  for crate in halvo-coord halvo-coord-app halvo-coord-store; do
+    if [ -f "crates/$crate/Cargo.toml" ]; then
+      set -- "$@" -p "$crate"
+    fi
+  done
+  [ "$#" -gt 0 ] || return 0
+  cargo clippy "$@" --lib --bins --examples --locked -- -F clippy::disallowed_methods >"$artifacts/clippy-forbid.txt" 2>&1
+  code=$?
+  printf 'allow clippy with the lint forbidden: exit=%s\n' "$code"
+  [ "$code" -eq 0 ] || fail allow
 }
 
 tauri_features() {
@@ -492,10 +519,10 @@ measure() {
   sources=$artifacts/refusal-sources.txt
   scan=$artifacts/scan.pl
   scanner >"$scan" || fail setup
+  git diff --binary >"$artifacts/tracked-before.txt" || fail setup
   lint_allows
   tauri_features
   child_starts
-  git diff --binary >"$artifacts/tracked-before.txt" || fail setup
   : >"$log" 2>/dev/null || fail setup
   app=no
   if [ -f crates/halvo-coord-app/Cargo.toml ]; then
@@ -547,7 +574,7 @@ check() {
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_CLIPPY_EXIT STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE
     "$@" 2>&1
   )
   code=$?
@@ -569,6 +596,7 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_EXIT=0
+  STUB_CLIPPY_EXIT=0
   STUB_TAURI_EXIT=0
   STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
@@ -580,19 +608,9 @@ put() {
   printf '%b' "$2" >"$1" || exit 2
 }
 
-lint_toml() {
-  for method in new spawn output status; do
-    printf '{ path = "std::process::Command::%s", reason = "fixture" },\n' "$method"
-  done
-}
-
 crate() {
   put "$1/Cargo.toml" "[package]\nname = \"${1##*/}\"\nversion = \"0.0.0\"\n"
-  {
-    printf 'disallowed-methods = [\n'
-    lint_toml
-    printf ']\n'
-  } >"$1/clippy.toml" || exit 2
+  lint_config >"$1/clippy.toml" || exit 2
 }
 
 fixture() {
@@ -602,8 +620,8 @@ fixture() {
   crate "$dir/crates/halvo-coord"
   put "$dir/crates/halvo-coord/src/lib.rs" '//! No #[allow(clippy::disallowed_methods)] here.\npub mod words;\n#[cfg(test)]\nmod tests;\n#[cfg(all(test, unix))]\nmod more {\n    const B: char = '"'"'}'"'"';\n    const S: &str = "}{";\n    #[allow(clippy::disallowed_methods)]\n    fn f() {}\n}\npub fn after() -> &'"'"'static str {\n    r#"x"y #[allow(clippy::disallowed_methods)] }"#\n}\n'
   put "$dir/crates/halvo-coord/src/words.rs" 'pub fn w() {}\n'
-  put "$dir/crates/halvo-coord/src/tests.rs" 'mod deep;\n#[allow(clippy::disallowed_methods)]\nfn t() {}\n'
-  put "$dir/crates/halvo-coord/src/tests/deep.rs" '#[expect(clippy::disallowed_methods)]\nfn d() {}\n'
+  put "$dir/crates/halvo-coord/src/tests.rs" '#![cfg(test)]\nmod deep;\n#[allow(clippy::disallowed_methods)]\nfn t() {}\n'
+  put "$dir/crates/halvo-coord/src/tests/deep.rs" '#![cfg(test)]\n#[expect(clippy::disallowed_methods)]\nfn d() {}\n'
   put "$dir/crates/halvo-coord/tests/words_same.rs" '#[expect(clippy::disallowed_methods, reason = "fixture")]\nfn s() {}\n'
   if [ "${2:-}" = app ]; then
     crate "$dir/crates/halvo-coord-app"
@@ -651,6 +669,9 @@ case " $* " in
   *) exit 97 ;;
 esac
 case $* in
+  'clippy -p '*' --lib --bins --examples --locked -- -F clippy::disallowed_methods')
+    exit "$STUB_CLIPPY_EXIT"
+    ;;
   'tree -e normal --workspace --target all -i tauri --depth 0 --format {f} --locked')
     printf '%s\n' "$STUB_TAURI"
     exit "$STUB_TAURI_EXIT"
@@ -673,6 +694,7 @@ EOF
   chmod +x "$work/bin/cargo" || exit 2
   STUB_ARGS=$work/args
   STUB_EXIT=0
+  STUB_CLIPPY_EXIT=0
   STUB_TAURI_EXIT=0
   STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
@@ -699,7 +721,7 @@ EOF
   check pass PASS 'refusals=2' run_one
   check app-crate-in-the-tree PASS 'halvo-coord-app=yes' \
     env CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-app" sh "$here/$name.sh"
-  check allows-in-test-code-only PASS 'allow crates=1 rust_files=6 test_files=4 product_files=2 manifests=1 found=0' run_one
+  check allows-in-test-code-only PASS 'allow crates=1 rust_files=6 test_files=2 product_files=4 manifests=1 found=0' run_one
   check starts-in-tests-and-unlinked-crates-only PASS 'starts crates=2 files=4 hits=1 limits=1 other=0 unresolved=1' run_one
   STUB_TAURI=default,test-util,wry,unstable-x
   check tauri-features-that-only-hold-the-words PASS 'tauri normal features=4 unstable=no test=no' run_one
@@ -737,6 +759,20 @@ EOF
   check an-allow-in-the-cargo-configuration FAIL "FAIL $name (allow)" run_in allow-config
   variant allow-short crates/halvo-coord-app/clippy.toml 'disallowed-methods = [\n{ path = "std::process::Command::new" },\n]\n'
   check a-clippy-toml-without-spawn FAIL "FAIL $name (allow)" run_in allow-short
+  variant allow-commented crates/halvo-coord/clippy.toml '# disallowed-methods = []\n'
+  check a-clippy-toml-that-differs-from-the-committed-one FAIL "FAIL $name (allow)" run_in allow-commented
+  variant allow-cfg-attr-path crates/halvo-coord/src/words.rs '#[cfg_attr(all(), path = r"x.rs")]\npub mod shim;\n'
+  check a-path-attribute-inside-cfg-attr FAIL "FAIL $name (allow)" run_in allow-cfg-attr-path
+  variant allow-macro-lint crates/halvo-coord/src/words.rs 'macro_rules! q {\n    (\0044l:ident) => {\n        #[allow(clippy::\0044l)]\n        pub fn x() {}\n    };\n}\nq!(style);\n'
+  check an-allow-whose-lint-a-macro-pastes FAIL "FAIL $name (allow)" run_in allow-macro-lint
+  variant allow-lints-table crates/halvo-coord/Cargo.toml '[package]\nname = "halvo-coord"\n\n[lints.clippy.style]\nlevel = '"'"'allow'"'"'\n'
+  check a-lints-table-of-a-group FAIL "FAIL $name (allow)" run_in allow-lints-table
+  variant allow-crate-config crates/halvo-coord/.cargo/config.toml '[env]\nX = "1"\n'
+  check a-cargo-configuration-in-a-crate FAIL "FAIL $name (allow)" run_in allow-crate-config
+  check a-clippy-configuration-directory-in-the-environment FAIL "FAIL $name (allow)" \
+    env CLIPPY_CONF_DIR="$work" CI_D_REPO="$work/one" CI_D_ARTIFACTS="$work/artifacts-env" sh "$here/$name.sh"
+  STUB_CLIPPY_EXIT=101
+  check clippy-with-the-lint-forbidden-fails FAIL "FAIL $name (allow)" run_one
   variant allow-dot crates/halvo-coord/.clippy.toml 'disallowed-methods = []\n'
   check a-second-clippy-toml-that-clippy-reads-first FAIL "FAIL $name (allow)" run_in allow-dot
 
