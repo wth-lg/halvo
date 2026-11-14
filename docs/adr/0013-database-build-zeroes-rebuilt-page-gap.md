@@ -78,6 +78,13 @@ in the draws of the tests", with the limits below.
   values no larger than the page count in the tail of an overflow page and in
   a freelist trunk past its count. A leftover made only of such values is not
   seen.
+- A database of this build has no auto-vacuum: the test
+  `page_gap::pins::a_new_database_of_this_build_reads_auto_vacuum_0_after_its_first_table`
+  requires `PRAGMA auto_vacuum` to read 0 on a new file after its first table,
+  and the structural check's rule on bytes 52 to 55 of the file header (the
+  auto-vacuum field) is the same pin on every drawn file. The fifteen rows of
+  auto-vacuum code in the table run in no draw under that pin, and the row of
+  line 77342 in none because a file that this build made does not reach it.
 - Its controls fail by name: each statement taken out, secure delete off, and
   4 bytes of text planted in a gap of a copy of the file. The mutant rows
   rebuilt-page-gap-not-zeroed and edited-page-gap-not-zeroed take each
@@ -149,7 +156,7 @@ in the draws of the tests", with the limits below.
 | 77096 | newDatabase | zeros over bytes 24 to 99 of the file header | no | nothing | - | 19 |
 | 77102 | newDatabase | a 4-byte page number or count into the file header | no | nothing | - | 19 |
 | 77103 | newDatabase | a 4-byte page number or count into the file header | no | nothing | - | 19 |
-| 77342 | btreeBeginTrans | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested |
+| 77342 | btreeBeginTrans | a 4-byte page number or count (the page count) into the file header, when the header's count differs from the file's, as after a writer older than the header format | no | nothing; a file that this build made does not reach it | - | 0: not tested |
 | 77449 | modifyPagePointer | a 4-byte page number or count into an overflow page (auto-vacuum) | no | nothing | - | 0: not tested |
 | 77469 | modifyPagePointer | a 4-byte page number or count into a cell (auto-vacuum) | no | nothing | - | 0: not tested |
 | 77478 | modifyPagePointer | a 4-byte page number or count into a cell (auto-vacuum) | no | nothing | - | 0: not tested |
@@ -169,13 +176,13 @@ in the draws of the tests", with the limits below.
 | 79751 | sqlite3BtreeIndexMoveto | a buffer of the process | no | nothing in the file | - | 21.6k |
 | 80133 | allocateBtreePage | a 4-byte page number or count into the file header (freelist count) | no | nothing | - | 1.21k |
 | 80178 | allocateBtreePage | 4 bytes (a page number) from a trunk into the file header | no | nothing | - | 42 |
-| 80202 | allocateBtreePage | as 80178 | no | nothing | - | 0: not tested |
-| 80208 | allocateBtreePage | 4 bytes (a page number) between two trunks | no | nothing | - | 0: not tested |
-| 80231 | allocateBtreePage | 4 bytes (a page number) into a new trunk | no | nothing | - | 0: not tested |
-| 80232 | allocateBtreePage | a 4-byte page number or count into a new trunk | no | nothing | - | 0: not tested |
-| 80233 | allocateBtreePage | (k-1) leaf page numbers into a new trunk | no | page numbers past the count of the old trunk, which the structural check allows | - | 0: not tested |
-| 80237 | allocateBtreePage | a 4-byte page number or count into the file header | no | nothing | - | 0: not tested |
-| 80243 | allocateBtreePage | a 4-byte page number or count into a trunk | no | nothing | - | 0: not tested |
+| 80202 | allocateBtreePage | 4 bytes (a page number) from a trunk into the file header (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
+| 80208 | allocateBtreePage | 4 bytes (a page number) between two trunks (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
+| 80231 | allocateBtreePage | 4 bytes (a page number) into a new trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
+| 80232 | allocateBtreePage | a 4-byte page number or count into a new trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
+| 80233 | allocateBtreePage | (k-1) leaf page numbers into a new trunk (auto-vacuum) | no | page numbers past the count of the old trunk, which the structural check allows; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
+| 80237 | allocateBtreePage | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
+| 80243 | allocateBtreePage | a 4-byte page number or count into a trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested |
 | 80298 | allocateBtreePage | a leaf page number moved inside a trunk | no | a page number past the trunk's count, which the structural check allows | - | 1.07k |
 | 80300 | allocateBtreePage | a 4-byte page number or count into a trunk (its count) | no | nothing | - | 1.17k |
 | 80361 | allocateBtreePage | a 4-byte page number or count into the file header (page count) | no | nothing | - | 1.13k |

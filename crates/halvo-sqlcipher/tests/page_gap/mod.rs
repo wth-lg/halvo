@@ -6,6 +6,7 @@ use std::time::Instant;
 use rusqlite::{params, Connection};
 
 mod layout;
+mod pins;
 mod second_place;
 mod table;
 
