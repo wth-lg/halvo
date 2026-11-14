@@ -108,7 +108,13 @@ jobs:
         run: sh scripts/ci/run-ci-d.sh macos
       - name: Lockfile unchanged
         shell: bash
-        run: git diff --exit-code -- Cargo.lock
+        run: |
+          changed=$(git status --porcelain)
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            echo "A step or a check changed these files of the checkout, or left them untracked and not ignored. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
+            exit 1
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -183,7 +189,13 @@ jobs:
           esac
       - name: Lockfile unchanged
         shell: bash
-        run: git diff --exit-code -- Cargo.lock
+        run: |
+          changed=$(git status --porcelain)
+          if [ -n "$changed" ]; then
+            echo "$changed"
+            echo "A step or a check changed these files of the checkout, or left them untracked and not ignored. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
+            exit 1
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
