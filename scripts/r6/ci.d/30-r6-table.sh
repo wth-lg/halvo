@@ -606,6 +606,12 @@ tree_cases() {
   check list-of-the-commit-lost-a-line FAIL "required dropped=$t tests/refusal_spend.rs refusal_zero_amount" \
     "FAIL $name (tests)"
 
+  mkdir "$work/committed-twice" || exit 2
+  cp -R "$work/pristine/." "$work/committed-twice/" || exit 2
+  tail -n 1 "$work/pristine/$required" >>"$work/committed-twice/$required"
+  STUB_COMMITTED=$work/committed-twice
+  check list-of-the-commit-holds-a-line-twice FAIL 'required list=bad'
+
   mkdir "$work/committed-longer" || exit 2
   cp -R "$work/pristine/." "$work/committed-longer/" || exit 2
   printf '%s tests/formal_traces.rs the_floor_refuses_199_drawn_traces\n' "$t" >>"$work/committed-longer/$required"
@@ -808,6 +814,9 @@ required_cases() {
   check carriage-returns-in-the-ignored-listing FAIL "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
   STUB_CR=exact
   check carriage-returns-in-the-run-alone PASS "$want_required"
+  stub_case whole-run-prints-the-readers-marker
+  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "== r6 table reader ==" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check whole-run-prints-the-readers-marker PASS "$want_required"
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -1147,6 +1156,9 @@ FAIL $name (selftest)"
   check line-with-another-key FAIL "FAIL $name (selftest)"
   STUB_SELFTEST=
   check no-line FAIL "FAIL $name (selftest)"
+  STUB_SELFTEST="$want_line
+"
+  check line-then-an-empty-line FAIL "FAIL $name (selftest)"
   STUB_FRESH=$work/short.tsv
   check fresh-output-without-a-row FAIL "specimen rows=539 same=no
 FAIL $name (specimen)"
