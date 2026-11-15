@@ -13,7 +13,7 @@ use halvo_agent_client::marks::{self, Mark, ProcLine};
 use halvo_agent_client::process;
 use halvo_agent_client::{
     Config, Confirmer, Human, IssueRefused, LinkError, MarkSink, OriginAnswer, OwnerLink, Parts,
-    RunEnd, RunSpec, Secrets, Supervisor,
+    RunEnd, RunSpec, Secrets, Supervisor, SystemValue,
 };
 use halvo_schema::executable::body::{CoordinatorCall, RunnerCall};
 use halvo_schema::executable::frame::{
@@ -503,6 +503,18 @@ impl Rig {
     }
 
     pub fn configured(name: &str, set: impl FnOnce(&mut Config)) -> Rig {
+        Rig::built(name, set, None)
+    }
+
+    pub fn reading(name: &str, read: fn(SystemValue) -> Option<std::ffi::OsString>) -> Rig {
+        Rig::built(name, |_| {}, Some(read))
+    }
+
+    fn built(
+        name: &str,
+        set: impl FnOnce(&mut Config),
+        read: Option<fn(SystemValue) -> Option<std::ffi::OsString>>,
+    ) -> Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
         let people = Arc::new(People::default());
@@ -518,7 +530,12 @@ impl Rig {
         let mut config = Config::new(dir.join("data"), peer());
         config.start_wait = Duration::from_secs(10);
         set(&mut config);
-        let sup = Supervisor::new(CoordinatorRole::claim(), config, parts);
+        let sup = match read {
+            Some(read) => {
+                Supervisor::with_system_reader(CoordinatorRole::claim(), config, parts, read)
+            }
+            None => Supervisor::new(CoordinatorRole::claim(), config, parts),
+        };
         Rig {
             dir,
             sup,

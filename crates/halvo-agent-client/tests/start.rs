@@ -204,6 +204,98 @@ fn a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_wha
 }
 
 #[test]
+fn a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_nothing() {
+    let rig = Rig::new("start-running-relative");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec.clone()).unwrap();
+    let mut again = spec;
+    again.browser = std::path::PathBuf::from("script");
+    assert_eq!(rig.sup.start(again), Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    assert_eq!(rig.rec.starts.lock().unwrap().len(), 1);
+    rig.sup.kill(&run).unwrap();
+}
+
+static FAIL_READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn read_until_told(value: halvo_agent_client::SystemValue) -> Option<std::ffi::OsString> {
+    use halvo_agent_client::SystemValue;
+    if FAIL_READ.load(std::sync::atomic::Ordering::SeqCst) {
+        return None;
+    }
+    match value {
+        SystemValue::SystemRoot => std::env::var_os("SystemRoot"),
+        SystemValue::TmpDir | SystemValue::Temp => Some(std::env::temp_dir().into_os_string()),
+    }
+}
+
+#[test]
+fn a_start_of_a_running_run_id_whose_value_read_fails_on_that_call_answers_started_and_makes_nothing(
+) {
+    let rig = Rig::reading("start-running-missing", read_until_told);
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec.clone()).unwrap();
+    FAIL_READ.store(true, std::sync::atomic::Ordering::SeqCst);
+    let again = rig.sup.start(spec);
+    FAIL_READ.store(false, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(again, Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    assert_eq!(rig.rec.starts.lock().unwrap().len(), 1);
+    assert!(rig.rec.ends.lock().unwrap().is_empty());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_start_with_a_relative_browser_of_a_run_id_whose_mark_of_an_earlier_life_stands_answers_started(
+) {
+    let rig = Rig::new("start-mark-relative");
+    let script = rig.script(&["hello", "idle"]);
+    let mut spec = rig.spec(&script);
+    let dir = halvo_agent_client::marks::marks_dir(&rig.data());
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join(spec.run.as_str()),
+        halvo_agent_client::marks::first_line(&spec.run),
+    )
+    .unwrap();
+    spec.browser = std::path::PathBuf::from("script");
+    assert_eq!(rig.sup.start(spec), Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(
+        script.log().is_empty(),
+        "a runner was made: {}",
+        script.log()
+    );
+    assert!(rig.rec.starts.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_start_refused_for_a_relative_path_leaves_no_entry_and_the_same_run_id_then_starts() {
+    let rig = Rig::new("start-refused-then-absolute");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let mut relative = spec.clone();
+    relative.browser = std::path::PathBuf::from("script");
+    assert_eq!(
+        rig.sup.start(relative),
+        Err(StartError::NotStarted(NotStarted::Relative(
+            RelativePath::Browser
+        )))
+    );
+    assert_eq!(rig.sup.kill(&run), Err(CallError::UnknownRun));
+    assert_eq!(rig.sup.start(spec), Ok(()));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
 fn a_runner_that_ends_before_the_start_answers_gives_not_started_and_leaves_no_process() {
     let rig = Rig::new("start-ends");
     let script = rig.script(&["child", "sleep 200", "exit 3"]);

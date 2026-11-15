@@ -24,7 +24,7 @@ use halvo_schema::request::{CoordinatorRole, ErrorName};
 use crate::acts::Acts;
 use crate::api::{
     absolute_paths, CallError, Config, EndRun, ForcedPath, NotStarted, Parts, ReapAnswer, Reaped,
-    RunEnd, RunSpec, RunnerExit, StartError,
+    RelativePath, RunEnd, RunSpec, RunnerExit, StartError, SystemValue,
 };
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
@@ -151,6 +151,18 @@ impl Supervisor {
         Supervisor::reading(role, config, parts, proc::system_value)
     }
 
+    /// A supervisor whose start reads the values of the runner's environment list through `read` in place of the
+    /// system: a seam of the crate's tests, which the app does not call.
+    #[doc(hidden)]
+    pub fn with_system_reader(
+        role: CoordinatorRole,
+        config: Config,
+        parts: Parts,
+        read: fn(SystemValue) -> Option<std::ffi::OsString>,
+    ) -> Supervisor {
+        Supervisor::reading(role, config, parts, read)
+    }
+
     fn reading(
         role: CoordinatorRole,
         config: Config,
@@ -179,13 +191,30 @@ impl Supervisor {
     /// Starts the runner of `spec`, all or nothing: `Ok` only when the runner runs, has said `hello` for its run
     /// and agent, and its mark is complete; `not_started` when it could not be made or was gone before the start
     /// answered, and then no process of the run that the library can see exists; `started` for a run id that this
-    /// life started or whose mark of an earlier life stands. A start whose runner path, `--browser`, `--model` or
-    /// data directory is not absolute, or whose environment list lacks a value that the system did not give, answers
-    /// `not_started` with that path or value before any process is made, before a mark is written and before
-    /// `MarkSink::start`; a start whose runner was made and exited before it said `hello` answers `not_started` with
-    /// the runner's exit, the status 2 being a refusal. The runner's standard error is the null device: nobody
-    /// reads it.
+    /// life started or whose mark of an earlier life stands. The order of the answers: `started` for a run id in
+    /// the run table, before any path or value is read; then `not_started` for a data directory that is not
+    /// absolute; then `started` for a run id whose mark stands, read without writing it; then `not_started` for a
+    /// runner path, `--browser` or `--model` that is not absolute, or for an environment list that lacks a value
+    /// that the system did not give, with that path or value. Each comes before any process is made, before a mark
+    /// is written and before `MarkSink::start`, and a start refused for a path or a value leaves nothing of the run
+    /// id in the table. The insert into the table checks the table again under the same lock and answers `started`
+    /// for a start of the same run id that came between. A start whose runner was made and exited before it said
+    /// `hello` answers `not_started` with the runner's exit, the status 2 being a refusal, but for the case of
+    /// ruling CP-29 (b): a start that cannot say whether what it made is gone answers ok. A start made while `reap`
+    /// removes profiles does not wait for it. The runner's standard error is the null device: nobody reads it.
     pub fn start(&self, spec: RunSpec) -> Result<(), StartError> {
+        if lock(&self.inner.runs).contains_key(&spec.run) {
+            return Err(StartError::Started);
+        }
+        let data_dir = &self.inner.config.data_dir;
+        if !data_dir.is_absolute() {
+            return Err(StartError::NotStarted(NotStarted::Relative(
+                RelativePath::DataDir,
+            )));
+        }
+        if fs::symlink_metadata(marks::marks_dir(data_dir).join(spec.run.as_str())).is_ok() {
+            return Err(StartError::Started);
+        }
         absolute_paths(&self.inner.config, &spec)
             .map_err(|path| StartError::NotStarted(NotStarted::Relative(path)))?;
         let env = proc::environment(self.inner.read_value)
@@ -200,7 +229,6 @@ impl Supervisor {
             }
             runs.insert(run.clone(), Arc::clone(&slot));
         }
-        let data_dir = &self.inner.config.data_dir;
         let mut mark = match MarkFile::create(data_dir, &run) {
             Ok(Created::Made(mark)) => mark,
             Ok(Created::Exists) => {

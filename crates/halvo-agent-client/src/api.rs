@@ -321,7 +321,7 @@ pub enum RelativePath {
 
 /// Refuses a start whose runner path, `--browser`, `--model` or data directory is not absolute, naming the first of
 /// them in that order: the runner works in the system's directory and not in the library's, where a relative path
-/// names another file. `Supervisor::start` calls it first.
+/// names another file. `Supervisor::start` calls it after its checks of the run table, of the data directory and of a standing mark, as the first read of the other paths (ruling CP-197 L2, which amends "in its first line" of CP-178 (8) (b)).
 pub(crate) fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), RelativePath> {
     let paths = [
         (Some(&config.runner), RelativePath::Runner),
