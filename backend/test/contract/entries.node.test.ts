@@ -1204,4 +1204,27 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
       expect(lines.filter((line) => line.event === "alarm-error").length).toBeGreaterThan(0);
     });
   }
+
+  for (const failing of ["ledger.nextDue", "accounts.nextDue", "metering.nextSend", "metering.oldestUnsealed", "ledger.intervalTotals"] as const) {
+    test(`L1 (c): a due-time read that throws (${failing}) rolls back no step: the owed cancel is made and its answer stored, alarm-error names it, and the alarm is armed`, async () => {
+      let now = 8000;
+      const w = world({ clock: () => now });
+      await w.seeded({ customerId: "cus_one" });
+      w.answers.settled = false;
+      w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+      expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+      w.host.port.cancelSubscription = async () => ({ kind: "cancelled" });
+      if (failing === "ledger.intervalTotals") w.answers.oldestUnsealed = () => ({ interval: 0, end: 1000 });
+      w.answers.throwIn = failing;
+      w.reset();
+      now = 68_000;
+      await w.entries.alarm();
+      w.answers.throwIn = null;
+      const snapshot = await w.entries.testInspect();
+      expect(snapshot.result === "snapshot" && snapshot.tables.skeleton?.[0]?.cancel_answered_at).toBe(68_000);
+      expect(lines.filter((line) => line.event === "alarm-error").length).toBeGreaterThan(0);
+      expect(w.alarms.length).toBeGreaterThan(0);
+      expect(w.alarms.at(-1)).not.toBeNull();
+    });
+  }
 });

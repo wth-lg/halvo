@@ -97,6 +97,7 @@ interface Open {
   begin(): Ms;
   beginWithoutAlarm(): Ms;
   arm(): void;
+  caught(error: unknown): void;
 }
 
 class LoggedAlarmError extends Error {
@@ -207,7 +208,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let arm = false;
     let due: Ms | null = null;
     let tested = false;
+    let errors: unknown[] = [];
     const value = host.step((sql) => {
+      errors = [];
       const begin = (withAlarm: boolean) => {
         const now = Math.max(time(sql), lastNow(sql));
         sql.exec("UPDATE skeleton SET last_now = ?", now);
@@ -221,13 +224,22 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         arm: () => {
           arm = true;
         },
+        caught: (error) => {
+          errors.push(error);
+        },
       });
       if (arm) {
-        due = dueOf(sql);
         tested = testTime(sql) !== null;
+        try {
+          due = dueOf(sql);
+        } catch (error) {
+          errors.push(error);
+          due = host.clock() + ALARM_RETRY_MS;
+        }
       }
       return result;
     });
+    for (const error of errors) log({ event: "alarm-error", error: errorName(error) });
     if (arm) armAlarm(tested ? null : due);
     return value;
   }
@@ -503,7 +515,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (refused !== null) return { kind: "answer", answer: refused };
       const mark = markOf(open.sql);
       if (mark.since === null || ledger.openHolds(open.sql) > 0) return { kind: "answer", answer: NOT_FINISHED };
-      if (!again && isMetered(open.sql) && metering.oldestUnsealed(open.sql) !== null) return { kind: "again" };
+      if (!again) {
+        try {
+          if (isMetered(open.sql) && metering.oldestUnsealed(open.sql) !== null) return { kind: "again" };
+        } catch (error) {
+          open.caught(error);
+        }
+      }
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
