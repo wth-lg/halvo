@@ -26,7 +26,7 @@ fn the_names_that_the_crate_gives_on_are_the_items_of_the_schema() {
         TypeId::of::<schema::SendersError>()
     );
     assert_eq!(
-        TypeId::of::<super::Senders>(),
+        TypeId::of::<crate::Senders>(),
         TypeId::of::<schema::Senders>()
     );
 }
