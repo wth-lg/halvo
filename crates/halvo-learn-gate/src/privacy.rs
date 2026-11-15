@@ -72,12 +72,14 @@ impl Outcome {
 
 type Row = (&'static str, String);
 
-fn naming(store: &MemoryStore, workflow: &str) -> Vec<Row> {
-    let quoted = format!("\"{workflow}\"");
+fn naming(store: &MemoryStore, id: &WorkflowId, marker: &str) -> Vec<Row> {
+    let quoted = format!("\"{}\"", id.as_str());
     let mut rows: Vec<Row> = store
         .rows(Family::Learn)
         .all()
-        .filter(|(_, json)| json.contains(&quoted))
+        .filter(|(kind, json)| {
+            key_names(kind, json, id) || json.contains(&quoted) || json.contains(marker)
+        })
         .map(|(kind, json)| (kind, json.to_owned()))
         .collect();
     rows.sort();
@@ -198,11 +200,12 @@ fn clean_under(dir: &Path, made_after: Option<&BTreeSet<OsString>>) -> bool {
 /// The checks on the memory store (contracts.md L11.4; the coordinator's ruling LM-54 E5), each with its result.
 ///
 /// It plays the two seeded cases as `learn-gate delete` does (`delete::seed`; the command's are `delete::seed_cases`,
-/// whose learned rows hold the markers), reads
-/// the rows of the family `learn` that hold each workflow's id as a JSON string, each by kind and bytes, and calls
-/// `cascade` with the first workflow's id; then it calls `after` with `data_dir` and `temp`. `learn_deleted` is ok
-/// when the first workflow had rows, the cascade answered that it was stored, no row holds its id after the
-/// cascade, and the second workflow's rows are the same rows as before it, by kind and bytes, and more than none.
+/// whose learned rows hold the markers), reads the rows of the family `learn` that name each workflow, each by kind
+/// and bytes, and calls `cascade` with the first workflow's id; then it calls `after` with `data_dir` and `temp`. A
+/// row names a workflow when the value under its kind's workflow key parses to that workflow's id, when its bytes
+/// hold the id as a JSON string, or when its bytes hold that workflow's marker. `learn_deleted` is ok when the first
+/// workflow had rows, the cascade answered that it was stored, no row names it after the cascade, and the rows that
+/// name the second workflow are the same rows as before it, by kind and bytes, and more than none.
 /// `learn_outside` is ok when each marker was in an `active` and in a `reverted` `learn_edit` row of its own
 /// workflow, read by the kind's workflow key, so that the search can find one, and
 /// neither marker's bytes are in a name, the bytes of a regular file or the target of a symbolic link, which is not
@@ -223,18 +226,18 @@ pub fn outcomes(
     let id = WorkflowId::parse(&first).map_err(|_| "the first workflow's id".to_owned())?;
     let second = play.workflow().to_owned();
     let store = &mut play.host.store;
-    let first_rows = naming(store, &first);
-    let kept = naming(store, &second);
     let second_id =
         WorkflowId::parse(&second).map_err(|_| "the second workflow's id".to_owned())?;
+    let first_rows = naming(store, &id, MARKERS[0]);
+    let kept = naming(store, &second_id, MARKERS[1]);
     let seeded = markers_seeded(&keyed(store, &id), &keyed(store, &second_id));
     let stored = cascade(store, &id);
     let deleted = deleted(
         &first_rows,
         stored,
-        &naming(store, &first),
+        &naming(store, &id, MARKERS[0]),
         &kept,
-        &naming(store, &second),
+        &naming(store, &second_id, MARKERS[1]),
     );
     after(data_dir, temp);
     let outside = seeded
@@ -784,5 +787,74 @@ mod tests {
             "an active row without the marker"
         );
         assert!(!markers_seeded(&[], &[]));
+    }
+
+    type Rewrite<'a> = &'a dyn Fn(&str, &str) -> String;
+
+    fn kept_first_row(kind: &'static str, holds: &str, rewrite: Rewrite<'_>) -> Outcome {
+        let first = id('3', 1);
+        deleted_with(&mut |store, wid| {
+            let row = store.learn_rows_mut()[kind]
+                .iter()
+                .find(|r| names(r, &first) && r.contains(holds))
+                .expect("a row of the first workflow")
+                .clone();
+            let stored = store.delete_workflow(wid);
+            put_back(store, kind, rewrite(&row, &first));
+            stored
+        })
+    }
+
+    #[test]
+    fn learn_deleted_misses_a_kept_row_whose_json_writes_the_first_id_with_an_escape() {
+        let escaped = |row: &str, first: &str| {
+            let escape = format!("\"\\u{:04x}{}\"", first.as_bytes()[0], &first[1..]);
+            let new = row.replace(&format!("\"{first}\""), &escape);
+            assert!(names(&new, first) && !new.contains(&format!("\"{first}\"")));
+            new
+        };
+        for (kind, holds) in [
+            ("learn_run", ""),
+            ("learn_routine", ""),
+            ("learn_edit", "\"state\":\"active\""),
+            ("learn_edit", "\"state\":\"reverted\""),
+        ] {
+            assert_eq!(
+                kept_first_row(kind, holds, &escaped),
+                Outcome::Miss,
+                "{kind} {holds}"
+            );
+        }
+    }
+
+    #[test]
+    fn learn_deleted_misses_a_kept_edit_row_with_the_marker_whose_workflow_key_is_null_missing_or_no_id(
+    ) {
+        let forms: [(&str, Rewrite<'_>); 3] = [
+            ("null", &|row, first| {
+                row.replace(&format!("\"{first}\""), "null")
+            }),
+            ("missing", &|row, first| {
+                row.replace(&format!("\"workflow\":\"{first}\","), "")
+            }),
+            ("no id", &|row, first| {
+                row.replace(&format!("\"{first}\""), "\"x\"")
+            }),
+        ];
+        for (form, rewrite) in forms {
+            let checked = |row: &str, first: &str| {
+                let new = rewrite(row, first);
+                assert!(
+                    new != row && new.contains(MARKERS[0]) && !new.contains(first),
+                    "{form}"
+                );
+                new
+            };
+            assert_eq!(
+                kept_first_row("learn_edit", "\"state\":\"active\"", &checked),
+                Outcome::Miss,
+                "{form}"
+            );
+        }
     }
 }
