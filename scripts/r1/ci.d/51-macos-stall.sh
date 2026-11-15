@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it, while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
 # lane: alone
 set -u
 name=51-macos-stall
@@ -241,9 +241,9 @@ proof_build() {
 
 twelve_test() {
   list=$CI_D_REPO/target/ci-artifacts/12-test/tests.txt
-  if [ ! -f "$list" ]; then
+  if [ ! -f "$list" ] || ! grep -q '^test ' "$list"; then
     [ "${HALVO_STALL_FORM:-short}" = long ] ||
-      fail "12-test left no list of its tests (target/ci-artifacts/12-test/tests.txt): the short form runs in the every-push job after 12-test and reads the tests of tests/macos_stall_fixture.rs that 12-test ran; run the whole job, or the long form by name"
+      fail "12-test left no list of its tests (target/ci-artifacts/12-test/tests.txt is missing or names no test): the short form runs in the every-push job after 12-test and reads the tests of tests/macos_stall_fixture.rs that 12-test ran; run the whole job, or the long form by name"
     printf '12-test: no list of tests in this job (the long form, run by name)\n'
     return 0
   fi
@@ -784,10 +784,17 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   printf '     Running tests/macos_stall_fixture.rs (x)\ntest launch_one ... ok\n' >"$twelve"
   check twelve-test-listed-none FAIL '12-test listed no test of tests/macos_stall_fixture.rs as ignored' ''
   mv "$twelve" "$work/twelve-moved" || exit 2
-  check short-form-without-a-list FAIL '12-test left no list of its tests (target/ci-artifacts/12-test/tests.txt): the short form runs in the every-push job after 12-test' ''
+  absent_text='12-test left no list of its tests (target/ci-artifacts/12-test/tests.txt is missing or names no test): the short form runs in the every-push job after 12-test'
+  check short-form-with-an-empty-directory FAIL "$absent_text" ''
   HALVO_STALL_FORM=long
   export HALVO_STALL_FORM
-  check long-form-without-a-list PASS '12-test: no list of tests in this job (the long form, run by name)' ''
+  check long-form-with-an-empty-directory PASS '12-test: no list of tests in this job (the long form, run by name)' ''
+  unset HALVO_STALL_FORM
+  : >"$twelve" || exit 2
+  check short-form-with-an-empty-list FAIL "$absent_text" ''
+  HALVO_STALL_FORM=long
+  export HALVO_STALL_FORM
+  check long-form-with-an-empty-list PASS '12-test: no list of tests in this job (the long form, run by name)' ''
   unset HALVO_STALL_FORM
   printf '%s\n' "$ignored" >"$twelve"
   printf '[dependencies]\nhalvo-capture = { path = "../halvo-capture", features = ["stall-seam"] }\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
