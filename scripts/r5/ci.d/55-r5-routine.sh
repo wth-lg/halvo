@@ -427,7 +427,7 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=24
+  failing_fixtures=25
   passing_fixtures=2
   wrong=
   rejected=0
@@ -456,6 +456,7 @@ self_test() {
   self_case derived-store-nul-in-line derived "$ok" 0 "" 'REFUSED store: the derived store\0000 is not in this build\n' 2
   self_case derived-store-no-final-lf derived "$ok" 0 "" "$not_built" 2
   self_case memory-stderr-at-status-0 stderr "$ok" 0 "" "$store_refusal" 2 "$nl"
+  self_case memory-stderr-beside-derived stderr "$ok" 0 "$want_derived$nl" "" 0 "$nl"
   self_case memory-stderr-at-status-1 stderr "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2 "x$nl"
   self_case derived-stderr-at-status-0 stderr "$ok" 0 "$want_derived$nl" "x$nl" 0
   tree_cases

@@ -756,6 +756,11 @@ self_test() {
   printf '\n' >"$FX/dev-second.err" || broken
   check FAIL-stderr "FAIL $name (stderr)"
 
+  fixture derived-taken-with-stderr-in-the-first-play
+  : >"$FX/derived"
+  printf 'x\n' >"$FX/dev-first.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
   fixture stderr-in-the-first-play-at-status-1
   play_lines dev memory 2 "" miss >"$FX/dev-first.out" || broken
   printf '1\n' >"$FX/dev-first.code" || broken
