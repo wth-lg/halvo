@@ -1874,7 +1874,8 @@ pub enum Admission {
     InFlight,
     /// Answer [`ErrorReply::busy_of_an_ending_life`].
     Ending,
-    /// Answer the status as it stands.
+    /// Write desired=paused first when desired is not paused yet, then answer the status as it
+    /// stands.
     PauseKeepingTheWord,
     /// Answer `capture_changed` with the status as it stands.
     StatusAsItStands,

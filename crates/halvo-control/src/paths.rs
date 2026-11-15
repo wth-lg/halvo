@@ -100,9 +100,9 @@ pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Er
 pub enum DataDirCheck {
     /// Nothing stands at the name.
     Missing,
-    /// The directory stands at its own name; `set_to_0700` when its permission bits were not
-    /// 0700 (they gave group or others access, or lacked an owner bit) and were set to 0700 on the
-    /// descriptor.
+    /// The directory stands at its own name on a volume that keeps ownership; `set_to_0700` when
+    /// its permission bits were not 0700 (they gave group or others access, or lacked an owner bit)
+    /// and were set to 0700 on the descriptor, and read back as 0700.
     Own { set_to_0700: bool },
     /// The directory was reached through a link at its last name; it was not narrowed.
     /// `resolved` is the folder as the descriptor names it.
@@ -165,11 +165,14 @@ pub enum DataDirFault {
 
 /// The check of a data directory, on the lock's own descriptor when `held` is given and on a
 /// descriptor of its own otherwise (the app's call when no daemon answers), and never by the name
-/// again: whether the directory was reached through a link is what its open recorded. The owner
-/// must be this user; a directory at its own name whose mode gives group or others access is set to 0700 on
-/// the descriptor; a directory reached through a link at its last name is never narrowed, and its
-/// mode must give group and others no access. A parent that is a link is no fault. Windows has no
-/// such check in this release (ruling ST-36 (b) to (d)).
+/// again: whether the directory was reached through a link is what its open recorded. A volume
+/// whose flags carry MNT_IGNORE_OWNERSHIP is refused in both branches, before the owner is read
+/// and before any change. The owner must be this user; a directory at its own name whose
+/// permission bits are not 0700 is set to 0700 on the descriptor, and a mode that reads otherwise
+/// afterwards is a fault; a directory reached through a link at its last name is never changed,
+/// and its mode must give group and others no access. A parent that is a link that resolves is no
+/// fault. Windows has no such check in this release (rulings ST-36 (b) to (d), CT-14 K4 and
+/// CT-15 G1).
 #[cfg(target_os = "macos")]
 pub fn check_data_dir(
     dir: &DataDir,
@@ -487,11 +490,13 @@ impl DataDir {
         &self.0
     }
 
-    /// Whether the state file stands. A first run is answered only for an absence: a missing data
-    /// directory is a first run unless the nearest name that stands above it is a link that leads
-    /// nowhere or is no directory; that, an entry at the directory's own name that leads nowhere or
-    /// is no directory, and a stat of the state file that is refused for any cause but its absence,
-    /// answer their cause (rulings ST-36 (e), CT-13 and CT-14 K4).
+    /// Whether an entry stands at the state file's name, read without following a link: any entry
+    /// there, a link among them, is no first run. A first run is answered only for an absence: a
+    /// missing data directory is a first run unless the nearest name that stands above it is a
+    /// link that leads nowhere or is no directory; that, an entry at the directory's own name that
+    /// leads nowhere or is no directory, and a read of the state file's name that is refused for
+    /// any cause but its absence, answer their cause (rulings ST-36 (e), CT-13, CT-14 K4 and
+    /// CT-15 G2).
     pub fn is_provisioned(&self) -> Result<bool, EntryAtDataDir> {
         if let Some(cause) = entry_fault(self.path()) {
             return Err(cause);
@@ -1594,14 +1599,23 @@ mod tests {
                 Err(DataDirFault::Entry(cause)),
                 "{path:?}"
             );
+            let kind = match cause {
+                EntryAtDataDir::NotADirectory => std::io::ErrorKind::NotADirectory,
+                EntryAtDataDir::CannotBeRead => std::io::ErrorKind::PermissionDenied,
+                EntryAtDataDir::LinkLeadsNowhere => std::io::ErrorKind::Other,
+            };
             match read(path) {
                 Ok(LockRead::NoDirectory) => panic!("read gave NoDirectory for {path:?}"),
                 Ok(_) => panic!("read succeeded for {path:?}"),
-                Err(e) => assert_eq!(entry_cause(&e), Some(cause), "{path:?}: {e}"),
+                Err(e) => assert_eq!(
+                    (entry_cause(&e), e.kind()),
+                    (Some(cause), kind),
+                    "{path:?}: {e}"
+                ),
             }
             let taken = InstanceLock::try_take(path);
             assert!(
-                matches!(&taken, Err(e) if entry_cause(e) == Some(cause)),
+                matches!(&taken, Err(e) if entry_cause(e) == Some(cause) && e.kind() == kind),
                 "{path:?}: {taken:?}"
             );
         }
