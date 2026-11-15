@@ -412,7 +412,11 @@ impl Sim {
         }
         if report.answer == Ok(Answer::Ok) {
             if let Move::SwitchOff { agent } = &mv {
-                self.h.off[index(agent)] = true;
+                let n = index(agent);
+                self.h.off[n] = true;
+                if self.h.waiting[n].take().is_some() {
+                    self.tally("dropped by the switch-off".into());
+                }
             }
             if let (Some(run), true) = (checked_run, matches!(mv, Move::Check { .. })) {
                 if went_through {
@@ -1037,7 +1041,7 @@ const COVERED: [&str; 15] = [
     "run_ended cancelled",
     "ended deleted",
     "run_ended failed",
-    "left Err(Hold)",
+    "dropped by the switch-off",
     "end_run",
     "owed run_ended logged",
 ];

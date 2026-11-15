@@ -1,8 +1,8 @@
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Owner, PortError};
 use halvo_coord::schedule::{
-    drive, start_step, tick_step, Answer, Around, Ask, Board, Hold, Member, Move, Report, Served,
-    Verdict,
+    drive, holds, start_step, tick_step, Answer, Around, Ask, Board, Hold, Member, Move, Report,
+    Served, Verdict,
 };
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, Body, Category, Cause, CheckAnswer, Cleared, Doing,
@@ -873,10 +873,7 @@ fn a_hold_stored_between_the_queue_and_the_start_drops_the_start() {
     let mut w = world(&[manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    assert_eq!(
-        w.go(Move::SwitchOff { agent: agent(1) }).answer,
-        Ok(Answer::Ok)
-    );
+    stored_at_owner(&mut w, 1, OFF, false);
     w.forget();
     let end = w.end(&run, Some(Outcome::Completed));
     let next = &end.ended[0].next;
@@ -1098,7 +1095,7 @@ fn a_tick_with_no_live_run_takes_one_start_from_the_queue_before_the_agents() {
     let mut w = world(&[manual(), manual(), manual(), person()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.end(&run, Some(Outcome::Completed));
     w.forget();
     let tick = w.tick();
@@ -1153,6 +1150,69 @@ fn tick_step_raises_ready_for_a_first_run_and_an_open_slot_of_the_person_and_sta
     let mut live = w.facts(0).clone();
     live.doing = Doing::Live(halvo_coord::types::Live::Working);
     assert_eq!(tick_step(&live, true, &l), Ask::Nothing);
+    let mut w = world(&[AUTO, manual()]);
+    store_clean_run_without_finished(&mut w, 0);
+    store_clean_run_without_finished(&mut w, 1);
+    assert_eq!(
+        tick_step(w.facts(0), true, &l),
+        Ask::Ready,
+        "a clean run and no finished one: ready at an open slot (ruling RD-67 5.2)"
+    );
+    assert_eq!(
+        tick_step(w.facts(1), true, &l),
+        Ask::Nothing,
+        "a clean run and no slot: no ready at once"
+    );
+}
+
+fn store_clean_run_without_finished(w: &mut World, n: usize) {
+    let to_nothing = |e: &mut Event| {
+        if let What::RunEnded { cause, .. } = &mut e.what {
+            if e.agent == agent(n) {
+                *cause = RunEnd::NothingToDo;
+            }
+        }
+    };
+    w.ports.events.borrow_mut().iter_mut().for_each(to_nothing);
+    let i = w
+        .board
+        .members
+        .iter()
+        .position(|m| m.facts.agent == agent(n))
+        .unwrap();
+    w.board.members[i]
+        .facts
+        .events
+        .iter_mut()
+        .for_each(to_nothing);
+    for r in &mut w.board.members[i].facts.runs {
+        r.outcome = Outcome::NothingToDo;
+    }
+}
+
+#[test]
+fn rd67_the_slot_of_a_skip_and_of_a_persons_start_read_the_clean_run() {
+    let mut w = world(&[AUTO]);
+    store_clean_run_without_finished(&mut w, 0);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    w.forget();
+    assert_eq!(w.go(Move::Skip { agent: agent(0) }).answer, Ok(Answer::Ok));
+    assert_eq!(
+        w.calls(),
+        vec!["log item_answered ready skip, slot_skipped 0".to_string()]
+    );
+    let mut s = world(&[AUTO]);
+    store_clean_run_without_finished(&mut s, 0);
+    let run = ok_run(&s.start(0));
+    let slot = s.stored().iter().find_map(|e| match &e.what {
+        What::RunStarted { run: r, slot, .. } if *r == run => Some(*slot),
+        _ => None,
+    });
+    assert_eq!(
+        slot,
+        Some(Some(DAY)),
+        "the start by the person takes the slot"
+    );
 }
 
 #[test]
@@ -1191,7 +1251,27 @@ fn skip_of_a_first_run_stores_a_null_slot_and_waits_for_the_next_day() {
     );
     assert_eq!(w.tick().raised, Vec::<AgentId>::new());
     w.clock(T0, DAY + 1);
-    assert_eq!(w.tick().raised, vec![agent(0)]);
+    assert_eq!(
+        w.tick().raised,
+        Vec::<AgentId>::new(),
+        "turned by ruling RD-73 1.2: no ready until the next slot opens"
+    );
+    w.clock(T0, DAY + 2);
+    assert_eq!(w.tick().raised, vec![agent(0)], "the next slot");
+    let mut manual = world(&[A {
+        finished: false,
+        ..manual()
+    }]);
+    manual.tick();
+    manual.go(Move::Skip { agent: agent(0) });
+    for day in [DAY + 1, DAY + 40] {
+        manual.clock(T0, day);
+        assert_eq!(
+            manual.tick().raised,
+            Vec::<AgentId>::new(),
+            "no slot: no ready while the skip's row is handed out"
+        );
+    }
     let mut none = world(&[AUTO]);
     assert_eq!(
         none.go(Move::Skip { agent: agent(0) }).answer,
@@ -1901,7 +1981,7 @@ fn a_tick_whose_kill_ended_a_run_serves_no_second_start_after_a_drop() {
     let mut w = world(&[manual(), manual(), manual()]);
     queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.go(Move::SwitchOff { agent: agent(0) });
     w.clock(T0 + 5_000, DAY);
     let tick = w.tick();
@@ -2395,7 +2475,7 @@ fn a_tick_whose_read_of_the_agents_fails_takes_no_start_from_the_queue() {
     let mut w = world(&[manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     let end = w.end(&run, Some(Outcome::Completed));
     assert_eq!(end.ended[0].next[0].answer, Err(Cause::Hold));
     assert!(w.board.queue.holds(&agent(2)) && w.board.runs.is_empty());
@@ -2718,7 +2798,7 @@ fn a_tick_sends_active_before_the_start_that_it_serves_from_the_queue() {
     let mut w = world(&[manual(), manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.end(&run, Some(Outcome::Completed));
     approved_listed(&w, 3);
     w.forget();
@@ -2900,4 +2980,136 @@ fn an_end_after_midnight_takes_the_day_first_for_the_start_that_it_serves() {
         .map(|e| e.day)
         .collect();
     assert_eq!(started, [DAY + 1]);
+}
+
+fn stored_at_owner(w: &mut World, n: usize, what: What, also_on_board: bool) {
+    let last = w
+        .stored()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    let event = Event {
+        workflow: flow(n),
+        agent: agent(n),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 1,
+        what,
+    };
+    w.ports.events.borrow_mut().push(event.clone());
+    if also_on_board {
+        let i = w
+            .board
+            .members
+            .iter()
+            .position(|m| m.facts.agent == agent(n))
+            .unwrap();
+        w.board.members[i].facts.events.push(event);
+    }
+}
+
+const OFF: What = What::HoldSet {
+    cause: HoldSetCause::Person,
+};
+
+#[test]
+fn rd52b_rule_4_the_switch_offs_guard_answers_by_a_read_where_a_live_run_stands() {
+    let mut w = world(&[manual()]);
+    stored_at_owner(&mut w, 0, OFF, true);
+    w.forget();
+    assert_eq!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Err(Cause::State),
+        "off with no run"
+    );
+    assert!(w.calls().is_empty());
+    for case in ["standing", "ended", "read_fails"] {
+        let mut w = world(&[manual()]);
+        let run = ok_run(&w.start(0));
+        stored_at_owner(&mut w, 0, OFF, true);
+        if case == "ended" {
+            stored_at_owner(
+                &mut w,
+                0,
+                What::HoldCleared {
+                    cause: Cleared::Person,
+                },
+                false,
+            );
+        }
+        if case == "read_fails" {
+            w.ports.refuse(Method::History, PortError::NoService);
+        }
+        w.forget();
+        let r = w.go(Move::SwitchOff { agent: agent(0) });
+        w.ports.clear_refusals();
+        let expected: Vec<String> = match case {
+            "standing" => vec![format!("cancel {run}"), "set_state paused".into()],
+            "ended" => vec![
+                "log hold_set person".into(),
+                format!("cancel {run}"),
+                "set_state paused".into(),
+            ],
+            _ => vec![],
+        };
+        assert_eq!(w.calls(), expected, "{case}");
+        if case == "read_fails" {
+            assert_eq!(r.answer, Err(Cause::NoService), "{case}");
+            assert!(r.stopped.is_empty(), "{case}");
+            continue;
+        }
+        assert_eq!(r.answer, Ok(Answer::Ok), "{case}");
+        assert_eq!(r.stopped, vec![run.clone()], "{case}");
+        assert_eq!(
+            w.go(Move::SwitchOff { agent: agent(0) }).answer,
+            Err(Cause::State),
+            "{case}: off with a stopping run"
+        );
+    }
+}
+
+#[test]
+fn rd52a_the_ticks_raise_of_a_ready_item_whose_read_shows_a_hold_raises_nothing() {
+    let mut w = world(&[person()]);
+    stored_at_owner(&mut w, 0, OFF, false);
+    let r = w.tick();
+    assert!(r.raised.is_empty(), "{r:?}");
+    assert!(
+        !w.stored()
+            .iter()
+            .any(|e| matches!(e.what, What::ItemRaised { .. })),
+        "no item_raised"
+    );
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Off),
+        "the read brought the hold"
+    );
+    let mut control = world(&[person()]);
+    assert_eq!(
+        control.tick().raised,
+        vec![agent(0)],
+        "the control raises it"
+    );
+}
+
+#[test]
+fn a_tick_raises_ready_at_once_for_a_persons_agent_with_no_slot_whose_only_run_failed() {
+    for (outcome, raised) in [
+        (Outcome::Failed, vec![agent(0)]),
+        (Outcome::Completed, Vec::<AgentId>::new()),
+    ] {
+        let mut w = world(&[A {
+            person: true,
+            finished: false,
+            ..manual()
+        }]);
+        let run = ok_run(&w.start(0));
+        w.end(&run, Some(outcome));
+        w.clock(T0 + 5_000, DAY);
+        let tick = w.tick();
+        assert_eq!(tick.raised, raised, "{outcome:?}");
+    }
 }

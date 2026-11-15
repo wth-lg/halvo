@@ -23,7 +23,8 @@ pub const PERSON: A = A {
 /// The memory ports and the memory policy as one value, which `Coordinator` needs; a test can
 /// make the next `answer_confirm` fail after its record returned, so that an item stays
 /// `recorded`, can have each call of `log` and `send` name the function that made it, and can
-/// make `start` or `cancel` panic.
+/// make `start`, `cancel`, `answer_confirm`, `answer_bind`, `agents` or the `log` of an
+/// `item_lapsed` row panic, and can fail one read of the clock.
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
@@ -33,19 +34,31 @@ pub struct Both {
     pub panics: Cell<Option<&'static str>>,
     pub loss: Cell<Option<Loss>>,
     pub lost: std::cell::RefCell<Vec<Event>>,
+    pub next_history_fails: Cell<bool>,
+    pub loss_waits_for_row: Cell<Option<LostAckRow>>,
+    pub clock_fails: Cell<bool>,
+    pub fail_read_at: Cell<Option<u32>>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
+    pub handbacks_at: std::cell::RefCell<Vec<(RunId, HandbackResult, bool, usize)>>,
 }
+
+pub type LostAckRow = fn(&halvo_coord::types::What) -> bool;
 
 /// A lost acknowledgement of the next `log`, in one of two forms: the owner stores the rows and
 /// the reply is lost, so that the coordinator's read right after the call brings them; or the
 /// call is refused and the rows land in the owner's events after the move (`lost`), so that the
 /// coordinator learns of them through a later refusal `seq`.
+/// Two more forms: `Unread`, the rows stored and the reply lost as `Reply`, with the next read of
+/// the owner's events failing too; and `Nothing`, the call answering `no_service` with nothing
+/// stored, as a refusal whose reply was lost.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Loss {
     Reply,
     Later,
+    Unread,
+    Nothing,
 }
 
 impl Both {
@@ -85,7 +98,23 @@ impl Owner for Both {
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
         self.note("::log");
-        match self.loss.take() {
+        let lapses = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::ItemLapsed { .. }));
+        if lapses && self.panics.get() == Some("log_lapsed") {
+            panic!("the port log panics at item_lapsed");
+        }
+        let waits = self
+            .loss_waits_for_row
+            .get()
+            .is_some_and(|names| !events.iter().any(|e| names(&e.what)));
+        let loss = if waits {
+            None
+        } else {
+            self.loss_waits_for_row.set(None);
+            self.loss.take()
+        };
+        match loss {
             Some(Loss::Reply) => {
                 self.ports.log(events)?;
                 Err(PortError::NoService)
@@ -94,11 +123,20 @@ impl Owner for Both {
                 self.lost.borrow_mut().extend(events.iter().cloned());
                 Err(PortError::NoService)
             }
+            Some(Loss::Unread) => {
+                self.ports.log(events)?;
+                self.next_history_fails.set(true);
+                Err(PortError::NoService)
+            }
+            Some(Loss::Nothing) => Err(PortError::NoService),
             None => self.ports.log(events),
         }
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+        if self.next_history_fails.take() {
+            return Err(PortError::NoService);
+        }
         self.ports.history(agent, after)
     }
 
@@ -107,6 +145,9 @@ impl Owner for Both {
     }
 
     fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        if self.panics.get() == Some("agents") {
+            panic!("the port agents panics");
+        }
         self.ports.agents()
     }
 
@@ -139,6 +180,9 @@ impl Runs for Both {
         answers: &[Answer],
         record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError> {
+        if self.panics.get() == Some("answer_confirm") {
+            panic!("the port answer_confirm panics");
+        }
         if self.drop_decision.replace(false) {
             let mut kept = Ok(());
             let _ = self.ports.answer_confirm(run, answers, &mut |d| {
@@ -151,10 +195,18 @@ impl Runs for Both {
     }
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
-        self.ports.answer_handback(run, result)
+        let at = self.ports.events.borrow().len();
+        let out = self.ports.answer_handback(run, result);
+        self.handbacks_at
+            .borrow_mut()
+            .push((run.clone(), result, out.is_ok(), at));
+        out
     }
 
     fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        if self.panics.get() == Some("answer_bind") {
+            panic!("the port answer_bind panics");
+        }
         let at = self.ports.events.borrow().len();
         let out = self.ports.answer_bind(run, result);
         self.binds_at
@@ -187,6 +239,17 @@ impl Analysis for Both {
 
 impl Clock for Both {
     fn now(&self) -> Result<u64, PortError> {
+        if self.clock_fails.get() {
+            return Err(PortError::NoService);
+        }
+        match self.fail_read_at.get() {
+            Some(0) => {
+                self.fail_read_at.set(None);
+                return Err(PortError::NoService);
+            }
+            Some(n) => self.fail_read_at.set(Some(n - 1)),
+            None => {}
+        }
         self.ports.now()
     }
 
@@ -256,7 +319,12 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         panics: Cell::new(None),
         loss: Cell::new(None),
         lost: std::cell::RefCell::new(Vec::new()),
+        next_history_fails: Cell::new(false),
+        loss_waits_for_row: Cell::new(None),
+        clock_fails: Cell::new(false),
+        fail_read_at: Cell::new(None),
         binds_at: std::cell::RefCell::new(Vec::new()),
+        handbacks_at: std::cell::RefCell::new(Vec::new()),
     }
 }
 

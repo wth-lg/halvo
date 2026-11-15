@@ -1,0 +1,90 @@
+{
+  "kind": "line",
+  "note": "N4: the driver halted after three unheld attempts of a wave run (attempts is 6). The sentence counts the run's own attempts (3, check.mjs line 114, not the attempts argument) and names the gap of the LAST attempt (run.facts: voided, 300 ms), not that of a discarded one (expired, 900 ms). The N4 branch comes before the halted branch.",
+  "selected": [
+    {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 200,
+      "switch": "usage-last",
+      "k": 120,
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "halted": true,
+  "attempts": 6,
+  "runs": [
+    {
+      "key": "ledger-wave-at-200-plain-1-try3",
+      "cell": "wave@200",
+      "kind": "wave",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "runNo": 1,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "ms": 1,
+      "facts": {
+        "admitted": 120,
+        "settled": 0,
+        "expired": 0,
+        "voided": 1,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "lostInTransport": 0,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          120
+        ],
+        "burstMedianMs": 120,
+        "slowBoundMs": 2600,
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "voided",
+          "ms": 300
+        },
+        "settleMs": []
+      },
+      "discarded": [
+        {
+          "key": "ledger-wave-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "expired",
+            "ms": 900
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try2",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": null,
+          "violations": []
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=0 of 120 lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=0 burst-p50-at-200=120ms rollover-redrawn=0; first failure: ledger-wave-at-200-plain-1-try3 did not count in 3 attempts because its wave was held in none of them (ruling B-37); in the last attempt the first hold of the wave to end, voided, ended 300 ms before the last reserve of the wave was answered"
+  },
+  "source": "the review of unit 4.10 (evidence/builder-56/90-review-verdicts.txt), finder f2"
+}

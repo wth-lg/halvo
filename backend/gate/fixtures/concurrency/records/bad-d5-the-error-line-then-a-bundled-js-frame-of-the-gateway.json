@@ -1,0 +1,32 @@
+{
+  "kind": "judge",
+  "ruling": "P7-83 (7) (c) D5, on B-36",
+  "about": "the proxy's error line followed by a frame of the gateway's bundled .js file, with no .ts frame: a frame that names no file of the proxy makes it no text of the proxy: a violation",
+  "source": "by hand, after the review's probes p02 and p03 (reports/pr-review-18.md, N1) and the one form of 320 lost attempts in evidence/researcher-check50/runs",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at Object.fetch (file:///SCRATCH/backend/.wrangler/tmp/dev-x1y2z3/index.js:120:9)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}

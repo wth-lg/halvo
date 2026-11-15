@@ -1,0 +1,27 @@
+{
+  "kind": "judge",
+  "ruling": "P7-83 (7) (c) D5, on B-36",
+  "about": "the dev proxy's whole text with two frames under a long checkout path, 557 characters: a request lost in transport",
+  "source": "by hand, the body of good-d5-the-driver-keeps-a-proxy-text-over-400-characters-whole",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at fetchWithTimeout (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5480:11)\n    at async Object.fetch (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "lostInTransport": 1
+    }
+  }
+}

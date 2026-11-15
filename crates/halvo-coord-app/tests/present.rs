@@ -54,7 +54,7 @@ fn answers(calls: &[Call]) -> usize {
 fn agents_answer_with_allow_for_a_native_item_answers_presenter_also_while_its_dialog_is_open() {
     let (hub, dialogs, item) = confirming(Class::Payment);
     let (_app, main, _other) = app(hub.clone());
-    let allow = json!({"item": item, "choice": "allow"});
+    let allow = json!({"item": item, "step": 0, "choice": "allow"});
     let m = mark(&hub);
     assert_eq!(
         invoke(&main, "agents_answer", allow.clone()),

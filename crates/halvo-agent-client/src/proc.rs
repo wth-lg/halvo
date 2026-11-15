@@ -9,12 +9,16 @@ use std::time::{Duration, Instant};
 use halvo_schema::executable::frame::Browser;
 use halvo_schema::executable::text::CreationTime;
 
-use crate::api::{Reaped, RunnerExit};
+use crate::api::{Forced, ForcedPath, Reaped, RunnerExit, SystemValue};
 use crate::marks::{Group, Mark, ProcLine};
 use crate::sys;
 
 const GONE_WAIT: Duration = Duration::from_secs(5);
-const POLL: Duration = Duration::from_millis(20);
+pub(crate) const POLL: Duration = Duration::from_millis(20);
+/// How long the library reads again whether a runner that ended its output has exited, and whether a Windows job
+/// whose runner has exited still holds a process, before it takes what it reads: a runner's output can end before
+/// the system reports its exit, on both systems.
+pub(crate) const SETTLE: Duration = Duration::from_secs(1);
 
 /// The runner that this life made: its child, which stays unreaped until the library has done with its group, the
 /// facts of its mark's lines, and on Windows the job that holds it.
@@ -27,6 +31,8 @@ pub(crate) struct RunProc {
     link: Option<(ChildStdin, ChildStdout)>,
     reaped: bool,
     exit: Option<RunnerExit>,
+    path: ForcedPath,
+    forced: Option<Forced>,
     line: Option<ProcLine>,
     browser: Option<ProcLine>,
     #[cfg(windows)]
@@ -61,50 +67,82 @@ fn created(us: u64) -> Option<CreationTime> {
     NonZeroU64::new(us).map(CreationTime::from_micros)
 }
 
+/// Reads one value of the runner's environment list from the system; none when the system does not give it.
+pub(crate) type ReadValue = fn(SystemValue) -> Option<OsString>;
+
+/// The value that the system gives for the account: on macOS `TMPDIR`, the per-user temporary directory; on Windows
+/// `SystemRoot`, the Windows directory, and `TEMP`, the directory Temp under the account's LocalAppData known folder.
+/// None for a value of the other system.
+pub(crate) fn system_value(value: SystemValue) -> Option<OsString> {
+    match value {
+        #[cfg(target_os = "macos")]
+        SystemValue::TmpDir => sys::user_temp_dir(),
+        #[cfg(windows)]
+        SystemValue::SystemRoot => {
+            use std::os::windows::ffi::OsStringExt;
+            sys::windows_directory().map(|root| OsString::from_wide(&root))
+        }
+        #[cfg(windows)]
+        SystemValue::Temp => {
+            use std::os::windows::ffi::OsStringExt;
+            sys::local_app_data().map(|local| {
+                let mut temp = OsString::from_wide(&local);
+                temp.push("\\Temp");
+                temp
+            })
+        }
+        _ => None,
+    }
+}
+
 /// The whole environment of a runner, from the closed list of its system (contracts.md A6.1 and A6.6, ruling CP-160
 /// (1) (b)); nothing else of the library's process reaches the runner. On macOS `HOME`, as the library's process has
-/// it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows `SystemRoot`, the Windows
-/// directory that the system answers, `TEMP` and `TMP`, the directory Temp under the account's LocalAppData known
-/// folder, and `LOCALAPPDATA`, as the library's process has it. `HOME` and `LOCALAPPDATA` are left out where the
-/// library's process has none, and a value of the system that cannot be read leaves its name out.
-pub(crate) fn environment() -> Vec<(OsString, OsString)> {
+/// it, and `TMPDIR`; on Windows `SystemRoot`, `TEMP` and `TMP`, and `LOCALAPPDATA`, as the library's process has it;
+/// the values of the system as `read` gives them. `HOME` and `LOCALAPPDATA` are left out where the library's process
+/// has none. A value of the system that `read` does not give is named in the error, and no list is made (ruling
+/// CP-178 (8) (b)).
+pub(crate) fn environment(read: ReadValue) -> Result<Vec<(OsString, OsString)>, SystemValue> {
     let mut env = Vec::new();
     #[cfg(target_os = "macos")]
     {
         if let Some(home) = std::env::var_os("HOME") {
             env.push(("HOME".into(), home));
         }
-        if let Some(temp) = sys::user_temp_dir() {
-            env.push(("TMPDIR".into(), temp));
-        }
+        let temp = read(SystemValue::TmpDir).ok_or(SystemValue::TmpDir)?;
+        env.push(("TMPDIR".into(), temp));
     }
     #[cfg(windows)]
     {
-        use std::os::windows::ffi::OsStringExt;
-        if let Some(root) = sys::windows_directory() {
-            env.push(("SystemRoot".into(), OsString::from_wide(&root)));
-        }
-        if let Some(local) = sys::local_app_data() {
-            let mut temp = OsString::from_wide(&local);
-            temp.push("\\Temp");
-            env.push(("TEMP".into(), temp.clone()));
-            env.push(("TMP".into(), temp));
-        }
+        let root = read(SystemValue::SystemRoot).ok_or(SystemValue::SystemRoot)?;
+        env.push(("SystemRoot".into(), root));
+        let temp = read(SystemValue::Temp).ok_or(SystemValue::Temp)?;
+        env.push(("TEMP".into(), temp.clone()));
+        env.push(("TMP".into(), temp));
         if let Some(local) = std::env::var_os("LOCALAPPDATA") {
             env.push(("LOCALAPPDATA".into(), local));
         }
     }
-    env
+    Ok(env)
 }
 
 /// Starts the runner of `cmd`, its program and arguments, with three handles or descriptors of the library's open in
 /// it and no other: the two ends of the link as its standard input and output and the null device as its standard
-/// error. It gives the runner the whole environment of `environment` and the system's directory as its working
+/// error. It gives the runner the whole environment `env`, made by `environment`, and the system's directory as its working
 /// directory: `/` on macOS, the system directory on Windows, never the library's own; a Windows start whose system
-/// directory cannot be read makes no process. On macOS the runner is the leader of a process group of its own and
+/// directory cannot be read makes no process. The three streams are held by the tests
+/// `a_runner_holds_its_three_descriptors_and_no_other_while_the_library_holds_descriptors_of_each_kind_at_low_and_high_numbers`
+/// and `a_handle_that_the_library_made_inheritable_and_its_own_standard_output_and_error_are_not_open_in_the_runner`
+/// of tests/handles.rs, and the null device by
+/// `the_marker_that_the_runner_and_its_child_print_on_standard_error_reaches_no_stream_no_file_and_no_run_end_of_the_host`
+/// of tests/stderr.rs. On macOS the runner is the leader of a process group of its own and
 /// every other descriptor closes at its exec; on Windows it starts suspended, with the list of those three as the
-/// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line.
-pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
+/// only handles that it inherits, in a job of the library's own that then lets it run. Reads its line: on macOS from
+/// the process table after it has made the process, where a process that the read no longer finds may have exited
+/// and not yet been reaped, so a row that is gone is no reap.
+pub(crate) fn spawn(
+    cmd: &mut Command,
+    env: &[(OsString, OsString)],
+) -> Result<RunProc, SpawnFailed> {
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
@@ -113,7 +151,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .env_clear()
-            .envs(environment())
+            .envs(env.iter().map(|(k, v)| (k, v)))
             .current_dir("/")
             .process_group(0);
         sys::close_beyond_three(cmd);
@@ -133,6 +171,8 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
             child,
             reaped: false,
             exit: None,
+            path: ForcedPath::LinkEnd,
+            forced: None,
             line,
             browser: None,
         };
@@ -149,7 +189,7 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
         let line =
             command_line(&program, args.iter().map(Vec::as_slice)).ok_or(SpawnFailed::NotMade)?;
         let application: Vec<u16> = program.into_iter().chain(Some(0)).collect();
-        let vars: Vec<(Vec<u16>, Vec<u16>)> = environment()
+        let vars: Vec<(Vec<u16>, Vec<u16>)> = env
             .iter()
             .map(|(k, v)| (k.encode_wide().collect(), v.encode_wide().collect()))
             .collect();
@@ -172,6 +212,8 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
             link: Some((ChildStdin::from(stdin), ChildStdout::from(stdout))),
             reaped: false,
             exit: None,
+            path: ForcedPath::LinkEnd,
+            forced: None,
             line: None,
             browser: None,
             job,
@@ -288,13 +330,6 @@ impl RunProc {
     }
 
     /// How the runner ended, once the library has reaped it; none before, and none when the system reaped it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "RunEnd and the start's answer carry it from the next unit of src/supervisor.rs (U4.9's report)"
-        )
-    )]
     pub(crate) fn exit(&self) -> Option<RunnerExit> {
         self.exit
     }
@@ -326,7 +361,6 @@ impl RunProc {
             let ok = i.ppid == runner.pid.get()
                 && i.started_us == frame.created.micros().get()
                 && i.pgid == group.get()
-                && !i.zombie
                 && led;
             ok.then_some(ProcLine {
                 pid: frame.pid,
@@ -359,6 +393,63 @@ impl RunProc {
         self.browser.is_some()
     }
 
+    /// The path that a later forced end takes, but a `kill`'s: `link_end` until the caller names another.
+    pub(crate) fn set_path(&mut self, path: ForcedPath) {
+        self.path = path;
+    }
+
+    /// What the library has ended of the run by force: the path of the first such end, and whether a process of the
+    /// browser's line was among what any of them ended; none while it has ended nothing.
+    pub(crate) fn forced(&self) -> Option<Forced> {
+        self.forced
+    }
+
+    /// Records an end that found processes of the run living, `browser` saying whether the browser's was among them.
+    fn note(&mut self, living: Option<bool>) {
+        let Some(browser) = living else {
+            return;
+        };
+        match &mut self.forced {
+            Some(f) => f.browser |= browser,
+            None => {
+                self.forced = Some(Forced {
+                    path: self.path,
+                    browser,
+                })
+            }
+        }
+    }
+
+    /// Whether the run's browser, by its line's number and creation time, still runs where an end reaches it: on
+    /// macOS in the group of its line, on Windows in the run's job.
+    fn browser_lives(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            self.browser.is_some_and(|b| holds_group(&b))
+        }
+        #[cfg(windows)]
+        {
+            self.browser
+                .is_some_and(|b| self.job.holds(b.pid.get(), b.created.micros().get()))
+        }
+    }
+
+    /// Whether a process that the table can read is in the runner's group, the runner among them while it runs.
+    #[cfg(target_os = "macos")]
+    fn own_group_lives(&self) -> bool {
+        let g = self.child.id();
+        sys::table().is_ok_and(|t| t.iter().any(|p| p.pgid == g))
+    }
+
+    /// Whether the run's browser runs in the runner's own group.
+    #[cfg(target_os = "macos")]
+    fn browser_in_own_group(&self) -> bool {
+        self.browser.is_some_and(|b| {
+            b.group == Group::Leader(NonZeroU32::new(self.child.id()).unwrap_or(b.pid))
+                && holds_group(&b)
+        })
+    }
+
     /// Whether the runner has exited; reaps it when it has. On macOS a runner that exited and is not reaped still
     /// holds its number, so its group, with what the runner left in it, is ended before the reap.
     pub(crate) fn exited(&mut self) -> bool {
@@ -369,7 +460,9 @@ impl RunProc {
         match sys::child_state(self.child.id()) {
             sys::ChildState::Running => return false,
             sys::ChildState::Exited => {
+                let living = self.own_group_lives().then(|| self.browser_in_own_group());
                 self.end_own_group();
+                self.note(living);
                 self.exit = self.child.try_wait().ok().flatten().and_then(runner_exit);
                 self.reaped = true;
             }
@@ -390,15 +483,36 @@ impl RunProc {
         end_group(self.child.id());
     }
 
+    /// Ends every process of the run that the library may end, by the path `kill`, and waits for the runner.
+    pub(crate) fn kill(&mut self) {
+        self.path = ForcedPath::Kill;
+        self.end_all();
+    }
+
     /// Ends every process of the run that the library may end and waits for the runner. On macOS, while the
     /// runner runs, it stops the runner's group, reads the runner's living descendants, ends the runner's group and
     /// then each descendant outside it (its group when it leads one); while the runner has exited unreaped it ends
     /// the runner's group; and it ends the browser's group while a process of a line is in it. On Windows the job.
+    /// When it found a process of the run living, it records the end as forced by the path that the run has.
+    /// A group is signalled only while its leader still has the number and creation time of its line; for the
+    /// runner, the library's own child, the library's own `waitid` on that child stands in for that read, and the
+    /// state that it gives decides what is signalled. A kill made during the runner's exit, under a parent that
+    /// ignores SIGCHLD, still signals the group whose number the runner holds. The end is a kill by number
+    /// (`Child::kill`) after that read: under a parent that ignores SIGCHLD a runner read as running during its exit
+    /// may be reaped by the system before that call, and the number then names another process only if the system's
+    /// counter passed every number in between, a named limit. On Windows it first reads the runner's own exit: a
+    /// runner that has exited is not killed, and what is left is read with the settle of `end_leftovers`; a runner
+    /// whose exit the system has not yet signalled at that read counts as living, a named limit, and the record then
+    /// keeps the run's path (`kill`, `link_end` or `after_finish`). `browser` is read without a settle and errs to yes.
     pub(crate) fn end_all(&mut self) {
+        let browser = self.browser_lives();
+        #[cfg(target_os = "macos")]
+        let mut living = browser;
         #[cfg(target_os = "macos")]
         if !self.reaped {
             match sys::child_state(self.child.id()) {
                 sys::ChildState::Running => {
+                    living = true;
                     let pid = self.child.id();
                     sys::stop_group(pid);
                     let created = match sys::info(pid) {
@@ -411,11 +525,27 @@ impl RunProc {
                         end_descendant(d, pid);
                     }
                 }
-                sys::ChildState::Exited => self.end_own_group(),
+                sys::ChildState::Exited => {
+                    living |= self.own_group_lives();
+                    self.end_own_group();
+                }
                 sys::ChildState::Gone => self.reaped = true,
             }
         }
-        self.end_leftovers();
+        #[cfg(windows)]
+        if !self.reaped {
+            if let Some(code) = self.child.try_wait() {
+                self.exit = runner_exit(code);
+                self.reaped = true;
+            }
+        }
+        #[cfg(windows)]
+        let living = if self.reaped {
+            browser || self.job_left()
+        } else {
+            browser || self.job.active_processes().is_some_and(|n| n > 0)
+        };
+        self.end_browser_or_job();
         if !self.reaped {
             let _ = self.child.kill();
             #[cfg(target_os = "macos")]
@@ -428,10 +558,37 @@ impl RunProc {
             }
             self.reaped = true;
         }
+        self.note(living.then_some(browser));
     }
 
-    /// Ends what is left of the run once the runner has exited: the browser's group on macOS, the job on Windows.
+    /// Ends what is left of the run once the runner has exited: the browser's group on macOS, the job on Windows;
+    /// an end that found a process living is recorded as forced by the path that the run has.
     pub(crate) fn end_leftovers(&mut self) {
+        let browser = self.browser_lives();
+        #[cfg(target_os = "macos")]
+        let living = browser;
+        #[cfg(windows)]
+        let living = browser || self.job_left();
+        self.end_browser_or_job();
+        self.note(living.then_some(browser));
+    }
+
+    /// Whether a process is left in the run's job once the runner has exited. The job's count can still hold the
+    /// exited runner, or the console host that the system started for it, for a moment after the runner's exit, so
+    /// the count is read again until it is 0 or `SETTLE` has passed; a process that is still there then is left.
+    #[cfg(windows)]
+    fn job_left(&self) -> bool {
+        let deadline = Instant::now() + SETTLE;
+        loop {
+            match self.job.active_processes() {
+                Some(0) => return false,
+                _ if Instant::now() >= deadline => return true,
+                _ => thread::sleep(POLL),
+            }
+        }
+    }
+
+    fn end_browser_or_job(&mut self) {
         #[cfg(target_os = "macos")]
         if let Some(b) = self.browser {
             end_line_group(&b);
@@ -467,7 +624,7 @@ impl RunProc {
                 })
                 .collect();
             groups.push(self.child.id());
-            sys::table().is_ok_and(|t| !t.iter().any(|p| !p.zombie && groups.contains(&p.pgid)))
+            sys::table().is_ok_and(|t| !t.iter().any(|p| groups.contains(&p.pgid)))
         }
         #[cfg(windows)]
         {
@@ -478,14 +635,22 @@ impl RunProc {
 
 /// What a later life does with one mark: a mark with no runner's line is `gone`; else it ends the processes of
 /// the mark that it may end and answers `gone` when the runner is gone, `alive` when it lives, with the members of
-/// a group whose leader is gone, which it reports and does not end.
-pub(crate) fn reap_mark(mark: &Mark) -> (Reaped, Vec<NonZeroU32>) {
+/// a group whose leader is gone, which it reports and does not end, and what it ended by force with the path `reap`.
+pub(crate) fn reap_mark(mark: &Mark) -> (Reaped, Vec<NonZeroU32>, Option<Forced>) {
     let Some(runner) = mark.runner else {
-        return (Reaped::Gone, Vec::new());
+        return (Reaped::Gone, Vec::new(), None);
+    };
+    let forced = |ended: bool, browser: bool| {
+        ended.then_some(Forced {
+            path: ForcedPath::Reap,
+            browser,
+        })
     };
     #[cfg(target_os = "macos")]
     {
-        let tree = if holds_group(&runner) {
+        let runner_held = holds_group(&runner);
+        let browser = mark.browser.is_some_and(|b| holds_group(&b));
+        let tree = if runner_held {
             sys::stop_group(runner.pid.get());
             descendants(runner.pid.get(), runner.created.micros().get())
         } else {
@@ -511,17 +676,22 @@ pub(crate) fn reap_mark(mark: &Mark) -> (Reaped, Vec<NonZeroU32>) {
         } else {
             Reaped::Gone
         };
-        (answer, left)
+        let ended = runner_held || browser || !tree.is_empty();
+        (answer, left, forced(ended, browser))
     }
     #[cfg(windows)]
     {
         let wait = u32::try_from(GONE_WAIT.as_millis()).unwrap_or(u32::MAX);
-        if let Some(b) = mark.browser {
-            sys::end(b.pid.get(), b.created.micros().get(), wait);
-        }
+        let browser = mark.browser.is_some_and(|b| {
+            matches!(
+                sys::end(b.pid.get(), b.created.micros().get(), wait),
+                sys::End::Ended
+            )
+        });
         match sys::end(runner.pid.get(), runner.created.micros().get(), wait) {
-            sys::End::Stays => (Reaped::Alive, Vec::new()),
-            sys::End::Ended | sys::End::Gone => (Reaped::Gone, Vec::new()),
+            sys::End::Stays => (Reaped::Alive, Vec::new(), forced(browser, browser)),
+            sys::End::Ended => (Reaped::Gone, Vec::new(), forced(true, browser)),
+            sys::End::Gone => (Reaped::Gone, Vec::new(), forced(browser, browser)),
         }
     }
 }
@@ -530,7 +700,7 @@ pub(crate) fn reap_mark(mark: &Mark) -> (Reaped, Vec<NonZeroU32>) {
 fn lives(line: &ProcLine) -> bool {
     matches!(
         sys::info(line.pid.get()),
-        sys::Read::Found(i) if i.started_us == line.created.micros().get() && !i.zombie
+        sys::Read::Found(i) if i.started_us == line.created.micros().get()
     )
 }
 
@@ -542,7 +712,7 @@ fn members(line: &ProcLine) -> Vec<NonZeroU32> {
     sys::table()
         .unwrap_or_default()
         .into_iter()
-        .filter(|p| p.pgid == g.get() && !p.zombie)
+        .filter(|p| p.pgid == g.get())
         .filter_map(|p| NonZeroU32::new(p.pid))
         .collect()
 }
@@ -561,7 +731,9 @@ fn holds_group(line: &ProcLine) -> bool {
 
 /// Ends the group of a line only while the line's process, with the line's number and creation time, is in it,
 /// read just before the signal: a group that holds a process of the mark keeps its number, so the signal reaches
-/// that group alone, the browser in the runner's group among it.
+/// that group alone, the browser in the runner's group among it. The table's read finds no process that has exited
+/// and is not reaped: a browser that has exited and is not yet reaped by its runner is gone to that read, so its
+/// group gets no signal while members are left in it, and `reap` reports them as left.
 #[cfg(target_os = "macos")]
 pub(crate) fn end_line_group(line: &ProcLine) -> bool {
     match line.group {
@@ -573,7 +745,7 @@ pub(crate) fn end_line_group(line: &ProcLine) -> bool {
 #[cfg(target_os = "macos")]
 const GROUP_WAIT: Duration = Duration::from_secs(2);
 
-/// Signals the group `g`, then reads it again and signals it again while a process that is no zombie is in it, until
+/// Signals the group `g`, then reads it again and signals it again while a process that the table reads is in it, until
 /// none is or `GROUP_WAIT` passes: a process forked while the signal goes out joins the group after it. While a
 /// member is left the group keeps its number, so each later signal reaches the same group.
 #[cfg(target_os = "macos")]
@@ -584,7 +756,7 @@ fn end_group(g: u32) -> bool {
     let deadline = Instant::now() + GROUP_WAIT;
     while Instant::now() < deadline {
         thread::sleep(Duration::from_millis(10));
-        let left = sys::table().is_ok_and(|t| t.iter().any(|p| p.pgid == g && !p.zombie));
+        let left = sys::table().is_ok_and(|t| t.iter().any(|p| p.pgid == g));
         if !left || !sys::kill_group(g) {
             break;
         }
@@ -656,7 +828,8 @@ mod exit_tests {
     }
 
     fn started(mut cmd: Command) -> Ends {
-        match spawn(&mut cmd) {
+        let env = environment(system_value).expect("the system gives every value of the list");
+        match spawn(&mut cmd, &env) {
             Ok(p) => Ends(p),
             Err(SpawnFailed::Made(p)) => {
                 drop(Ends(p));
@@ -854,7 +1027,6 @@ mod tests {
             ppid,
             pgid: pid,
             started_us,
-            zombie: false,
         }
     }
 
