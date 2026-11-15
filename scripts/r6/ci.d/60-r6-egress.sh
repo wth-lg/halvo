@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; and every command of the first list, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
+# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
 set -u
 name=60-r6-egress
 list=scripts/r6/egress/gate.txt
@@ -45,6 +45,12 @@ crates/<name> of the repository where the check runs, the linked
 third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, the build-time ones are
 proc-macro2, quote, serde_derive, syn and unicode-ident, and the three crates have no build script, no
 proc-macro target and no features, and the root manifest no [patch] table; another name fails.
+cargo tree and cargo metadata, which the graph reads, compile nothing, and they come before every
+cargo call that compiles the three crates; a graph that refuses leaves the forbid runs unmade, so the
+check runs no build script or proc macro that the graph refused.
+Once the environment rules, the graph, a canary, a forbid run or a rule of text has refused, the
+check prints the findings, then "egress runs=not-made (a hold refused)", and fails: it builds no
+route-gate and runs no command of it, no asking and no run of the first list.
 The rules for what no compiler pass reads, over every tracked file of the three crate directories and
 every file that a forbid run's dep-info names: a cfg predicate may name test, unix, windows, any, all
 and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its
@@ -1320,10 +1326,20 @@ check() {
   seconds_line=
   run_canary dev
   run_canary release
-  forbid_crates dev
-  forbid_crates release
+  if [ "$graph_holds" = yes ]; then
+    forbid_crates dev
+    forbid_crates release
+  else
+    : >"$artifacts/forbid-dev.json" || fail setup
+    : >"$artifacts/forbid-release.json" || fail setup
+    printf 'egress forbid=not-made (the graph refused, so no cargo call compiles the three crates)\n'
+  fi
   all_text_rules
   printf 'egress seconds graph=%s%s\n' "$graph_seconds" "$seconds_line"
+  if [ "$holds" = no ]; then
+    printf 'egress runs=not-made (a hold refused)\n'
+    fail check
+  fi
 
   cargo build --locked -p halvo-route-gate --bin route-gate >"$artifacts/cargo-build.txt" 2>&1 || fail setup
   cargo build --locked -p halvo-route-gate --bin route-gate --message-format=json \
@@ -1514,6 +1530,7 @@ exit 97
 EOF
   cat >"$work/route-gate" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
+[ -z "$STUB_MARKER" ] || printf 'run %s\n' "$*" >>"$STUB_MARKER"
 if [ "$#" -eq 1 ] && [ "$1" = reachword ] && [ -n "$STUB_REACH" ]; then
   printf 'reach\n' >>"$STUB_REACH"
 fi
@@ -1758,6 +1775,7 @@ case_reset() {
   STUB_COMMANDS='generate import derive score self-test spend-sim probe'
   STUB_RUN_EXIT=0
   STUB_REACH=
+  STUB_MARKER=
   STUB_ERASER=
   STUB_PROBE=
   STUB_HANG=
@@ -1845,6 +1863,9 @@ env-lowercase-flags
 env-lowercase-wrapper
 env-long-allow-flag
 rule-cfg-target-os
+runs-not-made-after-a-text-rule
+runs-not-made-after-a-forbid-finding
+runs-not-made-after-a-graph-refusal
 rule-cfg-nested
 rule-attribute-from-a-macro-variable
 rule-attribute-path-from-a-macro-variable
@@ -1959,7 +1980,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_MARKER=$STUB_MARKER STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -1995,6 +2016,14 @@ case_run() {
     rejected=$((rejected + 1))
   fi
   case_reset
+}
+
+marker_absent() {
+  case_wanted "$1" || return 0
+  if [ -s "$2" ]; then
+    printf 'case %s/%s want=PASS got=route-gate-run-after-a-refusal\n' "$name" "$1"
+    wrong="$wrong $1-marker"
+  fi
 }
 
 finding_json() {
@@ -2179,6 +2208,8 @@ non_ascii_repo() {
     self_failed "setup at line $LINENO"
   printf 'crates/halvo-route-gate/src/upl\303\251.txt\n' | git -C "$1" update-index --skip-worktree --stdin ||
     self_failed "setup at line $LINENO"
+  accented=$(printf 'upl\303\251.txt') || self_failed "setup at line $LINENO"
+  printf 'pub const W: &str = "plainword";\n' >"$1/crates/halvo-route-gate/src/$accented" 2>/dev/null || :
   git -C "$1" write-tree 2>/dev/null || self_failed "setup at line $LINENO"
 }
 
@@ -2427,6 +2458,20 @@ EOF
   case_repo=$work/repo-cfg
   case_tree=$cfg_tree
   case_run rule-cfg-target-os FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 target_os'
+  case_repo=$work/repo-cfg
+  case_tree=$cfg_tree
+  STUB_MARKER=$work/marker-text-rule
+  case_run runs-not-made-after-a-text-rule FAIL check "egress runs=not-made (a hold refused)${nl}FAIL 60-r6-egress (check)" 'egress checks='
+  marker_absent runs-not-made-after-a-text-rule "$work/marker-text-rule"
+  STUB_CLIPPY_JSON=$work/clippy-finding.json
+  STUB_CLIPPY_EXIT=101
+  STUB_MARKER=$work/marker-forbid
+  case_run runs-not-made-after-a-forbid-finding FAIL check "egress runs=not-made (a hold refused)${nl}FAIL 60-r6-egress (check)" 'egress checks='
+  marker_absent runs-not-made-after-a-forbid-finding "$work/marker-forbid"
+  STUB_GRAPH=extra-third
+  STUB_MARKER=$work/marker-graph
+  case_run runs-not-made-after-a-graph-refusal FAIL check "egress forbid=not-made (the graph refused, so no cargo call compiles the three crates)" 'egress checks='
+  marker_absent runs-not-made-after-a-graph-refusal "$work/marker-graph"
   case_repo=$work/repo-nested
   case_tree=$nested_tree
   case_run rule-cfg-nested FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 debug_assertions'
