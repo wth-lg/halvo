@@ -1833,6 +1833,9 @@ case $STUB_CHECK:${2:-} in
   exec-bit:generate)
     chmod +x docs/r2/trials/egress.md
     ;;
+  git-config:generate)
+    git config --local r6.egress.planted generate || exit 97
+    ;;
   widen:generate) printf '127.0.0.1:47391\n' >>scripts/r6/egress/gate.txt ;;
   widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
   change-copy:generate) printf '127.0.0.1:47391\n' >>"$list" ;;
@@ -2008,6 +2011,7 @@ refusal-stops-the-runs runs-not-made-after-a-text-rule
 canary-refusal canary-refusal-ends-as-a-hold
 list-from-memory run-plants-a-replace-ref-for-the-list
 tree-after-builds build-changes-a-tracked-file
+git-configuration run-changes-git-configuration
 rule-cfg runs-not-made-after-a-text-rule
 rule-attribute rule-attribute-path-from-a-macro-variable
 rule-clippy rule-clippy-behind-a-comment
@@ -2085,6 +2089,7 @@ run-without-its-line-names-the-missing-run
 canary-refusal-ends-as-a-hold
 run-plants-a-replace-ref-for-the-list
 build-changes-a-tracked-file
+run-changes-git-configuration
 command-exits-1
 entry-with-no-arguments
 tracked-file-changed-by-a-run
@@ -2661,6 +2666,7 @@ refusal-stops-the-runs runs-not-made-after-a-text-rule
 canary-refusal canary-refusal-ends-as-a-hold
 list-from-memory run-plants-a-replace-ref-for-the-list
 tree-after-builds build-changes-a-tracked-file
+git-configuration run-changes-git-configuration
 rule-cfg runs-not-made-after-a-text-rule
 rule-attribute rule-attribute-path-from-a-macro-variable
 rule-clippy rule-clippy-behind-a-comment
@@ -3095,6 +3101,9 @@ EOF
   STUB_CHECK=exec-bit
   case_run run-sets-an-exec-bit FAIL check 'tree changed=after kind -x'
   chmod -x "$work/repo/docs/r2/trials/egress.md" || self_failed "setup at line $LINENO"
+  STUB_CHECK=git-config
+  case_run run-changes-git-configuration FAIL check "egress run=generate: a wrapped run changed git's configuration"
+  git -C "$work/repo" config --local --unset r6.egress.planted >/dev/null 2>&1
   STUB_BUILD_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run build-changes-a-tracked-file FAIL check 'tree changed=before-calls M docs/r2/trials/egress.md'
   git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
