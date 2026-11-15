@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Clippy with clippy::disallowed_methods forbidden passes over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features in both jobs, and the macos job runs that alone; in the windows job the code of the three crates outside tests/ names no cfg but test, feature, target_os, windows, unix, any, all and not, holds no dollar sign in a cfg predicate and no rustc-cfg line, the three committed clippy.toml files stand byte for byte with no other clippy configuration in or below the three, at the root or in crates/, no package lies inside them, no cargo configuration is tracked in them, at the root or in crates/, and neither CLIPPY_CONF_DIR nor a flags variable with an allow flag, cap-lints or a cfg flag is set; a normal build of the workspace resolves tauri with neither unstable nor test; the crates that the app links and the three crates hold no start of a child in the named spellings that the check reads, counted call by call, but the two named limits, each as its committed statement, open with its one argument in halvo-control and sw_vers -productVersion in halvo-capture; every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed; it does not hold a name that a macro pastes, a name inside a string (link_name, dlsym), code that a build script writes, a start through a library that is not yet a dependency, a call into another crate's function that starts a child, the code of other runs' crates that the three call, or a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER).
+# rule: Clippy with clippy::disallowed_methods forbidden passes over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features in both jobs, and the macos job runs that alone; in the windows job the code of the three crates outside tests/ names no cfg but test, feature, target_os, windows, unix, any, all and not, holds no dollar sign in a cfg predicate and no rustc-cfg line, the three committed clippy.toml files stand byte for byte with no other clippy configuration in or below the three, at the root or in crates/, no package lies inside them, no cargo configuration is tracked in them, at the root or in crates/, and neither CLIPPY_CONF_DIR nor a flags variable with an allow flag, cap-lints or a cfg flag is set; a normal build of the workspace resolves tauri with neither unstable nor test; the crates that the app links and the three crates hold no start of a child in the named spellings that the check reads, counted call by call, but the two named limits, each as its committed statement, open with its one argument in halvo-control and sw_vers -productVersion in halvo-capture; every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed; it does not hold a name that a macro pastes, a name inside a string (link_name, dlsym), code that a build script writes, a start through a library that is not yet a dependency, a call into another crate's function that starts a child, the code of other runs' crates that the three call, a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER), include! in a crate that the app links, a test attribute on a closure parameter or a generic parameter, which hides the body after it from the start search, or a type alias of Command or an import alias declared in one file and used in another, in a crate that the app links.
 set -u
 name=20-r4-core
 
@@ -19,6 +19,7 @@ case $# in
   1)
     case $1 in
       --self-test) mode=self_test ;;
+      --help) mode=help ;;
       *) mode=usage ;;
     esac
     ;;
@@ -30,8 +31,38 @@ fail() {
   exit 1
 }
 
+help() {
+  cat <<'EOF'
+usage: sh scripts/r4/ci.d/20-r4-core.sh [--self-test | --help]
+Run it through the driver: sh scripts/ci/run-ci-d.sh <macos|windows> [--self-test] 20-r4-core.
+The macos job runs clippy with clippy::disallowed_methods forbidden over the library, binary and
+example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features.
+The windows job runs that, the text rules over the three crates, the tauri line, the start search,
+the crates' tests with the changed line, and the count of the refusal tests.
+Causes: usage, setup, allow, lock, lock-wording, tree, tauri, start, cargo, changed, missing.
+Named limits, which the check does not hold:
+- a name that a macro pastes;
+- a name inside a string (link_name, dlsym);
+- code that a build script writes;
+- a start through a library that is not yet a dependency;
+- a call into another crate's function that starts a child;
+- the code of other runs' crates that the three call;
+- a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER);
+- include! in a crate that the app links: the start search does not read the included file, and
+  the forbid run compiles included code in the three crates alone;
+- a test attribute on a closure parameter or a generic parameter, which hides the body after it
+  from the start search;
+- a type alias of Command, or an import alias declared in one file and used in another, in a crate
+  that the app links; in the three crates the forbid run holds both.
+EOF
+}
+
 case $mode in
   usage) fail usage ;;
+  help)
+    help
+    exit 0
+    ;;
   *) ;;
 esac
 
@@ -911,6 +942,10 @@ EOF
   if [ "$job" = macos ]; then
     finish
   fi
+  batch=$(sh "$here/$name.sh" --help 2>&1)
+  seen the-help-names-include-in-a-linked-crate 'include! in a crate that the app links'
+  seen the-help-names-a-test-attribute-on-a-closure-or-generic-parameter 'a test attribute on a closure parameter or a generic parameter'
+  seen the-help-names-a-type-alias-and-an-alias-of-another-file 'a type alias of Command, or an import alias declared in one file and used in another'
   check text-rules-pass-their-controls PASS 'allow crates=2 files=' run_one
   batch=$out
   for part in text forbid tauri starts tests refusals; do
@@ -1012,11 +1047,15 @@ EOF
   check the-statement-of-a-limit-in-another-file FAIL "start other src-tauri/src/agents.rs:2" run_in limit-elsewhere
   variant limit-reflowed crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = /* one line */ std::process::Command::new("/usr/bin/open").arg(url) // the url\n        .status().map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
   check a-limit-on-other-lines-with-comments PASS 'starts crates=5 files=8 hits=1 limits=1 other=0' run_in limit-reflowed
+  variant limit-include crates/halvo-control/src/lib.rs '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n#[cfg(test)]\nmod nowhere;\ninclude!("inc.rs");\n'
+  put "$work/limit-include/crates/halvo-control/src/inc.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
+  git -C "$work/limit-include" add -A . >/dev/null 2>&1 || exit 2
+  check named-limit-a-start-through-include-in-a-linked-crate-passes-until-the-compiler-pass-holds-it PASS 'hits=1 limits=1 other=0' run_in limit-include
   variant start-app src-tauri/src/agents.rs 'pub fn spawn() {\n    let _ = unsafe { libc::posix_spawn(p, f, a, s, v, e) };\n}\n'
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
   fixture starts-batch app
-  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nmod s26;\nmod s27;\nmod s28;\nmod s29;\nmod s30;\nmod s31;\nmod s32;\nmod s33;\nmod s34;\nmod r#s35;\n#[path = "other/p.rs"]\nmod s36;\nmod s37;\nmod s38;\n#[cfg(test)]\nmod s39;\nmod s40;\nmod s41;\nfn main() {}\n'
+  put "$work/starts-batch/src-tauri/src/main.rs" 'mod s01;\nmod s02;\nmod s03;\nmod s04;\nmod s05;\nmod s06;\nmod s07;\nmod s08;\nmod s09;\nmod s10;\nmod s11;\nmod s12;\nmod s13;\nmod s14;\nmod s15;\nmod s16;\nmod s17;\nmod s18;\nmod s19;\nmod s20;\nmod s21;\nmod s22;\nmod s23;\nmod s24;\nmod s25;\nmod s26;\nmod s27;\nmod s28;\nmod s29;\nmod s30;\nmod s31;\nmod s32;\nmod s33;\nmod s34;\nmod r#s35;\n#[path = "other/p.rs"]\nmod s36;\nmod s37;\nmod s38;\n#[cfg(test)]\nmod s39;\nmod s40;\nmod s41;\nmod limit_b;\nmod limit_c;\nmod limit_c_use;\npub use std::process::Command as Spawner;\nfn main() {}\n'
   put "$work/starts-batch/src-tauri/src/s01.rs" 'use std::process::Command as Run;\npub fn f() {\n    let _ = Run::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s02.rs" 'use std::process::{Command as Run, Stdio};\npub fn f() {\n    let _ = (Run::new("x"), Stdio::null());\n}\n'
   put "$work/starts-batch/src-tauri/src/s03.rs" 'pub fn f() {\n    let _ = std::process::Command::r#new("x");\n}\n'
@@ -1058,6 +1097,9 @@ EOF
   put "$work/starts-batch/src-tauri/src/s37.rs" 'mod inner {\n    #![cfg(test)]\n    fn t() {\n        let _ = std::process::Command::new("x");\n    }\n}\n'
   put "$work/starts-batch/src-tauri/src/s38.rs" '#[cfg(test)]\nfn t() {\n    let _ = std::process::Command::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s39.rs" 'mod y;\n'
+  put "$work/starts-batch/src-tauri/src/limit_b.rs" 'pub fn f() {\n    let _ = |#[cfg(test)] _x: u8| {\n        let _ = std::process::Command::new("x");\n    };\n}\n'
+  put "$work/starts-batch/src-tauri/src/limit_c.rs" 'type Run = std::process::Command;\npub fn f() {\n    let _ = Run::new("x");\n}\n'
+  put "$work/starts-batch/src-tauri/src/limit_c_use.rs" 'pub fn f() {\n    let _ = crate::Spawner::new("x");\n}\n'
   put "$work/starts-batch/src-tauri/src/s40.rs" '#[cfg(test)]\nmod t {\n    /* a /* b */ } */\n    fn u() {\n        let _ = std::process::Command::new("x");\n    }\n}\n'
   put "$work/starts-batch/src-tauri/src/s41.rs" 'mod inner {\n    #![cfg(test)]\n    mod kid;\n}\n'
   put "$work/starts-batch/src-tauri/src/s41/inner/kid.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
