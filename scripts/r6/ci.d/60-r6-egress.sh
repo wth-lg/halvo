@@ -1967,6 +1967,24 @@ windows-imports import-listing-printed
 windows-asking-line asking-not-run-in-the-windows-job
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
+forbid-exit-status forbid-exit-without-a-finding
+forbid-refers forbid-list-entry-refers-to-nothing
+env-wrapper env-wrapper-set
+env-argument-file env-flags-argument-file
+graph-unknown graph-third-party-package-added
+graph-build-time graph-build-time-package-added
+graph-build-script graph-build-script
+graph-proc-macro graph-proc-macro
+wrapped-missing-line no-egress-line
+wrapped-refused-mode refusal-mode
+log-count log-with-another-count
+wrapped-exit-0-with-a-denial check-exits-0-with-a-denial
+wrapped-exit-1-with-a-denial command-exits-1-with-a-denial
+denials-summed denied-in-each-run
+stale-build stale-build
+usage usage
+no-tree no-tree
+tree-before tracked-file-changed-before
 EOF
 }
 
@@ -2008,6 +2026,24 @@ import-listing-printed
 asking-not-run-in-the-windows-job
 job-with-no-run
 sentence-on-a-hosted-runner
+forbid-exit-without-a-finding
+forbid-list-entry-refers-to-nothing
+env-wrapper-set
+env-flags-argument-file
+graph-third-party-package-added
+graph-build-time-package-added
+graph-build-script
+graph-proc-macro
+no-egress-line
+refusal-mode
+log-with-another-count
+check-exits-0-with-a-denial
+command-exits-1-with-a-denial
+denied-in-each-run
+stale-build
+usage
+no-tree
+tracked-file-changed-before
 EOF
 }
 
@@ -2027,7 +2063,6 @@ control-denied
 control-report-lost-four-times
 control-port-in-use
 log-of-another-run
-log-with-another-count
 asking-reaches-the-network-when-asked-bare
 asking-hangs-past-its-deadline
 asking-deadline-above-240
@@ -2044,10 +2079,8 @@ env-allow-flag
 env-encoded-allow
 env-per-target-cfg
 env-clippy-arguments
-env-wrapper-set
 env-plain-wrapper-set
 env-build-flags-allow
-env-flags-argument-file
 env-lowercase-wrapper
 env-long-allow-flag
 rule-cfg-target-os
@@ -2061,13 +2094,9 @@ rule-clippy-through-a-macro-variable
 rule-clippy-on-a-hidden-module
 rule-outside-the-crates-not-named
 rule-dep-info-missing
-graph-third-party-package-added
-graph-build-time-package-added
 graph-build-time-package-linked
 graph-path-package-added
 graph-package-gone
-graph-build-script
-graph-proc-macro
 graph-features-table
 canary-let-through-in-release
 canary-without-its-unsafe-finding
@@ -2079,9 +2108,7 @@ windows-job-runs-every-command
 forbid-list-of-the-windows-job
 forbid-finding-outside-the-repository
 forbid-finding-with-exit-0
-forbid-exit-without-a-finding
 forbid-child-code-is-no-finding
-forbid-list-entry-refers-to-nothing
 command-on-neither-list
 command-with-an-underscore
 command-alone-without-arguments
@@ -2100,18 +2127,9 @@ answer-with-exit-3
 answer-with-other-words
 entry-that-is-no-command
 word-of-tests-not-asked
-denied-in-each-run
-check-exits-0-with-a-denial
-command-exits-1-with-a-denial
-refusal-mode
 check-exits-3-with-a-clean-line
-stale-build
 forbid-finding-then-a-stale-build
-no-egress-line
 control-without-an-egress-line
-tracked-file-changed-before
-no-tree
-usage
 EOF
 }
 
@@ -2526,6 +2544,8 @@ self_test() {
   rule_cases >"$work/rule-cases.txt" || self_failed "setup at line $LINENO"
   : >"$work/windows-seen.txt" || self_failed "setup at line $LINENO"
   : >"$work/macos-seen.txt" || self_failed "setup at line $LINENO"
+  wrong=
+  rejected=0
   while IFS=' ' read -r rule ruled; do
     if ! grep -q -x -F -e "$ruled" "$work/windows-cases.txt"; then
       printf 'case %s/rule-table want=PASS got=rule-%s-has-no-case-on-the-windows-list\n' "$name" "$rule"
@@ -2543,11 +2563,75 @@ self_test() {
   # shellcheck disable=SC2016
   printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: x\n  --> crates/halvo-route/src/x.rs:3:1\n","$message_type":"diagnostic","children":[{"children":[],"code":{"code":"unsafe_code","explanation":null},"level":"note","message":"n","rendered":null,"spans":[]}],"code":null,"level":"warning","message":"m","spans":[]}}' \
     >"$work/clippy-child-code.json" || self_failed "setup at line $LINENO"
-  wrong=
-  rejected=0
   v_lower_flags=$(printf '%s\n' "$v_flags" | tr '[:upper:]' '[:lower:]') || self_failed "setup at line $LINENO"
   v_lower_wrapper=$(printf '%s\n' "${w_rustc}_WRAPPER" | tr '[:upper:]' '[:lower:]') || self_failed "setup at line $LINENO"
   case_reset
+  if case_wanted rule-table-pinned; then
+    awk '{ print $1 }' "$work/rule-cases.txt" >"$work/rule-names.txt" || self_failed "setup at line $LINENO"
+    cat >"$work/rule-pin.txt" <<'EOF' || self_failed "setup at line $LINENO"
+forbid-reader
+forbid-release
+forbid-outside-path
+canary-own-entries
+canary-refers
+canary-real-cargo
+graph-tree
+graph-metadata
+graph-tables
+refusal-stops-the-runs
+canary-refusal
+rule-cfg
+rule-attribute
+rule-clippy
+rule-dep-info
+env-rules
+entries
+entries-link
+entries-submodule
+compare-lists
+control
+new-log
+log-link
+list-in-force
+state-in-memory-record
+state-in-memory-run-list
+checks-equal-found
+wrapped-verdict
+run-arguments
+tree-check
+cause
+signal-trap
+windows-job
+windows-imports
+windows-asking-line
+checks-count
+windows-sentence
+forbid-exit-status
+forbid-refers
+env-wrapper
+env-argument-file
+graph-unknown
+graph-build-time
+graph-build-script
+graph-proc-macro
+wrapped-missing-line
+wrapped-refused-mode
+log-count
+wrapped-exit-0-with-a-denial
+wrapped-exit-1-with-a-denial
+denials-summed
+stale-build
+usage
+no-tree
+tree-before
+EOF
+    if cmp -s "$work/rule-names.txt" "$work/rule-pin.txt"; then
+      printf 'case %s/rule-table-pinned want=PASS got=PASS\n' "$name"
+    else
+      printf 'case %s/rule-table-pinned want=PASS got=rows-differ-from-the-pin\n' "$name"
+      wrong="$wrong rule-table-pinned"
+    fi
+  fi
   if case_wanted forbid-table-pinned; then
     forbid_table | sed 's/|.*//' >"$work/table-rows.txt" || self_failed "setup at line $LINENO"
     cat >"$work/table-pin.txt" <<'EOF' || self_failed "setup at line $LINENO"
@@ -2966,7 +3050,8 @@ EOF
       "$self" >"$work/rule-table.sh" || self_failed "setup at line $LINENO"
     R6_EGRESS_CASES=forbid-clean sh "$work/rule-table.sh" --self-test >"$work/rule-table.txt" 2>&1 </dev/null
     code=$?
-    if [ "$code" = 1 ] && grep -q -F -e 'rule-table want=PASS got=rule-entries-has-no-case-on-the-windows-list' "$work/rule-table.txt"; then
+    if [ "$code" = 1 ] && grep -q -F -e 'rule-table want=PASS got=rule-entries-has-no-case-on-the-windows-list' "$work/rule-table.txt" &&
+      grep -q -F -e 'FAIL self-test:60-r6-egress (wrong: rule-table)' "$work/rule-table.txt"; then
       printf 'case %s/rule-with-no-case-on-the-windows-list want=FAIL got=FAIL\n' "$name"
       rejected=$((rejected + 1))
     else
