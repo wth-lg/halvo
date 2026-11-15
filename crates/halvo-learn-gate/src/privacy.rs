@@ -197,22 +197,27 @@ fn clean_under(dir: &Path, made_after: Option<&BTreeSet<OsString>>) -> bool {
         .all(|name| !holds_marker(&dir.join(name)))
 }
 
-/// The checks on the memory store (contracts.md L11.4; the coordinator's ruling LM-54 E5), each with its result.
-///
-/// It plays the two seeded cases as `learn-gate delete` does (`delete::seed`; the command's are `delete::seed_cases`,
-/// whose learned rows hold the markers), reads the rows of the family `learn` that name each workflow, each by kind
-/// and bytes, and calls `cascade` with the first workflow's id; then it calls `after` with `data_dir` and `temp`. A
-/// row names a workflow when the value under its kind's workflow key parses to that workflow's id, when its bytes
-/// hold the id as a JSON string, or when its bytes hold that workflow's marker. `learn_deleted` is ok when the first
-/// workflow had rows, the cascade answered that it was stored, no row names it after the cascade, and the rows that
-/// name the second workflow are the same rows as before it, by kind and bytes, and more than none.
-/// `learn_outside` is ok when each marker was in an `active` and in a `reverted` `learn_edit` row of its own
-/// workflow, read by the kind's workflow key, so that the search can find one, and
-/// neither marker's bytes are in a name, the bytes of a regular file or the target of a symbolic link, which is not
-/// followed, at any depth under `data_dir`, or under an entry of `temp` whose name was not there before the seed;
-/// a directory that cannot be listed or an entry that cannot be read counts as holding a marker, and an entry that
-/// is gone as holding none. The memory store keeps no file, so all of `data_dir` is outside the store. The other
-/// four checks are `not-run`: `learn_listed`, `learn_scrub` and `learn_expired` need the derived store and
+/// The checks on the memory store (contracts.md L11.4; the coordinator's rulings LM-54 E5 and LM-82), each with its
+/// result. It plays the two seeded cases as `learn-gate delete` does (`delete::seed`; the command's are
+/// `delete::seed_cases`, whose learned rows hold the markers), reads the rows of the family `learn` that name each
+/// workflow, each by kind and bytes, and calls `cascade` with the first workflow's id; then it calls `after` with
+/// `data_dir` and `temp`. A row names a workflow when the value under its kind's workflow key parses to that
+/// workflow's id, when its bytes hold the id as a JSON string, or when its bytes hold that workflow's marker. In this
+/// pull request `learn_deleted` checks the delete of the gate's own test store in memory (its own cascade), not the
+/// app's delete, and reads no file: after that cascade no learned row names the first seeded workflow by its kind's
+/// workflow key, holds its id as a JSON string or holds its marker, and the second workflow's rows are the same rows,
+/// by kind and bytes, with none added. `learn_deleted` is ok when the first workflow had rows, the cascade answered
+/// that it was stored, no row names it after the cascade, and the rows that name the second workflow are the same
+/// rows as before it, by kind and bytes, and more than none. `learn_outside` searches only the directory that the
+/// command is given, to which nothing of the command writes in this build, and, in the process's temporary directory,
+/// each entry whose name was not at its top before the seed, at every depth, and nothing else on the computer; the
+/// search looks for the markers' bytes in names, in regular files and in the target texts of links, follows no link
+/// below those places, reads no extended attribute (on Windows, no alternate data stream) and no other encoding, and
+/// counts an entry that cannot be read as holding a marker. `learn_outside` is ok when, besides, each marker was in
+/// an `active` and in a `reverted` `learn_edit` row of its own workflow, read by the kind's workflow key alone, so
+/// that the search can find one; a directory that cannot be listed counts as holding a marker, and an entry that is
+/// gone as holding none. The memory store keeps no file, so all of `data_dir` is outside the store. The other four
+/// checks are `not-run`: `learn_listed`, `learn_scrub` and `learn_expired` need the derived store and
 /// `learn_delete_all` the capture run's `halvo-capture --delete-all`, which this build does not hold.
 pub fn outcomes(
     cases: &[Case; 2],
