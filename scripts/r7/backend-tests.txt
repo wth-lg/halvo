@@ -8,7 +8,7 @@ test/billing/stripe-adapter.node.test.ts	39
 test/billing/stripe-read-session.node.test.ts	1
 test/contract/billing-stub.node.test.ts	2
 test/contract/constants.node.test.ts	1
-test/contract/entries.node.test.ts	120
+test/contract/entries.node.test.ts	121
 test/contract/env.test.ts	6
 test/contract/log.node.test.ts	3
 test/contract/names.node.test.ts	2

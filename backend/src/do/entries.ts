@@ -621,6 +621,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       log({ event: "alarm-error", error: errorName(reading) });
       exit = "unknown";
     }
+    if (exit === null) return;
     let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null) || exit === "unknown" || (exit !== null && exit.mark.since !== null);
     let count = ALARM_RETRY_LIMIT;
     let tested: TestTime | null = null;
@@ -685,7 +686,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       else armAlarm(host.clock() + ALARM_RETRY_MS);
       return;
     }
-    const noMark = exit === "unknown" ? null : noMarkIn(exit === null ? null : exit.mark);
+    const noMark = exit === "unknown" ? null : noMarkIn(exit.mark);
     if (noMark === null) return;
     log({ event: "alarm-stopped", error: name });
     stopAlarm(noMark);

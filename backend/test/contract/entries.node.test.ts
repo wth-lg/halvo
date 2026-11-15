@@ -2265,4 +2265,26 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     expect(w.alarms).not.toContain(null);
     expect(w.alarmAt()).toBe(9000 + ALARM_RETRY_MS);
   });
+
+  test("T1 (c): an exit after the storage is gone arms nothing and writes no alarm-stopped: the alarm's send throws after another instance removed the storage", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.send = { call: SEND, notBillable: 0 };
+    let reject: (error: Error) => void = () => {};
+    w.host.port.sendUsage = async () =>
+      new Promise((_, rejecting) => {
+        reject = rejecting;
+      });
+    const run = w.entries.alarm();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    w.answers.send = { call: null, notBillable: 0 };
+    now = 9000;
+    expect(await makeEntries(w.host, w.modules).destroy(HASH)).toEqual({ result: "deleted" });
+    const armsBefore = w.alarms.length;
+    reject(new RangeError("the send throws"));
+    await run;
+    expect(events()).not.toContain("alarm-stopped");
+    expect(w.alarms.slice(armsBefore)).toEqual([]);
+  });
 });
