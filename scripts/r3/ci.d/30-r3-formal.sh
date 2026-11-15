@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 637933 and 61728 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of twelve controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
+# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 1732182 and 70129 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of thirteen controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -10,7 +10,7 @@ label=$name
 self_path=scripts/r3/ci.d/30-r3-formal.sh
 workers=3
 invariants='P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11'
-reach_want=637933+61728
+reach_want=1732182+70129
 seed_want=20261113
 count_want=400
 fetch_tries=2
@@ -18,7 +18,7 @@ fetch_connect=10
 fetch_time=25
 fetch_pause=5
 fetch_bound=60
-controls_list='P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P10-live'
+controls_list='P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P10-live P9-made'
 control_slots=3
 
 fail() {
@@ -236,6 +236,7 @@ control_prepare() {
   k=$1
   case $k in
     P10-live) invariant=P10 ;;
+    P9-made) invariant=P9 ;;
     *) invariant=$k ;;
   esac
   model=$tmp/model-$k.tla
@@ -254,6 +255,7 @@ control_report() {
   k=$1
   case $k in
     P10-live) invariant=P10 ;;
+    P9-made) invariant=P9 ;;
     *) invariant=$k ;;
   esac
   tlc_read "control-$k"
@@ -301,7 +303,7 @@ controls() {
   done
   controls_wait
   ended=$(date +%s)
-  printf 'formal controls count=12 reported=%s seconds=%s\n' "$reported" "$((ended - started))"
+  printf 'formal controls count=13 reported=%s seconds=%s\n' "$reported" "$((ended - started))"
   [ "$wrong" = no ] || fail control
 }
 
@@ -386,15 +388,17 @@ block() {
     P9:1new) printf '%s\n' '  /\ Plain(e, Bare("commit"))' ;;
     P10:1old) printf '%s\n' 'Lose(e) ==' '  /\ alive = "no"' ;;
     P10:1new) printf '%s\n' 'Lose(e) ==' ;;
-    P11:1old) printf '%s\n' '  /\ UNCHANGED <<cfg, eff, val, given, wire, seen>>' ;;
+    P11:1old) printf '%s\n' '  /\ UNCHANGED <<cfg, eff, val, given, wire>>' ;;
     P11:1new)
       printf '%s\n' "  /\\ eff' = [e \\in Effects |-> IF eff[e].st = \"releasing\" THEN [eff[e] EXCEPT !.st = IF eff[e].apr \\in Approvals THEN \"approved\" ELSE \"cleared\"] ELSE eff[e]]" \
-        '  /\ UNCHANGED <<cfg, val, given, wire, seen>>'
+        '  /\ UNCHANGED <<cfg, val, given, wire>>'
       ;;
     P10-live:1old) printf '%s\n' '  /\ alive = "yes"' '  /\ mem[e] = "begun"' '  /\ Len(wire[e]) < 2' ;;
     P10-live:1new) printf '%s\n' '  /\ mem[e] = "begun"' '  /\ (alive = "yes" \/ eff[e].st = "releasing")' '  /\ Len(wire[e]) < 2' ;;
     P10-live:2old) printf '%s\n' "  /\\ mem' = [e \\in Effects |-> \"idle\"]" ;;
     P10-live:2new) printf '%s\n' "  /\\ mem' = [e \\in Effects |-> IF mem[e] = \"begun\" THEN \"begun\" ELSE \"idle\"]" ;;
+    P9-made:1old) printf '%s\n' "  /\\ mem' = [mem EXCEPT ![e] = IF a = \"made\" THEN \"replied\" ELSE \"answered\"]" ;;
+    P9-made:1new) printf '%s\n' "  /\\ mem' = [mem EXCEPT ![e] = \"replied\"]" ;;
     *) return 1 ;;
   esac
 }
@@ -468,7 +472,7 @@ mode=${STUB_MODE:-ok}
 if [ "$cfg" = Export.cfg ]; then
   [ "$mode" != export-fails ] || exit 1
   awk 'BEGIN { FS = "\t"; OFS = " " } { $1 = $1; printf "\"T %s\"\n", $0 }' "$STUB_DIR/policy-table.tsv"
-  printf '"D 304"\n'
+  printf '"D 377"\n'
   awk '{ gsub(/"/, "\\\""); printf "\"J %04d %s\"\n", NR - 1, $0 }' "$STUB_DIR/traces.jsonl"
   exit 0
 fi
@@ -501,29 +505,29 @@ case $names in
     violation "$one"
     ;;
 esac
-distinct=61728
-grep -q 'Effects = {e1, e2}' "$cfg" && distinct=637933
+distinct=70129
+grep -q 'Effects = {e1, e2}' "$cfg" && distinct=1732182
 case $mode:$distinct in
-  rebinds-violated:61728) violation P3 ;;
-  rebinds-status:61728)
+  rebinds-violated:70129) violation P3 ;;
+  rebinds-status:70129)
     printf 'Model checking completed. No error has been found.\n'
-    printf '1 states generated, 61728 distinct states found, 0 states left on queue.\n'
+    printf '1 states generated, 70129 distinct states found, 0 states left on queue.\n'
     exit 1
     ;;
-  rebinds-incomplete:61728)
+  rebinds-incomplete:70129)
     printf '1 states generated, 1 distinct states found, 0 states left on queue.\n'
     exit 0
     ;;
-  rebinds-silent:61728)
+  rebinds-silent:70129)
     printf 'Error: Invariant P3 is violated.\nModel checking completed. No error has been found.\n'
-    printf '1 states generated, 61728 distinct states found, 0 states left on queue.\n'
+    printf '1 states generated, 70129 distinct states found, 0 states left on queue.\n'
     exit 0
     ;;
-  confirm-no-states:637933)
+  confirm-no-states:1732182)
     printf 'Model checking completed. No error has been found.\n'
     exit 0
     ;;
-  reach:61728) distinct=61727 ;;
+  reach:70129) distinct=70128 ;;
 esac
 printf 'Model checking completed. No error has been found.\n'
 printf '%s states generated, %s distinct states found, 0 states left on queue.\n' "$distinct" "$distinct"
