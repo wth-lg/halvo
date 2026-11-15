@@ -1363,6 +1363,11 @@ own_self_test() {
   case_witness=yes
   case_absent='FAIL run-ci-d (10-a changed a tracked file: tool.sh)'
   own_case tracked-script-rewritten-with-crlf-before-the-first-script 1 "$tool_line" macos
+  new_repo && printf '*.sh text eol=lf\n' >"$fixture/.gitattributes" && printf 'echo hi\n' >"$fixture/tool.sh" &&
+    git -C "$fixture" add .gitattributes tool.sh >/dev/null 2>&1 &&
+    add_script r1 10-a.sh "$good" 'printf "echo hi\r\n" >"$CI_D_REPO/tool.sh"; printf "PASS 10-a\n"' && fixture_commit
+  case_witness=yes
+  own_case tracked-script-rewritten-with-crlf-by-a-script 1 'FAIL run-ci-d (10-a changed a tracked file: tool.sh)' macos
   late_crlf='d=$(cd "$TMPDIR/../.." && pwd); perl -e "setpgrp(0, 0); exec @ARGV" sh -c '"'"'n=0; while [ -d "$1" ] && [ "$n" -lt 100 ]; do sleep 0.1; n=$((n + 1)); done; printf "echo hi\r\n" >"$0/tool.sh"; : >"$0/rewritten"'"'"' "$CI_D_REPO" "$d" >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
   new_repo && printf '*.sh text eol=lf\n' >"$fixture/.gitattributes" && printf 'echo hi\n' >"$fixture/tool.sh" &&
     git -C "$fixture" add .gitattributes tool.sh >/dev/null 2>&1 &&
@@ -1847,6 +1852,9 @@ own_self_test() {
   case_witness=yes
   case_absent='PASS 10-a'
   own_case empty-nested-switch-of-the-caller-is-refused 1 "$nested_line" macos
+  new_repo && add_script r1 10-a.sh "$good" 'if { : <&9; } 2>/dev/null; then printf "FAIL 10-a (descriptor 9 is open)\n"; exit 1; fi; printf "PASS 10-a\n"'
+  case_witness=yes
+  own_case descriptor-9-is-closed-for-a-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   case_switch_set=yes
   case_switch=yes
   case_worker=yes
