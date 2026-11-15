@@ -1456,7 +1456,10 @@ esac
 exit 2
 EOF
   git init -q "$dir" >/dev/null 2>&1 || self_failed "setup at line $LINENO"
-  git -C "$dir" add -A >/dev/null 2>&1 || self_failed "setup at line $LINENO"
+  if ! git -C "$dir" add -A >"$dir.add.txt" 2>&1; then
+    cat "$dir.add.txt" >&2
+    self_failed "setup at line $LINENO"
+  fi
   git -C "$dir" write-tree 2>/dev/null || self_failed "setup at line $LINENO"
 }
 
