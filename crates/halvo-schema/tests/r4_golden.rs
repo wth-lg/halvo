@@ -7,11 +7,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_schema::coordinator::body::{CoordHistory, CoordLog, History, Stored};
 use halvo_schema::coordinator::names::{
-    BindResult, CheckAnswer, DoneAnswer, EffectAnswer, HoldSetCause, OtherKind, OtherLapse, RunEnd,
+    BindResult, CheckAnswer, ConfirmLapse, DoneAnswer, EffectAnswer, OtherKind, OtherLapse, RunEnd,
     Trigger,
 };
 use halvo_schema::coordinator::record::{
-    Answered, BindAnswer, Cleared, CoordEvent, Entry, ItemId, Lapsed, LinkAnswer, Raised,
+    Answered, BindAnswer, Cleared, CoordEvent, Entry, Held, ItemId, Lapsed, LinkAnswer, Raised,
     SignInAnswer, What,
 };
 use halvo_schema::coordinator::KINDS;
@@ -138,6 +138,7 @@ fn records() -> Vec<CoordEvent> {
             What::RunEnded {
                 run: run(0),
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ),
         (
@@ -210,12 +211,13 @@ fn records() -> Vec<CoordEvent> {
             What::RunEnded {
                 run: run(1),
                 cause: RunEnd::Cancelled,
+                defers: None,
             },
         ),
         (
             DAY + 1,
             What::HoldSet {
-                cause: HoldSetCause::Failures,
+                held: Held::Failures,
             },
         ),
         (
@@ -236,6 +238,25 @@ fn records() -> Vec<CoordEvent> {
             What::ItemAnswered {
                 item: item(6),
                 answered: Answered::Setup,
+            },
+        ),
+        (
+            DAY + 2,
+            What::HoldSet {
+                held: Held::SignInRefused { run: run(1) },
+            },
+        ),
+        (
+            DAY + 2,
+            What::HoldCleared {
+                cleared: Cleared::SignInRefused { run: run(1) },
+            },
+        ),
+        (
+            DAY + 2,
+            What::ItemLapsed {
+                item: item(1),
+                lapsed: Lapsed::Confirm(ConfirmLapse::AnswerLost),
             },
         ),
     ];

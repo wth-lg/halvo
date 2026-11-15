@@ -72,6 +72,7 @@ U3.3	ui/tests/r4/snapshots/**
 U3.3	scripts/r4/ci.d/40-r4-page.sh
 U4.1	crates/halvo-coord-app/**
 U4.2	crates/halvo-coord-app/src/present/**
+U4.3	crates/halvo-coord/clippy.toml
 U5.2	crates/halvo-coord-store/**
 U5.3	crates/halvo-coord-gate/**
 U5.4	crates/halvo-coord-app/src/product/**
