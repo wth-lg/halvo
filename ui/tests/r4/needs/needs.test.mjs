@@ -2493,16 +2493,22 @@ async function again(origin, dir) {
   } finally {
     await h.close();
   }
-  for (const cause of ['malformed', 'busy']) {
+  const second = chain(setup)[1];
+  const stops = [
+    ...['malformed', 'busy', 'stale', 'unknown_item', 'no_service'].map((cause) => [cause, [{ ...first, reply: { error: cause } }]]),
+    ['rejected_first', [{ ...first, reject: true }]],
+    ['rejected_second', [{ ...first, reply: { ok: 'yes' } }, { ...second, reject: true }]],
+  ];
+  for (const [tag, lines] of stops) {
     const o = outDir();
-    const k = await open({ origin, replies: [{ state: snap(1, [setup]) }, { ...first, reply: { error: cause } }], views: [VIEW], out: o });
+    const k = await open({ origin, replies: [{ state: snap(1, [setup]) }, ...lines], views: [VIEW], out: o });
     try {
       for (const a of prepare(setup)) await act(k, a);
       await k.page.locator(sel('choose', setup.item)).click();
       for (let i = 0; i < 12; i++) await frames(k);
-      if (callsOf(o).length !== 1 || strays(k) !== 0) faults.push('chain_not_stopped_at_' + cause + ':calls=' + callsOf(o).length + ':strays=' + strays(k));
+      if (callsOf(o).length !== lines.length || strays(k) !== 0) faults.push('chain_not_stopped_at_' + tag + ':calls=' + callsOf(o).length + ':strays=' + strays(k));
     } catch {
-      faults.push('throws_at_' + cause);
+      faults.push('throws_at_' + tag);
     } finally {
       await k.close();
     }
