@@ -309,13 +309,13 @@ fn routine_usage_refusals_name_routine_among_the_commands() {
     assert_eq!(none.cause, Cause::Usage);
     assert_eq!(
         none.line(),
-        "REFUSED usage: no command; commands: drift, delete, routine"
+        "REFUSED usage: no command; commands: drift, delete, routine, privacy"
     );
     let other = crate::cli::run(&["nosuch".to_owned()]).expect_err("a refusal of nosuch");
     assert_eq!(other.cause, Cause::Usage);
     assert_eq!(
         other.line(),
-        "REFUSED usage: an unknown command; commands: drift, delete, routine"
+        "REFUSED usage: an unknown command; commands: drift, delete, routine, privacy"
     );
 }
 
