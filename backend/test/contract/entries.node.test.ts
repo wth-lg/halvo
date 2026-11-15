@@ -1561,7 +1561,7 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
       inner((sql) =>
         run({
           exec: (query: string, ...bindings: (string | number | null)[]) => {
-            if (query.startsWith("UPDATE skeleton SET last_now = ?, alarm_failures = ?")) throw new RangeError("the count step throws");
+            if (query.startsWith("UPDATE skeleton SET last_now = ?, alarm_failures = ?") || query.startsWith("UPDATE skeleton SET alarm_failures = ?")) throw new RangeError("the count step throws");
             return sql.exec(query, ...bindings);
           },
         } as Sql),
@@ -1883,5 +1883,67 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     w.reset();
     expect(await w.entries.testSetClock(9000)).toEqual({ result: "clock-set" });
     expect(w.names().filter((name) => name === "accounts.forget")).toHaveLength(1);
+  });
+
+  const failingWrites = (w: ReturnType<typeof world>, fails: (query: string) => boolean) => {
+    const inner = w.host.step;
+    w.host.step = (<T>(run: (sql: Sql) => T): T =>
+      inner((sql) =>
+        run({
+          exec: (query: string, ...bindings: (string | number | null)[]) => {
+            if (fails(query)) throw new RangeError("the write fails");
+            return sql.exec(query, ...bindings);
+          },
+        } as Sql),
+      )) as typeof inner;
+  };
+
+  const gapsOver = async (w: ReturnType<typeof world>, clock: { now: Ms }, runs: number, fresh: boolean) => {
+    const gaps: Ms[] = [];
+    for (let run = 0; run < runs; run += 1) {
+      clock.now = Math.max(clock.now, w.alarmAt() ?? clock.now);
+      const at = clock.now;
+      await (fresh ? makeEntries(w.host, w.modules) : w.entries).alarm();
+      gaps.push(((w.alarmAt() ?? at) - at) / 1000);
+    }
+    return gaps;
+  };
+
+  test("M4: every write of last_now fails and a fresh makeEntries runs each alarm over the same host: the count is written apart from last_now, and the gaps double 30 s, 60 s, 120 s to the cap", async () => {
+    const clock = { now: 8000 };
+    const w = world({ clock: () => clock.now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.openHolds = 0;
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => {
+      throw new RangeError("the call throws");
+    };
+    failingWrites(w, (query) => query.startsWith("UPDATE skeleton SET last_now = ?"));
+    expect(await gapsOver(w, clock, 9, true)).toEqual([30, 60, 120, 240, 480, 960, 1920, 3600, 3600]);
+  });
+
+  test("M4: the count's own write fails in every run of one instance: the count kept in memory is the floor, and the gaps double", async () => {
+    const clock = { now: 8000 };
+    const w = world({ clock: () => clock.now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "accounts.forget";
+    failingWrites(w, (query) => query.includes("alarm_failures = ?"));
+    expect(await gapsOver(w, clock, 5, false)).toEqual([30, 60, 120, 240, 480]);
+    expect(events()).not.toContain("alarm-stopped");
+  });
+
+  test("M4: when every write of the object fails and the instance is new at each run, the pause stays at 30 s, as ALARM_PAUSE_CAP_MS's doc comment says", async () => {
+    const clock = { now: 8000 };
+    const w = world({ clock: () => clock.now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "accounts.forget";
+    failingWrites(w, (query) => query.startsWith("UPDATE"));
+    expect(await gapsOver(w, clock, 4, true)).toEqual([30, 30, 30, 30]);
   });
 });

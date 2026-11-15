@@ -23,7 +23,9 @@ export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
 /**
  * The cap of the pause after a failing run of the alarm under the mark. The pause starts at ALARM_RETRY_MS and doubles with
  * each failing run in a row, so a begun delete costs at most one run per ALARM_RETRY_MS, settling to one run per
- * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes.
+ * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes. The count of failing runs is written in a
+ * step of its own and also kept in the instance's memory as a floor; only when every write of the object fails and the
+ * instance is new at each run does the pause stay at ALARM_RETRY_MS.
  */
 export const ALARM_PAUSE_CAP_MS = 3_600_000;
 /**
@@ -172,6 +174,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const removalRejections = new WeakSet<object>();
   let dueErrorsOfTheRun: unknown[] | null = null;
   let removalLogged: Ms | null = null;
+  let failuresKept = 0;
   const sendsEndedHere = new Map<string, Ms>();
   const sendKey = (interval: Ms, sentAt: Ms) => `${interval}:${sentAt}`;
   const sendEnds = (sql: Sql, now: Ms): Ms | null => {
@@ -549,6 +552,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (thrown !== null) throw thrown.error;
     if (caught.length > 0) throw new LoggedAlarmError(caught[0]);
     if (dueErrors.length > 0) throw new LoggedAlarmError(dueErrors[0]);
+    failuresKept = 0;
     if (head === "unknown" || head.failures > 0) {
       step((open) => {
         if (!holds(open.sql)) return;
@@ -569,12 +573,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let nextAt: Ms | null = null;
     try {
       const counted = host.step((sql) => {
-        const now = Math.max(time(sql), lastNow(sql));
         const mark = markOf(sql);
         const markedNow = marked || mark.since !== null;
         const prior = Number(skeletonRow(sql).alarm_failures);
-        const failures = markedNow ? prior + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
-        sql.exec("UPDATE skeleton SET last_now = ?, alarm_failures = ?", now, failures);
+        const failures = markedNow ? Math.max(prior, failuresKept) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
+        sql.exec("UPDATE skeleton SET alarm_failures = ?", failures);
         return { failures, tested: testTime(sql) !== null, marked: markedNow, nextAt: mark.nextAt };
       });
       count = counted.failures;
@@ -582,8 +585,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       marked = counted.marked;
       nextAt = counted.nextAt;
     } catch {
-      count = marked ? 1 : ALARM_RETRY_LIMIT;
+      count = marked ? failuresKept + 1 : ALARM_RETRY_LIMIT;
     }
+    if (marked) failuresKept = count;
+    try {
+      host.step((sql) => {
+        sql.exec("UPDATE skeleton SET last_now = ?", Math.max(time(sql), lastNow(sql)));
+      });
+    } catch {}
     if (marked) {
       try {
         waits = host.step((sql) => {

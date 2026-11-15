@@ -74,7 +74,7 @@ async function ninetyDays(failing: Failing, sends: "answered" | "lost"): Promise
       return inner((sql) =>
         run({
           exec: (query: string, ...bindings: unknown[]) => {
-            if (on && inAlarm && query.startsWith("UPDATE skeleton SET last_now = ?, alarm_failures = ?")) throw new RangeError("the count step throws");
+            if (on && inAlarm && query.startsWith("UPDATE skeleton SET alarm_failures = ?")) throw new RangeError("the count step throws");
             return sql.exec(query, ...(bindings as (string | number | null)[]));
           },
         } as Sql),
