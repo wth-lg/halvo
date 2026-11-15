@@ -666,24 +666,60 @@ read_graph() {
 }
 
 read_candidates() {
-  : >"$work/grep.txt"
+  : >"$work/grep.z"
   while IFS=' ' read -r kind value; do
     [ "$kind" = crate ] || continue
-    git grep -I -o -E '"[^" \\]+"' "$tree" -- "$value" >>"$work/grep.txt" 2>"$work/grep.err"
+    git -c core.quotePath=off grep -a -z -e '"' "$tree" -- "$value" >>"$work/grep.z" 2>"$work/grep.err"
     case $? in
       0 | 1) ;;
       *) fail setup ;;
     esac
   done <"$work/graph.txt"
+  tr '\000' '\001' <"$work/grep.z" >"$work/grep.txt" || fail setup
   awk '
     {
-      rest = substr($0, index($0, ":") + 1)
-      quote = index(rest, ":\"")
-      path = substr(rest, 1, quote - 1)
-      word = substr(rest, quote + 2)
-      sub(/"$/, "", word)
-      if (path !~ /\.rs$/ || path ~ /(^|\/)tests\//) next
-      print word
+      cut = index($0, "\001")
+      if (cut == 0) next
+      path = substr($0, 1, cut - 1)
+      path = substr(path, index(path, ":") + 1)
+      if (path ~ /^crates\/[^\/]+\/(tests|benches|examples)\//) next
+      line = substr($0, cut + 1)
+      n = length(line)
+      i = 1
+      while (i <= n) {
+        c = substr(line, i, 1)
+        if (c == "\047" && substr(line, i + 2, 1) == "\047") {
+          i += 3
+          continue
+        }
+        if (c == "\047" && substr(line, i + 1, 1) == "\\" && substr(line, i + 3, 1) == "\047") {
+          i += 4
+          continue
+        }
+        if (c != "\"") {
+          i++
+          continue
+        }
+        word = ""
+        closed = 0
+        i++
+        while (i <= n) {
+          c = substr(line, i, 1)
+          if (c == "\\") {
+            word = word c substr(line, i + 1, 1)
+            i += 2
+            continue
+          }
+          if (c == "\"") {
+            closed = 1
+            i++
+            break
+          }
+          word = word c
+          i++
+        }
+        if (closed && word != "" && word !~ /[ "\\]/) print word
+      }
     }
   ' "$work/grep.txt" | sort -u >"$work/candidates.txt" || fail setup
 }
@@ -1005,6 +1041,24 @@ exit 97
 EOF
   cat >"$work/route-gate" <<'EOF' || self_failed setup
 #!/bin/sh
+for odd in $STUB_ODD; do
+  [ "$1" = "${odd%%:*}" ] || continue
+  case ${odd#*:} in
+    stdout)
+      printf 'x\n'
+      printf 'REFUSED usage: unknown command\n' >&2
+      exit 2
+      ;;
+    exit3)
+      printf 'REFUSED usage: unknown command\n' >&2
+      exit 3
+      ;;
+    text)
+      printf 'REFUSED usage: unknown commands\n' >&2
+      exit 2
+      ;;
+  esac
+done
 for bare in $STUB_BARE; do
   if [ "$1" = "$bare" ] && [ "$#" -eq 1 ]; then
     exit 0
@@ -1043,8 +1097,13 @@ EOF
 fn main() {
     let words = ["generate", "import", "derive", "score", "self-test", "spend-sim", "probe"];
     let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
+    let adjacent = words! {"see help","adjword"};
+    let odd = ["stdoutword", "exitword", "textword"];
 }
 EOF
+  printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
+    >"$dir/crates/halvo-route-gate/src/nul.rs" || self_failed setup
+  printf 'pub const W: &str = "plainword";\n' >"$dir/crates/halvo-route-gate/src/upl\303\251.txt" || self_failed setup
   printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed setup
   cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed setup
   printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed setup
@@ -1102,6 +1161,7 @@ case_reset() {
   case_tree=$good_tree
   STUB_COMMANDS='generate import derive score self-test spend-sim probe'
   STUB_RUN_EXIT=0
+  STUB_ODD=
   STUB_BARE=
   STUB_CHECK=pass
   STUB_TOUCH=
@@ -1119,7 +1179,7 @@ case_reset() {
 
 case_run() {
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
@@ -1364,7 +1424,7 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=13 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=7 asked=20 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
@@ -1441,10 +1501,22 @@ self_test() {
   case_run command-with-an-underscore FAIL check 'egress on-neither-list=post_route'
   STUB_BARE=push
   case_run command-alone-without-arguments FAIL check 'egress on-neither-list=push'
+  STUB_COMMANDS="$STUB_COMMANDS nulword"
+  case_run command-in-a-file-with-a-nul-byte FAIL check 'egress on-neither-list=nulword'
+  STUB_COMMANDS="$STUB_COMMANDS adjword"
+  case_run command-behind-adjacent-literals FAIL check 'egress on-neither-list=adjword'
+  STUB_COMMANDS="$STUB_COMMANDS plainword"
+  case_run command-in-a-non-rs-file-with-a-non-ascii-name FAIL check 'egress on-neither-list=plainword'
+  STUB_ODD=stdoutword:stdout
+  case_run answer-on-standard-output FAIL check 'egress on-neither-list=stdoutword'
+  STUB_ODD=exitword:exit3
+  case_run answer-with-exit-3 FAIL check 'egress on-neither-list=exitword'
+  STUB_ODD=textword:text
+  case_run answer-with-other-words FAIL check 'egress on-neither-list=textword'
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=13'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=20'
   STUB_CHECK=denied
   case_run denied-in-each-run FAIL denied 'egress checks=6 denied=6 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
