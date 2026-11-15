@@ -267,6 +267,10 @@ impl Runner {
     /// a regular file with that row's length and SHA-256, and the copy that a later `prepare` of the same path gives
     /// must have them too; otherwise the step fails with `step_failed`, so that no checkpoint that the person removed
     /// or changed is made again under a row that names another digest, also under another spelling of its path.
+    /// The check reads the copies outside the lock that `prepare` takes: when the person removes the checkpoint and
+    /// changes the workbook between that check and `prepare`'s own lock, `prepare` makes a copy of the changed
+    /// workbook, which stays under the `made` row with the old digest; the check after `prepare` ends the run
+    /// `failed` with `step_failed`, and the library leaves that copy as `changed`.
     /// The load before the
     /// `begin` is also held against the sheet of the `prepare`, a changed sheet being met as another digest is
     /// (CP-159 G2), and against the source of the read step, held as a text, so that another spelling of the same
