@@ -1,0 +1,32 @@
+{
+  "kind": "judge",
+  "ruling": "P7-83 (7) (c) D5, on B-36",
+  "about": "an HTML page that quotes the phrase: a violation",
+  "source": "by hand, after the review's probes p02 and p03 (reports/pr-review-18.md, N1) and the one form of 320 lost attempts in evidence/researcher-check50/runs",
+  "request": {
+    "status": 500,
+    "body": "<!DOCTYPE html><html><body><h1>Error</h1><p>Network connection lost.</p></body></html>",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "main-guard",
+  "ruling": "the planner's Addition 27, section 1 (plan.md line 239), from reports/builder-54.md lines 102 to 107",
+  "about": "a main-guard case whose argv1, chek, is not one of check, records and none: it would read as undefined, as none does, and pin nothing; records.mjs refuses it",
+  "source": "the review cases of builder-54 (evidence/builder-54/review/), written again by hand",
+  "cases": [
+    {
+      "argv1": "chek",
+      "main": false
+    }
+  ],
+  "refusal": "the argv1 \"chek\" of a case"
+}

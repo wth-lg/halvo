@@ -1,0 +1,62 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K5 (c), on D4 of P7-83 (7) (c)",
+  "about": "the request of good-d4-the-wait-runs-from-the-first-of-two-lost-sends with its two lost sends kept in the other order (2,500 ms, then 1,000 ms): the wait runs from the least send time, 1,000 ms, so 2,500 ms, whatever the order of the entries",
+  "source": "by hand, after the review's follow-up on firstSentAt",
+  "top": {
+    "requests": [
+      {
+        "id": "q0",
+        "index": 0,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 3000,
+        "headersAt": 3500,
+        "endedAt": 3501,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [
+          {
+            "why": "500",
+            "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+            "sentAt": 2500
+          },
+          {
+            "why": "reset",
+            "body": "",
+            "sentAt": 1000
+          }
+        ],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "slow": false,
+      "burstWaits": [
+        2500
+      ],
+      "burstMedianMs": 2500,
+      "slowBoundMs": 2600
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "main-guard",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "a main-guard record with no case: it pins nothing; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "cases": [],
+  "refusal": "its list cases is empty"
+}
