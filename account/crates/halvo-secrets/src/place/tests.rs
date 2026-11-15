@@ -363,6 +363,9 @@ impl Fs for Memory {
         let (from, to) = (dir.join(from), dir.join(to));
         self.step("publish", &to)?;
         let mut entries = self.entries.borrow_mut();
+        if !entries.contains_key(&from) {
+            return Err(io::Error::from_raw_os_error(ENOENT));
+        }
         if entries.contains_key(&to) {
             return Ok(Published::Exists);
         }
@@ -1820,11 +1823,15 @@ fn a_settle_beside_another_process_s_claim_that_goes_answers_no_hard_link_and_no
         let store = item(beside_a_live_claim().before_call(step, 1, owner));
         let read = store.after_claims(Item::read);
         let stands = bytes_at(&store.fs, PATH) == Some(STORED.to_vec());
-        match read {
-            Read::Found(held) => assert_eq!(held.expose(), STORED, "{case}"),
-            Read::NotStored => assert!(!stands, "{case}: NotStored while the file stands"),
-            Read::Fault(Fault { code: -1 }) => {}
-            read => panic!("{case}: the read answered {read:?}"),
+        match (step, read) {
+            ("publish", Read::Found(held)) => {
+                assert_eq!(held.expose(), STORED, "{case}");
+                assert!(stands, "{case}");
+            }
+            ("open_item" | "item_meta", Read::NotStored) => {
+                assert!(!stands, "{case}: NotStored while the file stands")
+            }
+            (_, read) => panic!("{case}: the read answered {read:?}"),
         }
     }
     let store = item(beside_a_live_claim().before_call("remove", 1, the_owner_removes_its_claim));
@@ -1929,4 +1936,31 @@ fn a_delete_if_holds_whose_claim_is_put_back_before_its_unlink_looks_once_more()
         "{answer:?}"
     );
     assert_eq!(bytes_at(&store.fs, PATH), Some(STORED.to_vec()));
+}
+
+#[test]
+fn a_delete_whose_second_look_meets_a_claim_it_cannot_read_answers_that() {
+    let claim = format!("{DIR}/.account.4241.0.claim");
+    let store = item(Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (claim.as_str(), Entry::file(0o644, STORED)),
+    ]));
+    assert_eq!(store.delete(), Delete::Locked(Locked::Mode));
+    assert_eq!(bytes_at(&store.fs, &claim), Some(STORED.to_vec()));
+}
+
+#[test]
+fn a_removal_at_the_person_s_word_answers_a_temporary_file_that_it_cannot_remove() {
+    let left = format!("{DIR}/.account.4242.0.tmp");
+    for code in [EIO, EACCES] {
+        let store = item(
+            Memory::with(&[
+                (DIR, Entry::dir(0o700)),
+                (left.as_str(), Entry::file(0o600, STORED)),
+            ])
+            .failing_call("remove", 1, code),
+        );
+        assert_eq!(store.remove_at_word(None), delete_class(code), "{code}");
+        assert_eq!(bytes_at(&store.fs, &left), Some(STORED.to_vec()), "{code}");
+    }
 }

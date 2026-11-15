@@ -2241,6 +2241,7 @@ mod real_files {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum At {
         Claim,
+        BeforeClaim,
         OpenName,
         RemoveName,
         OpenClaim,
@@ -2251,15 +2252,18 @@ mod real_files {
 
     struct HookedFs {
         at: At,
-        hook: Hook,
+        hooks: RefCell<Vec<Box<dyn FnOnce()>>>,
         opened: RefCell<String>,
     }
 
     impl HookedFs {
         fn fire(&self, at: At) {
             if self.at == at {
-                let hook = self.hook.borrow_mut().take();
-                if let Some(hook) = hook {
+                let next = {
+                    let mut hooks = self.hooks.borrow_mut();
+                    (!hooks.is_empty()).then(|| hooks.remove(0))
+                };
+                if let Some(hook) = next {
                     hook();
                 }
             }
@@ -2328,6 +2332,9 @@ mod real_files {
             if from.ends_with(".claim") && to == "account" {
                 self.fire(At::RenameBack);
             }
+            if from == "account" && to.ends_with(".claim") {
+                self.fire(At::BeforeClaim);
+            }
             let published = Fs::publish(&UnixFs, dir, from, to)?;
             if matches!(published, Published::Done) && to.ends_with(".claim") {
                 self.fire(At::Claim);
@@ -2354,10 +2361,14 @@ mod real_files {
     }
 
     fn hooked_item(label: &str, at: At, hook: Box<dyn FnOnce()>) -> Item<HookedFs, Plain> {
+        hooked_items(label, at, vec![hook])
+    }
+
+    fn hooked_items(label: &str, at: At, hooks: Vec<Box<dyn FnOnce()>>) -> Item<HookedFs, Plain> {
         Item {
             fs: HookedFs {
                 at,
-                hook: RefCell::new(Some(hook)),
+                hooks: RefCell::new(hooks),
                 opened: RefCell::new(String::new()),
             },
             codec: Plain,
@@ -2451,6 +2462,101 @@ mod real_files {
             !matches!(read, Read::NotStored),
             "the move read NotStored while X stands"
         );
+        assert_eq!(found(read), X, "the move's second look moves X");
+        assert_eq!(*items.borrow(), [X.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+    }
+
+    #[test]
+    fn a_move_whose_claim_is_put_back_twice_answers_a_fault_and_keeps_the_file() {
+        let label = "read-beside-two-put-back-claims";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        let this = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_items(
+                label,
+                At::Claim,
+                vec![
+                    signed_delete_if_holds_beside(label, &items),
+                    signed_delete_if_holds_beside(label, &items),
+                ],
+            ),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        let read = this.read();
+        assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
+        assert_eq!(found(file_item(label).read()), X);
+        assert!(items.borrow().is_empty());
+    }
+
+    fn claim_name_of_another_process(label: &str) -> std::path::PathBuf {
+        parent(label)
+            .join("store")
+            .join(format!(".account.{}.0.claim", std::process::id() + 1))
+    }
+
+    #[test]
+    fn a_move_that_finds_its_file_claimed_by_another_process_looks_once_more() {
+        for at in [At::OpenName, At::BeforeClaim] {
+            let label = format!("move-file-claimed-{at:?}").to_lowercase();
+            assert_eq!(file_item(&label).write(&secret(X)), Write::Stored);
+            let (from, to) = (
+                parent(&label).join("store").join("account"),
+                claim_name_of_another_process(&label),
+            );
+            let another: Box<dyn FnOnce()> = Box::new(move || {
+                std::fs::rename(&from, &to).expect("another process's claim");
+            });
+            let hooks: Vec<Box<dyn FnOnce()>> = if at == At::OpenName {
+                vec![Box::new(|| {}), another]
+            } else {
+                vec![another]
+            };
+            let items: Items = Rc::new(RefCell::new(Vec::new()));
+            let this = Mac {
+                keeps: Keeps::Keychain,
+                file: hooked_items(&label, at, hooks),
+                keychain: keys(SharedKeys {
+                    items: Rc::clone(&items),
+                }),
+            };
+            assert_eq!(found(this.read()), X, "{at:?}");
+            assert_eq!(*items.borrow(), [X.to_vec()], "{at:?}");
+            assert!(
+                names_in(&label).is_empty(),
+                "{at:?}: {:?}",
+                names_in(&label)
+            );
+        }
+    }
+
+    #[test]
+    fn a_move_whose_claim_another_process_removes_before_its_unlink_reads_found() {
+        let label = "move-claim-removed-before-its-unlink";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let store = parent(label).join("store");
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            let claim = std::fs::read_dir(&store)
+                .expect("the store directory")
+                .map(|entry| entry.expect("an entry").path())
+                .find(|path| path.to_string_lossy().ends_with(".claim"))
+                .expect("the move's claim");
+            std::fs::remove_file(claim).expect("another process ends the move");
+        });
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        let this = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_item(label, At::RemoveClaim, hook),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        assert_eq!(found(this.read()), X);
+        assert_eq!(*items.borrow(), [X.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
     }
 
     #[test]
@@ -2535,11 +2641,15 @@ mod real_files {
             let read = this.read();
             let stands = stands(&label, &items, X);
             println!("settle {keeps:?} {at:?} read={read:?} stands={stands}");
-            match read {
-                Read::Found(held) => assert_eq!(held.expose(), X, "{keeps:?} {at:?}"),
-                Read::NotStored => assert!(!stands, "{keeps:?} {at:?}: NotStored while X stands"),
-                Read::Fault(Fault { code: -1 }) => {}
-                read => panic!("{keeps:?} {at:?}: the read answered {read:?}"),
+            match (at, read) {
+                (At::RenameBack | At::RemoveClaim, Read::Found(held)) => {
+                    assert_eq!(held.expose(), X, "{keeps:?} {at:?}");
+                    assert!(stands, "{keeps:?} {at:?}");
+                }
+                (At::OpenClaim | At::MetaOfClaim, Read::NotStored) => {
+                    assert!(!stands, "{keeps:?} {at:?}: NotStored while X stands")
+                }
+                (at, read) => panic!("{keeps:?} {at:?}: the read answered {read:?}"),
             }
         }
     }
