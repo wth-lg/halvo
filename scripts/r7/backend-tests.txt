@@ -56,7 +56,7 @@ test/metering/closed-list.node.test.ts	4
 test/metering/cuts.node.test.ts	10
 test/metering/delete-bound-engines.node.test.ts	2
 test/metering/delete-bound-engines.test.ts	2
-test/metering/delete-order.node.test.ts	40
+test/metering/delete-order.node.test.ts	43
 test/metering/engines.node.test.ts	3
 test/metering/engines.test.ts	3
 test/metering/interval-bound.node.test.ts	1

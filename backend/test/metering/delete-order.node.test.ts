@@ -783,6 +783,41 @@ describe("one cancel call at a time for one id, and the cut interval's send firs
     });
   }
 
+  for (const state of ["lost", "refused", "in flight to its bound"] as const) {
+    test(`P7-113 T2 (d): usage in the cut interval and the older interval blocked (${state}): the cancel in the same call, two cancel-before-send lines, and the cut interval sent and acknowledged later before the removal`, async () => {
+      const blocked = state === "lost" ? [{ kind: "request-lost" as const }] : state === "refused" ? [{ kind: "refuse" as const, reason: "unknown_account" as const }] : [];
+      const d = await deleting({ testClock: false, faults: blocked });
+      const w = d.w;
+      await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+      w.at(START + 1000);
+      await w.use("r0", 10_000);
+      if (state === "in flight to its bound") w.faults.push({ kind: "during", run: () => new Promise<void>(() => {}) });
+      w.at(END);
+      const firstRun = quiet(w.lines, () => w.entries().alarm());
+      if (state !== "in flight to its bound") await firstRun;
+      else await new Promise((resolve) => setTimeout(resolve, 0));
+      const olderIdentifier = w.calls.find((each) => each.kind === "send")?.identifier;
+      w.at(END + 10_000);
+      await w.use("r1", 20_000);
+      const deleteAt = state === "in flight to its bound" ? END + CALL_IN_FLIGHT_MS : END + 20_000;
+      w.at(deleteAt);
+      expect(await destroy(w)).toEqual({ result: "not-finished" });
+      expect(d.cancelTimes).toEqual([deleteAt]);
+      expect(beforeSend(w)).toBe(2);
+      for (let run = 0; run < 400 && (await holds(w)); run += 1) {
+        const due = await w.host.getAlarm();
+        if (due === null) break;
+        w.at(Math.max(due, w.now()));
+        await quiet(w.lines, () => w.entries().alarm());
+      }
+      const cut = w.calls.filter((each) => each.kind === "send" && each.identifier !== olderIdentifier);
+      expect(cut.map((each) => each.answer)).toContain("recorded");
+      expect(w.meter.recordedEvents(ACCOUNT).some((each) => each.identifier !== olderIdentifier)).toBe(true);
+      expect(await holds(w)).toBe(false);
+      w.close();
+    });
+  }
+
   test("L4 (d): a cancel made with every interval acknowledged writes no cancel-before-send line", async () => {
     const d = await deleting();
     const w = d.w;
