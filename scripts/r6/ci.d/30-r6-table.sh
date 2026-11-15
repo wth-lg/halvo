@@ -434,10 +434,6 @@ check() {
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
     export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR
-    if [ -n "$STUB_TMPDIR" ]; then
-      TMPDIR=$STUB_TMPDIR
-      export TMPDIR
-    fi
     if [ -n "$STUB_QUIET" ]; then
       CARGO_TERM_QUIET=$STUB_QUIET
       export CARGO_TERM_QUIET
@@ -446,7 +442,7 @@ check() {
       CARGO_TERM_COLOR=$STUB_COLOR
       export CARGO_TERM_COLOR
     fi
-    sh "$self" 2>&1
+    TMPDIR=${STUB_TMPDIR:-${TMPDIR:-/tmp}} sh "$self" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
