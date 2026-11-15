@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -85,28 +74,72 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: U4.6 round 2 loop of the new tests
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          export CARGO_BUILD_JOBS=4
+          bad=0
+          cargo test -p halvo-agent-client --locked --no-run --message-format=json > "$RUNNER_TEMP/u46-build.json" 2> "$RUNNER_TEMP/u46-build.err"
+          echo "u46 build exit=$?"
+          exe() {
+            node -e 'const fs=require("fs");const want=process.argv[2];for(const l of fs.readFileSync(process.argv[1],"utf8").split("\n")){if(!l.startsWith("{"))continue;const m=JSON.parse(l);if(m.reason==="compiler-artifact"&&m.executable&&m.target&&m.target.name===want&&m.profile&&m.profile.test){console.log(m.executable.replace(/\\/g,"/"));break}}' "$RUNNER_TEMP/u46-build.json" "$1"
+          }
+          run_loop() {
+            target=$1; n=$2; threads=$3; shift 3
+            bin=$(exe "$target")
+            want=$#
+            if [ -z "$bin" ]; then echo "u46 loop $target: no executable"; bad=1; return; fi
+            pass=0; fail=0; start=$(date +%s)
+            for _ in $(seq 1 "$n"); do
+              out=$("$bin" --exact --test-threads "$threads" "$@" 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok\. $want passed; 0 failed"; then
+                pass=$((pass + 1))
+              else
+                fail=$((fail + 1))
+                printf '%s\n' "$out" | grep -E "^test .* FAILED$|^test result|panicked" | head -6
+              fi
+            done
+            end=$(date +%s)
+            echo "u46 loop $target runs=$n passed=$pass failed=$fail tests=$want seconds=$((end - start))"
+            if [ "$fail" -ne 0 ] || [ "$pass" -ne "$n" ]; then bad=1; fi
+          }
+          run_loop start 200 4 \
+            a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended \
+            a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_exit \
+            a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_nothing \
+            a_start_of_a_running_run_id_whose_value_read_fails_on_that_call_answers_started_and_makes_nothing \
+            a_start_with_a_relative_browser_of_a_run_id_whose_mark_of_an_earlier_life_stands_answers_started \
+            a_start_refused_for_a_relative_path_leaves_no_entry_and_the_same_run_id_then_starts
+          run_loop reap 200 4 \
+            a_kill_and_a_start_answer_while_a_reap_of_many_left_trees_runs \
+            a_link_swapped_in_for_profiles_agents_or_the_data_directory_while_reap_holds_profiles_takes_nothing_outside \
+            an_entry_swapped_for_a_link_after_the_listing_is_removed_as_a_link_and_what_it_names_stays
+          run_loop reap 20 1 reap_answers_alive_for_a_runner_that_lives_and_cannot_be_ended_and_keeps_its_mark
+          own02=a_run_started_while_reap_is_held_after_its_listing_keeps_its_profile
+          bin=$(exe reap)
+          first=$(node -e 'console.log(Date.now())')
+          "$bin" --exact "$own02" > /dev/null 2>&1
+          last=$(node -e 'console.log(Date.now())')
+          ms=$((last - first))
+          echo "u46 own-02 one run took ms=$ms"
+          if [ "$ms" -lt 2000 ]; then run_loop reap 200 1 "$own02"; else run_loop reap 20 1 "$own02"; fi
+          run_loop acts 200 8 \
+            three_add_origin_replies_of_another_id_and_then_an_acknowledgement_still_bind \
+            three_add_origin_error_replies_or_replies_of_another_form_and_then_an_acknowledgement_still_bind \
+            a_confirm_or_a_secret_after_a_cancel_written_while_allow_origin_runs_ends_the_run_unasked \
+            a_confirm_or_a_secret_after_a_cancel_written_while_the_add_origin_waits_ends_the_run_unasked \
+            a_store_of_finish_after_a_cancel_during_an_open_handback_stays_a_lost_flow \
+            an_add_origin_acknowledged_after_the_library_wrote_cancel_gives_the_runner_no_bind_reply \
+            a_confirm_after_a_done_account_link_and_its_reply_is_answered_and_the_run_ends_with_its_done
+          "$(exe start)" --exact --nocapture a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended 2>&1 | grep -E "u46 refused" | head -2
+          "$(exe reap)" --exact --nocapture a_kill_and_a_start_answer_while_a_reap_of_many_left_trees_runs a_link_swapped_in_for_profiles_agents_or_the_data_directory_while_reap_holds_profiles_takes_nothing_outside 2>&1 | grep -E "u46 (calls|swap)" | head -4
+          echo "u46 loop bad=$bad"
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -137,28 +170,72 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: U4.6 round 2 loop of the new tests
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          export CARGO_BUILD_JOBS=4
+          bad=0
+          cargo test -p halvo-agent-client --locked --no-run --message-format=json > "$RUNNER_TEMP/u46-build.json" 2> "$RUNNER_TEMP/u46-build.err"
+          echo "u46 build exit=$?"
+          exe() {
+            node -e 'const fs=require("fs");const want=process.argv[2];for(const l of fs.readFileSync(process.argv[1],"utf8").split("\n")){if(!l.startsWith("{"))continue;const m=JSON.parse(l);if(m.reason==="compiler-artifact"&&m.executable&&m.target&&m.target.name===want&&m.profile&&m.profile.test){console.log(m.executable.replace(/\\/g,"/"));break}}' "$RUNNER_TEMP/u46-build.json" "$1"
+          }
+          run_loop() {
+            target=$1; n=$2; threads=$3; shift 3
+            bin=$(exe "$target")
+            want=$#
+            if [ -z "$bin" ]; then echo "u46 loop $target: no executable"; bad=1; return; fi
+            pass=0; fail=0; start=$(date +%s)
+            for _ in $(seq 1 "$n"); do
+              out=$("$bin" --exact --test-threads "$threads" "$@" 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok\. $want passed; 0 failed"; then
+                pass=$((pass + 1))
+              else
+                fail=$((fail + 1))
+                printf '%s\n' "$out" | grep -E "^test .* FAILED$|^test result|panicked" | head -6
+              fi
+            done
+            end=$(date +%s)
+            echo "u46 loop $target runs=$n passed=$pass failed=$fail tests=$want seconds=$((end - start))"
+            if [ "$fail" -ne 0 ] || [ "$pass" -ne "$n" ]; then bad=1; fi
+          }
+          run_loop start 200 4 \
+            a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended \
+            a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_exit \
+            a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_nothing \
+            a_start_of_a_running_run_id_whose_value_read_fails_on_that_call_answers_started_and_makes_nothing \
+            a_start_with_a_relative_browser_of_a_run_id_whose_mark_of_an_earlier_life_stands_answers_started \
+            a_start_refused_for_a_relative_path_leaves_no_entry_and_the_same_run_id_then_starts
+          run_loop reap 200 4 \
+            a_kill_and_a_start_answer_while_a_reap_of_many_left_trees_runs \
+            a_link_swapped_in_for_profiles_agents_or_the_data_directory_while_reap_holds_profiles_takes_nothing_outside \
+            an_entry_swapped_for_a_link_after_the_listing_is_removed_as_a_link_and_what_it_names_stays
+          run_loop reap 20 1 reap_answers_alive_for_a_runner_that_lives_and_cannot_be_ended_and_keeps_its_mark
+          own02=a_run_started_while_reap_is_held_after_its_listing_keeps_its_profile
+          bin=$(exe reap)
+          first=$(node -e 'console.log(Date.now())')
+          "$bin" --exact "$own02" > /dev/null 2>&1
+          last=$(node -e 'console.log(Date.now())')
+          ms=$((last - first))
+          echo "u46 own-02 one run took ms=$ms"
+          if [ "$ms" -lt 2000 ]; then run_loop reap 200 1 "$own02"; else run_loop reap 20 1 "$own02"; fi
+          run_loop acts 200 8 \
+            three_add_origin_replies_of_another_id_and_then_an_acknowledgement_still_bind \
+            three_add_origin_error_replies_or_replies_of_another_form_and_then_an_acknowledgement_still_bind \
+            a_confirm_or_a_secret_after_a_cancel_written_while_allow_origin_runs_ends_the_run_unasked \
+            a_confirm_or_a_secret_after_a_cancel_written_while_the_add_origin_waits_ends_the_run_unasked \
+            a_store_of_finish_after_a_cancel_during_an_open_handback_stays_a_lost_flow \
+            an_add_origin_acknowledged_after_the_library_wrote_cancel_gives_the_runner_no_bind_reply \
+            a_confirm_after_a_done_account_link_and_its_reply_is_answered_and_the_run_ends_with_its_done
+          "$(exe start)" --exact --nocapture a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended 2>&1 | grep -E "u46 refused" | head -2
+          "$(exe reap)" --exact --nocapture a_kill_and_a_start_answer_while_a_reap_of_many_left_trees_runs a_link_swapped_in_for_profiles_agents_or_the_data_directory_while_reap_holds_profiles_takes_nothing_outside 2>&1 | grep -E "u46 (calls|swap)" | head -4
+          echo "u46 loop bad=$bad"
+          exit "$bad"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
