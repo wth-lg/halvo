@@ -172,7 +172,7 @@ facts=$(awk -v count="$count" -v body="$work/body.jsonl" '
             text = text (i > 5 ? "," : "") "{\"move\":\"" part[1] "\",\"arg\":" (part[2] == "-" ? "null" : part[2]) ",\"answer\":\"" part[3] "\",\"state\":\"" part[4] "\",\"spent\":" part[5] ",\"held\":" part[6] ",\"cost\":" part[7] "}"
             before = part[4]
         }
-        if (drawn && !(text in seen)) {
+        if (traces > 6 && !(text in seen)) {
             seen[text] = 1
             differ++
         }
