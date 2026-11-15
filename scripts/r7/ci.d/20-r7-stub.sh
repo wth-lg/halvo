@@ -1,9 +1,17 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The account backend's stand-in under account/stub/ locks no package and its self-test passes on Node 26 or later, with at least 40 tests and none failed, skipped, cancelled or left to do: each request that the vendored schema or route table refuses gets the rejection of contract 1.4, each accepted request an answer that the schema allows, and the scripted states, the recorder and the TLS form with a test authority made in a temp directory each hold.
+# rule: The account backend's stand-in under account/stub/ locks no package and its self-test passes on Node 26 or later, with at least 40 tests and none failed, skipped, cancelled or left to do: each request that the vendored schema or route table refuses gets the rejection of contract 1.4, each accepted request an answer that the schema allows, and the scripted states, the recorder and the TLS form with a test authority made in a temp directory each hold; the tests leave no halvo-stub-record directory in the temp directory that the check gives them, and the check removes that directory at its end.
 set -u
 name=20-r7-stub
 min_tests=40
+work=
+
+remove_work() {
+  case $work in
+    "${TMPDIR:-/tmp}/$name".??????) rm -rf "$work" ;;
+    *) ;;
+  esac
+}
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -38,6 +46,7 @@ measure() {
   fi
 
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail 'mktemp failed'
+  trap remove_work EXIT
   tap=$CI_D_ARTIFACTS/stub-tests.tap
   TMPDIR=$work TEMP=$work TMP=$work node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit --test-reporter=tap account/stub/test/*.test.mjs >"$tap" 2>&1
   code=$?
@@ -60,6 +69,11 @@ measure() {
     fail "a stub test failed, was cancelled, was skipped or is left to do; the output is the artifact stub-tests.tap"
   [ "$n_pass" -eq "$n_tests" ] || fail "only $n_pass of $n_tests stub tests passed"
   [ "$n_tests" -ge "$min_tests" ] || fail "$n_tests stub tests ran, fewer than the $min_tests that this script asks for"
+  set -- "$work"/halvo-stub-record-*
+  left=0
+  [ -e "$1" ] && left=$#
+  printf 'halvo-stub-record directories left under the TMPDIR of the tests: %s\n' "$left"
+  [ "$left" -eq 0 ] || fail "the stub tests left $left halvo-stub-record directories under their TMPDIR"
   printf 'PASS %s\n' "$name"
 }
 
@@ -68,7 +82,7 @@ check() {
     PATH=${STUB_PATH:-$work/bin:$PATH}
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_VERSION STUB_TAP STUB_EXIT
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_VERSION STUB_TAP STUB_EXIT STUB_LEAVE STUB_SEEN
     sh "$0" 2>&1
   )
   code=$?
@@ -97,6 +111,8 @@ reset() {
   STUB_TAP=$work/tap/good
   STUB_EXIT=0
   STUB_PATH=
+  STUB_LEAVE=
+  STUB_SEEN=$work/seen
   printf '{"name":"x","private":true}\n' >"$work/repo/account/stub/package.json"
   printf '{"name":"x","lockfileVersion":3,"packages":{"":{"name":"x"}}}\n' >"$work/repo/account/stub/package-lock.json"
 }
@@ -108,6 +124,7 @@ tap() {
 
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  trap remove_work EXIT
   mkdir -p "$work/bin" "$work/nonode" "$work/repo/account/stub/test" "$work/artifacts" "$work/tap"
   : >"$work/repo/account/stub/test/a.test.mjs"
   cat >"$work/bin/node" <<'EOF'
@@ -122,6 +139,8 @@ esac
   { printf 'stub node: got the arguments: %s\n' "$*"; exit 96; }
 [ -n "${TMPDIR:-}" ] && [ "$TMPDIR" = "${TEMP:-}" ] && [ "$TMPDIR" = "${TMP:-}" ] && [ -d "$TMPDIR" ] ||
   { printf 'stub node: TMPDIR, TEMP and TMP do not name one directory\n'; exit 95; }
+printf '%s\n' "$TMPDIR" >"$STUB_SEEN"
+[ -z "$STUB_LEAVE" ] || mkdir "$TMPDIR/halvo-stub-record-$STUB_LEAVE" "$TMPDIR/halvo-stub-record-${STUB_LEAVE}b"
 cat "$STUB_TAP"
 exit "$STUB_EXIT"
 EOF
@@ -141,6 +160,22 @@ EOF
   reset
 
   check passing PASS 'stub tests: 40 run, 40 passed, 0 failed, 0 cancelled, 0 skipped, 0 todo, exit 0'
+  seen=$(cat "$work/seen") || seen=
+  if [ -n "$seen" ] && [ ! -e "$seen" ]; then
+    printf 'case %s/temp-directory-removed want=gone got=gone\n' "$name"
+  else
+    printf 'case %s/temp-directory-removed want=gone got=left\n' "$name"
+    wrong="$wrong temp-directory-removed"
+  fi
+  STUB_LEAVE=x
+  check record-directories-left FAIL 'the stub tests left 2 halvo-stub-record directories under their TMPDIR'
+  seen=$(cat "$work/seen") || seen=
+  if [ -n "$seen" ] && [ ! -e "$seen" ]; then
+    printf 'case %s/temp-directory-removed-after-a-fail want=gone got=gone\n' "$name"
+  else
+    printf 'case %s/temp-directory-removed-after-a-fail want=gone got=left\n' "$name"
+    wrong="$wrong temp-directory-removed-after-a-fail"
+  fi
   STUB_TAP=$work/tap/failed
   STUB_EXIT=1
   check a-test-fails FAIL '1 of 40 stub tests failed (exit 1)'
