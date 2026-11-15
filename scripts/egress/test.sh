@@ -727,6 +727,7 @@ test_search() {
   search_case search/holding-1-to-5-and-9-takes-10 'takes 10' 10 - dir:1 dir:2 dir:3 dir:4 dir:5 dir:9
   search_case search/another-run-claims-4-first-takes-5 'takes 5' '4 5' race dir:1 dir:2 dir:3
   search_case search/a-file-at-the-number-is-refused 'refused target/egress/3' 3 - dir:1 dir:2 file:3
+  search_case search/a-file-below-the-highest-is-passed-over 'takes 5' 5 - dir:1 dir:2 file:3 dir:4
   search_case search/holding-9-and-10-takes-11 'takes 11' 11 - dir:9 dir:10
   search_case search/holding-2-19-and-200-takes-201 'takes 201' 201 - dir:2 dir:19 dir:200
   search_case search/a-name-of-19-digits-below-9e18-is-a-number 'takes 8999999999999999999' 8999999999999999999 - dir:1 dir:8999999999999999998
