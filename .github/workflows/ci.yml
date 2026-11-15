@@ -100,6 +100,50 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop of builder-49's new tests
+        shell: bash
+        run: |
+          PY=$(command -v python3 || command -v python)
+          "$PY" - <<'LOOP_EOF'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          ROUNDS = int(os.environ.get("LOOP_ROUNDS", "200"))
+          NAMES = [
+              "a_run_filled_to_its_bound_with_long_paths_and_made_at_the_widest_lists_in_a_page_that_the_writer_takes",
+              "a_run_filled_to_its_bound_with_short_paths_and_made_at_the_widest_bytes_lists_in_a_page_that_the_writer_takes",
+          ]
+          RESULT = re.compile(r"^test result: ok\. (\d+) passed; 0 failed", re.M)
+          build = subprocess.run(
+              ["cargo", "test", "--locked", "--release", "-p", "halvo-agent-store", "--test", "checkpoint_bodies",
+               "--no-run", "--message-format=json"],
+              capture_output=True, text=True,
+          )
+          exes = set()
+          for line in build.stdout.splitlines():
+              try:
+                  message = json.loads(line)
+              except ValueError:
+                  continue
+              if (message.get("reason") == "compiler-artifact" and message.get("executable")
+                      and message.get("profile", {}).get("test") and message["target"]["name"] == "checkpoint_bodies"):
+                  exes.add(message["executable"])
+          if build.returncode != 0 or len(exes) != 1:
+              print(f"loop checkpoint_bodies (release): build exit {build.returncode}, binaries {len(exes)}")
+              sys.exit(1)
+          exe = exes.pop()
+          good = 0
+          for _ in range(ROUNDS):
+              run = subprocess.run([exe, "--exact", "--test-threads", "2", *NAMES], capture_output=True, text=True)
+              counts = [int(n) for n in RESULT.findall(run.stdout)]
+              if run.returncode == 0 and counts == [len(NAMES)]:
+                  good += 1
+          print(f"loop halvo-agent-store --test checkpoint_bodies (release): tests {len(NAMES)} rounds {ROUNDS} passed {good}")
+          sys.exit(0 if good == ROUNDS else 1)
+          LOOP_EOF
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -156,6 +200,50 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop of builder-49's new tests
+        shell: bash
+        run: |
+          PY=$(command -v python3 || command -v python)
+          "$PY" - <<'LOOP_EOF'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          ROUNDS = int(os.environ.get("LOOP_ROUNDS", "200"))
+          NAMES = [
+              "a_run_filled_to_its_bound_with_long_paths_and_made_at_the_widest_lists_in_a_page_that_the_writer_takes",
+              "a_run_filled_to_its_bound_with_short_paths_and_made_at_the_widest_bytes_lists_in_a_page_that_the_writer_takes",
+          ]
+          RESULT = re.compile(r"^test result: ok\. (\d+) passed; 0 failed", re.M)
+          build = subprocess.run(
+              ["cargo", "test", "--locked", "--release", "-p", "halvo-agent-store", "--test", "checkpoint_bodies",
+               "--no-run", "--message-format=json"],
+              capture_output=True, text=True,
+          )
+          exes = set()
+          for line in build.stdout.splitlines():
+              try:
+                  message = json.loads(line)
+              except ValueError:
+                  continue
+              if (message.get("reason") == "compiler-artifact" and message.get("executable")
+                      and message.get("profile", {}).get("test") and message["target"]["name"] == "checkpoint_bodies"):
+                  exes.add(message["executable"])
+          if build.returncode != 0 or len(exes) != 1:
+              print(f"loop checkpoint_bodies (release): build exit {build.returncode}, binaries {len(exes)}")
+              sys.exit(1)
+          exe = exes.pop()
+          good = 0
+          for _ in range(ROUNDS):
+              run = subprocess.run([exe, "--exact", "--test-threads", "2", *NAMES], capture_output=True, text=True)
+              counts = [int(n) for n in RESULT.findall(run.stdout)]
+              if run.returncode == 0 and counts == [len(NAMES)]:
+                  good += 1
+          print(f"loop halvo-agent-store --test checkpoint_bodies (release): tests {len(NAMES)} rounds {ROUNDS} passed {good}")
+          sys.exit(0 if good == ROUNDS else 1)
+          LOOP_EOF
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
