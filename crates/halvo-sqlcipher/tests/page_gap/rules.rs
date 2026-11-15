@@ -22,6 +22,10 @@
 //! size of its page is a line that names the page and the byte, and the page's
 //! other rules still run; a file shorter than its 100-byte header, and a page
 //! size that is no power of two from 512 up, are lines and no page is read.
+//! The walk of a cell's overflow chain is bounded by the pages of the file:
+//! a page that one chain meets a second time is a line that names it, and
+//! the walk of that chain stops there, so no chain is walked over more pages
+//! than the file holds (S-96).
 //! This file uses `std` and
 //! `rusqlite` alone, so that another crate's tests can include it by a path
 //! attribute; such a caller runs [`plants`] on its own images and reads every
@@ -357,7 +361,14 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
     let mut walks: BTreeMap<usize, usize> = BTreeMap::new();
     for (first, mut left) in chains {
         let mut number = first;
+        let mut met = BTreeSet::new();
         while number != 0 && number <= count && left > 0 {
+            if !met.insert(number) {
+                problems.push(format!(
+                    "page {number}: one overflow chain meets this page a second time, so the walk of that chain stops there"
+                ));
+                break;
+            }
             *walks.entry(number).or_default() += 1;
             let page = &db[(number - 1) * size..number * size];
             let used = left.min(usable - 4);

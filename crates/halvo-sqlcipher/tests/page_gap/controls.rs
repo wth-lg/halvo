@@ -544,3 +544,52 @@ fn store_shaped_like_derived() -> Scratch {
     }
     scratch
 }
+
+/// S-96 1: a table leaf whose one cell has a payload length of 2^64 less 1
+/// and an overflow chain that starts at a page naming itself as its next. The
+/// check answers within its own time limit, with the line of the page that
+/// the chain meets a second time.
+#[test]
+fn an_overflow_chain_that_meets_a_page_a_second_time_is_a_line_and_the_check_answers() {
+    crate::initialize().unwrap();
+    let scratch = small_store(Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    let mut db = std::fs::read(scratch.db()).unwrap();
+    let count = db.len() / PAGE;
+    let leaf = (2..=count).find(|&n| db[page(n)] == 13).unwrap();
+    let other = (2..=count).rev().find(|&n| n != leaf).unwrap();
+    let payload = u64::MAX;
+    let (max, min) = (PAGE as u64 - 35, (PAGE as u64 - 12) * 32 / 255 - 23);
+    let k = min + (payload - min) % (PAGE as u64 - 4);
+    let local = if k <= max { k } else { min } as usize;
+    let at = PAGE - (9 + 1 + local + 4);
+    let base = page(leaf);
+    db[base..base + PAGE].fill(0);
+    db[base] = 13;
+    db[base + 3..base + 5].copy_from_slice(&1u16.to_be_bytes());
+    db[base + 5..base + 7].copy_from_slice(&(at as u16).to_be_bytes());
+    db[base + 8..base + 10].copy_from_slice(&(at as u16).to_be_bytes());
+    db[base + at..base + at + 9].fill(0xff);
+    db[base + at + 9] = 1;
+    db[base + PAGE - 4..base + PAGE].copy_from_slice(&(other as u32).to_be_bytes());
+    db[page(other)..page(other) + 4].copy_from_slice(&(other as u32).to_be_bytes());
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(rules::check(&conn, &db).problems);
+    });
+    let found = receiver
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .unwrap_or_else(|_| {
+            panic!(
+                "check() gave no answer in 30 s on an image whose overflow chain starts at page \
+                 {other} and names page {other} as its next"
+            )
+        });
+    let named = format!(
+        "page {other}: one overflow chain meets this page a second time, so the walk of that chain stops there"
+    );
+    assert!(
+        found.iter().any(|line| line == &named),
+        "no line names the page that one chain meets twice: {found:?}"
+    );
+}
