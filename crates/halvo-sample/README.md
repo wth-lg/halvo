@@ -89,6 +89,10 @@ name, from 1. No name below the argument is printed, because a file's name may b
 - The detail of the `tier-manifest` refusal of `leak` and of `input-copy` is the TIER argument
   as given. Where listed files do not hash to their entries, ` mismatched=<n>` follows it, n
   being the number of such files. It never holds a path that the manifest lists.
+- The `site-data` refusal of `compose`, of the fixture server and of
+  tools/fixture-server/check-sites.mjs names a site file as `SITE_DATA <n>`: n is the file's
+  number in byte order of the paths given, from 1, and equal paths keep the order given. The
+  checker's `password`, `card` and `missing` lines still print the path of a site file.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.
