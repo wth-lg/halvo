@@ -28,6 +28,7 @@ crates/halvo-cap/src/lock.rs 1 workflow run
 crates/halvo-cap/tests/model_lock.rs 1 workflow run
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
 crates/halvo-checkpoint/tests/identity.rs 1 agent-setup run, U2.4
+crates/halvo-coord/tests/fixtures_same.rs 1 interface run
 crates/halvo-derived/src/tests.rs 1 workflow run
 crates/halvo-derived/tests/common/mod.rs 1 workflow run
 crates/halvo-runner/tests/support/mod.rs 1 agent-setup run, U4.1
@@ -49,9 +50,9 @@ tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=32
-pinned_places=45
-pinned_paths=1290721829
+pinned_rows=33
+pinned_places=46
+pinned_paths=1509690412
 
 program='
 function code(s) {
@@ -229,8 +230,8 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
       d += db[j]
       w += rc[j]
     }
-    if (ref[k] || (d && !w && cc[k] ~ /\.create\(/)) kind = 1
-    else if (acc[k]) kind = 2
+    if (acc[k]) kind = 2
+    else if (ref[k] || (d && !w && cc[k] ~ /\.create\(/)) kind = 1
     else continue
     if (kind == 1 && l && cc[k] ~ /is_ok\(\)|match |Ok\(/ && ends(k, n)) continue
     if (m || (s && f)) {
@@ -383,7 +384,7 @@ A create_dir that is no place:
   one that a loop (loop, for, while, .find) retries, whose result the same line tests
   (is_ok(), match, Ok() and whose success ends the loop by a return or a break within
   three lines, or by .find on the same line. A line whose only folder call is
-  create_dir_all is never such a create_dir.
+  create_dir_all is never such a create_dir, whatever else it holds.
 
 Reads of the process id or the clock:
   process::id(), id(), getpid(), GetCurrentProcessId, SystemTime, UNIX_EPOCH,
@@ -403,9 +404,7 @@ Forms that it does not read (each can share a folder and pass):
   another variable, a struct field or a closure; a SystemTime or an Instant under
   another name by use ... as; a macro other than format! and write!; a module that
   #[path = ...] or cfg_attr places; a retry whose result is tested more than three lines
-  below the create_dir (read as a place); a create_dir_all of the name on the line of a
-  retried create_dir (the line counts as the create_dir); a retry that takes the same
-  name again. After an inline test module opens, the rest of its file is read as test
+  below the create_dir (read as a place); a retry that takes the same name again. After an inline test module opens, the rest of its file is read as test
   code.
 
 The known list, known() in this script, holds each file of another unit with its count of
@@ -532,7 +531,7 @@ self_test() {
 
   repo base-and-dir-on-one-line
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if fs::create_dir_all(base).is_ok() && fs::create_dir(&dir).is_ok() {\n            return dir;\n        }\n    }\n}\n'
-  case_of base-and-dir-on-one-line PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of base-and-dir-on-one-line FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo the-maker-itself
   put crates/halvo-test-dir/src/lib.rs "#[cfg(test)]\nmod tests {\n$place}\n"
