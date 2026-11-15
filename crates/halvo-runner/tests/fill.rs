@@ -66,15 +66,28 @@ fn the_fill_playbook_replays_on_seeds_1_to_3() {
             seen.tags(),
             [
                 "hello", "store", "progress", "store", "progress", "store", "store", "store",
-                "store", "store", "store", "store", "done"
+                "store", "store", "store", "store", "store", "store", "done"
             ],
             "seed {seed}"
         );
         assert_eq!(
             seen.ops(),
-            ["load", "log", "load", "effect", "load", "effect", "effect", "log", "finish"],
-            "seed {seed}: load, the read's line, the load before the prepare and the propose, the propose, the \
-             load before the begin, the begin and the commit, the write's line"
+            [
+                "load",
+                "log",
+                "load",
+                "checkpoint",
+                "checkpoint",
+                "effect",
+                "load",
+                "effect",
+                "effect",
+                "log",
+                "finish"
+            ],
+            "seed {seed}: load, the read's line, the load before the prepare and the propose, the checkpoint's \
+             planned and made rows, the propose, the load before the begin, the begin and the commit, the write's \
+             line"
         );
         let effects = seen.effects();
         assert_eq!(

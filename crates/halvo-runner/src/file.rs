@@ -1,18 +1,21 @@
+use std::ffi::OsStr;
+use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 
 use halvo_control::paths::DataDir;
 use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
-use halvo_schema::executable::body::LoadReply;
+use halvo_schema::executable::body::{LoadReply, PutCheckpoint, Stored};
 use halvo_schema::executable::names::{Autonomy, FieldName, Permission, Source};
 use halvo_schema::executable::step::FileTarget;
-use halvo_schema::executable::text::{Name, OwnValue};
+use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    ActionClass, AgentConfig, Bound, BoundField, Cause, Digest, EffectState, ExecutableStep,
-    Outcome,
+    ActionClass, AgentCheckpoint, AgentConfig, Bound, BoundField, Cause, CheckpointState, Digest,
+    EffectState, ExecutableStep, Outcome, RunnerCall, RunnerReply,
 };
-use halvo_sheet::{Folder, Locks, Range, Value};
+use halvo_sheet::{Folder, Locks, Range, Sha256, Value};
 
-use crate::run::{Failure, Runner, Stop};
+use crate::clock::{day, now};
+use crate::run::{cause_of, Failure, Runner, Stop};
 
 /// The cause of A7.4 that an error of the sheet executor gives: `workbook` and `sheet` are its own, every other
 /// error is `step_failed` (A11.3).
@@ -124,6 +127,56 @@ pub(crate) struct ReadUnder {
 }
 
 impl Runner {
+    /// Stores one row of the run's checkpoint of `workbook`, which `prepare` is given in the folder `dir`, under the
+    /// copy's name `copy` (A7.1, A7.4, CP-98 (4)): without `made`, the row `planned` with `seq` 1 and no digest; with
+    /// the SHA-256 and the length of the copy that `prepare` made, the row `made` with `seq` 2. A row that the store
+    /// does not take with `{"stored":1}` ends the run `failed`.
+    fn checkpoint_row(
+        &mut self,
+        dir: &Path,
+        workbook: &Path,
+        copy: &OsStr,
+        made: Option<(Sha256, u64)>,
+    ) -> Result<(), Failure> {
+        let (seq, state, sha256, bytes) = match made {
+            None => (NonZeroU32::MIN, CheckpointState::Planned, None, None),
+            Some((sha, len)) => {
+                let sha =
+                    Digest::parse(&sha.hex()).map_err(|_| Failure::Step(Cause::StepFailed))?;
+                let len = u32::try_from(len).map_err(|_| Failure::Step(Cause::StepFailed))?;
+                let second = NonZeroU32::MIN.saturating_add(1);
+                (second, CheckpointState::Made, Some(sha), Some(len))
+            }
+        };
+        let at = now();
+        let record = AgentCheckpoint {
+            v: V1,
+            workflow: self.args.workflow.clone(),
+            agent: self.args.agent.clone(),
+            run: self.args.run.clone(),
+            seq,
+            day: day(at),
+            at,
+            folder: OwnValue::new(&dir.to_string_lossy()),
+            workbook: OwnValue::new(&workbook.to_string_lossy()),
+            copy: OwnValue::new(&copy.to_string_lossy()),
+            sha256,
+            bytes,
+            state,
+            left: None,
+        };
+        let call = RunnerCall::Checkpoint(PutCheckpoint {
+            agent: self.args.agent.clone(),
+            run: self.args.run.clone(),
+            record,
+        });
+        match self.store(call)? {
+            Ok(RunnerReply::Stored(Stored { stored: 1 })) => Ok(()),
+            Ok(_) => Err(Stop::End(Outcome::Failed, Some(Cause::StepFailed)).into()),
+            Err(error) => Err(Stop::End(Outcome::Failed, Some(cause_of(error))).into()),
+        }
+    }
+
     /// A `file` `read`: the rows of the source file of the target's slot, kept under the name of the arg `as`.
     pub(crate) fn file_read(
         &mut self,
@@ -164,7 +217,9 @@ impl Runner {
     /// `refused`; on another digest a new effect is proposed from that load with its own `prepare`, at most
     /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`; after such an end the
     /// prepared copy is gone and the run's checkpoint stays as `prepare` made it, until the library removes it for the
-    /// stored end (A11.3); at this head the runner writes no checkpoint row, so nothing removes the checkpoint yet.
+    /// stored end (A11.3); the runner removes no checkpoint. After the load before the edit and before `prepare` the
+    /// runner stores the checkpoint's row `planned`, and once `prepare` has made the copy its row `made` with the
+    /// SHA-256, the length and the name that `prepare` gives, before the effect's `propose` (A7.1, CP-98 (4)).
     /// The load before the
     /// `begin` is also held against the sheet of the `prepare`, a changed sheet being met as another digest is
     /// (CP-159 G2), and against the source of the read step, held as a text, so that another spelling of the same
@@ -213,9 +268,18 @@ impl Runner {
             let range_text = slot_text(&loaded, target.range.as_ref())?;
             let range = Range::parse(&range_text).map_err(|e| Failure::Step(sheet_cause(&e)))?;
             let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
+            let planned = halvo_checkpoint::checkpoint_name(&workbook, &run)
+                .ok_or(Failure::Step(Cause::StepFailed))?;
+            self.checkpoint_row(&dir, &workbook, &planned, None)?;
             let prepared = folder
                 .prepare(&workbook, &run, &sheet, range, &rows)
                 .map_err(|e| Failure::Step(sheet_cause(&e)))?;
+            self.checkpoint_row(
+                &dir,
+                &workbook,
+                prepared.checkpoint_name(),
+                Some((prepared.checkpoint_sha256(), prepared.checkpoint_bytes())),
+            )?;
             let bound =
                 edit_bound(&workbook, &range_text).ok_or(Failure::Step(Cause::StepFailed))?;
             let facts = Facts {

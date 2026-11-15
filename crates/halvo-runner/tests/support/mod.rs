@@ -17,8 +17,8 @@ use halvo_schema::executable::names::{HandbackOutcome, HandbackReason};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentLog, AgentRun, EffectState, ExecutableStep, FromRunner,
-    HandbackResult, Outcome, RunId, ToRunner, WebOrigin,
+    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, EffectState, ExecutableStep,
+    FromRunner, HandbackResult, Outcome, RunId, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
 
@@ -199,6 +199,17 @@ impl Seen {
 
     pub fn states(&self) -> Vec<EffectState> {
         self.effects().iter().map(|e| e.state).collect()
+    }
+
+    /// The records of the `checkpoint` bodies, in the order that the runner sent them.
+    pub fn checkpoints(&self) -> Vec<AgentCheckpoint> {
+        self.calls()
+            .into_iter()
+            .filter_map(|c| match c {
+                RunnerCall::Checkpoint(b) => Some(b.record),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn logs(&self) -> Vec<AgentLog> {
