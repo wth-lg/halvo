@@ -6,6 +6,7 @@ import type { ProviderEvent, ProviderPort } from "../../src/billing/port.ts";
 import {
   ALARM_CALL_LIMIT,
   ALARM_RETRY_LIMIT,
+  ALARM_PAUSE_CAP_MS,
   ALARM_RETRY_MS,
   CLOCK_RUN_LIMIT,
   DELETE_REMOVAL_BOUND_MS,
@@ -1347,5 +1348,39 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     expect(events().filter((event) => event === "alarm-stopped")).toEqual([]);
     expect(w.alarms.filter((at) => at === null)).toEqual([]);
     expect(w.alarmAt()).not.toBeNull();
+  });
+
+  test("L3 (b): a recurring error under the mark for one day: no two runs closer than the pause, which doubles from ALARM_RETRY_MS to ALARM_PAUSE_CAP_MS, one run and its alarm-error lines in each hour once the pause is capped", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = "ledger.expire";
+    w.reset();
+    const runs: { at: Ms; errors: number }[] = [];
+    while (now < 8000 + 24 * 3_600_000) {
+      const at = w.alarmAt();
+      if (at === null || at <= now) break;
+      now = at;
+      const before = lines.length;
+      await w.entries.alarm();
+      runs.push({ at, errors: lines.slice(before).filter((line) => line.event === "alarm-error").length });
+    }
+    w.answers.throwIn = null;
+    const pause = (failures: number) => Math.min(ALARM_RETRY_MS * 2 ** (failures - 1), ALARM_PAUSE_CAP_MS);
+    const gaps = runs.slice(1).map((run, index) => run.at - (runs[index]?.at ?? 0));
+    expect(gaps.every((gap, index) => gap >= pause(index + 1))).toBe(true);
+    const hours = new Map<number, { runs: number; errors: number }>();
+    for (const run of runs) {
+      const hour = Math.floor((run.at - 8000) / 3_600_000);
+      const seen = hours.get(hour) ?? { runs: 0, errors: 0 };
+      hours.set(hour, { runs: seen.runs + 1, errors: seen.errors + run.errors });
+    }
+    const perRun = runs[0]?.errors ?? 0;
+    expect(perRun).toBeGreaterThan(0);
+    for (let hour = 3; hour < 24; hour += 1) expect(hours.get(hour)).toEqual({ runs: 1, errors: perRun });
+    expect(events().filter((event) => event === "alarm-stopped")).toEqual([]);
   });
 });

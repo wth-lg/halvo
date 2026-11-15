@@ -19,6 +19,7 @@ export const ALARM_CALL_LIMIT = 3;
 export const START_RESTARTS = 2;
 export const CLOCK_RUN_LIMIT = 100;
 export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
+export const ALARM_PAUSE_CAP_MS = 3_600_000;
 export interface Host {
   step: Step;
   clock(): Ms;
@@ -454,23 +455,28 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null);
     let count = ALARM_RETRY_LIMIT;
     let tested = false;
+    let waits: Ms | null = null;
     try {
       const counted = host.step((sql) => {
         const now = Math.max(time(sql), lastNow(sql));
-        const markedNow = marked || markOf(sql).since !== null;
+        const mark = markOf(sql);
+        const markedNow = marked || mark.since !== null;
         const prior = Number(skeletonRow(sql).alarm_failures);
         const failures = markedNow ? prior + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET last_now = ?, alarm_failures = ?", now, failures);
-        return { failures, tested: testTime(sql) !== null, marked: markedNow };
+        const owed = mark.answeredAt === null ? mark.nextAt : mark.answeredAt + DELETE_REMOVAL_BOUND_MS;
+        return { failures, tested: testTime(sql) !== null, marked: markedNow, owed };
       });
       count = counted.failures;
       tested = counted.tested;
       marked = counted.marked;
+      waits = counted.owed;
     } catch {
-      count = ALARM_RETRY_LIMIT;
+      count = marked ? 1 : ALARM_RETRY_LIMIT;
     }
     if (marked) {
-      armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
+      const pause = Math.min(ALARM_RETRY_MS * 2 ** Math.min(count - 1, 30), ALARM_PAUSE_CAP_MS);
+      armAlarm(tested ? null : Math.max(host.clock() + pause, waits ?? 0));
       return;
     }
     if (count < ALARM_RETRY_LIMIT) {
