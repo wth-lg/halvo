@@ -141,7 +141,17 @@ fn a_start_without_a_utc_offset_or_with_one_out_of_range_is_refused_before_any_f
         "REFUSED usage: no --utc-offset",
     )];
     for value in [
-        "50401", "-50401", "2147483648", "1.5", "", "x", "+3600", "0x10", "007", "-0", " 1",
+        "50401",
+        "-50401",
+        "2147483648",
+        "1.5",
+        "",
+        "x",
+        "+3600",
+        "0x10",
+        "007",
+        "-0",
+        " 1",
     ] {
         let mut args = without_offset(&sup);
         args.extend(["--utc-offset".to_string(), value.to_string()]);

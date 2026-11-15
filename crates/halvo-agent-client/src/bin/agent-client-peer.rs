@@ -1022,9 +1022,9 @@ fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
 /// Whether `value` is an offset that the runner takes: a whole number from -50,400 to 50,400 in the form that `i32`
 /// writes.
 fn offset_in_range(value: &str) -> bool {
-    value
-        .parse::<i32>()
-        .is_ok_and(|n| (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(&n) && n.to_string() == value)
+    value.parse::<i32>().is_ok_and(|n| {
+        (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(&n) && n.to_string() == value
+    })
 }
 
 fn runner(args: &[String]) {

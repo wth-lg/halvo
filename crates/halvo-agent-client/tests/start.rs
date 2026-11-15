@@ -207,7 +207,11 @@ fn a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_
             "{offset}: {}",
             script.log()
         );
-        assert!(script.wait_log("refused utc-offset", SHORT), "{}", script.log());
+        assert!(
+            script.wait_log("refused utc-offset", SHORT),
+            "{}",
+            script.log()
+        );
         assert_eq!(offsets_logged(&script), [offset.to_string()], "{offset}");
         assert_eq!(
             script.log().lines().last(),
