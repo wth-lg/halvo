@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,21 +81,75 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-egress
+      - name: U0.1b 10-egress at the unit head with its long cases
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: |
+          set +e
+          job=macos
+          part=sandbox
+          unit="$RUNNER_TEMP/u01b-unit"
+          git worktree add --detach "$unit" HEAD^1
+          cd "$unit" || exit 1
+          git log -1 --format='unit head %H %s'
+          sh scripts/ci/run-ci-d.sh "$job" 10-egress >"$RUNNER_TEMP/u01b-unit.txt" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/u01b-unit.txt"
+          echo "search lines of the long cases:"
+          grep -E '^(ok|not ok) search/|^part |^tests passed=' "target/ci-artifacts/10-egress/tests-$part.out"
+          echo "U0.1b unit-head 10-egress job=$job exit=$code"
+          grep -q '^long cases run' "$RUNNER_TEMP/u01b-unit.txt" && grep -qx 'PASS 10-egress' "$RUNNER_TEMP/u01b-unit.txt" && [ "$code" -eq 0 ]
+      - name: U0.1b new search cases 200 times
+        if: always()
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          want=10
+          job=macos
+          dir="$RUNNER_TEMP/u01b-loop-new"
+          mkdir -p "$dir"
+          new='search/a-name-of-18-digits-is-a-number search/a-name-of-19-digits-from-1-is-a-number search/a-letter-inside-a-name-is-no-number search/a-file-below-the-highest-is-passed-over search/names-that-are-no-number-passed-over'
+          awk -v keep="$new" 'BEGIN { n = split(keep, k, " "); for (i = 1; i <= n; i++) want[k[i]] = 1 }
+            /^  search_case search\// { if (!($2 in want)) next; kept++ }
+            { print }
+            END { print "# kept " kept > "/dev/stderr" }' scripts/egress/test.sh >"$dir/test-new.sh" 2>"$dir/kept.txt"
+          echo "U0.1b loop copy: $(cat "$dir/kept.txt") of the search cases, the new ones"
+          started=$(date +%s)
+          per=${U01B_PER_WORKER:-50}
+          worker() {
+            i=0
+            while [ "$i" -lt "$per" ]; do
+              i=$((i + 1))
+              sh "$dir/test-new.sh" search >"$dir/w$1-r$i.txt" 2>&1
+              echo "exit=$?" >>"$dir/w$1-r$i.txt"
+            done
+          }
+          workers=${U01B_WORKERS:-4}
+          w=0
+          while [ "$w" -lt "$workers" ]; do
+            w=$((w + 1))
+            worker "$w" &
+          done
+          wait
+          total=0
+          passed=0
+          for f in "$dir"/w*-r*.txt; do
+            total=$((total + 1))
+            if grep -qx "part search ran=$want" "$f" && grep -qx "tests passed=$want failed=0" "$f" && grep -qx 'exit=0' "$f"; then
+              passed=$((passed + 1))
+            else
+              echo "a run that missed: ${f##*/}"
+              cat "$f"
+            fi
+          done
+          echo "first run:"
+          cat "$dir/w1-r1.txt"
+          echo "U0.1b loop of the new cases job=$job runs=$total passed=$passed tests_per_run=$want seconds=$(($(date +%s) - started))"
+          grep -qx '# kept 5' "$dir/kept.txt" && [ "$total" -eq $((workers * per)) ] && [ "$passed" -eq "$total" ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -144,21 +187,75 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-egress
+      - name: U0.1b 10-egress at the unit head with its long cases
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set +e
+          job=windows
+          part=wfp
+          unit="$RUNNER_TEMP/u01b-unit"
+          git worktree add --detach "$unit" HEAD^1
+          cd "$unit" || exit 1
+          git log -1 --format='unit head %H %s'
+          sh scripts/ci/run-ci-d.sh "$job" 10-egress >"$RUNNER_TEMP/u01b-unit.txt" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/u01b-unit.txt"
+          echo "search lines of the long cases:"
+          grep -E '^(ok|not ok) search/|^part |^tests passed=' "target/ci-artifacts/10-egress/tests-$part.out"
+          echo "U0.1b unit-head 10-egress job=$job exit=$code"
+          grep -q '^long cases run' "$RUNNER_TEMP/u01b-unit.txt" && grep -qx 'PASS 10-egress' "$RUNNER_TEMP/u01b-unit.txt" && [ "$code" -eq 0 ]
+      - name: U0.1b new search cases 200 times
+        if: always()
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          want=10
+          job=windows
+          dir="$RUNNER_TEMP/u01b-loop-new"
+          mkdir -p "$dir"
+          new='search/a-name-of-18-digits-is-a-number search/a-name-of-19-digits-from-1-is-a-number search/a-letter-inside-a-name-is-no-number search/a-file-below-the-highest-is-passed-over search/names-that-are-no-number-passed-over'
+          awk -v keep="$new" 'BEGIN { n = split(keep, k, " "); for (i = 1; i <= n; i++) want[k[i]] = 1 }
+            /^  search_case search\// { if (!($2 in want)) next; kept++ }
+            { print }
+            END { print "# kept " kept > "/dev/stderr" }' scripts/egress/test.sh >"$dir/test-new.sh" 2>"$dir/kept.txt"
+          echo "U0.1b loop copy: $(cat "$dir/kept.txt") of the search cases, the new ones"
+          started=$(date +%s)
+          per=${U01B_PER_WORKER:-50}
+          worker() {
+            i=0
+            while [ "$i" -lt "$per" ]; do
+              i=$((i + 1))
+              sh "$dir/test-new.sh" search >"$dir/w$1-r$i.txt" 2>&1
+              echo "exit=$?" >>"$dir/w$1-r$i.txt"
+            done
+          }
+          workers=${U01B_WORKERS:-4}
+          w=0
+          while [ "$w" -lt "$workers" ]; do
+            w=$((w + 1))
+            worker "$w" &
+          done
+          wait
+          total=0
+          passed=0
+          for f in "$dir"/w*-r*.txt; do
+            total=$((total + 1))
+            if grep -qx "part search ran=$want" "$f" && grep -qx "tests passed=$want failed=0" "$f" && grep -qx 'exit=0' "$f"; then
+              passed=$((passed + 1))
+            else
+              echo "a run that missed: ${f##*/}"
+              cat "$f"
+            fi
+          done
+          echo "first run:"
+          cat "$dir/w1-r1.txt"
+          echo "U0.1b loop of the new cases job=$job runs=$total passed=$passed tests_per_run=$want seconds=$(($(date +%s) - started))"
+          grep -qx '# kept 5' "$dir/kept.txt" && [ "$total" -eq $((workers * per)) ] && [ "$passed" -eq "$total" ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
