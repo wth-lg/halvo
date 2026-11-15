@@ -820,6 +820,28 @@ fn a_limits_line_names_its_task_without_ascii_letter_case() {
 }
 
 #[test]
+fn a_limits_line_is_one_whose_first_word_is_limits_whole() {
+    let mut wrong = Vec::new();
+    for line in [
+        "limitsx task=bill steps=9 wall_s=400 model_tokens=9000",
+        "limits_of task=order steps=9 wall_s=400 model_tokens=9000",
+        "LIMITSS task=reply wall_s=120 model_tokens=700",
+    ] {
+        let got = run(
+            &refs(&with(with(cell_lines("m_c"), line), VERDICT)),
+            &[BOUND],
+        );
+        if got.code != Some(0) || got.stdout != "import rows=5 models=1 sources=2\n" {
+            wrong.push(format!(
+                "{line}: {:?} {:?} {:?}",
+                got.code, got.stdout, got.stderr
+            ));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
 fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     let mut wrong = Vec::new();
     for (what, driver, want) in [
