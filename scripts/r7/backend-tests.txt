@@ -72,6 +72,7 @@ test/metering/stamp.node.test.ts	11
 test/metering/stripe-meter-load.node.test.ts	2
 test/metering/stripe-meter.node.test.ts	31
 test/metering/sync.node.test.ts	21
+test/metering/t1-exits.node.test.ts	8
 test/metering/ver2-v1-calls.node.test.ts	6
 test/metering/ver37-x1.node.test.ts	4
 test/placeholder.test.ts	1

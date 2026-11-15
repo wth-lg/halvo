@@ -574,7 +574,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     const logged = error instanceof LoggedAlarmError;
     const name = errorName(logged ? error.first : error);
     if (!logged) log({ event: "alarm-error", error: name });
-    let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null);
+    let exit: { mark: Mark } | null | "unknown";
+    try {
+      exit = host.step((sql) => (holds(sql) ? { mark: markOf(sql) } : null));
+    } catch (reading) {
+      log({ event: "alarm-error", error: errorName(reading) });
+      exit = "unknown";
+    }
+    let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null) || exit === "unknown" || (exit !== null && exit.mark.since !== null);
     let count = ALARM_RETRY_LIMIT;
     let tested = false;
     let waits: Ms | null = null;
