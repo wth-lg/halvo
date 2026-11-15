@@ -1206,6 +1206,31 @@ mod tests {
         }
     }
 
+    /// Ruling DM-15 (2): a stand-in owner answers the settle's first ask with
+    /// 4 events pending, and its command channel is gone before that answer
+    /// is sent, so the second ask cannot be sent; the settle answers the first
+    /// snapshot and not `None`, which would read as an unanswered settle.
+    #[test]
+    fn a_settle_whose_owner_is_gone_before_its_second_ask_keeps_the_first_answer() {
+        let (commands, inbox) = mpsc::channel();
+        let handle = OwnerHandle { commands };
+        let stand_in = thread::spawn(move || {
+            let Asked { command, reply } = inbox.recv().expect("no first ask");
+            assert!(matches!(command, Command::Settle), "{command:?}");
+            drop(inbox);
+            reply
+                .send(Answer::Settled(Counters::default().snapshot(4)))
+                .expect("the settle stopped waiting");
+        });
+        let settled = crate::daemon::settle_within(&handle, Duration::from_secs(5));
+        stand_in.join().expect("the stand-in owner panicked");
+        assert_eq!(
+            settled.map(|snapshot| snapshot.events_pending),
+            Some(4),
+            "the first answer was forgotten when the second ask could not be sent"
+        );
+    }
+
     #[test]
     fn three_due_tries_answered_busy_leave_the_batch_held() {
         let mut harness = Harness::new();
