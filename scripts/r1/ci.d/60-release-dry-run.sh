@@ -544,6 +544,17 @@ GITSTUB
   { git -C "$repo" for-each-ref; git -C "$repo" tag --list; cat "$repo/.git/shallow"; } >"$work/heading-shallow-after"
   cmp -s "$work/heading-shallow-before" "$work/heading-shallow-after" && got=PASS || got=FAIL
   verdict heading-refusal-made-no-fetch PASS "$got"
+  repository dirty-shallow-source "$typed"
+  git -C "$repo" checkout -q -B main
+  git -C "$repo" commit -q --allow-empty -m 'A second commit'
+  git clone -q --depth 1 "file://$repo" "$work/dirty-shallow" || exit 2
+  repo=$work/dirty-shallow
+  printf '\n' >>"$repo/scripts/check-changelog.sh"
+  { git -C "$repo" for-each-ref --format='%(refname) %(objectname)'; git -C "$repo" tag --list; cat "$repo/.git/shallow"; } >"$work/dirty-shallow-before"
+  refused_before_cargo_release dirty-shallow-clone 'tracked files differ from HEAD' --execute
+  { git -C "$repo" for-each-ref --format='%(refname) %(objectname)'; git -C "$repo" tag --list; cat "$repo/.git/shallow" 2>/dev/null; } >"$work/dirty-shallow-after"
+  cmp -s "$work/dirty-shallow-before" "$work/dirty-shallow-after" && got=PASS || got=FAIL
+  verdict dirty-shallow-clone-refused-with-no-fetch PASS "$got"
   repository shallow-source "$typed"
   git -C "$repo" commit -q --allow-empty -m 'A second commit'
   git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2

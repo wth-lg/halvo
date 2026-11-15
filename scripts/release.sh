@@ -214,6 +214,21 @@ for pair in "commit message:$message" "tag name:$tag" "tag message:$tag_message"
   esac
 done
 
+if [ "$mode" = --execute ]; then
+  tracked=$(git status --porcelain --untracked-files=no)
+  if [ -n "$tracked" ]; then
+    first_path=$(printf '%s\n' "$tracked" | head -n 1 | cut -c4-)
+    fail "tracked files differ from HEAD (the first is $first_path); commit or stash them first; nothing was changed"
+  fi
+  flagged=$(git ls-files -v | awk '!/^H / { print; exit }')
+  if [ -n "$flagged" ]; then
+    flagged_path=${flagged#? }
+    fail "the tracked file $flagged_path carries the index flag ${flagged%% *} in git ls-files -v, which can hide a local edit from git status and from the undo of a failed run; clear it with git update-index --no-assume-unchanged --no-skip-worktree -- '$flagged_path' and run this again; nothing was changed"
+  fi
+  git var GIT_COMMITTER_IDENT >/dev/null 2>&1 ||
+    fail "git can name no committer in this clone: set your name and email in git's global configuration and run this again; nothing was changed"
+fi
+
 shallow=$(git rev-parse --is-shallow-repository)
 if [ "$shallow" = true ]; then
   [ "$mode" = --execute ] ||
@@ -247,18 +262,6 @@ if [ "$mode" = --execute ] && has_a_remote_named_origin; then
 fi
 
 if [ "$mode" = --execute ]; then
-  tracked=$(git status --porcelain --untracked-files=no)
-  if [ -n "$tracked" ]; then
-    first_path=$(printf '%s\n' "$tracked" | head -n 1 | cut -c4-)
-    fail "tracked files differ from HEAD (the first is $first_path); commit or stash them first; nothing was changed"
-  fi
-  flagged=$(git ls-files -v | awk '!/^H / { print; exit }')
-  if [ -n "$flagged" ]; then
-    flagged_path=${flagged#? }
-    fail "the tracked file $flagged_path carries the index flag ${flagged%% *} in git ls-files -v, which can hide a local edit from git status and from the undo of a failed run; clear it with git update-index --no-assume-unchanged --no-skip-worktree -- '$flagged_path' and run this again; nothing was changed"
-  fi
-  git var GIT_COMMITTER_IDENT >/dev/null 2>&1 ||
-    fail "git can name no committer in this clone: set your name and email in git's global configuration and run this again; nothing was changed"
   recorded=$(git rev-parse HEAD)
   tags_before=$(git tag --list)
   set -- "$level" --config "$settings" --execute --no-confirm --allow-branch main
