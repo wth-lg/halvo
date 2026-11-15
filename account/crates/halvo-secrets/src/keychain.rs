@@ -172,8 +172,11 @@ impl<K: Keychain> KeychainItem<K> {
     /// reference to it, compares, removes that item by its reference, and looks again, which
     /// is the one check because no code comes back from the removal. A reference that went
     /// stale, because another process removed the item and added a later one between the
-    /// find and the removal, kept the later item on the hosted macOS image of run
-    /// 43705715845 in 200 of 200 rounds, in that interleaving, and no more is shown.
+    /// find and the removal, kept the later item on the hosted macOS image in 200 of 200
+    /// rounds of run 43705715845, and in 600 of 600 rounds of attempt 2 of run 43729836565,
+    /// where in each round the other process's own read gave the later bytes before the
+    /// removal, and a removal by a fresh reference left no item. That is shown in that
+    /// interleaving, and no more.
     pub(crate) fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
         match self.count() {
             Ok(0) => return DeleteIfHolds::NotStored,

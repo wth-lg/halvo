@@ -524,10 +524,18 @@ fn write_beside_a_delete_of_other_bytes(tally: &mut Tally, race: &str) {
             .wrong
             .push(format!("{race}: the store directory then held {names:?}"));
     }
-    if fs::read(dir.join("account")).ok().as_deref() != Some(HELD) {
+    // The store's read gives X byte for byte; on macOS the file holds X as it is, while the
+    // DPAPI store of Windows keeps it sealed, so its file's bytes are compared nowhere else.
+    let read = store.read();
+    if !matches!(&read, Read::Found(held) if held.expose() == HELD) {
         tally
             .wrong
-            .push(format!("{race}: X did not stand byte for byte"));
+            .push(format!("{race}: the store then read {}", shown_read(read)));
+    }
+    if cfg!(not(windows)) && fs::read(dir.join("account")).ok().as_deref() != Some(HELD) {
+        tally
+            .wrong
+            .push(format!("{race}: the file did not hold X byte for byte"));
     }
     if tally.counts.contains_key(&format!("{race} write-y Stored")) {
         tally.wrong.push(format!("{race}: a write stored beside X"));
