@@ -566,3 +566,114 @@ fn a_later_prepare_under_another_spelling_after_the_checkpoint_was_removed_makes
     assert_eq!(prepared_copies(&files), 0, "{:?}", files.names());
     assert_eq!(files.workbook_bytes(), persons, "the person's workbook");
 }
+
+/// A11.3, A7.4: the person writes the same bytes over the workbook and over the run's checkpoint between the run's
+/// two `prepare` calls of one workbook, bytes of the checkpoint's own length that are no readable workbook. The
+/// checkpoint no longer has its `made` row's SHA-256, so the step fails with `step_failed` before `prepare`, which
+/// would take that checkpoint as equal to the workbook; both files stay as the person left them.
+#[test]
+fn a_later_prepare_after_the_checkpoint_changed_at_its_own_length_writes_nothing() {
+    let files = FillFiles::new("checkpoint-same-length", 2);
+    let sup = fill(182, &files);
+    let copy = files.dir.join(checkpoint_name(&sup));
+    let mut persons = None;
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |n| {
+            if n == 3 {
+                let mut bytes = std::fs::read(&copy).expect("the checkpoint");
+                let last = bytes.len() - 1;
+                bytes[last] ^= 0xff;
+                std::fs::write(&copy, &bytes).expect("the person writes over the checkpoint");
+                std::fs::write(&files.workbook, &bytes).expect("and over the workbook");
+                persons = Some(bytes);
+            }
+        },
+    );
+    let persons = persons.expect("the person wrote both files");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed))),
+        "the step fails before prepare, which would refuse the workbook with workbook"
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)]
+    );
+    assert_eq!(files.workbook_bytes(), persons);
+    assert_eq!(std::fs::read(&copy).expect("the checkpoint"), persons);
+}
+
+/// A11.3, A7.4: a playbook with two write steps, the second on another workbook of the folder. The first edit is
+/// committed, so its workbook is no longer its checkpoint; the check before the second `prepare` reads the first
+/// checkpoint, which stands as its `made` row says, and the run completes with two checkpoints, each named by its
+/// two rows with the digest of the copy that stands.
+#[test]
+fn a_second_write_step_on_another_workbook_after_a_committed_edit_completes() {
+    use halvo_schema::executable::names::Runtime;
+    use halvo_schema::executable::ExecutableStep;
+    let files = FillFiles::new("checkpoint-two-steps", 2);
+    let original = files.workbook_bytes();
+    let other = files.dir.join("other.xlsx");
+    std::fs::copy(&files.workbook, &other).expect("a second workbook");
+    let other_text = other.to_string_lossy().into_owned();
+    let mut sup = fill(183, &files);
+    sup.config.runtime = Runtime::Web;
+    let read = r#"{"v":1,"n":1,"kind":"file","verb":"read","target":{"file":"source","sheet":null,"range":null},"args":[{"name":"as","from":"const","value":"rows","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+    let write = |n: u8| {
+        format!(
+            r#"{{"v":1,"n":{n},"kind":"file","verb":"write","target":{{"file":"workbook","sheet":"sheet","range":"range"}},"args":[{{"name":"values","from":"extract","value":null,"key":"rows"}}],"pre":[],"post":[],"effect":"none","class":"local_edit"}}"#
+        )
+    };
+    sup.steps = vec![
+        ExecutableStep::parse(read.as_bytes()).expect("the read step"),
+        ExecutableStep::parse(write(2).as_bytes()).expect("the first write step"),
+        ExecutableStep::parse(write(3).as_bytes()).expect("the second write step"),
+    ];
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 4 {
+                set_slot(l, "workbook", &other_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        states(&seen),
+        [
+            (CheckpointState::Planned, 1),
+            (CheckpointState::Made, 2),
+            (CheckpointState::Planned, 1),
+            (CheckpointState::Made, 2)
+        ]
+    );
+    let rows = seen.checkpoints();
+    let other_copy = format!("other.halvo-checkpoint-{}.xlsx", sup.run.as_str());
+    for (row, copy) in [(&rows[1], checkpoint_name(&sup)), (&rows[3], other_copy)] {
+        let stands = std::fs::read(files.dir.join(&copy)).expect("the checkpoint stands");
+        assert_eq!(stands, original, "{copy}");
+        assert_eq!(
+            row.sha256.as_ref().map(|d| d.as_str()),
+            Some(Sha256::of(&stands).hex().as_str()),
+            "{copy}"
+        );
+    }
+    assert_ne!(
+        files.workbook_bytes(),
+        original,
+        "the first workbook is filled"
+    );
+    assert_ne!(
+        std::fs::read(&other).expect("read"),
+        original,
+        "the other is filled"
+    );
+}
