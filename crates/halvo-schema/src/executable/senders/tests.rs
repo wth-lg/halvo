@@ -297,6 +297,39 @@ fn the_rule_for_a_sender_takes_printable_ascii_but_spaces_and_specials() {
 }
 
 #[test]
+fn the_part_after_the_at_has_no_dot_at_its_start_none_at_its_end_and_no_two_in_a_row() {
+    for text in [
+        "ann@.people.test",
+        "ann@people.test.",
+        "ann@people..test",
+        "ann@.people.test.",
+        "ann@.",
+        "ann@..",
+        "ann@people...test",
+        "a@.b",
+        "a@b.",
+    ] {
+        assert!(!is_sender(text), "{text}");
+        assert_eq!(read(text), not_an_address(1), "{text}");
+        let second = format!("bob@people.test, {text}");
+        assert_eq!(read(&second), not_an_address(2), "{second}");
+    }
+    for text in [
+        "ann@people",
+        "a@b",
+        "a@b.c",
+        "a@b.c.d",
+        "ann.@people.test",
+        ".ann@people.test",
+        "a..b@people.test",
+        "a.b@c.d",
+    ] {
+        assert!(is_sender(text), "{text}");
+        assert_eq!(read(text), list(&[text]), "{text}");
+    }
+}
+
+#[test]
 fn texts() {
     let rows = [
         (

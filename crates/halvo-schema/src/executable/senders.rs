@@ -24,8 +24,9 @@ pub fn same_address(a: &str, b: &str) -> bool {
 /// its number counted from 1: an empty piece, so also an empty text; a piece that holds a byte outside ASCII; a
 /// piece that is no address by the adapter's rule for a sender; and a piece that is one address with an earlier
 /// piece by [`same_address`]. The adapter's rule for a sender takes a piece of at most 320 bytes with one `@`, at
-/// least one byte on each side of it, and every byte printable ASCII, no space and none of the eleven bytes
-/// `"(),:;<>[\]`:
+/// least one byte on each side of it, every byte printable ASCII, no space and none of the eleven bytes
+/// `"(),:;<>[\]`, and in the part after the `@` no dot at its start, none at its end and no two in a row. A part
+/// after the `@` with no dot, and a dot at an end of the part before it, pass:
 ///
 /// ```
 /// use std::num::NonZeroUsize;
@@ -45,6 +46,10 @@ pub fn same_address(a: &str, b: &str) -> bool {
 /// );
 /// assert_eq!(
 ///     reply_senders("Ann Berg"),
+///     Err(SendersError::NotAnAddress(piece(1)))
+/// );
+/// assert_eq!(
+///     reply_senders("bob@people.test."),
 ///     Err(SendersError::NotAnAddress(piece(1)))
 /// );
 /// assert_eq!(
@@ -91,7 +96,12 @@ pub fn is_sender(text: &str) -> bool {
             .bytes()
             .all(|byte| byte.is_ascii_graphic() && !SPECIALS.contains(&byte))
         && text.split_once('@').is_some_and(|(local, domain)| {
-            !local.is_empty() && !domain.is_empty() && !domain.contains('@')
+            !local.is_empty()
+                && !domain.is_empty()
+                && !domain.contains('@')
+                && !domain.starts_with('.')
+                && !domain.ends_with('.')
+                && !domain.contains("..")
         })
 }
 
