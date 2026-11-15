@@ -47,6 +47,7 @@ enum Fault {
     ExpiryDropped,
     ExpiryNamesAnotherSegment,
     ExpiryOutOfOrder,
+    ExpiryNamesASegmentTwice,
     ExpiryAtZero,
     ServesScreenFrame,
     StallsWithAnEmptyBatch,
@@ -431,6 +432,11 @@ impl Proxy {
                 }
             }
             ExpiryOutOfOrder => b.expiry.reverse(),
+            ExpiryNamesASegmentTwice => {
+                if let Some(first) = b.expiry.first().copied() {
+                    b.expiry.insert(0, first);
+                }
+            }
             ExpiryAtZero => b.expiry.iter_mut().for_each(|x| x.at = Instant(0)),
             DropsTheLastRecordOfSetC if self.set_c && reached => {
                 b.records.pop();
@@ -1129,6 +1135,14 @@ fn control_an_expiry_out_of_rising_order() {
     check(
         ExpiryOutOfOrder,
         everywhere("expiry names segment 3 after segment 4, out of rising order"),
+    );
+}
+
+#[test]
+fn control_an_expiry_that_names_a_segment_twice() {
+    check(
+        ExpiryNamesASegmentTwice,
+        everywhere("expiry names segment 1 after segment 1, out of rising order"),
     );
 }
 

@@ -82,6 +82,7 @@ enum Fault {
     RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
     RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
     RangedReadFindsItsEndByABinarySearch,
+    RangedReadDropsAFirstLineBelowTheLineBeforeItsStart,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
@@ -299,6 +300,7 @@ impl Subject for Fixture {
                         cut_kinds: None,
                         cut_from_zero: true,
                         started: false,
+                        seed_from: None,
                         connection,
                         further,
                         reads: 0,
@@ -376,6 +378,7 @@ struct Wrong {
     cut_kinds: Option<Vec<Kind>>,
     cut_from_zero: bool,
     started: bool,
+    seed_from: Option<Position>,
 }
 
 fn cuts(fault: Fault) -> bool {
@@ -401,7 +404,24 @@ fn cuts(fault: Fault) -> bool {
             | RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd
             | RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd
             | RangedReadFindsItsEndByABinarySearch
+            | RangedReadDropsAFirstLineBelowTheLineBeforeItsStart
     )
+}
+
+fn from_the_line_before(open: &OpenCursor) -> Option<OpenCursor> {
+    let p = open.position();
+    match open.store() {
+        Some(store) if open.range().is_some() && p.idx > 0 => OpenCursor::at(
+            store.clone(),
+            Position {
+                seg: p.seg,
+                idx: p.idx - 1,
+            },
+            None,
+            None,
+        ),
+        _ => without_range(open),
+    }
 }
 
 fn first_at_or_after(records: &[Entry], at: Instant) -> usize {
@@ -429,6 +449,7 @@ fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
 impl Wrong {
     fn open(&mut self, t: &mut FixtureTransport, asked: &OpenCursor) -> ServerMessage {
         let unranged = match self.fault {
+            RangedReadDropsAFirstLineBelowTheLineBeforeItsStart => from_the_line_before(asked),
             fault if cuts(fault) => without_range(asked),
             _ => None,
         };
@@ -576,7 +597,16 @@ impl Wrong {
             }
             _ => reply,
         };
+        let seeded = open.position() != asked.position();
+        let reply = match reply {
+            ServerMessage::Batch(mut b) if seeded => {
+                b.next = asked.position();
+                ServerMessage::Batch(b)
+            }
+            other => other,
+        };
         if matches!(reply, ServerMessage::Batch(_)) {
+            self.seed_from = seeded.then_some(open.position());
             self.cut = asked.range();
             self.cut_kinds = asked
                 .kinds()
@@ -596,6 +626,10 @@ impl Wrong {
         let mut b = match read_reply(t, self.fault) {
             ServerMessage::Batch(b) => b,
             reply => return reply,
+        };
+        let seed = match (self.seed_from.take(), b.records.first()) {
+            (Some(line), Some(first)) if first.pos == line => Some(b.records.remove(0).record.at()),
+            _ => None,
         };
         if let (Some(lines), Some(open)) = (self.batch, self.last.as_ref()) {
             if b.records.len() > lines {
@@ -667,7 +701,8 @@ impl Wrong {
                     RangedReadTakesItsFirstServedAtAsTheStart => kept.first(),
                     _ => None,
                 }
-                .is_some_and(|k| at < k.record.at());
+                .is_some_and(|k| at < k.record.at())
+                    || (i == 0 && seed.is_some_and(|s| at < s));
                 let below_admitted = self.fault == RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
                     && admitted
                     && last_admitted.is_some_and(|p| at < p);
@@ -1133,7 +1168,7 @@ fn conformance_check_filtered_stops() {
 #[test]
 fn conformance_filters_step_back() {
     let load = "; want 999000000 ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)";
-    let servers: [(Fault, String); 32] = [
+    let servers: [(Fault, String); 33] = [
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
@@ -1225,6 +1260,10 @@ fn conformance_filters_step_back() {
         (
             RangedReadFindsItsEndByABinarySearch,
             "the range of set D up to the pointer before its step back from {seg 1, idx 2}: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadDropsAFirstLineBelowTheLineBeforeItsStart,
+            "the range of set D up to the pointer before its step back from {seg 1, idx 4}: 0 entries served, want 1".to_owned(),
         ),
         (
             LoadRoundsTheStepBackAway,
