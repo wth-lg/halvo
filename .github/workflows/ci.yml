@@ -100,6 +100,51 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop the unit's new tests 200 times
+        shell: bash
+        run: |
+          set +e
+          n="${LOOP_N:-200}"
+          b="${CARGO_TARGET_DIR:-target}/loop-build.txt"
+          cargo test -p halvo-runner --locked --test checkpoint --test enforce --test fill --no-run >"$b" 2>&1
+          code=$?
+          cat "$b"
+          if [ "$code" -ne 0 ]; then
+            echo "loop: the build failed with $code"
+            exit 1
+          fi
+          fail=0
+          check() {
+            name=$1
+            want=$2
+            shift 2
+            exe=$(sed -n "s|.*Executable tests[/\\\\]$name\\.rs (\\(.*\\))\$|\\1|p" "$b" | head -n 1 | tr '\134' '/')
+            if [ -z "$exe" ]; then
+              echo "loop $name: no test binary in the build's output"
+              fail=1
+              return
+            fi
+            i=1
+            while [ "$i" -le "$n" ]; do
+              out=$("$exe" "$@" 2>&1)
+              line=$(printf '%s\n' "$out" | grep '^test result: ' | tail -n 1)
+              case "$line" in
+                "test result: ok. $want passed; 0 failed;"*) ;;
+                *)
+                  echo "loop $name run $i: ${line:-no result line}"
+                  printf '%s\n' "$out" | tail -n 60
+                  fail=1
+                  return
+                  ;;
+              esac
+              i=$((i + 1))
+            done
+            echo "loop $name: $n of $n runs printed: test result: ok. $want passed; 0 failed"
+          }
+          check checkpoint 12 --test-threads=4
+          check enforce 1 --exact a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepare
+          check fill 1 --exact the_fill_playbook_replays_on_seeds_1_to_3
+          exit "$fail"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -156,6 +201,51 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop the unit's new tests 200 times
+        shell: bash
+        run: |
+          set +e
+          n="${LOOP_N:-200}"
+          b="${CARGO_TARGET_DIR:-target}/loop-build.txt"
+          cargo test -p halvo-runner --locked --test checkpoint --test enforce --test fill --no-run >"$b" 2>&1
+          code=$?
+          cat "$b"
+          if [ "$code" -ne 0 ]; then
+            echo "loop: the build failed with $code"
+            exit 1
+          fi
+          fail=0
+          check() {
+            name=$1
+            want=$2
+            shift 2
+            exe=$(sed -n "s|.*Executable tests[/\\\\]$name\\.rs (\\(.*\\))\$|\\1|p" "$b" | head -n 1 | tr '\134' '/')
+            if [ -z "$exe" ]; then
+              echo "loop $name: no test binary in the build's output"
+              fail=1
+              return
+            fi
+            i=1
+            while [ "$i" -le "$n" ]; do
+              out=$("$exe" "$@" 2>&1)
+              line=$(printf '%s\n' "$out" | grep '^test result: ' | tail -n 1)
+              case "$line" in
+                "test result: ok. $want passed; 0 failed;"*) ;;
+                *)
+                  echo "loop $name run $i: ${line:-no result line}"
+                  printf '%s\n' "$out" | tail -n 60
+                  fail=1
+                  return
+                  ;;
+              esac
+              i=$((i + 1))
+            done
+            echo "loop $name: $n of $n runs printed: test result: ok. $want passed; 0 failed"
+          }
+          check checkpoint 12 --test-threads=4
+          check enforce 1 --exact a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepare
+          check fill 1 --exact the_fill_playbook_replays_on_seeds_1_to_3
+          exit "$fail"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
