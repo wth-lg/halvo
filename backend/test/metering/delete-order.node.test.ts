@@ -646,6 +646,104 @@ describe("one cancel call at a time for one id, and the cut interval's send firs
 
   const beforeSend = (w: World) => w.lines.filter((line) => line === '{"event":"cancel-before-send"}').length;
 
+  async function sendHeld(o: { settles: boolean }) {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    const sentAt = START + 10 * MINUTE;
+    w.at(sentAt);
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    w.faults.push({ kind: "during", run: () => (o.settles ? held : new Promise<void>(() => {})) });
+    const first = destroy(w);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const sendsBegun = w.calls.filter((each) => each.kind === "send").length;
+    w.restart();
+    w.at(sentAt + 5000);
+    const second = await destroy(w);
+    const due = await w.host.getAlarm();
+    const cancels = () => w.calls.filter((each) => each.kind === "cancel").map((each) => each.answer);
+    const beforeTheExpiry: string[][] = [cancels()];
+    w.at(sentAt + CALL_IN_FLIGHT_MS - 1);
+    await quiet(w.lines, () => w.entries().alarm());
+    beforeTheExpiry.push(cancels());
+    w.at(sentAt + CALL_IN_FLIGHT_MS);
+    await quiet(w.lines, () => w.entries().alarm());
+    return { w, first, release, sendsBegun, second, due, beforeTheExpiry, atTheExpiry: cancels(), sentAt };
+  }
+
+  test("M3 (d): two instances over one storage during a send of the cut interval: the second makes no cancel call before the send's end bound, the stored sent_at plus CALL_IN_FLIGHT_MS, and makes it then with a cancel-before-send line", async () => {
+    const run = await sendHeld({ settles: true });
+    expect(run.sendsBegun).toBe(0);
+    expect(run.second).toEqual({ result: "not-finished" });
+    expect(run.due).toBe(run.sentAt + CALL_IN_FLIGHT_MS);
+    expect(run.beforeTheExpiry).toEqual([[], []]);
+    expect(run.atTheExpiry).toEqual(["cancelled"]);
+    expect(beforeSend(run.w)).toBe(1);
+    run.release();
+    await run.first;
+    expect(kinds(run.w.calls)).toEqual(["cancel cancelled", "send recorded"]);
+    run.w.close();
+  });
+
+  test("M3 (d): a row planned by another instance over the same storage is not dropped by this instance's memory of its own earlier send of the same interval, and the cancel waits for the bound", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    const own = w.entries();
+    w.faults.push({ kind: "request-lost" });
+    for (let run = 0; run < 10 && !w.calls.some((each) => each.kind === "send"); run += 1) {
+      const due = await w.host.getAlarm();
+      if (due === null) break;
+      w.at(Math.max(w.now(), due));
+      await quiet(w.lines, () => own.alarm());
+    }
+    const firstSend = w.calls.find((each) => each.kind === "send");
+    w.restart();
+    const other = w.entries();
+    let release: () => void = () => {};
+    w.faults.push({ kind: "during", run: () => new Promise<void>((resolve) => { release = resolve; }) });
+    let otherSend: Promise<void> | null = null;
+    for (let run = 0; run < 10 && otherSend === null; run += 1) {
+      const due = await w.host.getAlarm();
+      if (due === null) break;
+      w.at(Math.max(w.now(), due));
+      const running = quiet(w.lines, () => other.alarm());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (w.faults.length === 0) otherSend = running;
+      else await running;
+    }
+    const sentAt = w.now();
+    w.at(sentAt + 5000);
+    const answer = await quiet(w.lines, () => own.destroy(HASH));
+    const cancels = w.calls.filter((each) => each.kind === "cancel").length;
+    const due = await w.host.getAlarm();
+    release();
+    await otherSend;
+    expect(firstSend?.answer).toBe("failed");
+    expect(otherSend).not.toBeNull();
+    expect(answer).toEqual({ result: "not-finished" });
+    expect(cancels).toBe(0);
+    expect(due).toBe(sentAt + CALL_IN_FLIGHT_MS);
+    w.close();
+  });
+
+  test("M3 (d): a restart during a send that never settles: the new instance makes no cancel call before the send's end bound and makes it then", async () => {
+    const run = await sendHeld({ settles: false });
+    expect(run.second).toEqual({ result: "not-finished" });
+    expect(run.due).toBe(run.sentAt + CALL_IN_FLIGHT_MS);
+    expect(run.beforeTheExpiry).toEqual([[], []]);
+    expect(run.atTheExpiry).toEqual(["cancelled"]);
+    run.w.close();
+  });
+
+
   test("L4 (d): the call limit of the seal and send part forces the cancel with two intervals unsent: two cancel-before-send lines, which name no account", async () => {
     const d = await deleting({ testClock: false });
     const w = d.w;

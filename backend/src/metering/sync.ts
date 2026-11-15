@@ -479,6 +479,12 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
       return whole(row, "n");
     },
 
+    sendsInFlight(sql, now, bound) {
+      return sql
+        .exec("SELECT start, sent_at FROM metering_interval WHERE answer_due = ? AND sent_at > ? ORDER BY sent_at", 1, now - bound)
+        .map((row) => ({ interval: Number(row.start), sentAt: Number(row.sent_at) }));
+    },
+
     settled(sql) {
       const row = sql.exec("SELECT COUNT(*) AS n FROM metering_interval WHERE sealed_at IS NULL OR outcome IS NULL")[0] ?? broken("the count of open intervals");
       return whole(row, "n") === 0;

@@ -55,6 +55,7 @@ interface Answers {
   settled: boolean;
   closeOpen: number;
   unacknowledged: number;
+  sendInFlight: (now: Ms) => Ms | null;
   throwIn: string | null;
   onForget: () => void;
 }
@@ -81,6 +82,7 @@ function defaults(): Answers {
     settled: true,
     closeOpen: 0,
     unacknowledged: 0,
+    sendInFlight: () => null,
     throwIn: null,
     onForget: () => {},
   };
@@ -151,6 +153,11 @@ function scripted() {
     closeOpen: answering("metering.closeOpen", () => answers.closeOpen),
     unacknowledged: answering("metering.unacknowledged", () => answers.unacknowledged),
     closedAtBound: answering("metering.closedAtBound", () => answers.closeOpen),
+    sendsInFlight: (...a: unknown[]) => {
+      note("metering.sendsInFlight", a);
+      const ends = answers.sendInFlight(a[1] as Ms);
+      return ends === null ? [] : [{ interval: 0, sentAt: ends - CALL_IN_FLIGHT_MS }];
+    },
   };
   return { calls, answers, modules: { accounts, ledger, metering } };
 }
@@ -1497,11 +1504,13 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
       release = resolve;
     });
     w.host.port.sendUsage = async () => waiting;
+    w.answers.sendInFlight = (at) => (at < 8000 + CALL_IN_FLIGHT_MS ? 8000 + CALL_IN_FLIGHT_MS : null);
     const first = w.entries.destroy(HASH);
     await new Promise((resolve) => setTimeout(resolve, 0));
     w.answers.send = { call: null, notBillable: 0 };
     const second = await w.entries.destroy(HASH);
     const during = { calls: w.portCalls.filter((call) => call[0] === "cancelSubscription").length, due: (await skeletonOf(w))?.due };
+    w.answers.sendInFlight = () => null;
     release({ kind: "recorded" });
     await first;
     expect([second, during]).toEqual([{ result: "not-finished" }, { calls: 0, due: 8000 + CALL_IN_FLIGHT_MS }]);
@@ -1829,5 +1838,22 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     releases[1]?.({ kind: "cancelled" });
     await second;
     expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+  });
+
+  test("M3 (d): a failing run under the mark while a send is in flight arms no earlier than the send's end bound", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.openHolds = 0;
+    w.answers.sendInFlight = (at) => (at < 8000 + CALL_IN_FLIGHT_MS ? 8000 + CALL_IN_FLIGHT_MS : null);
+    w.answers.throwIn = "accounts.forget";
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([]);
+    expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
   });
 });

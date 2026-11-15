@@ -31,6 +31,7 @@ function scriptedMetering(oldest: () => Ms): Metering {
     closeOpen: () => 0,
     unacknowledged: () => 0,
     closedAtBound: () => 0,
+    sendsInFlight: () => [],
   };
 }
 

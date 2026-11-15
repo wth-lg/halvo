@@ -171,8 +171,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const { accounts, ledger, metering } = modules;
   const removalRejections = new WeakSet<object>();
   let dueErrorsOfTheRun: unknown[] | null = null;
-  const sendsInFlight = new Map<object, Ms>();
   let removalLogged: Ms | null = null;
+  const sendsEndedHere = new Map<string, Ms>();
+  const sendKey = (interval: Ms, sentAt: Ms) => `${interval}:${sentAt}`;
+  const sendEnds = (sql: Sql, now: Ms): Ms | null => {
+    for (const [key, sentAt] of sendsEndedHere) if (sentAt + CALL_IN_FLIGHT_MS <= now) sendsEndedHere.delete(key);
+    const open = metering.sendsInFlight(sql, now, CALL_IN_FLIGHT_MS).filter((each) => !sendsEndedHere.has(sendKey(each.interval, each.sentAt)));
+    return earliest(open.map((each) => each.sentAt + CALL_IN_FLIGHT_MS));
+  };
+  const planned = (call: UsageCall | null, now: Ms) => {
+    if (call !== null && call.kind === "send") sendsEndedHere.set(sendKey(call.interval, now), now);
+  };
   const leavesDestroy = (error: unknown) =>
     errorName(error) === "ObjectStoppedError" || (typeof error === "object" && error !== null && removalRejections.has(error));
 
@@ -238,11 +247,12 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (answeredFor(mark, subscriptionId)) {
       return earliest([(mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS, mark.decidedAt === null ? null : mark.decidedAt + SYNC_RETRY_MS]);
     }
-    const callEnd = callEnds(sql, subscriptionId, Math.max(time(sql), lastNow(sql)));
+    const now = Math.max(time(sql), lastNow(sql));
+    const callEnd = callEnds(sql, subscriptionId, now);
     if (callEnd !== null) return callEnd;
-    const sendEnds = earliest([...sendsInFlight.values()].map((since) => since + CALL_IN_FLIGHT_MS));
-    if (mark.nextAt !== null) return earliest([sendEnds, mark.nextAt]);
-    if (sendEnds !== null) return sendEnds;
+    const sendEnd = sendEnds(sql, now);
+    if (mark.nextAt !== null) return earliest([sendEnd, mark.nextAt]);
+    if (sendEnd !== null) return sendEnd;
     return ledger.openHoldsAt(sql, Math.max(time(sql), lastNow(sql))) === 0 ? mark.since : null;
   }
 
@@ -375,18 +385,12 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   async function callPort(call: UsageCall, ids: { accountId: string; customerId: string }): Promise<UsageAnswer> {
     if (call.kind === "send") {
-      const flight = {};
-      sendsInFlight.set(flight, host.clock());
-      try {
-        return await host.port.sendUsage({
-          ...ids,
-          identifier: call.identifier,
-          amountMinor: call.amountMinor,
-          timestamp: call.timestamp,
-        });
-      } finally {
-        sendsInFlight.delete(flight);
-      }
+      return host.port.sendUsage({
+        ...ids,
+        identifier: call.identifier,
+        amountMinor: call.amountMinor,
+        timestamp: call.timestamp,
+      });
     }
     return host.port.readUsageTotal({ ...ids, from: call.from, to: call.to });
   }
@@ -397,28 +401,39 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const now = open.begin();
       ledger.expire(open.sql, now);
       const next = metering.send(open.sql, now);
-      return { next, ids: next.call === null ? null : idsOf(open.sql) };
+      return { next, ids: next.call === null ? null : idsOf(open.sql), now };
     });
     if (sent === null) return "gone";
+    planned(sent.next.call, sent.now);
     logNotBillable(sent.next);
     let call = sent.next.call;
     let ids = sent.ids;
+    let plannedAt = sent.now;
     for (let calls = 0; call !== null && ids !== null && calls < ALARM_CALL_LIMIT; calls += 1) {
       const made = call;
-      const answer = await callPort(made, ids);
+      const key = sendKey(made.interval, plannedAt);
+      if (made.kind === "send") sendsEndedHere.delete(key);
+      let answer: UsageAnswer;
+      try {
+        answer = await callPort(made, ids);
+      } finally {
+        if (made.kind === "send") sendsEndedHere.set(key, plannedAt);
+      }
       const recorded = step((open) => {
         if (!holds(open.sql)) return null;
         const now = open.begin();
         ledger.expire(open.sql, now);
         if (!isMetered(open.sql)) return "not-metered" as const;
         const next = metering.record(open.sql, made, answer, now);
-        return { next, ids: next.call === null ? null : idsOf(open.sql) };
+        return { next, ids: next.call === null ? null : idsOf(open.sql), now };
       });
       if (recorded === null) return "gone";
       if (recorded === "not-metered") return "done";
+      planned(recorded.next.call, recorded.now);
       logNotBillable(recorded.next);
       call = recorded.next.call;
       ids = recorded.ids;
+      plannedAt = recorded.now;
     }
     return "done";
   }
@@ -651,7 +666,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
       if (callEnds(open.sql, subscriptionId, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
-      if (sendsInFlight.size > 0) return { kind: "answer", answer: NOT_FINISHED };
+      if (sendEnds(open.sql, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
       let unacknowledged = 0;
       try {

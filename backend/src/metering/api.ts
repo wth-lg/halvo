@@ -33,4 +33,5 @@ export interface Metering {
   closeOpen(sql: Sql, now: Ms): number;
   unacknowledged(sql: Sql): number;
   closedAtBound(sql: Sql): number;
+  sendsInFlight(sql: Sql, now: Ms, bound: Ms): { interval: Ms; sentAt: Ms }[];
 }
