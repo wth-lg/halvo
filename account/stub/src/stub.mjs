@@ -4,7 +4,7 @@ import { createServer as createTlsServer } from "node:tls";
 import { readFileSync } from "node:fs";
 import { loadSchema } from "./schema.mjs";
 import { makeApp } from "./app.mjs";
-import { makeReader } from "./wire.mjs";
+import { makeReader, BODY_CAP } from "./wire.mjs";
 import { openRecord, RecordError } from "./record.mjs";
 import { makeTestAuthority, writeAuthority, TlsError } from "./tls.mjs";
 
@@ -15,6 +15,7 @@ export { BODY_CAP } from "./wire.mjs";
  */
 export const IDLE_MS = 5000;
 const HOST = "127.0.0.1";
+const CONTINUE = Buffer.from("HTTP/1.1 100 Continue\r\n\r\n", "latin1");
 const vendored = (name) => JSON.parse(readFileSync(new URL(`../../schema/${name}`, import.meta.url), "utf8"));
 
 /** Reads the three vendored files of account/schema/ that the stub uses: the schema, the route table and the samples. */
@@ -59,33 +60,100 @@ function closes({ version, headers }) {
   return version === "1.0" || tokens.some((token) => token.trim().toLowerCase() === "close");
 }
 
-function serve(socket, connection, app, record, idleMs) {
+/**
+ * Serves one connection of the app-facing port: reads its requests from `socket`, answers them with `app`, writes
+ * their lines to `record` under the number `connection`, and ends and closes it as startStub describes, with `idleMs`
+ * as its idle limit. Returns `{cut, closeNow}`: `cut()` ends the connection for the stop, and `closeNow()` closes its
+ * socket at once, with the line `forced-close` where startStub's rule asks for it. startStub calls it for each
+ * connection; a test may call it with any duplex stream in place of a socket.
+ */
+export function serve(socket, connection, app, record, idleMs) {
   let timer = null;
+  let held = false;
+  let ended = false;
+  let stopping = false;
+  let after = 0;
+  let capped = false;
+  let written = null;
+  let closer = null;
   const quiet = () => clearTimeout(timer);
-  const onData = (chunk) => {
+  const wrote = () => {
+    written = Date.now();
+  };
+  const due = () => (written === null ? 0 : written + idleMs);
+  const closeNow = () => {
+    if (socket.destroyed) return;
+    clearTimeout(closer);
+    if (capped || !socket.writableFinished || (stopping && !ended)) record.refused({ connection, error: "forced-close" });
+    socket.destroy();
+  };
+  const linger = () => {
+    if (socket.destroyed) return;
+    const left = due() - Date.now();
+    if (left <= 0) closeNow();
+    else closer = setTimeout(linger, left);
+  };
+  const take = (chunk) => {
+    after += chunk.length;
+    if (after < BODY_CAP) return;
+    capped = true;
+    socket.pause();
+  };
+  const settle = () => {
+    if (socket.writableEnded) return;
+    if (socket.writableNeedDrain) {
+      held = true;
+      quiet();
+      socket.pause();
+      return;
+    }
+    if (ended) {
+      reader.end();
+      stop();
+      return;
+    }
+    socket.resume();
     arm();
+  };
+  const onData = (chunk) => {
+    if (socket.writableEnded) {
+      take(chunk);
+      return;
+    }
     reader.feed(chunk);
+    settle();
   };
   const stop = (last) => {
     if (socket.writableEnded) return;
     quiet();
-    socket.removeListener("data", onData);
-    socket.pause();
-    socket.end(last ?? Buffer.alloc(0), () => socket.destroy());
+    if (last !== undefined) socket.write(last, wrote);
+    socket.end(linger);
+    if (!capped) socket.resume();
   };
   const reader = makeReader({
     request(message) {
+      if (stopping) {
+        record.refused({ connection, error: "incomplete" });
+        return true;
+      }
       const { method, target, headers, trailers, body } = message;
-      const answer = app.handle({ method, target, headers, body });
-      record.request({ connection, method, target, headers, trailers, body, status: answer.status, result: answer.result });
+      const answer = record.request({ connection, method, target, headers, trailers, body, judge: () => app.handle({ method, target, headers, body }) });
+      if (answer === null) {
+        stop();
+        return false;
+      }
       const close = closes(message);
       if (close) stop(answerBytes(method, answer, close));
-      else socket.write(answerBytes(method, answer, close));
+      else socket.write(answerBytes(method, answer, close), wrote);
       return !close;
     },
     malformed(cause) {
       record.refused({ connection, error: cause });
-      stop(answerBytes("", app.malformed(), true));
+      stop(stopping ? undefined : answerBytes("", app.malformed(), true));
+    },
+    full: () => !stopping && socket.writableNeedDrain,
+    interim: () => {
+      if (!stopping) socket.write(CONTINUE);
     },
   });
   function arm() {
@@ -98,12 +166,29 @@ function serve(socket, connection, app, record, idleMs) {
   }
   arm();
   socket.on("data", onData);
-  socket.on("close", quiet);
+  socket.on("close", () => {
+    quiet();
+    clearTimeout(closer);
+  });
+  socket.on("drain", () => {
+    if (!held || socket.writableEnded) return;
+    held = false;
+    reader.resume();
+    settle();
+  });
   socket.on("end", () => {
-    reader.end();
-    stop();
+    ended = true;
+    if (!held) settle();
   });
   socket.on("error", () => {});
+  const cut = () => {
+    stopping = true;
+    if (socket.writableEnded) return;
+    reader.resume();
+    reader.end();
+    stop();
+  };
+  return { cut, closeNow };
 }
 
 function serveControl(app, stop) {
@@ -138,28 +223,47 @@ function serveControl(app, stop) {
  * makeApp, and answers bytes that are no request with the rejection of a malformed request. With `tlsCa`, the
  * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
  * whose certificate is written to the file `tlsCa`, which must not exist yet.
- * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection. A connection
+ * Resolves to `{app, control, stopped, close, connections}`: the two base URLs, a promise that settles when the stub has stopped,
+ * through `close()` or the control route `POST /stop`, and `close()`, which from its begin accepts no new connection on
+ * either port and writes no 100 Continue, ends every served connection, waits for
+ * them no longer than `idleMs` and then closes what is left; a connection that holds part of a request, or requests
+ * read and not judged, at that moment gets the record line `incomplete` for each, with no answer. A connection
  * that sends nothing for `idleMs` (IDLE_MS unless a test gives another) gets the rejection of a malformed request
  * when a request had begun, and is closed with the record line `idle-close` when none had. Once the stub ends a
- * connection, after the idle limit, a refusal, an answer that closes or the peer's end, it reads nothing more of it
- * and destroys its socket when the last answer is written.
+ * connection, after the idle limit, a refusal, an answer that closes, the peer's end or the stop, it reads no request
+ * of it again: it ends its side after the last answer, takes what still arrives into the raw file alone, at most
+ * BODY_CAP bytes and the rest of that read, and closes the socket once every answer is written and the peer has ended
+ * its side or `idleMs` has passed since the last answer was written. Where it closes with answers unwritten, after it
+ * stopped reading at BODY_CAP, or at the stop while the peer has not ended its side, it first writes the record line
+ * `forced-close`.
+ * `connections()` gives the number of served connections of the app-facing port whose socket has not closed yet.
  * Throws RecordError or TlsError for a bad directory or file.
  */
 export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {
-  const record = openRecord(dir);
+  const made = tlsCa === undefined ? null : makeTestAuthority(Date.now());
+  const record = openRecord(dir, () => {
+    if (made !== null) writeAuthority(tlsCa, made.caPem);
+  });
   const app = makeApp({ ...readVendored(), now });
   let done;
   const stopped = new Promise((resolve) => {
     done = resolve;
   });
-  const onSocket = (socket) => serve(socket, record.connection(socket), app, record, idleMs);
+  const served = new Map();
+  const onSocket = (socket) => {
+    const { connection, opened } = record.connection(socket);
+    if (opened) {
+      served.set(socket, serve(socket, connection, app, record, idleMs));
+      socket.once("close", () => served.delete(socket));
+      return;
+    }
+    socket.destroy();
+    record.refused({ connection, error: "raw-open" });
+  };
   let appServer;
-  if (tlsCa === undefined) {
+  if (made === null) {
     appServer = createPlainServer({ allowHalfOpen: true }, onSocket);
   } else {
-    const made = makeTestAuthority(Date.now());
-    writeAuthority(tlsCa, made.caPem);
     appServer = createTlsServer({ key: made.keyPem, cert: made.certPem, allowHalfOpen: true }, onSocket);
     appServer.on("tlsClientError", (error) => {
       if (error.code !== "ECONNRESET") record.refused({ error: String(error.code) });
@@ -173,7 +277,27 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   const controlSockets = new Set();
   let closing = null;
   const close = () => {
-    closing ??= Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => done());
+    if (closing === null) {
+      const listening = new Promise((resolve) => appServer.close(() => resolve()));
+      const peer = (socket) => `${socket.remoteAddress}:${socket.remotePort}`;
+      const kept = new Set([...served.keys()].map(peer));
+      for (const socket of sockets) if (!kept.has(peer(socket))) socket.destroy();
+      for (const { cut } of served.values()) cut();
+      let timer;
+      const closed = [...served.keys()].map((socket) => new Promise((resolve) => socket.once("close", resolve)));
+      const limit = new Promise((resolve) => {
+        timer = setTimeout(resolve, idleMs);
+      });
+      const waited = Promise.race([Promise.all(closed), limit]).then(() => {
+        clearTimeout(timer);
+        for (const { closeNow } of served.values()) closeNow();
+        return Promise.all([listening, ...closed]);
+      });
+      closing = Promise.all([waited, shut(controlServer, controlSockets)]).then(() => {
+        record.close();
+        done();
+      });
+    }
     return closing;
   };
   const controlServer = createServer(serveControl(app, close));
@@ -181,7 +305,8 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
     controlSockets.add(socket);
     socket.on("close", () => controlSockets.delete(socket));
   });
-  return { app: await listen(appServer, tlsCa === undefined ? "http" : "https"), control: await listen(controlServer, "http"), stopped, close };
+  const connections = () => served.size;
+  return { app: await listen(appServer, tlsCa === undefined ? "http" : "https"), control: await listen(controlServer, "http"), stopped, close, connections };
 }
 
 const USAGE = "usage: node account/stub/src/stub.mjs --record DIR [--tls-ca FILE]\n";
@@ -213,7 +338,7 @@ async function main(argv) {
     process.exitCode = 64;
     return;
   }
-  for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => stub.close());
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => stub.close());
   process.stdout.write(`${JSON.stringify({ app: stub.app, control: stub.control })}\n`);
   await stub.stopped;
 }
