@@ -730,7 +730,10 @@ test_search() {
   search_case search/holding-9-and-10-takes-11 'takes 11' 11 - dir:9 dir:10
   search_case search/holding-2-19-and-200-takes-201 'takes 201' 201 - dir:2 dir:19 dir:200
   search_case search/a-name-of-19-digits-below-9e18-is-a-number 'takes 8999999999999999999' 8999999999999999999 - dir:1 dir:8999999999999999998
-  search_case search/names-that-are-no-number-passed-over 'takes 3' 3 - dir:1 dir:2 dir:abc dir:1x dir:07 dir:0 file:15 dir:9000000000000000000 dir:12345678901234567890 file:50 dir:99999999999999999999
+  search_case search/a-name-of-18-digits-is-a-number 'takes 100000000000000001' 100000000000000001 - dir:1 dir:100000000000000000
+  search_case search/a-name-of-19-digits-from-1-is-a-number 'takes 1000000000000000001' 1000000000000000001 - dir:1 dir:1000000000000000000
+  search_case search/a-letter-inside-a-name-is-no-number 'takes 3' 3 - dir:1 dir:2 dir:2x5
+  search_case search/names-that-are-no-number-passed-over 'takes 3' 3 - dir:1 dir:2 dir:abc dir:1x dir:07 dir:0 file:15 dir:9000000000000000000 dir:12345678901234567890 file:50 dir:99999999999999999999 dir:999999999999999999999
 }
 
 [ $# -gt 0 ] || set -- probe lists
