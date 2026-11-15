@@ -133,6 +133,14 @@ class LoggedAlarmError extends Error {
   }
 }
 
+/** Who runs a step: its caught errors are logged with the caller's line and counted for the caller. */
+interface Caller {
+  line: "alarm-error" | "destroy-error";
+  caught: number;
+}
+
+const byTheAlarm = (): Caller => ({ line: "alarm-error", caught: 0 });
+
 function contractBroken(): never {
   const error = new Error("a module answered what contract 3.1 rules out");
   error.name = "ContractBrokenError";
@@ -279,7 +287,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
   }
 
-  function step<T>(run: (open: Open) => T): T {
+  function step<T>(run: (open: Open) => T, by: Caller = byTheAlarm()): T {
     let arm = false;
     let due: Ms | null = null;
     let tested = false;
@@ -323,7 +331,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       return result;
     });
-    for (const error of errors) log({ event: "alarm-error", error: errorName(error) });
+    for (const error of errors) log({ event: by.line, error: errorName(error) });
+    by.caught += errors.length;
     if (arm) armAlarm(tested ? null : due);
     return value;
   }
@@ -404,14 +413,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return host.port.readUsageTotal({ ...ids, from: call.from, to: call.to });
   }
 
-  async function sendAndRecord(): Promise<"gone" | "done"> {
+  async function sendAndRecord(by: Caller = byTheAlarm()): Promise<"gone" | "done"> {
     const sent = step((open) => {
       if (!holds(open.sql)) return null;
       const now = open.begin();
       ledger.expire(open.sql, now);
       const next = metering.send(open.sql, now);
       return { next, ids: next.call === null ? null : idsOf(open.sql), now };
-    });
+    }, by);
     if (sent === null) return "gone";
     planned(sent.next.call, sent.now);
     logNotBillable(sent.next);
@@ -435,7 +444,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         if (!isMetered(open.sql)) return "not-metered" as const;
         const next = metering.record(open.sql, made, answer, now);
         return { next, ids: next.call === null ? null : idsOf(open.sql), now };
-      });
+      }, by);
       if (recorded === null) return "gone";
       if (recorded === "not-metered") return "done";
       planned(recorded.next.call, recorded.now);
@@ -540,6 +549,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         finished = await finishDelete(null);
       } catch (error) {
         if (thrown === null) throw error;
+        log({ event: "alarm-error", error: errorName(error) });
       }
       thrown = thrown ?? finished.thrown;
       if (finished.answer.result === "deleted") {
@@ -583,7 +593,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       tested = counted.tested;
       marked = counted.marked;
       nextAt = counted.nextAt;
-    } catch {
+    } catch (counting) {
+      log({ event: "alarm-error", error: errorName(counting) });
       count = marked ? failuresKept + 1 : ALARM_RETRY_LIMIT;
     }
     if (marked) failuresKept = count;
@@ -591,7 +602,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       host.step((sql) => {
         sql.exec("UPDATE skeleton SET last_now = ?", Math.max(time(sql), lastNow(sql)));
       });
-    } catch {}
+    } catch (writing) {
+      log({ event: "alarm-error", error: errorName(writing) });
+    }
     if (marked) {
       try {
         const owed = host.step((sql) => {
@@ -627,7 +640,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     armAlarm(null);
   }
 
-  function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T): T {
+  function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T, by: Caller = byTheAlarm()): T {
     return step((open) => {
       if (!holds(open.sql)) return answers.nothing;
       const now = open.begin();
@@ -636,7 +649,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (look === "mismatch") return answers.mismatch;
       if (look === "pending") return answers.pending;
       return onAccount(open, now);
-    });
+    }, by);
   }
 
   function capAnswer(sql: Sql, now: Ms): { result: "cap"; cap: Cap; spend: { spent: Micro; held: Micro; period_end: Ms } } | null {
@@ -645,7 +658,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return { result: "cap", cap: read.cap, spend: { spent: read.spent, held: read.held, period_end: read.periodEnd } };
   }
 
-  async function destroyStepThree(): Promise<"gone" | "done"> {
+  async function destroyStepThree(by: Caller = byTheAlarm()): Promise<"gone" | "done"> {
     const sealed = step((open) => {
       if (!holds(open.sql)) return null;
       const now = open.begin();
@@ -653,17 +666,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const metered = isMetered(open.sql);
       if (metered) sealLoop(open.sql, now);
       return { metered };
-    });
+    }, by);
     if (sealed === null) return "gone";
-    return sealed.metered ? sendAndRecord() : "done";
+    return sealed.metered ? sendAndRecord(by) : "done";
   }
 
-  function cutAtTheMark(mark: Ms): void {
+  function cutAtTheMark(mark: Ms, by: Caller = byTheAlarm()): void {
     step((open) => {
       if (!holds(open.sql)) return;
       const now = open.begin();
       if (isMetered(open.sql)) metering.cut(open.sql, "delete", mark, now);
-    });
+    }, by);
   }
 
   function holder(sql: Sql, hash: string | null): DeleteAnswer | null {
@@ -675,7 +688,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return null;
   }
 
-  function fourth(hash: string | null, again: boolean): Fourth {
+  function fourth(hash: string | null, again: boolean, by: Caller): Fourth {
     return step((open): Fourth => {
       if (!holds(open.sql)) return { kind: "answer", answer: { result: "deleted" } };
       const now = open.begin();
@@ -703,24 +716,24 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       if (subscriptionId !== null) storeCallRecord(open.sql, subscriptionId, now);
       return { kind: "cancel", subscriptionId, mark: mark.since, unacknowledged, began: subscriptionId === null ? null : now };
-    });
+    }, by);
   }
 
-  async function finishDelete(hash: string | null): Promise<{ answer: DeleteAnswer; thrown: { error: unknown } | null }> {
+  async function finishDelete(hash: string | null, by: Caller = byTheAlarm()): Promise<{ answer: DeleteAnswer; thrown: { error: unknown } | null }> {
     let thrown: { error: unknown } | null = null;
-    let next = fourth(hash, false);
+    let next = fourth(hash, false, by);
     if (next.kind === "again") {
       try {
-        if ((await destroyStepThree()) === "gone") return { answer: { result: "deleted" }, thrown };
+        if ((await destroyStepThree(by)) === "gone") return { answer: { result: "deleted" }, thrown };
       } catch (error) {
         thrown = { error };
       }
-      next = fourth(hash, true);
+      next = fourth(hash, true, by);
     }
-    return { answer: await finishFrom(hash, next), thrown };
+    return { answer: await finishFrom(hash, next, by), thrown };
   }
 
-  async function finishFrom(hash: string | null, next: Fourth): Promise<DeleteAnswer> {
+  async function finishFrom(hash: string | null, next: Fourth, by: Caller): Promise<DeleteAnswer> {
     if (next.kind === "answer") return next.answer;
     if (next.kind === "again") return contractBroken();
     const mark = next.mark;
@@ -735,9 +748,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
             if (!holds(open.sql)) return;
             open.begin();
             clearCallRecord(open.sql, id, began);
-          });
+          }, by);
         } catch (clearing) {
-          log({ event: "alarm-error", error: errorName(clearing) });
+          log({ event: by.line, error: errorName(clearing) });
         }
       };
       const settled = (async () => host.port.cancelSubscription(id))().then(
@@ -765,7 +778,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           const delay = current.delay ?? SYNC_RETRY_MS;
           open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));
           return { answer: NOT_FINISHED, capped: delay >= RETRY_DELAY_CAP_MS };
-        });
+        }, by);
         if (unanswered.capped) log({ event: "cancel-unanswered" });
         return unanswered.answer;
       }
@@ -790,7 +803,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           );
         }
         return null;
-      });
+      }, by);
       if (recorded !== null) return recorded;
     }
     const last = step((open): DeleteAnswer | { decidedAt: Ms; closed: number | { unknown: unknown } } => {
@@ -824,7 +837,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (ledger.openHoldsAt(open.sql, now) > 0 || (metered && !metering.settled(open.sql))) return NOT_FINISHED;
       open.sql.exec("UPDATE skeleton SET removal_decided_at = ?", now);
       return { decidedAt: now, closed: closedAtBound() };
-    });
+    }, by);
     if ("result" in last) return last;
     if (removalLogged !== last.decidedAt) {
       removalLogged = last.decidedAt;
@@ -1015,11 +1028,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         mismatch: { result: "credential-mismatch" as const },
         pending: { result: "pending" as const },
       };
-      const first = guarded<DeleteAnswer | { cut: Ms | null }>(hash, answers, (open, now) => {
-        if (destroyingSince(open.sql) !== null) return { cut: null };
-        open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
-        return { cut: now };
-      });
+      const by: Caller = { line: "destroy-error", caught: 0 };
+      const first = guarded<DeleteAnswer | { cut: Ms | null }>(
+        hash,
+        answers,
+        (open, now) => {
+          if (destroyingSince(open.sql) !== null) return { cut: null };
+          open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
+          return { cut: now };
+        },
+        by,
+      );
       if ("result" in first) return first;
       let failed = false;
       let leave: { error: unknown } | null = null;
@@ -1034,25 +1053,25 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const mark = first.cut;
       if (mark !== null) {
         try {
-          cutAtTheMark(mark);
+          cutAtTheMark(mark, by);
         } catch (error) {
           caught(error);
         }
       }
       try {
-        if ((await destroyStepThree()) === "gone") return { result: "deleted" };
+        if ((await destroyStepThree(by)) === "gone") return { result: "deleted" };
       } catch (error) {
         caught(error);
       }
       let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
       try {
-        finished = await finishDelete(hash);
+        finished = await finishDelete(hash, by);
       } catch (error) {
         caught(error);
       }
       if (finished.thrown !== null) caught(finished.thrown.error);
       if (leave !== null) throw (leave as { error: unknown }).error;
-      if (!failed) return finished.answer;
+      if (!failed && by.caught === 0) return finished.answer;
       return host.step((sql) => holds(sql)) ? finished.answer : { result: "deleted" };
     },
 

@@ -2156,4 +2156,97 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     expect(await first).toEqual({ result: "deleted" });
     expect(events()).toContain("destroy-error");
   });
+
+  const errorLines = () => lines.filter((line) => line.event === "alarm-error" || line.event === "destroy-error").map((line) => `${line.event} ${line.error}`);
+
+  for (const failing of ["metering.unacknowledged", "metering.oldestUnsealed", "ledger.nextDue"] as const) {
+    test(`M7: ${failing} throwing in a step of destroy from outside is logged as destroy-error, in place of alarm-error`, async () => {
+      const w = world({ clock: () => 8000 });
+      await w.seeded({ customerId: "cus_one" });
+      w.answers.settled = false;
+      w.answers.throwIn = failing;
+      await w.entries.destroy(HASH);
+      w.answers.throwIn = null;
+      expect(errorLines().length).toBeGreaterThan(0);
+      expect(errorLines().every((line) => line === "destroy-error Error")).toBe(true);
+    });
+  }
+
+  test("M7: metering.closedAtBound and metering.closeOpen throwing in destroy's removal step are logged as destroy-error", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    await w.entries.destroy(HASH);
+    w.reset();
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    w.answers.throwIn = "metering.closeOpen";
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    w.answers.throwIn = null;
+    expect(errorLines()).toEqual(["destroy-error Error"]);
+  });
+
+  test("M7: the same error caught in an alarm run is logged as alarm-error", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.openHolds = 0;
+    w.reset();
+    w.answers.throwIn = "metering.unacknowledged";
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(errorLines().length).toBeGreaterThan(0);
+    expect(errorLines().every((line) => line === "alarm-error Error")).toBe(true);
+  });
+
+  test("M7: a rejected alarm call during destroy keeps its own line, alarm-error", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.setAlarm = () => {
+      throw new TypeError("the alarm call is refused");
+    };
+    await w.entries.destroy(HASH);
+    expect(errorLines().length).toBeGreaterThan(0);
+    expect(errorLines().every((line) => line === "alarm-error TypeError")).toBe(true);
+  });
+
+  test("M7: the count step's own error is logged by its name", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "accounts.forget";
+    failingWrites(w, (query) => query.includes("alarm_failures = ?"));
+    w.reset();
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(errorLines()).toContain("alarm-error RangeError");
+  });
+
+  test("M7: when the alarm's seal and send part throws and the finish throws too, the finish's error is logged, not dropped", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.openHolds = 0;
+    w.answers.send = { call: SEND, notBillable: 0 };
+    w.host.port.sendUsage = async () => {
+      throw new SyntaxError("the send throws");
+    };
+    w.host.port.cancelSubscription = async () => {
+      throw new URIError("the cancel throws");
+    };
+    w.reset();
+    now = 9000;
+    await w.entries.alarm();
+    expect(errorLines()).toEqual(expect.arrayContaining(["alarm-error SyntaxError", "alarm-error URIError"]));
+  });
 });
