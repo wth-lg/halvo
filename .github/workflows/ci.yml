@@ -1,4 +1,5 @@
 name: ci
+# scratch: main's workflow trimmed to U4.2's checks, with a cold and a warm call of 60-r6-egress; never merged
 
 on:
   push:
@@ -92,25 +93,20 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 60-r6-egress 40-r6-policy 80-r6-absent 10-r6-layout 16-shell-lint 70-r6-memory
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
+      - name: 60-r6-egress cold (an empty target directory)
+        shell: bash
+        run: CARGO_TARGET_DIR="$RUNNER_TEMP/egress-cold" sh scripts/ci/run-ci-d.sh macos 60-r6-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 60-r6-egress 40-r6-policy 80-r6-absent 10-r6-layout 16-shell-lint 70-r6-memory
+      - name: 60-r6-egress warm (the second call on the restored cache)
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 60-r6-egress
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -148,25 +144,20 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 60-r6-egress 40-r6-policy 80-r6-absent 10-r6-layout 70-r6-memory
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
+      - name: 60-r6-egress cold (an empty target directory)
+        shell: bash
+        run: CARGO_TARGET_DIR="$RUNNER_TEMP/egress-cold" sh scripts/ci/run-ci-d.sh windows 60-r6-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 60-r6-egress 40-r6-policy 80-r6-absent 10-r6-layout 70-r6-memory
+      - name: 60-r6-egress warm (the second call on the restored cache)
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 60-r6-egress
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
