@@ -118,6 +118,7 @@ type Account = {
   cancelsAfterAReactivation: number;
   closedNotBillable: Set<string>;
   providerEnded: boolean;
+  endedByTheDeleteAt: number | null;
   deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
 };
 
@@ -168,6 +169,8 @@ class World {
   private clockMoveStopsForAPendingAnswer = false;
   private movedTheCutBack = false;
   private closing = false;
+  private sendsAfterTheDeleteEnded = 0;
+  private cancelBeforeSendLines = 0;
   private downtimeLeft: number;
   private readonly scenario: Scenario;
   private readonly options: Options;
@@ -195,6 +198,7 @@ class World {
       event = String((JSON.parse(line) as { event?: unknown }).event);
     } catch {}
     this.count(`log.${event}`);
+    if (event === "cancel-before-send") this.cancelBeforeSendLines += 1;
     if (event === "alarm-error" || event === "alarm-stopped") this.findings.push({ check: "the alarm caught an error", detail: line });
   }
 
@@ -307,6 +311,7 @@ class World {
       cancelsAfterAReactivation: 0,
       closedNotBillable: new Set(),
       providerEnded: false,
+      endedByTheDeleteAt: null,
       deleteBound: new Map(),
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
@@ -385,7 +390,7 @@ class World {
           return { kind: "nothing-to-cancel" };
         }
         account.providerEnded = true;
-        this.meter.endSubscription(account.id, seconds());
+        account.endedByTheDeleteAt = this.meter.endSubscription(account.id, seconds());
         return { kind: "cancelled" };
       },
       sendUsage: async (e) => {
@@ -503,6 +508,11 @@ class World {
   private deliver(event: MeterEvent): SendResult {
     const result = this.meter.send(event, this.now);
     this.count(`meter.${result.status}`);
+    const ended = this.accounts.find((each) => each.id === event.account)?.endedByTheDeleteAt ?? null;
+    if (result.status === "recorded" && ended !== null && this.now >= ended) {
+      this.sendsAfterTheDeleteEnded += 1;
+      this.count("send.recorded-after-the-delete-ended-the-subscription");
+    }
     if (result.status === "refused") this.fail("refused by the provider", `${event.identifier}: ${result.reason}`);
     return result;
   }
@@ -1045,5 +1055,11 @@ class World {
       }
     }
     if (this.meter.stats().duplicatesWithOtherContent > 0) this.fail("one identifier with two contents", `${this.meter.stats().duplicatesWithOtherContent} times`);
+    if (this.sendsAfterTheDeleteEnded > this.cancelBeforeSendLines) {
+      this.fail(
+        "a send after the delete's cancel that no cancel-before-send line counts",
+        `${this.sendsAfterTheDeleteEnded} sends recorded after the delete's cancel ended the subscription, ${this.cancelBeforeSendLines} cancel-before-send lines`,
+      );
+    }
   }
 }
