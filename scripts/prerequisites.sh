@@ -1865,12 +1865,59 @@ EOF
   [ "$fetched" = 0 ] || problems="$problems; the licences were fetched after the failed fetch of the tools"
   verdict "$name"
 
+  name='--help prints the usage and the named limit of the pnpm step, exits 0 and runs no tool'
+  new_case help
+  mkdir "$case_dir/help-stubs" "$case_dir/home"
+  for tool in git rustup curl npm npx cargo pnpm node brew powershell.exe; do
+    printf "#!/bin/sh\necho \"%s \$*\" >>%s\nexit 1\n" "$tool" "'$case_dir/calls'" >"$case_dir/help-stubs/$tool"
+    chmod +x "$case_dir/help-stubs/$tool"
+  done
+  status=0
+  env PATH="$case_dir/help-stubs:/usr/bin:/bin" HOME="$case_dir/home" CARGO_HOME="$case_dir/home/.cargo" sh "$(pwd -P)/scripts/prerequisites.sh" --help >"$case_dir/output" 2>&1 || status=$?
+  [ "$status" = 0 ] || problems="$problems; --help exited $status"
+  [ ! -s "$case_dir/calls" ] || problems="$problems; a tool ran: $(tr '\n' ';' <"$case_dir/calls")"
+  [ "$(sed -n 1p "$case_dir/output")" = 'usage: sh scripts/prerequisites.sh [--self-test | --help]' ] || problems="$problems; the first line is not the usage"
+  joined=$(tr '\n' ' ' <"$case_dir/output" | tr -s ' ')
+  case $joined in
+    *"Named limit: the pnpm step checks the bytes of what it downloads, and a pnpm of the pinned version that already stands on a person's PATH is used as it is, because whoever can write there needs no pnpm to run code as that person; on a hosted runner of GitHub Actions the step fails instead."*) ;;
+    *) problems="$problems; the text does not hold the sentence of the named limit" ;;
+  esac
+  verdict "$name"
+
   if [ "$failures" -gt 0 ]; then
     echo "prerequisites: self-test FAIL: cases failed: $failures"
     return 1
   fi
   echo "prerequisites: self-test PASS"
 }
+
+if [ "${1:-}" = --help ]; then
+  cat <<'EOF'
+usage: sh scripts/prerequisites.sh [--self-test | --help]
+
+Run in a clone of Halvo on macOS, or on Windows in Git Bash, it sets
+core.hooksPath to .githooks, installs rustup and the Rust toolchain that
+rust-toolchain.toml names, the Tauri CLI with npm ci, cargo-release and
+cargo-deny, fetches the crates of account/Cargo.lock, and sets up the
+backend: the pinned pnpm, the packages of its lock, its pinned tools and
+the licences of its packages.
+
+The pnpm step reads pnpm's version and sha512 from packageManager in the
+backend's package.json, downloads pnpm and the platform package of this
+host, checks both sums, installs both for the user into ~/.local with npm,
+and compares the file that runs for that pnpm with the binary inside the
+checked platform package before it runs; it stops at any difference.
+Named limit: the pnpm step checks the bytes of what it downloads, and a
+pnpm of the pinned version that already stands on a person's PATH is used
+as it is, because whoever can write there needs no pnpm to run code as
+that person; on a hosted runner of GitHub Actions the step fails instead.
+
+  --self-test  runs the script's own cases with stand-ins and installs
+               nothing.
+  --help       prints this text.
+EOF
+  exit 0
+fi
 
 if [ "${1:-}" = --self-test ]; then
   self_test
