@@ -19,13 +19,18 @@ scripted = []
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "=0.6.5"
-objc2-foundation = { version = "=0.3.2", features = ["NSString"] }
+objc2-foundation = { version = "=0.3.2", features = ["NSDate", "NSGeometry", "NSNotification", "NSObjCRuntime", "NSRunLoop", "NSString", "NSTimer"] }
 objc2-app-kit = { version = "=0.3.2", features = ["NSAlert", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "NSApplication", "NSRunningApplication"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_UI_Controls", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_UI_Controls", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [[test]]
 name = "dialog_hosted"
 path = "tests/dialog_hosted.rs"
+harness = false
+
+[[test]]
+name = "guard_hosted"
+path = "tests/guard_hosted.rs"
 harness = false

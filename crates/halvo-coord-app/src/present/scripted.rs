@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 /// then waits at most `wait` for the script's press for that show, by its number; the press
 /// goes through the app's mapping, and a show that gets no press of its own by then answers as
 /// a time limit does, `reject`. A press never answers another show than the one it names, so a
-/// late press, and one for a show that ended, answers nothing.
+/// late press, and one for a show that ended, answers nothing. It holds no control: the hold of
+/// `arm` is the system dialog's, and the walk's script presses when it is written to.
 pub struct Scripted {
     script: Mutex<Script>,
     moved: Condvar,
@@ -67,7 +68,7 @@ impl Scripted {
 }
 
 impl Dialog for Scripted {
-    fn show(&self, card: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    fn show(&self, card: &Card, _: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         on_screen();
         let end = Instant::now() + self.wait;
         let mut script = self.script();
