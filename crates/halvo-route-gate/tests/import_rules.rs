@@ -769,6 +769,37 @@ fn a_refused_limits_line_is_named_before_a_missing_reply_line_of_the_writer() {
     assert_eq!(got.refused(), "REFUSED source: driver:14");
 }
 
+fn cell_lines(model: &str) -> Vec<String> {
+    let mut lines: Vec<String> = [
+        ("compile", 1),
+        ("replay", 1),
+        ("replay", 2),
+        ("replay", 3),
+        ("recover", 1),
+    ]
+    .iter()
+    .map(|(kind, i)| line_of(model, "bill", 1, kind, &i.to_string()))
+    .collect();
+    lines.push(format!("drive model={model} machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=3 wall_s=10 model_tokens=11 typed_credential=0 effects_without_confirm=0"));
+    lines
+}
+
+#[test]
+fn a_limits_line_names_its_task_at_any_later_word() {
+    let mut wrong = Vec::new();
+    for line in [
+        "limits task=cleanup task=order steps=9 wall_s=400 model_tokens=9000",
+        "limits steps=9 task=fill task=bill wall_s=400 model_tokens=9000",
+    ] {
+        let got = run(
+            &refs(&with(with(cell_lines("m_c"), line), VERDICT)),
+            &[BOUND],
+        );
+        refused_at(&got, "driver:9", line, &mut wrong);
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
 #[test]
 fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     let mut wrong = Vec::new();
