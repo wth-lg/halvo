@@ -60,8 +60,15 @@ that it does not find, by any form, runs under no egress check, and the forbid r
 code of the three crates. A word is a command when the binary does not answer "REFUSED usage: unknown
 command", with exit 2 and nothing on standard output, to it alone or to it with one argument that no
 command takes. In the macos job the whole asking runs in one call of scripts/egress/check.sh with
-the list, under one deadline (240 s, or R6_EGRESS_ASKING_SECONDS from 1 to 240), and prints "egress
-asking denied=<n>", which adds to denied. The windows job does not ask: there the egress check's rule
+the list, under one deadline (240 s, or R6_EGRESS_ASKING_SECONDS from 1 to 240). The asker asks the
+egress run's own loopback probe first and last, with a listener of its own on 127.0.0.1:47202, and the
+check counts those two reports apart from the words' reports; an asking that ends with fewer than two
+of them is a lost report, asked again up to three times, and then fails by the words "the asking's
+report was lost". It prints "egress asking denied=<n> probes=<n> tries=<n>", and its denied adds to
+denied. In the words of E-16: denied counts the reports that arrived, and a reach by an asked word is
+stopped by the mode whether or not its report arrives; on this Mac 3 of 20 wrapped askings over all
+words lost the report of a reach and 0 of 20 over one word (SG-64 item 4, round 3 of builder-26). The
+asking holds nothing that the forbid run does not. The windows job does not ask: there the egress check's rule
 names the wrapped program, so a reach by a child of a wrapped shell is logged and failed, not
 stopped; the forbid run holds the code that the windows job compiles, and every command of the first
 list runs.
@@ -827,9 +834,11 @@ words=$2
 answers=$3
 seconds=$4
 probe=$5
+loopback=$6
 unknown='REFUSED usage: unknown command'
 nl='
 '
+sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
 mkdir -p "$answers/discover" || exit 2
 : >"$answers/commands.txt" || exit 2
 cd "$answers/discover" || exit 2
@@ -865,6 +874,7 @@ while IFS= read -r word || [ -n "$word" ]; do
   fi
 done <"$words"
 printf '%s\n' "$asked" >"$answers/asked"
+sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
 kill "$watchdog" 2>/dev/null
 wait "$watchdog"
 exit 0
@@ -929,26 +939,30 @@ log_holds() {
   [ "$lines" = "$count" ]
 }
 
+start_listener() {
+  "$spawn" serve "$1" "$work/$2-stop" "$work/$2-ready" &
+  listener=$!
+  waited=0
+  while [ ! -f "$work/$2-ready" ] && [ "$waited" -lt 100 ]; do
+    kill -0 "$listener" 2>/dev/null || break
+    sleep 0.05
+    waited=$((waited + 1))
+  done
+  [ -f "$work/$2-ready" ] && return 0
+  : >"$work/$2-stop"
+  wait "$listener"
+  listener=
+  printf 'egress %s refused=port 127.0.0.1:%s\n' "$2" "$1"
+  holds=no
+  return 1
+}
+
 control() {
   sh scripts/egress/probe.sh none >"$artifacts/control-build.out" 2>"$artifacts/control-build.err" || fail setup
   spawn=target/egress/bin/egress-spawn
   [ ! -f "$spawn.exe" ] || spawn=$spawn.exe
   [ -f "$spawn" ] || fail setup
-  "$spawn" serve 47201 "$work/control-stop" "$work/control-ready" &
-  listener=$!
-  waited=0
-  while [ ! -f "$work/control-ready" ] && [ "$waited" -lt 100 ]; do
-    kill -0 "$listener" 2>/dev/null || break
-    sleep 0.05
-    waited=$((waited + 1))
-  done
-  if [ ! -f "$work/control-ready" ]; then
-    : >"$work/control-stop"
-    wait "$listener"
-    printf 'egress control refused=port 127.0.0.1:47201\n'
-    holds=no
-    return
-  fi
+  start_listener 47201 control || return
   try=0
   while [ "$try" -lt 4 ]; do
     try=$((try + 1))
@@ -1009,14 +1023,33 @@ discover() {
   fi
   write_asker
   asking_seconds
-  mkdir -p "$work/answers" || fail setup
-  egress_numbers "$work/before-asking.txt"
-  sh scripts/egress/check.sh "$list" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$work/answers" "$seconds" \
-    "$probe_word" >"$artifacts/asking.out" 2>"$artifacts/asking.err" </dev/null
-  code=$?
-  read_wrapped "$artifacts/asking.err"
-  if [ -f "$work/answers/timeout" ]; then
-    IFS= read -r word <"$work/answers/asking" || word=-
+  if ! start_listener 47202 asking; then
+    : >"$work/commands.txt"
+    return
+  fi
+  asking_listener=$listener
+  try=0
+  probes=0
+  while [ "$try" -lt 4 ]; do
+    try=$((try + 1))
+    answers=$work/answers-$try
+    mkdir -p "$answers" || fail setup
+    egress_numbers "$work/before-asking-$try.txt"
+    sh scripts/egress/check.sh "$list" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$answers" "$seconds" \
+      "$probe_word" "$repo_abs/scripts/egress/probe.sh" >"$artifacts/asking-$try.out" 2>"$artifacts/asking-$try.err" </dev/null
+    code=$?
+    read_wrapped "$artifacts/asking-$try.err"
+    [ "$wrapped" = line ] || break
+    probes=0
+    if [ -f "$log" ] && [ ! -h "$log" ]; then
+      probes=$(grep -c 'dest=127\.0\.0\.1:47202 ' "$log") || probes=0
+    fi
+    [ "$status" = 0 ] && [ "$probes" -lt 2 ] || break
+  done
+  : >"$work/asking-stop"
+  wait "$asking_listener"
+  if [ -f "$answers/timeout" ]; then
+    IFS= read -r word <"$answers/asking" || word=-
     printf 'egress asking timeout=%s word=%s\n' "$seconds" "$word"
     ran=no
   fi
@@ -1031,19 +1064,25 @@ discover() {
       printf 'egress asking line=missing exit=%s\n' "$code"
       ;;
     line)
-      denied=$((denied + count))
-      printf 'egress asking denied=%s command=%s exit=%s\n' "$count" "$status" "$code"
+      reached=$((count - probes))
+      [ "$reached" -ge 0 ] || reached=0
+      denied=$((denied + reached))
+      printf 'egress asking denied=%s probes=%s tries=%s command=%s exit=%s\n' "$reached" "$probes" "$try" "$status" "$code"
       wrapped_holds "$code" || ran=no
-      if ! log_holds "$work/before-asking.txt"; then
+      if ! log_holds "$work/before-asking-$try.txt"; then
         printf 'egress asking log=not-new-or-not-its-own\n'
+        ran=no
+      fi
+      if [ "$status" = 0 ] && [ "$probes" -lt 2 ]; then
+        printf "egress asking: the asking's report was lost in %s tries\n" "$try"
         ran=no
       fi
       ;;
   esac
-  if [ -f "$work/answers/asked" ]; then
-    IFS= read -r asked <"$work/answers/asked" || asked=0
+  if [ -f "$answers/asked" ]; then
+    IFS= read -r asked <"$answers/asked" || asked=0
   fi
-  cp "$work/answers/commands.txt" "$work/commands.txt" 2>/dev/null || : >"$work/commands.txt"
+  cp "$answers/commands.txt" "$work/commands.txt" 2>/dev/null || : >"$work/commands.txt"
 }
 
 compare_lists() {
@@ -1167,6 +1206,7 @@ check() {
   platform_of
   job_of
   root_abs=$(absolute_dir .) || fail setup
+  repo_abs=$(pwd) || fail setup
   holds=yes
 
   tree=$(git rev-parse --verify --quiet 'HEAD^{tree}' 2>/dev/null) || fail setup
@@ -1470,15 +1510,20 @@ case $STUB_CHECK in
 esac
 reached=0
 [ -z "$STUB_REACH" ] || [ ! -f "$STUB_REACH" ] || reached=$(awk 'END { print NR }' "$STUB_REACH")
+probed=0
+[ ! -f "$STUB_PROBE_LOG" ] || probed=$(awk 'END { print NR }' "$STUB_PROBE_LOG")
 "$@"
 code=$?
+probes=0
+[ ! -f "$STUB_PROBE_LOG" ] || probes=$(($(awk 'END { print NR }' "$STUB_PROBE_LOG") - probed))
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
 denied=0
 if [ -n "$STUB_REACH" ] && [ -f "$STUB_REACH" ]; then
   denied=$(($(awk 'END { print NR }' "$STUB_REACH") - reached))
 fi
-[ "$STUB_CHECK" != denied ] || denied=1
-[ "$STUB_CHECK" != denied0 ] || denied=1
+[ "$STUB_CHECK" != denied ] || denied=$((denied + 1))
+[ "$STUB_CHECK" != denied0 ] || denied=$((denied + 1))
+[ "$STUB_CHECK:$1" != asking-status3:sh ] || code=3
 if [ "$1 $2" = "sh scripts/egress/probe.sh" ]; then
   case $STUB_CONTROL in
     through) denied=0 ;;
@@ -1493,7 +1538,11 @@ done
 mkdir -p "target/egress/$n"
 lines=$denied
 [ "$STUB_CHECK" != short-log ] || lines=$((denied + 1))
-awk -v n="$lines" 'BEGIN { for (i = 0; i < n; i++) print "denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x" }' >"target/egress/$n/denied.log"
+awk -v n="$lines" -v p="$probes" 'BEGIN {
+  for (i = 0; i < n; i++) print "denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x"
+  for (i = 0; i < p; i++) print "denied at=- proto=tcp dest=127.0.0.1:47202 pid=1 image=egress-probe"
+}' >"target/egress/$n/denied.log"
+denied=$((denied + probes))
 case $STUB_CHECK:$1:$2 in
   reuse-log:*) n=1 ;;
   reuse-log-run:sh:*) ;;
@@ -1534,6 +1583,20 @@ SPAWN
     [ "$STUB_CONTROL" = through ] && exit 0
     exit 1
     ;;
+  loopback2)
+    case $STUB_PROBE in
+      lost) ;;
+      lost-once)
+        if [ -f "$STUB_PROBE_LOG.once" ]; then
+          printf 'probe\n' >>"$STUB_PROBE_LOG"
+        else
+          : >"$STUB_PROBE_LOG.once"
+        fi
+        ;;
+      *) printf 'probe\n' >>"$STUB_PROBE_LOG" ;;
+    esac
+    exit 1
+    ;;
 esac
 exit 2
 EOF
@@ -1551,6 +1614,7 @@ case_reset() {
   STUB_COMMANDS='generate import derive score self-test spend-sim probe'
   STUB_RUN_EXIT=0
   STUB_REACH=
+  STUB_PROBE=
   STUB_HANG=
   STUB_CONTROL=
   STUB_ODD=
@@ -1588,7 +1652,7 @@ case_run() {
     return
   fi
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -1910,7 +1974,7 @@ self_test() {
   case_run commands PASS - 'egress commands=7 asked=23 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid profile=dev findings=0 exit=0'
-  case_run asking-wrapped PASS - 'egress asking denied=0 command=0 exit=0'
+  case_run asking-wrapped PASS - 'egress asking denied=0 probes=2 tries=1 command=0 exit=1'
   case_run control-denied PASS - 'egress control denied=1 log=target/egress/'
   STUB_CONTROL=through
   case_run control-let-through FAIL check 'egress control: the egress check let the control through'
@@ -1923,10 +1987,16 @@ self_test() {
   STUB_CHECK=short-log
   case_run log-with-another-count FAIL check 'log=not-new-or-not-its-own'
   STUB_REACH=$work/reach.log
-  case_run asking-reaches-the-network-when-asked-bare FAIL denied 'egress asking denied=1 command=0 exit=1'
+  case_run asking-reaches-the-network-when-asked-bare FAIL denied 'egress asking denied=1 probes=2 tries=1 command=0 exit=1'
   STUB_HANG=1
   case_env=R6_EGRESS_ASKING_SECONDS=2
   case_run asking-hangs-past-its-deadline FAIL check 'egress asking timeout=2 word=hangword'
+  STUB_PROBE=lost
+  case_run asking-report-lost-four-times FAIL check "egress asking: the asking's report was lost in 4 tries"
+  STUB_PROBE=lost-once
+  case_run asking-report-lost-once-and-asked-again PASS - 'egress asking denied=0 probes=2 tries=2 command=0 exit=1'
+  STUB_CHECK=asking-status3
+  case_run asking-status-read FAIL check 'egress asking denied=0 probes=2 tries=1 command=3 exit=1'
   case_job=windows
   case_run asking-not-run-in-the-windows-job PASS - 'egress asking=not-run (in the windows job'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
