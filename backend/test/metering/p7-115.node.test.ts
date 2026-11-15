@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import { describe, expect, test } from "vitest";
 import { makeAccounts } from "../../src/accounts/index.ts";
 import { ALARM_RETRY_MS, makeEntries } from "../../src/do/entries.ts";
@@ -181,5 +182,244 @@ describe("the fourth closed list of P7-115 (unit 5.6 part 1) A1: the count of fa
     w.close();
     expect(run.failures).toBe(1);
     expect(run.armed).toBe(Math.max(run.at + ALARM_RETRY_MS, run.next ?? 0));
+  });
+});
+
+type Before = 0 | 1 | 4 | 5 | 6 | 7;
+type Failure = "pass" | "due-time" | "send";
+type ExitThrow = "none" | "exit-read" | "count-write" | "last-now" | "owed-step" | "due-in-owed";
+type Arms = "one" | "destroy-arms-differ" | "rearm-first";
+interface Cell {
+  before: Before;
+  failure: Failure;
+  exitThrow: ExitThrow;
+  exitAfterTheArm: boolean;
+  arms: Arms;
+}
+
+const stackHas = (name: string) => String(new Error().stack).includes(name);
+
+/**
+ * One cell of the drawn test: `before` failing runs with no mark (ledger.nextDue throwing; 5 ends in the stop and a status
+ * call that arms again; 6 and 7 by runs whose exit read throws), then a run whose send is held while another entry arms
+ * (a delete, and with `rearm-first` a rearm before it), the exit 5 s or 120 s after the run began, a throw at one step of
+ * the exit, and the runs after it until the first cancel call. Every arm made by an entry other than the run is recorded.
+ */
+async function cell(c: Cell) {
+  const w = await world({ testClock: false });
+  const cancels: Ms[] = [];
+  w.host.port.cancelSubscription = async () => {
+    cancels.push(w.now());
+    return { kind: "failed" } as never;
+  };
+  const f = { due: false, exit: "none" as ExitThrow, exitReadOnly: false, readsInTheCount: 0, inOther: false, inDestroy: false, threwOnce: false };
+  const otherArms: Ms[] = [];
+  const setAlarm = w.host.setAlarm.bind(w.host);
+  w.host.setAlarm = (at) => {
+    if (f.inOther && at !== null) otherArms.push(at);
+    setAlarm(at);
+  };
+  const inner = w.host.step;
+  w.host.step = (<T>(run: (sql: Sql) => T): T =>
+    inner((sql) =>
+      run({
+        exec: (query: string, ...bindings: (string | number | null)[]) => {
+          if (f.inDestroy && c.arms === "destroy-arms-differ" && query.startsWith("UPDATE skeleton SET last_now")) w.at(w.now() + 2000);
+          const inCount = stackHas("countFailure");
+          if (inCount && query.startsWith("SELECT destroying_since")) {
+            f.readsInTheCount += 1;
+            if ((f.exitReadOnly || f.exit === "exit-read") && f.readsInTheCount === 1) throw new RangeError("the exit's read of the mark throws");
+          }
+          if (inCount && !f.threwOnce && f.exit === "count-write" && query.startsWith("UPDATE skeleton SET alarm_failures")) {
+            f.threwOnce = true;
+            throw new RangeError("the count's write throws");
+          }
+          if (inCount && !f.threwOnce && f.exit === "last-now" && query.startsWith("UPDATE skeleton SET last_now")) {
+            f.threwOnce = true;
+            throw new RangeError("the write of last_now throws");
+          }
+          return sql.exec(query, ...bindings);
+        },
+      } as Sql),
+    )) as Step;
+  const a = own(w, {
+    "ledger.nextDue": () => f.due || (f.exit === "due-in-owed" && stackHas("countFailure") && stackHas("dueOf")),
+    "accounts.subscription": () => f.exit === "owed-step" && stackHas("countFailure"),
+  });
+  await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+  w.at(START + 1000);
+  f.due = true;
+  await quiet(w.lines, () => a.rearm());
+  const failing = c.before === 5 ? 5 : c.before;
+  for (let i = 0; i < failing; i += 1) {
+    const due = await w.host.getAlarm();
+    if (due === null) break;
+    w.at(Math.max(due, w.now()));
+    f.exitReadOnly = c.before >= 6;
+    f.readsInTheCount = 0;
+    await quiet(w.lines, () => a.alarm());
+    f.exitReadOnly = false;
+  }
+  const stoppedBefore = events(w).filter((e) => e === "alarm-stopped").length;
+  if (c.before === 5) {
+    w.at(w.now() + 1000);
+    await quiet(w.lines, () => a.status(HASH));
+  }
+  const failuresBefore = Number((await skeleton(w))?.alarm_failures);
+  w.at(w.now() + 1000);
+  await w.use("r0", 10_000);
+  const end = START + Math.ceil((w.now() - START + 1) / HOUR) * HOUR;
+  const send = w.host.port.sendUsage.bind(w.host.port);
+  const runAt = end + 1000;
+  const exitAt = runAt + (c.exitAfterTheArm ? 120_000 : 5_000);
+  let deleteAt: Ms | null = null;
+  let hooked = false;
+  w.host.port.sendUsage = async (args) => {
+    if (!hooked) {
+      hooked = true;
+      w.at(runAt + 1000);
+      f.inOther = true;
+      if (c.arms === "rearm-first") {
+        await quiet(w.lines, () => a.rearm());
+        w.at(w.now() + 2000);
+      }
+      deleteAt = w.now();
+      f.inDestroy = true;
+      await quiet(w.lines, () => a.destroy(HASH));
+      f.inDestroy = false;
+      f.inOther = false;
+      w.at(exitAt);
+      if (c.failure === "send") throw new RangeError("the held send throws");
+    }
+    return send(args);
+  };
+  w.at(runAt);
+  f.due = c.failure === "due-time";
+  f.exit = c.exitThrow;
+  f.readsInTheCount = 0;
+  await quiet(w.lines, () => a.alarm());
+  f.exit = "none";
+  const armed = await w.host.getAlarm();
+  const row = await skeleton(w);
+  const underTheMark = row !== undefined && row.destroying_since !== null;
+  const storedAfter = Number(row?.alarm_failures);
+  let firstCancel: Ms | null = cancels.find((at) => deleteAt !== null && at >= deleteAt) ?? null;
+  for (let n = 0; n < 30 && firstCancel === null; n += 1) {
+    if ((await skeleton(w)) === undefined) break;
+    const due = await w.host.getAlarm();
+    if (due === null) break;
+    w.at(Math.max(due, w.now()));
+    await quiet(w.lines, () => a.alarm());
+    firstCancel = cancels.find((at) => deleteAt !== null && at >= deleteAt) ?? null;
+  }
+  w.close();
+  const earliest = otherArms.length === 0 ? null : Math.min(...otherArms);
+  return { hooked, stoppedBefore, failuresBefore, exitAt, armed, underTheMark, storedAfter, earliest, otherArms, firstCancel };
+}
+
+function holdsTheBound(c: Cell, r: Awaited<ReturnType<typeof cell>>) {
+  const name = JSON.stringify(c);
+  expect(r.hooked, name).toBe(true);
+  if (c.before === 5) expect(r.stoppedBefore, name).toBe(1);
+  expect(r.underTheMark, name).toBe(true);
+  expect(r.armed, name).not.toBeNull();
+  const bound = r.earliest !== null && r.earliest > r.exitAt ? r.earliest : r.exitAt + ALARM_RETRY_MS;
+  expect(r.armed as Ms, `${name} arms ${JSON.stringify(r.otherArms)} exit ${r.exitAt}`).toBeLessThanOrEqual(bound);
+  expect(r.armed as Ms, name).toBeGreaterThan(r.exitAt);
+  if (c.failure !== "pass" && c.exitThrow !== "count-write") expect(r.storedAfter, name).toBe(1);
+  expect(r.firstCancel, name).not.toBeNull();
+  expect(r.firstCancel as Ms, name).toBeLessThanOrEqual(Math.max(r.armed as Ms, r.exitAt + ALARM_RETRY_MS));
+}
+
+const FIXED: Cell[] = (["none", "exit-read", "count-write", "last-now", "owed-step"] as const).flatMap((exitThrow) =>
+  ([false, true] as const).map((exitAfterTheArm) => ({ before: 4 as const, failure: "due-time" as const, exitThrow, exitAfterTheArm, arms: "one" as const })),
+);
+
+const cells = fc
+  .record({
+    before: fc.constantFrom<Before>(0, 1, 4, 5, 6, 7),
+    failure: fc.constantFrom<Failure>("pass", "due-time", "send"),
+    exitThrow: fc.constantFrom<ExitThrow>("none", "exit-read", "count-write", "last-now", "owed-step", "due-in-owed"),
+    exitAfterTheArm: fc.boolean(),
+    arms: fc.constantFrom<Arms>("one", "destroy-arms-differ", "rearm-first"),
+  })
+  .map((c): Cell => (c.failure === "pass" ? { ...c, exitThrow: "none" } : c));
+
+describe("the fourth closed list of P7-115 (unit 5.6 part 1) A2 and A3: an exit never arms later than an arm that another entry set during its run", () => {
+  test("the drawn test, seed 115, 60 drawn cells and ten fixed ones: after the exit the alarm stands under the mark, at or before the earliest arm of another entry when that lies after the exit, else at or before the exit plus ALARM_RETRY_MS; the first cancel call no later than the later of that arm and the exit plus ALARM_RETRY_MS", async () => {
+    const drawn = fc.sample(cells, { seed: 115, numRuns: 60 });
+    for (const c of [...FIXED, ...drawn]) holdsTheBound(c, await cell(c));
+  });
+
+  test("the drawn test's column with no delete: five failing runs with no mark end with alarm-stopped and no alarm (P7-111 M2)", async () => {
+    const w = await world({ testClock: false });
+    let due = false;
+    const a = own(w, { "ledger.nextDue": () => due });
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    due = true;
+    await quiet(w.lines, () => a.rearm());
+    const arms: (Ms | null)[] = [];
+    for (let i = 0; i < 5; i += 1) arms.push((await runAt(w, a)).armed);
+    w.close();
+    expect(arms.slice(0, 4).every((at) => at !== null)).toBe(true);
+    expect(arms[4]).toBeNull();
+    expect(events(w).filter((e) => e === "alarm-stopped")).toHaveLength(1);
+  });
+
+  test("the drawn test's column under a mark set before the runs, nothing owed (the cancel throws): the pause doubles from the mark, 30 s, 60 s, 120 s, 240 s (P7-110 L3 (b))", async () => {
+    const w = await world({ testClock: false });
+    let due = false;
+    w.host.port.cancelSubscription = async () => {
+      throw new RangeError("the cancel call throws");
+    };
+    const a = own(w, { "ledger.nextDue": () => due });
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    due = true;
+    await quiet(w.lines, () => a.rearm());
+    for (let i = 0; i < 4; i += 1) await runAt(w, a);
+    w.at(w.now() + 1000);
+    await quiet(w.lines, () => a.destroy(HASH)).catch(() => undefined);
+    const gaps: Ms[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const run = await runAt(w, a);
+      gaps.push((run.armed as Ms) - run.at);
+    }
+    w.close();
+    expect(gaps).toEqual([1, 2, 4, 8].map((x) => x * ALARM_RETRY_MS));
+  });
+
+  test("two instances over one storage: four failing runs of A with no mark, a delete answered by B during A's send with ledger.nextDue throwing: A's exit arms no later than its exit plus ALARM_RETRY_MS", async () => {
+    const w = await world({ testClock: false });
+    let due = false;
+    cancelPort(w, () => "failed");
+    const a = own(w, { "ledger.nextDue": () => due });
+    const b = own(w, { "ledger.nextDue": () => due });
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    due = true;
+    await quiet(w.lines, () => a.rearm());
+    await failingRunsWithNoMark(w, a, 4);
+    await w.use("r0", 10_000);
+    const send = w.host.port.sendUsage.bind(w.host.port);
+    let hooked = false;
+    const exitAt = START + HOUR + 6000;
+    w.host.port.sendUsage = async (args) => {
+      if (!hooked) {
+        hooked = true;
+        w.at(START + HOUR + 2000);
+        await quiet(w.lines, () => b.destroy(HASH));
+        w.at(exitAt);
+      }
+      return send(args);
+    };
+    w.at(START + HOUR + 1000);
+    await quiet(w.lines, () => a.alarm());
+    const armed = await w.host.getAlarm();
+    w.close();
+    expect(hooked).toBe(true);
+    expect(armed).not.toBeNull();
+    expect(armed as Ms).toBeLessThanOrEqual(exitAt + ALARM_RETRY_MS);
   });
 });

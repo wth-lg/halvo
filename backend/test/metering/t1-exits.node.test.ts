@@ -25,6 +25,7 @@ interface Exit {
   armedByTheDelete: Ms | null;
   exitAt: Ms;
   armedAfterTheExit: Ms | null;
+  earliestDeleteArm: Ms | null;
   cancels: Ms[];
   answeredAt: Ms | null;
   goneAt: Ms | null;
@@ -96,9 +97,12 @@ async function exitWithTheDeleteInTheRun(f: Faults): Promise<Exit> {
   const markSet = () =>
     inner((sql) => sql.exec("SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "table", "skeleton").length > 0 && sql.exec("SELECT destroying_since FROM skeleton")[0]?.destroying_since !== null);
   let nullArmsUnderTheMark = 0;
+  let inDestroy = false;
+  const deleteArms: Ms[] = [];
   const setAlarm = w.host.setAlarm.bind(w.host);
   w.host.setAlarm = (at) => {
     if (at === null && markSet()) nullArmsUnderTheMark += 1;
+    if (inDestroy && at !== null) deleteArms.push(at);
     setAlarm(at);
   };
   const cancels: Ms[] = [];
@@ -153,10 +157,12 @@ async function exitWithTheDeleteInTheRun(f: Faults): Promise<Exit> {
   const t0 = runStart + SECOND;
   w.at(t0);
   on = true;
+  inDestroy = true;
   const answer = await quiet(w.lines, () => own.destroy(HASH)).then(
     (a) => a.result,
     (e: Error) => `threw ${e.name}`,
   );
+  inDestroy = false;
   const armedByTheDelete = await w.host.getAlarm();
   const exitAt = t0 + (f.exitAfterSeconds ?? 5) * SECOND;
   w.at(exitAt);
@@ -178,7 +184,8 @@ async function exitWithTheDeleteInTheRun(f: Faults): Promise<Exit> {
   const stoppedUnderTheMark = w.lines.filter((line) => JSON.parse(line).event === "alarm-stopped").length;
   const periodsAfterTheDelete = w.meter.periods(ACCOUNT, Math.floor((t0 + 90 * DAY) / 1000)).filter((period) => period.start * 1000 > t0).length;
   w.close();
-  return { answer, armedByTheDelete, exitAt, armedAfterTheExit, cancels, answeredAt, goneAt, periodsAfterTheDelete, stoppedUnderTheMark, nullArmsUnderTheMark };
+  const earliestDeleteArm = deleteArms.length === 0 ? null : Math.min(...deleteArms);
+  return { answer, armedByTheDelete, exitAt, armedAfterTheExit, earliestDeleteArm, cancels, answeredAt, goneAt, periodsAfterTheDelete, stoppedUnderTheMark, nullArmsUnderTheMark };
 }
 
 function holdsTheRule(e: Exit): void {
@@ -187,7 +194,7 @@ function holdsTheRule(e: Exit): void {
   expect(e.stoppedUnderTheMark).toBe(0);
   expect(e.nullArmsUnderTheMark).toBe(0);
   expect(e.armedAfterTheExit).not.toBeNull();
-  expect(e.armedAfterTheExit as Ms).toBeGreaterThanOrEqual(e.exitAt + ALARM_RETRY_MS);
+  expect(e.armedAfterTheExit as Ms).toBeGreaterThanOrEqual(e.earliestDeleteArm !== null && e.earliestDeleteArm > e.exitAt ? Math.min(e.earliestDeleteArm, e.exitAt + ALARM_RETRY_MS) : e.exitAt + ALARM_RETRY_MS);
   expect(e.armedAfterTheExit as Ms).toBeLessThanOrEqual(Math.max(e.armedByTheDelete as Ms, e.exitAt + ALARM_RETRY_MS));
   expect(e.cancels.length).toBeGreaterThan(0);
   expect(e.cancels[0] as Ms).toBeLessThanOrEqual((e.armedByTheDelete as Ms) + ALARM_RETRY_MS);

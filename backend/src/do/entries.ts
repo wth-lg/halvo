@@ -120,8 +120,13 @@ type Fourth =
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
 
+/**
+ * One run of the alarm, from its begin in alarm() or testSetClock until its exit has armed. `kept` is the earliest time at
+ * which a step of an entry other than the run armed the alarm since the run began; the run's own steps record nothing.
+ */
 interface AlarmRun {
   mark: Mark | null | "unknown";
+  kept: Ms | null;
 }
 
 interface Open {
@@ -141,13 +146,26 @@ class LoggedAlarmError extends Error {
   }
 }
 
-/** Who runs a step: its caught errors are logged with the caller's line and counted for the caller. */
+/**
+ * Who runs a step: its caught errors are logged with the caller's line and counted for the caller. `run` names the alarm run
+ * whose own step this is; a step without it belongs to another entry.
+ */
 interface Caller {
   line: "alarm-error" | "destroy-error";
   caught: number;
+  readonly run?: AlarmRun;
 }
 
 const byTheAlarm = (): Caller => ({ line: "alarm-error", caught: 0 });
+
+/**
+ * The arm of a step of the run, or of its failing exit, at `now`: the earlier of its own time and the bound, which is the
+ * kept time when it lies after now, else now plus ALARM_RETRY_MS. With no kept time the arm is its own time.
+ */
+function boundByTheKeptTime(run: AlarmRun, at: Ms, now: Ms): Ms {
+  if (run.kept === null) return at;
+  return Math.min(at, run.kept > now ? run.kept : now + ALARM_RETRY_MS);
+}
 
 /** A read of the skeleton that found no mark, or found no skeleton: the one ground, beside a test time, to stop the alarm. */
 interface NoMark {
@@ -208,6 +226,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const { accounts, ledger, metering } = modules;
   const removalRejections = new WeakSet<object>();
   let dueErrorsOfTheRun: unknown[] | null = null;
+  let runInFlight: AlarmRun | null = null;
   let removalLogged: Ms | null = null;
   let failuresKept: { since: Ms | null; count: number } | null = null;
   const sendsEndedHere = new Map<string, Ms>();
@@ -306,12 +325,18 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return earliest(times);
   }
 
-  /** Arms the platform's alarm at a time; it never takes null, so no arm can clear the alarm under the mark. */
-  function armAlarm(at: Ms): void {
+  /**
+   * Arms the platform's alarm at a time; it never takes null, so no arm can clear the alarm under the mark. The arms: a
+   * step's (step), each bounded by the kept time when the step is the run's own, and the failing exit's two (countFailure),
+   * each bounded the same way. Answers whether the arm was set.
+   */
+  function armAlarm(at: Ms): boolean {
     try {
       host.setAlarm(at);
+      return true;
     } catch (caught) {
       log({ event: "alarm-error", error: errorName(caught) });
+      return false;
     }
   }
 
@@ -333,6 +358,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   function step<T>(run: (open: Open) => T, by: Caller = byTheAlarm()): T {
     let arm = false;
     let due: Ms | null = null;
+    let stepNow: Ms = 0;
     let stop: NoMark | TestTime | null = null;
     let errors: unknown[] = [];
     const value = host.step((sql) => {
@@ -364,6 +390,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           due = host.clock() + ALARM_RETRY_MS;
         }
         const now = Math.max(time(sql), lastNow(sql));
+        stepNow = now;
         let mark: Mark | null | "unknown" = "unknown";
         try {
           mark = markOf(sql);
@@ -380,7 +407,10 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     by.caught += errors.length;
     if (arm) {
       if (stop !== null) stopAlarm(stop);
-      else if (due !== null) armAlarm(due);
+      else if (due !== null) {
+        const at = by.run === undefined ? due : boundByTheKeptTime(by.run, due, stepNow);
+        if (armAlarm(at) && by.run === undefined && runInFlight !== null) runInFlight.kept = earliest([runInFlight.kept, at]);
+      }
     }
     return value;
   }
@@ -517,6 +547,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   async function alarmRun(run: AlarmRun, dueErrors: unknown[]): Promise<void> {
     const caught: unknown[] = [];
+    const byTheRun = (): Caller => ({ line: "alarm-error", caught: 0, run });
     let head: { mark: Mark; failures: number } | null | "unknown";
     try {
       head = host.step((sql) => (holds(sql) ? { mark: markOf(sql), failures: Number(skeletonRow(sql).alarm_failures) } : null));
@@ -539,7 +570,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
     }
     const since = head === "unknown" ? null : head.mark.since;
-    if (since !== null) await part(() => cutAtTheMark(since));
+    if (since !== null) await part(() => cutAtTheMark(since, byTheRun()));
     const first = await part(() =>
       step((open) => {
         if (!holds(open.sql)) return null;
@@ -548,7 +579,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         if (isMetered(open.sql)) sealLoop(open.sql, now);
         accounts.forget(open.sql, now);
         return { wake: accounts.wake(open.sql, now), metered: isMetered(open.sql) };
-      }),
+      }, byTheRun()),
     );
     if (first === null) return;
     let metered = first?.metered ?? true;
@@ -574,7 +605,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
             return { removal: recorded, metered: false };
           }
           return { removal: null, metered: isMetered(open.sql) };
-        });
+        }, byTheRun());
       });
       if (after === null) return;
       if (after !== undefined) {
@@ -587,14 +618,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
     let thrown: { error: unknown } | null = null;
     try {
-      if (metered && (await sendAndRecord()) === "gone") return;
+      if (metered && (await sendAndRecord(byTheRun())) === "gone") return;
     } catch (error) {
       thrown = { error };
     }
     if (marked) {
       let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
       try {
-        finished = await finishDelete(null);
+        finished = await finishDelete(null, byTheRun());
       } catch (error) {
         if (thrown === null) throw error;
         log({ event: "alarm-error", error: errorName(error) });
@@ -614,7 +645,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         if (!holds(open.sql)) return;
         open.begin();
         open.sql.exec("UPDATE skeleton SET alarm_failures = ?", 0);
-      });
+      }, byTheRun());
     }
   }
 
@@ -704,7 +735,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       let at = Math.max(host.clock() + pause, waits ?? 0);
       if (removal !== null) at = Math.min(at, Math.max(waits ?? 0, host.clock() + SYNC_RETRY_MS));
       if (removalOfAnyId !== null) at = Math.min(at, Math.max(removalOfAnyId, host.clock() + SYNC_RETRY_MS));
-      if (dueNow !== null) at = Math.min(at, Math.max(dueNow.due, dueNow.now + ALARM_RETRY_MS));
+      if (dueNow !== null) at = Math.min(at, dueNow.due > dueNow.now ? dueNow.due : dueNow.now + ALARM_RETRY_MS);
+      at = boundByTheKeptTime(run, at, host.clock());
       if (removal?.overdue === true) log({ event: "removal-overdue" });
       if (tested !== null) stopAlarm(tested);
       else armAlarm(at);
@@ -712,7 +744,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
     if (count < ALARM_RETRY_LIMIT) {
       if (tested !== null) stopAlarm(tested);
-      else armAlarm(host.clock() + ALARM_RETRY_MS);
+      else armAlarm(boundByTheKeptTime(run, host.clock() + ALARM_RETRY_MS, host.clock()));
       return;
     }
     const noMark = exit === "unknown" ? null : noMarkIn(exit.mark);
@@ -1193,11 +1225,15 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     },
 
     async alarm() {
-      const run: AlarmRun = { mark: "unknown" };
+      const run: AlarmRun = { mark: "unknown", kept: null };
+      const outer = runInFlight;
+      runInFlight = run;
       try {
         await alarmBody(run);
       } catch (error) {
         countFailure(error, run);
+      } finally {
+        runInFlight = outer;
       }
     },
 
@@ -1223,12 +1259,16 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const due = host.step((sql) => (holds(sql) ? dueOf(sql) : null));
         if (due === null || due > at || (runs > 0 && due === before)) break;
         before = due;
-        const run: AlarmRun = { mark: "unknown" };
+        const run: AlarmRun = { mark: "unknown", kept: null };
+        const outer = runInFlight;
+        runInFlight = run;
         try {
           await alarmBody(run);
         } catch (error) {
           countFailure(error, run);
           break;
+        } finally {
+          runInFlight = outer;
         }
       }
       return { result: "clock-set" };
