@@ -295,12 +295,12 @@ test('server: refusals usage, site-data and port, each with nothing on standard 
     assert.equal(run.stdout, '');
     assert.match(run.stderr, /^REFUSED usage: [^\n]*\n$/);
   }
-  for (const [args, bad] of [[[good, spaced], spaced], [[good, twin], twin]]) {
+  for (const [args, number] of [[[good, spaced], 2], [[spaced, good], 2], [[good, twin], 2], [[twin, good], 1]]) {
     const run = refusal(['--port', '0', ...args]);
     console.log(`refusal site-data: status=${run.status}`);
     assert.equal(run.status, 2);
     assert.equal(run.stdout, '');
-    assert.equal(run.stderr, `REFUSED site-data: ${bad}\n`);
+    assert.equal(run.stderr, `REFUSED site-data: SITE_DATA ${number}\n`);
   }
   const held = createServer();
   await new Promise((resolve) => held.listen({ host: '127.0.0.1', port: 0, exclusive: true }, resolve));

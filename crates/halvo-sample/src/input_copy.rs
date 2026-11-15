@@ -47,18 +47,29 @@ pub fn stream_days(m: &TierManifest) -> BTreeMap<String, Vec<(u32, String)>> {
     out
 }
 
+/// The `tier-manifest` refusal of contracts.md C12.8: the TIER argument as given and, where listed files do not
+/// hash to their entries, their number; never a path that the manifest lists.
+pub fn tier_fault(tier: &Path, mismatched: usize) -> Refusal {
+    let arg = tier.display();
+    if mismatched == 0 {
+        Refusal::new("tier-manifest", arg.to_string())
+    } else {
+        Refusal::new("tier-manifest", format!("{arg} mismatched={mismatched}"))
+    }
+}
+
 /// Reads and checks a tier's manifest: the file exists, is of C9.3, and every file it lists hashes to its
-/// entry. The cause is `tier-manifest`.
+/// entry. The cause is `tier-manifest`, with the detail of [`tier_fault`].
 pub fn read_tier(tier: &Path) -> Result<(TierManifest, String), Refusal> {
-    let path = tier.join("manifest.toml");
-    let fault = |p: &Path| Refusal::new("tier-manifest", p.display().to_string());
-    let bytes = fs::read(&path).map_err(|_| fault(&path))?;
-    let m = TierManifest::parse(&bytes).ok_or_else(|| fault(&path))?;
-    for (rel, hash) in &m.files {
-        let p = tier.join(rel);
-        if file_sha256(&p).ok().as_deref() != Some(hash.as_str()) {
-            return Err(fault(&p));
-        }
+    let bytes = fs::read(tier.join("manifest.toml")).map_err(|_| tier_fault(tier, 0))?;
+    let m = TierManifest::parse(&bytes).ok_or_else(|| tier_fault(tier, 0))?;
+    let mismatched = m
+        .files
+        .iter()
+        .filter(|(rel, hash)| file_sha256(&tier.join(rel)).ok().as_deref() != Some(hash.as_str()))
+        .count();
+    if mismatched > 0 {
+        return Err(tier_fault(tier, mismatched));
     }
     Ok((m, crate::form::sha256_hex(&bytes)))
 }
@@ -105,12 +116,8 @@ pub fn input_copy(args: &InputCopyArgs) -> Result<Vec<String>, Refusal> {
         let steps = read_steps(&args.tier, &manifest)?;
         for (id, days) in &streams {
             let files: Vec<PathBuf> = days.iter().map(|(_, p)| args.tier.join(p)).collect();
-            let records = read_through(&files, None).map_err(|_| {
-                Refusal::new(
-                    "tier-files",
-                    args.tier.join("streams").join(id).display().to_string(),
-                )
-            })?;
+            let records = read_through(&files, None)
+                .map_err(|_| Refusal::new("tier-files", args.tier.display().to_string()))?;
             let ranges = read_ranges(&args.tier, id)?;
             for (_, r) in records {
                 let Payload::WindowTitle(t) = r.payload() else {
@@ -144,14 +151,10 @@ pub fn input_copy(args: &InputCopyArgs) -> Result<Vec<String>, Refusal> {
     }
     let mut copies: Vec<(String, Vec<u8>)> = Vec::new();
     let (mut read_n, mut written, mut day_files) = (0u64, 0u64, 0u64);
-    for (id, days) in &streams {
+    for days in streams.values() {
         let files: Vec<PathBuf> = days.iter().map(|(_, p)| args.tier.join(p)).collect();
-        let records = read_through(&files, Some(&args.input_set)).map_err(|_| {
-            Refusal::new(
-                "tier-files",
-                args.tier.join("streams").join(id).display().to_string(),
-            )
-        })?;
+        let records = read_through(&files, Some(&args.input_set))
+            .map_err(|_| Refusal::new("tier-files", args.tier.display().to_string()))?;
         let mut per_seg: Vec<Vec<u8>> = vec![Vec::new(); days.len()];
         for (seg, r) in records {
             per_seg[(seg - 1) as usize].extend(r.to_line());
@@ -164,13 +167,13 @@ pub fn input_copy(args: &InputCopyArgs) -> Result<Vec<String>, Refusal> {
         }
     }
     create_out_dir(&args.out)?;
-    let fault = |p: &Path| Refusal::new("output", p.display().to_string());
+    let fault = |_| Refusal::new("output", args.out.display().to_string());
     let put = |rel: &str, bytes: &[u8]| -> Result<(), Refusal> {
         let p = args.out.join(rel);
         if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).map_err(|_| fault(&p))?;
+            fs::create_dir_all(parent).map_err(fault)?;
         }
-        write_new(&p, bytes).map_err(|_| fault(&p))
+        write_new(&p, bytes).map_err(fault)
     };
     put("manifest.sha256", format!("{hash}\n").as_bytes())?;
     for (rel, bytes) in &copies {
@@ -210,33 +213,29 @@ fn layer_line(stream: &str, at: i64, rec: &LayerRecord, wanted: &[Layer]) -> Str
 }
 
 fn checked(tier: &Path, m: &TierManifest, rel: &str) -> Result<Vec<u8>, Refusal> {
-    let p = tier.join(rel);
     let listed = m
         .files
         .iter()
         .find(|(r, _)| r == rel)
-        .map(|(_, h)| h.clone());
-    let bytes = fs::read(&p).map_err(|_| Refusal::new("tier-manifest", p.display().to_string()))?;
-    if listed.as_deref() != Some(crate::form::sha256_hex(&bytes).as_str()) {
-        return Err(Refusal::new("tier-manifest", p.display().to_string()));
+        .map(|(_, h)| h.clone())
+        .ok_or_else(|| tier_fault(tier, 0))?;
+    let bytes = fs::read(tier.join(rel)).map_err(|_| tier_fault(tier, 1))?;
+    if listed != crate::form::sha256_hex(&bytes) {
+        return Err(tier_fault(tier, 1));
     }
     Ok(bytes)
 }
 
 fn read_steps(tier: &Path, m: &TierManifest) -> Result<Vec<StepLine>, Refusal> {
     let bytes = checked(tier, m, "script-manifest.jsonl")?;
-    parse_script_manifest(&bytes).ok_or_else(|| {
-        Refusal::new(
-            "tier-files",
-            tier.join("script-manifest.jsonl").display().to_string(),
-        )
-    })
+    parse_script_manifest(&bytes)
+        .ok_or_else(|| Refusal::new("tier-files", tier.display().to_string()))
 }
 
 fn read_ranges(tier: &Path, stream: &str) -> Result<Vec<(i64, i64, String)>, Refusal> {
     let rel = format!("streams/{stream}/labels.jsonl");
     let p = tier.join(&rel);
-    let fault = || Refusal::new("tier-files", p.display().to_string());
+    let fault = || Refusal::new("tier-files", tier.display().to_string());
     let bytes = fs::read(&p).map_err(|_| fault())?;
     let lines = crate::form::text_lines(&bytes).ok_or_else(fault)?;
     let mut out = Vec::new();
@@ -259,9 +258,13 @@ fn read_layers(
         None => {
             let p = args.tier.join("layers/steps.jsonl");
             let b = fs::read(&p).map_err(|_| Refusal::new("layers", p.display().to_string()))?;
-            let listed = m.files.iter().find(|(r, _)| r == "layers/steps.jsonl");
-            if listed.map(|(_, h)| h.as_str()) != Some(crate::form::sha256_hex(&b).as_str()) {
-                return Err(Refusal::new("tier-manifest", p.display().to_string()));
+            let listed = m
+                .files
+                .iter()
+                .find(|(r, _)| r == "layers/steps.jsonl")
+                .ok_or_else(|| tier_fault(&args.tier, 0))?;
+            if listed.1 != crate::form::sha256_hex(&b) {
+                return Err(tier_fault(&args.tier, 1));
             }
             (p, b)
         }

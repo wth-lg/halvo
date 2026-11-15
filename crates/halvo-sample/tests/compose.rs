@@ -317,6 +317,60 @@ fn compose_refusals() {
 }
 
 #[test]
+fn the_site_data_refusal_names_a_file_by_its_number_in_byte_order_alone() {
+    let dir = scratch("site-number");
+    let sites = services(&dir.join("sites"));
+    let number = |args: &[PathBuf], k: usize| -> usize {
+        let mut order: Vec<usize> = (0..args.len()).collect();
+        order.sort_by_key(|i| s(&args[*i]));
+        order.iter().position(|i| *i == k).expect("given") + 1
+    };
+    let expect = |args: &[PathBuf], k: usize| {
+        let o = compose(&dir, &rates(20, 4).write(), args, "o");
+        refused(&o, "site-data");
+        assert_eq!(
+            o.stderr,
+            format!("REFUSED site-data: SITE_DATA {}\n", number(args, k))
+        );
+        assert!(!o.stderr.contains("zz-") && !o.stderr.contains(".json"));
+    };
+    let mut missing = sites.clone();
+    missing.push(dir.join("0-none.json"));
+    assert_eq!(number(&missing, sites.len()), 1);
+    expect(&missing, sites.len());
+    let mut deep = sites.clone();
+    deep.push(dir.join("q").join("x.json"));
+    deep.push(dir.join("q.json"));
+    assert_eq!(number(&deep, sites.len()), 2);
+    expect(&deep, sites.len());
+    let mut wide = sites.clone();
+    wide.push(dir.join("\u{1F600}.json"));
+    wide.push(dir.join("\u{FF61}.json"));
+    assert_eq!(number(&wide, sites.len()), sites.len() + 2);
+    expect(&wide, sites.len());
+    let mut twice = sites.clone();
+    twice.push(sites[0].clone());
+    assert_eq!(number(&twice, sites.len()), 2);
+    let o = compose(&dir, &rates(20, 4).write(), &twice, "o");
+    assert_eq!(o.stderr, "REFUSED site-data: SITE_DATA 2\n");
+    let bad = dir.join("bad");
+    fs::create_dir_all(&bad).expect("dir");
+    let mut broken = Vec::new();
+    for p in &sites {
+        let q = bad.join(p.file_name().expect("name"));
+        fs::copy(p, &q).expect("copy");
+        broken.push(q);
+    }
+    let k = 2;
+    let text = fs::read_to_string(&broken[k]).expect("site");
+    write(&broken[k], &text.replacen("\"v\":1,", "\"v\":1, ", 1));
+    let n = number(&broken, k);
+    assert!(n != 1 && n != k + 1 && n != broken.len(), "{n}");
+    expect(&broken, k);
+    assert!(!dir.join("o").exists());
+}
+
+#[test]
 fn canaries_go_into_every_stream_and_no_episode() {
     let dir = scratch("canaries");
     let sites = services(&dir.join("sites"));
