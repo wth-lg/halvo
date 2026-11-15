@@ -168,6 +168,13 @@ self_test() {
   compare_case reversed-not-equal FAIL "[ '1.2.3' != \"\$(halvo $flag)\" ] && exit 1"
   compare_case case-over-the-version-output FAIL "case \"\$(halvo $flag)\" in 9.9.9) exit 0 ;; esac"
   compare_case case-pattern-that-is-the-flag PASS "case \"\$1\" in $flag) printf 'version: 0.10.0\\n' ;; esac"
+  compare_case eq-after-the-output FAIL "[ \"\$(halvo $flag)\" -eq 1.2.3 ]"
+  compare_case ne-after-the-output FAIL "test \"\$(halvo $flag)\" -ne 1.2.3 && exit 1"
+  compare_case eq-before-the-output FAIL "[ 1.2.3 -eq \"\$(halvo $flag)\" ]"
+  compare_case ne-before-the-output FAIL "test '1.2.3' -ne \"\$(halvo $flag)\" && exit 1"
+  compare_case case-with-a-double-quoted-literal FAIL "case \"\$(halvo $flag)\" in \"9.9.9\") exit 0 ;; esac"
+  compare_case case-with-a-single-quoted-literal FAIL "case \$(halvo $flag) in '9.9.9') exit 0 ;; esac"
+  compare_case case-with-a-v-literal FAIL "case \"\$(halvo $flag)\" in v9.9.9) exit 0 ;; esac"
   compare_case version-printed-not-compared PASS "printf 'tool: %s\\n' \"\$(tool $flag)\" # 1.2.3"
 
   stub() {

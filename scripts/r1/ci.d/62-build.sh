@@ -4,6 +4,9 @@
 set -u
 name=62-build
 shipped_packages='halvo halvo-capture'
+scope_flags='--workspace --all --all-targets --tests --test --benches --bench --examples --example --lib'
+feature_flags='--features -F -f --all-features --no-default-features'
+configuration_flags='--config -c'
 allowed_configurations=''
 markers='halvo-standin-module-present
 halvo-capture:test-seam:this-build-has-it!'
@@ -36,12 +39,20 @@ call_defect() {
         esac
         ;;
       -p?*) printf 'the call names a package in the form %s, which this check does not read\n' "$word"; return 1 ;;
-      --workspace|--all|--all-targets|--tests|--test|--test=*|--benches|--bench|--bench=*|--examples|--example|--example=*|--lib)
-        printf 'the call has %s, which builds more than the shipped binaries\n' "$word"; return 1 ;;
-      --features|--features=*|-F|-F?*|-f|-f?*|--all-features|--no-default-features)
-        printf 'the call has %s, which changes the features of what ships\n' "$word"; return 1 ;;
-      --config|--config=*|-c|-c?*)
-        printf 'the call has %s, which gives the build a configuration that no tracked file holds\n' "$word"; return 1 ;;
+    esac
+    case $word in
+      --*=*) named_flag=${word%%=*} ;;
+      -[!-]?*) rest=${word#-?}; named_flag=${word%"$rest"} ;;
+      *) named_flag=$word ;;
+    esac
+    case " $scope_flags " in
+      *" $named_flag "*) printf 'the call has %s, which builds more than the shipped binaries\n' "$word"; return 1 ;;
+    esac
+    case " $feature_flags " in
+      *" $named_flag "*) printf 'the call has %s, which changes the features of what ships\n' "$word"; return 1 ;;
+    esac
+    case " $configuration_flags " in
+      *" $named_flag "*) printf 'the call has %s, which gives the build a configuration that no tracked file holds\n' "$word"; return 1 ;;
     esac
   done
   [ "$expect_package" = 0 ] || { printf 'the call ends after a package flag\n'; return 1; }
@@ -286,6 +297,14 @@ EOF
   call_case a-feature-of-tauri FAIL 'npm run tauri build -- --features tauri/unstable'
   call_case a-configuration FAIL 'npm run tauri build -- --config src-tauri/other.json'
   call_case a-package-flag-at-the-end FAIL 'cargo build --release -p'
+  call_case gate-package-long-flag FAIL 'cargo build --release --locked --package halvo-agent-gate'
+  for listed_flag in $scope_flags $feature_flags $configuration_flags; do
+    call_case "the-flag$listed_flag" FAIL "cargo build --release --locked -p halvo-capture $listed_flag value"
+    case $listed_flag in
+      --*) call_case "the-flag$listed_flag-with-equals" FAIL "cargo build --release --locked -p halvo-capture $listed_flag=value" ;;
+      *) call_case "the-flag$listed_flag-glued-to-its-value" FAIL "cargo build --release --locked -p halvo-capture ${listed_flag}value" ;;
+    esac
+  done
   got=FAIL
   TAURI_CONFIG='{"build":{}}' environment_defect >/dev/null && got=PASS
   verdict tauri-configuration-in-a-variable FAIL "$got"
@@ -330,9 +349,11 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   untracked_configuration_defect src-tauri/Tauri.toml >/dev/null && got=PASS
   verdict untracked-toml-configuration FAIL "$got"
 
-  got=FAIL
-  (APPLE_CERTIFICATE=stand-in-value signing_defect >/dev/null) && got=PASS
-  verdict one-signing-name-set FAIL "$got"
+  for variable in $signing_names; do
+    got=FAIL
+    (export "$variable=stand-in-value" && signing_defect >/dev/null) && got=PASS
+    verdict "signing-name-$variable-set" FAIL "$got"
+  done
   got=FAIL
   (HALVO_WINDOWS_SIGN_COMMAND=stand-in-command signing_defect >/dev/null) && got=PASS
   verdict windows-signing-name-set FAIL "$got"

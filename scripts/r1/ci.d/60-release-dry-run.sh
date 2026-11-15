@@ -184,7 +184,14 @@ self_test() {
 #!/bin/sh
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$1 $2" in
-  'release version') printf '   Upgrading halvo from 1.2.3 to 1.2.4\n' ;;
+  'release version')
+    case ${3:-} in
+      patch) printf '   Upgrading halvo from 1.2.3 to 1.2.4\n' ;;
+      minor) printf '   Upgrading halvo from 1.2.3 to 1.3.0\n' ;;
+      major) printf '   Upgrading halvo from 1.2.3 to 2.0.0\n' ;;
+      *) printf 'error: the stub knows no level %s\n' "${3:-}"; exit 98 ;;
+    esac
+    ;;
   'metadata --no-deps')
     printf '{"packages":[{"name":"halvo","version":"1.2.3","id":"path+file:///w/src-tauri#halvo@1.2.3"}],"workspace_members":["path+file:///w/src-tauri#halvo@1.2.3"]}\n'
     ;;
@@ -253,7 +260,11 @@ All notable changes are recorded in this file.
 - Fixed: Mend the second fault'
   repository typed "$typed"
   release_case dry-run-calls-cargo 0 yes 'next version: 1.2.4' --dry-run
-  release_case dry-run-minor-calls-cargo 0 yes 'tag: v1.2.4' --dry-run minor
+  release_case dry-run-minor-calls-cargo 0 yes 'tag: v1.3.0' --dry-run minor
+  release_case dry-run-major-calls-cargo 0 yes 'next version: 2.0.0' --dry-run major
+  got=FAIL
+  grep -q '^release minor --config ' "$work/argv-dry-run-minor-calls-cargo" && grep -q '^release major --config ' "$work/argv-dry-run-major-calls-cargo" && got=PASS
+  verdict the-level-reaches-cargo-release PASS "$got"
   release_case dry-run-and-execute 64 no usage --dry-run --execute
   release_case level-x 64 no usage --dry-run -x
   release_case level-a-version 64 no usage --dry-run 9.9.9
@@ -281,6 +292,8 @@ All notable changes are recorded in this file.
   repo=$typed_repo
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-execute-has-the-branch-guard" && got=PASS || got=FAIL
   verdict execute-passes-allow-branch-main PASS "$got"
+  grep -q -E '^release patch --config target/release-commit-message[.]toml --execute ' "$work/argv-execute-has-the-branch-guard" && got=PASS || got=FAIL
+  verdict execute-passes-the-config-of-the-commit-message PASS "$got"
   STUB_STATUS=1 STUB_TEXT='error: io: failed to lookup address information' release_case no-network 1 yes index.crates.io --dry-run
   STUB_TEXT='- Fixed: Refuse a commit message whose template stayed Unrendered' release_case entry-that-holds-the-word-unrendered 0 yes 'commit message: Release 1.2.4' --dry-run
   template_case() {
@@ -334,6 +347,20 @@ error: release of halvo aborted by non-zero return of prerelease hook."
   repository heading '### Fixed
 - Mend the fault'
   release_case heading-inside-unreleased 1 no 'breaks a rule' --dry-run
+  refusal_case() {
+    case_name=$1 want=$2
+    mkdir -p "$work/refusal-$case_name/scripts"
+    printf '%s\n' '#!/bin/sh' "$3" >"$work/refusal-$case_name/scripts/release.sh"
+    git init -q "$work/refusal-$case_name" && git -C "$work/refusal-$case_name" add -A && git -C "$work/refusal-$case_name" commit -q -m 'Release 1.2.3' || exit 2
+    got=FAIL
+    release_commit_refusal "$work/refusal-$case_name" >"$work/refusal-$case_name.out" && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  refusal_case release-commit-refused-with-the-no-entry-line PASS "echo 'release.sh: ## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release' >&2; exit 1"
+  refusal_case release-commit-no-entry-line-with-exit-0 FAIL "echo 'release.sh: ## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release' >&2; exit 0"
+  refusal_case release-commit-refused-with-another-line FAIL "echo 'release.sh: cargo-release failed: error: io: Connection refused' >&2; exit 1"
+  refusal_case release-commit-passed-by-the-dry-run FAIL "echo 'next version: 1.2.4'"
+  refusal_case release-commit-refused-after-a-tag FAIL "git tag v1.2.4; echo 'release.sh: ## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release' >&2; exit 1"
   repository untyped '- Mend the fault'
   release_case untyped-entry 1 no 'breaks a rule' --execute
   repository empty ''
@@ -709,6 +736,42 @@ $released_part"
   section_case an-entry-lost FAIL "## [Unreleased]
 
 ## [1.2.4] - 2026-11-14
+
+### Fixed
+
+- Mend the first fault
+- Mend the second fault"
+  section_case a-heading-of-no-type FAIL "## [Unreleased]
+
+## [1.2.4] - 2026-11-14
+
+### Added
+
+- Add the feature
+
+### Mended
+
+- Mend the first fault
+- Mend the second fault"
+  section_case an-empty-heading-of-no-type-first FAIL "## [Unreleased]
+
+## [1.2.4] - 2026-11-14
+
+### Mended
+
+### Added
+
+- Add the feature
+
+### Fixed
+
+- Mend the first fault
+- Mend the second fault"
+  section_case an-entry-above-every-heading FAIL "## [Unreleased]
+
+## [1.2.4] - 2026-11-14
+
+- Add the feature
 
 ### Fixed
 
