@@ -3,7 +3,8 @@ use halvo_schema::learning::record::{LearnEdit, RunStatus, Verdict};
 use serde_json::{json, Value};
 
 use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, World, DAY};
-use crate::{LearnHandlers, LearnHost, Refused};
+use crate::handlers::Fault;
+use crate::{LearnHandlers, LearnHost};
 
 fn loc(name: &str) -> Value {
     json!({"by": "role", "value": "button", "name": name})
@@ -345,7 +346,8 @@ fn refusal_cross_workflow_source() {
     w.host.run_workflow = Some(wf(2));
     let commits = w.host.commits.get();
     let count = w.host.count();
-    assert_eq!(w.finish(2, "replay", "completed"), Err(Refused::Source));
+    assert_eq!(w.finish(2, "replay", "completed"), Ok(stored(1)));
+    assert_eq!(w.handlers.faults, [Fault::Source]);
     assert_eq!((w.host.commits.get(), w.host.count()), (commits, count));
     assert_eq!(w.host.agent_rows("agent_run").len(), 2);
     assert!(w.host.edits().is_empty());

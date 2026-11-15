@@ -520,6 +520,16 @@ new_run() {
   mkdir -p "$root/target/egress" || refuse output target/egress
   mode_reap
   n=1
+  for taken in "$root"/target/egress/[1-9]*; do
+    [ -d "$taken" ] || continue
+    taken=${taken##*/}
+    case $taken in
+      *[!0-9]*) continue ;;
+      [1-8]??????????????????) ;;
+      ???????????????????*) continue ;;
+    esac
+    [ "$taken" -lt "$n" ] || n=$((taken + 1))
+  done
   while ! mkdir "$root/target/egress/$n" 2>/dev/null; do
     [ -d "$root/target/egress/$n" ] || refuse output "target/egress/$n"
     n=$((n + 1))

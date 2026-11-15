@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails; tag=not-a-tag-run otherwise), and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# lane: free
 set -u
 name=19-home-paths
 own_tag_ref=refs/ci-d/19-home-paths/tag-of-the-run

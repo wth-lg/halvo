@@ -17,7 +17,7 @@ pub const TAKE_FOR_MS: u64 = 1_000;
 pub enum LockRead {
     Free,
     Held,
-    /// The data directory does not exist.
+    /// Nothing stands at the data directory's name.
     NoDirectory,
 }
 
@@ -25,6 +25,13 @@ pub enum LockRead {
 #[derive(Debug)]
 pub struct InstanceLock {
     directory: std::fs::File,
+    through_a_link: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct Opened {
+    pub(crate) directory: std::fs::File,
+    pub(crate) through_a_link: bool,
 }
 
 fn flock(file: &std::fs::File, operation: libc::c_int) -> std::io::Result<bool> {
@@ -41,22 +48,50 @@ fn flock(file: &std::fs::File, operation: libc::c_int) -> std::io::Result<bool> 
     }
 }
 
-/// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
-/// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
-/// open never waits; std adds close-on-exec.
-fn open(dir: &Path) -> std::io::Result<std::fs::File> {
+fn open_with(dir: &Path, flags: libc::c_int) -> std::io::Result<std::fs::File> {
     use std::os::unix::fs::OpenOptionsExt;
     std::fs::OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK | flags)
         .open(dir)
+}
+
+/// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
+/// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
+/// open never waits; std adds close-on-exec. The path is brought to the whole form of a
+/// [`crate::paths::DataDir`] first; a relative path or a part ".." is an error of kind
+/// InvalidInput. macOS answers ENOTDIR for a link opened with `O_DIRECTORY` and `O_NOFOLLOW`.
+pub(crate) fn open(dir: &Path) -> std::io::Result<Opened> {
+    let whole = crate::paths::whole_form(dir)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    let dir = whole.as_path();
+    let opened = match open_with(dir, libc::O_NOFOLLOW) {
+        Ok(directory) => Ok(Opened {
+            directory,
+            through_a_link: false,
+        }),
+        Err(e) if matches!(e.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => {
+            open_with(dir, 0).map(|directory| Opened {
+                directory,
+                through_a_link: true,
+            })
+        }
+        Err(e) => Err(e),
+    };
+    opened.map_err(|e| crate::paths::with_entry_cause(dir, e))
 }
 
 impl InstanceLock {
     /// One non-blocking try of the exclusive lock: `None` when another open file holds it.
     pub fn try_take(dir: &Path) -> std::io::Result<Option<Self>> {
-        let directory = open(dir)?;
-        Ok(flock(&directory, libc::LOCK_EX)?.then_some(Self { directory }))
+        let Opened {
+            directory,
+            through_a_link,
+        } = open(dir)?;
+        Ok(flock(&directory, libc::LOCK_EX)?.then_some(Self {
+            directory,
+            through_a_link,
+        }))
     }
 
     /// Takes the exclusive lock, trying again every [`TAKE_STEP_MS`] for at most
@@ -76,6 +111,16 @@ impl InstanceLock {
     }
 }
 
+impl InstanceLock {
+    pub(crate) fn directory(&self) -> &std::fs::File {
+        &self.directory
+    }
+
+    pub(crate) fn through_a_link(&self) -> bool {
+        self.through_a_link
+    }
+}
+
 impl AsRawFd for InstanceLock {
     fn as_raw_fd(&self) -> RawFd {
         self.directory.as_raw_fd()
@@ -92,7 +137,7 @@ impl Drop for InstanceLock {
 /// dropped at once. It never waits.
 pub fn read(dir: &Path) -> std::io::Result<LockRead> {
     let directory = match open(dir) {
-        Ok(directory) => directory,
+        Ok(opened) => opened.directory,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LockRead::NoDirectory),
         Err(e) => return Err(e),
     };
@@ -268,6 +313,53 @@ mod tests {
     }
 
     #[test]
+    fn st36_a_link_whose_target_is_away_and_a_file_at_the_name_are_a_cause_of_their_own_from_the_read_and_the_take(
+    ) {
+        use crate::paths::{entry_cause, EntryAtDataDir};
+        let base = dir();
+        let away = base.path().join("d");
+        std::os::unix::fs::symlink(base.path().join("unplugged"), &away).unwrap();
+        let file = base.path().join("f");
+        std::fs::write(&file, b"x").unwrap();
+        for (path, cause) in [
+            (&away, EntryAtDataDir::LinkLeadsNowhere),
+            (&file, EntryAtDataDir::NotADirectory),
+        ] {
+            let read = read(path).map(|r| format!("{r:?}"));
+            let try_take = InstanceLock::try_take(path).map(|l| l.is_some());
+            let take = InstanceLock::take(path).map(|l| l.is_some());
+            for (call, answer) in [
+                ("read", read.map_err(|e| (e.kind(), entry_cause(&e)))),
+                (
+                    "try_take",
+                    try_take
+                        .map(|t| format!("{t}"))
+                        .map_err(|e| (e.kind(), entry_cause(&e))),
+                ),
+                (
+                    "take",
+                    take.map(|t| format!("{t}"))
+                        .map_err(|e| (e.kind(), entry_cause(&e))),
+                ),
+            ] {
+                match answer {
+                    Err((kind, Some(got))) => {
+                        assert_eq!(got, cause, "{call} on {path:?}");
+                        assert_ne!(kind, std::io::ErrorKind::NotFound, "{call} on {path:?}");
+                    }
+                    other => {
+                        panic!("{call} on {path:?}: {other:?}; never NoDirectory and never a lock")
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            read(&base.path().join("missing")).unwrap(),
+            LockRead::NoDirectory
+        );
+    }
+
+    #[test]
     fn a_read_of_a_directory_that_cannot_be_opened_is_an_error_and_never_no_directory() {
         let base = dir();
         let path = base.path().join("d");
@@ -282,7 +374,7 @@ mod tests {
     #[test]
     fn two_reads_side_by_side_both_answer_free() {
         let base = dir();
-        let under_way = open(base.path()).unwrap();
+        let under_way = open(base.path()).unwrap().directory;
         assert!(flock(&under_way, libc::LOCK_SH).unwrap());
         assert_eq!(
             read(base.path()).unwrap(),
