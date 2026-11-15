@@ -23,12 +23,21 @@ fail() {
   exit 1
 }
 
+cargo_failed() {
+  first=$(printf '%s\n' "$2" | grep -i -m 1 'error')
+  cause="$1 failed: ${first:-it printed no error line}"
+  if printf '%s\n' "$2" | grep -q -i -E 'lookup|resolve|connect|network|timed out|dns'; then
+    cause="$cause. Every dry run and every release asks index.crates.io about each package of the workspace and needs the network."
+  fi
+  fail "$cause"
+}
+
 unreleased_entries() {
-  awk '/^## \[Unreleased\]/ { on = 1; next } /^## / { on = 0 } on && /^- / { n++ } END { print n + 0 }' CHANGELOG.md
+  awk '{ sub(/[ \t\r]+$/, "") } $0 == "## [Unreleased]" { on = 1; next } /^## / { on = 0 } on && /^- / { n++ } END { print n + 0 }' CHANGELOG.md
 }
 
 released_sections() {
-  awk '/^## \[[0-9]/ { on = 1 } on'
+  awk '{ sub(/[ \t\r]+$/, "") } /^## \[[0-9]/ { on = 1 } on'
 }
 
 group_changelog() {
@@ -37,11 +46,11 @@ group_changelog() {
     exit 64
   }
   grouped=$(LC_ALL=C awk -v version="$NEW_VERSION" '
-    { line[NR] = $0 }
+    { sub(/[ \t\r]+$/, ""); line[NR] = $0 }
     END {
       for (i = 1; i <= NR; i++) if (index(line[i], "## [" version "] - ") == 1) { start = i; break }
       if (!start) for (i = 1; i <= NR; i++) if (line[i] == "## [Unreleased]") { start = i; break }
-      if (!start) { print "CHANGELOG.md has no heading ## [" version "] and no ## [Unreleased]" > "/dev/stderr"; exit 1 }
+      if (!start) { print "error: CHANGELOG.md has no heading ## [" version "] and no ## [Unreleased]" > "/dev/stderr"; exit 1 }
       stop = NR + 1
       for (i = start + 1; i <= NR; i++) if (line[i] ~ /^## /) { stop = i; break }
       split("Added Changed Deprecated Removed Fixed Security", types, " ")
@@ -56,7 +65,7 @@ group_changelog() {
             break
           }
         }
-        if (!typed) { print "CHANGELOG.md:" i ": this line is not a typed entry, - <Type>: <text>, so the release cannot group it" > "/dev/stderr"; bad = 1 }
+        if (!typed) { print "error: CHANGELOG.md:" i ": this line is not a typed entry, - <Type>: <text>, so the release cannot group it" > "/dev/stderr"; bad = 1 }
       }
       if (bad) exit 1
       for (i = 1; i <= start; i++) print line[i]
@@ -119,7 +128,7 @@ fi
 
 plan=$(cargo release version "$level" 2>&1) || {
   printf '%s\n' "$plan" >&2
-  fail "cargo release version $level failed. Every dry run and every release asks index.crates.io about each package of the workspace and needs the network."
+  cargo_failed "cargo release version $level" "$plan"
 }
 next=$(printf '%s\n' "$plan" | sed -n 's/^ *Upgrading halvo from [^ ]* to \([^ ]*\).*/\1/p')
 case "$next" in
@@ -138,7 +147,7 @@ status=0
 out=$(cargo release "$@" 2>&1) || status=$?
 printf '%s\n' "$out"
 if [ "$status" -ne 0 ]; then
-  fail "cargo-release failed. Every dry run and every release asks index.crates.io about each package of the workspace and needs the network."
+  cargo_failed cargo-release "$out"
 fi
 case "$out" in
   *Unrendered*) fail "cargo-release left a template unrendered (the line Unrendered above), so a commit message or a tag would hold it" ;;

@@ -191,6 +191,9 @@ All notable changes are recorded in this file.
   verdict execute-passes-allow-branch-main PASS "$got"
   STUB_STATUS=1 STUB_TEXT='error: io: failed to lookup address information' release_case no-network 1 yes index.crates.io --dry-run
   STUB_TEXT='[WARN ] Unrendered {{version}} present in template "Release {{version}}"' release_case unrendered-template 1 yes Unrendered --dry-run
+  STUB_STATUS=1 STUB_TEXT='error: the pre-release hook exited 1' release_case other-failure-prints-its-error-line 1 yes 'error: the pre-release hook exited 1' --dry-run
+  grep -q index.crates.io "$work/out-other-failure-prints-its-error-line" && got=FAIL || got=PASS
+  verdict other-failure-names-no-network PASS "$got"
   repository heading '### Fixed
 - Mend the fault'
   release_case heading-inside-unreleased 1 no 'breaks a rule' --dry-run
@@ -207,6 +210,14 @@ All notable changes are recorded in this file.
   printf '%s\n' '- Added: Slip a line into a released section' >>"$repo/CHANGELOG.md"
   git -C "$repo" commit -q -a -m 'Add a line below a release'
   release_case line-below-a-released-section 1 no 'differ from those at v1.2.3' --dry-run
+  repository crlf-after-a-release "$typed
+## [1.2.3] - 2026-11-01
+
+- Added: Add the store"
+  git -C "$repo" tag v1.2.3
+  sed 's/$/\r/' "$repo/CHANGELOG.md" >"$repo/CHANGELOG.crlf" && mv "$repo/CHANGELOG.crlf" "$repo/CHANGELOG.md"
+  git -C "$repo" commit -q -a -m 'Check out the changelog with CRLF'
+  release_case second-release-in-a-crlf-tree 0 yes 'next version: 1.2.4' --dry-run
   repository shallow-source "$typed"
   git -C "$repo" commit -q --allow-empty -m 'A second commit'
   git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2
@@ -298,6 +309,34 @@ $typed" "# Changelog
 - Mend the second fault"
   grep -q -x '### Fixed' "$work/group-dry-run-writes-nothing.out" && cmp -s "$work/group-dry-run-writes-nothing.md" "$work/group-dry-run-writes-nothing/CHANGELOG.md" && got=PASS || got=FAIL
   verdict dry-run-prints-the-grouped-section PASS "$got"
+  trailing_before=$(printf '%s\n' "# Changelog" "" "## [Unreleased] " "" "$typed")
+  group_case heading-with-a-trailing-space PASS false 1.2.4 "$trailing_before" "# Changelog
+
+## [Unreleased]
+
+### Added
+
+- Add the feature
+
+### Fixed
+
+- Mend the first fault
+- Mend the second fault"
+  crlf_before=$(printf '%s\n' "# Changelog" "" "## [Unreleased]" "" "## [1.2.4] - 2026-11-14" "" "$typed" | sed 's/$/\r/')
+  group_case work-tree-with-crlf PASS false 1.2.4 "$crlf_before" "# Changelog
+
+## [Unreleased]
+
+## [1.2.4] - 2026-11-14
+
+### Added
+
+- Add the feature
+
+### Fixed
+
+- Mend the first fault
+- Mend the second fault"
   group_case untyped-line-stops-the-hook FAIL false 1.2.4 "# Changelog
 
 ## [Unreleased]
