@@ -1239,77 +1239,133 @@ mod cases {
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use std::cell::RefCell;
+    use std::sync::atomic::{AtomicIsize, Ordering};
     use std::time::Instant;
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-    use windows::Win32::System::Threading::GetCurrentThreadId;
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
+    use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, FindWindowW, IsWindowVisible, PostMessageW, SendMessageW,
-        SetForegroundWindow, SetWindowsHookExW, CWPRETSTRUCT, CWPSTRUCT, WA_ACTIVE, WH_CALLWNDPROC,
-        WH_CALLWNDPROCRET, WM_ACTIVATE, WM_CLOSE, WM_USER,
+        CallWindowProcW, CreateWindowExW, DestroyWindow, FindWindowW, IsWindowVisible,
+        PostMessageW, SendMessageW, SetClassLongPtrW, SetForegroundWindow, GCLP_WNDPROC, WA_ACTIVE,
+        WINDOW_EX_STYLE, WM_ACTIVATE, WM_CLOSE, WM_INITDIALOG, WM_NCDESTROY, WM_USER, WNDPROC,
+        WS_POPUP,
     };
 
     thread_local! {
-        /// The messages sent to a window of this thread whose handling has not returned, the
-        /// innermost last: the window and the message.
+        /// The messages of a dialog's window whose handling has not returned, the innermost last:
+        /// the window and the message.
         static SENT: RefCell<Vec<(usize, u32)>> = const { RefCell::new(Vec::new()) };
     }
 
-    unsafe extern "system" fn sent(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code >= 0 {
-            // SAFETY: for WH_CALLWNDPROC with a code of 0 or more, `lparam` is the address of the
-            // CWPSTRUCT of the message, which lives for this call.
-            let message = unsafe { &*(lparam.0 as *const CWPSTRUCT) };
-            SENT.with(|sent| {
-                sent.borrow_mut()
-                    .push((message.hwnd.0 as usize, message.message))
-            });
-        }
-        // SAFETY: the hook's own arguments, handed on to the next hook as the system asks.
-        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    /// The window procedure of the dialog class before the target replaced it.
+    static CLASS_PROC: AtomicIsize = AtomicIsize::new(0);
+    /// The id of the target's own subclass of a dialog's window.
+    const WATCH: usize = 0x4855;
+
+    fn enter(window: HWND, message: u32) {
+        SENT.with(|sent| sent.borrow_mut().push((window.0 as usize, message)));
     }
 
-    unsafe extern "system" fn returned(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code >= 0 {
-            // SAFETY: for WH_CALLWNDPROCRET with a code of 0 or more, `lparam` is the address of
-            // the CWPRETSTRUCT of the message, which lives for this call.
-            let message = unsafe { &*(lparam.0 as *const CWPRETSTRUCT) };
-            let key = (message.hwnd.0 as usize, message.message);
-            SENT.with(|sent| {
-                let mut sent = sent.borrow_mut();
-                if let Some(at) = sent.iter().rposition(|entry| *entry == key) {
-                    sent.truncate(at);
-                }
-            });
-        }
-        // SAFETY: as in `sent`.
-        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    fn leave(window: HWND, message: u32) {
+        let key = (window.0 as usize, message);
+        SENT.with(|sent| {
+            let mut sent = sent.borrow_mut();
+            if let Some(at) = sent.iter().rposition(|entry| *entry == key) {
+                sent.truncate(at);
+            }
+        });
     }
 
-    /// Watches the messages sent to the windows of this thread, the dialog's, for the whole run.
-    fn hook() -> bool {
-        // SAFETY: two hooks of this thread alone, whose procedures live for the process and read
-        // only their own arguments.
+    /// The dialog class's window procedure as the target replaced it: records the message, hands
+    /// it to the class's own procedure, and when WM_INITDIALOG has returned sets the target's
+    /// subclass of the window.
+    unsafe extern "system" fn dialog_class(
+        window: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        enter(window, message);
+        // SAFETY: CLASS_PROC holds the class's own window procedure, which `watch` read from the
+        // class before it set this one, and which lives for the process.
+        let own: WNDPROC =
+            unsafe { std::mem::transmute::<isize, WNDPROC>(CLASS_PROC.load(Ordering::SeqCst)) };
+        // SAFETY: the message as the system handed it, for the window that it was handed for.
+        let result = unsafe { CallWindowProcW(own, window, message, wparam, lparam) };
+        leave(window, message);
+        if message == WM_INITDIALOG {
+            // SAFETY: a subclass of a window of this thread, set on this thread; `watched` reads
+            // only its own arguments, and removes itself at WM_NCDESTROY.
+            let _ = unsafe { SetWindowSubclass(window, Some(watched), WATCH, 0) };
+        }
+        result
+    }
+
+    /// The target's subclass of a dialog's window, which the system calls before the product's
+    /// (set earlier, at TDN_CREATED): records the message while the product handles it.
+    unsafe extern "system" fn watched(
+        window: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        _: usize,
+        _: usize,
+    ) -> LRESULT {
+        enter(window, message);
+        // SAFETY: the message as this subclass got it, for the window that it got it for.
+        let result = unsafe { DefSubclassProc(window, message, wparam, lparam) };
+        leave(window, message);
+        if message == WM_NCDESTROY {
+            // SAFETY: the subclass that `dialog_class` set on this window.
+            let _ = unsafe { RemoveWindowSubclass(window, Some(watched), WATCH) };
+        }
+        result
+    }
+
+    /// Watches the messages of every dialog's window of this process from its creation on, with
+    /// no hook: replaces the window procedure of the dialog class #32770 through a window of that
+    /// class that it makes and destroys. Whether the replacement was made.
+    fn watch() -> bool {
+        // SAFETY: a hidden window of the system's dialog class, made and destroyed on this thread;
+        // the class's window procedure is replaced once, for this process, by `dialog_class`,
+        // which hands every message on to the procedure that it replaced.
         unsafe {
-            let thread = GetCurrentThreadId();
-            SetWindowsHookExW(WH_CALLWNDPROC, Some(sent), None, thread).is_ok()
-                && SetWindowsHookExW(WH_CALLWNDPROCRET, Some(returned), None, thread).is_ok()
+            let Ok(window) = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                windows::core::w!("#32770"),
+                windows::core::w!(""),
+                WS_POPUP,
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                None,
+            ) else {
+                return false;
+            };
+            let own = SetClassLongPtrW(window, GCLP_WNDPROC, dialog_class as *const () as isize);
+            CLASS_PROC.store(own as isize, Ordering::SeqCst);
+            let _ = DestroyWindow(window);
+            own != 0
         }
     }
 
     /// The message in whose handling the report came: WM_ACTIVATE or WM_WINDOWPOSCHANGED of the
-    /// dialog's subclass, or else the callback's TDN_CREATED, with the innermost message sent on
-    /// this thread.
-    fn made_at(hooked: bool) -> String {
-        if !hooked {
-            return "a message that this run cannot tell (the hooks were not set)".into();
+    /// dialog's subclass, or the callback's TDN_CREATED inside WM_INITDIALOG.
+    fn made_at(watched: bool) -> String {
+        if !watched {
+            return "a message that this run cannot tell (the dialog class was not watched)".into();
         }
         match SENT.with(|sent| sent.borrow().last().copied()) {
             Some((_, WM_ACTIVATE)) => "WM_ACTIVATE".into(),
             Some((_, 0x0047)) => "WM_WINDOWPOSCHANGED".into(),
-            Some((_, message)) => format!("TDN_CREATED (inside the message 0x{message:04x})"),
-            None => "TDN_CREATED (inside no sent message)".into(),
+            Some((_, WM_INITDIALOG)) => "TDN_CREATED (inside WM_INITDIALOG)".into(),
+            Some((_, message)) => format!("the message 0x{message:04x}"),
+            None => "no message of the dialog's window".into(),
         }
     }
 
@@ -1500,13 +1556,13 @@ mod cases {
         let ui = Win {
             title: HSTRING::from(card.title()),
         };
-        let hooked = hook();
-        println!("guard_hosted messages of the dialog's thread watched: {hooked}");
+        let watching = watch();
+        println!("guard_hosted messages of the dialog's window watched (the dialog class's procedure and the target's own subclass, no hook): {watching}");
         let mut verdicts = Vec::new();
         for (name, shows) in CASES {
             let verdict = case(&ui, name, shows, &|| {
                 dialog.show(&card, arm(), &|| {
-                    let at = made_at(hooked);
+                    let at = made_at(watching);
                     // SAFETY: a read of the active window of this thread, the dialog's.
                     let active = unsafe { GetActiveWindow() };
                     let window = ui.window();
