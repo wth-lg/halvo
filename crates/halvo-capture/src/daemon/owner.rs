@@ -1537,6 +1537,36 @@ mod tests {
         assert_eq!(snapshot.events_pending, 4);
     }
 
+    /// Ruling DM-16 (1) b, the review's B2 (its probe r38-two-counted-faults):
+    /// three due tries answered by two counted codes that differ, corrupt
+    /// (11), not a database (26) and corrupt (11), are not the same fault
+    /// three times, so the batch stays held and nothing is lost.
+    #[test]
+    fn three_due_tries_with_two_counted_codes_drop_no_batch() {
+        let mut harness = Harness::new();
+        harness.store.script_writes([
+            WriteScript::Fail(WriteFault::Db(11)),
+            WriteScript::Fail(WriteFault::Db(26)),
+            WriteScript::Fail(WriteFault::Db(11)),
+        ]);
+        resumed(&mut harness);
+        for _ in 0..4 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 3);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            snapshot.events_lost, 0,
+            "two counted codes that differ dropped the batch"
+        );
+        assert_eq!(snapshot.events_pending, 4);
+    }
+
     #[test]
     fn three_writes_answered_database_full_drop_no_batch_and_say_no_space() {
         let mut harness = Harness::new();
