@@ -1,17 +1,6 @@
 #!/bin/sh
-# Releases Halvo with cargo-release, one version for every package of the workspace.
 #   sh scripts/release.sh --dry-run [patch|minor|major]
-#       Prints what the release would do and changes no tracked file (cargo may create the
-#       ignored target/): the next version, the tag, and the CHANGELOG.md section that
-#       --execute would write from ## [Unreleased], with its entries grouped by type.
 #   sh scripts/release.sh --execute [patch|minor|major]
-#       On the branch main only: sets every package of the workspace to the next version,
-#       moves the entries of ## [Unreleased] in CHANGELOG.md under a heading of that version,
-#       grouped by type, commits, and tags v<version>. Pushes nothing. When the clone has a remote
-#       named origin, it first reads main's newest commit there with git ls-remote and refuses unless
-#       HEAD is that commit; a clone with no remote named origin, as check 60's throwaway clone, is the
-#       one case without that read.
-# The bump level defaults to patch. Settings are in release.toml and src-tauri/release.toml.
 set -eu
 cd "$(dirname "$0")/.."
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
