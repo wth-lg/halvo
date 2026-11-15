@@ -519,10 +519,11 @@ class World {
   }
 
   private deliver(event: MeterEvent): SendResult {
+    const held = this.meter.recordedEvents(event.account).some((each) => each.identifier === event.identifier);
     const result = this.meter.send(event, this.now);
     this.count(`meter.${result.status}`);
     const ended = this.accounts.find((each) => each.id === event.account)?.endedByTheDeleteAt ?? null;
-    if (result.status === "recorded" && ended !== null && this.now >= ended) {
+    if (!held && result.status === "recorded" && ended !== null && this.now >= ended) {
       this.sendsAfterTheDeleteEnded += 1;
       this.count("send.recorded-after-the-delete-ended-the-subscription");
     }
