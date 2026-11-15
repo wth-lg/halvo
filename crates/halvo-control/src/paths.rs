@@ -496,9 +496,11 @@ impl DataDir {
         if let Some(cause) = entry_fault(self.path()) {
             return Err(cause);
         }
-        self.state_file()
-            .try_exists()
-            .map_err(|_| EntryAtDataDir::CannotBeRead)
+        match std::fs::symlink_metadata(self.state_file()) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(EntryAtDataDir::CannotBeRead),
+        }
     }
 
     pub fn entry(&self, entry: &Entry) -> PathBuf {
@@ -1420,6 +1422,50 @@ mod tests {
         assert_eq!(data.is_provisioned(), Ok(true));
         let missing = DataDir::from_flag(root.path().join("missing")).unwrap();
         assert_eq!(missing.is_provisioned(), Ok(false));
+    }
+
+    #[test]
+    fn g2_any_entry_at_the_state_file_s_name_is_no_first_run_and_no_entry_is_one() {
+        let root = tempfile::tempdir().unwrap();
+        let data = DataDir::from_flag(root.path()).unwrap();
+        assert_eq!(data.is_provisioned(), Ok(false), "no entry");
+        std::fs::create_dir(data.state_file()).unwrap();
+        assert_eq!(data.is_provisioned(), Ok(true), "a directory at the name");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            struct Open(PathBuf);
+            impl Drop for Open {
+                fn drop(&mut self) {
+                    let _ =
+                        std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+                }
+            }
+            let closed = root.path().join("closed");
+            std::fs::create_dir(&closed).unwrap();
+            std::fs::write(closed.join("state"), "{}").unwrap();
+            let _open = Open(closed.clone());
+            std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o000)).unwrap();
+            for (case, target) in [
+                (
+                    "a link that leads nowhere",
+                    root.path().join("away").join("state"),
+                ),
+                ("a loop of links", PathBuf::new()),
+                ("a link into a closed folder", closed.join("state")),
+            ] {
+                let dir = root.path().join(case.replace(' ', "-"));
+                std::fs::create_dir(&dir).unwrap();
+                let data = DataDir::from_flag(&dir).unwrap();
+                let at = data.state_file();
+                if target.as_os_str().is_empty() {
+                    std::os::unix::fs::symlink(&at, &at).unwrap();
+                } else {
+                    std::os::unix::fs::symlink(&target, &at).unwrap();
+                }
+                assert_eq!(data.is_provisioned(), Ok(true), "{case}");
+            }
+        }
     }
 
     #[test]
