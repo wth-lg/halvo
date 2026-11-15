@@ -92,7 +92,7 @@ if [ -n "$job" ] && [ "$mode" != list ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]
 fi
 
 nested_word=
-if [ -n "$job" ] && [ "$mode" != list ] && { : <&9; } 2>/dev/null; then
+if [ -n "$job" ] && [ "$mode" != list ] && { true <&9; } 2>/dev/null; then
   read -r nested_word <&9 || nested_word=
   exec 9<&-
   case $nested_word in
@@ -161,19 +161,23 @@ if [ "$code" -ne 0 ] || [ -n "$cdup" ]; then
   exit 1
 fi
 repo=$(pwd)
+list_form() {
+  while :; do
+    case $list_root in
+      ./?*) list_root=${list_root#./} ;;
+      *//*) list_root=${list_root%%//*}/${list_root#*//} ;;
+      ?*/) list_root=${list_root%/} ;;
+      *) break ;;
+    esac
+  done
+}
 list_root=$root
+list_form
 case $list_root in
   "$repo"/*) list_root=${list_root#"$repo"/} ;;
   "$repo") list_root=. ;;
 esac
-while :; do
-  case $list_root in
-    ./?*) list_root=${list_root#./} ;;
-    *//*) list_root=${list_root%%//*}/${list_root#*//} ;;
-    ?*/) list_root=${list_root%/} ;;
-    *) break ;;
-  esac
-done
+list_form
 tracked=$(own_git -c core.quotePath=false ls-files -- "$list_root" 2>/dev/null) || tracked=
 
 inspect() {
@@ -1269,7 +1273,7 @@ own_self_test() {
   own_case untracked-script-under-a-ci.d-directory 1 "FAIL 20-planted ($untracked_refusal)" macos
   own_case rules-refuses-an-untracked-script 1 "FAIL 20-planted ($untracked_refusal)" --rules
   plant='printf "PASS 20-planted\n"'
-  for spelling in dot-slash trailing-slash absolute outside-ascii; do
+  for spelling in dot-slash trailing-slash absolute doubled-slashes outside-ascii; do
     run_dir=r1
     [ "$spelling" != outside-ascii ] || run_dir=$(printf 'r\303\251')
     new_repo && add_script "$run_dir" 10-a.sh "$good" "$pass_a" &&
@@ -1278,6 +1282,7 @@ own_self_test() {
       dot-slash) case_scripts=./scripts ;;
       trailing-slash) case_scripts=scripts/ ;;
       absolute) case_scripts=$fixture/scripts ;;
+      doubled-slashes) case_scripts=$(printf '%s\n' "$fixture/scripts/" | sed 's|/|//|g') ;;
     esac
     case_witness=yes
     case_absent="FAIL 10-a ($untracked_refusal)"
@@ -1852,7 +1857,7 @@ own_self_test() {
   case_witness=yes
   case_absent='PASS 10-a'
   own_case empty-nested-switch-of-the-caller-is-refused 1 "$nested_line" macos
-  new_repo && add_script r1 10-a.sh "$good" 'if { : <&9; } 2>/dev/null; then printf "FAIL 10-a (descriptor 9 is open)\n"; exit 1; fi; printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" 'if { true <&9; } 2>/dev/null; then printf "FAIL 10-a (descriptor 9 is open)\n"; exit 1; fi; printf "PASS 10-a\n"'
   case_witness=yes
   own_case descriptor-9-is-closed-for-a-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   case_switch_set=yes
