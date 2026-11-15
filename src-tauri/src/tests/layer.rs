@@ -638,9 +638,7 @@ fn the_commands_reach_the_fake_server_over_the_socket_of_a_data_directory() {
         .nth(3)
         .expect("target")
         .join("tmp");
-    std::fs::create_dir_all(&base).expect("the scratch base");
-    let root = base.join(format!("h58-{}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("a scratch directory");
+    let root = halvo_test_dir::make(&base, "h58").expect("a scratch directory");
     let dir = DataDir::from_flag(root.clone()).expect("an absolute directory");
     let server =
         ScriptedUnixServer::start(&dir, macos_fixture_daemon()).expect("the server starts");
