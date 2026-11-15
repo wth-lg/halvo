@@ -319,10 +319,11 @@ HTries(g, mv, res) ==
     /\ ~(g.newest[mv.item] = [answer |-> mv.choice, acked |-> TRUE] /\ mv.item \in g.unsent)
 
 HRowIn(out) == \E i \in 1..Len(out) : out[i].k = "bind_row"
+HRowFor(out, j) == \E i \in 1..Len(out) : out[i].k = "bind_row" /\ out[i].item = j
 
 HPress(g, mv, res) ==
-    IF HTries(g, mv, res) /\ ~HRowIn(res.out)
-    THEN [g EXCEPT !.newest[mv.item] = [answer |-> mv.choice, acked |-> mv.store = "ack"],
+    IF HTries(g, mv, res) /\ ~HRowFor(res.out, mv.item)
+    THEN [g EXCEPT !.newest[mv.item] = [answer |-> mv.choice, acked |-> mv.store = "ack" /\ ~HRowIn(res.out)],
                    !.rows = @ \cup {mv.item},
                    !.lost = IF mv.store = "ack" THEN @ ELSE @ \cup {mv.item}]
     ELSE g
@@ -330,7 +331,7 @@ HPress(g, mv, res) ==
 HBind(g, e, mv) ==
     CASE e.k = "bind_raised" -> [g EXCEPT !.nb = @ + 1]
       [] e.k = "bind_row" ->
-            LET j == IF mv.m = "press" THEN mv.item ELSE e.item
+            LET j == e.item
             IN [g EXCEPT !.newest[j] = [answer |-> e.answer, acked |-> HAcked(mv)],
                          !.rows = @ \cup {j},
                          !.lost = IF HAcked(mv) THEN @ ELSE @ \cup {j}]

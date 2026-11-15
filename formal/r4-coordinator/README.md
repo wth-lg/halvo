@@ -128,7 +128,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `store` | 46 to 50 and 53 to 55: of the three, only `store` holds the time between the end of a runner, or a failed start, and the store's record of the run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds`, `ReachFailedOwed`, `ReachFailedSentAgain` |
 | `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move | none of its own |
 | `left`, `reap` | none of their own: each holds the moves of one directed trace | none of their own |
-| `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 74 | all of `Confirm4` |
+| `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 75 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
 The counts are TLC's own lines, each from the run of the next table, with the workers that
@@ -587,7 +587,7 @@ names effect 1 with another digest, so its presenter is `page`.
 | `refused` | every record `approved` that the guard did not pass on although an `approved` record of the same effect, digest and approval id had passed before and the run was not stopped: a repeat that was refused | L7 |
 | `stopped` | whether the run was stopped, a lapse of a second step with `wait_limit` or `cancelled` among the stops | L6, L9 |
 | `nb`, `waits` | the steps that the coordinator raised, one for each of its `bind_raised` entries, and the request on whose answer the runner waits: set by every move `bind`, whatever the step answers, so that an allow handed in the move of a refused Bind is read (ruling RD-109 point 1), until the runner receives an answer, ends or the app ends | L11 |
-| `newest` | for each second step, the newest `item_answered` row that this life tried to store, with its answer and whether the acknowledgement came, which the key `store` of the press gives. It is taken from the press, keyed by the item that the person pressed: at the press's own row entry, or, where the press is not refused and its step holds no acknowledged answer of the same choice that the run did not take, at the start of the move when the entries hold no row, so that a coordinator that stores a row and does not report it, or reports it under another item, is still read (the review of unit U1.2c) | L11 |
+| `newest` | for each second step, the newest `item_answered` row that this life tried to store, with its answer and whether the acknowledgement came, which the key `store` of the press gives. A row entry counts for the item that it names (ruling RD-109 point 2). A press that is not refused, and whose step holds no acknowledged answer of the same choice that the run did not take, counts at the start of the move as a row of the pressed item when its entries hold no row of that item: acknowledged as `store` says when they hold no row at all, and not acknowledged when they hold rows of other items alone. So a coordinator that stores a row and does not report it, or reports it under another item, is still read | L11 |
 | `bound` | every answer of a second step that the runner received: the step, the answer, and whether it came inside a press of Allow on that step while `newest` was an acknowledged `allow` | L11 |
 | `rows`, `lost`, `unsent`, `blapsed`, `killed` | the second steps whose answer row the owner holds, those of them whose row lost its acknowledgement, those whose acknowledged answer the run did not take, the lapses of second steps, and whether the app was killed; `rows` is what recovery reads after a kill, and the rest only the `Reach` properties read | `Reach` |
 
@@ -828,6 +828,7 @@ replay of that design gives another answer, event, call or state at some move.
 | 72 | a Bind of a stopped run is answered `state` and hands `allow` in that move (the verifier's B01) | L11 | 0 of 215 |
 | 73 | a Bind beside an open confirmation ends the run with `state` and hands `allow` in that move (B02) | L11 | 1 of 215 |
 | 74 | an accepted raise answers another word than `ok`, beside a press of Allow that sends after its row lost its reply (B20) | L11 | 198 of 215 |
+| 75 | the row of a press on the second step is written under the first step's item, and `allow` goes to the second (B11) | L11 | 5 of 215 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
