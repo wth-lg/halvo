@@ -10,7 +10,12 @@ use std::time::{Duration, Instant};
 /// window, and of each press that the hold refused, so that a refused press starts the hold
 /// anew. The hold is decided at the press from the instants that the caller reads on the
 /// monotonic clock. The report on screen comes at the first moment at which the window became
-/// the active window, and never before it.
+/// the active window, and never before it. The type holds the instants and decides; the caller
+/// reads the window's state, makes the report, ends the session at an answer, and reads the clock
+/// under the same lock as each decision of the show, so that the instants come in order: a clock
+/// read before the first moment and handed in after the report's return would shorten the hold.
+/// The callers are the alert of macOS through `Moment` and the task dialog of Windows through
+/// `Show`, both in `system.rs`.
 #[derive(Clone, Copy, Debug)]
 pub struct Guard {
     arm: Duration,

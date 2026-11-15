@@ -66,7 +66,11 @@ impl Decision {
 /// reading and a press take a moment on an edge alone (the stored pair not both true, the pair
 /// now both true), and a reading of true after true moves nothing. A press that takes a moment
 /// is refused; a press while the pair is not both true, or while the button's window is not the
-/// modal window, answers nothing and starts an existing hold anew.
+/// modal window, answers nothing and starts an existing hold anew. At a press the moment is
+/// decided before the modal fact is read. The type decides; its caller, the alert of macOS in
+/// `system.rs`, reads the pair on the main thread at each event, makes the report and ends the
+/// repeating reading when [`Decision::reports`] answers true, and ends the modal session at
+/// [`Decision::Answer`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Moment {
     both: bool,

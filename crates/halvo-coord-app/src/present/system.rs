@@ -29,8 +29,10 @@ use tauri::{AppHandle, Runtime};
 /// notices that it resigned key and that the app resigned active store not true without a
 /// reading, so that the next reading of both true is a moment. The report comes at the first
 /// moment, a press that takes a moment is refused, and a press while the window is not the active
-/// window or not the modal window answers nothing and starts an existing hold anew; the decision
-/// is the pure function of `Moment`. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
+/// window or not the modal window answers nothing and starts an existing hold anew; the decision,
+/// the report's among them, is the pure function of `Moment`. A report that panics still starts
+/// the hold, as on Windows, and the alert's observers and its repeating reading end on every way
+/// out of the show, a panic among them. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the rejecting
 /// text with the response 1000 and the allowing text with 1001; that no button is titled Cancel or
 /// holds the Escape key; that its message text is the card's title and its informative text the
 /// card's text; and that a press on each button after the hold, a stopped and an aborted modal
