@@ -432,7 +432,7 @@ check() {
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
-    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT
+    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR
     if [ -n "$STUB_TMPDIR" ]; then
       TMPDIR=$STUB_TMPDIR
       export TMPDIR
@@ -492,6 +492,7 @@ check() {
   STUB_PLANT_FROM=
   STUB_PLANT_TO=
   STUB_EMPTY_ARTIFACT=
+  STUB_CR=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -583,6 +584,7 @@ make_stub() {
   STUB_PLANT_FROM=
   STUB_PLANT_TO=
   STUB_EMPTY_ARTIFACT=
+  STUB_CR=
 }
 
 tree_cases() {
@@ -798,6 +800,14 @@ required_cases() {
   stub_case carriage-returns
   awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
   check carriage-returns PASS "$want_required"
+  STUB_CR=list
+  check carriage-returns-in-the-listing PASS "$want_required"
+  stub_case carriage-returns-in-the-ignored-listing
+  printf 'refusal_no_hold: test\n' >"$STUB_DIR/ignored-$t-refusal_spend.txt"
+  STUB_CR=ignored
+  check carriage-returns-in-the-ignored-listing FAIL "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
+  STUB_CR=exact
+  check carriage-returns-in-the-run-alone PASS "$want_required"
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -1040,6 +1050,10 @@ case $kind in
       fi
     done
     [ "$kind" = exact ] && shift
+    cr=
+    case " ${STUB_CR:-} " in
+      *" $kind "*) cr=$(printf '\r') ;;
+    esac
     awk -v kind="$kind" -v dir="$STUB_DIR" -v stems="$stems" -v names="$*" -v not_run=" $STUB_NOT_RUN " \
       -v no_summary=" $STUB_NO_SUMMARY " -v drop=" $STUB_DROP " '
       BEGIN {
@@ -1069,7 +1083,7 @@ case $kind in
           close(file)
           if (!index(no_summary, " " s " ")) printf "\ntest result: ok. %d passed; 0 failed\n", count
         }
-      }'
+      }' | awk -v cr="$cr" '{ printf "%s%s\n", $0, cr }'
     [ "$kind" = exact ] && exit "${STUB_RUN_EXIT:-0}"
     exit 0
     ;;
