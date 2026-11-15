@@ -146,15 +146,16 @@ judge() {
   fi
   if [ "$memory_exit" -eq 2 ]; then
     cause=refused
+  elif wrote_at_0_or_1 "$memory_exit" "$1/memory.err"; then
+    cause=stderr
   elif [ "$memory_exit" -ne 0 ] || [ "$memory_line" != "$want_memory" ]; then
     cause=result
   elif [ "$derived_line" = derived=not-run ]; then
     :
+  elif wrote_at_0_or_1 "$derived_exit" "$1/derived.err"; then
+    cause=stderr
   elif [ "$derived_exit" -ne 0 ] || [ "$derived_line" != "$want_derived" ]; then
     cause=derived
-  fi
-  if [ -z "$cause" ] && { wrote_at_0_or_1 "$memory_exit" "$1/memory.err" || wrote_at_0_or_1 "$derived_exit" "$1/derived.err"; }; then
-    cause=stderr
   fi
 }
 
@@ -426,7 +427,7 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=23
+  failing_fixtures=24
   passing_fixtures=2
   wrong=
   rejected=0
@@ -451,10 +452,11 @@ self_test() {
   self_case derived-store-other-detail derived "$ok" 0 "" "REFUSED store: train 3: the replay run of day 150 did not complete$nl" 2
   self_case derived-store-second-line derived "$ok" 0 "" "a line before it$nl$store_refusal" 2
   self_case derived-store-beside-a-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
-  self_case derived-store-status-1 derived "$ok" 0 "" "$store_refusal" 1
+  self_case derived-store-status-1 stderr "$ok" 0 "" "$store_refusal" 1
   self_case derived-store-nul-in-line derived "$ok" 0 "" 'REFUSED store: the derived store\0000 is not in this build\n' 2
   self_case derived-store-no-final-lf derived "$ok" 0 "" "$not_built" 2
   self_case memory-stderr-at-status-0 stderr "$ok" 0 "" "$store_refusal" 2 "$nl"
+  self_case memory-stderr-at-status-1 stderr "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2 "x$nl"
   self_case derived-stderr-at-status-0 stderr "$ok" 0 "$want_derived$nl" "x$nl" 0
   tree_cases
   if [ -n "$wrong" ]; then

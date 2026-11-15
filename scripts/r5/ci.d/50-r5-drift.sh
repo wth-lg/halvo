@@ -222,7 +222,7 @@ readers() {
 }
 
 # judge SET: prints the lines of one set from its two plays and the readers' counts, and sets cause to the first
-# FAIL cause that holds, in the order result, expired, restart, readers, spread, or to nothing.
+# FAIL cause that holds, in the order stderr, result, expired, restart, readers, spread, or to nothing.
 judge() {
   cause=
   grep -E '^(improve|rollback|drift result)' "$first_out" || true
@@ -245,7 +245,9 @@ judge() {
   fi
   first_cause=$(play_cause "$first" "$first_out") || first_cause=result
   second_cause=$(play_cause "$second" "$second_out") || second_cause=result
-  if [ -n "$first_cause$second_cause" ]; then
+  if wrote_at_0_or_1 "$first" "$first_out.err" || wrote_at_0_or_1 "$second" "$second_out.err"; then
+    cause=stderr
+  elif [ -n "$first_cause$second_cause" ]; then
     cause=result
   elif [ "$zero" != 0 ]; then
     cause=expired
@@ -255,9 +257,6 @@ judge() {
     cause=readers
   elif [ "$spread" != same ]; then
     cause=spread
-  fi
-  if [ -z "$cause" ] && { wrote_at_0_or_1 "$first" "$first_out.err" || wrote_at_0_or_1 "$second" "$second_out.err"; }; then
-    cause=stderr
   fi
 }
 
@@ -717,12 +716,12 @@ self_test() {
       printf '%s\n' "$code" >"$FX/derived-$at.code" || broken
       case $at:$form in
         first:status-1)
-          check FAIL-result "FAIL $name (result)"
+          check FAIL-stderr "FAIL $name (stderr)"
           calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
             "gate $dev --store memory --restart-all"
           ;;
         second:status-1)
-          check FAIL-result "FAIL $name (result)"
+          check FAIL-stderr "FAIL $name (stderr)"
           calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
             "gate $dev --store derived --restart-all"
           ;;
@@ -755,6 +754,12 @@ self_test() {
 
   fixture stderr-in-the-second-play-at-status-0
   printf '\n' >"$FX/dev-second.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-the-first-play-at-status-1
+  play_lines dev memory 2 "" miss >"$FX/dev-first.out" || broken
+  printf '1\n' >"$FX/dev-first.code" || broken
+  printf 'x\n' >"$FX/dev-first.err" || broken
   check FAIL-stderr "FAIL $name (stderr)"
 
   fixture stderr-in-a-held-out-play-at-status-0 heldout
