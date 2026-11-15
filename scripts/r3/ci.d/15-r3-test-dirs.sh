@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone: in test code (a tests/ directory, tests.rs, testing.rs, a module under a cfg with test), a line that makes a directory by create_dir_all, a recursive DirBuilder or create_dir with no retry on a standing name, with a process id or clock read (also through a test function that returns one) beside a path or string build on one line, or with such a read and a format! or write! in the lines above it in its function (16 at most), is a place, and each file's count of places equals its count in the known list of this script, which names the places of other units and runs until they take halvo-test-dir (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone: in test code (a tests/ directory, tests.rs, testing.rs, a module under a cfg with test), a line that makes a directory by create_dir_all, a recursive DirBuilder, or create_dir unless a loop retries it and its tested result ends that loop by a return or a break within three lines (a word in a string is no loop word), with a process id or clock read (also through a test function that returns one) beside a path or string build on one line, or with such a read and a format! or write! in the lines above it in its function (16 at most), is a place, and each file's count of places equals its count in the known list of this script, which names the places of other units and runs until they take halvo-test-dir (U2.5).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -54,14 +54,58 @@ function code(s) {
   sub(/\/\/.*/, "", s)
   return s
 }
+function bare(s) {
+  gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
+  return s
+}
+function word(s, w) {
+  return (" " s " ") ~ ("[^A-Za-z0-9_]" w "[^A-Za-z0-9_]")
+}
+function call(s, w) {
+  return index(s, w "(") && s ~ ("(^|[^A-Za-z0-9_])" w "\\(")
+}
 function cfgtest(s) {
   return s ~ /#\[cfg\(/ && s ~ /[(, ]test[),]/ && s !~ /not\([^)]*test/
 }
-function source(s,   i) {
+function read(s,   i) {
   if (s ~ /process::id\(|(^|[^A-Za-z0-9_.:])id\(\)|getpid\(|GetCurrentProcessId|SystemTime|UNIX_EPOCH|Instant::now|(nanos|micros|millis)\(\)|Utc::now|Local::now/) return 1
   for (i = 1; i <= nfn; i++)
-    if (index(s, fname[i] "(") && s ~ ("(^|[^A-Za-z0-9_])" fname[i] "\\(")) return 1
+    if (call(s, fname[i])) return 1
+  for (i = 1; i <= nsa; i++)
+    if (call(s, salias[i])) return 1
   return 0
+}
+function source(s,   i) {
+  if (read(s)) return 1
+  for (i = 1; i <= nvar; i++)
+    if (index(s, var[i]) && word(s, var[i])) return 1
+  return 0
+}
+function accepts(s,   i) {
+  if (s ~ /create_dir_all\(/) return 1
+  if (s ~ /recursive\(true\)/) return 1
+  for (i = 1; i <= naa; i++)
+    if (call(s, aal[i])) return 1
+  return 0
+}
+function refuses(s,   i) {
+  if (s ~ /create_dir\(/) return 1
+  for (i = 1; i <= nca; i++)
+    if (call(s, cal[i])) return 1
+  return 0
+}
+function uses(s,   t, a, b) {
+  t = s
+  while (match(t, /[A-Za-z_0-9]+[ \t]+as[ \t]+[A-Za-z_0-9]+/)) {
+    a = substr(t, RSTART, RLENGTH)
+    t = substr(t, RSTART + RLENGTH)
+    b = a
+    sub(/[ \t]+as[ \t].*/, "", a)
+    sub(/.*[ \t]as[ \t]+/, "", b)
+    if (a == "create_dir_all") aal[++naa] = b
+    else if (a == "create_dir") cal[++nca] = b
+    else if (a == "id" || a == "getpid" || a == "GetCurrentProcessId") salias[++nsa] = b
+  }
 }
 function addfn(name,   i) {
   for (i = 1; i <= nfn; i++)
@@ -76,7 +120,13 @@ function addmod(t, base,   name, prefix) {
   modfile[prefix name ".rs"] = 1
   modfile[prefix name "/mod.rs"] = 1
 }
-function scan(path, mode,   file, dir, leaf, base, line, c, t, n, intest, pending, fnstart, fnname, lo, j, s, f, m, l, count, r) {
+function ends(k, n,   j) {
+  if (cc[k] ~ /\.find(_map)?\(/) return 1
+  for (j = k; j <= k + 3 && j <= n; j++)
+    if (word(bb[j], "return") || word(bb[j], "break")) return 1
+  return 0
+}
+function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, intest, pending, fnstart, fnname, lo, j, s, f, m, l, d, w, count, r) {
   file = root "/" path
   leaf = path
   sub(/.*\//, "", leaf)
@@ -93,6 +143,10 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, n, intest, pendin
   fnstart = 0
   fnname = ""
   count = 0
+  nsa = 0
+  naa = 0
+  nca = 0
+  nvar = 0
   while ((r = (getline line < file)) > 0) {
     n++
     c = code(line)
@@ -101,7 +155,7 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, n, intest, pendin
       else if (mode == 1 && c ~ /^[ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*;/) addmod(c, base)
       pending = 0
     }
-    if (cfgtest(c)) {
+    if (c ~ /#\[cfg\(/ && cfgtest(c)) {
       t = c
       sub(/.*\][ \t]*/, "", t)
       if (t ~ /^(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*\{/) intest = 1
@@ -112,6 +166,7 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, n, intest, pendin
     if (c ~ /(^|[^A-Za-z0-9_])fn [A-Za-z_]/) {
       fnstart = n
       fnname = ""
+      nvar = 0
       if (mode == 1 && intest && (c " ") ~ /->[ \t]*(String|OsString|u128|u64|u32|usize|i64|i128)[ \t{]/) {
         fnname = c
         sub(/.*fn[ \t]+/, "", fnname)
@@ -125,36 +180,53 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, n, intest, pendin
       }
       continue
     }
+    cc[n] = c
+    bb[n] = bare(c)
+    it[n] = intest
+    fs[n] = fnstart
     src[n] = source(c)
     fmt[n] = (c ~ /(format|write)!\(/)
     nam[n] = (src[n] && c ~ /\.join\(|to_string\(\)|push_str\(|\.push\(/)
-    lp[n] = ((" " c " ") ~ /[^A-Za-z0-9_](loop|for|while)[^A-Za-z0-9_]/ || c ~ /\.find(_map)?\(/)
-    if (intest && c ~ /create_dir_all\(|recursive\(true\)|create_dir\(/) {
-      lo = n - 16
-      if (fnstart > lo) lo = fnstart
-      if (lo < 1) lo = 1
-      s = 0
-      f = 0
-      m = 0
-      l = 0
-      for (j = lo; j <= n; j++) {
-        s += src[j]
-        f += fmt[j]
-        m += nam[j]
-        l += lp[j]
-      }
-      if (c ~ /create_dir\(/ && l && c ~ /is_ok\(\)|match |Ok\(/) continue
-      if (m || (s && f)) {
-        count++
-        print path ":" n > placelist
-      }
-    }
+    lp[n] = ((" " bb[n] " ") ~ /[^A-Za-z0-9_](loop|for|while)[^A-Za-z0-9_]/ || bb[n] ~ /\.find(_map)?\(/)
+    db[n] = (c ~ /DirBuilder/)
+    rc[n] = (c ~ /\.recursive\(/ && c !~ /\.recursive\(false\)/)
+    acc[n] = accepts(c)
+    ref[n] = refuses(c)
   }
   if (r < 0) {
     printf "test-dirs unread=%s\n", path
     faults++
   }
   close(file)
+  if (mode == 1) return 0
+  for (k = 1; k <= n; k++) {
+    if (!it[k]) continue
+    lo = k - 16
+    if (fs[k] > lo) lo = fs[k]
+    if (lo < 1) lo = 1
+    s = 0
+    f = 0
+    m = 0
+    l = 0
+    d = 0
+    w = 0
+    for (j = lo; j <= k; j++) {
+      s += src[j]
+      f += fmt[j]
+      m += nam[j]
+      l += lp[j]
+      d += db[j]
+      w += rc[j]
+    }
+    if (ref[k]) kind = 1
+    else if (acc[k]) kind = 2
+    else continue
+    if (kind == 1 && l && cc[k] ~ /is_ok\(\)|match |Ok\(/ && ends(k, n)) continue
+    if (m || (s && f)) {
+      count++
+      print path ":" k > placelist
+    }
+  }
   return count
 }
 BEGIN {
@@ -450,6 +522,22 @@ self_test() {
   repo maker-find
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    (0..1_000)\n        .map(|n| base.join(format!("x-{}-{n}", std::process::id())))\n        .find(|dir| std::fs::create_dir(dir).is_ok())\n        .expect("a new directory")\n}\n'
   case_of maker-find PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo tested-create-dir-in-an-unrelated-loop
+  put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut last = PathBuf::new();\n    for case in ["one", "two"] {\n        let dir = base.join(format!("{name}-{case}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("made");\n        }\n        last = dir;\n    }\n    last\n}\n'
+  case_of tested-create-dir-in-an-unrelated-loop FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo loop-word-in-a-string
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    assert!(fs::create_dir(&d).is_ok() || d.is_dir(), "{note}");\n    d\n}\n'
+  case_of loop-word-in-a-string FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo create-dir-all-retried-in-a-loop
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let d = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir_all(&d).is_ok() {\n            return d;\n        }\n    }\n}\n'
+  case_of create-dir-all-retried-in-a-loop FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo maker-loop-break
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let mut n = 0u32;\n    loop {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            break dir;\n        }\n        n += 1;\n    }\n}\n'
+  case_of maker-loop-break PASS 'test-dirs files=1 places=0 known=0 faults=0'
 
   repo tests-rs-declared-with-no-cfg
   put crates/a/src/lib.rs 'mod tests;\n'
