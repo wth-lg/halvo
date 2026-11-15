@@ -1,13 +1,43 @@
 [
   { "query": "SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "bindings": ["table", "skeleton"], "rows": [] },
-  { "query": "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL)", "bindings": [], "rows": [] },
-  { "query": "INSERT INTO skeleton (destroying_since, last_now, alarm_failures) VALUES (?, ?, ?)", "bindings": [null, 1000, 0], "rows": [] },
+  {
+    "query": "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER)",
+    "bindings": [],
+    "rows": []
+  },
+  {
+    "query": "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "bindings": [null, 1000, 0, null, null, null, null, null],
+    "rows": []
+  },
   { "query": "SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "bindings": ["table", "skeleton"], "rows": [{ "name": "skeleton" }] },
   { "query": "UPDATE skeleton SET last_now = ?", "bindings": [2000], "rows": [] },
   { "query": "UPDATE skeleton SET destroying_since = ?", "bindings": [2000], "rows": [] },
   { "query": "UPDATE skeleton SET last_now = ?, alarm_failures = ?", "bindings": [2500, 1], "rows": [] },
   { "query": "UPDATE skeleton SET alarm_failures = ?", "bindings": [0], "rows": [] },
-  { "query": "SELECT destroying_since, last_now, alarm_failures FROM skeleton", "bindings": [], "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0 }] },
+  { "query": "UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", "bindings": [62000, 120000], "rows": [] },
+  {
+    "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at FROM skeleton",
+    "bindings": [],
+    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": null, "cancel_answered_for": null, "cancel_next_at": 62000, "cancel_delay": 120000, "removal_decided_at": null }]
+  },
+  {
+    "query": "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?, removal_decided_at = ?",
+    "bindings": [3000, "sub_1", null, null, null],
+    "rows": []
+  },
+  { "query": "UPDATE skeleton SET removal_decided_at = ?", "bindings": [4000], "rows": [] },
+  { "query": "CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT NOT NULL, began_at INTEGER NOT NULL)", "bindings": [], "rows": [] },
+  { "query": "DELETE FROM cancel_call", "bindings": [], "rows": [] },
+  { "query": "INSERT INTO cancel_call (subscription_id, began_at) VALUES (?, ?)", "bindings": ["sub_1", 3000], "rows": [] },
+  { "query": "SELECT subscription_id, began_at FROM cancel_call", "bindings": [], "rows": [{ "subscription_id": "sub_1", "began_at": 3000 }] },
+  { "query": "DELETE FROM cancel_call WHERE subscription_id = ? AND began_at = ?", "bindings": ["sub_1", 3000], "rows": [] },
+  { "query": "SELECT subscription_id, began_at FROM cancel_call", "bindings": [], "rows": [] },
+  {
+    "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at FROM skeleton",
+    "bindings": [],
+    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": 3000, "cancel_answered_for": "sub_1", "cancel_next_at": null, "cancel_delay": null, "removal_decided_at": 4000 }]
+  },
   { "query": "CREATE TABLE test_clock (time INTEGER NOT NULL)", "bindings": [], "rows": [] },
   { "query": "INSERT INTO test_clock (time) VALUES (?)", "bindings": [3000], "rows": [] },
   { "query": "UPDATE test_clock SET time = ?", "bindings": [4000], "rows": [] },
@@ -28,8 +58,12 @@
   {
     "query": "SELECT name FROM sqlite_master WHERE type = ? AND substr(name, 1, 7) <> ? AND substr(name, 1, 4) <> ? AND name <> ?",
     "bindings": ["table", "sqlite_", "_cf_", "__miniflare_do_name"],
-    "rows": [{ "name": "skeleton" }, { "name": "test_clock" }, { "name": "account" }, { "name": "ledger_cap" }]
+    "rows": [{ "name": "skeleton" }, { "name": "cancel_call" }, { "name": "test_clock" }, { "name": "account" }, { "name": "ledger_cap" }]
   },
-  { "query": "SELECT * FROM \"skeleton\"", "bindings": [], "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0 }] },
+  {
+    "query": "SELECT * FROM \"skeleton\"",
+    "bindings": [],
+    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": 3000, "cancel_answered_for": "sub_1", "cancel_next_at": null, "cancel_delay": null, "removal_decided_at": 4000 }]
+  },
   { "query": "SELECT * FROM \"ledger_cap\"", "bindings": [], "rows": [{ "amount": 700, "period": "month" }] }
 ]

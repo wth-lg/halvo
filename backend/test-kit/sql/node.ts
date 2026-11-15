@@ -60,16 +60,28 @@ export function openSql(): { step: Step; dropAll(): void; close(): void } {
   };
 }
 
+/**
+ * A host over node:sqlite for the tests. Its pause ends only when the test calls endPauses, so an await that the code bounds
+ * with a pause waits for the call unless the test ends the pause.
+ */
 export function makeTestHost(o: { port: ProviderPort; config?: Partial<Host["config"]>; clock?: () => Ms }): {
   host: Host;
   alarmAt(): Ms | null;
+  pauses(): Ms[];
+  endPauses(): void;
   close(): void;
 } {
   const db = openSql();
   let alarm: Ms | null = null;
+  const pauses: { ms: Ms; end(): void }[] = [];
   const host: Host = {
     step: db.step,
     clock: o.clock ?? (() => 0),
+    pause(ms) {
+      return new Promise((resolve) => {
+        pauses.push({ ms, end: resolve });
+      });
+    },
     setAlarm(at) {
       alarm = at;
     },
@@ -90,5 +102,13 @@ export function makeTestHost(o: { port: ProviderPort; config?: Partial<Host["con
       ...o.config,
     },
   };
-  return { host, alarmAt: () => alarm, close: () => db.close() };
+  return {
+    host,
+    alarmAt: () => alarm,
+    pauses: () => pauses.map((each) => each.ms),
+    endPauses() {
+      for (const each of pauses.splice(0)) each.end();
+    },
+    close: () => db.close(),
+  };
 }

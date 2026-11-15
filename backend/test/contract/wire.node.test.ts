@@ -34,7 +34,7 @@ const DEFS = [
 const APP_ROUTES = ["checkout-start", "status", "cap-get", "cap-set", "manage", "account-delete"];
 const RESULTS: Record<string, Record<string, string[]>> = {
   "checkout-start": { session: ["url"], "account-exists": [], "credential-mismatch": [], unavailable: [] },
-  status: { pending: [], active: [], "payment-failed": [], cancelled: [], "no-such-account": [], "credential-mismatch": [] },
+  status: { pending: [], active: [], "payment-failed": [], cancelled: [], closing: [], "no-such-account": [], "credential-mismatch": [] },
   "cap-get": { cap: ["cap", "spend"], "no-cap": [], pending: [], "no-such-account": [], "credential-mismatch": [] },
   "cap-set": { cap: ["cap", "spend"], pending: [], "no-such-account": [], "credential-mismatch": [] },
   manage: { page: ["url"], pending: [], "no-such-account": [], "credential-mismatch": [], unavailable: [] },
@@ -130,7 +130,7 @@ describe("the schema export", () => {
       expect(Object.keys(def.properties).filter((key) => key !== "result")).toEqual([...new Set(Object.values(RESULTS[route] ?? {}).flat())]);
       values += def.properties.result.enum.length;
     }
-    expect(values).toBe(29);
+    expect(values).toBe(30);
   });
 });
 
@@ -240,7 +240,7 @@ describe("the walk", () => {
 });
 
 describe("the samples and the largest bodies", () => {
-  test("contract/samples/v1.json holds the two requests, the 29 answers and the rejection, each read by its schema", () => {
+  test("contract/samples/v1.json holds the two requests, the 30 answers and the rejection, each read by its schema", () => {
     const text = readFileSync(join(ROOT, "contract/samples/v1.json"), "utf8");
     const samples = JSON.parse(text);
     expect(text).toBe(`${JSON.stringify(samples, null, 2)}\n`);
@@ -264,7 +264,7 @@ describe("the samples and the largest bodies", () => {
         expect(answerSchemas[route as "status"].safeParse(answer).success).toBe(true);
       }
     }
-    expect(count).toBe(29);
+    expect(count).toBe(30);
     expect(samples.rejected).toEqual({ result: "rejected" });
     expect(Rejected.safeParse(samples.rejected).success).toBe(true);
   });
