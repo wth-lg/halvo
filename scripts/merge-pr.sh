@@ -9,6 +9,7 @@ THREADS_QUERY="query(\$owner: String!, \$repo: String!, \$number: Int!, \$endCur
 RUNS_FILTER='.workflow_runs[] | "\(.event)\t\(.created_at)\t\(.id)\t\(.status)\t\(.conclusion // "none")\t\(.run_attempt)\t\(.head_branch // "no branch")\t\(.path)"'
 JOBS_FILTER='.jobs[] | "\(.name)\t\(.status)\t\(.conclusion // "none")"'
 CI_WORKFLOW=.github/workflows/ci.yml
+compared_scripts='merge-pr.sh check-commit-messages.sh commit-range.sh'
 
 nl='
 '
@@ -23,10 +24,10 @@ attribution line reaches the default branch.
   sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]
       Before its other checks the script reads with gh api the copies that the
       default branch of the repository that gh merges into holds of the file
-      that runs, of scripts/check-commit-messages.sh and of each file that
-      these source (scripts/commit-range.sh), and stops with exit 1 when one
-      differs from the copy that this run uses, and with exit 2 when a read
-      fails.
+      that $0 names (the file that runs, when sh runs a file), of
+      scripts/check-commit-messages.sh and of each file that these source
+      (scripts/commit-range.sh), and stops with exit 1 when one differs from
+      the copy that this run uses, and with exit 2 when a read fails.
       Then read pull request <number> with gh and refuse unless all of these hold:
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
         - its head is the commit given with --head, the one that was reviewed
@@ -125,7 +126,7 @@ own_copy_list_defect() {
   directory=$1
   shift
   for listed in "$@"; do
-    referenced=$(grep -o -E '[$](script_directory|own_directory)/[A-Za-z0-9_.-]+[.]sh' "$directory/$listed" | sed 's|.*/||' | sort -u)
+    referenced=$(grep -o -E '[$][{]?(script_directory|own_directory)[}]?/[A-Za-z0-9_.-]+[.]sh' "$directory/$listed" | sed 's|.*/||' | sort -u)
     for name in $referenced; do
       case " $* " in
         *" $name "*) ;;
@@ -135,16 +136,35 @@ own_copy_list_defect() {
   done
 }
 
+local_copy_of() {
+  case $1 in
+    merge-pr.sh) printf '%s/%s\n' "$script_directory" "$(basename "$0")" ;;
+    *) printf '%s/%s\n' "$script_directory" "$1" ;;
+  esac
+}
+
+own_copy_unchanged() {
+  while read -r name before local_copy; do
+    [ -n "$name" ] || continue
+    now=$(git hash-object --no-filters "$local_copy") || merged_but "git hash-object could not read $local_copy after the merge call"
+    [ "$now" = "$before" ] ||
+      merged_but "the copy of scripts/$name that this run uses ($local_copy) changed after this run read it before the gates; a hook of the checkout may have rewritten it"
+  done <<EOF
+$own_hashes
+EOF
+}
+
 check_own_copy() {
   branch=$(gh api 'repos/{owner}/{repo}' --jq .default_branch) && [ -n "$branch" ] ||
     die 'gh api could not read the default branch of the repository that gh merges into, so this run cannot compare its own copy with it. This run merged nothing.'
-  running=$script_directory/$(basename "$0")
-  for pair in "merge-pr.sh $running" "check-commit-messages.sh $script_directory/check-commit-messages.sh" "commit-range.sh $script_directory/commit-range.sh"; do
-    name=${pair%% *}
-    local_copy=${pair#* }
+  own_hashes=
+  for name in $compared_scripts; do
+    local_copy=$(local_copy_of "$name")
     on_branch=$(gh api "repos/{owner}/{repo}/contents/scripts/$name?ref=$branch" --jq .sha) && [ -n "$on_branch" ] ||
       die "gh api could not read scripts/$name on the default branch $branch of the repository that gh merges into. This run merged nothing."
     here=$(git hash-object --no-filters "$local_copy") || die "git hash-object could not read $local_copy. This run merged nothing."
+    own_hashes="$own_hashes$name $here $local_copy
+"
     if [ "$here" != "$on_branch" ]; then
       printf 'merge-pr: REFUSED: the copy of scripts/%s that this run uses (%s) differs from the copy that the default branch %s of the repository that gh merges into holds, so this run could merge by another rule. Run the script from a checkout of %s at its newest commit. This run merged nothing.\n' "$name" "$local_copy" "$branch" "$branch" >&2
       exit 1
@@ -432,6 +452,7 @@ EOF
     merged_but "with the head $head_after_the_call, and --head names $head, the commit that was reviewed. Someone pushed to the pull request and merged it outside this script after this script read its head, so what that push added was not reviewed. This script stops at such a merge"
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
   git fetch -q origin "$base" || merged_but "git fetch origin $base failed"
+  own_copy_unchanged
   git cat-file -e "$merge_commit^{commit}" 2>/dev/null ||
     merged_but "the merge commit $merge_commit is not in this clone after git fetch origin $base"
   git log -1 --format='merge-pr: merged as %H%nmerge-pr: author:    %an <%ae>%nmerge-pr: committer: %cn <%ce>%nmerge-pr: subject:   %s' "$merge_commit" || :
@@ -490,11 +511,12 @@ self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
   mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails" "$work/git-that-signals-the-script" \
-    "$work/rangeless" "$work/othername"
+    "$work/rangeless" "$work/othername" "$work/missing-range" "$work/crlf-copy" "$work/rewritten" "$work/git-whose-fetch-rewrites-the-check"
 
   cat >"$work/bin/gh" <<'EOF'
 #!/bin/sh
 state=$MERGE_PR_STUB_STATE
+printf '%s\n' "$*" >>"$state/gh-calls"
 case "$1 $2" in
   'pr view')
     case " $* " in
@@ -518,7 +540,7 @@ case "$1 $2" in
       echo 'stub gh: the repository read failed' >&2
       exit 1
     fi
-    echo main
+    if [ -e "$state/default-branch" ]; then cat "$state/default-branch"; else echo main; fi
     ;;
   'api repos/{owner}/{repo}/contents/'*)
     if [ -e "$state/contents-read-fails" ]; then
@@ -767,8 +789,64 @@ EOF
   state_of repository-read-fails
   : >"$work/state/repository-read-fails/repository-read-fails"
   expect repository-read-fails 2 not-called 'gh api could not read' --body-file "$work/body.txt"
+  main_holds refs/prepared/other-merge-pr
+  state_of refusal-makes-only-the-reads-of-the-check
+  refused refusal-makes-only-the-reads-of-the-check 'the copy of scripts/merge-pr.sh that this run uses'
+  main_holds "$held_main"
   cases=$((cases + 1))
-  if missing=$(own_copy_list_defect "$script_directory" merge-pr.sh check-commit-messages.sh commit-range.sh); then
+  other_calls=$(grep -v -E '^api repos/[{]owner[}]/[{]repo[}]( --jq [.]default_branch|/contents/scripts/[a-z-]+[.]sh[?]ref=main --jq [.]sha)$' "$work/state/refusal-makes-only-the-reads-of-the-check/gh-calls") || :
+  fact_lines=$(grep '^merge-pr: ' "$work/out/refusal-makes-only-the-reads-of-the-check.txt" | grep -v -c '^merge-pr: REFUSED: ') || :
+  if [ -z "$other_calls" ] && [ "$fact_lines" = 0 ]; then
+    printf 'PASS refusal-makes-only-the-reads-of-the-check\n'
+  else
+    printf 'FAIL refusal-makes-only-the-reads-of-the-check (other gh calls: [%s], fact lines: %s)\n' "$other_calls" "$fact_lines"
+    failures=$((failures + 1))
+  fi
+  git --git-dir="$work/github.git" update-ref refs/heads/trunk "$(git --git-dir="$work/github.git" rev-parse refs/prepared/other-merge-pr)"
+  state_of default-branch-of-another-name
+  printf 'trunk\n' >"$work/state/default-branch-of-another-name/default-branch"
+  refused default-branch-of-another-name 'that the default branch trunk of the repository'
+  cp "$script_directory/merge-pr.sh" "$script_directory/check-commit-messages.sh" "$work/missing-range/"
+  state_of local-hash-that-fails
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/local-hash-that-fails" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$work/missing-range/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/local-hash-that-fails.txt" 2>&1 || status=$?
+  judge local-hash-that-fails "$status" 2 not-called 'git hash-object could not read'
+  cp "$script_directory/merge-pr.sh" "$script_directory/commit-range.sh" "$work/crlf-copy/"
+  awk '{ printf "%s\r\n", $0 }' "$script_directory/check-commit-messages.sh" >"$work/crlf-copy/check-commit-messages.sh"
+  state_of crlf-copy-of-a-compared-file
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/crlf-copy-of-a-compared-file" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$work/crlf-copy/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/crlf-copy-of-a-compared-file.txt" 2>&1 || status=$?
+  judge crlf-copy-of-a-compared-file "$status" 1 not-called 'the copy of scripts/check-commit-messages.sh that this run uses'
+  cp "$script_directory/merge-pr.sh" "$script_directory/check-commit-messages.sh" "$script_directory/commit-range.sh" "$work/rewritten/"
+  cat >"$work/git-whose-fetch-rewrites-the-check/git" <<'EOF'
+#!/bin/sh
+case " $* " in
+  *' fetch '*) printf '\n' >>"$MERGE_PR_STUB_REWRITE" ;;
+esac
+exec "$MERGE_PR_STUB_REAL_GIT" "$@"
+EOF
+  chmod +x "$work/git-whose-fetch-rewrites-the-check/git"
+  main_before_the_rewrite=$(git --git-dir="$work/github.git" rev-parse refs/heads/main)
+  state_of fetch-that-rewrites-the-message-check
+  status=0
+  (cd "$work/clone" && PATH="$work/git-whose-fetch-rewrites-the-check:$work/bin:$PATH" MERGE_PR_STUB_REWRITE="$work/rewritten/check-commit-messages.sh" \
+    MERGE_PR_STUB_STATE="$work/state/fetch-that-rewrites-the-message-check" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$work/rewritten/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/fetch-that-rewrites-the-message-check.txt" 2>&1 || status=$?
+  judge fetch-that-rewrites-the-message-check "$status" 3 called 'changed after this run read it before the gates'
+  main_holds "$main_before_the_rewrite"
+  printf '#!/bin/sh\n. "%s{%s}/%s.sh"\n' "\$" own_directory extra >"$work/braced.sh"
+  cases=$((cases + 1))
+  if own_copy_list_defect "$work" braced.sh >/dev/null; then
+    printf 'FAIL own-copy-list-follows-a-braced-variable (a file sourced through the braced form of own_directory was not seen)\n'
+    failures=$((failures + 1))
+  else
+    printf 'PASS own-copy-list-follows-a-braced-variable\n'
+  fi
+  cases=$((cases + 1))
+  # shellcheck disable=SC2086
+  if missing=$(own_copy_list_defect "$script_directory" $compared_scripts); then
     printf 'PASS own-copy-list-holds-every-file-that-the-listed-files-run-or-source\n'
   else
     printf 'FAIL own-copy-list-holds-every-file-that-the-listed-files-run-or-source (%s)\n' "$missing"
