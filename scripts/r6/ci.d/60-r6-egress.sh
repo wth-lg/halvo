@@ -93,6 +93,7 @@ route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on 
 runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
 it is a measurement and refuses nothing.
 A signal INT, TERM or HUP stops the check's listeners and ends it with FAIL 60-r6-egress (signal).
+When a rule or a forbid run has refused before a later step fails to set up, the cause is check.
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of wrapped runs of the first
 list that were made and whose egress line was read; a job with none fails.
 The limits that stay:
@@ -168,7 +169,9 @@ EOF
 }
 
 fail() {
-  printf 'FAIL %s (%s)\n' "$name" "$1"
+  cause=$1
+  [ "$cause" != setup ] || [ "${holds:-yes}" != no ] || cause=check
+  printf 'FAIL %s (%s)\n' "$name" "$cause"
   exit 1
 }
 
@@ -2417,6 +2420,13 @@ EOF
   case_run check-exits-3-with-a-clean-line FAIL check 'egress run=probe mode=sandbox command=0 denied=0 exit=3'
   STUB_FRESH=false
   case_run stale-build FAIL setup 'FAIL'
+  STUB_FRESH=false
+  case_env="${w_rustc}_WORKSPACE_WRAPPER=/x"
+  case_run env-refused-then-a-stale-build FAIL check "rule env ${w_rustc}_WORKSPACE_WRAPPER is set"
+  STUB_FRESH=false
+  STUB_CLIPPY_JSON=$work/clippy-finding.json
+  STUB_CLIPPY_EXIT=101
+  case_run forbid-finding-then-a-stale-build FAIL check 'forbid dev crates/halvo-route-gate/src/net.txt:2'
   STUB_CHECK=noline
   case_run no-egress-line FAIL check 'egress run=probe line=missing exit=0'
   : >"$work/spawn.pids"
