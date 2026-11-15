@@ -20,7 +20,8 @@ pub fn same_address(a: &str, b: &str) -> bool {
 
 /// The senders of the slot `reply_senders` (CP-112): the text cut at each comma, each piece without the white
 /// space that `char::is_whitespace` names at its ends, in the order of the text; white space inside a piece is
-/// no address. Refuses the whole slot with the first fault in the order of the text, which names its piece by
+/// refused, an ASCII one as `NotAnAddress` and one outside ASCII, a no-break space or U+3000 among them, as
+/// `NotAscii`. Refuses the whole slot with the first fault in the order of the text, which names its piece by
 /// its number counted from 1: an empty piece, so also an empty text; a piece that holds a byte outside ASCII; a
 /// piece that is no address by the adapter's rule for a sender; and a piece that is one address with an earlier
 /// piece by [`same_address`]. The adapter's rule for a sender takes a piece of at most 320 bytes with one `@`, at

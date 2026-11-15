@@ -645,8 +645,37 @@ fn seed_binding_binds_no_reply_senders_that_the_reader_refuses() {
 }
 
 #[test]
-fn join_senders_takes_a_list_exactly_when_the_reader_takes_its_text() {
+fn join_senders_refuses_a_comma_in_any_entry_also_where_its_pieces_are_addresses() {
     let rows: &[&[&str]] = &[
+        &["a@x.test, b@x.test"],
+        &["a@x.test, b@x.test", "c@x.test"],
+        &["c@x.test", "a@x.test,b@x.test", "d@x.test"],
+        &["c@x.test", "a@x.test, b@x.test"],
+    ];
+    for items in rows {
+        let list = senders_list(items);
+        assert_eq!(join_senders(&list), Err(SendersRefused::Comma), "{list:?}");
+    }
+}
+
+#[test]
+fn join_senders_binds_the_senders_byte_for_byte_with_their_letter_case() {
+    assert_eq!(
+        join_senders(&senders_list(&["Ann@X.test", "b@Y.test"])),
+        Ok("Ann@X.test, b@Y.test".to_owned())
+    );
+}
+
+#[test]
+fn join_senders_refuses_a_comma_and_takes_a_list_exactly_when_the_reader_takes_its_text() {
+    let rows: &[&[&str]] = &[
+        &["a@x.test, b@y.test"],
+        &["a@x.test,b@y.test", "c@z.test"],
+        &["c@z.test", "a@x.test, b@y.test", "d@z.test"],
+        &["a@x.test", "b@y.test,"],
+        &[",a@x.test"],
+        &["a,b@x.test"],
+        &["Ann Berg, a@x.test"],
         &[],
         &["a@x.test"],
         &["a@x.test", "b@y.test"],
@@ -672,6 +701,10 @@ fn join_senders_takes_a_list_exactly_when_the_reader_takes_its_text() {
         let list = senders_list(items);
         let read = halvo_schema::executable::reply_senders(&list.join(", "));
         let joined = join_senders(&list);
+        if items.iter().any(|item| item.contains(',')) {
+            assert_eq!(joined, Err(SendersRefused::Comma), "{list:?}");
+            continue;
+        }
         match read {
             Ok(senders) => assert_eq!(
                 joined,

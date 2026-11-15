@@ -72,7 +72,7 @@ pub enum SendersRefused {
     /// would read as other addresses than the list holds.
     Comma,
     /// The reader of the slot, `halvo_schema::executable::reply_senders`, refuses the joined text with this error;
-    /// its number is the place of the address in the list, counted from 1.
+    /// its number is the place of the address in the list, counted from 1, and an empty list answers `Empty(1)`.
     Read(SendersError),
 }
 
