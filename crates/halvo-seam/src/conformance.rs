@@ -15,8 +15,8 @@ pub trait Subject {
 
     /// Destroys the store that the subject holds, if any, makes a new store that holds the records of the
     /// given batch-file texts in their order and nothing else, and starts the server on it. It may give each
-    /// record a new `id` and `seq` and move every `at` by one offset rounded to the resolution of C4.7; it
-    /// keeps the order, the `kind`, the `app` and the `p` of every record.
+    /// record a new `id` and `seq` and move every `at` by one offset that is a whole number of seconds, and it
+    /// rounds no `at` (C5.13 item 2); it keeps the order, the `kind`, the `app` and the `p` of every record.
     fn load(&mut self, batch_files: &[&str]) -> Result<(), String>;
 
     /// Opens a new connection: one stream to write frames to and one to read frames from. The suite closes
