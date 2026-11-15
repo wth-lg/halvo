@@ -1611,4 +1611,47 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
       expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([["cancelSubscription", "sub_one"]]);
     });
   }
+
+  const record = (w: ReturnType<typeof world>) =>
+    w.host.step((sql) => (sql.exec("SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "table", "cancel_call").length === 0 ? [] : sql.exec("SELECT subscription_id, began_at FROM cancel_call")));
+
+  test("M3 (a): the step that decides the cancel call stores the id and the call's begin before the call; the step after the call's answer clears it, and a call that throws has it cleared in a step of its own", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    const during: unknown[] = [];
+    let answer: "cancelled" | "throw" = "throw";
+    w.host.port.cancelSubscription = async () => {
+      during.push(record(w));
+      now += 2000;
+      if (answer === "throw") throw new RangeError("the call throws");
+      return { kind: "cancelled" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(during).toEqual([[{ subscription_id: "sub_one", began_at: 8000 }]]);
+    expect(record(w)).toEqual([]);
+    expect(events()).toContain("destroy-error");
+    answer = "cancelled";
+    now = w.alarmAt() ?? now;
+    const began = now;
+    await w.entries.alarm();
+    expect(during[1]).toEqual([{ subscription_id: "sub_one", began_at: began }]);
+    expect(record(w)).toEqual([]);
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+  });
+
+  test("M3 (a): a call for no subscription id stores no record", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.subscription = { ...METERED, subscriptionId: null };
+    w.answers.settled = false;
+    const during: unknown[] = [];
+    w.host.port.cancelSubscription = async () => {
+      during.push(record(w));
+      return { kind: "nothing-to-cancel" };
+    };
+    await w.entries.destroy(HASH);
+    expect(during).toEqual([[]]);
+  });
 });

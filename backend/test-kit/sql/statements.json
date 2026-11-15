@@ -27,6 +27,12 @@
     "rows": []
   },
   { "query": "UPDATE skeleton SET removal_decided_at = ?", "bindings": [4000], "rows": [] },
+  { "query": "CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT NOT NULL, began_at INTEGER NOT NULL)", "bindings": [], "rows": [] },
+  { "query": "DELETE FROM cancel_call", "bindings": [], "rows": [] },
+  { "query": "INSERT INTO cancel_call (subscription_id, began_at) VALUES (?, ?)", "bindings": ["sub_1", 3000], "rows": [] },
+  { "query": "SELECT subscription_id, began_at FROM cancel_call", "bindings": [], "rows": [{ "subscription_id": "sub_1", "began_at": 3000 }] },
+  { "query": "DELETE FROM cancel_call WHERE subscription_id = ? AND began_at = ?", "bindings": ["sub_1", 3000], "rows": [] },
+  { "query": "SELECT subscription_id, began_at FROM cancel_call", "bindings": [], "rows": [] },
   {
     "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at FROM skeleton",
     "bindings": [],
@@ -52,7 +58,7 @@
   {
     "query": "SELECT name FROM sqlite_master WHERE type = ? AND substr(name, 1, 7) <> ? AND substr(name, 1, 4) <> ? AND name <> ?",
     "bindings": ["table", "sqlite_", "_cf_", "__miniflare_do_name"],
-    "rows": [{ "name": "skeleton" }, { "name": "test_clock" }, { "name": "account" }, { "name": "ledger_cap" }]
+    "rows": [{ "name": "skeleton" }, { "name": "cancel_call" }, { "name": "test_clock" }, { "name": "account" }, { "name": "ledger_cap" }]
   },
   {
     "query": "SELECT * FROM \"skeleton\"",

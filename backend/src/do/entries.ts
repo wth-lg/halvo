@@ -75,6 +75,7 @@ export interface Entries {
 
 const SKELETON = "skeleton";
 const TEST_CLOCK = "test_clock";
+const CANCEL_CALL = "cancel_call";
 const ENGINE_PREFIX = "sqlite_";
 const PLATFORM_PREFIX = "_cf_";
 const LOCAL_RUNTIME_TABLE = "__miniflare_do_name";
@@ -92,7 +93,7 @@ interface Mark {
 type Fourth =
   | { kind: "answer"; answer: DeleteAnswer }
   | { kind: "again" }
-  | { kind: "cancel"; subscriptionId: string | null; mark: Ms; unacknowledged: number }
+  | { kind: "cancel"; subscriptionId: string | null; mark: Ms; unacknowledged: number; began: Ms | null }
   | { kind: "answered"; mark: Ms };
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
@@ -192,6 +193,15 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return row === undefined ? null : Number(row.time);
   };
   const time = (sql: Sql) => testTime(sql) ?? host.clock();
+  const storeCallRecord = (sql: Sql, subscriptionId: string, began: Ms) => {
+    sql.exec("CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT NOT NULL, began_at INTEGER NOT NULL)");
+    sql.exec("DELETE FROM cancel_call");
+    sql.exec("INSERT INTO cancel_call (subscription_id, began_at) VALUES (?, ?)", subscriptionId, began);
+  };
+  const clearCallRecord = (sql: Sql, subscriptionId: string | null, began: Ms | null) => {
+    if (subscriptionId === null || began === null || !tableExists(sql, CANCEL_CALL)) return;
+    sql.exec("DELETE FROM cancel_call WHERE subscription_id = ? AND began_at = ?", subscriptionId, began);
+  };
   const isMetered = (sql: Sql) => {
     const subscription = accounts.subscription(sql);
     return subscription !== null && subscription.customerId !== null;
@@ -627,7 +637,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       } catch (error) {
         open.caught(error);
       }
-      return { kind: "cancel", subscriptionId, mark: mark.since, unacknowledged };
+      if (subscriptionId !== null) storeCallRecord(open.sql, subscriptionId, now);
+      return { kind: "cancel", subscriptionId, mark: mark.since, unacknowledged, began: subscriptionId === null ? null : now };
     });
   }
 
@@ -655,9 +666,19 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const id = made.subscriptionId;
       const call = {};
       if (id !== null) cancelsInFlight.set(id, { since: host.clock(), call });
+      const began = next.kind === "cancel" ? next.began : null;
       let cancelled: Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
       try {
         cancelled = await host.port.cancelSubscription(id);
+      } catch (error) {
+        try {
+          host.step((sql) => {
+            if (holds(sql)) clearCallRecord(sql, id, began);
+          });
+        } catch (clearing) {
+          log({ event: "alarm-error", error: errorName(clearing) });
+        }
+        throw error;
       } finally {
         if (id !== null && cancelsInFlight.get(id)?.call === call) cancelsInFlight.delete(id);
       }
@@ -665,6 +686,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
           if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
           const now = open.begin();
+          clearCallRecord(open.sql, id, began);
           const current = markOf(open.sql);
           if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, capped: false };
           const delay = current.delay ?? SYNC_RETRY_MS;
@@ -676,9 +698,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
     }
     if (made !== null) {
+      const began = next.kind === "cancel" ? next.began : null;
       const recorded = step((open): DeleteAnswer | null => {
         if (!holds(open.sql)) return { result: "deleted" };
         const now = open.begin();
+        clearCallRecord(open.sql, made.subscriptionId, began);
         if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
         const current = markOf(open.sql);
         const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
