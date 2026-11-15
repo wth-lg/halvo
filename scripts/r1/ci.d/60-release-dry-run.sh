@@ -245,6 +245,31 @@ pre-release-commit-message = "Release 1.2.4"' template_case template-left-in-the
   sed 's/$/\r/' "$repo/CHANGELOG.md" >"$repo/CHANGELOG.crlf" && mv "$repo/CHANGELOG.crlf" "$repo/CHANGELOG.md"
   git -C "$repo" commit -q -a -m 'Check out the changelog with CRLF'
   release_case second-release-in-a-crlf-tree 0 yes 'next version: 1.2.4' --dry-run
+  refused_before_cargo_release() {
+    case_name=$1 want_text=$2
+    shift 2
+    log=$work/argv-$case_name
+    status=0
+    (cd "$repo" && PATH="$work/bin:$PATH" STUB_LOG=$log CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    got=PASS
+    if [ "$status" = 1 ] && grep -q -F -e "$want_text" "$work/out-$case_name" && ! grep -q -E '^release (patch|minor|major) --config' "$log"; then got=FAIL; fi
+    verdict "$case_name" FAIL "$got"
+  }
+  repository heading-of-the-next-version "$typed
+## [1.2.4] - 2020-01-01
+
+- Added: Add the store"
+  refused_before_cargo_release heading-of-the-next-version-exists 'already holds a heading of 1.2.4' --dry-run
+  repository behind-origin "$typed"
+  git -C "$repo" checkout -q -B main
+  git clone -q --bare "$repo" "$work/origin-of-behind.git" || exit 2
+  git -C "$repo" remote add origin "$work/origin-of-behind.git"
+  git -C "$repo" commit -q --allow-empty -m 'A commit that origin gets'
+  git -C "$repo" push -q origin main
+  git -C "$repo" checkout -q -B main HEAD~1
+  refused_before_cargo_release main-one-commit-behind-origin 'is not the newest commit of main on origin' --execute
+  git -C "$repo" checkout -q -B main origin/main
+  release_case main-at-the-newest-commit-of-origin 0 yes 'next version: 1.2.4' --execute
   repository shallow-source "$typed"
   git -C "$repo" commit -q --allow-empty -m 'A second commit'
   git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2

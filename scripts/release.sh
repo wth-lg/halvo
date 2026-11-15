@@ -7,7 +7,10 @@
 #   sh scripts/release.sh --execute [patch|minor|major]
 #       On the branch main only: sets every package of the workspace to the next version,
 #       moves the entries of ## [Unreleased] in CHANGELOG.md under a heading of that version,
-#       grouped by type, commits, and tags v<version>. Pushes nothing.
+#       grouped by type, commits, and tags v<version>. Pushes nothing. When the clone has a remote
+#       named origin, it first reads main's newest commit there with git ls-remote and refuses unless
+#       HEAD is that commit; a clone with no remote named origin, as check 60's throwaway clone, is the
+#       one case without that read.
 # The bump level defaults to patch. Settings are in release.toml and src-tauri/release.toml.
 set -eu
 cd "$(dirname "$0")/.."
@@ -134,6 +137,15 @@ next=$(printf '%s\n' "$plan" | sed -n 's/^ *Upgrading halvo from [^ ]* to \([^ ]
 case "$next" in
   ''|*[!0-9.]*) printf '%s\n' "$plan" >&2; fail "cargo release version $level names no single next version of the package halvo" ;;
 esac
+headings=$(awk -v version="$next" '{ sub(/[ \t\r]+$/, "") } index($0, "## [" version "] ") == 1 || $0 == "## [" version "]" { n++ } END { print n + 0 }' CHANGELOG.md)
+[ "$headings" = 0 ] || fail "CHANGELOG.md already holds a heading of $next, so the release would add a second one; nothing was released"
+if [ "$mode" = --execute ] && git remote get-url origin >/dev/null 2>&1; then
+  newest=$(git ls-remote origin refs/heads/main) || fail "git ls-remote origin refs/heads/main failed, so main's newest commit cannot be read; nothing was released"
+  newest=$(printf '%s\n' "$newest" | cut -f 1)
+  [ -n "$newest" ] || fail "origin has no branch main, so main's newest commit cannot be read; nothing was released"
+  here=$(git rev-parse HEAD)
+  [ "$here" = "$newest" ] || fail "HEAD is not the newest commit of main on origin ($newest); update main to it first; nothing was released"
+fi
 mkdir -p target
 settings=target/release-commit-message.toml
 printf 'pre-release-commit-message = "Release %s"\n' "$next" >"$settings"
