@@ -756,6 +756,20 @@ fn a_limits_line_is_checked_with_the_verdicts_lines_in_file_order() {
 }
 
 #[test]
+fn a_refused_limits_line_is_named_before_a_missing_reply_line_of_the_writer() {
+    let lines = writer_lines("m_w");
+    assert!(lines[1].starts_with("reply model=m_w machine=mac seed=1 "));
+    let mut no_reply = lines.clone();
+    no_reply.remove(1);
+    let verdict = "verdict driver=none path=B writer=m_w";
+    let got = run(&refs(&with(no_reply.clone(), verdict)), &[BOUND]);
+    assert_eq!(got.refused(), "REFUSED source: driver:verdict");
+    no_reply.push(LIMITS_BILL.to_owned());
+    let got = run(&refs(&with(no_reply, verdict)), &[BOUND]);
+    assert_eq!(got.refused(), "REFUSED source: driver:14");
+}
+
+#[test]
 fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     let mut wrong = Vec::new();
     for (what, driver, want) in [
