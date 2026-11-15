@@ -16,7 +16,13 @@
 //! page, a freelist trunk or a freelist leaf, and the four must add up to the
 //! page count; a page that dbstat cannot read as a tree page ("corrupted") or
 //! whose type byte is no b-tree page is a line. [`check`] also names a log of
-//! the connection's file that holds frames. This file uses `std` and
+//! the connection's file that holds frames. [`check`] and [`plants`] answer
+//! with lines on any bytes and never panic on them (S-94 P1): a cell, a
+//! pointer, a freeblock or a trunk's entry that would be read past the usable
+//! size of its page is a line that names the page and the byte, and the page's
+//! other rules still run; a file shorter than its 100-byte header, and a page
+//! size that is no power of two from 512 up, are lines and no page is read.
+//! This file uses `std` and
 //! `rusqlite` alone, so that another crate's tests can include it by a path
 //! attribute; such a caller runs [`plants`] on its own images and reads every
 //! field of [`Checked`]. The controls of the rules that need pages a caller's
@@ -53,23 +59,39 @@ pub struct Checked {
     pub overflow_tails: usize,
 }
 
-fn read2(page: &[u8], at: usize) -> usize {
-    usize::from(u16::from_be_bytes([page[at], page[at + 1]]))
+/// The 2-byte value at `at`, or `None` when it lies past the end of `bytes`.
+fn read2(bytes: &[u8], at: usize) -> Option<usize> {
+    let word = bytes.get(at..at.checked_add(2)?)?;
+    Some(usize::from(u16::from_be_bytes([word[0], word[1]])))
 }
 
-fn read4(page: &[u8], at: usize) -> usize {
-    u32::from_be_bytes([page[at], page[at + 1], page[at + 2], page[at + 3]]) as usize
+/// The 4-byte value at `at`, or `None` when it lies past the end of `bytes`.
+fn read4(bytes: &[u8], at: usize) -> Option<usize> {
+    let word = bytes.get(at..at.checked_add(4)?)?;
+    Some(u32::from_be_bytes([word[0], word[1], word[2], word[3]]) as usize)
 }
 
-fn varint(bytes: &[u8]) -> (u64, usize) {
+/// The varint at `at` and its length, or `None` when it runs past the end of
+/// `bytes`.
+fn varint(bytes: &[u8], at: usize) -> Option<(u64, usize)> {
+    let bytes = bytes.get(at..)?;
     let mut value = 0u64;
     for (at, byte) in bytes.iter().take(8).enumerate() {
         value = (value << 7) | u64::from(byte & 0x7f);
         if byte & 0x80 == 0 {
-            return (value, at + 1);
+            return Some((value, at + 1));
         }
     }
-    ((value << 8) | u64::from(bytes[8]), 9)
+    Some(((value << 8) | u64::from(*bytes.get(8)?), 9))
+}
+
+/// The line of a read that would pass the end of the bytes that the check
+/// reads there: the page's usable size, a trunk's usable size, or the file.
+fn past(problems: &mut Vec<String>, number: usize, what: &str, at: usize, end: usize) {
+    problems.push(format!(
+        "page {number}: {what} at byte {at} runs past byte {end}, the end of the bytes that the \
+         check reads there"
+    ));
 }
 
 fn local_size(payload: usize, usable: usize, table_leaf: bool) -> (usize, bool) {
@@ -86,23 +108,36 @@ fn local_size(payload: usize, usable: usize, table_leaf: bool) -> (usize, bool) 
     (if k <= max { k } else { min }, true)
 }
 
-fn cell_size(page: &[u8], at: usize, kind: u8, usable: usize) -> (usize, Option<(usize, usize)>) {
+/// The size of the cell at `at` of `body`, the usable bytes of its page, and
+/// its overflow chain, or `None` when the cell runs past `body`.
+fn cell_size(
+    body: &[u8],
+    at: usize,
+    kind: u8,
+    usable: usize,
+) -> Option<(usize, Option<(usize, usize)>)> {
     let child = if kind == 2 || kind == 5 { 4 } else { 0 };
-    if kind == 5 {
-        return (4 + varint(&page[at + 4..]).1, None);
-    }
-    let (payload, head) = varint(&page[at + child..]);
-    let mut size = child + head;
-    if kind == 13 {
-        size += varint(&page[at + size..]).1;
-    }
-    let (local, spills) = local_size(payload as usize, usable, kind == 13);
-    size += local;
-    if !spills {
-        return (size, None);
-    }
-    let first = read4(page, at + size);
-    (size + 4, Some((first, payload as usize - local)))
+    let (size, chain) = if kind == 5 {
+        (4 + varint(body, at + 4)?.1, None)
+    } else {
+        let (payload, head) = varint(body, at + child)?;
+        let mut size = child + head;
+        if kind == 13 {
+            size += varint(body, at + size)?.1;
+        }
+        let (local, spills) = local_size(usize::try_from(payload).ok()?, usable, kind == 13);
+        size += local;
+        if spills {
+            let first = read4(body, at + size)?;
+            (
+                size + 4,
+                Some((first, usize::try_from(payload).ok()? - local)),
+            )
+        } else {
+            (size, None)
+        }
+    };
+    (at + size <= body.len()).then_some((size, chain))
 }
 
 fn btree_page(
@@ -112,8 +147,9 @@ fn btree_page(
     chains: &mut Vec<(usize, usize)>,
     problems: &mut Vec<String>,
 ) {
+    let body = &page[..usable];
     let header = if number == 1 { 100 } else { 0 };
-    let kind = page[header];
+    let kind = body[header];
     let header_size = match kind {
         2 | 5 => 12,
         10 | 13 => 8,
@@ -124,46 +160,57 @@ fn btree_page(
             return;
         }
     };
-    let cells = read2(page, header + 3);
-    let content = match read2(page, header + 5) {
+    let cells = read2(body, header + 3).unwrap_or(0);
+    let content = match read2(body, header + 5).unwrap_or(0) {
         0 => 65536,
         start => start,
     };
     let pointers_end = header + header_size + 2 * cells;
     let mut covered = vec![false; usable];
     for at in 0..cells {
-        let offset = read2(page, header + header_size + 2 * at);
-        let (size, chain) = cell_size(page, offset, kind, usable);
+        let slot = header + header_size + 2 * at;
+        let Some(offset) = read2(body, slot) else {
+            past(problems, number, "the pointer array", slot, usable);
+            break;
+        };
+        let Some((size, chain)) = cell_size(body, offset, kind, usable) else {
+            past(problems, number, "the cell", offset, usable);
+            continue;
+        };
         chains.extend(chain);
         for flag in covered.iter_mut().skip(offset).take(size) {
             *flag = true;
         }
     }
-    let mut free = read2(page, header + 1);
+    let mut free = read2(body, header + 1).unwrap_or(0);
     let mut blocks = 0;
     while free != 0 && blocks < usable {
-        let size = read2(page, free + 2);
-        if let Some(at) = (free + 4..free + size).find(|&at| page[at] != 0) {
+        let Some(size) = read2(body, free + 2).filter(|size| free + size <= usable) else {
+            past(problems, number, "the freeblock", free, usable);
+            break;
+        };
+        if let Some(at) = (free + 4..free + size).find(|&at| body[at] != 0) {
             problems.push(format!(
                 "page {number}: byte {at} of the freeblock at {free} (size {size}) is {:#04x}",
-                page[at]
+                body[at]
             ));
         }
         for flag in covered.iter_mut().skip(free).take(size) {
             *flag = true;
         }
-        free = read2(page, free);
+        free = read2(body, free).unwrap_or(0);
         blocks += 1;
     }
-    if let Some(at) = (content..usable).find(|&at| !covered[at] && page[at] != 0) {
+    if let Some(at) = (content..usable).find(|&at| !covered[at] && body[at] != 0) {
         problems.push(format!(
             "page {number}: byte {at} of the content area, in no cell and no freeblock, is {:#04x}",
-            page[at]
+            body[at]
         ));
     }
+    let gap_end = content.min(usable);
     let mut at = pointers_end;
-    while at + 1 < content && (page[at] != 0 || page[at + 1] != 0) {
-        let stale = read2(page, at);
+    while at + 1 < gap_end && (body[at] != 0 || body[at + 1] != 0) {
+        let stale = read2(body, at).unwrap_or(0);
         if stale < at + 2 || stale > usable - 4 {
             problems.push(format!(
                 "page {number}: the gap's slot at {at} holds {stale:#06x}, no offset of a cell past \
@@ -174,11 +221,11 @@ fn btree_page(
         }
         at += 2;
     }
-    if let Some(left) = (at..content).find(|&left| page[left] != 0) {
+    if let Some(left) = (at..gap_end).find(|&left| body[left] != 0) {
         problems.push(format!(
             "page {number}: byte {left} of the gap {pointers_end}..{content}, past its run of stale \
              pointers that ends at {at}, is {:#04x}",
-            page[left]
+            body[left]
         ));
     }
 }
@@ -194,30 +241,44 @@ fn words_no_larger_than(page: &[u8], from: usize, to: usize, count: usize) -> Op
 }
 
 fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
-    let size = match read2(db, 16) {
-        1 => 65536,
-        size => size,
-    };
-    let usable = size - usize::from(db[20]);
-    let count = db.len() / size;
     let (mut btree, mut overflow, mut trunks, mut leaves_read) = (0, 0, 0, 0);
     let mut problems = Vec::new();
     let mut chains = Vec::new();
+    let stop = |problems: Vec<String>, pages: usize| {
+        let checked = Checked {
+            problems,
+            pages,
+            btree: 0,
+            overflow: 0,
+            trunks: 0,
+            leaves: 0,
+            overflow_tails: 0,
+        };
+        (checked, Vec::new())
+    };
+    if db.len() < 100 {
+        past(&mut problems, 1, "the file header", 0, db.len());
+        return stop(problems, 0);
+    }
+    let size = match read2(db, 16).unwrap_or(0) {
+        1 => 65536,
+        size => size,
+    };
     if size > 4096 {
         problems.push(format!(
             "page 1: page size {size} above 4,096: the check reads no page of such a file"
         ));
-        let checked = Checked {
-            problems,
-            pages: count,
-            btree,
-            overflow,
-            trunks,
-            leaves: leaves_read,
-            overflow_tails: 0,
-        };
-        return (checked, Vec::new());
+        return stop(problems, db.len() / size);
     }
+    if size < 512 || !size.is_power_of_two() {
+        problems.push(format!(
+            "page 1: page size {size} is no power of two from 512 up: the check reads no page of \
+             such a file"
+        ));
+        return stop(problems, 0);
+    }
+    let usable = size - usize::from(db[20]);
+    let count = db.len() / size;
     if let Some(at) = (52..56).find(|&at| db[at] != 0) {
         problems.push(format!("page 1: header byte {at} is {:#04x}", db[at]));
     }
@@ -236,13 +297,22 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
         .collect::<Result<_, _>>()
         .unwrap();
     let mut freelist: BTreeSet<usize> = BTreeSet::new();
-    let mut trunk = read4(db, 32);
+    let mut trunk = read4(db, 32).unwrap_or(0);
     while trunk != 0 && trunk <= count && freelist.insert(trunk) {
         trunks += 1;
         let page = &db[(trunk - 1) * size..trunk * size];
-        let leaves = read4(page, 4);
+        let leaves = read4(page, 4).unwrap_or(0);
         for at in 0..leaves {
-            let leaf = read4(page, 8 + 4 * at);
+            let Some(leaf) = read4(&page[..usable], 8 + 4 * at) else {
+                past(
+                    &mut problems,
+                    trunk,
+                    "the freelist trunk's entry",
+                    8 + 4 * at,
+                    usable,
+                );
+                break;
+            };
             if leaf == 0 || leaf > count || !freelist.insert(leaf) {
                 problems.push(format!("page {trunk}: freelist trunk names page {leaf}"));
                 continue;
@@ -261,7 +331,7 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
                 "page {trunk}: the freelist trunk past its count holds at {at} a value above the page count"
             ));
         }
-        trunk = read4(page, 0);
+        trunk = read4(page, 0).unwrap_or(0);
     }
     for number in 1..=count {
         let page = &db[(number - 1) * size..number * size];
@@ -300,7 +370,7 @@ fn read_pages(conn: &Connection, db: &[u8]) -> (Checked, Vec<(usize, usize)>) {
                     ));
                 }
             }
-            number = read4(page, 0);
+            number = read4(page, 0).unwrap_or(0);
         }
     }
     for (number, kind) in &kinds {
@@ -351,7 +421,13 @@ fn log_problems(conn: &Connection) -> Vec<String> {
 
 fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -> Option<String> {
     let mut copy = db.to_vec();
-    copy[at..at + bytes.len()].copy_from_slice(bytes);
+    let Some(place) = copy.get_mut(at..at + bytes.len()) else {
+        return Some(format!(
+            "{bytes:?} planted at byte {at}: the image ends at byte {}",
+            db.len()
+        ));
+    };
+    place.copy_from_slice(bytes);
     let found = check(conn, &copy).problems;
     if found.iter().any(|line| line.contains(named)) {
         None
@@ -376,8 +452,12 @@ fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -
 /// and, under 32 reserved bytes, an offset inside the page past the usable
 /// size; and a page size of 8,192. Returns one line for each plant that no
 /// line names, and for each such page that the image lacks; an empty answer
-/// is the pass. On a connection whose log holds frames it answers with the
-/// log's line alone and plants nothing. It shows that the check sees these
+/// is the pass. On an image whose cells the plant under 32 reserved bytes
+/// moves past the usable size, the check names those cells as lines and still
+/// reads the gap of the planted page, so that plant names its own line. On
+/// a connection whose log holds frames it answers with the log's line alone
+/// and plants nothing. A plant that would lie past the image is a line of its
+/// own. It shows that the check sees these
 /// plants on the caller's image, not that the caller's draw would leave
 /// anything.
 pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
@@ -389,15 +469,23 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
     if !clean.problems.is_empty() {
         return clean.problems;
     }
-    let size = read2(db, 16);
+    let size = read2(db, 16).unwrap_or(0);
     let page = |number: usize| (number - 1) * size;
+    let word2 = |at: usize| read2(db, at).unwrap_or(0);
+    let word4 = |at: usize| read4(db, at).unwrap_or(0);
+    let count = db.len() / size;
     let mut misses = Vec::new();
     misses.extend(planted(db, conn, 52, &[1], "header byte 52"));
-    let trunk = read4(db, 32);
-    if trunk == 0 || read4(db, page(trunk) + 4) == 0 {
+    let trunk = word4(32);
+    let first_leaf = if trunk == 0 || trunk > count {
+        0
+    } else {
+        word4(page(trunk) + 4)
+    };
+    if first_leaf == 0 {
         misses.push("the image has no freelist trunk with a leaf".to_owned());
     } else {
-        let leaf = read4(db, page(trunk) + 8);
+        let leaf = word4(page(trunk) + 8);
         misses.extend(planted(
             db,
             conn,
@@ -412,7 +500,6 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
             &[0xff; 4],
             "the freelist trunk past its count",
         ));
-        let count = db.len() / size;
         for (named, value) in [(0, 0), (count + 1, count + 1), (trunk, trunk)] {
             misses.extend(planted(
                 db,
@@ -422,7 +509,7 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
                 &format!("page {trunk}: freelist trunk names page {named}"),
             ));
         }
-        let leaves = read4(db, page(trunk) + 4);
+        let leaves = first_leaf;
         match (2..=count).find(|&number| matches!(db[page(number)], 2 | 5 | 10 | 13)) {
             Some(tree) if 12 + 4 * leaves <= size => {
                 let mut copy = db.to_vec();
@@ -439,7 +526,6 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
             _ => misses.push("the image has no b-tree page and room in its first trunk".to_owned()),
         }
     }
-    let count = db.len() / size;
     let mut longer = db.to_vec();
     longer.resize(db.len() + size, 0);
     let found = check(conn, &longer).problems;
@@ -474,10 +560,13 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         None => misses.push("the image has no overflow tail of 4 bytes".to_owned()),
     }
     let leaf_kinds = |at: usize| matches!(db[at], 2 | 5 | 10 | 13);
-    match (2..=db.len() / size).find_map(|number| {
+    let freeblock =
+        |at: usize, free: usize| (free != 0 && free + 4 <= size).then(|| word2(at + free + 2));
+    match (2..=count).find_map(|number| {
         let at = page(number);
-        let free = read2(db, at + 1);
-        (leaf_kinds(at) && free != 0 && read2(db, at + free + 2) > 4).then_some((number, free))
+        let free = word2(at + 1);
+        (leaf_kinds(at) && freeblock(at, free).is_some_and(|length| length > 4))
+            .then_some((number, free))
     }) {
         Some((number, free)) => misses.extend(planted(
             db,
@@ -489,8 +578,8 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         None => misses.push("the image has no freeblock longer than its header".to_owned()),
     }
     let usable = size - usize::from(db[20]);
-    if trunk != 0 && read4(db, page(trunk) + 4) != 0 {
-        let leaf = read4(db, page(trunk) + 8);
+    if first_leaf != 0 {
+        let leaf = word4(page(trunk) + 8);
         misses.extend(planted(
             db,
             conn,
@@ -499,14 +588,14 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
             "of a freelist leaf",
         ));
     }
-    match (2..=db.len() / size).find_map(|number| {
+    match (2..=count).find_map(|number| {
         let at = page(number);
-        let free = read2(db, at + 1);
-        (leaf_kinds(at) && free != 0 && read2(db, at + free + 2) >= 8).then_some((at, free))
+        let free = word2(at + 1);
+        let length = freeblock(at, free).filter(|&length| length >= 8 && free + length <= size)?;
+        leaf_kinds(at).then_some((at, free, length))
     }) {
-        Some((at, free)) => {
+        Some((at, free, length)) => {
             let mut copy = db.to_vec();
-            let length = read2(db, at + free + 2);
             copy[at + free + 2..at + free + 4]
                 .copy_from_slice(&((length - 4) as u16).to_be_bytes());
             misses.extend(planted(
@@ -519,19 +608,18 @@ pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
         }
         None => misses.push("the image has no freeblock of 8 bytes".to_owned()),
     }
-    let gap = (2..=db.len() / size).find_map(|number| {
+    let gap = (2..=count).find_map(|number| {
         let at = page(number);
-        let content = read2(db, at + 5);
-        let mut run = 8 + 2 * read2(db, at + 3);
-        while run + 1 < content && (db[at + run] != 0 || db[at + run + 1] != 0) {
+        if !matches!(db[at], 10 | 13) {
+            return None;
+        }
+        let content = word2(at + 5);
+        let pointers_end = 8 + 2 * word2(at + 3);
+        let mut run = pointers_end;
+        while run + 1 < content.min(size) && (db[at + run] != 0 || db[at + run + 1] != 0) {
             run += 2;
         }
-        (matches!(db[at], 10 | 13) && content >= run + 8).then_some((
-            at,
-            8 + 2 * read2(db, at + 3),
-            run,
-            content,
-        ))
+        (content >= run + 8 && content <= size).then_some((at, pointers_end, run, content))
     });
     match gap {
         Some((at, pointers_end, run, content)) => {

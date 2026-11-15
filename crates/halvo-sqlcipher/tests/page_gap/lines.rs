@@ -14,7 +14,7 @@ fn source(path: &str) -> String {
 
 /// (the line as rules.rs writes it, the control: `file::function`, a fragment
 /// of the line that the control's body holds).
-const LIST: [(&str, &str, &str); 17] = [
+const LIST: [(&str, &str, &str); 19] = [
     ("page {number}: type byte {other} is no b-tree page", "rules::plants", "is no b-tree page"),
     ("page {number}: byte {at} of the freeblock at {free} (size {size}) is {:#04x}", "controls::four_rules", "of the freeblock at"),
     ("page {number}: byte {at} of the content area, in no cell and no freeblock, is {:#04x}", "controls::four_rules", "of the content area, in no cell and no freeblock"),
@@ -32,6 +32,8 @@ const LIST: [(&str, &str, &str); 17] = [
     ("page {number}: the tail of an overflow page holds at {at} a value above the page count", "controls::the_page_count_passes_in_a_trunk_and_a_tail_and_the_count_plus_1_is_named", "the tail of an overflow page holds at"),
     ("page {number}: an overflow page that {walked} chains of cells walk, not one", "controls::a_cell_that_takes_the_overflow_chain_of_another_names_a_page_of_2_chains_and_a_page_of_0", "chains of cells walk, not one"),
     ("the log of the connection's file holds {length} bytes: the check reads the main file alone, so checkpoint the log with TRUNCATE first", "controls::the_check_names_a_log_of_the_connections_file_that_holds_frames", "the log of the connection's file holds "),
+    ("page {number}: {what} at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived", "runs past byte"),
+    ("page 1: page size {size} is no power of two from 512 up: the check reads no page of such a file", "controls::a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived", "is no power of two from 512 up"),
 ];
 
 /// The first string literal after each `problems.push(format!(` of a source,
