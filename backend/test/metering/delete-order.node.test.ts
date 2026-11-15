@@ -818,6 +818,41 @@ describe("one cancel call at a time for one id, and the cut interval's send firs
     });
   }
 
+  test("P7-113 T2 (c): an older interval whose send failed is due again at the delete: step 3 sends it and the cut interval before the cancel, with no cancel-before-send line", async () => {
+    const d = await deleting({ testClock: false, faults: [{ kind: "request-lost" }] });
+    const w = d.w;
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(END);
+    await quiet(w.lines, () => w.entries().alarm());
+    w.at(END + 10_000);
+    await w.use("r1", 20_000);
+    w.at(END + 70_000);
+    await destroy(w);
+    expect(kinds(w.calls)).toEqual(["send failed", "send recorded", "send recorded", "cancel cancelled"]);
+    expect(beforeSend(w)).toBe(0);
+    w.close();
+  });
+
+  test("P7-113 T2 (c): the cut interval's hold ends during step 3's send: the second seal and send run seals and sends the cut interval before the cancel", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(END + 20_000);
+    await w.use("r2", 20_000);
+    w.at(END + 29_000);
+    await w.reserve("r1");
+    w.faults.push({ kind: "during", run: async () => w.at(END + 40_000) });
+    w.at(END + 30_000);
+    await destroy(w);
+    expect(kinds(w.calls)).toEqual(["send recorded", "send recorded", "cancel cancelled"]);
+    expect(beforeSend(w)).toBe(0);
+    w.close();
+  });
+
   test("L4 (d): a cancel made with every interval acknowledged writes no cancel-before-send line", async () => {
     const d = await deleting();
     const w = d.w;

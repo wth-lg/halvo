@@ -573,7 +573,8 @@ class World {
    * and send run right before the cancel made ALARM_CALL_LIMIT calls, read from the rows as a send planned in that run whose
    * call was never made, or (ii) all of: P, the account's oldest sealed interval with no outcome, is older than every
    * never-planned interval, has at least one attempt and its next attempt after the cancel's now, and no row has a send in
-   * flight inside CALL_IN_FLIGHT_MS.
+   * flight inside CALL_IN_FLIGHT_MS. With no hold open, no interval that the mark ends may be left unsealed at the cancel
+   * (the second seal and send run of P7-82 D4).
    */
   private orderAtTheCancel(account: Account): void {
     const read = account.test.host.step((sql) =>
@@ -581,11 +582,22 @@ class World {
         ? {
             rows: sql.exec("SELECT start, identifier, sealed_at, outcome, attempts, next_attempt, answer_due, sent_at FROM metering_interval ORDER BY start"),
             now: Number(sql.exec("SELECT last_now FROM skeleton")[0]?.last_now),
+            unsealedEndedByTheMark: Number(
+              sql.exec(
+                "SELECT COUNT(*) AS n FROM metering_interval WHERE sealed_at IS NULL AND end_at <= (SELECT destroying_since FROM skeleton)",
+              )[0]?.n ?? 0,
+            ),
+            holdsOpen: ownTables(sql).includes("ledger_holds")
+              ? Number(sql.exec("SELECT COUNT(*) AS n FROM ledger_holds WHERE state = ? AND expires_at > (SELECT last_now FROM skeleton)", "open")[0]?.n ?? 0)
+              : 0,
           }
         : null,
     );
     if (read === null) return;
     const now = read.now;
+    if (read.unsealedEndedByTheMark > 0 && read.holdsOpen === 0) {
+      this.fail("the delete's cancel with an interval that the mark ends left unsealed and no hold open", `${account.id}: ${read.unsealedEndedByTheMark} intervals unsealed`);
+    }
     const sealedOpen = read.rows.filter((row) => row.sealed_at !== null && row.outcome === null);
     const never = sealedOpen.filter((row) => Number(row.attempts) === 0);
     if (never.length === 0) return;
