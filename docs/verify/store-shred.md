@@ -346,8 +346,8 @@ spawns no child, so nothing else shares its descriptor.
 | Cases with moves that fail | 32 (`FAILING_MOVE_CASES`), 1 to 12 ops each | the second random test; it interleaves the moves that fail or are refused with the others, and no row depends on a case that it draws |
 | The fixed order | 24 moves | each move that fails or is refused at least once, in the state that it needs; the rows of these moves are judged by it |
 | Segment sizes | 0 to 512 bytes, one chunk and one byte either side of it, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
-| Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | chosen as the size at which a key row that is deleted, not set to NULL, left keys in `store.db` under the build before ADR 0013: 3 of 900 after the one pass. Under the build of ADR 0013 a deleted key row leaves none (Not covered); the row of this case is `formal-secure-delete-off` |
-| Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | chosen when, under the build before ADR 0013, deleted key rows left a key after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50. Its row is `formal-shred-never-committed`, which fails it after pass 1 |
+| Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | chosen as the size at which a key row that is deleted, not set to NULL, left keys in `store.db` under the build before ADR 0013: 3 of 900 after the one pass. Under the build of ADR 0013 a deleted key row left none in this case (one hosted run; Not covered), and no row of today needs the size: the row of this case is `formal-secure-delete-off`, which needs two due writes before one shred, not 1,200 segments. The size stays as a probe for leftovers that the build's own tests do not draw. |
+| Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | chosen when, under the build before ADR 0013, deleted key rows left a key after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50. Its row is `formal-shred-never-committed`, which fails it after pass 1; no row of today needs the 50 passes |
 | Check 2 cases | 30 (`RACE_CASES`) | each case spawns processes, and a row of check 2 fails only in a case in which two contenders meet; 30 follows from the measured share of such cases, under Break proofs |
 | Contenders | 2 to 5 (`MAX_CONTENDERS`) | two is the minimal race; five covers a queue of waiters |
 | Acquisitions per contender | 1 to 3 | re-acquisition after a release, with the lock file possibly recreated |
@@ -842,7 +842,7 @@ When a change to covered code is intended:
 3. If the change moves the text that a row's substitution matches, change
    the `formal-` row, and the row of the same substitution with another
    verdict, in the same pull request.
-4. Run the rows: `sh scripts/r1-gate/mutation-test.sh --only <row>` for each
+4. Run the rows on hosted jobs: `sh scripts/r1-gate/mutation-test.sh --only <row>` for each
    row of the changed file, or every row with no argument. Each must print
    `PASS mutation`. For new covered code, add a row that breaks it, see the
    check fail, and name the row on the code's line of the covered table.
@@ -874,9 +874,10 @@ it in the plan before weakening an assertion.
 - A shred that deletes the key row where it must set the key to NULL in
   place. Under the build of ADR 0013 such a shred leaves neither the whole
   wrapped key nor its middle 32 bytes in the files that the file scan
-  reads, on the inputs of these tests: hosted run 43654678132 applied that
-  substitution under three names, and the hardening test of T-11, the
-  one-pass scaled case and the oldest-first scaled case each passed on it.
+  reads, on the inputs of the three tests named next: hosted run
+  43654678132 applied that substitution under three names, and the
+  hardening test `a_shredded_wrapped_key_is_gone_from_the_raw_database_pages`,
+  the one-pass scaled case and the oldest-first scaled case each passed on it.
   So no row of check 1 stands on it, and the two rows of check 1 that
   stood on it are gone. What removes the bytes of the deleted row is the
   build's zeroing of the gap of a page built again or edited in place. The
@@ -891,7 +892,14 @@ it in the plan before weakening an assertion.
   the id of a key row has no `AUTOINCREMENT`. The row `key-row-deleted`
   holds that rule, judged by the hardening test
   `a_shred_keeps_the_key_row_with_a_null_key_and_a_later_segment_takes_another_key_id`.
-  No row is judged by the hardening test of T-11 since that change.
+  No row is judged by `a_shredded_wrapped_key_is_gone_from_the_raw_database_pages`
+  since that change. That a deleted key row leaves no key on other inputs
+  rests on the reading of ADR 0013, which cannot show that the database has
+  no third place that keeps a copy. Two places are the same for the
+  `UPDATE` and the `DELETE`, and no test reads either: the frame that
+  stored the live key stays in `store.db-wal` from the commit until the
+  checkpoint (see the crash above), and the volume or the drive may keep the
+  old bytes of a page that a write replaced.
 - What the event rows of a shredded segment leave in the store files. The
   file scan looks for wrapped keys only; check 1 counts the event rows
   through SQL.
@@ -1251,11 +1259,13 @@ rows that start within its budget, in an order that the commit id decides. It st
 seconds (`budget_s`) has passed since the first row started, lets the row
 in progress end, and fails when a row that ran is not caught by its
 verdict; another commit takes the rows in another order. The whole list,
-which requires that the test of every `formal-` row fails, runs on a
-person's machine as a line of the phase's gate and of the verifier gates of
-the units that name `mutation-test.sh`.
+which requires that the test of every `formal-` row fails, runs by name on
+hosted jobs at the gate of each unit whose diff touches
+`crates/halvo-sqlcipher/`, `crates/halvo-capture/src/store/` or the
+database entries of `Cargo.lock` (ruling S-91 7), and on a person's machine
+only where the machine's rules let the rows' tests run.
 
-Outcome of the last pass, the fourth formal step, over the 17 commits of
+Outcome of the fourth formal step, over the 17 commits of
 the unit store-2 (an `open` that makes no database, format versions, the
 settings read back, the sweep that follows no link, the modes, and
 `Locked` before the custody): updated, for both checks.
@@ -1379,3 +1389,30 @@ No sentence of property 1 rests on a name that the recording file system
 records, and no move that fails or is refused in check 1 reaches the two
 new steps of a segment write or a failing call of the sweep (see Not
 covered for what a failure there leaves).
+
+The seventh formal step read the unit sqlcipher-1 at 376bca38, joined with
+main 5fadd38e: the build of ADR 0013, which zeroes the gap of a page that
+the database builds again or edits in place while secure delete is on, and
+the rows of check 1 of ruling S-91. Outcome: updated, for check 1; in sync,
+for check 2.
+
+The unit changes no line of `formal_tests.rs`, of the page reader or of the
+store code that the covered table names. Hosted run 43674411184 at
+bcdb819e, whose store, database crate and rows files are those of
+376bca38, ran the nine tests of the command on macOS and on Windows, each
+`ok`. It ran every row of the store's, the custody's and `halvo-sqlcipher`'s
+rows files to its end by name: 103 caught.
+
+What had drifted is what two rows of check 1 showed. Under the build
+before ADR 0013, a shred that deletes the key row, where it must set the
+key to NULL, left the key in a page of `store.db`, and both scaled cases
+failed on that substitution. Under the build of ADR 0013 both passed it
+(hosted run 43654678132), so those two rows are gone, and Not covered says
+why. The oldest-first case is now judged by `formal-shred-never-committed`,
+which fails it after pass 1 with the key whole in a page of `store.db`.
+The one-pass case is still judged by `formal-secure-delete-off`, because
+the build zeroes a gap only while secure delete is on. No row of today
+needs the 1,200 segments or the 50 passes; they stay as they were chosen.
+The row `key-row-deleted` is now judged by a hardening test of ADR 0005's
+rule that a shred keeps the key row of its segment, not by a test of the
+pages.
