@@ -657,6 +657,28 @@ pub mod seam {
         detector_now().clone()
     }
 
+    static POINTER_QUEUE_LARGEST_MS: std::sync::atomic::AtomicU32 =
+        std::sync::atomic::AtomicU32::new(0);
+    static POINTER_MESSAGES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+    pub(crate) fn pointer_message_handled(message_tick: u32, handled_tick: u32) {
+        let distance = handled_tick.wrapping_sub(message_tick);
+        if distance <= i32::MAX as u32 {
+            POINTER_QUEUE_LARGEST_MS.fetch_max(distance, std::sync::atomic::Ordering::Relaxed);
+        }
+        POINTER_MESSAGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// The largest distance, in ms, between a raw pointer message's own time
+    /// and its handling by the pointer's pump, and the count of messages,
+    /// since the process started.
+    pub fn pointer_queue_largest() -> (u32, u64) {
+        (
+            POINTER_QUEUE_LARGEST_MS.load(std::sync::atomic::Ordering::Relaxed),
+            POINTER_MESSAGES.load(std::sync::atomic::Ordering::Relaxed),
+        )
+    }
+
     /// The file name of a process's image, for a test's prints.
     pub fn process_file_of(pid: u32) -> Option<String> {
         crate::windows::foreground::process_path(pid)
@@ -1001,6 +1023,8 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 release_held(gate, &state.producer, false);
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
+                #[cfg(feature = "test-seam")]
+                seam::pointer_message_handled(tick, super::now_tick());
                 click_from_the_pointer_pump(sample.button_flags, tick);
                 pointer_forwarded(tick);
                 let packet = pointer_packet(sample, app, tick);
@@ -1296,12 +1320,14 @@ fn run_raw_input(
     let registered = if device == RawDevice::Pointer {
         let mut route = clicks();
         let before = super::now_tick().wrapping_sub(ms_of(crate::secure_input::windows::TICK_STEP));
+        if let Some(gate) = &route.gate {
+            gate.pointer_takes_the_clicks(before);
+        }
         let registered = (calls.register_device)(&dev);
         if registered.is_ok() {
             route.owner = Some(RawDevice::Pointer);
-            if let Some(gate) = &route.gate {
-                gate.pointer_takes_the_clicks(before);
-            }
+        } else if let Some(gate) = &route.gate {
+            gate.pointer_did_not_take_the_clicks();
         }
         registered
     } else {
@@ -3711,6 +3737,29 @@ mod tests {
         assert_eq!(after_the_release, after_two, "the release set a latch");
     }
 
+    fn nudge_the_pointer() {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_MOVE, MOUSEINPUT,
+        };
+        let step = |dx: i32| INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx,
+                    dy: 0,
+                    mouseData: 0,
+                    dwFlags: MOUSEEVENTF_MOVE,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+        // SAFETY: a slice of two live INPUT values with the size of one INPUT.
+        unsafe {
+            let _ = SendInput(&[step(1), step(-1)], core::mem::size_of::<INPUT>() as i32);
+        }
+    }
+
     pub(super) static HOLD_THE_POLL_MS: AtomicU64 = AtomicU64::new(0);
     pub(super) static POLL_HELD: AtomicBool = AtomicBool::new(false);
 
@@ -3740,6 +3789,9 @@ mod tests {
                         held = wait_for(std::time::Duration::from_secs(1), || {
                             POLL_HELD.load(Ordering::SeqCst)
                         });
+                    }
+                    if hold_ms == 0 {
+                        nudge_the_pointer();
                     }
                     let front = own.is_in_front();
                     let accepted = send_keys(&[key_input(0x41, false), key_input(0x41, true)]);
@@ -3771,6 +3823,12 @@ mod tests {
         };
         let (idle_counted, idle_recorded) = tally("idle");
         let (held_counted, held_recorded) = tally("held");
+        let (queue_largest_ms, pointer_messages) = seam::pointer_queue_largest();
+        println!(
+            "TF pointer-queue largest_distance_from_a_messages_time_to_its_handling_ms={queue_largest_ms} \
+             pointer_messages={pointer_messages} tick_step_ms={}",
+            ms_of(crate::secure_input::windows::TICK_STEP)
+        );
         println!(
             "TF pointer-pump own_window_in_front={in_front} owner={owner:?} \
              idle_rounds_counted={idle_counted} idle_keystroke_events={idle_recorded} \
@@ -4018,5 +4076,107 @@ mod tests {
             "the pointer's time of owning the clicks begins {ahead} ms before its registration, \
              less than one tick step"
         );
+    }
+
+    static GATE_AT_THE_REGISTRATION: Mutex<Option<Arc<PasswordGate>>> = Mutex::new(None);
+    static SEEN_AT_THE_REGISTRATION: Mutex<Option<Option<u32>>> = Mutex::new(None);
+    static REFUSE_THE_POINTERS_MOUSE: AtomicBool = AtomicBool::new(false);
+
+    fn register_reading_the_gate(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        if device.usUsage == RawDevice::Pointer.hid_usage() && device.dwFlags != RIDEV_REMOVE {
+            if let Some(gate) = GATE_AT_THE_REGISTRATION
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .as_ref()
+            {
+                *SEEN_AT_THE_REGISTRATION
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner) = Some(gate.pointer_since());
+            }
+            if REFUSE_THE_POINTERS_MOUSE.load(Ordering::SeqCst) {
+                return Err(windows::core::Error::from_hresult(
+                    windows::Win32::Foundation::E_ACCESSDENIED,
+                ));
+            }
+        }
+        register_counted(device)
+    }
+
+    #[test]
+    fn the_gate_hears_that_the_pointer_owns_the_clicks_before_its_registration_moves_them() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let mut seen = Vec::new();
+        for refused in [false, true] {
+            let (sink, _writer) = crate::sink::channel(64);
+            let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+            let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+            let gate = clicks().gate.clone();
+            *GATE_AT_THE_REGISTRATION
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = gate.clone();
+            *SEEN_AT_THE_REGISTRATION
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = None;
+            REFUSE_THE_POINTERS_MOUSE.store(refused, Ordering::SeqCst);
+            let mut pointer = RawInputSource::with_calls(
+                RawDevice::Pointer,
+                StartCalls {
+                    register_device: register_reading_the_gate,
+                    remove_device: register_counted,
+                    ..SYSTEM_CALLS
+                },
+            );
+            let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+            let at_the_registration = *SEEN_AT_THE_REGISTRATION
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let after_the_start = gate.as_ref().and_then(|gate| gate.pointer_since());
+            REFUSE_THE_POINTERS_MOUSE.store(false, Ordering::SeqCst);
+            *GATE_AT_THE_REGISTRATION
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = None;
+            let pointer_stopped = if pointer_started.is_ok() {
+                pointer.shutdown()
+            } else {
+                Ok(())
+            };
+            let keyboard_stopped = keyboard.shutdown();
+            let _ = registrations();
+            println!(
+                "TF pointer-order refused={refused} keyboard_started={} pointer_started={} \
+                 pointer_since_at_the_registration={at_the_registration:?} pointer_since_after_the_start={after_the_start:?} \
+                 pointer_stopped={} keyboard_stopped={}",
+                keyboard_started.is_ok(),
+                pointer_started.is_ok(),
+                pointer_stopped.is_ok(),
+                keyboard_stopped.is_ok()
+            );
+            assert!(
+                keyboard_started.is_ok(),
+                "INCONCLUSIVE: the keyboard source did not start"
+            );
+            seen.push((
+                refused,
+                pointer_started.is_ok(),
+                at_the_registration,
+                after_the_start,
+            ));
+        }
+        for (refused, started, at_the_registration, after_the_start) in seen {
+            assert_eq!(
+                started, !refused,
+                "INCONCLUSIVE: the pointer's start was not as the case asks"
+            );
+            assert!(
+                matches!(at_the_registration, Some(Some(_))),
+                "refused={refused}: the gate had not heard that the pointer owns the clicks when its registration was called"
+            );
+            assert_eq!(
+                after_the_start.is_some(),
+                !refused,
+                "refused={refused}: the gate's time of the pointer owning the clicks after the start"
+            );
+        }
     }
 }
