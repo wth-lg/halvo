@@ -1,0 +1,7 @@
+measured run=43653642344 form=long result=pass commit=6825cecfaadb70d38fa05bba0e57f78963913411 figures=wf_total=83,pass=76,known_defect=7,fail=0;seconds_50_long=3675;loops=13_at_full_count;scratch=b479ef56c84e32ae9c4fb7ecafdb6016c657dfbf;job_12_test=fail_by_halvo-connect_a_closed_port_is_not_sent
+measured tree path=crates/halvo-capture/src/windows id=0eab96315169e743b3898f9388299fa846e799eb
+measured blob path=crates/halvo-capture/src/secure_input.rs id=a569015943bfb27d5b5a27562a58b613a032770b
+measured tree path=crates/halvo-capture/tests id=f5b76e41f4655ebbb4e81245b8d043ade8fc13b4
+measured blob path=crates/halvo-capture/Cargo.toml id=a07171e773caa6bf36ccab9bd3d2e1d5edbe1481
+measured blob path=scripts/r1/ci.d/50-windows-functional.sh id=fd995ad11ac329ccc7a97173f4aa41e056a1d452
+measured lock path=Cargo.lock crates=windows id=f04eeed9a768c50f3e3d259c9c57f2917de5b6a7

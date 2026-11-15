@@ -91,6 +91,14 @@ Each sentence names the unit that makes it true.
   macos-4 reads it; a read from the window list was not tried.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
+- A box that a web page only draws as dots, without telling the system that it is
+  a password box, is not recognised as a password field, and what is typed into it
+  is recorded like any other typing (win-3, ruling W3-20). On Windows nothing that
+  UI Automation reports tells such a box from any other text box in Chrome, Edge or
+  Firefox. On macOS the guard rests on the system's secure input, which a program
+  turns on for its own password fields, and a text field that a page only styles as
+  dots does not turn it on, so the two systems are alike here as far as the team
+  has read; no test has shown it on a Mac yet.
 - Halvo records no keystroke typed while secure input is held: a key event that
   reaches it in that time is not recorded and is only counted by type (macos-4).
   Line (c) of the gate is the check that shows it, and gate-3 builds that line

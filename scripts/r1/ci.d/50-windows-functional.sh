@@ -1,11 +1,14 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker
+# rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=27
+failing_fixtures=45
+form_test=stall::the_round_count_of_the_stall_tests
+ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
+shutdown_line='TF shutdown source='
 fixtures_at_once=4
 LC_ALL=C
 export LC_ALL
@@ -21,6 +24,21 @@ fail() {
 expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing
+a_timed_out_stop_reads_no_input_posted_after_its_answer
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge
+browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome
+browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge
+browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing
+browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing
+browser::after_a_start_behind_another_window_in_chrome
+browser::after_a_start_behind_another_window_in_edge
+browser::cold_and_warm_orders_in_chrome
+browser::cold_and_warm_orders_in_edge
+browser::stall_phases_of_the_page_in_chrome
+browser::stall_phases_of_the_page_in_edge
+browser::swap_phases_of_the_page_in_chrome
+browser::swap_phases_of_the_page_in_edge
 c1_raw_input_delivers_keystrokes_and_pointer_events
 c2_screen_source_delivers_a_frame
 c3_foreground_source_reports_an_activated_window
@@ -33,23 +51,191 @@ capture_times_follow_the_input_order
 helper_child_window
 helper_limited_listener
 keys_queued_before_a_stop_are_delivered_or_counted
+known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2
+known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2
+known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i
+known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
-known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title RR-windows-08
-known_defect::x14_foreground_app_of_a_hosted_app RR-windows-10
-known_defect::x15_a_held_key RR-windows-16
+known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2
+known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask
 known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
-known_defect::x1_keystrokes_typed_into_a_password_field RR-windows-01
-known_defect::x2_window_title_events_for_other_windows_and_controls RR-windows-08
-known_defect::x3_attribution_before_the_first_foreground_change RR-windows-10
+password_field_fixture_chrome
+password_field_fixture_edge
+password_field_fixture_firefox
+password_field_fixture_native_dialog_phases_a_to_f
 pointer_moves_coalesce
+stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing
+stall::a_second_tab_out_of_the_password_field_then_a_letter_records_nothing
+stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask
+stall::click_then_letters_while_the_program_serves_sent_messages_150_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_2000_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_200_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_300_ms
+stall::click_then_letters_while_the_program_serves_sent_messages_600_ms
+stall::click_then_letters_while_the_program_sleeps_150_ms
+stall::click_then_letters_while_the_program_sleeps_2000_ms
+stall::click_then_letters_while_the_program_sleeps_200_ms
+stall::click_then_letters_while_the_program_sleeps_300_ms
+stall::click_then_letters_while_the_program_sleeps_600_ms
+stall::enter_with_no_focus_move_then_five_letters_records_no_letter
+stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded
+stall::helper_stall_fixture
+stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front
+stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab
+stall::tab_then_letters_while_the_program_serves_sent_messages_150_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_2000_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_200_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_300_ms
+stall::tab_then_letters_while_the_program_serves_sent_messages_600_ms
+stall::tab_then_letters_while_the_program_sleeps_150_ms
+stall::tab_then_letters_while_the_program_sleeps_2000_ms
+stall::tab_then_letters_while_the_program_sleeps_200_ms
+stall::tab_then_letters_while_the_program_sleeps_300_ms
+stall::tab_then_letters_while_the_program_sleeps_600_ms
+stall::the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded
+stall::the_round_count_of_the_stall_tests
 stop_with_a_full_sink
+the_fault_line_allocates_nothing
+the_first_own_read_after_a_start_reads_the_focused_password_field
+title_event_on_a_switch_to_a_window_with_a_fixed_title
 x12_screen_source_fifteen_start_stop_cycles
 x13_frames_on_a_static_screen
+x14_foreground_app_of_a_hosted_app
+x15_a_held_key
+x1_keystrokes_typed_into_a_password_field
+x2_window_title_events_for_other_windows_and_controls
+x3_attribution_before_the_first_foreground_change
 x5_screen_source_stop_and_start_again
 x7_capture_border_on_the_screen
 x8_raw_input_across_the_integrity_boundary
 x9_screen_source_across_a_display_mode_change
 EOF
+}
+
+loop_tests() {
+  cat <<'EOF'
+lib 20 secure_input::windows::detector::tests::an_event_of_another_element_does_not_let_the_kept_password_element_go
+lib 20 secure_input::windows::detector::tests::an_own_read_between_a_focus_events_start_and_its_mark_does_not_let_its_reading_go
+lib 20 secure_input::windows::detector::tests::a_focus_events_clear_from_the_callback_clears_no_key
+lib 20 windows::input::tests::a_held_tab_sets_one_latch_for_each_key_down_at_the_source
+lib 20 windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through
+lib 20 windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own
+lib 20 windows::input::tests::a_click_of_the_same_tick_from_the_pointer_pump_leaves_a_password_key_withheld
+lib 20 windows::input::tests::keys_at_a_gate_whose_start_read_reads_unknown_are_withheld_with_no_focus_event
+lib 20 windows::input::tests::the_pointer_owns_the_clicks_from_a_tick_step_before_its_registration
+functional 20 stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded
+lib 200 windows::input::tests::every_key_down_of_a_focus_key_latches_and_only_a_recorded_one_holds_first
+lib 200 secure_input::windows::detector::tests::the_process_file_is_the_own_executables_name_and_nothing_for_an_ended_process
+lib 200 secure_input::windows::detector::tests::a_desktop_hook_that_cannot_be_set_refuses_the_attach_and_removes_the_focus_handler
+lib 200 secure_input::windows::detector::tests::an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector
+EOF
+}
+
+ledger_paths() {
+  cat <<'EOF'
+crates/halvo-capture/src/windows
+crates/halvo-capture/src/secure_input.rs
+crates/halvo-capture/tests
+crates/halvo-capture/Cargo.toml
+scripts/r1/ci.d/50-windows-functional.sh
+EOF
+}
+
+windows_lock_id() {
+  git show HEAD:Cargo.lock | tr -d '\r' | awk '
+    /^\[\[package\]\]$/ { if (keep) printf "%s", block; block = $0 "\n"; keep = 0; next }
+    /^name = "windows/ { keep = 1 }
+    { block = block $0 "\n" }
+    END { if (keep) printf "%s", block }
+  ' | git hash-object --no-filters --stdin
+}
+
+ledger_check() {
+  fix="run the long form (HALVO_WF_FORM=long) on a scratch push of this head, then record each attempt at this head in $ledger, numbered from 1, with its run, job, functional line, short controls, second controls and slipped controls, the newest one passed, and the ids that the head has of the listed paths and of the windows lines of Cargo.lock (rulings W3-17 S4, W3-19 (1))"
+  [ -f "$ledger" ] || fail "$ledger is missing: $fix"
+  tr -d '\r' <"$ledger" >"$work/ledger" || fail "$ledger cannot be read"
+  ! grep -q '^measured run=' "$work/ledger" || fail "$ledger holds a line of the form measured run=, which records no attempts: $fix"
+  attempt_form='^measured attempt=[0-9]+ run=[0-9]+ job=[0-9]+ form=long result=(pass|fail) commit=[0-9a-f]{40} wf=[^ ]+ short_controls=[^ ]+ second_controls_taken=[0-9]+ slipped_controls=[0-9]+( |$)'
+  grep '^measured attempt' "$work/ledger" >"$work/attempts"
+  [ -s "$work/attempts" ] || fail "$ledger records no attempt: $fix"
+  ! grep -v -q -E "$attempt_form" "$work/attempts" || fail "$ledger holds an attempt line that is not in the form of the long form: $fix"
+  numbers=$(sed -E 's/^measured attempt=([0-9]+) .*/\1/' "$work/attempts" | tr '\n' ' ')
+  total=$(grep -c '' "$work/attempts")
+  wanted=
+  index=0
+  while [ "$index" -lt "$total" ]; do
+    index=$((index + 1))
+    wanted="$wanted$index "
+  done
+  [ "$numbers" = "$wanted" ] || fail "$ledger numbers its attempts ${numbers% } and not 1 to $total in order: $fix"
+  commits=$(sed -E 's/.* commit=([0-9a-f]+) .*/\1/' "$work/attempts" | sort -u | grep -c '')
+  [ "$commits" = 1 ] || fail "$ledger records attempts at more than one commit: $fix"
+  newest=$(tail -n 1 "$work/attempts")
+  case $newest in
+    *' result=pass '*) ;;
+    *) fail "the newest attempt that $ledger records did not pass: $fix" ;;
+  esac
+  ! sed '$d' "$work/attempts" | grep -q ' result=pass ' || fail "$ledger records a passed attempt before its newest one: $fix"
+  run=$(printf '%s\n' "$newest" | sed -E 's/^measured attempt=[0-9]+ run=([0-9]+) .*/\1/')
+  sed -n -E 's/^measured (tree|blob) path=([^ ]*) id=[0-9a-f]+$/\2/p' "$work/ledger" | sort >"$work/ledger-paths" ||
+    fail "$ledger cannot be read"
+  ledger_paths | sort >"$work/listed-paths" || fail "the list of the ledger's paths cannot be read"
+  cmp -s "$work/ledger-paths" "$work/listed-paths" ||
+    fail "$ledger records other paths than the listed ones, or a path more than once: $fix"
+  while read -r path; do
+    recorded=$(awk -v path="$path" '$1 == "measured" && $3 == "path=" path { sub(/^id=/, "", $4); print $4 }' "$work/ledger")
+    head_id=$(git rev-parse --verify -q "HEAD:$path") || fail "$path is not in the head: $fix"
+    [ "$recorded" = "$head_id" ] ||
+      fail "the measured run $run ran on another $path than the head's ($recorded against $head_id): $fix"
+  done <"$work/listed-paths"
+  recorded=$(sed -n 's/^measured lock path=Cargo.lock crates=windows id=\([0-9a-f]*\)$/\1/p' "$work/ledger")
+  head_id=$(windows_lock_id) || fail "the windows lines of Cargo.lock cannot be read"
+  [ -n "$recorded" ] || fail "$ledger records no id of the windows lines of Cargo.lock: $fix"
+  [ "$recorded" = "$head_id" ] ||
+    fail "the measured run $run ran on other windows lines of Cargo.lock than the head's ($recorded against $head_id): $fix"
+  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of the listed paths and of the windows lines of Cargo.lock\n' "$run" "$total"
+}
+
+loops() {
+  cargo test --locked -p halvo-capture --lib --no-run --message-format json >"$work/lib.json" ||
+    fail "the library's test build failed: cargo test --lib --no-run exited $?"
+  lib_exe=$(grep '"kind":\["lib"\]' "$work/lib.json" | grep '"test":true' |
+    sed -n 's/.*"name":"halvo_capture".*"executable":"\([^"]*\)".*/\1/p')
+  [ -n "$lib_exe" ] || fail "cargo named no test executable of the library"
+  case $lib_exe in
+    *"$nl"*) fail "cargo named more than one test executable of the library" ;;
+  esac
+  lib_exe=$(printf '%s\n' "$lib_exe" | sed 's/\\\\/\//g')
+  [ -f "$lib_exe" ] || fail "the library's test executable that cargo named does not exist"
+  if [ -n "${WF_LOOP_FILE:-}" ]; then
+    tr -d '\r' <"$WF_LOOP_FILE" >"$work/loops" || fail "the loop list cannot be read"
+  else
+    loop_tests >"$work/loops"
+  fi
+  loop_failed=0
+  while read -r kind runs test; do
+    case $kind in
+      lib) set -- "$lib_exe" --exact --nocapture --test-threads=1 "$test" ;;
+      functional) set -- "$exe" --ignored --exact --nocapture "$test" ;;
+      *) fail "the loop list names the kind $kind" ;;
+    esac
+    passes=0
+    run_index=0
+    while [ "$run_index" -lt "$runs" ]; do
+      run_index=$((run_index + 1))
+      "$timeout_tool" "$test_limit_s" "$@" </dev/null >"$work/loop.log" 2>&1
+      if tr -d '\r' <"$work/loop.log" | grep -q '^test result: ok\. 1 passed; 0 failed;'; then
+        passes=$((passes + 1))
+      else
+        cp "$work/loop.log" "$artifacts/loop-${test##*::}-$run_index.log" || fail "a loop's log cannot be kept"
+        tr -d '\r' <"$work/loop.log" | sed 's/^/    | /'
+      fi
+    done
+    line="WF loop $test kind=$kind runs=$runs passed=$passes"
+    printf '%s\n' "$line"
+    printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+    [ "$passes" -eq "$runs" ] || loop_failed=$((loop_failed + 1))
+  done <"$work/loops"
 }
 
 scan_log() {
@@ -199,7 +385,15 @@ run_test() {
 }
 
 measure() {
+  check_started=$(date +%s)
   cd "$CI_D_REPO" || exit 2
+  form=${HALVO_WF_FORM:-short}
+  case $form in
+    short | long) ;;
+    *) fail "HALVO_WF_FORM is short or long, not $form" ;;
+  esac
+  HALVO_WF_FORM=$form
+  export HALVO_WF_FORM
   artifacts=${CI_D_ARTIFACTS:-$CI_D_REPO/target/ci-artifacts/$name}
   mkdir -p "$artifacts" || fail "the artifacts directory cannot be made"
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
@@ -262,11 +456,94 @@ measure() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done <"$work/names"
 
+  form_line=
+  : >"$work/left-out"
+  index=0
+  while IFS= read -r test; do
+    index=$((index + 1))
+    log=$work/test-$index.log
+    if [ "$test" = "$form_test" ]; then
+      form_line=$(tr -d '\r' <"$log" | sed -E -n 's/^(.* )?(form=(short|long) )/\2/p' | tail -n 1)
+      tr -d '\r' <"$log" | sed -E -n 's/^(.* )?left_out /WF left out: /p' >"$work/left-out"
+    fi
+    any=$(tr -d '\r' <"$log" | grep -c -E '(^| )form=[a-z]+ ')
+    same=$(tr -d '\r' <"$log" | grep -c -E "(^| )form=$form ")
+    [ "$any" = "$same" ] || fail "$test printed a line of another form than $form"
+  done <"$work/names"
+  if grep -q -x -F "$form_test" "$work/names"; then
+    case $form_line in
+      "form=$form "*) ;;
+      *) fail "$form_test printed no line of the form $form" ;;
+    esac
+    printf 'WF %s\n' "$form_line" | tee -a "$artifacts/wf.txt" || fail "wf.txt cannot be written"
+    tee -a "$artifacts/wf.txt" <"$work/left-out" || fail "wf.txt cannot be written"
+  fi
+
+  short=
+  for state in gate_not_clear late_read_no_latch other; do
+    found=0
+    for log in "$work"/test-*.log; do
+      [ -f "$log" ] || continue
+      in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )control_state=$state( |$)")
+      found=$((found + in_log))
+    done
+    short="$short $state=$found"
+  done
+  seconds_taken=0
+  for log in "$work"/test-*.log; do
+    [ -f "$log" ] || continue
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )second_control=taken( |$)")
+    seconds_taken=$((seconds_taken + in_log))
+  done
+  slipped=0
+  for log in "$work"/test-*.log; do
+    [ -f "$log" ] || continue
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )control_state=schedule_slipped( |$)")
+    slipped=$((slipped + in_log))
+  done
+  met=0
+  runs_after_start=0
+  for log in "$work"/test-*.log; do
+    [ -f "$log" ] || continue
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )after_start_state=met( |$)")
+    met=$((met + in_log))
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )after_start_state=(met|not_met)( |$)")
+    runs_after_start=$((runs_after_start + in_log))
+  done
+  line="WF short controls$short second_controls_taken=$seconds_taken slipped_controls=$slipped after_start_unknown=$met/$runs_after_start"
+  printf '%s\n' "$line"
+  printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+
+  for source in keyboard pointer window_title foreground screen; do
+    not_ok=0
+    for log in "$work"/test-*.log; do
+      [ -f "$log" ] || continue
+      found=$(tr -d '\r' <"$log" | grep -c "$shutdown_line$source ok=false")
+      not_ok=$((not_ok + found))
+    done
+    line="shutdown_not_ok source=$source count=$not_ok"
+    printf '%s\n' "$line"
+    printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+  done
+
   line="WF total=$total pass=$passed known_defect=$known fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+  loop_failed=0
+  [ "$form" = short ] || loops
   [ "$fixed" -eq 0 ] || fail "$fixed listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
+  [ "$seconds_taken" -le 1 ] ||
+    fail "$seconds_taken second controls were taken in this run, and more than one fails the run (ruling W3-18 (13))"
+  [ "$loop_failed" -eq 0 ] || fail "$loop_failed loops had a run that was not one passed test"
+  if [ "$form" = long ]; then
+    printf 'ledger: not read in the long form, whose passing run the ledger records\n'
+  else
+    ledger_check
+  fi
+  line="WF form=$form seconds=$(($(date +%s) - check_started))"
+  printf '%s\n' "$line"
+  printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   printf 'PASS %s\n' "$name"
 }
 
@@ -285,7 +562,24 @@ launch() {
     STUB_SPEC=$work/spec-$1
     STUB_TF=$work/bin/tf-stub
     WF_EXPECTED_FILE=$expected_file
+    STUB_SHUTDOWN_LINE=$test_file_shutdown_line
+    STUB_LIB=$work/bin/lib-stub
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_TF WF_EXPECTED_FILE STUB_EXE STUB_LIST_EXIT
+    export STUB_SHUTDOWN_LINE STUB_LIB STUB_LIB_EXE STUB_LIB_FAIL
+    unset HALVO_WF_FORM WF_LEDGER_FILE WF_LOOP_FILE
+    if [ -n "$form_word" ]; then
+      HALVO_WF_FORM=$form_word
+      export HALVO_WF_FORM
+    fi
+    if [ -n "$ledger_knob" ]; then
+      WF_LEDGER_FILE=$ledger_knob
+      export WF_LEDGER_FILE
+    fi
+    if [ -n "$loop_list" ]; then
+      WF_LOOP_FILE=$work/loops-$1
+      printf '%s\n' "$loop_list" >"$WF_LOOP_FILE"
+      export WF_LOOP_FILE
+    fi
     if [ -n "$limit" ]; then
       WF_TEST_LIMIT_S=$limit
       export WF_TEST_LIMIT_S
@@ -351,11 +645,24 @@ reset_knobs() {
   STUB_LIST_EXIT=0
   limit=
   tool=
+  form_word=
+  ledger_knob=
+  loop_list=
+  STUB_LIB_EXE=one
+  STUB_LIB_FAIL=
 }
 
 write_stubs() {
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
+if [ "$*" = 'test --locked -p halvo-capture --lib --no-run --message-format json' ]; then
+  lib=$(printf '%s\n' "$STUB_LIB" | sed 's/\//\\\\/g')
+  printf '{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture","test":true},"profile":{"test":true},"executable":null,"fresh":true}\n'
+  [ "$STUB_LIB_EXE" = none ] ||
+    printf '{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture","test":true},"profile":{"test":true},"executable":"%s","fresh":true}\n' "$lib"
+  printf '{"reason":"build-finished","success":true}\n'
+  exit 0
+fi
 [ "$*" = 'test --locked -p halvo-capture --test windows_functional --no-run --message-format json' ] || exit 97
 path=$(printf '%s\n' "$STUB_TF" | sed 's/\//\\\\/g')
 artifact() {
@@ -418,6 +725,20 @@ case $kind in
     printf 'TF %s source_built_by_test=keyboard\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
     exit 0
     ;;
+  shutdown-not-ok)
+    printf '%skeyboard ok=false\ntest %s ... ok\n\n%s\n\n' "$STUB_SHUTDOWN_LINE" "$test" "$ok"
+    exit 0
+    ;;
+  form)
+    printf 'form=%s counted_rounds_at_each_wait_ms=150:20,200:5\n' "${HALVO_WF_FORM:-unset}"
+    [ "${HALVO_WF_FORM:-}" != short ] || printf 'left_out 15 of the 20 counted rounds at the wait of 200 ms\n'
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
+  other-form)
+    printf 'TF %s form=long rounds_of_the_phase=20\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
   fakes)
     printf 'WF ghost_test_not_in_the_file result=pass\nWF %s result=known-defect id=RR-windows-99\n' "$test"
     printf 'WF total=99 pass=99 known_defect=0 fail=0\nPASS 50-windows-functional\n'
@@ -449,6 +770,28 @@ case $kind in
     printf 'test %s ... FAILED\n\nfailures:\n    %s\n\n%s\n\n' "$test" "$test" "$failed"
     exit 101
     ;;
+  after-start-met)
+    printf 'TF %s browser=edge after_start_state=met\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
+  after-start-not-met)
+    printf 'TF %s browser=chrome after_start_state=not_met reason=a_letter_was_not_withheld_by_the_state_at_the_key\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
+  second-control)
+    printf 'TF %s browser=edge control=before control_state=late_read_no_latch pump_largest_lag_ms=3\n' "$test"
+    printf 'TF %s browser=edge control=before second_control=taken first_control_keystroke_events=0\n' "$test"
+    printf 'TF %s browser=edge control=before-second control_state=full pump_largest_lag_ms=3\n' "$test"
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
+  short-control)
+    printf 'TF %s browser=edge control=before control_state=late_read_no_latch pump_largest_lag_ms=3\n' "$test"
+    printf 'TF %s browser=edge control=after control_state=full pump_largest_lag_ms=3\n' "$test"
+    panic "$thread" 'a control recorded fewer than 5 letters of the text input: control_before=0 control_after=5'
+    printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
+    exit 101
+    ;;
   inconclusive)
     panic "$thread" 'INCONCLUSIVE: SendInput inserted no events on this machine'
     printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
@@ -471,13 +814,69 @@ case $kind in
   *) exit 98 ;;
 esac
 EOF
-  chmod +x "$work/bin/cargo" "$work/bin/tf-stub" || exit 2
+  cat >"$work/bin/lib-stub" <<'EOF'
+#!/bin/sh
+[ "$#" -eq 4 ] && [ "$1 $2 $3" = '--exact --nocapture --test-threads=1' ] || exit 97
+printf '\nrunning 1 test\ntest %s ... ' "$4"
+if [ "$4" = "$STUB_LIB_FAIL" ]; then
+  printf 'FAILED\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s\n\n'
+  exit 101
+fi
+printf 'ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s\n\n'
+EOF
+  chmod +x "$work/bin/cargo" "$work/bin/tf-stub" "$work/bin/lib-stub" || exit 2
+}
+
+make_ledger_repo() {
+  repo=$work/repo
+  mkdir -p "$repo/crates/halvo-capture/src/windows" "$repo/crates/halvo-capture/tests" "$repo/scripts/r1/ci.d" \
+    "$repo/docs/baseline/ledger.d" || exit 2
+  printf 'fn a() {}\n' >"$repo/crates/halvo-capture/src/windows/input.rs" || exit 2
+  printf 'pub mod windows;\n' >"$repo/crates/halvo-capture/src/secure_input.rs" || exit 2
+  printf 'fn t() {}\n' >"$repo/crates/halvo-capture/tests/windows_functional.rs" || exit 2
+  printf '[package]\nname = "halvo-capture"\n' >"$repo/crates/halvo-capture/Cargo.toml" || exit 2
+  printf '#!/bin/sh\n' >"$repo/scripts/r1/ci.d/50-windows-functional.sh" || exit 2
+  printf '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "windows"\nversion = "0.62.2"\n' \
+    >"$repo/Cargo.lock" || exit 2
+  (
+    cd "$repo" || exit 2
+    git init -q . || exit 2
+    git add -A || exit 2
+    git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m fixture || exit 2
+    {
+      commit=$(git rev-parse HEAD) || exit 2
+      printf 'measured attempt=1 run=6 job=60 form=long result=fail commit=%s wf=total=3,fail=1 short_controls=gate_not_clear=1,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=0\n' "$commit"
+      printf 'measured attempt=2 run=6 job=61 form=long result=pass commit=%s wf=total=3,fail=0 short_controls=gate_not_clear=0,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=1\n' "$commit"
+      ledger_paths | while read -r path; do
+        kind=$(git cat-file -t "HEAD:$path") || exit 2
+        id=$(git rev-parse "HEAD:$path") || exit 2
+        printf 'measured %s path=%s id=%s\n' "$kind" "$path" "$id"
+      done
+      lock=$(windows_lock_id) || exit 2
+      printf 'measured lock path=Cargo.lock crates=windows id=%s\n' "$lock"
+    } >"$repo/docs/baseline/ledger.d/win-3.txt" || exit 2
+  ) || exit 2
+  right_ledger=$repo/docs/baseline/ledger.d/win-3.txt
+  sed 's/^measured attempt=2 /measured attempt=3 /' "$right_ledger" >"$work/ledger-out-of-order" || exit 2
+  sed 's/^\(measured attempt=2 .*\) form=long /\1 form=short /' "$right_ledger" >"$work/ledger-short" || exit 2
+  sed 's/^\(measured attempt=2 .*\) result=pass /\1 result=fail /' "$right_ledger" >"$work/ledger-newest-failed" || exit 2
+  sed 's/^\(measured attempt=1 .*\) result=fail /\1 result=pass /' "$right_ledger" >"$work/ledger-pass-before" || exit 2
+  { printf 'measured run=7 form=long result=pass figures=none\n' && cat "$right_ledger"; } >"$work/ledger-old-form" || exit 2
+  sed -E 's#^(measured tree path=crates/halvo-capture/tests id=).*#\10000000000000000000000000000000000000000#' \
+    "$right_ledger" >"$work/ledger-stale" || exit 2
+  sed -E 's#^(measured lock path=Cargo.lock crates=windows id=).*#\10000000000000000000000000000000000000000#' \
+    "$right_ledger" >"$work/ledger-lock" || exit 2
+  grep -v 'path=crates/halvo-capture/Cargo.toml ' "$right_ledger" >"$work/ledger-paths" || exit 2
 }
 
 self_test() {
+  test_file=$(cd "$(dirname "$0")/../../.." && pwd)/crates/halvo-capture/tests/windows_functional.rs
+  test_file_shutdown_line=$(sed -n 's/^const SHUTDOWN_LINE: &str = "\(.*\)";$/\1/p' "$test_file")
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/bin" "$work/repo" || exit 2
   write_stubs
+  make_ledger_repo
   rejected=0
   wrong=
   small="c1_raw_input${nl}helper_child_window${nl}known_defect::x1_password RR-windows-01"
@@ -504,17 +903,30 @@ self_test() {
 fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name"
-  real=$(expected_tests | awk '{ if (NF == 2) print $1 "|defect|" $2; else print $1 "|pass" }')
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
+  real=$(expected_tests | awk -v form="$form_test" '{
+    if (NF == 2) print $1 "|defect|" $2; else if ($1 == form) print $1 "|form"; else print $1 "|pass"
+  }')
+  real_total=$(expected_tests | grep -c '')
+  real_known=$(expected_tests | awk 'NF == 2' | grep -c '')
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
-    "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=29 pass=21 known_defect=8 fail=0${nl}PASS $name"
+    "${nl}WF known_defect::c5_watch_armed_while_the_per_user_key_is_absent result=known-defect id=RR-windows-12${nl}" \
+    "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
+    "${nl}WF form=short counted_rounds_at_each_wait_ms=150:20,200:5${nl}" \
+    "${nl}WF left out: 15 of the 20 counted rounds at the wait of 200 ms${nl}" \
+    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}ledger: " "${nl}WF form=short seconds=" \
+    "${nl}PASS $name"
+  check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}shutdown_not_ok source=keyboard count=1${nl}" \
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name" \
     "!${nl}WF ghost_test_not_in_the_file" "!${nl}WF total=99" "!${nl}PASS $name${nl}" \
     "!${nl}WF c1_raw_input result=known-defect"
 
@@ -575,8 +987,66 @@ fixtures() {
     "${nl}$name: known_defect::x1_password: a KNOWN-DEFECT line that no panic line comes right before${nl}"
   check a-regular-test-passes-with-a-panic-on-another-thread FAIL "c1_raw_input|pass-with-panic${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
+  check a-short-control-is-summed-by-its-state FAIL "c1_raw_input|short-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" "FAIL $name (1 tests failed)"
+  check the-runs-after-a-start-are-counted PASS "c1_raw_input|after-start-met${nl}helper_child_window|after-start-not-met${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=1/2${nl}" "${nl}PASS $name"
+  check one-second-control-is-taken PASS "c1_raw_input|second-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1 slipped_controls=0 after_start_unknown=0/0${nl}" "${nl}PASS $name"
+  check two-second-controls-in-one-run FAIL "c1_raw_input|second-control${nl}helper_child_window|second-control${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2 slipped_controls=0 after_start_unknown=0/0${nl}" \
+    "FAIL $name (2 second controls were taken in this run, and more than one fails the run (ruling W3-18 (13)))"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
+
+  form_word=medium
+  check the-form-word-is-not-short-or-long FAIL "$right" "FAIL $name (HALVO_WF_FORM is short or long, not medium)"
+  expected="$small${nl}$form_test"
+  check the-round-count-test-prints-no-form FAIL "$right${nl}$form_test|pass" \
+    "FAIL $name ($form_test printed no line of the form short)"
+  check a-test-prints-a-line-of-another-form FAIL "c1_raw_input|other-form${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "FAIL $name (c1_raw_input printed a line of another form than short)"
+  ledger_knob=$work/no-such-ledger
+  check the-ledger-is-missing FAIL "$right" "FAIL $name ($work/no-such-ledger is missing: run the long form"
+  ledger_knob=$work/ledger-out-of-order
+  check the-ledger-numbers-its-attempts-out-of-order FAIL "$right" "numbers its attempts 1 3 and not 1 to 2 in order"
+  ledger_knob=$work/ledger-short
+  check the-ledger-records-an-attempt-of-the-short-form FAIL "$right" "holds an attempt line that is not in the form of the long form"
+  ledger_knob=$work/ledger-newest-failed
+  check the-ledger-s-newest-attempt-failed FAIL "$right" "the newest attempt that $work/ledger-newest-failed records did not pass"
+  ledger_knob=$work/ledger-pass-before
+  check the-ledger-records-a-pass-before-its-newest-attempt FAIL "$right" "records a passed attempt before its newest one"
+  ledger_knob=$work/ledger-old-form
+  check the-ledger-holds-a-run-line-of-the-old-form FAIL "$right" "holds a line of the form measured run=, which records no attempts"
+  ledger_knob=$work/ledger-stale
+  check the-ledger-holds-another-tree-of-the-tests FAIL "$right" "the measured run 6 ran on another crates/halvo-capture/tests than the head's (0000000000000000000000000000000000000000 against "
+  ledger_knob=$work/ledger-lock
+  check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 6 ran on other windows lines of Cargo.lock than the head's"
+  ledger_knob=$work/ledger-paths
+  check the-ledger-lacks-a-listed-path FAIL "$right" "records other paths than the listed ones, or a path more than once"
+  form_word=long
+  loop_list="lib 3 a::plain_one${nl}functional 2 c1_raw_input"
+  check the-long-form-loops-its-list PASS "$right" \
+    "${nl}WF loop a::plain_one kind=lib runs=3 passed=3${nl}WF loop c1_raw_input kind=functional runs=2 passed=2${nl}" \
+    "${nl}ledger: not read in the long form, whose passing run the ledger records${nl}WF form=long seconds=" \
+    "!${nl}ledger: the measured run"
+  form_word=long
+  loop_list="lib 3 a::plain_one${nl}lib 2 a::flaky_one"
+  STUB_LIB_FAIL=a::flaky_one
+  check a-loop-run-that-fails FAIL "$right" \
+    "${nl}WF loop a::flaky_one kind=lib runs=2 passed=0${nl}" \
+    "FAIL $name (1 loops had a run that was not one passed test)"
+  form_word=long
+  loop_list="lib 3 a::plain_one"
+  STUB_LIB_EXE=none
+  check cargo-names-no-library-test-executable FAIL "$right" "FAIL $name (cargo named no test executable of the library)"
+  form_word=long
+  loop_list="lib 2 a::plain_one"
+  check the-long-form-loops-when-a-test-failed FAIL "c1_raw_input|inconclusive${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF loop a::plain_one kind=lib runs=2 passed=2${nl}" "FAIL $name (1 tests failed)"
+  form_word=long
+  loop_list="bench 3 a::plain_one"
+  check a-loop-of-another-kind FAIL "$right" "FAIL $name (the loop list names the kind bench)"
 }
 
 case ${1:-} in
