@@ -245,6 +245,15 @@ PASS $name"
   else
     note cannot-make-a-directory FAIL "exit-$code"
   fi
+  mkdir -p "$work/outside" || exit 2
+  unfound=$(cd "$work/outside" && env -u CI_D_REPO GIT_CEILING_DIRECTORIES="$work" sh "$self" 2>&1)
+  code=$?
+  unfound_last=$(printf '%s\n' "$unfound" | tail -n 1)
+  if [ "$code:$unfound_last" = "1:FAIL $name (setup)" ]; then
+    note no-work-tree-without-a-repository-variable FAIL FAIL
+  else
+    note no-work-tree-without-a-repository-variable FAIL "exit-$code"
+  fi
 
   real --dir "$work/gateway"
   case $code:$out in
