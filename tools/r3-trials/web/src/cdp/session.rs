@@ -511,6 +511,7 @@ impl Executor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cdp::tests::bounded;
     use crate::cdp::Channel;
     use crate::cdp::StartOptions;
     use crate::procs;
@@ -825,7 +826,10 @@ mod tests {
         std::fs::write(scratch.join("beside.txt"), b"caller").unwrap();
         let origin = "http://state.agent.test:18599".to_string();
         let a_dir = scratch.join("a");
-        let a = Executor::start(&options(a_dir.clone())).await.unwrap();
+        let _admitted = procs::fence::admit_descendants();
+        let a = bounded(Executor::start(&options(a_dir.clone())))
+            .await
+            .unwrap();
         assert!(scratch.join("a-tmp").is_dir());
         let set = a
             .in_origin_page(
@@ -851,7 +855,7 @@ mod tests {
                 items: vec![("k".into(), "v".into())]
             }]
         );
-        let stopped = a.stop_and_remove().await;
+        let stopped = bounded(a.stop_and_remove()).await;
         assert!(stopped.removed);
         assert!(!a_dir.exists());
         assert_eq!(
@@ -867,7 +871,9 @@ mod tests {
             "{stopped:?}"
         );
         let b_dir = scratch.join("b");
-        let b = Executor::start(&options(b_dir.clone())).await.unwrap();
+        let b = bounded(Executor::start(&options(b_dir.clone())))
+            .await
+            .unwrap();
         b.import_state(&exported).await.unwrap();
         let again = b.export_state(std::slice::from_ref(&origin)).await.unwrap();
         assert_eq!(
@@ -884,7 +890,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(read, serde_json::json!("t1=v1 v"));
-        let stopped = b.stop_and_remove().await;
+        let stopped = bounded(b.stop_and_remove()).await;
         assert!(stopped.removed && !b_dir.exists(), "{stopped:?}");
         assert_eq!(
             std::fs::read(scratch.join("beside.txt")).unwrap(),

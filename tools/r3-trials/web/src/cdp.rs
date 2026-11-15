@@ -1784,7 +1784,7 @@ const RECORDER_JS: &str = "(() => {
 })();";
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[tokio::test]
@@ -1810,6 +1810,14 @@ mod tests {
         );
     }
 
+    /// A wait of a test that starts a browser or a stand-in and reaches the real end of its
+    /// processes, held to the test's own bound of 60 s (CP-161 (3)): past it the test fails.
+    pub(crate) async fn bounded<T>(wait: impl std::future::Future<Output = T>) -> T {
+        tokio::time::timeout(Duration::from_secs(60), wait)
+            .await
+            .expect("the test's own bound of 60 s passed")
+    }
+
     /// The processes that name `profile` in their arguments and started at or after `since_us`.
     #[cfg(target_os = "macos")]
     fn naming(profile: &Path, since_us: u64) -> Vec<crate::procs::Proc> {
@@ -1828,6 +1836,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("r3-web-leftover-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let stand_in = crate::standin::bundle(&dir);
+        let _admitted = crate::procs::fence::admit_below(&dir);
         let browser = crate::standin::launcher(stand_in.binary.parent().unwrap(), "leave");
         let profile = dir.join("p");
         let opts = StartOptions {
@@ -1846,7 +1855,7 @@ mod tests {
             .find(|p| p.pid == std::process::id())
             .map(|p| p.started_us)
             .unwrap();
-        let fault = Executor::start(&opts).await.err().map(|f| f.0);
+        let fault = bounded(Executor::start(&opts)).await.err().map(|f| f.0);
         let left = naming(&profile, since_us);
         for p in &left {
             crate::procs::kill(p);
@@ -1895,6 +1904,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("r3-web-late-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let stand_in = crate::standin::bundle(&dir);
+        let _admitted = crate::procs::fence::admit_below(&dir);
         let profile = dir.join("p");
         let opts = StartOptions {
             browser: stand_in.script.clone(),
@@ -1907,8 +1917,10 @@ mod tests {
             program: Some(stand_in.binary.clone()),
         };
         let since_us = own_start_us();
-        let ex = Executor::start(&opts).await.expect("the stand-in starts");
-        ex.stop_and_remove().await;
+        let ex = bounded(Executor::start(&opts))
+            .await
+            .expect("the stand-in starts");
+        bounded(ex.stop_and_remove()).await;
         let left = named_within(&profile, since_us, Duration::from_secs(2)).await;
         for p in &left {
             crate::procs::kill(p);
@@ -1931,6 +1943,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("r3-web-wrap-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let stand_in = crate::standin::bundle(&dir);
+        let _admitted = crate::procs::fence::admit_below(&dir);
         let check = dir.join("check.sh");
         std::fs::write(
             &check,
@@ -1962,7 +1975,7 @@ mod tests {
             local_state: None,
             program: Some(stand_in.binary.clone()),
         };
-        let fault = Executor::start(&opts).await.err().map(|f| f.0);
+        let fault = bounded(Executor::start(&opts)).await.err().map(|f| f.0);
         let pid = |name: &str| -> u32 {
             std::fs::read_to_string(dir.join(name))
                 .unwrap_or_default()
@@ -1977,7 +1990,19 @@ mod tests {
             row(pid("check.pid")),
             row(pid("log.pid")),
         );
-        for p in [&browser, &shell, &log].into_iter().flatten() {
+        let own_check = check.to_string_lossy().into_owned();
+        let shell_is_own = shell.as_ref().is_some_and(|s| {
+            crate::checks::command_args(s.pid).is_some_and(|a| a.contains(&own_check))
+        });
+        let _shell = crate::procs::fence::admit(crate::procs::fence::Admits {
+            pairs: shell
+                .iter()
+                .filter(|_| shell_is_own)
+                .map(|p| (p.pid, p.started_us))
+                .collect(),
+            dirs: Vec::new(),
+        });
+        for p in [&browser, &log, &shell].into_iter().flatten() {
             crate::procs::kill(p);
         }
         assert!(
@@ -2065,7 +2090,8 @@ mod tests {
             local_state: None,
             program: None,
         };
-        let mut ex = Executor::start(&opts).await.expect("start");
+        let _admitted = crate::procs::fence::admit_descendants();
+        let mut ex = bounded(Executor::start(&opts)).await.expect("start");
         let utility = crate::fixture::origin(crate::fixture::UTILITY, port);
         let steps = async {
             ex.open(&format!("{utility}/signin")).await?;
@@ -2077,7 +2103,7 @@ mod tests {
         }
         .await;
         let state = control.state();
-        ex.stop_and_remove().await;
+        bounded(ex.stop_and_remove()).await;
         server.stop();
         let (paused, faults) = steps.expect("steps");
         let evil = crate::fixture::count(&state.expect("state"), &["requests", "evil"]);
