@@ -198,7 +198,7 @@ test("L3 the control port is closed at the begin of the stop: a test call 200 ms
   assert.equal(await settled(stub.stopped.then(() => true), 5000), true);
 });
 
-test("L5 from the begin of the stop the stand-in writes no 100 Continue: held heads that expect it get incomplete and nothing else", async () => {
+test("L5 from the begin of the stop the stand-in writes no 100 Continue: held heads that expect it get incomplete and nothing else", async (t) => {
   const dir = fresh();
   const stub = await startStub({ record: dir, idleMs: 3000 });
   const peer = await openPeer(portOf(stub.app));
@@ -216,6 +216,7 @@ test("L5 from the begin of the stop the stand-in writes no 100 Continue: held he
   const mine = lines(dir).filter((line) => line.connection === 1);
   const statuses = mine.filter((line) => line.status !== undefined).length;
   const incomplete = mine.filter((line) => line.error === "incomplete").length;
+  t.diagnostic(`L5 ${incomplete} lines incomplete, ${continues} 100 Continue read, ${statuses} status lines`);
   assert.ok(incomplete >= 3, `${incomplete} lines incomplete at the stop`);
   assert.ok(continues <= statuses + 1, `${continues} 100 Continue read against ${statuses} status lines`);
 });
