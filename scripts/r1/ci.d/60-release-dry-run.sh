@@ -164,6 +164,9 @@ self_test() {
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$1 $2" in
   'release version') printf '   Upgrading halvo from 1.2.3 to 1.2.4\n' ;;
+  'metadata --no-deps')
+    printf '{"packages":[{"name":"halvo","version":"1.2.3","id":"path+file:///w/src-tauri#halvo@1.2.3"}],"workspace_members":["path+file:///w/src-tauri#halvo@1.2.3"]}\n'
+    ;;
   'release config')
     if [ -n "${STUB_CONFIG:-}" ]; then
       printf '%s\n' "$STUB_CONFIG"
@@ -172,7 +175,19 @@ case "$1 $2" in
       if [ "${3:-}" = --config ]; then cat "$4"; else printf 'pre-release-commit-message = "Release {{version}}"\n'; fi
     fi
     ;;
-  'release '*) printf '%s\n' "${STUB_TEXT:-   Upgrading halvo from 1.2.3 to 1.2.4}"; exit "${STUB_STATUS:-0}" ;;
+  'release '*)
+    case " $* " in
+      *' --execute '*)
+        case ${STUB_ACTION:-} in
+          touch) printf 'changed by the stub\n' >>CHANGELOG.md ;;
+          commit) printf 'changed by the stub\n' >>CHANGELOG.md && git commit -q -a -m 'Release 1.2.4' ;;
+          commit-tag) printf 'changed by the stub\n' >>CHANGELOG.md && git commit -q -a -m 'Release 1.2.4' && git tag "${STUB_TAG:-v1.2.4}" ;;
+        esac
+        ;;
+    esac
+    printf '%s\n' "${STUB_TEXT:-   Upgrading halvo from 1.2.3 to 1.2.4}"
+    exit "${STUB_STATUS:-0}"
+    ;;
   *) exit 97 ;;
 esac
 EOF
@@ -226,7 +241,13 @@ All notable changes are recorded in this file.
   release_case help-with-another-argument 64 no usage --help patch
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-dry-run-calls-cargo" && got=FAIL || got=PASS
   verdict dry-run-has-no-branch-guard PASS "$got"
+  typed_repo=$repo
+  repository branch-guard "$typed"
+  STUB_ACTION=commit-tag
+  export STUB_ACTION
   STUB_TEXT='   Upgrading halvo from 1.2.3 to 1.2.4' release_case execute-has-the-branch-guard 0 yes 'tag: v1.2.4' --execute
+  unset STUB_ACTION
+  repo=$typed_repo
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-execute-has-the-branch-guard" && got=PASS || got=FAIL
   verdict execute-passes-allow-branch-main PASS "$got"
   STUB_STATUS=1 STUB_TEXT='error: io: failed to lookup address information' release_case no-network 1 yes index.crates.io --dry-run
@@ -327,7 +348,10 @@ error: release of halvo aborted by non-zero return of prerelease hook."
   git -C "$repo" checkout -q -B main HEAD~1
   refused_before_cargo_release main-one-commit-behind-origin 'is not the newest commit of main on origin' --execute
   git -C "$repo" checkout -q -B main origin/main
+  STUB_ACTION=commit-tag
+  export STUB_ACTION
   release_case main-at-the-newest-commit-of-origin 0 yes 'next version: 1.2.4' --execute
+  unset STUB_ACTION
   mkdir -p "$work/gitbin"
   STUB_REAL_GIT=$(command -v git)
   export STUB_REAL_GIT
@@ -341,7 +365,7 @@ GITSTUB
     case_name=$1
     shift
     status=0
-    (cd "$repo" && PATH="$work/gitbin:$work/bin:$PATH" STUB_LOG=$work/argv-$case_name STUB_GIT_LOG=$work/git-$case_name CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    (cd "$repo" && PATH="$work/gitbin:$work/bin:$PATH" STUB_ACTION=commit-tag STUB_LOG=$work/argv-$case_name STUB_GIT_LOG=$work/git-$case_name CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
     : >>"$work/argv-$case_name"
     : >>"$work/git-$case_name"
   }
@@ -351,6 +375,7 @@ GITSTUB
   got=FAIL
   [ "$status" = 0 ] && ! grep -q -w ls-remote "$work/git-no-remote-makes-no-ls-remote" && got=PASS
   verdict no-remote-makes-no-ls-remote PASS "$got"
+  repository no-level "$typed"
   logged_case no-level-gives-patch --dry-run
   got=FAIL
   [ "$status" = 0 ] && grep -q -x 'release version patch' "$work/argv-no-level-gives-patch" && grep -q '^release patch --config' "$work/argv-no-level-gives-patch" && got=PASS
@@ -364,6 +389,59 @@ GITSTUB
   got=FAIL
   [ "$status" = 0 ] && grep -q -w ls-remote "$work/git-no-call-pushes" && ! grep -q -w push "$work/git-no-call-pushes" "$work/argv-no-call-pushes" && got=PASS
   verdict no-call-pushes PASS "$got"
+  execute_case() {
+    case_name=$1
+    shift
+    repository "$case_name" "$typed"
+    git -C "$repo" checkout -q -B main
+    recorded=$(git -C "$repo" rev-parse HEAD)
+    log=$work/argv-$case_name
+    status=0
+    (cd "$repo" && env "$@" PATH="$work/bin:$PATH" STUB_LOG="$log" CARGO_HOME="$work/no-cargo-home" sh scripts/release.sh --execute) >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$log"
+    head_now=$(git -C "$repo" rev-parse HEAD)
+    tracked_now=$(git -C "$repo" status --porcelain --untracked-files=no)
+    tags_now=$(git -C "$repo" tag --list)
+  }
+  put_back() {
+    got=FAIL
+    [ "$status" = 1 ] && [ "$head_now" = "$recorded" ] && [ -z "$tracked_now" ] && [ -z "$tags_now" ] &&
+      grep -q -F -e "$2" "$work/out-$1" && grep -q 'are undone; nothing was released' "$work/out-$1" && got=PASS
+    verdict "$1" PASS "$got"
+  }
+  execute_case hook-refuses-the-commit STUB_ACTION=touch STUB_STATUS=1 'STUB_TEXT=pre-commit: refused for a case'
+  put_back hook-refuses-the-commit 'cargo-release failed: pre-commit: refused for a case'
+  execute_case commits-then-fails STUB_ACTION=commit STUB_STATUS=1 'STUB_TEXT=error: a stand-in failure after the commit'
+  put_back commits-then-fails 'cargo-release failed: error: a stand-in failure after the commit'
+  execute_case tag-fails-after-the-commit STUB_ACTION=commit-tag STUB_STATUS=1 'STUB_TEXT=error: a stand-in failure after the tag'
+  put_back tag-fails-after-the-commit 'cargo-release failed: error: a stand-in failure after the tag'
+  execute_case another-tag-at-the-release-commit STUB_ACTION=commit-tag STUB_TAG=halvo-v1.2.4
+  put_back another-tag-at-the-release-commit 'the tag at the release commit is halvo-v1.2.4, not v1.2.4'
+  execute_case failure-that-changed-nothing STUB_STATUS=1 'STUB_TEXT=error: a stand-in failure before any change'
+  got=FAIL
+  [ "$status" = 1 ] && [ "$head_now" = "$recorded" ] && [ -z "$tracked_now" ] && grep -q 'nothing was changed' "$work/out-failure-that-changed-nothing" && got=PASS
+  verdict failure-that-changed-nothing PASS "$got"
+  mkdir -p "$work/home-without-a-committer"
+  printf '[user]\n\tuseConfigOnly = true\n' >"$work/home-without-a-committer/.gitconfig"
+  execute_case no-committer -u GIT_AUTHOR_NAME -u GIT_AUTHOR_EMAIL -u GIT_COMMITTER_NAME -u GIT_COMMITTER_EMAIL -u EMAIL \
+    HOME="$work/home-without-a-committer" GIT_CONFIG_GLOBAL="$work/home-without-a-committer/.gitconfig" GIT_CONFIG_NOSYSTEM=1
+  got=PASS
+  if [ "$status" = 1 ] && grep -q "set your name and email in git's global configuration" "$work/out-no-committer" &&
+    grep -q 'nothing was changed' "$work/out-no-committer" && ! grep -q -E '^release (patch|minor|major) --config' "$work/argv-no-committer"; then got=FAIL; fi
+  verdict no-committer FAIL "$got"
+  repository tracked-change-before-the-run "$typed"
+  git -C "$repo" checkout -q -B main
+  printf '\n' >>"$repo/scripts/check-changelog.sh"
+  refused_before_cargo_release tracked-change-before-the-run 'tracked files differ from HEAD' --execute
+  changed_still=$(git -C "$repo" status --porcelain --untracked-files=no)
+  [ -n "$changed_still" ] && got=PASS || got=FAIL
+  verdict tracked-change-before-the-run-is-kept PASS "$got"
+  repository release-commit-without-its-tag "$typed"
+  git -C "$repo" checkout -q -B main
+  git -C "$repo" commit -q --allow-empty -m 'Release 1.2.3'
+  refused_before_cargo_release release-commit-without-its-tag 'git reset --hard HEAD~1' --dry-run
+  git -C "$repo" tag v1.2.3
+  release_case release-commit-with-its-tag 0 yes 'next version: 1.2.4' --dry-run
   repository shallow-source "$typed"
   git -C "$repo" commit -q --allow-empty -m 'A second commit'
   git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2

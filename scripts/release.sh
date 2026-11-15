@@ -44,7 +44,7 @@ error_chain() {
   awk '/^error:/ { print; under = 0; next } /^Caused by:/ { print; under = 1; next } under && /^[ \t]/ { print; next } { under = 0 }'
 }
 
-cargo_failed() {
+failure_cause() {
   first=$(printf '%s\n' "$2" | sed -n '/^error:/{p;q;}')
   [ -n "$first" ] || first=$(printf '%s\n' "$2" | awk 'NF { last = $0 } END { print last }')
   cause="$1 failed: ${first:-it printed nothing}"
@@ -53,7 +53,42 @@ cargo_failed() {
     -e 'failed to resolve address' -e 'failed to lookup address' -e 'dns error' -e 'timed out' -e 'Network is unreachable' -e 'failed to connect'; then
     cause="$cause. Every dry run and every release asks index.crates.io about each package of the workspace and needs the network: check that this computer is online and run the same command again."
   fi
+  printf '%s\n' "$cause"
+}
+
+cargo_failed() {
+  cause=$(failure_cause "$1" "$2")
   fail "$cause"
+}
+
+new_tags() {
+  git tag --list | while IFS= read -r name; do
+    printf '%s\n' "$tags_before" | grep -q -x -F -e "$name" || printf '%s\n' "$name"
+  done
+}
+
+undo_run() {
+  head_now=$(git rev-parse HEAD)
+  tracked_now=$(git status --porcelain --untracked-files=no)
+  made=$(new_tags)
+  if [ "$head_now" = "$recorded" ] && [ -z "$tracked_now" ] && [ -z "$made" ]; then
+    printf 'nothing was changed\n'
+    return
+  fi
+  undone=yes
+  git reset -q --hard "$recorded" || undone=no
+  for name in $made; do
+    git tag -d "$name" >/dev/null || undone=no
+  done
+  if [ "$undone" = yes ]; then
+    printf 'the files, the commit and the tag that this run made are undone; nothing was released\n'
+    return
+  fi
+  command="git -C '$PWD' reset --hard $recorded"
+  for name in $made; do
+    command="$command && git -C '$PWD' tag -d $name"
+  done
+  printf 'this run could not undo what it made; run: %s\n' "$command"
 }
 
 has_a_remote_named_origin() {
@@ -143,6 +178,13 @@ if ! lint=$(sh scripts/check-changelog.sh 2>&1); then
   printf '%s\n' "$lint" >&2
   fail "CHANGELOG.md breaks a rule of scripts/check-changelog.sh, so nothing was released"
 fi
+present=$(cargo metadata --no-deps --format-version 1 2>/dev/null | tr -d '\n' | grep -o -E '\{"name":"halvo","version":"[^"]*"' | sed 's/.*"version":"\([^"]*\)"/\1/' | head -n 1) || present=
+subject=$(git log -1 --format=%s)
+if [ -n "$present" ] && [ "$subject" = "Release $present" ]; then
+  tagged=$(git tag --points-at HEAD | grep -F -e "$present") || tagged=
+  [ -n "$tagged" ] ||
+    fail "HEAD is a release commit of $present and no tag of $present points at it: an earlier run of --execute stopped after its commit. Undo that commit with git reset --hard HEAD~1, then run this again"
+fi
 entries=$(unreleased_entries)
 [ "$entries" -gt 0 ] || fail "## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release"
 shallow=$(git rev-parse --is-shallow-repository)
@@ -194,6 +236,15 @@ for pair in "commit message:$message" "tag name:$tag" "tag message:$tag_message"
 done
 
 if [ "$mode" = --execute ]; then
+  tracked=$(git status --porcelain --untracked-files=no)
+  if [ -n "$tracked" ]; then
+    first_path=$(printf '%s\n' "$tracked" | head -n 1 | cut -c4-)
+    fail "tracked files differ from HEAD (the first is $first_path); commit or stash them first; nothing was changed"
+  fi
+  git var GIT_COMMITTER_IDENT >/dev/null 2>&1 ||
+    fail "git can name no committer in this clone: set your name and email in git's global configuration and run this again; nothing was changed"
+  recorded=$(git rev-parse HEAD)
+  tags_before=$(git tag --list)
   set -- "$level" --config "$settings" --execute --no-confirm --allow-branch main
 else
   set -- "$level" --config "$settings" --no-confirm
@@ -202,7 +253,18 @@ status=0
 out=$(cargo release "$@" 2>&1) || status=$?
 printf '%s\n' "$out"
 if [ "$status" -ne 0 ]; then
-  cargo_failed cargo-release "$out"
+  cause=$(failure_cause cargo-release "$out")
+  [ "$mode" = --execute ] || fail "$cause"
+  undone=$(undo_run)
+  fail "$cause; $undone"
+fi
+if [ "$mode" = --execute ]; then
+  at_head=$(git tag --points-at HEAD)
+  echo "tag at HEAD: $at_head"
+  if [ "$at_head" != "$tag" ]; then
+    undone=$(undo_run)
+    fail "the tag at the release commit is $at_head, not $tag; $undone"
+  fi
 fi
 echo
 echo "next version: $next"
