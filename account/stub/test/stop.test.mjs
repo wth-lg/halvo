@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
-import { exchange, request, portOf, spawnStub, exited, fresh, startStub, openPeer, answersIn, appHeaders } from "./support.mjs";
+import { exchange, request, parse, portOf, spawnStub, exited, fresh, startStub, openPeer, answersIn, appHeaders, holdsAnswer, waitFor } from "./support.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
 const json = [["content-type", "application/json"]];
@@ -218,6 +218,35 @@ test("L5 from the begin of the stop the stand-in writes no 100 Continue: held he
   t.diagnostic(`L5 ${incomplete} lines incomplete, ${continues} 100 Continue read, ${statuses} status lines`);
   assert.ok(incomplete >= 3, `${incomplete} lines incomplete at the stop`);
   assert.ok(continues <= statuses + 1, `${continues} 100 Continue read against ${statuses} status lines`);
+});
+
+test("the stop has begun by the time a client has read the answer to POST /stop: the record already holds incomplete for a half request it held", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 3000 });
+  const half = "GET /v1/done HTTP/1.1\r\nhost: a\r\n";
+  const held = await openPeer(portOf(stub.app));
+  held.socket.write(half);
+  const raw = () => {
+    const file = join(dir, "connection-000001.raw");
+    return existsSync(file) ? readFileSync(file, "latin1") : null;
+  };
+  await waitFor(() => raw() === half, "the half request in the raw file", { detail: () => `the raw file holds ${JSON.stringify(raw())}` });
+  const control = connect({ host: "127.0.0.1", port: portOf(stub.control) });
+  control.on("error", () => {});
+  let bytes = Buffer.alloc(0);
+  let atAnswer = null;
+  control.on("data", (chunk) => {
+    bytes = Buffer.concat([bytes, chunk]);
+    if (atAnswer === null && holdsAnswer(bytes)) atAnswer = lines(dir);
+  });
+  control.write(request("POST", "/stop"));
+  await waitFor(() => atAnswer !== null, "the answer to POST /stop", { detail: () => `the client had read ${bytes.length} bytes` });
+  const seen = `the record when the client had read the answer: ${JSON.stringify(atAnswer)}`;
+  assert.equal(parse(bytes).status, 200, seen);
+  assert.deepEqual(atAnswer.map((line) => [line.connection, line.status ?? line.error])[0], [1, "incomplete"], seen);
+  control.destroy();
+  held.socket.destroy();
+  assert.equal(await settled(stub.stopped.then(() => true), 5000), true);
 });
 
 test("L6 the command line exits soon after its stop is done, with no connection and with one closed before the stop", async (t) => {
