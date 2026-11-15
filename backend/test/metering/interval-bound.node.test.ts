@@ -29,6 +29,7 @@ function scriptedMetering(oldest: () => Ms): Metering {
     nextSend: () => null,
     settled: () => true,
     closeOpen: () => 0,
+    unacknowledged: () => 0,
   };
 }
 

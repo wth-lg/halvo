@@ -52,6 +52,7 @@ interface Answers {
   nextSend: Ms | null;
   settled: boolean;
   closeOpen: number;
+  unacknowledged: number;
   throwIn: string | null;
   onForget: () => void;
 }
@@ -77,6 +78,7 @@ function defaults(): Answers {
     nextSend: null,
     settled: true,
     closeOpen: 0,
+    unacknowledged: 0,
     throwIn: null,
     onForget: () => {},
   };
@@ -145,6 +147,7 @@ function scripted() {
     nextSend: answering("metering.nextSend", () => answers.nextSend),
     settled: answering("metering.settled", () => answers.settled),
     closeOpen: answering("metering.closeOpen", () => answers.closeOpen),
+    unacknowledged: answering("metering.unacknowledged", () => answers.unacknowledged),
   };
   return { calls, answers, modules: { accounts, ledger, metering } };
 }

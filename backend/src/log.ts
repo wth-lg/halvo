@@ -14,7 +14,8 @@ export type LogEvent =
   | "cancel-overrides-order"
   | "usage-total-unexplained"
   | "destroy-error"
-  | "cancel-unanswered";
+  | "cancel-unanswered"
+  | "cancel-before-send";
 
 export interface LogFields {
   event: LogEvent;

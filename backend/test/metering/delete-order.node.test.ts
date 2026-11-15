@@ -612,4 +612,55 @@ describe("one cancel call at a time for one id, and the cut interval's send firs
     expect(kinds(w.calls)).toEqual(["send recorded", "cancel cancelled"]);
     w.close();
   });
+
+  const beforeSend = (w: World) => w.lines.filter((line) => line === '{"event":"cancel-before-send"}').length;
+
+  test("L4 (d): the call limit of the seal and send part forces the cancel with two intervals unsent: two cancel-before-send lines, which name no account", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    for (let each = 0; each < 5; each += 1) {
+      w.at(START + each * HOUR + 1000);
+      await w.use(`r${each}`, 10_000);
+    }
+    w.at(START + 5 * HOUR + 1000);
+    await destroy(w);
+    expect(beforeSend(w)).toBe(2);
+    expect(w.lines.some((line) => line.includes(ACCOUNT))).toBe(false);
+    w.close();
+  });
+
+  test("L4 (d): the oldest interval's next attempt in the future forces the cancel with one interval unsent: one cancel-before-send line", async () => {
+    const d = await deleting({ testClock: false, faults: [{ kind: "request-lost" }] });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(END);
+    await quiet(w.lines, () => w.entries().alarm());
+    w.at(END + 30_000);
+    await destroy(w);
+    expect(beforeSend(w)).toBe(1);
+    w.close();
+  });
+
+  for (const fault of [{ kind: "request-lost" as const }, { kind: "refuse" as const, reason: "unknown_account" as const }]) {
+    test(`L4 (d): a ${fault.kind === "refuse" ? "refused" : "failed"} send forces the cancel with the cut interval unacknowledged: one cancel-before-send line`, async () => {
+      const d = await deleting({ faults: [fault] });
+      const w = d.w;
+      await w.use("r0", 10_000);
+      await w.clock(START + MINUTE);
+      await destroy(w);
+      expect([d.cancelTimes.length, beforeSend(w)]).toEqual([1, 1]);
+      w.close();
+    });
+  }
+
+  test("L4 (d): a cancel made with every interval acknowledged writes no cancel-before-send line", async () => {
+    const d = await deleting();
+    const w = d.w;
+    await w.use("r0", 10_000);
+    await w.clock(START + MINUTE);
+    await destroy(w);
+    expect([d.cancelTimes.length, beforeSend(w)]).toEqual([1, 0]);
+    w.close();
+  });
 });

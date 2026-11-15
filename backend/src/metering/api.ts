@@ -31,4 +31,5 @@ export interface Metering {
   nextSend(sql: Sql): Ms | null;
   settled(sql: Sql): boolean;
   closeOpen(sql: Sql, now: Ms): number;
+  unacknowledged(sql: Sql): number;
 }

@@ -91,7 +91,7 @@ interface Mark {
 type Fourth =
   | { kind: "answer"; answer: DeleteAnswer }
   | { kind: "again" }
-  | { kind: "cancel"; subscriptionId: string | null; mark: Ms }
+  | { kind: "cancel"; subscriptionId: string | null; mark: Ms; unacknowledged: number }
   | { kind: "answered"; mark: Ms };
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
@@ -588,7 +588,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (subscriptionId !== null && cancelsInFlight.has(subscriptionId)) return { kind: "answer", answer: NOT_FINISHED };
       if (sendsInFlight.size > 0) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
-      return { kind: "cancel", subscriptionId, mark: mark.since };
+      let unacknowledged = 0;
+      try {
+        unacknowledged = isMetered(open.sql) ? metering.unacknowledged(open.sql) : 0;
+      } catch (error) {
+        open.caught(error);
+      }
+      return { kind: "cancel", subscriptionId, mark: mark.since, unacknowledged };
     });
   }
 
@@ -612,6 +618,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     const mark = next.mark;
     const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId } : null;
     if (made !== null) {
+      for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
       const id = made.subscriptionId;
       const call = {};
       if (id !== null) cancelsInFlight.set(id, { since: host.clock(), call });

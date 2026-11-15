@@ -469,6 +469,11 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
       return closed;
     },
 
+    unacknowledged(sql) {
+      const row = sql.exec("SELECT COUNT(*) AS n FROM metering_interval WHERE sealed_at IS NULL OR outcome IS NULL")[0] ?? broken("the count of open intervals");
+      return whole(row, "n");
+    },
+
     settled(sql) {
       const row = sql.exec("SELECT COUNT(*) AS n FROM metering_interval WHERE sealed_at IS NULL OR outcome IS NULL")[0] ?? broken("the count of open intervals");
       return whole(row, "n") === 0;

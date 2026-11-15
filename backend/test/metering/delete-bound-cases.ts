@@ -21,10 +21,12 @@ export function runDeleteBoundCase(step: Step): unknown {
     metering.seal(sql, T0 + H, 20_000, T0 + 2 * H);
     metering.intervalAt(sql, T0 + 2 * H + 10);
     metering.cut(sql, "delete", T0 + 2 * H + 500_000, T0 + 2 * H + 500_000);
+    const unacknowledged = metering.unacknowledged(sql);
     const before = metering.settled(sql);
     const closed = metering.closeOpen(sql, T0 + 3 * H);
     const again = metering.closeOpen(sql, T0 + 3 * H + 1);
     return {
+      unacknowledged,
       before,
       closed,
       again,
@@ -35,6 +37,7 @@ export function runDeleteBoundCase(step: Step): unknown {
 }
 
 export const DELETE_BOUND_EXPECTED = {
+  unacknowledged: 2,
   before: false,
   closed: 2,
   again: 0,
