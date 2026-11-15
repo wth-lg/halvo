@@ -629,3 +629,88 @@ fn a_session_part_takes_the_local_day_of_the_request() {
     assert_eq!(runner_at(&mut store, night, body), Ok(stored(1)));
     assert_eq!(session_rows(&store)[0].day, ROW_DAY);
 }
+
+fn agent_1() -> halvo_schema::AgentId {
+    halvo_schema::AgentId::parse(&agent(1)).expect("an agent id")
+}
+
+fn playbook_row(a: u32, number: u32, n: u32) -> halvo_schema::TypedRecord {
+    let row = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(a), "number": number, "n": n,
+        "step": step(n, "navigate", "read"),
+    });
+    halvo_schema::TypedRecord {
+        kind: "agent_playbook",
+        json: row.to_string(),
+    }
+}
+
+#[test]
+fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
+    let mut seed: u64 = 0x5eed_0049;
+    let mut draw = |below: u64| {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (seed >> 33) % below
+    };
+    let mut some = 0;
+    for case in 0..200 {
+        let mut store = store_with("utility_bill_payment");
+        let mut held = std::collections::BTreeSet::new();
+        for _ in 0..draw(12) {
+            let a = 1 + u32::try_from(draw(3)).expect("a small number");
+            let number = 1 + u32::try_from(draw(4)).expect("a small number");
+            let n = 1 + u32::try_from(draw(5)).expect("a small number");
+            if held.insert((a, number, n)) {
+                store
+                    .typed_commit(vec![playbook_row(a, number, n)])
+                    .expect("a playbook row");
+            }
+        }
+        let read =
+            halvo_agent_store::newest_playbook(&store, &agent_1()).expect("the rows are read");
+        let loaded = load(&mut store, 1).expect("load").playbook;
+        assert_eq!(read, loaded, "case {case}");
+        let want = held
+            .iter()
+            .filter(|(a, _, _)| *a == 1)
+            .map(|(_, number, _)| *number)
+            .max();
+        assert_eq!(read.as_ref().map(|p| p.number.get()), want, "case {case}");
+        if let Some(p) = &read {
+            let steps = held
+                .iter()
+                .filter(|(a, number, _)| *a == 1 && *number == p.number.get())
+                .count();
+            assert_eq!(p.steps.get() as usize, steps, "case {case}");
+            some += 1;
+        }
+    }
+    assert!(some > 50, "{some} of 200 cases had a playbook of the agent");
+}
+
+#[test]
+fn newest_playbook_of_an_agent_with_no_compile_number_is_none() {
+    let mut store = store_with("utility_bill_payment");
+    store
+        .typed_commit(vec![playbook_row(2, 3, 1)])
+        .expect("a playbook row of another agent");
+    let before = every_agent_row(&store);
+    assert_eq!(
+        halvo_agent_store::newest_playbook(&store, &agent_1()),
+        Ok(None)
+    );
+    assert_eq!(load(&mut store, 1).expect("load").playbook, None);
+    assert_eq!(every_agent_row(&store), before);
+    let other = halvo_schema::AgentId::parse(&agent(2)).expect("an agent id");
+    assert_eq!(
+        halvo_agent_store::newest_playbook(&store, &other),
+        Err(declared("binding"))
+    );
+    store.put_workflow(dismissed(&wf(1)));
+    assert_eq!(
+        halvo_agent_store::newest_playbook(&store, &agent_1()),
+        Err(declared("binding"))
+    );
+}

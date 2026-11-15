@@ -11,7 +11,7 @@ use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     AgentPlaybook, AgentSession, ExecutableStep, RunnerCall, RunnerReply, WebOrigin,
 };
-use halvo_schema::{AgentId, ErrorName};
+use halvo_schema::{AgentId, ErrorName, RowRead};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
@@ -102,6 +102,36 @@ fn own_steps(host: &dyn Host, agent: &AgentId) -> Result<Vec<AgentPlaybook>, Err
         .collect())
 }
 
+/// The agent's newest stored playbook number with its count of stored steps, or none where no step of the agent
+/// is stored: the key `playbook` of the reply of `load`, by the same reader. It refuses with `binding`, as `load`
+/// does, unless the agent's configuration is stored and the agent is its workflow's; it stores nothing, writes no
+/// log line and names no run, so that a party that is no runner reads the number without a runner body, which
+/// CP-135 (5) refuses for a run with no start row. U3.6 makes it the agent's finished number of CP-182 for every
+/// reader. `store` where a stored row of the family is not the form.
+pub fn newest_playbook(
+    host: &dyn Host,
+    agent: &AgentId,
+) -> Result<Option<LoadedPlaybook>, ErrorName> {
+    bind::runner_agent(host, agent)?;
+    playbook_of(host.rows(), agent)
+}
+
+fn playbook_of(rows: &dyn RowRead, agent: &AgentId) -> Result<Option<LoadedPlaybook>, ErrorName> {
+    let steps: Vec<AgentPlaybook> = rows::playbooks(rows)?
+        .into_iter()
+        .filter(|p| &p.agent == agent)
+        .collect();
+    let Some(number) = steps.iter().map(|p| p.number).max() else {
+        return Ok(None);
+    };
+    let count = steps.iter().filter(|p| p.number == number).count();
+    let count = u32::try_from(count).ok().and_then(NonZeroU32::new);
+    Ok(Some(LoadedPlaybook {
+        number,
+        steps: count.ok_or(ErrorName::Store)?,
+    }))
+}
+
 fn own_sessions(host: &dyn Host, agent: &AgentId) -> Result<Vec<AgentSession>, ErrorName> {
     Ok(rows::sessions(host.rows())?
         .into_iter()
@@ -113,18 +143,7 @@ fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(host, &b.agent)?;
     bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
-    let steps = own_steps(host, &b.agent)?;
-    let playbook = match steps.iter().map(|p| p.number).max() {
-        None => None,
-        Some(number) => {
-            let count = steps.iter().filter(|p| p.number == number).count();
-            let count = u32::try_from(count).ok().and_then(NonZeroU32::new);
-            Some(LoadedPlaybook {
-                number,
-                steps: count.ok_or(ErrorName::Store)?,
-            })
-        }
-    };
+    let playbook = playbook_of(host.rows(), &b.agent)?;
     let bindings = rows::bindings(host.rows())?
         .into_iter()
         .filter(|r| r.agent == b.agent && r.workflow == workflow.id)
