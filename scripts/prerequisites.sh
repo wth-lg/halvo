@@ -334,6 +334,106 @@ download_once() {
   mv "$2.part" "$2"
 }
 
+pnpm_followed() {
+  followed=$1
+  hops=0
+  while [ -L "$followed" ]; do
+    [ "$hops" -lt 40 ] || return 1
+    link=$(readlink "$followed") || return 1
+    case $link in
+      /*) followed=$link ;;
+      *) followed=$(dirname "$followed")/$link ;;
+    esac
+    hops=$((hops + 1))
+  done
+  [ -f "$followed" ] || return 1
+  followed_directory=$(cd -P "$(dirname "$followed")" && pwd -P) || return 1
+  echo "$followed_directory/$(basename "$followed")"
+}
+
+pnpm_shim_target() {
+  shim_target=$(sed -n "s|^exec \"\\\$basedir/\\([A-Za-z0-9._@+/-]*\\)\"   \"\\\$@\"\$|\\1|p" "$1" 2>/dev/null) || return 1
+  [ -n "$shim_target" ] || return 1
+  {
+    cat <<'EOF'
+#!/bin/sh
+basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+
+case `uname` in
+    *CYGWIN*|*MINGW*|*MSYS*)
+        if command -v cygpath > /dev/null 2>&1; then
+            basedir=`cygpath -w "$basedir"`
+        fi
+    ;;
+esac
+
+EOF
+    printf "exec \"\$basedir/%s\"   \"\$@\"\n" "$shim_target"
+  } >"$2/shim" || return 1
+  cmp -s "$2/shim" "$1" || return 1
+  echo "$shim_target"
+}
+
+pnpm_binary_checked() {
+  (
+    prefix=$1
+    platform_archive=$2
+    platform=$3
+    scratch_parent=$4
+    pinned=$5
+    case $platform in
+      win32-*) member=pnpm.exe ;;
+      *) member=pnpm ;;
+    esac
+    binary="package/$member of $platform_archive"
+    way="remove what npm installed with npm uninstall --global --prefix $prefix pnpm @pnpm/exe.$platform, then run sh scripts/prerequisites.sh again; until then a run of this script takes that pnpm as present, and when this line comes again, npm did not run the install script of pnpm that puts the binary there: let npm run it, as npm's lines above say"
+    if ! scratch=$(mktemp -d "$scratch_parent/pnpm-binary.XXXXXX"); then
+      echo "prerequisites: error: no new directory for the binary of $platform_archive could be made under $scratch_parent; check that it is writable, then run sh scripts/prerequisites.sh again" >&2
+      exit 1
+    fi
+    trap 'rm -rf "$scratch"' EXIT
+    trap 'exit 1' HUP INT TERM
+    if ! tar -xzf "$platform_archive" -C "$scratch" "package/$member" || [ ! -f "$scratch/package/$member" ]; then
+      echo "prerequisites: error: $platform_archive holds no file package/$member that tar can unpack, so nothing can be compared with it; move it away, then run sh scripts/prerequisites.sh again" >&2
+      exit 1
+    fi
+    entry=
+    for candidate in "$prefix/bin/pnpm" "$prefix/pnpm"; do
+      if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+        entry=$candidate
+        break
+      fi
+    done
+    if [ -z "$entry" ]; then
+      echo "prerequisites: error: after npm installed pnpm $pinned into $prefix, neither $prefix/bin/pnpm nor $prefix/pnpm is there, so no file of the prefix can be compared with $binary; read npm's lines above, then run sh scripts/prerequisites.sh again" >&2
+      exit 1
+    fi
+    if ! file=$(pnpm_followed "$entry"); then
+      echo "prerequisites: error: $entry, the pnpm of $prefix, leads to no file, so no file of the prefix can be compared with $binary; $way" >&2
+      exit 1
+    fi
+    found_at=$(command -v pnpm) || found_at=
+    if [ -z "$found_at" ] || [ "$(pnpm_followed "$found_at")" != "$file" ]; then
+      echo "prerequisites: error: the path finds ${found_at:-no pnpm}, not $entry, the pnpm of $prefix, so the file that runs is not the one that this script compares with $binary; $way" >&2
+      exit 1
+    fi
+    if ! cmp -s "$scratch/package/$member" "$file"; then
+      if target=$(pnpm_shim_target "$file" "$scratch"); then
+        shim=$file
+        if ! file=$(pnpm_followed "$(dirname "$shim")/$target"); then
+          echo "prerequisites: error: $shim, the shim that npm wrote for the pnpm of $prefix, runs $(dirname "$shim")/$target, which leads to no file, so no file of the prefix can be compared with $binary; $way" >&2
+          exit 1
+        fi
+      fi
+      if ! cmp -s "$scratch/package/$member" "$file"; then
+        echo "prerequisites: error: $file, which runs when the pnpm of $prefix is called, does not have the bytes of $binary, whose sha512 this script checked, so this step installs no package; $way" >&2
+        exit 1
+      fi
+    fi
+    echo "prerequisites: $file, which runs when the pnpm of $prefix is called, has the bytes of $binary"
+  )
+}
+
 ensure_pnpm() {
   prefix=$1
   field=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' backend/package.json)
@@ -416,6 +516,7 @@ ensure_pnpm() {
       echo "prerequisites: error: npm could not install pnpm $pinned from $archive and $platform_archive; read npm's lines above, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
+    pnpm_binary_checked "$prefix" "$platform_archive" "$platform" "$tools" "$pinned" || return 1
     found=$(pnpm --version 2>/dev/null) || found=
     if [ "$found" != "$pinned" ]; then
       echo "prerequisites: error: after npm installed pnpm $pinned into $prefix, the pnpm on the path is ${found:-missing}" >&2
@@ -698,6 +799,46 @@ EOF
     } >"$case_dir/repo/backend/pnpm-lock.yaml"
   }
 
+  pack_platform() {
+    case $case_platform in
+      win32-*) case_member=pnpm.exe ;;
+      *) case_member=pnpm ;;
+    esac
+    pack=$(mktemp -d "$case_dir/pack.XXXXXX") || return 2
+    mkdir "$pack/package" && cp "$1" "$pack/package/$case_member" && tar -czf "$2" -C "$pack" package
+  }
+
+  write_npm_shim() {
+    {
+      cat <<'EOF'
+#!/bin/sh
+basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+
+case `uname` in
+    *CYGWIN*|*MINGW*|*MSYS*)
+        if command -v cygpath > /dev/null 2>&1; then
+            basedir=`cygpath -w "$basedir"`
+        fi
+    ;;
+esac
+
+EOF
+      printf "exec \"\$basedir/%s\"   \"\$@\"\n" "$2"
+    } >"$1"
+    chmod +x "$1"
+  }
+
+  write_unchecked_pnpm() {
+    cat >"$1" <<EOF
+#!/bin/sh
+echo "$2 \$*" >>'$case_dir/calls'
+case "\$1" in
+  --version) echo 12.14.0 ;;
+esac
+EOF
+    chmod +x "$1"
+  }
+
   new_backend_case() {
     new_case "$1"
     mkdir -p "$case_dir/repo/backend/scripts" "$case_dir/home"
@@ -705,8 +846,6 @@ EOF
     printf '{\n  "packageManager": "pnpm@12.14.0+sha512.%s"\n}\n' "$(sha512_of "$case_dir/assets/pnpm-12.14.0.tgz")" >"$case_dir/repo/backend/package.json"
     case_platform=$(pnpm_platform)
     platform_asset=$case_dir/assets/exe.$case_platform-12.14.0.tgz
-    printf 'the pnpm 12.14.0 binary of a case for %s\n' "$case_platform" >"$platform_asset"
-    write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
     cat >"$case_dir/repo/backend/scripts/fetch-tools.sh" <<EOF
 echo "fetch-tools \$(pwd -P)" >>'$case_dir/calls'
 EOF
@@ -749,8 +888,11 @@ echo "node \$* in \$(pwd -P)" >>'$case_dir/calls'
 exit "\$(cat '$case_dir/node.exit' 2>/dev/null || echo 0)"
 EOF
     chmod +x "$case_dir/pnpm" "$case_dir/stubs/npm" "$case_dir/stubs/node"
+    pack_platform "$case_dir/pnpm" "$platform_asset"
+    write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
     backend_dir=$(cd "$case_dir/repo/backend" && pwd -P)
     repo_dir=$(cd "$case_dir/repo" && pwd -P)
+    prefix_real=$(cd "$case_dir/home" && pwd -P)/.local
     archive_path=$repo_dir/backend/.tools/downloads/pnpm-12.14.0.tgz
     platform_archive_path=$repo_dir/backend/.tools/downloads/pnpm-exe.$case_platform-12.14.0.tgz
     npm_line="npm install --global --prefix $case_dir/home/.local --cache <cache> --offline --omit=optional --no-update-notifier $archive_path $platform_archive_path"
@@ -850,6 +992,155 @@ EOF
   esac
   [ "$(find "$repo_dir/backend/.tools" -name 'npm-cache.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the cache of npm was left after the install"
   [ -f "$archive_path" ] && [ -f "$platform_archive_path" ] || problems="$problems; a downloaded file was removed with the cache"
+  verdict "$name"
+
+  name='after npm installs pnpm, the file that runs for the pnpm of the prefix, followed through its links, has the bytes of the binary in the checked platform package, the step says so, and it writes nothing into the prefix'
+  new_backend_case backend-binary-equal
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/lib/node_modules/pnpm' '$case_dir/home/.local/bin' &&
+  cp '$case_dir/pnpm' '$case_dir/home/.local/lib/node_modules/pnpm/pnpm' &&
+  ln -s ../lib/node_modules/pnpm/pnpm '$case_dir/home/.local/bin/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend ok
+  ran=$prefix_real/bin/pnpm
+  [ -L "$case_dir/home/.local/bin/pnpm" ] && ran=$prefix_real/lib/node_modules/pnpm/pnpm
+  [ "$(count "prerequisites: $ran, which runs when the pnpm of $case_dir/home/.local is called, has the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line said that the file that runs has the bytes of the binary of the platform package"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once"
+  [ "$(find "$case_dir/home/.local" | wc -l | tr -d ' ')" = 7 ] || problems="$problems; the prefix holds more than npm put there"
+  [ "$(find "$repo_dir/backend/.tools" -name 'pnpm-binary.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the scratch of the compare was left"
+  verdict "$name"
+
+  name='a file of other bytes than the binary of the checked platform package, where the pnpm of the prefix leads, fails the step before it runs: no package is installed, and one line names both files and the way on'
+  new_backend_case backend-binary-other-bytes
+  write_unchecked_pnpm "$case_dir/other-pnpm" unchecked-pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/other-pnpm' '$case_dir/home/.local/bin/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend fails
+  [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of other bytes ran"
+  [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched"
+  [ "$(count "prerequisites: error: $prefix_real/bin/pnpm, which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path, whose sha512 this script checked, so this step installs no package; remove what npm installed with npm uninstall --global --prefix $case_dir/home/.local pnpm @pnpm/exe.$case_platform, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named both files and the way on"
+  [ "$(count 'prerequisites: error:' "$case_dir/output")" = 1 ] || problems="$problems; the step did not stop at its first error line"
+  [ "$(find "$repo_dir/backend/.tools" -name 'pnpm-binary.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the scratch of the compare was left"
+  verdict "$name"
+
+  name='when npm puts pnpm elsewhere on the path and none into the prefix, the step fails: that pnpm does not run, and one line names the prefix and the platform package'
+  new_backend_case backend-binary-no-file
+  write_unchecked_pnpm "$case_dir/other-pnpm" path-pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+cp '$case_dir/other-pnpm' '$case_dir/stubs/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend fails
+  [ "$(count 'path-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of the path ran"
+  [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched"
+  [ "$(count "prerequisites: error: after npm installed pnpm 12.14.0 into $case_dir/home/.local, neither $case_dir/home/.local/bin/pnpm nor $case_dir/home/.local/pnpm is there, so no file of the prefix can be compared with package/$case_member of $platform_archive_path; read npm's lines above, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the prefix and the platform package"
+  [ "$(count 'prerequisites: error:' "$case_dir/output")" = 1 ] || problems="$problems; the step did not stop at its first error line"
+  verdict "$name"
+
+  name='a link of the prefix that leads to no file fails the step as no file, and the pnpm of the path does not run'
+  new_backend_case backend-binary-dangling-link
+  mkdir -p "$case_dir/home/.local/bin"
+  ln -s ../lib/node_modules/pnpm/pnpm "$case_dir/home/.local/bin/pnpm" 2>/dev/null || :
+  if [ ! -L "$case_dir/home/.local/bin/pnpm" ]; then
+    echo "  this platform makes no symbolic link to a missing file, so the case holds nothing here"
+  else
+    write_unchecked_pnpm "$case_dir/other-pnpm" path-pnpm
+    cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+cp '$case_dir/other-pnpm' '$case_dir/stubs/pnpm'
+EOF
+    chmod +x "$case_dir/stubs/npm"
+    run_ensure_backend fails
+    [ "$(count 'path-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of the path ran"
+    [ "$(count "prerequisites: error: $case_dir/home/.local/bin/pnpm, the pnpm of $case_dir/home/.local, leads to no file, so no file of the prefix can be compared with package/$case_member of $platform_archive_path; remove what npm installed" "$case_dir/output")" = 1 ] || problems="$problems; no line named the link that leads to no file"
+    [ "$(count 'prerequisites: error:' "$case_dir/output")" = 1 ] || problems="$problems; the step did not stop at its first error line"
+  fi
+  verdict "$name"
+
+  name='when the path runs another pnpm than the one of the prefix, the step fails, and neither pnpm runs'
+  new_backend_case backend-binary-not-the-path
+  : >"$case_dir/probe"
+  chmod 644 "$case_dir/probe"
+  if [ -x "$case_dir/probe" ]; then
+    echo "  this platform runs a file of mode 644, so the case holds nothing here"
+  else
+    write_unchecked_pnpm "$case_dir/other-pnpm" path-pnpm
+    cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/pnpm' '$case_dir/home/.local/bin/pnpm' && chmod 644 '$case_dir/home/.local/bin/pnpm'
+cp '$case_dir/other-pnpm' '$case_dir/stubs/pnpm'
+EOF
+    chmod +x "$case_dir/stubs/npm"
+    run_ensure_backend fails
+    [ "$(count 'path-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of the path ran"
+    [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
+    [ "$(count "prerequisites: error: the path finds $case_dir/stubs/pnpm, not $case_dir/home/.local/bin/pnpm, the pnpm of $case_dir/home/.local, so the file that runs is not the one that this script compares with package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line named the pnpm that the path finds"
+  fi
+  verdict "$name"
+
+  name='where npm writes its shell shim into the prefix, as on Windows, the file that the shim runs is compared with the binary, and the step goes on when they are equal'
+  new_backend_case backend-binary-shim
+  write_npm_shim "$case_dir/shim" node_modules/pnpm/pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/node_modules/pnpm' && cp '$case_dir/pnpm' '$case_dir/home/.local/node_modules/pnpm/pnpm' && cp '$case_dir/shim' '$case_dir/home/.local/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend ok
+  [ "$(count "prerequisites: $prefix_real/node_modules/pnpm/pnpm, which runs when the pnpm of $case_dir/home/.local is called, has the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line said that the file that the shim runs has the bytes of the binary"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once through the shim"
+  verdict "$name"
+
+  name='a shim of npm that runs a file of other bytes than the binary fails the step, and that file does not run'
+  new_backend_case backend-binary-shim-other-bytes
+  write_npm_shim "$case_dir/shim" node_modules/pnpm/pnpm
+  write_unchecked_pnpm "$case_dir/other-pnpm" unchecked-pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/node_modules/pnpm' && cp '$case_dir/other-pnpm' '$case_dir/home/.local/node_modules/pnpm/pnpm' && cp '$case_dir/shim' '$case_dir/home/.local/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend fails
+  [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the file of other bytes ran"
+  [ "$(count "prerequisites: error: $prefix_real/node_modules/pnpm/pnpm, which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line named the file that the shim runs"
+  verdict "$name"
+
+  expect_shim_refused() {
+    cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/node_modules/pnpm' && cp '$case_dir/pnpm' '$case_dir/home/.local/node_modules/pnpm/pnpm' && cp '$case_dir/shim' '$case_dir/home/.local/pnpm'
+EOF
+    chmod +x "$case_dir/stubs/npm"
+    run_ensure_backend fails
+    [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
+    [ "$(count "prerequisites: error: $prefix_real/pnpm, which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line named the shim"
+  }
+
+  name='a shim with a line more than the shim that npm writes is compared as it is and refused, and nothing that it names runs'
+  new_backend_case backend-binary-shim-extra-line
+  write_npm_shim "$case_dir/shim" node_modules/pnpm/pnpm
+  printf 'echo shim >>%s\n' "'$case_dir/calls'" >>"$case_dir/shim"
+  expect_shim_refused
+  verdict "$name"
+
+  name='a shim whose target holds a character outside the closed set, here a variable, is compared as it is and refused, and nothing that it names runs'
+  new_backend_case backend-binary-shim-variable-target
+  write_npm_shim "$case_dir/shim" "node_modules/pnpm/pnpm\$PNPM_TAIL"
+  expect_shim_refused
   verdict "$name"
 
   name='a directory under the kept name of the platform package is refused with a line that says so'
@@ -1081,12 +1372,12 @@ EOF
   name='a pin of another version than 12.14.0 reads the entry of that version and installs its two files'
   new_backend_case backend-another-pinned-version
   printf 'the pnpm 12.15.0 archive of a case\n' >"$case_dir/assets/pnpm-12.15.0.tgz"
-  printf 'the pnpm 12.15.0 binary of a case\n' >"$case_dir/assets/exe.$case_platform-12.15.0.tgz"
   printf '{\n  "packageManager": "pnpm@12.15.0+sha512.%s"\n}\n' "$(sha512_of "$case_dir/assets/pnpm-12.15.0.tgz")" >"$case_dir/repo/backend/package.json"
-  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.15.0" "$(integrity_of "$case_dir/assets/exe.$case_platform-12.15.0.tgz")"
   sed 's/echo 12.14.0/echo 12.15.0/' "$case_dir/pnpm" >"$case_dir/pnpm.new"
   mv "$case_dir/pnpm.new" "$case_dir/pnpm"
   chmod +x "$case_dir/pnpm"
+  pack_platform "$case_dir/pnpm" "$case_dir/assets/exe.$case_platform-12.15.0.tgz"
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.15.0" "$(integrity_of "$case_dir/assets/exe.$case_platform-12.15.0.tgz")"
   run_ensure_backend ok
   [ "$(count "--offline --omit=optional --no-update-notifier $repo_dir/backend/.tools/downloads/pnpm-12.15.0.tgz $repo_dir/backend/.tools/downloads/pnpm-exe.$case_platform-12.15.0.tgz" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install the two files of 12.15.0"
   [ "$(count "curl https://registry.npmjs.org/@pnpm/exe.$case_platform/-/exe.$case_platform-12.15.0.tgz" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package of 12.15.0 was not downloaded"
