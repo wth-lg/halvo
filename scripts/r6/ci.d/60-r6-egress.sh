@@ -286,10 +286,12 @@ write_canary() {
 
 run_canary() {
   started=$(date +%s)
-  forbid "$artifacts/canary-run" --manifest-path "$canary/Cargo.toml" --lib --bins
+  flag=
+  [ "$1" != release ] || flag=--release
+  forbid "$artifacts/canary-$1" --manifest-path "$canary/Cargo.toml" --lib --bins ${flag:+"$flag"}
   canary_exit=$?
-  canary_seconds=$(($(date +%s) - started))
-  read_forbid "$artifacts/canary-run.json" >"$work/canary-read.txt" || fail setup
+  seconds_line="$seconds_line canary-$1=$(($(date +%s) - started))"
+  read_forbid "$artifacts/canary-$1.json" >"$work/canary-read.txt" || fail setup
   wanted=0
   found=0
   refers=0
@@ -298,13 +300,13 @@ run_canary() {
     if grep -q -x -F -e "finding $code src/lib.rs $at" "$work/canary-read.txt"; then
       found=$((found + 1))
     else
-      [ "$((wanted - found))" -gt 5 ] || printf 'egress canary missing=%s:%s\n' "$code" "$at"
+      [ "$((wanted - found))" -gt 5 ] || printf 'egress canary profile=%s missing=%s:%s\n' "$1" "$code" "$at"
     fi
   done <"$canary/expected.txt"
   if grep -q -x -F -e refer "$work/canary-read.txt"; then
     refers=1
   fi
-  printf 'egress canary entries=%s found=%s exit=%s\n' "$wanted" "$found" "$canary_exit"
+  printf 'egress canary profile=%s entries=%s found=%s exit=%s\n' "$1" "$wanted" "$found" "$canary_exit"
   if [ "$found" -ne "$wanted" ] || [ "$wanted" -eq 0 ] || [ "$refers" -ne 0 ]; then
     printf 'egress canary: the forbid run let the canary through\n'
     fail check
@@ -425,7 +427,7 @@ dep_info_files() {
       sub(/\.[^.]*$/, "", stem)
       print dir "/" stem ".d"
     }
-  ' "$artifacts/forbid.json" | sort -u >"$work/dep-info-files.txt" || fail setup
+  ' "$artifacts/forbid-dev.json" "$artifacts/forbid-release.json" | sort -u >"$work/dep-info-files.txt" || fail setup
   : >"$work/dep-info-named.txt"
   while IFS= read -r depfile; do
     if [ ! -f "$depfile" ]; then
@@ -472,16 +474,18 @@ all_text_rules() {
 
 forbid_crates() {
   started=$(date +%s)
-  forbid "$artifacts/forbid" -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins
+  flag=
+  [ "$1" != release ] || flag=--release
+  forbid "$artifacts/forbid-$1" -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins ${flag:+"$flag"}
   forbid_exit=$?
-  forbid_seconds=$(($(date +%s) - started))
-  read_forbid "$artifacts/forbid.json" >"$work/forbid-read.txt" || fail setup
+  seconds_line="$seconds_line forbid-$1=$(($(date +%s) - started))"
+  read_forbid "$artifacts/forbid-$1.json" >"$work/forbid-read.txt" || fail setup
   findings=0
   while IFS=' ' read -r kind code where at; do
     case $kind in
       finding)
         findings=$((findings + 1))
-        printf 'forbid %s:%s %s\n' "$where" "$at" "$code"
+        printf 'forbid %s %s:%s %s\n' "$1" "$where" "$at" "$code"
         ;;
       refer)
         printf 'egress forbid list-entry=refers-to-nothing\n'
@@ -489,7 +493,7 @@ forbid_crates() {
         ;;
     esac
   done <"$work/forbid-read.txt"
-  printf 'egress forbid findings=%s exit=%s\n' "$findings" "$forbid_exit"
+  printf 'egress forbid profile=%s findings=%s exit=%s\n' "$1" "$findings" "$forbid_exit"
   if [ "$findings" -ne 0 ] || [ "$forbid_exit" -ne 0 ]; then
     holds=no
   fi
@@ -1121,10 +1125,13 @@ check() {
   closed_graph
   write_forbid_list
   write_canary
-  run_canary
-  forbid_crates
+  seconds_line=
+  run_canary dev
+  run_canary release
+  forbid_crates dev
+  forbid_crates release
   all_text_rules
-  printf 'egress seconds graph=%s canary=%s forbid=%s\n' "$graph_seconds" "$canary_seconds" "$forbid_seconds"
+  printf 'egress seconds graph=%s%s\n' "$graph_seconds" "$seconds_line"
 
   cargo build --locked -p halvo-route-gate --bin route-gate >"$artifacts/cargo-build.txt" 2>&1 || fail setup
   cargo build --locked -p halvo-route-gate --bin route-gate --message-format=json \
@@ -1209,7 +1216,10 @@ case $* in
       "$CI_D_REPO" "$CI_D_REPO" "$CI_D_REPO" "$STUB_EXE" "$STUB_FRESH"
     exit 0
     ;;
-  "clippy --locked --manifest-path $CI_D_ARTIFACTS/canary/Cargo.toml --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code")
+  "clippy --locked --manifest-path $CI_D_ARTIFACTS/canary/Cargo.toml --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code" | \
+    "clippy --locked --manifest-path $CI_D_ARTIFACTS/canary/Cargo.toml --lib --bins --release --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code")
+    profile=dev
+    case $* in *' --release '*) profile=release ;; esac
     want=$(cd "$CI_D_ARTIFACTS/forbid-list" && { pwd -W 2>/dev/null || pwd; }) || exit 96
     got=$(cd "$CLIPPY_CONF_DIR" && { pwd -W 2>/dev/null || pwd; }) || exit 96
     [ "$got" = "$want" ] || exit 96
@@ -1219,8 +1229,10 @@ case $* in
     n=0
     while IFS=' ' read -r code at; do
       n=$((n + 1))
-      [ "$n" = "$STUB_CANARY_DROP" ] && continue
-      [ "$STUB_CANARY_DROP:$code" = unsafe:unsafe_code ] && continue
+      if [ "$profile" = "${STUB_CANARY_DROP_PROFILE:-dev}" ]; then
+        [ "$n" = "$STUB_CANARY_DROP" ] && continue
+        [ "$STUB_CANARY_DROP:$code" = unsafe:unsafe_code ] && continue
+      fi
       printf '{"reason":"compiler-message","message":{"rendered":"error: x\\n  --> src/lib.rs:%s:1\\n","children":[],"code":{"code":"%s","explanation":null},"level":"error","spans":[]}}\n' "$at" "$code"
     done <"$CI_D_ARTIFACTS/canary/expected.txt"
     if [ "$STUB_CANARY" = refer ]; then
@@ -1228,7 +1240,16 @@ case $* in
     fi
     exit 101
     ;;
-  'clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code')
+  'clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code' | \
+    'clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins --release --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code')
+    json=$STUB_CLIPPY_JSON
+    status=$STUB_CLIPPY_EXIT
+    case $* in
+      *' --release '*)
+        json=$STUB_CLIPPY_RELEASE_JSON
+        status=$STUB_CLIPPY_RELEASE_EXIT
+        ;;
+    esac
     want=$(cd "$CI_D_ARTIFACTS/forbid-list" && { pwd -W 2>/dev/null || pwd; }) || exit 96
     got=$(cd "$CLIPPY_CONF_DIR" && { pwd -W 2>/dev/null || pwd; }) || exit 96
     [ "$got" = "$want" ] || exit 96
@@ -1237,10 +1258,10 @@ case $* in
       macos:2 | windows:15) ;;
       *) exit 95 ;;
     esac
-    if [ -f "$STUB_CLIPPY_JSON" ]; then
-      while IFS= read -r line || [ -n "$line" ]; do printf '%s\n' "$line"; done <"$STUB_CLIPPY_JSON"
+    if [ -f "$json" ]; then
+      while IFS= read -r line || [ -n "$line" ]; do printf '%s\n' "$line"; done <"$json"
     fi
-    exit "$STUB_CLIPPY_EXIT"
+    exit "$status"
     ;;
   "tree --locked -e normal,build --target all -p halvo-route-gate --prefix none --format {p}")
     paths
@@ -1480,6 +1501,9 @@ case_reset() {
   STUB_CLIPPY_EXIT=0
   STUB_CANARY=synth
   STUB_CANARY_DROP=0
+  STUB_CANARY_DROP_PROFILE=dev
+  STUB_CLIPPY_RELEASE_JSON=$work/clippy-clean.json
+  STUB_CLIPPY_RELEASE_EXIT=0
   STUB_GRAPH=good
   case_job=macos
   case_actions=
@@ -1506,7 +1530,8 @@ case_run() {
     STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
-    STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
+    STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
+    STUB_CLIPPY_RELEASE_JSON=$STUB_CLIPPY_RELEASE_JSON STUB_CLIPPY_RELEASE_EXIT=$STUB_CLIPPY_RELEASE_EXIT STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
     STUB_ARGONLY=$STUB_ARGONLY env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
@@ -1597,6 +1622,17 @@ $feature
 pub fn no_feature() -> bool { $start }
 $linux
 pub fn linux_only() -> bool { $start }
+macro_rules! gate {
+    (\$test:meta) => {
+        #[cfg(\$test)]
+        pub fn gated() -> bool { $start }
+    };
+}
+gate!(not(debug_assertions));
+#[cfg/**/(not(debug_assertions))]
+pub fn commented() -> bool { $start }
+#[cfg(windows)]
+pub fn windows_only() -> bool { $start }
 EOF
   for file in shout.RS inc.txt cfgpath.txt spaced.txt hidden.rs shell.rs plain.txt nottest.rs; do
     printf 'pub fn f() -> bool { %s }\n' "$start" >"$dir/tests/$file" || self_failed "setup at line $LINENO"
@@ -1628,18 +1664,25 @@ a-safe-function-in-an-unsafe-extern-block forbid tests/lib.rs 20
 a-start-under-cfg-not-debug-assertions rule tests/lib.rs 23 debug_assertions
 a-start-under-cfg-not-feature rule tests/lib.rs 25 feature
 a-start-under-cfg-target-os rule tests/lib.rs 27 target_os
+f31-a-macro-variable-cfg-under-not-debug-assertions forbid-release tests/lib.rs 32
+f32-a-comment-between-cfg-and-its-predicate forbid-release tests/lib.rs 37
+a-start-under-cfg-windows forbid-windows tests/lib.rs 39
 EOF
 }
 
 lint_forms() {
   dir=$1
+  flag=
+  case $2 in
+    *release) flag=--release ;;
+  esac
   dir_abs=$(absolute_dir "$dir") || self_failed "setup at line $LINENO"
   case $2 in
     *bin) targets=--bins ;;
     *) targets='--lib --bins' ;;
   esac
   # shellcheck disable=SC2086
-  (cd "$dir" && forbid "$work/forms-$2" --manifest-path Cargo.toml $targets)
+  (cd "$dir" && forbid "$work/forms-$2" --manifest-path Cargo.toml $targets ${flag:+"$flag"})
   printf '%s\n' "$?" >"$work/forms-$2.exit"
   root_abs=$dir_abs
   read_forbid "$work/forms-$2.json" | tr '[:upper:]' '[:lower:]' >"$work/forms-$2-found.txt" || self_failed "setup at line $LINENO"
@@ -1663,11 +1706,18 @@ check_forms() {
   lint_forms "$work/forms-control" control
   lint_forms "$work/forms-bin" forms-bin
   lint_forms "$work/forms-control-bin" control-bin
+  lint_forms "$work/forms" forms-release
+  lint_forms "$work/forms-control" control-release
   while IFS=' ' read -r form how path at word; do
     found=$work/forms-forms-found.txt
     [ "$word" != bin ] || found=$work/forms-forms-bin-found.txt
+    [ "$how" != forbid-release ] || found=$work/forms-forms-release-found.txt
+    if [ "$how" = forbid-windows ] && [ "$job_system" != windows ]; then
+      printf 'case %s/form-%s not compiled in this job: the windows job holds it\n' "$name" "$form"
+      continue
+    fi
     case $how in
-      forbid) grep -q -E "^finding [^ ]+ $path $at\$" "$found" && got=FAIL || got=PASS ;;
+      forbid | forbid-release | forbid-windows) grep -q -E "^finding [^ ]+ $path $at\$" "$found" && got=FAIL || got=PASS ;;
       rule) grep -q -x -F -e "rule cfg $path:$at $word" "$work/forms-forms-rules.txt" && got=FAIL || got=PASS ;;
     esac
     printf 'case %s/form-%s want=FAIL got=%s\n' "$name" "$form" "$got"
@@ -1678,7 +1728,7 @@ check_forms() {
     fi
   done <"$work/forms-table.txt"
   got=PASS
-  for control in control control-bin; do
+  for control in control control-bin control-release; do
     [ -s "$work/forms-$control-found.txt" ] && got=FAIL
     grep -q '^rule ' "$work/forms-$control-rules.txt" && got=FAIL
     read -r control_exit <"$work/forms-$control.exit" || control_exit=x
@@ -1789,7 +1839,7 @@ self_test() {
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
   case_run commands PASS - 'egress commands=7 asked=23 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
-  case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
+  case_run forbid-clean PASS - 'egress forbid profile=dev findings=0 exit=0'
   case_run asking-wrapped PASS - 'egress asking denied=0 command=0 exit=0'
   case_run control-denied PASS - 'egress control denied=1 log=target/egress/'
   STUB_CONTROL=through
@@ -1863,22 +1913,28 @@ self_test() {
   case_run graph-patch-table FAIL check 'egress graph patch=Cargo.toml'
   STUB_CANARY=real
   case_job=$own_job
-  case_run canary-on-the-real-cargo PASS - 'egress canary entries='
-  STUB_CANARY_DROP=unsafe
-  case_run canary-without-its-unsafe-finding FAIL check 'egress canary missing=unsafe_code:'
+  case_run canary-on-the-real-cargo PASS - 'egress canary profile=dev entries='
+  STUB_CLIPPY_RELEASE_JSON=$work/clippy-finding.json
+  STUB_CLIPPY_RELEASE_EXIT=101
+  case_run forbid-finding-in-release FAIL check "forbid release crates/halvo-route-gate/src/net.txt:2 clippy::disallowed_methods${nl}egress forbid profile=release findings=1 exit=101"
   STUB_CANARY_DROP=1
-  case_run canary-let-through FAIL check "egress canary missing=clippy::disallowed_types:1${nl}egress canary entries="
+  STUB_CANARY_DROP_PROFILE=release
+  case_run canary-let-through-in-release FAIL check 'egress canary profile=release missing=clippy::disallowed_types:1'
+  STUB_CANARY_DROP=unsafe
+  case_run canary-without-its-unsafe-finding FAIL check 'egress canary profile=dev missing=unsafe_code:'
+  STUB_CANARY_DROP=1
+  case_run canary-let-through FAIL check "egress canary profile=dev missing=clippy::disallowed_types:1${nl}egress canary profile=dev entries="
   case_job=windows
-  case_run forbid-list-of-the-windows-job PASS - 'egress forbid findings=0 exit=0'
+  case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-finding.json
   STUB_CLIPPY_EXIT=101
-  case_run forbid-finding FAIL check "forbid crates/halvo-route-gate/src/net.txt:2 clippy::disallowed_methods${nl}egress forbid findings=1 exit=101"
+  case_run forbid-finding FAIL check "forbid dev crates/halvo-route-gate/src/net.txt:2 clippy::disallowed_methods${nl}egress forbid profile=dev findings=1 exit=101"
   STUB_CLIPPY_JSON=$work/clippy-unsafe.json
-  case_run forbid-finding-with-exit-0 FAIL check 'forbid crates/halvo-route/src/x.rs:7 unsafe_code'
+  case_run forbid-finding-with-exit-0 FAIL check 'forbid dev crates/halvo-route/src/x.rs:7 unsafe_code'
   STUB_CLIPPY_EXIT=101
-  case_run forbid-exit-without-a-finding FAIL check 'egress forbid findings=0 exit=101'
+  case_run forbid-exit-without-a-finding FAIL check 'egress forbid profile=dev findings=0 exit=101'
   STUB_CLIPPY_JSON=$work/clippy-child-code.json
-  case_run forbid-child-code-is-no-finding PASS - 'egress forbid findings=0 exit=0'
+  case_run forbid-child-code-is-no-finding PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-refer.json
   case_run forbid-list-entry-refers-to-nothing FAIL check 'egress forbid list-entry=refers-to-nothing'
   case_repo=$work/repo-entry
