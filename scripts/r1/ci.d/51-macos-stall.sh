@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
+# lane: alone
 set -u
 name=51-macos-stall
 limit_override=${MS_TEST_LIMIT_S:-}
@@ -240,6 +241,8 @@ proof_build() {
 twelve_test() {
   list=$CI_D_REPO/target/ci-artifacts/12-test/tests.txt
   if [ ! -f "$list" ]; then
+    [ ! -d "${list%/*}" ] ||
+      fail "12-test ran in this job and left no list of its tests (target/ci-artifacts/12-test/tests.txt), so the tests of tests/macos_stall_fixture.rs that 12-test ran cannot be read"
     printf '12-test: no list of tests in this job\n'
     return 0
   fi
@@ -612,6 +615,7 @@ esac
 printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8\n' "$test"
 spec "touch-$test" && printf 'changed\n' >>"$CI_D_REPO/tracked.txt"
 spec "hang-$test" && sleep 5
+spec "slow-$test" && sleep 1
 spec "fail-$test" && { printf "thread 'x' panicked at y:\n%s: rounds that did not count: wait 150 ms\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"; exit 101; }
 spec "leak-$test" && { printf "thread 'x' panicked at y:\n%s: recorded keys beside the markers in rounds that counted: wait 150 ms: 3\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test"; exit 101; }
 spec "empty-$test" && { printf 'test result: ok. 0 passed; 0 failed; 1 ignored\n'; exit 0; }
@@ -703,7 +707,7 @@ MS gap_ms=190 source=measured spacing_max_us=90474 load1=1.00' ''
   check unclocked-of-none PASS 'budget=240 notices=0 unclocked=0' ''
   MS_BUDGET_S=0
   export MS_BUDGET_S
-  check over-the-budget PASS 'above its budget of 0 s; this fails nothing' ''
+  check over-the-budget PASS 'above its budget of 0 s; this fails nothing' 'slow-phase_one'
   unset MS_BUDGET_S
   check gap-measured-again PASS 'the gap of the measurement is above its cap: measured again (ruling MA-23 Addition 1 (4))
 measure dictionary=1 on_console=1 seconds=20.0 readings=701 spacing_max_us=90474
@@ -769,6 +773,8 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   printf '     Running tests/macos_stall_fixture.rs (x)\ntest launch_one ... ok\n' >"$twelve"
   check twelve-test-listed-none FAIL '12-test listed no test of tests/macos_stall_fixture.rs as ignored' ''
   mv "$twelve" "$work/twelve-moved" || exit 2
+  check twelve-test-ran-and-left-no-list FAIL '12-test ran in this job and left no list of its tests' ''
+  mv "$work/repo/target/ci-artifacts/12-test" "$work/twelve-dir-moved" || exit 2
   check twelve-test-absent PASS '12-test: no list of tests in this job' ''
   printf '[dependencies]\nhalvo-capture = { path = "../halvo-capture", features = ["stall-seam"] }\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
   git -C "$work/repo" add crates/other/Cargo.toml || exit 2
