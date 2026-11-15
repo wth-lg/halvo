@@ -2252,6 +2252,8 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
 });
 
 describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
+  const skeleton = (w: ReturnType<typeof world>) => w.host.step((sql) => sql.exec("SELECT * FROM skeleton")[0]);
+
   test("T1 (b): under the mark a step whose due time comes out null arms ALARM_RETRY_MS later, never null", async () => {
     let now = 8000;
     const w = world({ clock: () => now });
@@ -2286,5 +2288,41 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     await run;
     expect(events()).not.toContain("alarm-stopped");
     expect(w.alarms.slice(armsBefore)).toEqual([]);
+  });
+
+  test("T1 (d): a delete that arrives during a run after four failing runs: the exit arms no later than the delete's own arm, not at the pause of the failures counted before the mark", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.throwIn = "accounts.forget";
+    for (let run = 0; run < 4; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      await w.entries.alarm();
+    }
+    w.answers.throwIn = null;
+    expect(skeleton(w)?.alarm_failures).toBe(4);
+    now = Math.max(now, w.alarmAt() ?? now);
+    const runAt = now;
+    w.answers.send = { call: SEND, notBillable: 0 };
+    let reject: (error: Error) => void = () => {};
+    w.host.port.sendUsage = async () =>
+      new Promise((_, rejecting) => {
+        reject = rejecting;
+      });
+    const run = w.entries.alarm();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    w.answers.send = { call: null, notBillable: 0 };
+    w.answers.sendInFlight = (at) => (at < runAt + CALL_IN_FLIGHT_MS ? runAt + CALL_IN_FLIGHT_MS : null);
+    now = runAt + 1000;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    const armedByTheDelete = w.alarmAt() as Ms;
+    expect(armedByTheDelete).toBe(runAt + CALL_IN_FLIGHT_MS);
+    now = runAt + 5000;
+    reject(new RangeError("the send throws"));
+    await run;
+    const armed = w.alarmAt() as Ms;
+    expect(armed).toBeGreaterThanOrEqual(now + ALARM_RETRY_MS);
+    expect(armed).toBeLessThanOrEqual(Math.max(armedByTheDelete, now + ALARM_RETRY_MS));
+    expect(events()).not.toContain("alarm-stopped");
   });
 });

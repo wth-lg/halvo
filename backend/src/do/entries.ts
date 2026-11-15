@@ -628,6 +628,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let waits: Ms | null = null;
     let nextAt: Ms | null = null;
     let removal: { overdue: boolean } | null = null;
+    let dueNow: { due: Ms; now: Ms } | null = null;
+    const deleteDuringTheRun = run.mark !== null && run.mark !== "unknown" && run.mark.since === null && exit !== "unknown" && exit.mark.since !== null;
     try {
       const counted = host.step((sql) => {
         const mark = markOf(sql);
@@ -661,13 +663,21 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           const subscriptionId = (accounts.subscription(sql) ?? contractBroken()).subscriptionId;
           const answered = answeredFor(mark, subscriptionId);
           const now = Math.max(time(sql), lastNow(sql));
+          let due: Ms | null = null;
+          if (deleteDuringTheRun) {
+            try {
+              due = dueOf(sql);
+            } catch {}
+          }
           return {
             term: deleteTerm(sql, { ...mark, since: mark.since }, subscriptionId),
             removal: answered ? { overdue: now >= (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS } : null,
+            dueNow: due === null ? null : { due, now },
           };
         });
         waits = owed?.term ?? null;
         removal = owed?.removal ?? null;
+        dueNow = owed?.dueNow ?? null;
       } catch {
         waits = nextAt;
       }
@@ -676,6 +686,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const pause = Math.min(ALARM_RETRY_MS * 2 ** Math.min(count - 1, 30), ALARM_PAUSE_CAP_MS);
       let at = Math.max(host.clock() + pause, waits ?? 0);
       if (removal !== null) at = Math.min(at, Math.max(waits ?? 0, host.clock() + SYNC_RETRY_MS));
+      if (dueNow !== null) at = Math.min(at, Math.max(dueNow.due, dueNow.now + ALARM_RETRY_MS));
       if (removal?.overdue === true) log({ event: "removal-overdue" });
       if (tested !== null) stopAlarm(tested);
       else armAlarm(at);
