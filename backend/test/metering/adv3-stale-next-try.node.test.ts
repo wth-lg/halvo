@@ -30,7 +30,6 @@ async function deleting(o: Parameters<typeof world>[0] & { script?: Script[] } =
   d.w = await world({ ...o, cancel });
   return d;
 }
-const holds = async (w: World) => (await w.entries().testInspect()).result === "snapshot";
 const skeleton = async (w: World) => (await w.tables()).skeleton?.[0] ?? null;
 
 

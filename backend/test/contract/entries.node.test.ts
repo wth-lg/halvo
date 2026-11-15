@@ -1401,16 +1401,16 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     await w.seeded({ customerId: "cus_one" });
     w.answers.settled = false;
     const perTry: number[] = [];
-    const before = () => lines.filter((line) => line.event === "cancel-unanswered").length;
-    let seen = before();
+    const unansweredLines = () => lines.filter((line) => line.event === "cancel-unanswered").length;
+    let seen = unansweredLines();
     await w.entries.destroy(HASH);
-    perTry.push(before() - seen);
+    perTry.push(unansweredLines() - seen);
     for (let each = 0; each < 9; each += 1) {
-      seen = before();
+      seen = unansweredLines();
       const snapshot = await w.entries.testInspect();
       now = Number(snapshot.result === "snapshot" ? snapshot.due : now);
       await w.entries.alarm();
-      perTry.push(before() - seen);
+      perTry.push(unansweredLines() - seen);
     }
     expect(perTry).toEqual([0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
     expect(lines.filter((line) => line.event === "cancel-unanswered").every((line) => Object.keys(line).join() === "event")).toBe(true);
