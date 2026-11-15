@@ -1,6 +1,6 @@
 import { makeAccounts } from "../../../src/accounts/index.ts";
 import type { ProviderEvent, ProviderPort } from "../../../src/billing/port.ts";
-import { ALARM_CALL_LIMIT, type Entries, makeEntries, ownTables } from "../../../src/do/entries.ts";
+import { CALL_IN_FLIGHT_MS, type Entries, makeEntries, ownTables } from "../../../src/do/entries.ts";
 import { makeLedger } from "../../../src/ledger/index.ts";
 import { makeMetering } from "../../../src/metering/index.ts";
 import { makeTestHost } from "../../sql/node.ts";
@@ -120,7 +120,7 @@ type Account = {
   closedNotBillable: Set<string>;
   providerEnded: boolean;
   idLate: boolean;
-  usageCallsInEntry: number;
+  sendsMade: Set<string>;
   endedByTheDeleteAt: number | null;
   deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
 };
@@ -174,6 +174,7 @@ class World {
   private closing = false;
   private sendsAfterTheDeleteEnded = 0;
   private cancelBeforeSendLines = 0;
+  private linesOfTheCancelTry = 0;
   private downtimeLeft: number;
   private readonly scenario: Scenario;
   private readonly options: Options;
@@ -201,7 +202,10 @@ class World {
       event = String((JSON.parse(line) as { event?: unknown }).event);
     } catch {}
     this.count(`log.${event}`);
-    if (event === "cancel-before-send") this.cancelBeforeSendLines += 1;
+    if (event === "cancel-before-send") {
+      this.cancelBeforeSendLines += 1;
+      this.linesOfTheCancelTry += 1;
+    }
     if (event === "alarm-error" || event === "alarm-stopped") this.findings.push({ check: "the alarm caught an error", detail: line });
   }
 
@@ -315,7 +319,7 @@ class World {
       closedNotBillable: new Set(),
       providerEnded: false,
       idLate: this.scenario.lateSubscriptionId?.includes(index) ?? false,
-      usageCallsInEntry: 0,
+      sendsMade: new Set(),
       endedByTheDeleteAt: null,
       deleteBound: new Map(),
     } satisfies Omit<Account, "index" | "id">);
@@ -389,6 +393,7 @@ class World {
       openManagePage: async () => failed,
       cancelSubscription: async (subscriptionId) => {
         this.count("call.cancel");
+        this.linesAtTheCancel(account);
         if (account.idLate && subscriptionId === null) {
           account.idLate = false;
           this.count("cancel.id-arrived-during-the-null-call");
@@ -410,7 +415,8 @@ class World {
         return { kind: "cancelled" };
       },
       sendUsage: async (e) => {
-        account.usageCallsInEntry += 1;
+        const plannedAt = account.test.host.step((sql) => sql.exec("SELECT sent_at FROM metering_interval WHERE identifier = ?", e.identifier)[0]?.sent_at);
+        account.sendsMade.add(`${e.identifier}:${String(plannedAt)}`);
         const fault = this.takeFault();
         const attempt = this.attemptOf(account, e.identifier);
         this.count(attempt);
@@ -442,7 +448,6 @@ class World {
         }
       },
       readUsageTotal: async (a) => {
-        account.usageCallsInEntry += 1;
         const fault = this.takeFault();
         this.count("call.read");
         if (fault.kind === "request-lost" || fault.kind === "response-lost" || fault.kind === "refused") return failed;
@@ -550,26 +555,59 @@ class World {
   }
 
   /**
-   * The order of the delete's cancel and the cut interval's send (P7-110 L4 (d), P7-111 M6): at the cancel that ends the
-   * subscription, a sealed interval with no outcome that no send has been planned for is allowed only when the entry in
-   * progress has made ALARM_CALL_LIMIT usage calls; a failed or refused send and a next attempt in the future leave a
-   * planned attempt behind, and the cancel-before-send line counts each such interval.
+   * The lines of a cancel try (P7-113 T2 (c)): the cancel-before-send lines that the try wrote just before its call equal
+   * the account's rows with no seal or no outcome at that moment, one line for each.
+   */
+  private linesAtTheCancel(account: Account): void {
+    const lines = this.linesOfTheCancelTry;
+    this.linesOfTheCancelTry = 0;
+    const open = account.test.host.step((sql) =>
+      ownTables(sql).includes("metering_interval") ? Number(sql.exec("SELECT COUNT(*) AS n FROM metering_interval WHERE sealed_at IS NULL OR outcome IS NULL")[0]?.n ?? 0) : 0,
+    );
+    if (lines !== open) this.fail("the cancel-before-send lines of a cancel try differ from the account's open intervals", `${account.id}: ${lines} lines, ${open} rows with no seal or no outcome`);
+  }
+
+  /**
+   * The order of the delete's cancel and the cut interval's send (P7-110 L4 (d) as P7-113 T2 widens it): at the cancel that
+   * ends the subscription, a sealed interval with no outcome that no send was planned for is legal only when (i) the seal
+   * and send run right before the cancel made ALARM_CALL_LIMIT calls, read from the rows as a send planned in that run whose
+   * call was never made, or (ii) all of: P, the account's oldest sealed interval with no outcome, is older than every
+   * never-planned interval, has at least one attempt and its next attempt after the cancel's now, and no row has a send in
+   * flight inside CALL_IN_FLIGHT_MS.
    */
   private orderAtTheCancel(account: Account): void {
-    const rows = account.test.host.step((sql) =>
-      ownTables(sql).includes("metering_interval") ? sql.exec("SELECT start, attempts FROM metering_interval WHERE sealed_at IS NOT NULL AND outcome IS NULL") : [],
+    const read = account.test.host.step((sql) =>
+      ownTables(sql).includes("metering_interval")
+        ? {
+            rows: sql.exec("SELECT start, identifier, sealed_at, outcome, attempts, next_attempt, answer_due, sent_at FROM metering_interval ORDER BY start"),
+            now: Number(sql.exec("SELECT last_now FROM skeleton")[0]?.last_now),
+          }
+        : null,
     );
-    const neverPlanned = rows.filter((row) => Number(row.attempts) === 0);
-    if (neverPlanned.length > 0 && account.usageCallsInEntry < ALARM_CALL_LIMIT) {
-      this.fail(
-        "the delete's cancel before the cut interval's send with no named bound",
-        `${account.id}: ${neverPlanned.length} sealed intervals never planned, ${account.usageCallsInEntry} usage calls in the entry`,
-      );
+    if (read === null) return;
+    const now = read.now;
+    const sealedOpen = read.rows.filter((row) => row.sealed_at !== null && row.outcome === null);
+    const never = sealedOpen.filter((row) => Number(row.attempts) === 0);
+    if (never.length === 0) return;
+    const inFlight = read.rows.filter((row) => Number(row.answer_due) === 1 && row.sent_at !== null && Number(row.sent_at) + CALL_IN_FLIGHT_MS > now);
+    if (inFlight.some((row) => !account.sendsMade.has(`${String(row.identifier)}:${String(row.sent_at)}`))) {
+      this.count("order.clause-i-the-call-limit");
+      return;
     }
+    const p = sealedOpen[0];
+    const oldest = Math.min(...never.map((row) => Number(row.start)));
+    const nextAttempt = p === undefined || p.next_attempt === null ? null : Number(p.next_attempt);
+    if (p !== undefined && Number(p.start) < oldest && Number(p.attempts) >= 1 && nextAttempt !== null && nextAttempt > now && inFlight.length === 0) {
+      this.count("order.clause-ii-behind-an-older-open-interval");
+      return;
+    }
+    this.fail(
+      "the delete's cancel before the cut interval's send with no named bound",
+      `${account.id}: ${never.length} sealed intervals never planned; the oldest open interval has ${String(p?.attempts)} attempts and its next attempt ${nextAttempt === null ? "none" : `${nextAttempt - now} ms after now`}; a send in flight: ${inFlight.length > 0 ? "yes" : "no"}; neither clause (i), the call limit, nor clause (ii), an older open interval not yet due, held`,
+    );
   }
 
   private async drive(account: Account, start: () => Promise<unknown>): Promise<void> {
-    account.usageCallsInEntry = 0;
     const generation = account.generation;
     const gate = blocker();
     account.blocker = gate;
