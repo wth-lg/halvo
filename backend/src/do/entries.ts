@@ -631,21 +631,21 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const stored = markOf(open.sql);
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (stored.answeredAt === null || !answeredFor(stored, subscriptionId)) return NOT_FINISHED;
-      const metered = isMetered(open.sql);
-      if (ledger.openHoldsAt(open.sql, now) === 0 && (!metered || metering.settled(open.sql))) {
+      if (now >= stored.answeredAt + DELETE_REMOVAL_BOUND_MS) {
+        let closed: number | { unknown: unknown } = 0;
+        try {
+          closed = isMetered(open.sql) ? metering.closeOpen(open.sql, now) : 0;
+        } catch (error) {
+          open.caught(error);
+          closed = { unknown: error };
+        }
         open.beginWithoutAlarm();
-        return { closed: 0 };
+        return { closed };
       }
-      if (now < stored.answeredAt + DELETE_REMOVAL_BOUND_MS) return NOT_FINISHED;
-      let closed: number | { unknown: unknown } = 0;
-      try {
-        closed = metered ? metering.closeOpen(open.sql, now) : 0;
-      } catch (error) {
-        open.caught(error);
-        closed = { unknown: error };
-      }
+      const metered = isMetered(open.sql);
+      if (ledger.openHoldsAt(open.sql, now) > 0 || (metered && !metering.settled(open.sql))) return NOT_FINISHED;
       open.beginWithoutAlarm();
-      return { closed };
+      return { closed: 0 };
     });
     if ("result" in last) return last;
     try {

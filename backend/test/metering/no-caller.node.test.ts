@@ -127,6 +127,10 @@ describe("90 days with no caller after the delete: the owed cancel is made by th
     });
   }
 
+  test("metering.settled throws on every call from the delete on, every send lost: the answer is stored and the storage goes at the bound", async () => {
+    holdsTheRule(await ninetyDays("metering.settled", "lost"));
+  });
+
   test("metering.closeOpen throws at the bound, every send lost: the storage goes all the same", async () => {
     holdsTheRule(await ninetyDays("metering.closeOpen", "lost"));
   });
