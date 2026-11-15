@@ -5,7 +5,7 @@ set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=42
+failing_fixtures=45
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -55,6 +55,7 @@ known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i
 known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
 known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2
+known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask
 known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
 password_field_fixture_chrome
 password_field_fixture_edge
@@ -148,17 +149,32 @@ windows_lock_id() {
 }
 
 ledger_check() {
-  fix="run the long form (HALVO_WF_FORM=long) on a scratch push of this head, then record that run with form=long and result=pass, its figures, and the ids that the head has of the listed paths and of the windows lines of Cargo.lock in $ledger (ruling W3-17 S4)"
+  fix="run the long form (HALVO_WF_FORM=long) on a scratch push of this head, then record each attempt at this head in $ledger, numbered from 1, with its run, job, functional line, short controls, second controls and slipped controls, the newest one passed, and the ids that the head has of the listed paths and of the windows lines of Cargo.lock (rulings W3-17 S4, W3-19 (1))"
   [ -f "$ledger" ] || fail "$ledger is missing: $fix"
   tr -d '\r' <"$ledger" >"$work/ledger" || fail "$ledger cannot be read"
-  runs=$(sed -n 's/^measured run=\([0-9][0-9]*\) .*/\1/p' "$work/ledger" | tr '\n' ' ')
-  run=${runs% }
-  case $run in
-    '') fail "$ledger names no measured run: $fix" ;;
-    *' '*) fail "$ledger names more than one measured run ($run): $fix" ;;
+  ! grep -q '^measured run=' "$work/ledger" || fail "$ledger holds a line of the form measured run=, which records no attempts: $fix"
+  attempt_form='^measured attempt=[0-9]+ run=[0-9]+ job=[0-9]+ form=long result=(pass|fail) commit=[0-9a-f]{40} wf=[^ ]+ short_controls=[^ ]+ second_controls_taken=[0-9]+ slipped_controls=[0-9]+( |$)'
+  grep '^measured attempt' "$work/ledger" >"$work/attempts"
+  [ -s "$work/attempts" ] || fail "$ledger records no attempt: $fix"
+  ! grep -v -q -E "$attempt_form" "$work/attempts" || fail "$ledger holds an attempt line that is not in the form of the long form: $fix"
+  numbers=$(sed -E 's/^measured attempt=([0-9]+) .*/\1/' "$work/attempts" | tr '\n' ' ')
+  total=$(grep -c '' "$work/attempts")
+  wanted=
+  index=0
+  while [ "$index" -lt "$total" ]; do
+    index=$((index + 1))
+    wanted="$wanted$index "
+  done
+  [ "$numbers" = "$wanted" ] || fail "$ledger numbers its attempts ${numbers% } and not 1 to $total in order: $fix"
+  commits=$(sed -E 's/.* commit=([0-9a-f]+) .*/\1/' "$work/attempts" | sort -u | grep -c '')
+  [ "$commits" = 1 ] || fail "$ledger records attempts at more than one commit: $fix"
+  newest=$(tail -n 1 "$work/attempts")
+  case $newest in
+    *' result=pass '*) ;;
+    *) fail "the newest attempt that $ledger records did not pass: $fix" ;;
   esac
-  long=$(grep -c -E '^measured run=[0-9]+ (.* )?form=long( .*)? result=pass( |$)' "$work/ledger")
-  [ "$long" = 1 ] || fail "$ledger names the measured run $run without form=long and result=pass: $fix"
+  ! sed '$d' "$work/attempts" | grep -q ' result=pass ' || fail "$ledger records a passed attempt before its newest one: $fix"
+  run=$(printf '%s\n' "$newest" | sed -E 's/^measured attempt=[0-9]+ run=([0-9]+) .*/\1/')
   sed -n -E 's/^measured (tree|blob) path=([^ ]*) id=[0-9a-f]+$/\2/p' "$work/ledger" | sort >"$work/ledger-paths" ||
     fail "$ledger cannot be read"
   ledger_paths | sort >"$work/listed-paths" || fail "the list of the ledger's paths cannot be read"
@@ -175,7 +191,7 @@ ledger_check() {
   [ -n "$recorded" ] || fail "$ledger records no id of the windows lines of Cargo.lock: $fix"
   [ "$recorded" = "$head_id" ] ||
     fail "the measured run $run ran on other windows lines of Cargo.lock than the head's ($recorded against $head_id): $fix"
-  printf 'ledger: the measured run %s of the long form ran on what the head has of the listed paths and of the windows lines of Cargo.lock\n' "$run"
+  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of the listed paths and of the windows lines of Cargo.lock\n' "$run" "$total"
 }
 
 loops() {
@@ -477,7 +493,13 @@ measure() {
     in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )second_control=taken( |$)")
     seconds_taken=$((seconds_taken + in_log))
   done
-  line="WF short controls$short second_controls_taken=$seconds_taken"
+  slipped=0
+  for log in "$work"/test-*.log; do
+    [ -f "$log" ] || continue
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )control_state=schedule_slipped( |$)")
+    slipped=$((slipped + in_log))
+  done
+  line="WF short controls$short second_controls_taken=$seconds_taken slipped_controls=$slipped"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
 
@@ -804,7 +826,9 @@ make_ledger_repo() {
     git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
       -c commit.gpgsign=false commit -q -m fixture || exit 2
     {
-      printf 'measured run=7 form=long result=pass figures=none\n'
+      commit=$(git rev-parse HEAD) || exit 2
+      printf 'measured attempt=1 run=6 job=60 form=long result=fail commit=%s wf=total=3,fail=1 short_controls=gate_not_clear=1,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=0\n' "$commit"
+      printf 'measured attempt=2 run=6 job=61 form=long result=pass commit=%s wf=total=3,fail=0 short_controls=gate_not_clear=0,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=1\n' "$commit"
       ledger_paths | while read -r path; do
         kind=$(git cat-file -t "HEAD:$path") || exit 2
         id=$(git rev-parse "HEAD:$path") || exit 2
@@ -815,8 +839,11 @@ make_ledger_repo() {
     } >"$repo/docs/baseline/ledger.d/win-3.txt" || exit 2
   ) || exit 2
   right_ledger=$repo/docs/baseline/ledger.d/win-3.txt
-  { cat "$right_ledger" && printf 'measured run=8 form=long result=pass figures=none\n'; } >"$work/ledger-two-runs" || exit 2
-  sed 's/^measured run=7 form=long/measured run=7 form=short/' "$right_ledger" >"$work/ledger-short" || exit 2
+  sed 's/^measured attempt=2 /measured attempt=3 /' "$right_ledger" >"$work/ledger-out-of-order" || exit 2
+  sed 's/^\(measured attempt=2 .*\) form=long /\1 form=short /' "$right_ledger" >"$work/ledger-short" || exit 2
+  sed 's/^\(measured attempt=2 .*\) result=pass /\1 result=fail /' "$right_ledger" >"$work/ledger-newest-failed" || exit 2
+  sed 's/^\(measured attempt=1 .*\) result=fail /\1 result=pass /' "$right_ledger" >"$work/ledger-pass-before" || exit 2
+  { printf 'measured run=7 form=long result=pass figures=none\n' && cat "$right_ledger"; } >"$work/ledger-old-form" || exit 2
   sed -E 's#^(measured tree path=crates/halvo-capture/tests id=).*#\10000000000000000000000000000000000000000#' \
     "$right_ledger" >"$work/ledger-stale" || exit 2
   sed -E 's#^(measured lock path=Cargo.lock crates=windows id=).*#\10000000000000000000000000000000000000000#' \
@@ -857,10 +884,10 @@ self_test() {
 fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 7 " "${nl}WF form=short seconds=" "${nl}PASS $name"
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
   real=$(expected_tests | awk -v form="$form_test" '{
     if (NF == 2) print $1 "|defect|" $2; else if ($1 == form) print $1 "|form"; else print $1 "|pass"
   }')
@@ -872,15 +899,15 @@ fixtures() {
     "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
     "${nl}WF form=short counted_rounds_at_each_wait_ms=150:20,200:5${nl}" \
     "${nl}WF left out: 15 of the 20 counted rounds at the wait of 200 ms${nl}" \
-    "${nl}ledger: the measured run 7 of the long form ran on what the head has" \
+    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
     "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}ledger: " "${nl}WF form=short seconds=" \
     "${nl}PASS $name"
   check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}shutdown_not_ok source=keyboard count=1${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 7 " "${nl}WF form=short seconds=" "${nl}PASS $name"
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 7 " "${nl}WF form=short seconds=" "${nl}PASS $name" \
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name" \
     "!${nl}WF ghost_test_not_in_the_file" "!${nl}WF total=99" "!${nl}PASS $name${nl}" \
     "!${nl}WF c1_raw_input result=known-defect"
 
@@ -942,11 +969,11 @@ fixtures() {
   check a-regular-test-passes-with-a-panic-on-another-thread FAIL "c1_raw_input|pass-with-panic${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
   check a-short-control-is-summed-by-its-state FAIL "c1_raw_input|short-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0${nl}" "FAIL $name (1 tests failed)"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0 slipped_controls=0${nl}" "FAIL $name (1 tests failed)"
   check one-second-control-is-taken PASS "c1_raw_input|second-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1${nl}" "${nl}PASS $name"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1 slipped_controls=0${nl}" "${nl}PASS $name"
   check two-second-controls-in-one-run FAIL "c1_raw_input|second-control${nl}helper_child_window|second-control${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2 slipped_controls=0${nl}" \
     "FAIL $name (2 second controls were taken in this run, and more than one fails the run (ruling W3-18 (13)))"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
@@ -960,14 +987,20 @@ fixtures() {
     "FAIL $name (c1_raw_input printed a line of another form than short)"
   ledger_knob=$work/no-such-ledger
   check the-ledger-is-missing FAIL "$right" "FAIL $name ($work/no-such-ledger is missing: run the long form"
-  ledger_knob=$work/ledger-two-runs
-  check the-ledger-names-two-runs FAIL "$right" "names more than one measured run (7 8)"
+  ledger_knob=$work/ledger-out-of-order
+  check the-ledger-numbers-its-attempts-out-of-order FAIL "$right" "numbers its attempts 1 3 and not 1 to 2 in order"
   ledger_knob=$work/ledger-short
-  check the-ledger-names-a-run-of-the-short-form FAIL "$right" "names the measured run 7 without form=long and result=pass"
+  check the-ledger-records-an-attempt-of-the-short-form FAIL "$right" "holds an attempt line that is not in the form of the long form"
+  ledger_knob=$work/ledger-newest-failed
+  check the-ledger-s-newest-attempt-failed FAIL "$right" "the newest attempt that $work/ledger-newest-failed records did not pass"
+  ledger_knob=$work/ledger-pass-before
+  check the-ledger-records-a-pass-before-its-newest-attempt FAIL "$right" "records a passed attempt before its newest one"
+  ledger_knob=$work/ledger-old-form
+  check the-ledger-holds-a-run-line-of-the-old-form FAIL "$right" "holds a line of the form measured run=, which records no attempts"
   ledger_knob=$work/ledger-stale
-  check the-ledger-holds-another-tree-of-the-tests FAIL "$right" "the measured run 7 ran on another crates/halvo-capture/tests than the head's (0000000000000000000000000000000000000000 against "
+  check the-ledger-holds-another-tree-of-the-tests FAIL "$right" "the measured run 6 ran on another crates/halvo-capture/tests than the head's (0000000000000000000000000000000000000000 against "
   ledger_knob=$work/ledger-lock
-  check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 7 ran on other windows lines of Cargo.lock than the head's"
+  check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 6 ran on other windows lines of Cargo.lock than the head's"
   ledger_knob=$work/ledger-paths
   check the-ledger-lacks-a-listed-path FAIL "$right" "records other paths than the listed ones, or a path more than once"
   form_word=long
