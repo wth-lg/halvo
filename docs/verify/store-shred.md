@@ -742,10 +742,10 @@ The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
 `[Write { len: 0, expiry: Past }, ShredExpired]`.
 
-Twelve rows share their substitution with a `formal-` row of the same file
+Eleven rows share their substitution with a `formal-` row of the same file
 that has another verdict: `shredded-key-survives`,
 `checkpoint-not-verified`, `raw-store-key-in-key-file`,
-`delete-all-destroys-nothing`, `custody-wrap-under-constant-key`,
+`custody-wrap-under-constant-key`,
 `custody-root-is-all-zero`, `store-db-mode-not-narrowed`,
 `directory-lock-never-refuses`, `live-holder-busy-not-mapped-to-locked`,
 and the three rows of the hardening tests on a create that destroys a
