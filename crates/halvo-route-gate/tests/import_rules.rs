@@ -801,6 +801,25 @@ fn a_limits_line_names_its_task_at_any_later_word() {
 }
 
 #[test]
+fn a_limits_line_names_its_task_without_ascii_letter_case() {
+    let mut wrong = Vec::new();
+    for line in [
+        "limits task=ORDER steps=9 wall_s=400 model_tokens=9000",
+        "limits task=Order steps=9 wall_s=400 model_tokens=9000",
+        "limits TASK=order steps=9 wall_s=400 model_tokens=9000",
+        "limits task=Bill steps=9 wall_s=400 model_tokens=9000",
+        "limits task=REPLY wall_s=120 model_tokens=700",
+    ] {
+        let got = run(
+            &refs(&with(with(cell_lines("m_c"), line), VERDICT)),
+            &[BOUND],
+        );
+        refused_at(&got, "driver:9", line, &mut wrong);
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
 fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     let mut wrong = Vec::new();
     for (what, driver, want) in [
