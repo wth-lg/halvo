@@ -74,6 +74,10 @@ through". The control holds against an egress check that wraps nothing; an egres
 the same commit can pass it, and scripts/egress/ is held by its own run's checks and by the landing's
 readers. Every wrapped run must name a new log directory whose denied.log holds as many lines as its
 denied.
+The import listing: the check prints the count of the undefined or imported symbols of the dev
+route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on Windows where the
+runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
+it is a measurement and refuses nothing.
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of commands of the first list.
 The limits that stay:
 1. a socket or a process start inside a third-party crate, also when code of the three crates calls
@@ -519,6 +523,37 @@ forbid_crates() {
   printf 'egress forbid profile=%s findings=%s exit=%s\n' "$1" "$findings" "$forbid_exit"
   if [ "$findings" -ne 0 ] || [ "$forbid_exit" -ne 0 ]; then
     holds=no
+  fi
+}
+
+import_listing() {
+  listing=$artifacts/route-gate.imports
+  if [ "$job_system" = unix ]; then
+    if command -v nm >/dev/null 2>&1 && nm -u "$exe" >"$listing" 2>"$listing.err"; then
+      count=$(awk 'END { print NR }' "$listing") || count=-
+      printf 'egress imports binary=dev reader=nm count=%s\n' "$count"
+    else
+      printf 'egress imports binary=dev reader=nm count=- (nm could not read the binary)\n'
+    fi
+    return
+  fi
+  reader=
+  sysroot=$(rustc --print sysroot 2>/dev/null) || sysroot=
+  for found in "$sysroot"/lib/rustlib/*/bin/llvm-readobj.exe "$sysroot"/lib/rustlib/*/bin/llvm-readobj; do
+    if [ -n "$sysroot" ] && [ -f "$found" ]; then
+      reader=$found
+      break
+    fi
+  done
+  if [ -z "$reader" ]; then
+    printf 'egress imports binary=dev reader=none (llvm-readobj of rustup llvm-tools is not on this runner)\n'
+    return
+  fi
+  if "$reader" --coff-imports "$exe" >"$listing" 2>"$listing.err"; then
+    count=$(grep -c 'Symbol: ' "$listing") || count=0
+    printf 'egress imports binary=dev reader=llvm-readobj count=%s\n' "$count"
+  else
+    printf 'egress imports binary=dev reader=llvm-readobj count=- (llvm-readobj could not read the binary)\n'
   fi
 }
 
@@ -1166,6 +1201,7 @@ check() {
     *) fail setup ;;
   esac
   [ -f "$exe" ] || fail setup
+  import_listing
 
   denied=0
   ran=yes
@@ -1867,6 +1903,7 @@ self_test() {
   case_reset
 
   case_run pass PASS - "egress checks=6 denied=0 entries=0${nl}denied=0 proves that no process"
+  case_run import-listing-printed PASS - 'egress imports binary=dev reader=' 
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
