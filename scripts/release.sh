@@ -6,8 +6,33 @@ cd "$(dirname "$0")/.."
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 
 usage() {
-  echo "usage: sh scripts/release.sh --dry-run|--execute [patch|minor|major]" >&2
+  echo "usage: sh scripts/release.sh --dry-run|--execute [patch|minor|major], or --help" >&2
   exit 64
+}
+
+help_text() {
+  cat <<'EOF'
+Releases Halvo with cargo-release, one version for every package of the workspace.
+
+  sh scripts/release.sh --dry-run [patch|minor|major]
+      Prints the next version, the commit message, the tag and the CHANGELOG.md
+      section that --execute would write, its entries grouped by type. It
+      changes no tracked file; it writes target/release-commit-message.toml alone.
+  sh scripts/release.sh --execute [patch|minor|major]
+      Works on the branch main only. It sets every package of the workspace to
+      the next version, moves the entries of ## [Unreleased] under a heading of
+      that version, grouped by type, and makes one commit and one tag v<version>.
+      It pushes nothing. When the clone has a remote named origin, it first
+      reads main's newest commit there with git ls-remote and refuses unless
+      HEAD is that commit; a clone with no remote named origin is the one case
+      without that read.
+  sh scripts/release.sh --help
+      Prints this text.
+
+The level defaults to patch. Pushing the commit and the tag, signing and
+publishing are the owner's own steps. The settings are in release.toml and
+src-tauri/release.toml.
+EOF
 }
 
 fail() {
@@ -78,6 +103,12 @@ group_changelog() {
     on && /^## / { exit }
     on'
 }
+
+if [ "${1:-}" = --help ]; then
+  [ $# -eq 1 ] || usage
+  help_text
+  exit 0
+fi
 
 if [ "${1:-}" = --group-changelog ]; then
   [ $# -eq 1 ] || usage

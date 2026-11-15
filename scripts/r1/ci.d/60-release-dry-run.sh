@@ -214,6 +214,16 @@ All notable changes are recorded in this file.
   release_case level-bogus 64 no usage --execute bogus
   release_case third-argument 64 no usage --dry-run patch extra
   release_case no-argument 64 no usage
+  help_status=0
+  (cd "$repo" && sh scripts/release.sh --help) >"$work/help.txt" 2>&1 || help_status=$?
+  missing=
+  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'defaults to patch' "owner's own steps"; do
+    grep -q -F -e "$fact" "$work/help.txt" || missing="$missing [$fact]"
+  done
+  got=FAIL
+  [ "$help_status" = 0 ] && [ -z "$missing" ] && got=PASS
+  verdict help-states-what-a-person-who-runs-the-script-needs PASS "$got"
+  release_case help-with-another-argument 64 no usage --help patch
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-dry-run-calls-cargo" && got=FAIL || got=PASS
   verdict dry-run-has-no-branch-guard PASS "$got"
   STUB_TEXT='   Upgrading halvo from 1.2.3 to 1.2.4' release_case execute-has-the-branch-guard 0 yes 'tag: v1.2.4' --execute
