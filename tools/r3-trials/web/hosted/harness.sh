@@ -164,7 +164,7 @@ live() {
 }
 
 has() {
-  grep -q -- "$2" "$1"
+  grep -q -- "$2" "$1" 2>/dev/null
 }
 
 stand_ins() {
@@ -253,8 +253,12 @@ STUB
 }
 
 in_stand_ins() {
-  env -i PATH="$work/run-bin:/usr/bin:/bin" HOME="$work" R3_STUB_LOG="$1/calls" R3_REG="$1/reg" \
-    R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" sh -s >"$1/out" 2>&1
+  env -i PATH="${R3_FIRST_BIN:-$work/run-bin}:$work/run-bin:/usr/bin:/bin" HOME="$work" R3_STUB_LOG="$1/calls" \
+    R3_REG="$1/reg" R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" "${R3_CASE_SH:-sh}" -s >"$1/out" 2>&1
+}
+
+posix_sh() {
+  if [ -x /bin/dash ]; then echo /bin/dash; else echo sh; fi
 }
 
 put_back_cases() {
@@ -286,7 +290,7 @@ CASE
   c="$work/w-term"
   mkdir -p "$c/reg/Google/Chrome"
   printf 'REG_SZ fixed_servers' >"$c/reg/Google/Chrome/ProxyMode"
-  in_stand_ins "$c" <<'CASE'
+  R3_CASE_SH=$(posix_sh) in_stand_ins "$c" <<'CASE'
 . "$here/win.sh"; k=chrome; arm_undo
 policy_set "Google\\Chrome" ProxyMode REG_SZ direct >/dev/null
 [ "$(cat "$R3_REG/Google/Chrome/ProxyMode")" = "REG_SZ direct" ] || echo not_set
@@ -311,11 +315,30 @@ CASE
   verdict win_refuses_a_wheel_whose_bytes_differ_from_its_line \
     "$(holds has "$c/out" "bytes_ok=no sha256_ok=no")$(has "$c/out" installed && echo _installed)$(has "$c/calls" "^python" && echo _python)" \
     "python_calls=$(grep -c '^python' "$c/calls")"
+  for same in yes no; do
+    c="$work/m-reuse-$same"
+    mkdir -p "$c/bin"
+    cp "$work/stub" "$c/bin/sudo"
+    later="Sat Nov 15 09:00:00 2026"
+    [ "$same" = yes ] && later="Sat Nov 15 08:00:00 2026"
+    printf '#!/bin/sh\ncase "$*" in\n  *-axo*) echo "4242 Sat Nov 15 08:00:00 2026 /usr/sbin/cfprefsd" ;;\n  *lstart=*) echo "%s" ;;\nesac\n' "$later" >"$c/bin/ps"
+    chmod 755 "$c/bin/sudo" "$c/bin/ps"
+    R3_FIRST_BIN="$c/bin" in_stand_ins "$c" <<'CASE'
+. "$here/mac.sh"
+prefs_flush
+CASE
+    if [ "$same" = yes ]; then
+      verdict mac_ends_a_daemon_whose_start_time_reads_the_same \
+        "$(holds has "$c/out" "prefs_daemon found=1 ended=1")$(has "$c/calls" "^sudo kill 4242$" || echo _no_kill)" "-"
+    else
+      verdict mac_leaves_a_process_whose_start_time_changed \
+        "$(holds has "$c/out" "prefs_daemon found=1 ended=0")$(has "$c/calls" "kill" && echo _killed)" "-"
+    fi
+  done
   [ "$(uname -s)" = Darwin ] || return 0
   c="$work/m-earlier"
   mkdir -p "$c/managed" "$c/work"
-  printf 'earlier
-' >"$c/managed/com.google.Chrome.plist"
+  printf 'earlier\n' >"$c/managed/com.google.Chrome.plist"
   in_stand_ins "$c" <<'CASE'
 . "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"
 PREFS_DAEMON="$RUNNER_TEMP/none"; set_policy com.google.Chrome chrome RemoteDebuggingAllowed "<false/>"
@@ -341,9 +364,8 @@ CASE
     "$(holds test -d "$c/managed" -a ! -e "$c/managed/com.google.Chrome.plist")$(has "$c/out" "harness_end dir_removed=-" || echo _line)" "-"
   c="$work/m-term"
   mkdir -p "$c/managed" "$c/work"
-  printf 'earlier
-' >"$c/managed/com.google.Chrome.plist"
-  in_stand_ins "$c" <<'CASE'
+  printf 'earlier\n' >"$c/managed/com.google.Chrome.plist"
+  R3_CASE_SH=$(posix_sh) in_stand_ins "$c" <<'CASE'
 . "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"
 PREFS_DAEMON="$RUNNER_TEMP/none"; arm_undo
 set_policy com.google.Chrome chrome ProxyMode "<string>direct</string>"
