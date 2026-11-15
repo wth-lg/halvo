@@ -874,17 +874,17 @@ control() {
         break
         ;;
     esac
+    if [ "$status" = 0 ] && [ "$count" -eq 0 ]; then
+      holds=no
+      printf 'egress control: the egress check let the control through\n'
+      break
+    fi
     if ! log_holds "$work/before-control-$try.txt"; then
       holds=no
       printf 'egress control log=not-new-or-not-its-own\n'
       break
     fi
     if [ "$count" -gt 0 ]; then
-      break
-    fi
-    if [ "$status" = 0 ]; then
-      holds=no
-      printf 'egress control: the egress check let the control through\n'
       break
     fi
     if [ "$try" -eq 4 ]; then
