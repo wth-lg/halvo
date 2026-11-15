@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: On a disk image that the check fills, delete-all of a store in each of the scenarios A, B and C ends with the store's root file and store.key gone. In CI the time from the delete-all request to the end of its root step differs by less than a factor of 2 between 250 and 2,000 segments, or the larger median is under 50 ms (ruling ST-46 K5 N5); outside CI that bound is skipped with its reason, because no time on a developer's Mac is a measurement.
+# lane: alone
 set -u
 name=31-store-full-volume
 test_name=store::hardening_tests::a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file

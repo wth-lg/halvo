@@ -13,29 +13,51 @@ pub(crate) const LEARN_RUN: &str = "learn_run";
 pub(crate) const LEARN_EDIT: &str = "learn_edit";
 pub(crate) const LEARN_ROUTINE: &str = "learn_routine";
 
-fn parsed<T>(
+pub(crate) enum Read<T> {
+    Rows(T),
+    Stopped,
+}
+
+fn read<T>(
     rows: &dyn RowRead,
     kind: &str,
     parse: fn(&[u8]) -> Result<T, Refusal>,
-) -> Result<Vec<T>, ErrorName> {
+    workflow: &WorkflowId,
+) -> Read<Vec<T>> {
     let mut out = Vec::new();
-    let mut unread = false;
+    let mut stopped = false;
     rows.for_each(kind, &mut |row| match parse(row.as_bytes()) {
         Ok(value) => out.push(value),
-        Err(_) => unread = true,
+        Err(_) => {
+            if refused_workflow(kind, row).is_none_or(|named| &named == workflow) {
+                stopped = true;
+            }
+        }
     });
-    if unread {
-        return Err(ErrorName::Store);
+    if stopped {
+        return Read::Stopped;
     }
-    Ok(out)
+    Read::Rows(out)
 }
 
-pub(crate) fn runs(rows: &dyn RowRead) -> Result<Vec<LearnRun>, ErrorName> {
-    parsed(rows, LEARN_RUN, LearnRun::parse)
+pub(crate) fn runs(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<LearnRun>> {
+    read(rows, LEARN_RUN, LearnRun::parse, workflow)
 }
 
-pub(crate) fn routines(rows: &dyn RowRead) -> Result<Vec<LearnRoutine>, ErrorName> {
-    parsed(rows, LEARN_ROUTINE, LearnRoutine::parse)
+pub(crate) fn routines(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<LearnRoutine>> {
+    read(rows, LEARN_ROUTINE, LearnRoutine::parse, workflow)
+}
+
+pub(crate) fn run_row(rows: &dyn RowRead, run: &str) -> Option<LearnRun> {
+    let mut found: Vec<LearnRun> = Vec::new();
+    rows.for_each(LEARN_RUN, &mut |row| {
+        if let Ok(parsed) = LearnRun::parse(row.as_bytes()) {
+            if parsed.run.as_str() == run {
+                found.push(parsed);
+            }
+        }
+    });
+    newest_run(&found, run).cloned()
 }
 
 pub(crate) fn run_record(row: &LearnRun) -> Result<TypedRecord, ErrorName> {
@@ -69,8 +91,9 @@ pub(crate) fn newest_run<'a>(runs: &'a [LearnRun], run: &str) -> Option<&'a Lear
 /// The newest `learn_routine` row of the workflow and agent (contracts.md L1.1, the coordinator's ruling LM-56 (f)):
 /// the row of the highest `rev`, of two rows of one `rev` the one of the later `day`, and of two rows of one `rev`
 /// and one `day` the one that stands later in `routines`, which holds the rows in the order in which the read
-/// visited them. The step takes the newest row from it alone.
-pub(crate) fn newest_routine<'a>(
+/// visited them. The step, `list_refinements`, the writes at an accepted `start_run` and every other reader of the
+/// rows take the newest row from it alone (contracts.md L4.5; the coordinator's ruling LM-79, item 2).
+pub fn newest_routine<'a>(
     routines: &'a [LearnRoutine],
     workflow: &WorkflowId,
     agent: &AgentId,
@@ -140,15 +163,18 @@ pub(crate) struct Edits {
 }
 
 impl Edits {
-    pub(crate) fn read(rows: &dyn RowRead) -> Result<Edits, ErrorName> {
+    pub(crate) fn read(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Edits> {
+        let Read::Rows(parsed) = read(rows, LEARN_EDIT, LearnEdit::parse, workflow) else {
+            return Read::Stopped;
+        };
         let mut by_id: BTreeMap<EditId, Vec<LearnEdit>> = BTreeMap::new();
-        for row in parsed(rows, LEARN_EDIT, LearnEdit::parse)? {
+        for row in parsed {
             by_id.entry(row.edit.clone()).or_default().push(row);
         }
         for revisions in by_id.values_mut() {
             revisions.sort_by_key(|r| r.rev);
         }
-        Ok(Edits { by_id })
+        Read::Rows(Edits { by_id })
     }
 
     pub(crate) fn contains(&self, id: &EditId) -> bool {

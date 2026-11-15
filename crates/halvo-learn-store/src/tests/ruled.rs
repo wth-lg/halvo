@@ -511,9 +511,13 @@ fn g4_an_end_run_under_another_agent_drops_nothing() {
     let mut w = active_world();
     second_agent(&mut w);
     w.replay(2);
+    let (count, commits) = (w.host.count(), w.host.commits.get());
+    let rows = w.host.learn_rows("learn_run");
     let reply = w
         .coordinator(json!({"op": "end_run", "workflow": wf(2), "agent": agent(2), "run": run(2)}));
     assert!(reply.is_ok(), "end_run: {reply:?}");
+    assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
+    assert_eq!(w.host.learn_rows("learn_run"), rows);
     assert!(w.handlers.facts.contains_key(&id(2)));
     assert!(w.handlers.starts.contains_key(&id(2)));
 }
