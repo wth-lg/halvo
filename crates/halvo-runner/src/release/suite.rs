@@ -614,6 +614,8 @@ pub(crate) fn run_many_path(
         "none",
         "--data-dir",
         &data,
+        "--utc-offset",
+        "0",
     ];
     let words: Vec<OsString> = words.iter().map(OsString::from).collect();
     let args = crate::args::parse(&words).expect("the arguments");

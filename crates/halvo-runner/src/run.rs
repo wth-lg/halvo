@@ -532,6 +532,8 @@ mod tests {
             "replay",
             "--browser",
             "none",
+            "--utc-offset",
+            "0",
         ];
         let words: Vec<OsString> = words.iter().map(|w| OsString::from(*w)).collect();
         let args = crate::args::parse(&words).expect("the arguments");

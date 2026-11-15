@@ -449,6 +449,8 @@ pub struct Supervisor {
     pub slots: Vec<Slot>,
     pub steps: Vec<ExecutableStep>,
     pub mode: &'static str,
+    /// The run's `--utc-offset`, 0 unless a test sets it.
+    pub utc_offset_s: i32,
 }
 
 impl Supervisor {
@@ -464,6 +466,7 @@ impl Supervisor {
             slots,
             steps: Vec::new(),
             mode: "replay",
+            utc_offset_s: 0,
         }
     }
 
@@ -479,6 +482,8 @@ impl Supervisor {
             self.mode.into(),
             "--browser".into(),
             "no-browser-in-this-build".into(),
+            "--utc-offset".into(),
+            self.utc_offset_s.to_string(),
         ]
     }
 
