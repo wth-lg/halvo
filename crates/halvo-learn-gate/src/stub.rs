@@ -283,7 +283,8 @@ impl<'c> Play<'c> {
 
     fn record(&self, run: &str, mode: &str, outcome: &str, playbook: u32, steps: usize) -> Value {
         json!({
-            "v": 1, "workflow": self.workflow, "agent": self.agent, "run": run, "day": self.host.day,
+            "v": 1, "workflow": self.workflow, "agent": self.agent, "run": run,
+            "day": halvo_agent_store::Host::day(&self.host.store, self.host.now().at),
             "mode": mode, "outcome": outcome, "playbook": playbook, "steps": steps, "prompts": 0,
             "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
             "tokens_in": 0, "tokens_out": 0, "wall_s": 1, "model": null,
@@ -415,7 +416,7 @@ impl<'c> Play<'c> {
             .map(|(seq, (event, step, cause))| {
                 json!({
                     "v": 1, "workflow": workflow, "agent": agent, "run": run, "seq": seq,
-                    "day": self.host.day, "at": self.host.now().at.0, "event": event, "step": step,
+                    "day": halvo_agent_store::Host::day(&self.host.store, self.host.now().at), "at": self.host.now().at.0, "event": event, "step": step,
                     "cause": cause, "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
                 })
             })

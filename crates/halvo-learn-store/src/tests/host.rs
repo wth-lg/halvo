@@ -387,7 +387,7 @@ impl World {
             .map(|(seq, event, step, cause)| {
                 json!({
                     "v": 1, "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "seq": seq,
-                    "day": self.host.day, "at": 1_794_500_000_000_000_000_i64, "event": event,
+                    "day": self.host.day, "at": self.host.agent_now().at.0, "event": event,
                     "step": step, "cause": cause, "model": null, "ms": null,
                     "tokens_in": null, "tokens_out": null,
                 })
