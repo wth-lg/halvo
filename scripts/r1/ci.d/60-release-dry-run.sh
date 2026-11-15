@@ -61,7 +61,6 @@ measure() {
     printf 'SKIP %s (cargo-release %s is not installed; run sh scripts/prerequisites.sh)\n' "$name" "$pin"
     exit 77
   fi
-  git var GIT_COMMITTER_IDENT >/dev/null 2>&1 || fail "git has no name and email for the release commit in the throwaway clone"
   head=$(git rev-parse HEAD) || fail "git rev-parse HEAD failed"
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   printf 'throwaway clone under %s\n' "$work"
@@ -69,6 +68,8 @@ measure() {
   git clone --quiet --no-hardlinks "$CI_D_REPO" "$clone" || fail "git clone of the checkout failed"
   git -C "$clone" remote remove origin || fail "git remote remove origin failed in the clone"
   git -C "$clone" checkout -q -B release-check "$head" || fail "git checkout in the clone failed"
+  (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid git var GIT_COMMITTER_IDENT) >/dev/null 2>&1 ||
+    fail "git has no name and email for the release commit in the throwaway clone"
   remotes=$(git -C "$clone" remote)
   [ -z "$remotes" ] || fail "the throwaway clone has a remote"
 
@@ -86,7 +87,7 @@ measure() {
   cmp -s "$work/before-dry-run" "$work/after-dry-run" || fail "the dry run changed the status, HEAD, a tag or a ref of the clone"
   printf 'dry run on a named branch: exit 0, next version and tag lines: true, clone unchanged: true\n'
 
-  (cd "$clone" && sh scripts/release.sh --execute) >"$work/execute-off-main.txt" 2>&1
+  (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$work/execute-off-main.txt" 2>&1
   status=$?
   snapshot "$clone" >"$work/after-execute-off-main"
   [ "$status" != 0 ] || fail "sh scripts/release.sh --execute exited 0 on a branch other than main"
@@ -96,7 +97,7 @@ measure() {
   git -C "$clone" checkout -q -B main "$head" || fail "git checkout -B main in the clone failed"
   unreleased_texts "$clone/CHANGELOG.md" >"$work/unreleased-before.txt"
   tags_before=$(git -C "$clone" tag --list | grep -c .)
-  (cd "$clone" && sh scripts/release.sh --execute) >"$work/execute-on-main.txt" 2>&1
+  (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$work/execute-on-main.txt" 2>&1
   status=$?
   [ "$status" = 0 ] || fail "sh scripts/release.sh --execute exited $status on main"
   commits=$(git -C "$clone" rev-list --count "$head..HEAD")
