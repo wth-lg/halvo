@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
 set -u
 name=46-r4-dialog-ran
 off='hosted alone: not run on this machine'
@@ -36,7 +36,7 @@ decide() {
   while read -r target count; do
     line="$target end: cases ran $count of $count, failed 0"
     case $target in
-      guard_hosted) tail=', helped 0, moments at a press 0, retries [0-9]+' ;;
+      guard_hosted) tail=', schedule slipped [0-9]+, helped 0, moments at a press 0, retries [0-9]+' ;;
       *) tail= ;;
     esac
     ends=$(grep -c "^$target end: " "$log")
@@ -51,6 +51,8 @@ decide() {
   done <<EOF
 $want
 EOF
+  few=$(grep -c '^guard_hosted case .* FAIL: .*too few runs kept the schedule' "$log")
+  [ "$few" = 0 ] || broke "too few runs kept the schedule: in $few cases of guard_hosted the schedule slipped in each of the runs that the target makes"
 }
 
 tracked() {
@@ -168,7 +170,7 @@ EOF
   wrong=
   running='     Running tests/dialog_hosted.rs (target/debug/deps/dialog_hosted-0123456789abcdef)'
   mac_dialog='dialog_hosted end: cases ran 4 of 4, failed 0'
-  counts=', helped 0, moments at a press 0, retries'
+  counts=', schedule slipped 0, helped 0, moments at a press 0, retries'
   mac_guard="guard_hosted end: cases ran 7 of 7, failed 0$counts 0"
   win_dialog='dialog_hosted end: cases ran 5 of 5, failed 0'
   win_guard="guard_hosted end: cases ran 8 of 8, failed 0$counts 2"
@@ -188,7 +190,7 @@ EOF
   output short-flag 'dialog_hosted end: cases ran 3 of 4, failed 0, FAIL: not every case ran' "$mac_guard"
   check macos-short-count-with-its-mark FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output win-short "$win_dialog" "guard_hosted end: cases ran 7 of 8, failed 0$counts 0"
-  check windows-short-count FAIL 'not "guard_hosted end: cases ran 8 of 8, failed 0, helped 0' windows
+  check windows-short-count FAIL 'not "guard_hosted end: cases ran 8 of 8, failed 0, schedule slipped [0-9]+, helped 0' windows
   output win-count "$win_dialog" "$win_guard"
   check macos-job-with-the-windows-count FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output mac-count "$mac_dialog" "$mac_guard"
@@ -204,12 +206,25 @@ EOF
   check macos-inconclusive-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
   check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
-  output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 1, moments at a press 0, retries 0'
-  check macos-a-helped-show FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0, helped 1' macos
-  output press-moment "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 2, retries 0'
+  output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 1, moments at a press 0, retries 0'
+  check macos-a-helped-show FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 1' macos
+  output press-moment "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 0, moments at a press 2, retries 0'
   check macos-a-report-taken-at-a-press FAIL 'moments at a press 2, retries 0", not' macos
-  output retries "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 0, retries 13'
+  output retries "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 0, moments at a press 0, retries 13'
   check macos-retries-of-any-count PASS 'the line of 7 of 7 with none failed 1' macos
+  output no-slipped-count "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 0, retries 0'
+  check macos-a-guard-line-with-no-count-of-slipped-schedules FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0, helped 0' macos
+  output slipped-twice "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it schedule slipped in run 1 of 3: the schedule slipped: the press ran 528 ms after the press before it, and arm_ms is 500; the case runs again' 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 2, helped 0, moments at a press 0, retries 0'
+  check macos-slipped-twice-then-kept-and-passed PASS 'the line of 7 of 7 with none failed 1' macos
+  output too-few-kept "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it FAIL: too few runs kept the schedule: the schedule slipped in 3 runs of 3; the last: macos allow_click_at_300ms_and_250ms_after_it: the schedule slipped: the press ran 539 ms after the press before it, and arm_ms is 500' 'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 3, helped 0, moments at a press 0, retries 0'
+  STUB_EXIT=101
+  check macos-too-few-runs-kept-the-schedule FAIL 'too few runs kept the schedule: in 1 cases of guard_hosted' macos
+  output win-too-few-kept "$win_dialog" 'guard_hosted case windows click_100_at_300ms_and_250ms_after_it FAIL: too few runs kept the schedule: the schedule slipped in 3 runs of 3' 'guard_hosted end: cases ran 8 of 8, failed 1, schedule slipped 3, helped 0, moments at a press 0, retries 0'
+  STUB_EXIT=101
+  check windows-too-few-runs-kept-the-schedule FAIL 'too few runs kept the schedule: in 1 cases of guard_hosted' windows
+  output kept-and-failed "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it FAIL: macos allow_click_at_300ms_and_250ms_after_it: the answer was reject, not allow' 'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 0, helped 0, moments at a press 0, retries 0'
+  STUB_EXIT=101
+  check macos-a-run-that-kept-the-schedule-and-failed FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 0' macos
   output no-counts "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0'
   check macos-a-guard-line-with-no-counts FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0", not' macos
   output no-guard "$mac_dialog"
