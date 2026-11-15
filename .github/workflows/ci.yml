@@ -100,11 +100,6 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-          APPLE_SIGNING_IDENTITY: ${{ github.ref_type == 'tag' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          APPLE_CERTIFICATE: ${{ github.ref_type == 'tag' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ github.ref_type == 'tag' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_API_KEY: ${{ github.ref_type == 'tag' && secrets.APPLE_API_KEY || '' }}
-          APPLE_API_ISSUER: ${{ github.ref_type == 'tag' && secrets.APPLE_API_ISSUER || '' }}
         run: sh scripts/ci/run-ci-d.sh macos
       - name: Lockfile unchanged
         shell: bash
@@ -157,8 +152,6 @@ jobs:
         run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        env:
-          HALVO_WINDOWS_SIGN_COMMAND: ${{ github.ref_type == 'tag' && secrets.HALVO_WINDOWS_SIGN_COMMAND || '' }}
         run: sh scripts/ci/run-ci-d.sh windows
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash

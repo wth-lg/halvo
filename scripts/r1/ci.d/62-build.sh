@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker, and is what the artifacts directory holds.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
 set -u
 name=62-build
 shipped_packages='halvo halvo-capture'
@@ -44,6 +44,17 @@ call_defect() {
     esac
   done
   [ "$expect_package" = 0 ] || { printf 'the call ends after a package flag\n'; return 1; }
+}
+
+signing_names='APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_KEY_PATH APPLE_API_ISSUER APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID HALVO_WINDOWS_SIGN_COMMAND'
+
+signing_defect() {
+  for variable in $signing_names; do
+    value=$(printenv "$variable") || continue
+    [ -n "$value" ] || continue
+    printf 'the signing variable %s is set, and this run builds unsigned\n' "$variable"
+    return 1
+  done
 }
 
 environment_defect() {
@@ -127,6 +138,11 @@ measure() {
 $calls
 EOF
   found=$(environment_defect) || fail "$found"
+  if ! found=$(signing_defect); then
+    [ "${CI:-}" = true ] && fail "$found"
+    printf 'SKIP %s (%s)\n' "$name" "$found"
+    exit 77
+  fi
   manifests=$(git ls-files -- Cargo.toml '*/Cargo.toml' '.cargo/config' '.cargo/config.toml') || fail "git ls-files failed"
   # shellcheck disable=SC2086
   found=$(patch_defect $manifests) || fail "$found"
@@ -155,10 +171,6 @@ EOF
   [ "$build_root" = cached ] || fresh=true
   printf 'fresh target and cargo home: %s\n' "$fresh"
   target=${CARGO_TARGET_DIR:-target}
-  for variable in APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_ISSUER HALVO_WINDOWS_SIGN_COMMAND; do
-    value=$(printenv "$variable") || continue
-    [ -n "$value" ] || unset "$variable"
-  done
   before=$(git status --porcelain --untracked-files=all) || fail "git status failed"
   : >"$CI_D_ARTIFACTS/build.txt"
   while IFS= read -r call; do
@@ -315,6 +327,16 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   got=FAIL
   untracked_configuration_defect src-tauri/Tauri.toml >/dev/null && got=PASS
   verdict untracked-toml-configuration FAIL "$got"
+
+  got=FAIL
+  (APPLE_CERTIFICATE=stand-in-value signing_defect >/dev/null) && got=PASS
+  verdict one-signing-name-set FAIL "$got"
+  got=FAIL
+  (HALVO_WINDOWS_SIGN_COMMAND=stand-in-command signing_defect >/dev/null) && got=PASS
+  verdict windows-signing-name-set FAIL "$got"
+  got=FAIL
+  (APPLE_ID='' signing_defect >/dev/null) && got=PASS
+  verdict one-signing-name-empty PASS "$got"
 
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
