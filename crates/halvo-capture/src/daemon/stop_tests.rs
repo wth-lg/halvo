@@ -1102,3 +1102,72 @@ fn a_store_that_takes_most_of_each_bound_for_each_write_still_ends_inside_the_st
     assert!(took <= stop_bound(bound), "{took:?}");
     assert_eq!(stop_bound(SETTLE_BOUND), Duration::from_secs(17));
 }
+
+/// A parking store whose first write is refused, so the owner drops that
+/// batch and counts its events lost; every later write parks.
+struct RefuseThenPark {
+    inner: ParkingStore,
+    first: bool,
+}
+
+impl MaintainStore for RefuseThenPark {
+    fn expire_due(&mut self, now: SystemTime, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.expire_due(now, max)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.evict_to(bound, max)
+    }
+
+    fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl CaptureStore for RefuseThenPark {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        if self.first {
+            self.first = false;
+            return Err(WriteFault::Refused);
+        }
+        self.inner.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+/// Ruling DM-16 (1) a, the review's B1 (its probe r38-lost-then-parked): the
+/// first write is refused, so its 512 events are lost, and every later write
+/// parks, so the stop gets no answer. The loss line's upper bound holds the
+/// lost term: it counts at least the accepted events that no write stored.
+#[test]
+fn an_unanswered_stop_after_a_dropped_batch_counts_the_dropped_events() {
+    let model = ModelStore::new();
+    let (parking, parked) = ParkingStore::parked(model.clone());
+    let store = RefuseThenPark {
+        inner: parking,
+        first: true,
+    };
+    let mut scripted = keys(1_200);
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_millis(300),
+    )
+    .unwrap();
+    let stored = model.records().len() as u64;
+    parked.store(false, Ordering::SeqCst);
+    let count = lost_in_line(&outcome).expect("no count in the loss line");
+    assert_eq!(accepted(&outcome), 1_200, "{outcome:?}");
+    assert!(
+        count >= 1_200 - stored,
+        "the loss line counts {count}, fewer than the {} accepted events that no write stored",
+        1_200 - stored
+    );
+}
