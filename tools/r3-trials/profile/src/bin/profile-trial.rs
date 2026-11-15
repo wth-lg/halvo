@@ -10,7 +10,7 @@ use r3_profile::product::{self, Outer, RunLine, Start, EGRESS_LIST, EGRESS_PORT}
 use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
     bound_bytes, browser_did_not_start, encode, entry_names, landing, marker_needles, new_entries,
-    outside_roots, profile_gone, search, search_with, LEAVE_OUT_ALL,
+    outside_roots, profile_gone, search, search_with, start_cause, LEAVE_OUT_ALL,
 };
 use r3_web::cdp::{Executor, Fault, Locator, Res, SessionState, StartOptions, Stopped};
 use r3_web::fixture::{fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
@@ -511,11 +511,16 @@ struct Session {
     marker_cookies: Vec<String>,
 }
 
-async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
+struct Missed(Fault, bool);
+
+async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Result<Session, Missed> {
     let pid = std::process::id();
     let a_dir = ctx.scratch.join(format!("{pid}-profile-a"));
     let b_dir = ctx.scratch.join(format!("{pid}-profile-b"));
-    let mut a = ctx.start_browser(a_dir.clone()).await?;
+    let mut a = ctx
+        .start_browser(a_dir.clone())
+        .await
+        .map_err(|f| Missed(f, true))?;
     watch.add_browser(a.pid());
     let signed = ctx.stop.or(sign_in_with_second_factor(&mut a, ctx)).await;
     let exported = match signed {
@@ -523,7 +528,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
         Err(f) => Err(f),
     };
     let stopped_a = a.stop_and_remove().await;
-    let exported = exported?;
+    let exported = exported.map_err(|f| Missed(f, false))?;
     let names: Vec<&str> = exported.cookies.iter().map(|c| c.name.as_str()).collect();
     out(&format!(
         "state {} cookies={} names={} storage_items={} bytes={}",
@@ -554,7 +559,10 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
             state.cookies.len()
         ));
     }
-    let mut b = ctx.start_browser(b_dir).await?;
+    let mut b = ctx
+        .start_browser(b_dir)
+        .await
+        .map_err(|f| Missed(f, true))?;
     watch.add_browser(b.pid());
     let landed = ctx
         .stop
@@ -566,7 +574,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
         })
         .await;
     let stopped_b = b.stop_and_remove().await;
-    let (landing, b_was_empty) = landed?;
+    let (landing, b_was_empty) = landed.map_err(|f| Missed(f, false))?;
     Ok(Session {
         landing,
         stopped_a,
@@ -668,13 +676,11 @@ async fn run_items12(
     let watch = watcher.finish(&ctx.stop).await;
     let s = match outcome {
         Ok(s) => s,
-        Err(f) => {
-            let cause = match f.0 {
-                "signal" => "signal",
-                "start" | "browser_start" => "browser_start",
+        Err(Missed(f, start_failed)) => {
+            let cause = start_cause(f.0, start_failed).unwrap_or(match f.0 {
                 "signin" => "signin",
                 _ => "session",
-            };
+            });
             eprintln!("session cause={} detail={}", f.0, f.1.len());
             out(&format!("notrun item={} {cell} cause={cause}", args.item));
             return ExitCode::from(1);
@@ -1020,7 +1026,7 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
             relay_port: relay.port,
         },
     };
-    let (done, removed, _) = task(&ctx, profile.clone()).await;
+    let (done, removed, start_returned) = task(&ctx, profile.clone()).await;
     relay.stop();
     server.stop();
     match done {
@@ -1033,11 +1039,10 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
             ExitCode::from(1)
         }
         Err(f) => {
-            let cause = match f.0 {
-                "start" | "browser_start" => "browser_start",
-                other => other,
-            };
-            report("miss", cause);
+            report(
+                "miss",
+                start_cause(f.0, start_returned == Some(false)).unwrap_or(f.0),
+            );
             ExitCode::from(1)
         }
     }
