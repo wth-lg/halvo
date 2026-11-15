@@ -154,6 +154,7 @@ export function ownTables(sql: Sql): string[] {
 export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: Ledger; metering: Metering }): Entries {
   const { accounts, ledger, metering } = modules;
   const removalRejections = new WeakSet<object>();
+  const dueErrors: unknown[] = [];
   const leavesDestroy = (error: unknown) =>
     errorName(error) === "ObjectStoppedError" || (typeof error === "object" && error !== null && removalRejections.has(error));
 
@@ -243,6 +244,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           due = dueOf(sql);
         } catch (error) {
           errors.push(error);
+          dueErrors.push(error);
           due = host.clock() + ALARM_RETRY_MS;
         }
       }
@@ -362,6 +364,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   async function alarmBody(run: AlarmRun): Promise<void> {
     const caught: unknown[] = [];
+    const dueErrorsBefore = dueErrors.length;
     let head: { mark: Mark; failures: number } | null | "unknown";
     try {
       head = host.step((sql) => (holds(sql) ? { mark: markOf(sql), failures: Number(skeletonRow(sql).alarm_failures) } : null));
@@ -451,6 +454,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
     if (thrown !== null) throw thrown.error;
     if (caught.length > 0) throw new LoggedAlarmError(caught[0]);
+    if (marked && dueErrors.length > dueErrorsBefore) throw new LoggedAlarmError(dueErrors.splice(0)[dueErrorsBefore]);
     if (head === "unknown" || head.failures > 0) {
       step((open) => {
         if (!holds(open.sql)) return;

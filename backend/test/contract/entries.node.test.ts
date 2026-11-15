@@ -1404,4 +1404,27 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     expect(perTry).toEqual([0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
     expect(lines.filter((line) => line.event === "cancel-unanswered").every((line) => Object.keys(line).join() === "event")).toBe(true);
   });
+
+  test("L1 (c), L3 (b): a due time that throws in every step under the mark makes each run a failing one: for one day no two runs closer than the doubling pause, and one run an hour once it is capped", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    w.answers.throwIn = "ledger.nextDue";
+    await w.entries.destroy(HASH);
+    const runs: Ms[] = [];
+    while (now < 8000 + 24 * 3_600_000) {
+      const at = w.alarmAt();
+      if (at === null || at <= now) break;
+      now = at;
+      await w.entries.alarm();
+      runs.push(at);
+    }
+    w.answers.throwIn = null;
+    const pause = (failures: number) => Math.min(ALARM_RETRY_MS * 2 ** (failures - 1), ALARM_PAUSE_CAP_MS);
+    const gaps = runs.slice(1).map((at, index) => at - (runs[index] ?? 0));
+    expect(gaps.every((gap, index) => gap >= pause(index + 1))).toBe(true);
+    expect(runs.filter((at) => at >= 8000 + 3 * 3_600_000).length).toBeLessThanOrEqual(22);
+  });
 });
