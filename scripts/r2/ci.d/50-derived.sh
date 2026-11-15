@@ -182,6 +182,8 @@ esac
 #= src/lib.rs tests::no_source_runs_analyze_or_optimize_and_every_removal_stands_under_the_truncating_checkpoint
 #= src/lib.rs tests::a_removal_compiles_under_the_checkpointed_write_alone
 #= tests/sync.rs each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag
+#= tests/replaced.rs a_replaced_app_and_a_dropped_support_row_leave_no_marker_on_pages_built_again
+#= tests/replaced.rs single_drops_of_small_support_rows_each_with_its_checkpoint_leave_no_marker
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
