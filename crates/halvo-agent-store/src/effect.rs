@@ -1,7 +1,7 @@
 use halvo_policy::{decide, effect_step, Checkpoint, Effect, EffectMove};
 use halvo_schema::executable::body::{PutEffect, Stored};
 use halvo_schema::executable::names::{Cause, EffectState};
-use halvo_schema::executable::{AgentConfig, AgentEffect, RunnerReply};
+use halvo_schema::executable::{AgentConfig, AgentEffect, ApprovalId, RunnerReply};
 use halvo_schema::ErrorName;
 
 use crate::errors::Own;
@@ -25,9 +25,7 @@ pub(crate) fn put(host: &mut dyn Host, now: Now, b: &PutEffect) -> Result<Runner
         return Err(Own::Binding.into());
     }
     mine.sort_by_key(|r| r.seq);
-    if mine.last().is_some_and(|last| {
-        last.state == row.state && last.digest == row.digest && last.approval == row.approval
-    }) {
+    if mine.last().is_some_and(|last| repeats(last, row)) {
         return Ok(stored());
     }
     bind::open_run(&*host, &row.run)?;
@@ -41,6 +39,15 @@ pub(crate) fn put(host: &mut dyn Host, now: Now, b: &PutEffect) -> Result<Runner
 
 fn stored() -> RunnerReply {
     RunnerReply::Stored(Stored { stored: 1 })
+}
+
+fn repeats(last: &AgentEffect, row: &AgentEffect) -> bool {
+    let dated = AgentEffect {
+        day: row.day,
+        at: row.at,
+        ..last.clone()
+    };
+    dated == *row
 }
 
 fn first(config: &AgentConfig, row: &AgentEffect) -> Result<(), ErrorName> {
@@ -103,10 +110,22 @@ fn later(
             return Err(Own::Effect.into());
         }
     };
+    if matches!(row.state, EffectState::Releasing | EffectState::Committed)
+        && row.approval.as_ref() != last_approval(mine)
+    {
+        return Err(Own::Effect.into());
+    }
     match effect_step(Some(&effect), step) {
         Ok(state) if state == row.state => Ok(()),
         _ => Err(Own::Effect.into()),
     }
+}
+
+fn last_approval<'a>(mine: &[&'a AgentEffect]) -> Option<&'a ApprovalId> {
+    mine.iter()
+        .rev()
+        .find(|r| r.state == EffectState::Approved)
+        .and_then(|r| r.approval.as_ref())
 }
 
 pub(crate) fn rebinds(mine: &[&AgentEffect]) -> u32 {

@@ -28,12 +28,49 @@ pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<Runner
         Some(stored) if stored == b.record => {}
         Some(_) => return Err(Own::Effect.into()),
         None => {
+            agrees(&*host, &b.record)?;
             let mut records = vec![record(rows::AGENT_RUN, b.record.to_json())?];
             records.extend(moves(&*host, &b.run, now)?);
             day::commit(host, now, records)?;
         }
     }
     Ok(RunnerReply::Stored(Stored { stored: 1 }))
+}
+
+fn agrees(host: &dyn Host, record: &AgentRun) -> Result<(), ErrorName> {
+    let all = rows::effects(host.rows())?;
+    let lasts = last_states(&all, &record.run);
+    let open = lasts.iter().any(|s| {
+        matches!(
+            s,
+            EffectState::Held
+                | EffectState::Cleared
+                | EffectState::Approved
+                | EffectState::Releasing
+        )
+    });
+    if record.outcome == Outcome::Completed && open {
+        return Err(Own::Effect.into());
+    }
+    let unknown = lasts
+        .iter()
+        .filter(|s| matches!(s, EffectState::Unknown | EffectState::Releasing))
+        .count();
+    if usize::try_from(record.unknown).unwrap_or(usize::MAX) < unknown {
+        return Err(Own::Effect.into());
+    }
+    Ok(())
+}
+
+fn last_states(all: &[AgentEffect], run: &RunId) -> Vec<EffectState> {
+    let mut last: BTreeMap<&EffectId, &AgentEffect> = BTreeMap::new();
+    for row in all.iter().filter(|r| &r.run == run) {
+        let newer = last.get(&row.effect).is_none_or(|held| held.seq < row.seq);
+        if newer {
+            last.insert(&row.effect, row);
+        }
+    }
+    last.into_values().map(|r| r.state).collect()
 }
 
 pub(crate) fn end_run(

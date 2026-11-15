@@ -250,7 +250,7 @@ fn an_effect_takes_two_rebinds() {
     );
     ok(&mut store, row(1, 1, 4, "held", "payment", 3, None, None));
     refused(&mut store, row(1, 1, 5, "held", "payment", 4, None, None));
-    ok(&mut store, row(1, 1, 5, "held", "payment", 3, None, None));
+    refused(&mut store, row(1, 1, 5, "held", "payment", 3, None, None));
     assert_eq!(effects(&store).len(), 4);
     ok(
         &mut store,
@@ -530,5 +530,141 @@ fn a_repeat_of_the_last_row_is_answered_as_the_first_under_a_clock_that_would_re
         &mut store,
         late,
         row(1, 1, 2, "rejected", "payment", 1, None, None),
+    );
+}
+
+#[test]
+fn a_releasing_or_committed_row_holds_the_approval_of_the_effect_s_last_approved_row() {
+    let mut store = payment();
+    ok(&mut store, row(1, 1, 1, "held", "payment", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "approved", "payment", 1, Some(1), None),
+    );
+    ok(&mut store, row(1, 1, 3, "held", "payment", 2, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 4, "approved", "payment", 2, Some(2), None),
+    );
+    for other in [None, Some(1), Some(3)] {
+        refused(
+            &mut store,
+            row(1, 1, 5, "releasing", "payment", 2, other, None),
+        );
+    }
+    ok(
+        &mut store,
+        row(1, 1, 5, "releasing", "payment", 2, Some(2), None),
+    );
+    for other in [None, Some(1), Some(3)] {
+        refused(
+            &mut store,
+            row(1, 1, 6, "committed", "payment", 2, other, None),
+        );
+    }
+    ok(
+        &mut store,
+        row(1, 1, 6, "committed", "payment", 2, Some(2), None),
+    );
+}
+
+#[test]
+fn a_releasing_or_committed_row_after_cleared_holds_no_approval() {
+    let mut store = unattended_sender();
+    ok(&mut store, row(1, 1, 1, "cleared", "send", 1, None, None));
+    refused(
+        &mut store,
+        row(1, 1, 2, "releasing", "send", 1, Some(1), None),
+    );
+    ok(&mut store, row(1, 1, 2, "releasing", "send", 1, None, None));
+    refused(
+        &mut store,
+        row(1, 1, 3, "committed", "send", 1, Some(1), None),
+    );
+    ok(&mut store, row(1, 1, 3, "committed", "send", 1, None, None));
+}
+
+fn rows_of(store: &MemoryStore, e: u32) -> Vec<(u32, EffectState)> {
+    let mut out: Vec<(u32, EffectState)> = effects(store)
+        .into_iter()
+        .filter(|r| r.effect.as_str() == effect(e))
+        .map(|r| (r.seq.get(), r.state))
+        .collect();
+    out.sort_unstable_by_key(|(seq, _)| *seq);
+    out
+}
+
+#[test]
+fn a_row_that_differs_from_the_last_row_in_a_key_but_day_and_at_is_no_repeat() {
+    let mut store = unattended_sender();
+    ok(&mut store, row(1, 1, 1, "held", "payment", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "rejected", "payment", 1, None, None),
+    );
+    refused(
+        &mut store,
+        row(1, 1, 3, "rejected", "payment", 1, None, Some("ended")),
+    );
+
+    ok(&mut store, row(1, 2, 1, "held", "payment", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 2, 2, "rejected", "payment", 1, None, Some("ended")),
+    );
+    refused(
+        &mut store,
+        row(1, 2, 3, "rejected", "payment", 1, None, None),
+    );
+
+    ok(&mut store, row(1, 3, 1, "cleared", "send", 1, None, None));
+    refused(
+        &mut store,
+        row(1, 3, 2, "cleared", "payment", 1, None, None),
+    );
+    refused(
+        &mut store,
+        row(1, 3, 1, "cleared", "payment", 1, None, None),
+    );
+
+    ok(&mut store, row(1, 4, 1, "held", "payment", 1, None, None));
+    refused(&mut store, row(1, 4, 2, "held", "payment", 1, None, None));
+
+    ok(&mut store, row(1, 5, 1, "cleared", "send", 1, None, None));
+    ok(&mut store, row(1, 5, 2, "releasing", "send", 1, None, None));
+    refused(&mut store, row(1, 5, 3, "releasing", "send", 1, None, None));
+    let mut other_kept = row(1, 5, 2, "releasing", "send", 1, None, None);
+    other_kept["kept"][0]["value"] = json!(["w"]);
+    refused(&mut store, other_kept);
+    ok(&mut store, row(1, 5, 3, "committed", "send", 1, None, None));
+    refused(&mut store, row(1, 5, 4, "committed", "send", 1, None, None));
+
+    assert_eq!(
+        rows_of(&store, 1),
+        [(1, EffectState::Held), (2, EffectState::Rejected)]
+    );
+    assert_eq!(rows_of(&store, 4), [(1, EffectState::Held)]);
+    assert_eq!(rows_of(&store, 5).len(), 3);
+}
+
+#[test]
+fn a_row_equal_to_the_last_row_but_for_day_and_at_is_a_repeat() {
+    let mut store = unattended_sender();
+    ok(&mut store, row(1, 1, 1, "cleared", "send", 1, None, None));
+    let begin = row(1, 1, 2, "releasing", "send", 1, None, None);
+    ok(&mut store, begin.clone());
+    let later = at(NOW.at.0 + NANOS_PER_DAY);
+    let moved = dated(begin, TODAY, NOW.at.0);
+    assert_eq!(put_at(&mut store, later, moved), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let lost = row(1, 1, 3, "unknown", "send", 1, None, None);
+    assert_eq!(put(&mut store, lost), Ok(stored(1)));
+    assert_eq!(
+        rows_of(&store, 1),
+        [
+            (1, EffectState::Cleared),
+            (2, EffectState::Releasing),
+            (3, EffectState::Unknown)
+        ]
     );
 }

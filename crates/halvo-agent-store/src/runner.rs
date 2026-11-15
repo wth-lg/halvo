@@ -44,8 +44,9 @@ use crate::{bind, day, effect, end};
 /// - `log`: `effect` for a body with a record of the event `start_accepted` or of `seq` 1, the start row's place;
 ///   else it stores each record that is not stored and answers the count of the body's records.
 /// - `effect`: `binding` where a stored row of the effect id names another workflow, agent or run. A row equal to
-///   the effect's last row by seq in its state, digest and approval is answered as the first, `{"stored":1}`, and
-///   stores nothing. Else `effect` for every row of an ended run, and for every row that A5.2 does not allow. A first row has seq 1 and the state that
+///   the effect's last row by seq in every key but `day` and `at` is a repeat, answered as the first,
+///   `{"stored":1}`, and stores nothing (CP-132 (e)). Else `effect` for every row of an ended run, and for every row
+///   that A5.2 does not allow. A first row has seq 1 and the state that
 ///   `effect_step` gives for `propose` with `decide` for the agent's stored configuration and the row's class, with
 ///   the checkpoint `yes` for a `cleared` row and `no` for any other. A later row has the next seq and the effect's
 ///   class, and its state names the move: `held` a `rebind` with the row's digest and class; `approved` an
@@ -54,14 +55,18 @@ use crate::{bind, day, effect, end};
 ///   `begin` with the row's digest; `committed` a `commit`; `refused`, `cleared` and `unknown` no move. A row of a
 ///   move other than `rebind` keeps the digest and the kept fields of the last row. `effect_step` takes the effect
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
-///   the row's state.
+///   the row's state. A `releasing` or `committed` row holds the approval of the effect's last `approved` row, or
+///   none where the effect has no `approved` row, else `effect` (CP-132 (a)).
 /// - Every row that a body stores is held to the day rule (CP-122): a row that holds `at` (`effect`, `log`) is
 ///   refused with `day` unless its `day` is `Host::day` of its `at`, and every row of a bounded kind, the record of
 ///   `finish` among them, is refused with `day` when its day is after the day of the request's instant or already
 ///   outside its kind's bound; a refused body stores nothing. A row that the handler builds itself takes the
 ///   request's instant and its day. A repeat that stores nothing is answered before the day is read.
 /// - `finish`: where the run's record is stored, `{"stored":1}` for the same record and `effect` for another.
-///   Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
+///   Else `effect` for a record with the outcome `completed` while an effect of the run is `held`, `cleared`,
+///   `approved` or `releasing`, and for one whose `unknown` is below the count of the run's effects that are
+///   `unknown` after the moves (CP-132 (b)); the keys of the run's list are stored as given, with no relation over
+///   them. Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
 ///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
 ///   instant.
