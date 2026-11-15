@@ -1,6 +1,6 @@
 import { makeAccounts } from "../../../src/accounts/index.ts";
 import type { ProviderEvent, ProviderPort } from "../../../src/billing/port.ts";
-import { type Entries, makeEntries, ownTables } from "../../../src/do/entries.ts";
+import { ALARM_CALL_LIMIT, type Entries, makeEntries, ownTables } from "../../../src/do/entries.ts";
 import { makeLedger } from "../../../src/ledger/index.ts";
 import { makeMetering } from "../../../src/metering/index.ts";
 import { makeTestHost } from "../../sql/node.ts";
@@ -120,6 +120,7 @@ type Account = {
   closedNotBillable: Set<string>;
   providerEnded: boolean;
   idLate: boolean;
+  usageCallsInEntry: number;
   endedByTheDeleteAt: number | null;
   deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
 };
@@ -314,6 +315,7 @@ class World {
       closedNotBillable: new Set(),
       providerEnded: false,
       idLate: this.scenario.lateSubscriptionId?.includes(index) ?? false,
+      usageCallsInEntry: 0,
       endedByTheDeleteAt: null,
       deleteBound: new Map(),
     } satisfies Omit<Account, "index" | "id">);
@@ -402,11 +404,13 @@ class World {
           this.count("call.cancel-of-an-ended-subscription");
           return { kind: "nothing-to-cancel" };
         }
+        this.orderAtTheCancel(account);
         account.providerEnded = true;
         account.endedByTheDeleteAt = this.meter.endSubscription(account.id, seconds());
         return { kind: "cancelled" };
       },
       sendUsage: async (e) => {
+        account.usageCallsInEntry += 1;
         const fault = this.takeFault();
         const attempt = this.attemptOf(account, e.identifier);
         this.count(attempt);
@@ -438,6 +442,7 @@ class World {
         }
       },
       readUsageTotal: async (a) => {
+        account.usageCallsInEntry += 1;
         const fault = this.takeFault();
         this.count("call.read");
         if (fault.kind === "request-lost" || fault.kind === "response-lost" || fault.kind === "refused") return failed;
@@ -544,7 +549,27 @@ class World {
     if (down >= DAY) this.count("crash.down-past-the-window");
   }
 
+  /**
+   * The order of the delete's cancel and the cut interval's send (P7-110 L4 (d), P7-111 M6): at the cancel that ends the
+   * subscription, a sealed interval with no outcome that no send has been planned for is allowed only when the entry in
+   * progress has made ALARM_CALL_LIMIT usage calls; a failed or refused send and a next attempt in the future leave a
+   * planned attempt behind, and the cancel-before-send line counts each such interval.
+   */
+  private orderAtTheCancel(account: Account): void {
+    const rows = account.test.host.step((sql) =>
+      ownTables(sql).includes("metering_interval") ? sql.exec("SELECT start, attempts FROM metering_interval WHERE sealed_at IS NOT NULL AND outcome IS NULL") : [],
+    );
+    const neverPlanned = rows.filter((row) => Number(row.attempts) === 0);
+    if (neverPlanned.length > 0 && account.usageCallsInEntry < ALARM_CALL_LIMIT) {
+      this.fail(
+        "the delete's cancel before the cut interval's send with no named bound",
+        `${account.id}: ${neverPlanned.length} sealed intervals never planned, ${account.usageCallsInEntry} usage calls in the entry`,
+      );
+    }
+  }
+
   private async drive(account: Account, start: () => Promise<unknown>): Promise<void> {
+    account.usageCallsInEntry = 0;
     const generation = account.generation;
     const gate = blocker();
     account.blocker = gate;
