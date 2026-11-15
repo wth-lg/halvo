@@ -7,10 +7,7 @@ use std::time::Duration;
 pub enum Launch {
     Run,
     Version,
-    CheckPage {
-        config_dir: PathBuf,
-        within: Duration,
-    },
+    CheckPage { data_dir: PathBuf, within: Duration },
 }
 
 pub const MAX_WITHIN_S: u64 = 3600;
@@ -21,6 +18,7 @@ pub enum Exit {
     Usage,
     PageLoaded,
     PageNotLoaded,
+    GuardNotInstalled,
 }
 
 impl Exit {
@@ -28,6 +26,7 @@ impl Exit {
         match self {
             Exit::Quit | Exit::PageLoaded => 0,
             Exit::PageNotLoaded => 1,
+            Exit::GuardNotInstalled => 3,
             Exit::Usage => 64,
         }
     }
@@ -54,7 +53,7 @@ impl fmt::Display for Usage {
             Usage::Missing(option) => write!(f, "--check-page needs {option}"),
             Usage::Repeated(option) => write!(f, "{option} is given twice"),
             Usage::NoValue(option) => write!(f, "{option} needs a value"),
-            Usage::RelativeDir => write!(f, "--config-dir needs an absolute path"),
+            Usage::RelativeDir => write!(f, "--data-dir needs an absolute path"),
             Usage::BadSeconds(value) => write!(
                 f,
                 "--within-s needs a whole number of seconds from 1 to {MAX_WITHIN_S}, not {value}"
@@ -63,7 +62,7 @@ impl fmt::Display for Usage {
     }
 }
 
-pub const USAGE: &str = "usage: halvo [--version | --check-page --config-dir DIR --within-s N]";
+pub const USAGE: &str = "usage: halvo [--version | --check-page --data-dir DIR --within-s N]";
 
 pub fn parse<I: IntoIterator<Item = OsString>>(
     args_after_program_name: I,
@@ -82,12 +81,12 @@ pub fn parse<I: IntoIterator<Item = OsString>>(
 }
 
 fn check_page(options: &[String]) -> Result<Launch, Usage> {
-    let mut config_dir = None;
+    let mut data_dir = None;
     let mut within = None;
     let mut rest = options.iter();
     while let Some(option) = rest.next() {
         let (name, slot): (&'static str, &mut Option<String>) = match option.as_str() {
-            "--config-dir" => ("--config-dir", &mut config_dir),
+            "--data-dir" => ("--data-dir", &mut data_dir),
             "--within-s" => ("--within-s", &mut within),
             other => return Err(Usage::Unknown(other.to_string())),
         };
@@ -96,8 +95,8 @@ fn check_page(options: &[String]) -> Result<Launch, Usage> {
             return Err(Usage::Repeated(name));
         }
     }
-    let config_dir = PathBuf::from(config_dir.ok_or(Usage::Missing("--config-dir DIR"))?);
-    if !config_dir.is_absolute() {
+    let data_dir = PathBuf::from(data_dir.ok_or(Usage::Missing("--data-dir DIR"))?);
+    if !data_dir.is_absolute() {
         return Err(Usage::RelativeDir);
     }
     let within = within.ok_or(Usage::Missing("--within-s N"))?;
@@ -107,7 +106,7 @@ fn check_page(options: &[String]) -> Result<Launch, Usage> {
         .filter(|s| (1..=MAX_WITHIN_S).contains(s))
         .ok_or_else(|| Usage::BadSeconds(within.clone()))?;
     Ok(Launch::CheckPage {
-        config_dir,
+        data_dir,
         within: Duration::from_secs(seconds),
     })
 }
@@ -138,6 +137,7 @@ mod tests {
         assert_eq!(Exit::PageLoaded.code(), 0);
         assert_eq!(Exit::PageNotLoaded.code(), 1);
         assert_eq!(Exit::Usage.code(), 64);
+        assert_eq!(Exit::GuardNotInstalled.code(), 3);
     }
 
     #[test]
@@ -164,16 +164,16 @@ mod tests {
     }
 
     #[test]
-    fn check_page_takes_an_absolute_config_dir_and_a_bound_in_seconds() {
+    fn check_page_takes_an_absolute_data_dir_and_a_bound_in_seconds() {
         let dir = absolute();
         let expected = Ok(Launch::CheckPage {
-            config_dir: PathBuf::from(&dir),
+            data_dir: PathBuf::from(&dir),
             within: Duration::from_secs(60),
         });
         assert_eq!(
             parse(args(&[
                 "--check-page",
-                "--config-dir",
+                "--data-dir",
                 &dir,
                 "--within-s",
                 "60"
@@ -185,7 +185,7 @@ mod tests {
                 "--check-page",
                 "--within-s",
                 "60",
-                "--config-dir",
+                "--data-dir",
                 &dir
             ])),
             expected
@@ -193,13 +193,13 @@ mod tests {
         assert_eq!(
             parse(args(&[
                 "--check-page",
-                "--config-dir",
+                "--data-dir",
                 &dir,
                 "--within-s",
                 "3600"
             ])),
             Ok(Launch::CheckPage {
-                config_dir: PathBuf::from(&dir),
+                data_dir: PathBuf::from(&dir),
                 within: Duration::from_secs(MAX_WITHIN_S),
             })
         );
@@ -209,34 +209,34 @@ mod tests {
     fn check_page_refuses_a_missing_repeated_relative_or_bad_option() {
         let dir = absolute();
         let cases: [(&[&str], Usage); 10] = [
-            (&["--check-page"], Usage::Missing("--config-dir DIR")),
+            (&["--check-page"], Usage::Missing("--data-dir DIR")),
             (
-                &["--check-page", "--config-dir", &dir],
+                &["--check-page", "--data-dir", &dir],
                 Usage::Missing("--within-s N"),
             ),
             (
                 &["--check-page", "--within-s", "60"],
-                Usage::Missing("--config-dir DIR"),
+                Usage::Missing("--data-dir DIR"),
             ),
             (
-                &["--check-page", "--config-dir", "check", "--within-s", "60"],
+                &["--check-page", "--data-dir", "check", "--within-s", "60"],
                 Usage::RelativeDir,
             ),
             (
-                &["--check-page", "--config-dir", &dir, "--within-s", "0"],
+                &["--check-page", "--data-dir", &dir, "--within-s", "0"],
                 Usage::BadSeconds("0".into()),
             ),
             (
-                &["--check-page", "--config-dir", &dir, "--within-s", "3601"],
+                &["--check-page", "--data-dir", &dir, "--within-s", "3601"],
                 Usage::BadSeconds("3601".into()),
             ),
             (
-                &["--check-page", "--config-dir", &dir, "--within-s", "1.5"],
+                &["--check-page", "--data-dir", &dir, "--within-s", "1.5"],
                 Usage::BadSeconds("1.5".into()),
             ),
             (
-                &["--check-page", "--config-dir", &dir, "--config-dir", &dir],
-                Usage::Repeated("--config-dir"),
+                &["--check-page", "--data-dir", &dir, "--data-dir", &dir],
+                Usage::Repeated("--data-dir"),
             ),
             (
                 &["--check-page", "--within-s"],
@@ -251,8 +251,8 @@ mod tests {
             assert_eq!(parse(args(list)), Err(usage), "{list:?}");
         }
         assert_eq!(
-            parse(args(&["--config-dir", &dir, "--check-page"])),
-            Err(Usage::Unknown("--config-dir".into()))
+            parse(args(&["--data-dir", &dir, "--check-page"])),
+            Err(Usage::Unknown("--data-dir".into()))
         );
     }
 

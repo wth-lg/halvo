@@ -13,6 +13,7 @@
     "allow-onboarding-state",
     "allow-request-permission",
     "allow-open-permission-pane",
+    "allow-last-delete",
     "core:app:allow-version"
   ]
 }
