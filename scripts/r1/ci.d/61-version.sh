@@ -35,7 +35,11 @@ version_from() {
 
 literal_compares() {
   for file in "$@"; do
-    grep -n -E -e '--version[^#]*(=|-eq|-ne)[[:space:]]*["'\'']?v?[0-9]+\.[0-9]+\.[0-9]+' "$file" | sed "s|^\([0-9]*\):.*|$file:\1|"
+    grep -n -E \
+      -e '--version[^#]*(=|-eq|-ne)[[:space:]]*["'\'']?v?[0-9]+\.[0-9]+\.[0-9]+' \
+      -e '["'\'']?v?[0-9]+\.[0-9]+\.[0-9]+["'\'']?[[:space:]]*(=|!=|-eq|-ne)[^#]*--version' \
+      -e 'case[[:space:]][^#]*--version[^#]*[[:space:]]in[[:space:]]+["'\'']?v?[0-9]+\.[0-9]+\.[0-9]+' \
+      "$file" | sed "s|^\([0-9]*\):.*|$file:\1|"
   done
 }
 
@@ -160,6 +164,10 @@ self_test() {
   compare_case double-equals-with-a-v FAIL "[[ \$(halvo $flag) == v1.2.3 ]]"
   compare_case derived-value PASS "test \"\$(halvo $flag)\" = \"\$(sh scripts/r1/ci.d/61-version.sh --print)\""
   compare_case literal-on-another-line PASS "pinned_version=1.7.12"
+  compare_case reversed-compare FAIL "test 9.9.9 = \"\$(halvo $flag)\""
+  compare_case reversed-not-equal FAIL "[ '1.2.3' != \"\$(halvo $flag)\" ] && exit 1"
+  compare_case case-over-the-version-output FAIL "case \"\$(halvo $flag)\" in 9.9.9) exit 0 ;; esac"
+  compare_case case-pattern-that-is-the-flag PASS "case \"\$1\" in $flag) printf 'version: 0.10.0\\n' ;; esac"
   compare_case version-printed-not-compared PASS "printf 'tool: %s\\n' \"\$(tool $flag)\" # 1.2.3"
 
   stub() {
