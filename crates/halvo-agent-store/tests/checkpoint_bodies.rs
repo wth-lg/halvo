@@ -672,3 +672,153 @@ fn of_a_rejected_and_a_refused_edit_of_one_path_the_list_gives_rejected() {
         Some(EffectState::Rejected)
     );
 }
+
+const LIMIT: usize = halvo_schema::executable::body::CHECKPOINTS_REPLY_MAX;
+
+fn path_of(k: u32, len: usize) -> String {
+    format!("{FOLDER}/{k}-{}.xlsx", "w".repeat(len))
+}
+
+fn row_of(r: u32, k: u32, path: &str, made: bool) -> Value {
+    let mut row = planned(r, k);
+    row["workbook"] = json!(halvo_schema::executable::OwnValue::new(path));
+    row["at"] = json!(ROW_AT + i64::from(r));
+    if made {
+        row["seq"] = json!(2);
+        row["state"] = json!("made");
+        row["sha256"] = json!(digest(k));
+        row["bytes"] = json!(u32::MAX);
+    }
+    row
+}
+
+fn edit_of(r: u32, e: u32, seq: u32, state: &str, path: &str) -> Value {
+    let mut row = row(r, e, seq, state, "local_edit", 1, None, None);
+    for field in row["kept"].as_array_mut().expect("the kept fields") {
+        if field["name"] == "file" {
+            field["value"] = json!(halvo_schema::executable::OwnValue::new(path));
+        }
+    }
+    row
+}
+
+fn page_len(entries: &[Value]) -> usize {
+    let reply = json!({"checkpoints": entries, "next": run(1)});
+    match CoordinatorReply::parse(reply.to_string().as_bytes()) {
+        Ok(CoordinatorReply::Checkpoints(page)) => {
+            page.to_json().expect("a page under the bound").len()
+        }
+        other => panic!("a page of checkpoints: {other:?}"),
+    }
+}
+
+fn widest_entry(k: u32, path: &str) -> Value {
+    json!({
+        "workflow": wf(1), "agent": agent(1), "run": run(1), "folder": [FOLDER],
+        "workbook": halvo_schema::executable::OwnValue::new(path), "copy": [copy_of(1, k)],
+        "state": "made", "sha256": "f".repeat(64), "bytes": u32::MAX, "at": i64::MIN,
+        "ended": "yes", "effect": "committed", "superseded": "yes",
+    })
+}
+
+fn reckoning(paths: &[(u32, String)]) -> usize {
+    let empty = page_len(&[]);
+    let entries: usize = paths
+        .iter()
+        .map(|(k, p)| page_len(&[widest_entry(*k, p)]) - empty)
+        .sum();
+    empty + entries + paths.len().saturating_sub(1)
+}
+
+fn fill(store: &mut MemoryStore, r: u32, paths: &[(u32, String)]) -> Vec<(u32, String)> {
+    let mut kept = Vec::new();
+    for (k, path) in paths {
+        match put_checkpoint(store, row_of(r, *k, path, false)) {
+            Ok(reply) => {
+                assert_eq!(reply, stored(1));
+                kept.push((*k, path.clone()));
+            }
+            Err(e) => {
+                assert_eq!(e, declared("length"), "{k}");
+                break;
+            }
+        }
+    }
+    kept
+}
+
+fn make_and_commit(store: &mut MemoryStore, r: u32, kept: &[(u32, String)]) {
+    for (k, path) in kept {
+        assert_eq!(
+            put_checkpoint(store, row_of(r, *k, path, true)),
+            Ok(stored(1))
+        );
+        let e = r * 1000 + k;
+        for (seq, state) in [(1, "cleared"), (2, "releasing"), (3, "committed")] {
+            assert_eq!(
+                put(store, edit_of(r, e, seq, state, path)),
+                Ok(stored(1)),
+                "{k} {state}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_run_filled_to_its_bound_with_long_paths_and_made_at_the_widest_lists_in_a_page_that_the_writer_takes(
+) {
+    let mut store = spreadsheet();
+    let mut paths: Vec<(u32, String)> = (1..=5).map(|k| (k, path_of(k, 48_000))).collect();
+    let base = reckoning(&paths);
+    let empty = page_len(&[]);
+    let width = |len: usize| page_len(&[widest_entry(6, &path_of(6, len))]) - empty;
+    let from = (LIMIT + 10)
+        .saturating_sub(base + width(1))
+        .saturating_sub(64);
+    let mut tuned = None;
+    for len in from..from + 256 {
+        let over = (base + width(len) + 1).saturating_sub(LIMIT);
+        if (7..=12).contains(&over) {
+            let mut trial = paths.clone();
+            trial.push((6, path_of(6, len)));
+            assert_eq!(reckoning(&trial), base + width(len) + 1);
+            tuned = Some(trial);
+            break;
+        }
+    }
+    paths = tuned.expect("a path length that brings the sixth row 7 to 12 bytes over the bound");
+    paths.push((7, path_of(7, 48_000)));
+    let kept = fill(&mut store, 1, &paths);
+    make_and_commit(&mut store, 1, &kept);
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    start(&mut store, 2);
+    let later = fill(&mut store, 2, &paths);
+    make_and_commit(&mut store, 2, &later);
+    let first = list(&mut store, None);
+    assert!(first.checkpoints.iter().all(|c| c.run.as_str() == run(1)));
+    assert!(first.checkpoints.iter().all(|c| c.ended == YesNo::Yes
+        && c.superseded == YesNo::Yes
+        && c.effect == Some(EffectState::Committed)
+        && c.bytes == Some(u32::MAX)));
+    for page in pages(&mut store) {
+        assert!(!page.checkpoints.is_empty());
+    }
+}
+
+#[test]
+fn a_run_filled_to_its_bound_with_short_paths_and_made_at_the_widest_bytes_lists_in_a_page_that_the_writer_takes(
+) {
+    let mut store = spreadsheet();
+    let paths: Vec<(u32, String)> = (1..=400).map(|k| (k, path_of(k, 1_000))).collect();
+    let kept = fill(&mut store, 1, &paths);
+    assert!(kept.len() < paths.len(), "the run meets its bound");
+    for (k, path) in &kept {
+        assert_eq!(
+            put_checkpoint(&mut store, row_of(1, *k, path, true)),
+            Ok(stored(1))
+        );
+    }
+    for page in pages(&mut store) {
+        assert!(!page.checkpoints.is_empty());
+    }
+}
