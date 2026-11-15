@@ -496,7 +496,6 @@ fn drive(
     };
     let shaken = run.handshake(&rx, inner.config.start_wait);
     if shaken != Handshake::Hello {
-        #[cfg(windows)]
         if shaken == Handshake::Eof {
             let deadline = Instant::now() + proc::SETTLE;
             while !slot.with_proc(RunProc::exited).unwrap_or(true) && Instant::now() < deadline {

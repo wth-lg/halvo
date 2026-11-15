@@ -16,8 +16,8 @@ use crate::sys;
 const GONE_WAIT: Duration = Duration::from_secs(5);
 pub(crate) const POLL: Duration = Duration::from_millis(20);
 /// How long the library reads again whether a runner that ended its output has exited, and whether a Windows job
-/// whose runner has exited still holds a process, before it takes what it reads (Windows).
-#[cfg(windows)]
+/// whose runner has exited still holds a process, before it takes what it reads: a runner's output can end before
+/// the system reports its exit, on both systems.
 pub(crate) const SETTLE: Duration = Duration::from_secs(1);
 
 /// The runner that this life made: its child, which stays unreaped until the library has done with its group, the
