@@ -409,13 +409,13 @@ fn small_cells(seed: u64) -> Vec<Left> {
         })
         .collect();
     let mut episodes = Vec::new();
-    for i in 0..N {
+    for (i, &day) in day_of.iter().enumerate() {
         let len = 20 + draw.below(40) as usize;
         let n = marked(seed, 50, i as u64);
         episodes.push(drawn_episode(
             &mut draw,
             n,
-            day_of[i],
+            day,
             Some(&site),
             "com.example.browser",
             len,

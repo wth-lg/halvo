@@ -499,7 +499,8 @@ fn held(scratch: &Scratch) -> (Vec<String>, Vec<String>, i64) {
 fn a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision(
 ) {
     let agent = "4".repeat(32);
-    let cases: [(&str, &[(&str, bool)], bool); 4] = [
+    type Moves = &'static [(&'static str, bool)];
+    let cases: [(&str, Moves, bool); 4] = [
         ("guard-active", &[("active", true)], true),
         ("guard-paused", &[("active", true), ("paused", true)], true),
         ("guard-approved", &[], false),

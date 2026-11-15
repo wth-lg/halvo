@@ -947,9 +947,13 @@ impl<T: Removes> Probe<T> {
 /// `remove` under `Db::write` does not compile, and the writer that the checkpointed write hands out has it.
 #[test]
 fn a_removal_compiles_under_the_checkpointed_write_alone() {
-    assert!(!Probe::<Tx<'static>>::REMOVES, "the plain writer removes");
-    assert!(
+    let removes = [
+        Probe::<Tx<'static>>::REMOVES,
         Probe::<Checkpointed<'static, 'static>>::REMOVES,
-        "the checkpointed writer removes"
+    ];
+    assert_eq!(
+        removes,
+        [false, true],
+        "(the plain writer removes, the checkpointed writer removes)"
     );
 }
