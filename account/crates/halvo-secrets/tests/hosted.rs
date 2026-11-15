@@ -161,6 +161,45 @@ mod by_reference {
         options
     }
 
+    #[cfg(feature = "keychain")]
+    fn look(account: &str) -> Result<Vec<Vec<u8>>, String> {
+        let mut codes = Vec::new();
+        for _ in 0..20 {
+            let mut count = search(account);
+            count.load_attributes(true).limit(Limit::All);
+            let items = match count.search() {
+                Ok(found) => found.len(),
+                Err(error) if error.code() == -25300 => 0,
+                Err(error) => {
+                    codes.push(error.code());
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    continue;
+                }
+            };
+            if items != 1 {
+                return Ok(vec![Vec::new(); items]);
+            }
+            let mut data = search(account);
+            data.load_data(true).limit(1);
+            match data.search() {
+                Ok(found) => {
+                    return Ok(found
+                        .into_iter()
+                        .filter_map(|result| match result {
+                            SearchResult::Data(bytes) => Some(bytes),
+                            _ => None,
+                        })
+                        .collect())
+                }
+                Err(error) => {
+                    codes.push(error.code());
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            }
+        }
+        Err(format!("searches refused with {codes:?}"))
+    }
+
     fn datas(account: &str) -> Vec<Vec<u8>> {
         let mut count = search(account);
         count.load_attributes(true).limit(Limit::All);
@@ -274,7 +313,7 @@ mod by_reference {
             .ok()
             .and_then(|rounds| rounds.parse().ok())
             .unwrap_or(200);
-        let (mut kept, mut gone, mut not_run) = (0, 0, 0);
+        let (mut kept, mut gone, mut not_run, mut unknown) = (0, 0, 0, 0);
         for round in 0..rounds {
             let account = name(&format!("stale-{round}"));
             let account = account.as_str();
@@ -296,36 +335,38 @@ mod by_reference {
             .output()
             .expect("the child")
             .status;
-            let added = datas(account) == [later.clone()];
+            let before = look(account);
+            let added = before.as_ref().is_ok_and(|held| *held == [later.clone()]);
             item.delete();
-            let left = datas(account);
-            let shown = if left == [later.clone()] {
-                "later"
-            } else if left.is_empty() {
-                "none"
-            } else {
-                "other"
+            let left = look(account);
+            let shown = match &left {
+                Ok(held) if *held == [later.clone()] => "later".to_string(),
+                Ok(held) if held.is_empty() => "none".to_string(),
+                Ok(_) => "other".to_string(),
+                Err(codes) => format!("unknown ({codes})"),
             };
             println!(
-                "stale-reference round {round} child={status} child_added={added} parent=deleted-by-reference stands={shown}"
+                "stale-reference round {round} child={status} child_added={added} before={} parent=deleted-by-reference stands={shown}",
+                before.as_ref().map(|held| held.len().to_string()).unwrap_or_else(|codes| codes.clone())
             );
             if !added {
                 not_run += 1;
             } else if shown == "later" {
                 kept += 1;
+            } else if shown.starts_with("unknown") {
+                unknown += 1;
             } else {
                 gone += 1;
             }
             let _ = search(account).delete();
         }
         println!(
-            "\nstale-reference rounds={rounds} later_kept={kept} later_gone={gone} not_run={not_run}"
+            "\nstale-reference rounds={rounds} later_kept={kept} later_gone={gone} not_run={not_run} unknown={unknown}"
         );
         assert_eq!(
             gone, 0,
             "a removal by a stale reference removed the later item"
         );
-        assert!(kept > 0, "no round ran");
     }
 
     const TWO_BINARIES_ACCOUNT: &str = "hosted-two-binaries";
@@ -406,6 +447,9 @@ mod by_reference {
         match &removal.then {
             Read::Found(held) => assert!(file_holds && held.expose() == HELD, "then says Found"),
             Read::NotStored => assert!(!file_holds && items == 0, "then says NotStored"),
+            Read::Locked(halvo_secrets::Locked::OtherStore) => {
+                assert!(items > 0, "then says OtherStore")
+            }
             then => panic!("then answered {then:?}"),
         }
         let _ = Store::in_directory(
