@@ -160,7 +160,7 @@ What each configuration costs. The first three columns are from the development 
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
 runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone.
+configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone. The windows job no longer runs these configurations: with `CI_D_JOB=windows` the check leaves them and the three control copies to the macos job, so the `windows` column is a record of that run.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
@@ -191,7 +191,13 @@ The scripts of this run have a share of each hosted job: 320 s in `macos` and 44
 
 - the check: the small configurations of the table above, the stamp of the traces, the
   export against the committed traces in the jobs that the line `export compared in jobs`
-  names, the three control copies with TLC, and `gate-record.txt` against the tree;
+  names, the three control copies with TLC, and `gate-record.txt` against the tree. In the
+  windows job (`CI_D_JOB=windows`) the small configurations and the control copies are left to
+  the macos job: the check still reads every row of the table, holds the stamps, the record and
+  the export there, and prints one line that names the runs it left. The jar (its pinned
+  SHA-256), the models and the configurations are the same bytes on both systems, and both jobs
+  printed the same distinct states before this change; no job of CI runs these configurations
+  under the Java 17 of the windows job (the macos job's java is 21);
 - its `--self-test`: two fixtures that must pass and one failing fixture for each rule
   below. A fixture is a whole run of the script on a copy of this directory with one
   thing wrong, with a stand-in `java` that answers in place of TLC, so that a fixture
