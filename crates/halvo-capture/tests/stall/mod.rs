@@ -33,7 +33,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use super::{
     capture, focus_on, foreground_window, key_input, pump_thread, say, send, source_built_by_test,
-    stop_counted, with_deadline, Events, Field,
+    start_report, stop_counted, with_deadline, Events, Field,
 };
 
 const FIXTURE_ENV: &str = "HALVO_VERIFY_STALL_FIXTURE";
@@ -1519,9 +1519,10 @@ fn stall_phase(phase: Phase) -> Totals {
     let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
     let start = keyboard.begin(SourceContext::new(sink.clone()));
     say(test, format!("keyboard_start_ok={}", start.is_ok()));
+    start_report(test, "keyboard", &start);
     assert!(
         start.is_ok(),
-        "INCONCLUSIVE: the keyboard source did not start"
+        "INCONCLUSIVE: the keyboard source did not start: {start:?}"
     );
     let _ = events.drain_for(Duration::from_millis(500));
     let first = control(test, "before", &mut fixture, &events);
@@ -1970,9 +1971,10 @@ fn five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorde
         let mut keyboard =
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &start);
         assert!(
             start.is_ok(),
-            "INCONCLUSIVE: the keyboard source did not start"
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
         );
         let _ = events.drain_for(Duration::from_millis(500));
         let recorded = control(test, "phase", &mut fixture, &events);
@@ -2062,9 +2064,10 @@ fn native_phase(
         let mut keyboard =
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let started = keyboard.begin(SourceContext::new(sink.clone()));
+        start_report(test, "keyboard", &started);
         assert!(
             started.is_ok(),
-            "INCONCLUSIVE: the keyboard source did not start"
+            "INCONCLUSIVE: the keyboard source did not start: {started:?}"
         );
         let _ = events.drain_for(Duration::from_millis(500));
         let before = control(test, "before", &mut fixture, &events);

@@ -361,6 +361,21 @@ fn show<T, E: std::fmt::Display>(result: &Result<T, E>) -> String {
     }
 }
 
+fn start_report<T>(test: &str, source: &str, result: &Result<T, CaptureError>) {
+    if let Err(error) = result {
+        say(
+            test,
+            format!(
+                "start_failed source={source} error={error:?} text={}",
+                error.to_string().replace(' ', "_")
+            ),
+        );
+        if source == "keyboard" {
+            detector_line(test, "start-failed");
+        }
+    }
+}
+
 fn with_deadline<F>(test: &'static str, limit: Duration, body: F)
 where
     F: FnOnce() + Send + 'static,

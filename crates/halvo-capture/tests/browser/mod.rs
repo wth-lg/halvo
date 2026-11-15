@@ -443,10 +443,11 @@ struct Keyboard {
 }
 
 impl Keyboard {
-    fn start() -> Keyboard {
+    fn start(test: &str) -> Keyboard {
         let (sink, events) = capture(8192);
         let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = source.begin(SourceContext::new(sink));
+        super::start_report(test, "keyboard", &start);
         Keyboard {
             source,
             events,
@@ -1283,8 +1284,12 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
         let mut counter = Some(EventCounter::start());
         let mut browser = open_browser(test, name);
         let first_page = browser.open(test, "control", 0);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let before = page_control(
             test,
             &mut browser,
@@ -1324,8 +1329,12 @@ pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
         let mut recorded = 0;
         source_built_by_test(test, "keyboard");
         let mut browser = open_browser(test, name);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let mut counted = 0;
         let mut another_way = 0;
         let mut sink_differs = 0;
@@ -1443,8 +1452,12 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
         let mut counter = Some(EventCounter::start());
         let mut browser = open_browser(test, name);
         let first_page = browser.open(test, "control", 0);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let before = page_control(
             test,
             &mut browser,
@@ -1520,8 +1533,12 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
         let mut recorded = 0;
         source_built_by_test(test, "keyboard");
         let mut browser = open_browser(test, name);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let mut counted = 0;
         let mut another_way = 0;
         let mut sink_differs = 0;
@@ -1592,8 +1609,12 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
         let mut recorded = 0;
         source_built_by_test(test, "keyboard");
         let mut browser = open_browser(test, name);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let hwnd = browser
             .open(test, "burst", 0)
             .expect("INCONCLUSIVE: no page window");
@@ -1742,8 +1763,12 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
         let mut recorded = 0;
         source_built_by_test(test, "keyboard");
         let mut browser = open_browser(test, name);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let hwnd = browser
             .open(test, "tab-after", 0)
             .expect("INCONCLUSIVE: no page window");
@@ -1821,8 +1846,12 @@ pub(super) fn cold_and_warm(test: &'static str, name: &'static str) {
         source_built_by_test(test, "keyboard");
         let mut browser = open_browser(test, name);
         let file = browser.image();
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let _ = seam::take_marks();
         let cold = browser
             .open_with(test, "cold", 0, true)
@@ -2015,8 +2044,12 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
         let mut renamed = PhaseBrowser::at(browser.name, copy, browser.chromium)
             .expect("INCONCLUSIVE: no profile for the copy");
         renamed.kill();
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let _ = seam::take_marks();
         let hwnd = renamed
             .open(test, "warm", 0)
@@ -2130,8 +2163,12 @@ pub(super) fn after_a_start_behind_another_window(test: &'static str, name: &'st
         source_built_by_test(test, "keyboard");
         let counter = EventCounter::start();
         let mut browser = open_browser(test, name);
-        let keyboard = Keyboard::start();
-        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let keyboard = Keyboard::start(test);
+        assert!(
+            keyboard.start.is_ok(),
+            "the keyboard source must start: {:?}",
+            keyboard.start
+        );
         let hwnd = browser
             .open(test, "after-start", 0)
             .expect("INCONCLUSIVE: no page window");
