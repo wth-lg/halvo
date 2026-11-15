@@ -27,6 +27,9 @@
 mod activation;
 #[path = "hosted/gate.rs"]
 mod gate;
+#[cfg(target_os = "macos")]
+#[path = "hosted/reading.rs"]
+mod reading;
 #[path = "hosted/schedule.rs"]
 mod schedule;
 
@@ -97,6 +100,7 @@ static PRESSED_BEFORE_REPORT: AtomicBool = AtomicBool::new(false);
 static HELPED: AtomicUsize = AtomicUsize::new(0);
 static PRESS_MOMENTS: AtomicUsize = AtomicUsize::new(0);
 static RETRIES: AtomicUsize = AtomicUsize::new(0);
+static SLIPPED: AtomicUsize = AtomicUsize::new(0);
 static SHOW_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static LABEL: Mutex<String> = Mutex::new(String::new());
 
@@ -146,6 +150,8 @@ trait Ui<C> {
     fn word(control: C) -> String;
     /// The reading that made a report that no press came before: a notice or the repeating one.
     fn kind(&self) -> &'static str;
+    /// A read alone, for a show with no report after a second: what the system says of it now.
+    fn unreported(&self) -> String;
 }
 
 fn sleep_until(at: Instant) {
@@ -166,8 +172,14 @@ fn wait(limit: Duration, done: impl Fn() -> bool) -> bool {
     done()
 }
 
-/// Drives one show's presses from the report on: the failures that it found.
-fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: bool) -> Vec<String> {
+/// Drives one show's presses from the report on: the failures that it found, and the line of a
+/// schedule that slipped, after which the show's presses stop and its answer is not read.
+fn drive<C: Copy, U: Ui<C>>(
+    ui: &U,
+    label: &str,
+    presses: &[Press<C>],
+    help: bool,
+) -> (Vec<String>, Option<String>) {
     let start = Instant::now();
     let mut failures = Vec::new();
     let mut fronts = 0;
@@ -177,7 +189,12 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
         let state = ui.front();
         println!("guard_hosted reading {label}: no report yet, brought to the front {fronts} times; {state}");
     }
-    if !wait(UNHELPED, || reported().is_some()) {
+    if !wait(REPORT_WAIT, || reported().is_some()) {
+        let state = ui.unreported();
+        let (_, at) = now_in_show();
+        println!("guard_hosted unreported {label} +{at} ms: no report after 1 s; {state}");
+    }
+    if !wait(UNHELPED - REPORT_WAIT, || reported().is_some()) {
         failures.push(format!(
             "no report in {} s with no press and no help",
             UNHELPED.as_secs()
@@ -194,9 +211,10 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
             ui.close();
             std::thread::sleep(arm() + Duration::from_millis(100));
         }
-        return failures;
+        return (failures, None);
     };
     let mut previous = None;
+    let mut slip = None;
     for press in presses {
         sleep_until(schedule::due(base, previous, press.from, press.at));
         if DONE.load(Ordering::SeqCst) {
@@ -224,7 +242,7 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
             );
             if !press.answers {
                 if let Some(line) = schedule::slipped(before, ran, arm()) {
-                    failures.push(line);
+                    slip = Some(line);
                     break;
                 }
             }
@@ -241,6 +259,15 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
                 break;
             }
         }
+    }
+    if slip.is_some() {
+        if !wait(Duration::from_secs(3), || DONE.load(Ordering::SeqCst)) {
+            while !DONE.load(Ordering::SeqCst) && start.elapsed() < BOUND {
+                ui.close();
+                std::thread::sleep(arm() + Duration::from_millis(100));
+            }
+        }
+        return (failures, slip);
     }
     let last = presses.iter().rev().find(|press| press.answers);
     let mut again = 0;
@@ -264,13 +291,19 @@ fn drive<C: Copy, U: Ui<C>>(ui: &U, label: &str, presses: &[Press<C>], help: boo
             std::thread::sleep(arm() + Duration::from_millis(100));
         }
     }
-    failures
+    (failures, None)
 }
 
-/// Checks one show after its call returned.
-fn check(label: &str, expected: ConfirmAnswer, answer: ConfirmAnswer, failures: &mut Vec<String>) {
+/// Checks one show after its call returned; with no answer expected, as after a slipped schedule,
+/// the answer is not read.
+fn check(
+    label: &str,
+    expected: Option<ConfirmAnswer>,
+    answer: ConfirmAnswer,
+    failures: &mut Vec<String>,
+) {
     let mut found = Vec::new();
-    if answer != expected {
+    if let Some(expected) = expected.filter(|expected| *expected != answer) {
         found.push(format!(
             "the answer was {}, not {}",
             word(answer),
@@ -294,14 +327,21 @@ fn check(label: &str, expected: ConfirmAnswer, answer: ConfirmAnswer, failures: 
     failures.extend(found.into_iter().map(|f| format!("{label}: {f}")));
 }
 
-/// One case's result: the failures that it found, none when it passed.
+/// One case's result: the failures that it found, none when it passed, and in a loop's run the
+/// line of a schedule that slipped, which is neither a pass nor a miss.
 struct Verdict {
     name: &'static str,
     failures: Vec<String>,
+    slipped: Option<String>,
 }
 
 fn print(verdict: &Verdict) {
-    if verdict.failures.is_empty() {
+    if let (true, Some(line)) = (verdict.failures.is_empty(), &verdict.slipped) {
+        println!(
+            "guard_hosted case {} SLIPPED: {line}; not a pass and not a miss",
+            verdict.name
+        );
+    } else if verdict.failures.is_empty() {
         println!("guard_hosted case {} PASS", verdict.name);
     } else {
         println!(
@@ -320,8 +360,9 @@ fn end(verdicts: &[Verdict], listed: usize) -> ! {
         && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted");
     let short = hosted && verdicts.len() != listed;
     println!(
-        "guard_hosted end: cases ran {} of {listed}, failed {failed}, helped {}, moments at a press {}, retries {}{}",
+        "guard_hosted end: cases ran {} of {listed}, failed {failed}, schedule slipped {}, helped {}, moments at a press {}, retries {}{}",
         verdicts.len(),
+        SLIPPED.load(Ordering::SeqCst),
         HELPED.load(Ordering::SeqCst),
         PRESS_MOMENTS.load(Ordering::SeqCst),
         RETRIES.load(Ordering::SeqCst),
@@ -334,15 +375,77 @@ fn end(verdicts: &[Verdict], listed: usize) -> ! {
     std::process::exit(if failed > 0 || short { 1 } else { 0 });
 }
 
-/// Runs one case on the calling thread, each show through `show` while `ui` drives it from a
-/// thread of its own.
+/// How this run of the target runs a case whose schedule slips: `GUARD_HOSTED_SCHEDULE=loop` for
+/// one run of a loop, once otherwise.
+fn mode() -> schedule::Mode {
+    match std::env::var("GUARD_HOSTED_SCHEDULE").as_deref() {
+        Ok("loop") => schedule::Mode::Loop,
+        _ => schedule::Mode::Once,
+    }
+}
+
+/// Runs one case, again while its schedule slips and the mode allows it (ruling RD-107,
+/// Addition 3): each slip is printed by name with its gap and counted on the end line.
 fn case<C: Copy + Send + Sync + 'static, U: Ui<C> + Clone + Send + 'static>(
     ui: &U,
     name: &'static str,
     shows: &'static [Show<C>],
     show: &dyn Fn() -> ConfirmAnswer,
 ) -> Verdict {
+    let mode = mode();
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
+        let (mut failures, slip) = attempt_case(ui, name, shows, show);
+        if slip.is_some() {
+            SLIPPED.fetch_add(1, Ordering::SeqCst);
+        }
+        let slipped_alone = slip.is_some() && failures.is_empty();
+        match (schedule::next(mode, attempt, slipped_alone), slip) {
+            (schedule::Next::Again, Some(line)) => println!(
+                "guard_hosted case {name} schedule slipped in run {attempt} of {}: {line}; the case runs again",
+                schedule::ATTEMPTS
+            ),
+            (schedule::Next::Slipped, slip) => {
+                return Verdict {
+                    name,
+                    failures,
+                    slipped: slip,
+                }
+            }
+            (schedule::Next::TooFew, Some(line)) => {
+                failures.push(format!(
+                    "{}: the schedule slipped in {attempt} runs of {}; the last: {line}",
+                    schedule::TOO_FEW,
+                    schedule::ATTEMPTS
+                ));
+                return Verdict {
+                    name,
+                    failures,
+                    slipped: None,
+                };
+            }
+            _ => {
+                return Verdict {
+                    name,
+                    failures,
+                    slipped: None,
+                }
+            }
+        }
+    }
+}
+
+/// Runs one case's shows once on the calling thread, each through `show` while `ui` drives it
+/// from a thread of its own: the failures, and the line of a schedule that slipped.
+fn attempt_case<C: Copy + Send + Sync + 'static, U: Ui<C> + Clone + Send + 'static>(
+    ui: &U,
+    name: &'static str,
+    shows: &'static [Show<C>],
+    show: &dyn Fn() -> ConfirmAnswer,
+) -> (Vec<String>, Option<String>) {
     let mut failures = Vec::new();
+    let mut slipped = None;
     for (n, (presses, expected)) in shows.iter().enumerate() {
         let label = if shows.len() > 1 {
             format!("{name} show {}", n + 1)
@@ -355,8 +458,16 @@ fn case<C: Copy + Send + Sync + 'static, U: Ui<C> + Clone + Send + 'static>(
             let label = label.clone();
             move || drive(&ui, &label, presses, false)
         });
+        let shown = Instant::now();
         let answer = show();
         DONE.store(true, Ordering::SeqCst);
+        if REPORTS.load(Ordering::SeqCst) == 0 {
+            println!(
+                "guard_hosted reading {label}: the show returned after {} ms with no report and answered {}",
+                shown.elapsed().as_millis(),
+                word(answer)
+            );
+        }
         let kind = if !PRESSED_BEFORE_REPORT.load(Ordering::SeqCst) {
             ui.kind()
         } else if REPORTS.load(Ordering::SeqCst) > 0 {
@@ -366,16 +477,75 @@ fn case<C: Copy + Send + Sync + 'static, U: Ui<C> + Clone + Send + 'static>(
             "nothing: no report followed the press"
         };
         println!("guard_hosted reading {label}: report made by {kind}");
-        match driver.join() {
-            Ok(found) => failures.extend(found.into_iter().map(|f| format!("{label}: {f}"))),
-            Err(_) => failures.push(format!("{label}: the driver panicked")),
+        let slip = match driver.join() {
+            Ok((found, slip)) => {
+                failures.extend(found.into_iter().map(|f| format!("{label}: {f}")));
+                slip
+            }
+            Err(_) => {
+                failures.push(format!("{label}: the driver panicked"));
+                None
+            }
+        };
+        check(
+            &label,
+            slip.is_none().then_some(*expected),
+            answer,
+            &mut failures,
+        );
+        if let Some(line) = slip {
+            slipped = Some(format!("{label}: {line}"));
+            break;
         }
-        check(&label, *expected, answer, &mut failures);
     }
-    Verdict { name, failures }
+    (failures, slipped)
+}
+
+/// The tally of a loop's runs (`GUARD_HOSTED_TALLY=<directory>`): each file of the directory, by
+/// its name in order, holds the lines of one run of the target. Prints the slipped runs with their
+/// gaps, the loop's line and each failure, and ends with status 1 when the loop failed.
+fn tally(directory: &str) -> ! {
+    let mut names: Vec<std::path::PathBuf> = match std::fs::read_dir(directory) {
+        Ok(entries) => entries.filter_map(|e| e.ok().map(|e| e.path())).collect(),
+        Err(error) => {
+            println!("guard_hosted loop FAIL: the directory {directory} cannot be read: {error}");
+            std::process::exit(1);
+        }
+    };
+    names.sort();
+    let texts: Vec<String> = names
+        .iter()
+        .map(|name| {
+            std::fs::read_to_string(name)
+                .unwrap_or_default()
+                .replace('\r', "")
+        })
+        .collect();
+    let floor = if cfg!(windows) {
+        schedule::FLOOR_WINDOWS
+    } else {
+        schedule::FLOOR_MACOS
+    };
+    let counted = schedule::tally(&texts);
+    for (n, gaps) in &counted.slipped {
+        let gaps: Vec<String> = gaps.iter().map(u64::to_string).collect();
+        println!(
+            "guard_hosted loop run {n} schedule slipped: gap {} ms",
+            gaps.join(" ms and ")
+        );
+    }
+    println!("{}", schedule::line(&counted, floor));
+    let failures = schedule::verdict(&counted, floor);
+    for failure in &failures {
+        println!("guard_hosted loop FAIL: {failure}");
+    }
+    std::process::exit(if failures.is_empty() { 0 } else { 1 });
 }
 
 fn main() {
+    if let Ok(directory) = std::env::var("GUARD_HOSTED_TALLY") {
+        tally(&directory);
+    }
     match gate::start(&gate::env) {
         gate::Start::Run => {}
         gate::Start::Off => {
@@ -824,6 +994,26 @@ mod cases {
             }
         }
 
+        fn unreported(&self) -> String {
+            let read = on_main(|| {
+                // SAFETY: this runs on the main thread; the description is a copy that is
+                // released here.
+                unsafe {
+                    let (active, key, modal) = pair_now();
+                    let text = run_loop_text();
+                    let timer = super::reading::words(super::reading::timer(&text, 0.05));
+                    format!("active={active} key={key} modal_window={modal}; {timer}")
+                }
+            });
+            let returned = super::DONE.load(Ordering::SeqCst);
+            match read {
+                Some(read) => format!("{read}; the show had returned={returned}"),
+                None => {
+                    format!("the main thread ran no read in 2 s; the show had returned={returned}")
+                }
+            }
+        }
+
         fn kind(&self) -> &'static str {
             let notice = *NOTICE_BOTH.lock().unwrap_or_else(PoisonError::into_inner);
             let report = super::reported();
@@ -848,6 +1038,35 @@ mod cases {
         // SAFETY: `on_main` runs the read on the main thread.
         let pair = on_main(|| unsafe { pair_now() });
         begun && pair.is_some_and(|(active, key, _)| active && key)
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFRunLoopGetMain() -> *mut c_void;
+        fn CFCopyDescription(object: *const c_void) -> *mut c_void;
+        fn CFRelease(object: *const c_void);
+    }
+
+    /// The description of the main run loop, with each timer of each mode.
+    ///
+    /// # Safety
+    /// Runs on the main thread.
+    unsafe fn run_loop_text() -> String {
+        let text = CFCopyDescription(CFRunLoopGetMain());
+        if text.is_null() {
+            return String::new();
+        }
+        let string = text.cast::<AnyObject>();
+        let utf8: *const std::ffi::c_char = msg_send![string, UTF8String];
+        let read = if utf8.is_null() {
+            String::new()
+        } else {
+            std::ffi::CStr::from_ptr(utf8)
+                .to_string_lossy()
+                .into_owned()
+        };
+        CFRelease(text);
+        read
     }
 
     /// # Safety
@@ -1158,6 +1377,17 @@ mod cases {
 
         fn kind(&self) -> &'static str {
             "the activation at TDN_CREATED or WM_ACTIVATE"
+        }
+
+        fn unreported(&self) -> String {
+            let window = self.window();
+            // SAFETY: as in `press`; a window that has gone reads as not visible.
+            let visible = window.is_some_and(|window| unsafe { IsWindowVisible(window) }.as_bool());
+            format!(
+                "window found={} visible={visible}; the show had returned={}",
+                window.is_some(),
+                super::DONE.load(std::sync::atomic::Ordering::SeqCst)
+            )
         }
     }
 

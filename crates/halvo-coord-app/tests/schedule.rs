@@ -2,7 +2,10 @@
 mod schedule;
 
 use halvo_coord::types::Limits;
-use schedule::{due, slipped, From};
+use schedule::{
+    due, line, next, run_of, slipped, tally, verdict, From, Mode, Next, Run, ATTEMPTS, FLOOR_MACOS,
+    FLOOR_WINDOWS, TOO_FEW,
+};
 use std::time::{Duration, Instant};
 
 fn arm() -> Duration {
@@ -80,5 +83,176 @@ fn schedule_a_gap_just_under_arm_holds_and_one_at_arm_slips() {
         slipped(first + ms(10), first, arm()),
         None,
         "a clock read earlier"
+    );
+}
+
+/// The end line of one run of the target, with its failed cases and its slipped schedules.
+fn end(failed: u64, slipped: u64) -> String {
+    format!("guard_hosted end: cases ran 7 of 7, failed {failed}, schedule slipped {slipped}, helped 0, moments at a press 0, retries 0")
+}
+
+/// The lines of a run whose schedule case slipped with `gap` ms between its two presses.
+fn slipped_run(gap: u64) -> String {
+    format!(
+        "guard_hosted case macos allow_click_at_300ms_and_250ms_after_it SLIPPED: the schedule slipped: the press ran {gap} ms after the press before it, and arm_ms is 500; not a pass and not a miss\n{}",
+        end(0, 1)
+    )
+}
+
+/// A loop of `kept` runs that kept the schedule and passed, then `slips` runs that slipped, then
+/// `failed` runs that kept it and failed.
+fn runs(kept: usize, slips: usize, failed: usize) -> Vec<String> {
+    let mut texts = vec![end(0, 0); kept];
+    texts.extend((0..slips).map(|n| slipped_run(500 + n as u64)));
+    texts.extend(std::iter::repeat_n(end(1, 0), failed));
+    texts
+}
+
+#[test]
+fn schedule_once_a_slipped_case_runs_again_until_its_third_run_and_then_fails_by_name() {
+    assert_eq!(ATTEMPTS, 3);
+    assert_eq!(next(Mode::Once, 1, true), Next::Again);
+    assert_eq!(next(Mode::Once, 2, true), Next::Again);
+    assert_eq!(next(Mode::Once, 3, true), Next::TooFew);
+    for attempt in 1..=3 {
+        assert_eq!(
+            next(Mode::Once, attempt, false),
+            Next::Done,
+            "run {attempt}"
+        );
+    }
+    assert_eq!(TOO_FEW, "too few runs kept the schedule");
+}
+
+#[test]
+fn schedule_in_a_loop_a_slipped_case_is_counted_apart_and_runs_once() {
+    assert_eq!(next(Mode::Loop, 1, true), Next::Slipped);
+    assert_eq!(next(Mode::Loop, 1, false), Next::Done);
+}
+
+#[test]
+fn schedule_a_run_is_read_by_its_end_line_and_its_slipped_case_line() {
+    assert_eq!(run_of(&end(0, 0)), (Run::Kept, vec![]));
+    assert_eq!(run_of(&end(1, 0)), (Run::KeptFailed, vec![]));
+    assert_eq!(run_of(&slipped_run(528)), (Run::Slipped, vec![528]));
+    assert_eq!(run_of(&end(1, 1)), (Run::Missed, vec![]));
+    assert_eq!(
+        run_of("guard_hosted case macos x PASS"),
+        (Run::Missed, vec![])
+    );
+    assert_eq!(
+        run_of("guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 0, retries 0"),
+        (Run::Missed, vec![]),
+        "an end line with no count of slipped schedules"
+    );
+    for (line, kind) in [
+        ("guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 1, moments at a press 0, retries 0", Run::KeptFailed),
+        ("guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 0, moments at a press 1, retries 0", Run::KeptFailed),
+        ("guard_hosted end: cases ran 6 of 7, failed 0, schedule slipped 0, helped 0, moments at a press 0, retries 0", Run::KeptFailed),
+        ("guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 0, moments at a press 0, retries 0, FAIL: not every case ran", Run::KeptFailed),
+        ("guard_hosted end: cases ran 8 of 8, failed 0, schedule slipped 0, helped 0, moments at a press 0, retries 2", Run::Kept),
+        ("guard_hosted end: cases ran 8 of 8, failed 0, schedule slipped 1, helped 1, moments at a press 0, retries 0", Run::Missed),
+    ] {
+        assert_eq!(run_of(line).0, kind, "{line}");
+    }
+}
+
+#[test]
+fn schedule_a_loop_passes_at_its_floor_and_fails_by_name_one_run_below_it() {
+    for ((count, floor), system) in [(FLOOR_MACOS, "macos"), (FLOOR_WINDOWS, "windows")] {
+        let at = tally(&runs(floor, count - floor, 0));
+        assert_eq!(
+            verdict(&at, (count, floor)),
+            Vec::<String>::new(),
+            "{system}"
+        );
+        let below = tally(&runs(floor - 1, count - floor + 1, 0));
+        let failures = verdict(&below, (count, floor));
+        assert_eq!(failures.len(), 1, "{system}: {failures:?}");
+        assert!(failures[0].starts_with(TOO_FEW), "{system}: {failures:?}");
+    }
+    assert_eq!(FLOOR_MACOS, (60, 45));
+    assert_eq!(FLOOR_WINDOWS, (20, 18));
+}
+
+#[test]
+fn schedule_a_slipped_run_is_neither_a_pass_nor_a_miss() {
+    let t = tally(&runs(53, 7, 0));
+    assert_eq!((t.kept, t.slipped.len(), t.missed.len()), (53, 7, 0));
+    assert_eq!(verdict(&t, FLOOR_MACOS), Vec::<String>::new());
+    let t = tally(&runs(44, 16, 0));
+    assert_eq!(
+        t.kept, 44,
+        "a slipped run is not a run that kept the schedule"
+    );
+    assert!(verdict(&t, FLOOR_MACOS)[0].starts_with(TOO_FEW));
+}
+
+#[test]
+fn schedule_a_run_that_kept_the_schedule_and_failed_fails_the_loop_by_its_number() {
+    let t = tally(&runs(59, 0, 1));
+    assert_eq!(t.kept_failed, vec![60]);
+    assert_eq!(
+        verdict(&t, FLOOR_MACOS),
+        vec!["a run that kept the schedule failed: run 60".to_string()]
+    );
+    let t = tally(&runs(19, 0, 1));
+    assert_eq!(verdict(&t, FLOOR_WINDOWS).len(), 1);
+}
+
+#[test]
+fn schedule_a_loop_of_another_length_or_with_a_missed_run_fails() {
+    let t = tally(&runs(59, 0, 0));
+    assert_eq!(
+        verdict(&t, FLOOR_MACOS),
+        vec!["the loop ran 59 runs, not 60".to_string()]
+    );
+    let mut texts = runs(59, 0, 0);
+    texts.insert(3, "no end line".into());
+    let t = tally(&texts);
+    assert_eq!(t.missed, vec![4]);
+    assert_eq!(verdict(&t, FLOOR_MACOS).len(), 1);
+}
+
+#[test]
+fn schedule_a_loop_over_drawn_delays_keeps_the_runs_whose_gap_stayed_under_arm() {
+    let drawn = delays(600);
+    for chunk in drawn.chunks(60) {
+        let texts: Vec<String> = chunk
+            .iter()
+            .map(|delay| {
+                let gap = 250 + delay;
+                if slipped(Instant::now(), Instant::now() + ms(gap), arm()).is_some() {
+                    slipped_run(gap)
+                } else {
+                    end(0, 0)
+                }
+            })
+            .collect();
+        let kept = chunk
+            .iter()
+            .filter(|delay| 250 + **delay < Limits::PRODUCT.arm_ms)
+            .count();
+        let t = tally(&texts);
+        assert_eq!(t.kept, kept);
+        assert_eq!(t.slipped.len(), 60 - kept);
+        assert!(t
+            .slipped
+            .iter()
+            .all(|(_, gaps)| gaps.len() == 1 && gaps[0] >= 500));
+        assert_eq!(
+            verdict(&t, FLOOR_MACOS).is_empty(),
+            kept >= 45,
+            "kept {kept}"
+        );
+    }
+}
+
+#[test]
+fn schedule_the_loop_line_gives_the_counts_and_each_gap() {
+    let t = tally(&runs(2, 1, 1));
+    assert_eq!(
+        line(&t, (4, 3)),
+        "guard_hosted loop: runs 4 of 4, kept the schedule 3 (the floor is 3), of them failed 1, schedule slipped 1 (run 3 gap 500 ms), missed 0"
     );
 }

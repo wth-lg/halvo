@@ -1,5 +1,7 @@
 #[path = "hosted/activation.rs"]
 mod activation;
+#[path = "hosted/reading.rs"]
+mod reading;
 
 use activation::{wait, Waited};
 use std::cell::Cell;
@@ -115,4 +117,46 @@ fn activation_the_start_brings_the_panel_forward_once_before_the_first_ask_and_o
             None => assert_eq!(result, Waited::Inactive { asks: 21 }, "{label}"),
         }
     }
+}
+
+/// Entries of the main run loop's description as this Mac's Foundation prints them, for a timer
+/// of 0.05 s that has fired and for one that never fired; the class is the dialog's.
+const FIRED: &str = "\t0 : <CFRunLoopTimer 0x1032a4670 [0x1f15f8fc8]>{valid = Yes, firing = No, interval = 0.05, tolerance = 0, next fire date = 816400679 (0.0422188044 @ 12520909562612), callout = (NSTimer) [HalvoDialogHold reading:] (0x18ff1f3e8 / 0x102c05450) (/x/guard_hosted), context = <CFRunLoopTimer context 0x1032a4630>}";
+const NEVER: &str = "\t2 : <CFRunLoopTimer 0x1050a84a0 [0x1f15f8fc8]>{valid = Yes, firing = No, interval = 0.05, tolerance = 0, next fire date = 816400687 (-0.960178971 @ 12521092795058), callout = (NSTimer) [HalvoDialogHold reading:] (0x18ff1f3e8 / 0x104bc9420) (/x/guard_hosted), context = <CFRunLoopTimer context 0x1032a4630>}";
+
+#[test]
+fn reading_a_timer_that_fired_has_run_and_one_that_never_fired_has_not() {
+    let text = |entry: &str| {
+        format!("<CFRunLoop 0x1 [0x2]>{{wakeup port = 0x3}}\n\ttimers = <CFArray>{{\n{entry}\n}}\n")
+    };
+    assert_eq!(
+        reading::timer(&text(FIRED), 0.05),
+        reading::Timer::Valid {
+            next: 0.0422188044,
+            run: true
+        }
+    );
+    assert_eq!(
+        reading::timer(&text(NEVER), 0.05),
+        reading::Timer::Valid {
+            next: -0.960178971,
+            run: false
+        }
+    );
+    assert!(reading::words(reading::timer(&text(FIRED), 0.05)).contains("has run"));
+    assert!(reading::words(reading::timer(&text(NEVER), 0.05)).contains("has not run"));
+}
+
+#[test]
+fn reading_no_entry_of_the_dialog_is_absent_and_a_broken_one_is_unread() {
+    assert_eq!(
+        reading::timer("<CFRunLoop 0x1>{}", 0.05),
+        reading::Timer::Absent
+    );
+    let other = FIRED.replace("HalvoDialogHold", "GuardHostedWatch");
+    assert_eq!(reading::timer(&other, 0.05), reading::Timer::Absent);
+    let invalid = FIRED.replace("valid = Yes", "valid = No");
+    assert_eq!(reading::timer(&invalid, 0.05), reading::Timer::Absent);
+    let broken = FIRED.replace(" (0.0422188044 @", " (x @");
+    assert_eq!(reading::timer(&broken, 0.05), reading::Timer::Unread);
 }
