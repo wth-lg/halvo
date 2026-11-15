@@ -294,6 +294,12 @@ proof that the system reaches the thing.
     and `sed`, and no command that links or removes a file: it makes `--out` with the shell's
     no-clobber and writes it last, and where that last write fails, the part that was written
     stays and the script says so and exits 1.
+  - `export.sh` refuses a result whose traces on line 8 and later, the drawn lines that the
+    floor of the test `formal_traces` counts, hold fewer than 200 that differ, before it makes
+    `--out`: it prints `REFUSED drawn: <n> drawn traces differ, 200 are needed; draw again with
+    a larger --count` on standard error and exits 2 with no file. It counts the traces by their
+    place in the file, so a count below 206 is always refused so, and a drawn trace that TLC's
+    output puts in the place of a missing directed one is not counted.
 
 ## What the model does not show
 
