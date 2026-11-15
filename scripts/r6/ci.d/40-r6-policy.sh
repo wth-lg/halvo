@@ -664,6 +664,8 @@ PASS $name"
   runner=$(printf 'CARGO_TARGET_%s_%s' X86_64_PC_WINDOWS_MSVC RUNNER)
   flags_case workflow-test-runner FAIL .github/workflows/ci.yml "    env:
       $runner: x"
+  flags_case workflow-escaped-test-runner FAIL .github/workflows/ci.yml "    env:
+      $(printf '"CARGO_TARGET_X_%sUNNER": x' '\x52')"
   flags_case workflow-target-directory PASS .github/workflows/ci.yml "    env:
       CARGO_TARGET_DIR: target"
   flags_case script-cfg-test FAIL scripts/x.sh "cargo rustc -p halvo-route -- $cfg_test"
