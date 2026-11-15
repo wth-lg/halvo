@@ -14,7 +14,7 @@ fn source(path: &str) -> String {
 
 /// (the line as rules.rs writes it, the control: `file::function`, a fragment
 /// of the line that the control's body holds).
-const LIST: [(&str, &str, &str); 20] = [
+const LIST: [(&str, &str, &str); 24] = [
     ("page {number}: type byte {other} is no b-tree page", "rules::plants", "is no b-tree page"),
     ("page {number}: byte {at} of the freeblock at {free} (size {size}) is {:#04x}", "controls::four_rules", "of the freeblock at"),
     ("page {number}: byte {at} of the content area, in no cell and no freeblock, is {:#04x}", "controls::four_rules", "of the content area, in no cell and no freeblock"),
@@ -32,9 +32,13 @@ const LIST: [(&str, &str, &str); 20] = [
     ("page {number}: the tail of an overflow page holds at {at} a value above the page count", "controls::the_page_count_passes_in_a_trunk_and_a_tail_and_the_count_plus_1_is_named", "the tail of an overflow page holds at"),
     ("page {number}: an overflow page that {walked} chains of cells walk, not one", "controls::a_cell_that_takes_the_overflow_chain_of_another_names_a_page_of_2_chains_and_a_page_of_0", "chains of cells walk, not one"),
     ("the log of the connection's file holds {length} bytes: the check reads the main file alone, so checkpoint the log with TRUNCATE first", "controls::the_check_names_a_log_of_the_connections_file_that_holds_frames", "the log of the connection's file holds "),
-    ("page {number}: {what} at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived", "runs past byte"),
+    ("page {number}: the file header at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived", "the file header at byte 0 runs past byte 37"),
+    ("page {number}: the pointer array at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::each_read_past_the_usable_size_and_each_page_size_off_the_powers_of_two_is_its_own_line", "the pointer array at byte"),
+    ("page {number}: the cell at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived", "the cell at byte"),
+    ("page {number}: the freeblock at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::each_read_past_the_usable_size_and_each_page_size_off_the_powers_of_two_is_its_own_line", "the freeblock at byte"),
+    ("page {number}: the freelist trunk's entry at byte {at} runs past byte {end}, the end of the bytes that the check reads there", "controls::each_read_past_the_usable_size_and_each_page_size_off_the_powers_of_two_is_its_own_line", "the freelist trunk's entry at byte"),
     ("page {number}: one overflow chain meets this page a second time, so the walk of that chain stops there", "controls::an_overflow_chain_that_meets_a_page_a_second_time_is_a_line_and_the_check_answers", "one overflow chain meets this page a second time"),
-    ("page 1: page size {size} is no power of two from 512 up: the check reads no page of such a file", "controls::a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived", "is no power of two from 512 up"),
+    ("page 1: page size {size} is no power of two from 512 up: the check reads no page of such a file", "controls::each_read_past_the_usable_size_and_each_page_size_off_the_powers_of_two_is_its_own_line", "is no power of two from 512 up"),
 ];
 
 /// The first string literal after each `problems.push(format!(` of a source,
@@ -72,6 +76,32 @@ fn pushed_lines(source: &str) -> Vec<String> {
     lines
 }
 
+/// The line of each caller of `past()` in `source`: the format of past() with
+/// the caller's first string literal in place of `{what}`, so that each place
+/// that can read past the usable size has its own line in the list.
+fn past_lines(source: &str, template: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut rest = source;
+    while let Some(at) = rest.find("past(") {
+        let call = &rest[at + "past(".len()..];
+        let before = &rest[..at];
+        rest = call;
+        if before.ends_with("fn ") || before.ends_with(|c: char| c.is_alphanumeric() || c == '_') {
+            continue;
+        }
+        let call = &call[..call.find(';').unwrap_or(call.len())];
+        if let Some(start) = call.find('"') {
+            let end = start
+                + 1
+                + call[start + 1..]
+                    .find('"')
+                    .expect("a closed string literal");
+            lines.push(template.replace("{what}", &call[start + 1..end]));
+        }
+    }
+    lines
+}
+
 /// The body of `fn name(` in `source`: from its line to the next line that
 /// starts a test or a function at the left margin.
 fn body<'a>(source: &'a str, name: &str) -> Option<&'a str> {
@@ -90,7 +120,13 @@ fn body<'a>(source: &'a str, name: &str) -> Option<&'a str> {
 #[test]
 fn every_line_that_rules_rs_can_print_has_a_control_in_the_closed_list() {
     let rules = source(&format!("{DIR}/rules.rs"));
-    let printed = pushed_lines(&rules);
+    let mut printed = pushed_lines(&rules);
+    let template = printed
+        .iter()
+        .position(|line| line.contains("{what}"))
+        .map(|at| printed.remove(at))
+        .expect("the format line of past()");
+    printed.extend(past_lines(&rules, &template));
     let listed: Vec<&str> = LIST.iter().map(|(line, _, _)| *line).collect();
     let unlisted: Vec<&String> = printed
         .iter()

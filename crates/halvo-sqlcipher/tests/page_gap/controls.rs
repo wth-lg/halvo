@@ -593,3 +593,82 @@ fn an_overflow_chain_that_meets_a_page_a_second_time_is_a_line_and_the_check_ans
         "no line names the page that one chain meets twice: {found:?}"
     );
 }
+
+/// S-96 2: each place where a read would pass the usable size prints its own
+/// line, and a page size off the powers of two from 512 up is a line too.
+/// Each fault is made in a copy of small_store's image: a freeblock whose
+/// size runs past the usable size, a cell count that runs the pointer array
+/// past it, a trunk's count that runs its entries past it, a cell that starts
+/// 3 bytes before the end with a local payload of 80 bytes, and the page
+/// sizes 256 and 1000.
+#[test]
+fn each_read_past_the_usable_size_and_each_page_size_off_the_powers_of_two_is_its_own_line() {
+    crate::initialize().unwrap();
+    let scratch = small_store(Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    let db = std::fs::read(scratch.db()).unwrap();
+    assert_eq!(rules::check(&conn, &db).problems, Vec::<String>::new());
+    let count = db.len() / PAGE;
+    let tail = ", the end of the bytes that the check reads there";
+    let lines_of = |copy: &[u8]| rules::check(&conn, copy).problems;
+    let mut misses = Vec::new();
+    let mut require = |what: &str, copy: &[u8], line: String| {
+        let found = lines_of(copy);
+        if !found.iter().any(|l| l == &line) {
+            misses.push(format!("{what}: no line {line:?}: {found:?}"));
+        }
+    };
+    let (block_page, free) = (2..=count)
+        .find_map(|n| {
+            let free = read2(&db, page(n) + 1);
+            (matches!(db[page(n)], 2 | 5 | 10 | 13) && free != 0).then_some((n, free))
+        })
+        .unwrap();
+    let mut copy = db.clone();
+    copy[page(block_page) + free + 2..page(block_page) + free + 4]
+        .copy_from_slice(&(PAGE as u16).to_be_bytes());
+    require(
+        "a freeblock whose size runs past the usable size",
+        &copy,
+        format!("page {block_page}: the freeblock at byte {free} runs past byte {PAGE}{tail}"),
+    );
+    let leaf = (2..=count).find(|&n| db[page(n)] == 13).unwrap();
+    let mut copy = db.clone();
+    copy[page(leaf) + 3..page(leaf) + 5].copy_from_slice(&3000u16.to_be_bytes());
+    require(
+        "a cell count that runs the pointer array past the usable size",
+        &copy,
+        format!("page {leaf}: the pointer array at byte {PAGE} runs past byte {PAGE}{tail}"),
+    );
+    let trunk = read4(&db, 32);
+    let mut copy = db.clone();
+    copy[page(trunk) + 4..page(trunk) + 8].copy_from_slice(&2000u32.to_be_bytes());
+    require(
+        "a trunk's count that runs its entries past the usable size",
+        &copy,
+        format!(
+            "page {trunk}: the freelist trunk's entry at byte {PAGE} runs past byte {PAGE}{tail}"
+        ),
+    );
+    let mut copy = db.clone();
+    let start = PAGE - 3;
+    copy[page(leaf) + 8..page(leaf) + 10].copy_from_slice(&(start as u16).to_be_bytes());
+    copy[page(leaf) + start..page(leaf) + start + 2].copy_from_slice(&[0x50, 0x01]);
+    require(
+        "a cell whose local payload runs past the usable size",
+        &copy,
+        format!("page {leaf}: the cell at byte {start} runs past byte {PAGE}{tail}"),
+    );
+    for size in [256u16, 1000] {
+        let mut copy = db.clone();
+        copy[16..18].copy_from_slice(&size.to_be_bytes());
+        require(
+            "a page size off the powers of two from 512 up",
+            &copy,
+            format!(
+                "page 1: page size {size} is no power of two from 512 up: the check reads no page of such a file"
+            ),
+        );
+    }
+    assert!(misses.is_empty(), "{}", misses.join("\n"));
+}

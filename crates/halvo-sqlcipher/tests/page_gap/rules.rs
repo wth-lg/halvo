@@ -430,15 +430,15 @@ fn log_problems(conn: &Connection) -> Vec<String> {
     problems
 }
 
+/// A copy of `db` with `bytes` at `at`, and the miss when no line of the
+/// check names the plant. plants() calls it only on an image that passed the
+/// check, and every plant of plants() lies inside a page of 1 to the page
+/// count (bytes 16 and 52 of the header, a trunk or leaf that the check read,
+/// a b-tree page, an overflow tail, a freeblock and a gap that it bounded by
+/// the page), so no plant lies past the image and the copy is indexed at once.
 fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -> Option<String> {
     let mut copy = db.to_vec();
-    let Some(place) = copy.get_mut(at..at + bytes.len()) else {
-        return Some(format!(
-            "{bytes:?} planted at byte {at}: the image ends at byte {}",
-            db.len()
-        ));
-    };
-    place.copy_from_slice(bytes);
+    copy[at..at + bytes.len()].copy_from_slice(bytes);
     let found = check(conn, &copy).problems;
     if found.iter().any(|line| line.contains(named)) {
         None
@@ -467,8 +467,8 @@ fn planted(db: &[u8], conn: &Connection, at: usize, bytes: &[u8], named: &str) -
 /// moves past the usable size, the check names those cells as lines and still
 /// reads the gap of the planted page, so that plant names its own line. On
 /// a connection whose log holds frames it answers with the log's line alone
-/// and plants nothing. A plant that would lie past the image is a line of its
-/// own. It shows that the check sees these
+/// and plants nothing. Every plant lies inside a page of the image. It shows
+/// that the check sees these
 /// plants on the caller's image, not that the caller's draw would leave
 /// anything.
 pub fn plants(conn: &Connection, db: &[u8]) -> Vec<String> {
