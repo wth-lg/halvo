@@ -364,8 +364,8 @@ pub enum Reaped {
 }
 
 /// One answer of `reap`: the run, `gone` or `alive`, the processes of a group whose leader is gone, which the
-/// library reports and does not end, and what the reap ended by force, with the path `reap`, none when it ended
-/// nothing.
+/// library reports and does not end, and what the reap signalled, with the path `reap`, none when it signalled
+/// nothing: the record is read before the signal, so a mark answered `alive` can carry it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReapAnswer {
     pub run: RunId,

@@ -196,7 +196,9 @@ impl Running<'_> {
 
     /// Takes a `bind` once after a result `done` of a handback of the reason `sign_in`, `second_factor` or
     /// `captcha` of the run; any other `bind` is a frame out of turn, for which the library asks nobody, sends no
-    /// `add_origin` and ends the run as a lost flow (contracts.md A6.6, ruling CP-135 (7)).
+    /// `add_origin` and ends the run as a lost flow (contracts.md A6.6, ruling CP-135 (7)). A cancel that the library
+    /// writes while it stands in `Human::allow_origin` drops the bind (ruling CP-193 item 3); a cancel written after
+    /// the check that follows `allow_origin` does not stop the first `add_origin`, a named limit.
     pub(crate) fn bind(&mut self, origin: WebOrigin) -> Flow {
         if !std::mem::take(&mut self.acts.bind_turn) {
             return Flow::Lost;
