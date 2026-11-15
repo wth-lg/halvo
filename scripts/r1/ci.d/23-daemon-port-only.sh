@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, read as text with its lines joined, names neither EncryptedStore, SegmentStore nor rusqlite, nor a path from crate, $crate, super or halvo_capture to the module store (also after a brace or as r#store), nor store::db or store::{, nor a path segment that a macro's metavariable gives, nor an alias of crate, self, super or halvo_capture, nor a glob of the crate root (crate::*, $crate::*, halvo_capture::*, a brace list with * right under one of them, or two or more super before it), nor the module's name store, plain or raw, at the head of a path, in use store or in a brace list of a use line (a single use super::*; stays allowed); a listing that fails fails the check with its path; and src/daemon/ holds a file to read.
+# lane: free
 set -u
 name=23-daemon-port-only
 

@@ -59,8 +59,12 @@ pub enum ClientError {
     PeerRejected(PeerRejection),
     #[error("no reply within {seconds} s")]
     Deadline { seconds: u64 },
-    #[error("{}: {}", .0.code.as_str(), .0.message)]
+    #[error("{}: {}", .0.code().as_str(), .0.message)]
     Daemon(ErrorReply),
+    /// The busy of a life that is ending (ruling PL-17 (h)): the reply carries the mark
+    /// `ending`.
+    #[error("the capture service is ending")]
+    ServiceEnding(ErrorReply),
     #[error("the reply could not be read: {0}")]
     Protocol(String),
     /// A reply of a protocol version other than 1.
@@ -75,6 +79,10 @@ pub enum ClientError {
     StateDoesNotHoldTogether(crate::proto::StatusError),
     #[error("the daemon answered {kind} to this request")]
     UnexpectedReply { kind: &'static str },
+    /// An `already_deleted` that answers no request of this call: one to another verb, to a
+    /// delete with no id, or one that names the armed id (inbox entry 111 (d)).
+    #[error("the daemon answered already_deleted to this request")]
+    AlreadyDeletedToThisRequest(AlreadyDeleted),
     #[error("the control channel failed: {0}")]
     Io(std::io::Error),
 }
@@ -135,6 +143,13 @@ pub enum DeleteOutcome {
 /// an id, and only when the reply names another id as the current store.
 pub fn already_deleted_answers(armed: Option<StoreId>, already: &AlreadyDeleted) -> bool {
     armed.is_some_and(|armed| armed != already.current)
+}
+
+fn unexpected(reply: Reply) -> ClientError {
+    match reply {
+        Reply::AlreadyDeleted(already) => ClientError::AlreadyDeletedToThisRequest(already),
+        other => ClientError::UnexpectedReply { kind: other.kind() },
+    }
 }
 
 /// The client of protocol v1. Each call makes one connection, sends one request and reads
@@ -287,6 +302,7 @@ impl<C: Connector> Client<C> {
 
     fn call(&self, request: Request) -> Result<Reply, ClientError> {
         match self.send(&request)? {
+            Reply::Error(error) if error.ending() => Err(ClientError::ServiceEnding(error)),
             Reply::Error(error) => Err(ClientError::Daemon(error)),
             reply => Ok(reply),
         }
@@ -296,7 +312,7 @@ impl<C: Connector> Client<C> {
         let changes_capture = matches!(request, Request::Pause | Request::Resume);
         match (changes_capture, self.call(request)?) {
             (false, Reply::Status(status)) | (true, Reply::CaptureChanged(status)) => Ok(status),
-            (_, other) => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            (_, other) => Err(unexpected(other)),
         }
     }
 
@@ -313,7 +329,7 @@ impl<C: Connector> Client<C> {
     pub fn inventory(&self) -> Result<InventoryReply, ClientError> {
         match self.call(Request::Inventory)? {
             Reply::Inventory(inventory) => Ok(inventory),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -328,7 +344,7 @@ impl<C: Connector> Client<C> {
     pub fn stop(&self) -> Result<Stopped, ClientError> {
         match self.call(Request::Stop)? {
             Reply::Stopped(stopped) => Ok(stopped),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -341,14 +357,14 @@ impl<C: Connector> Client<C> {
                 Ok(DeleteOutcome::AlreadyDeleted(already))
             }
             Reply::DeleteRefused => Ok(DeleteOutcome::Refused),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
     pub fn set_storage_cap(&self, cap: StorageCap) -> Result<CapSet, ClientError> {
         match self.call(Request::SetStorageCap { bytes: cap })? {
             Reply::CapSet(set) => Ok(set),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -358,7 +374,7 @@ impl<C: Connector> Client<C> {
     ) -> Result<RequestOutcome, ClientError> {
         match self.call(Request::RequestPermission { permission })? {
             Reply::PermissionRequested(requested) => Ok(requested.outcome),
-            other => Err(ClientError::UnexpectedReply { kind: other.kind() }),
+            other => Err(unexpected(other)),
         }
     }
 
@@ -473,7 +489,7 @@ mod tests {
 
     fn daemon_error(result: Result<impl std::fmt::Debug, ClientError>) -> ErrorCode {
         match result {
-            Err(ClientError::Daemon(reply)) => reply.code,
+            Err(ClientError::Daemon(reply)) => reply.code(),
             other => panic!("{other:?}"),
         }
     }
@@ -1084,6 +1100,60 @@ mod tests {
         daemon.set_raw_reply(already_deleted_frame(FIXTURE_STORE_ID));
         let (client, _) = client(daemon);
         assert!(client.delete_all(Some(store_id(7))).is_ok());
+    }
+
+    #[test]
+    fn e111_d_an_already_deleted_that_answers_no_request_is_its_own_error_with_the_id_and_not_a_kind_string(
+    ) {
+        type Call<'a> = &'a dyn Fn(&Client<ScriptedConnector>) -> Result<(), ClientError>;
+        let current = FIXTURE_STORE_ID;
+        let answered = |call: Call<'_>| {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(already_deleted_frame(current));
+            let (client, _) = client(daemon);
+            call(&client)
+        };
+        let calls: [(&str, Call<'_>); 12] = [
+            ("request-permission", &|c| {
+                c.request_permission(Permission::Accessibility).map(|_| ())
+            }),
+            ("resume", &|c| c.resume().map(|_| ())),
+            ("the claim", &|c| {
+                c.status_claiming_the_indicator().map(|_| ())
+            }),
+            ("permission-asked", &|c| {
+                c.permission_asked(Permission::Accessibility).map(|_| ())
+            }),
+            ("acknowledge-lost-permission", &|c| {
+                c.acknowledge_lost_permission(Permission::Accessibility)
+                    .map(|_| ())
+            }),
+            ("delete-all with the id it names", &|c| {
+                c.delete_all(Some(current)).map(|_| ())
+            }),
+            ("delete-all with no id", &|c| c.delete_all(None).map(|_| ())),
+            ("status", &|c| c.status().map(|_| ())),
+            ("inventory", &|c| c.inventory().map(|_| ())),
+            ("pause", &|c| c.pause().map(|_| ())),
+            ("stop", &|c| c.stop().map(|_| ())),
+            ("set-cap", &|c| {
+                c.set_storage_cap(StorageCap::MIN).map(|_| ())
+            }),
+        ];
+        for (call, run) in calls {
+            match answered(run) {
+                Err(ClientError::AlreadyDeletedToThisRequest(already)) => {
+                    assert_eq!(already.current, current, "{call}");
+                }
+                other => panic!("{call}: {other:?}"),
+            }
+        }
+        let error =
+            ClientError::AlreadyDeletedToThisRequest(crate::proto::AlreadyDeleted { current });
+        assert_eq!(
+            error.to_string(),
+            "the daemon answered already_deleted to this request"
+        );
     }
 
     #[test]
@@ -1819,6 +1889,54 @@ mod tests {
     }
 
     #[test]
+    fn pl17_told_04_a_delete_while_capture_reads_pausing_answers_busy_and_deletes_nothing() {
+        let status = scripted(pausing).status().clone();
+        for armed in [status.fields().store_id, None, Some(store_id(7))] {
+            let (client, connector) = client(ScriptedDaemon::new(status.clone()));
+            let reply = client.send(&Request::DeleteAll { store: armed }).unwrap();
+            assert_eq!(reply.code(), Some(ErrorCode::Busy), "{armed:?}: {reply:?}");
+            assert_eq!(connector.status(), status, "{armed:?}");
+        }
+    }
+
+    #[test]
+    fn pl17_the_busy_of_a_life_that_is_ending_is_its_own_error_of_the_client() {
+        let mut daemon = scripted(pausing);
+        daemon.set_life(crate::proto::Life::Ending);
+        let (ending_client, connector) = client(daemon);
+        let before = connector.status();
+        for result in [
+            ending_client.stop().map(|_| ()),
+            ending_client
+                .delete_all(before.fields().store_id)
+                .map(|_| ()),
+            ending_client.set_storage_cap(StorageCap::MIN).map(|_| ()),
+            ending_client
+                .acknowledge_lost_permission(Permission::Accessibility)
+                .map(|_| ()),
+            ending_client
+                .request_permission(Permission::Accessibility)
+                .map(|_| ()),
+        ] {
+            match result {
+                Err(ClientError::ServiceEnding(reply)) => {
+                    assert_eq!(reply.code(), ErrorCode::Busy);
+                    assert!(reply.ending());
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+        assert_eq!(connector.status(), before);
+        let mut plain = ScriptedDaemon::new(sample_status(Platform::Macos));
+        plain.set_mutation_in_flight(true);
+        let (plain_client, _) = client(plain);
+        assert!(matches!(
+            plain_client.stop(),
+            Err(ClientError::Daemon(reply)) if reply.code() == ErrorCode::Busy && !reply.ending()
+        ));
+    }
+
+    #[test]
     fn a_second_pause_while_capture_reads_pausing_prints_pausing_the_c2_5_line_and_exit_1() {
         let (client, _) = client(scripted(|f| {
             f.desired = crate::model::CaptureState::Paused;
@@ -1937,7 +2055,7 @@ mod tests {
     }
 
     #[test]
-    fn with_every_source_off_a_claim_and_a_resume_read_running_as_built() {
+    fn with_every_source_off_a_claim_and_a_resume_read_faulted_no_source() {
         let (client, _) = client(scripted(|f| {
             f.enabled_sources.clear();
             for line in &mut f.sources {
@@ -1946,11 +2064,13 @@ mod tests {
             f.lease = crate::proto::Lease::Lapsed;
             f.capture = crate::proto::Capture::NoIndicator;
         }));
+        let no_source = Some(crate::proto::CaptureReason::NoSource);
         let claimed = client.status_claiming_the_indicator().unwrap();
-        assert_eq!(capture(&claimed), crate::proto::Capture::Running);
-        assert_eq!(claimed.fields().capture_reason, None);
+        assert_eq!(capture(&claimed), crate::proto::Capture::Faulted);
+        assert_eq!(claimed.fields().capture_reason, no_source);
         let resumed = client.resume().unwrap();
-        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+        assert_eq!(capture(&resumed), crate::proto::Capture::Faulted);
+        assert_eq!(resumed.fields().capture_reason, no_source);
     }
 
     #[test]

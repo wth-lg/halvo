@@ -37,7 +37,7 @@ const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure i
 
 const PASSWORDS_WITH_NO_TYPING_ON_WINDOWS: &str = "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.";
 
-const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
+const PASSWORDS_WITH_HALVO_S_DETECTOR: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
 
 pub const UNSIGNED_BUILD_CUSTODY: &str = "This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.";
 
@@ -559,7 +559,7 @@ mod tests {
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::Halvo, SourceClass::Runs),
-            "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser."
+            "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse."
         );
         assert_eq!(
             passwords(Platform::Windows, PasswordGuard::None, SourceClass::Runs),
@@ -677,14 +677,26 @@ mod tests {
     const S2: &str = "Screen activity may still be recorded although the setting is off: Halvo's capture service reports a fault in that part. To be sure it is off, pause capture or quit Halvo.";
     const P0: &str = "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.";
     const PM: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
-    const PH: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser.";
+    const PH: &str = "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser. While Halvo records typing on Windows, Windows hands Halvo every mouse event, also when pointer recording is off. Halvo looks at one thing in it, whether a button was pressed and when, and uses that to stop recording keys the moment you click into a password field. It does not look at where the pointer is or how it moves, and it stores nothing of the mouse.";
     const PW: &str = "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password.";
     const TA: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
     const TITLE_ON: &str = "Halvo records the title text of the window in front; the title of a private window is not stored where Halvo can tell the window is private.";
     const KEY_CLASS_ON: &str = "Halvo records a class for each key you press, never the character.";
     const POINTER_ON: &str = "Halvo records a class for each click or scroll, never its position.";
 
-    fn line_values() -> Vec<(&'static str, crate::proto::SourceState, bool)> {
+    struct LineRow {
+        value: &'static str,
+        state: crate::proto::SourceState,
+        mark: bool,
+        windows_keyboard_sentence: Option<&'static str>,
+        screen_sentence_while_off: Option<&'static str>,
+        typing_class: &'static str,
+        screen_why_while_off: &'static str,
+    }
+
+    const WHY_ON: &str = "lets Halvo note screen activity, a record that the screen changed with no stored image; system audio stays off";
+
+    fn line_rows() -> Vec<LineRow> {
         use crate::proto::{Reason, SourceState};
         let impaired = SourceState::Impaired {
             reason: Reason::Permission,
@@ -694,31 +706,132 @@ mod tests {
             reason: Reason::Timeout,
             error: None,
         };
+        let stopped = SourceState::Stopped { by_user: false };
+        let by_user = SourceState::Stopped { by_user: true };
+        let row = |value,
+                   state,
+                   mark,
+                   windows_keyboard_sentence,
+                   screen_sentence_while_off,
+                   typing_class,
+                   screen_why_while_off| LineRow {
+            value,
+            state,
+            mark,
+            windows_keyboard_sentence,
+            screen_sentence_while_off,
+            typing_class,
+            screen_why_while_off,
+        };
         vec![
-            ("off", SourceState::Off, false),
-            ("off with the mark", SourceState::Off, true),
-            ("running", SourceState::Running, false),
-            ("running with the mark", SourceState::Running, true),
-            ("impaired", impaired.clone(), false),
-            ("impaired with the mark", impaired, true),
-            ("stopped", SourceState::Stopped { by_user: false }, false),
-            (
-                "stopped with the mark",
-                SourceState::Stopped { by_user: false },
-                true,
-            ),
-            (
-                "stopped reason=user",
-                SourceState::Stopped { by_user: true },
+            row(
+                "off",
+                SourceState::Off,
                 false,
+                Some(K0),
+                Some(S0),
+                "off",
+                S0,
             ),
-            (
-                "stopped reason=user with the mark",
-                SourceState::Stopped { by_user: true },
+            row(
+                "off with the mark",
+                SourceState::Off,
                 true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
             ),
-            ("failed", failed.clone(), false),
-            ("failed with the mark", failed, true),
+            row(
+                "running",
+                SourceState::Running,
+                false,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "running with the mark",
+                SourceState::Running,
+                true,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "impaired",
+                impaired.clone(),
+                false,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "impaired with the mark",
+                impaired,
+                true,
+                Some(K1),
+                Some(S1),
+                "runs",
+                WHY_ON,
+            ),
+            row(
+                "stopped",
+                stopped.clone(),
+                false,
+                None,
+                None,
+                "stopped",
+                WHY_ON,
+            ),
+            row(
+                "stopped with the mark",
+                stopped,
+                true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
+            row(
+                "stopped reason=user",
+                by_user.clone(),
+                false,
+                None,
+                None,
+                "stopped",
+                WHY_ON,
+            ),
+            row(
+                "stopped reason=user with the mark",
+                by_user,
+                true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
+            row(
+                "failed",
+                failed.clone(),
+                false,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
+            row(
+                "failed with the mark",
+                failed,
+                true,
+                Some(K2),
+                Some(S2),
+                "may run",
+                WHY_ON,
+            ),
         ]
     }
 
@@ -765,37 +878,17 @@ mod tests {
         use SwitchName::{KeyClass, PointerClass, ScreenActivity, TitleText};
         let default_on = [TitleText, KeyClass, PointerClass];
         let key_class_off = [TitleText, PointerClass];
-        let keyboard = [
-            Some(K0),
-            Some(K2),
-            Some(K1),
-            Some(K1),
-            Some(K1),
-            Some(K1),
-            None,
-            Some(K2),
-            None,
-            Some(K2),
-            Some(K2),
-            Some(K2),
-        ];
-        let screen = [
-            Some(S0),
-            Some(S2),
-            Some(S1),
-            Some(S1),
-            Some(S1),
-            Some(S1),
-            None,
-            Some(S2),
-            None,
-            Some(S2),
-            Some(S2),
-            Some(S2),
-        ];
         let mut wrong = Vec::new();
         let mut rows = 0;
-        for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
+        for LineRow {
+            value,
+            state,
+            mark,
+            windows_keyboard_sentence,
+            screen_sentence_while_off,
+            ..
+        } in line_rows()
+        {
             let columns = [
                 (
                     "Windows, key_class on, beside the keyboard line",
@@ -805,7 +898,10 @@ mod tests {
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
-                            keyboard[i].map(|t| (KeyClass, t)).into_iter().collect(),
+                            windows_keyboard_sentence
+                                .map(|t| (KeyClass, t))
+                                .into_iter()
+                                .collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
                         ]
                         .concat(),
@@ -819,7 +915,10 @@ mod tests {
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
-                            keyboard[i].map(|t| (KeyClass, t)).into_iter().collect(),
+                            windows_keyboard_sentence
+                                .map(|t| (KeyClass, t))
+                                .into_iter()
+                                .collect(),
                             vec![(PointerClass, POINTER_ON), (ScreenActivity, S0)],
                         ]
                         .concat(),
@@ -837,7 +936,10 @@ mod tests {
                                 (KeyClass, KEY_CLASS_ON),
                                 (PointerClass, POINTER_ON),
                             ],
-                            screen[i].map(|t| (ScreenActivity, t)).into_iter().collect(),
+                            screen_sentence_while_off
+                                .map(|t| (ScreenActivity, t))
+                                .into_iter()
+                                .collect(),
                         ]
                         .concat(),
                     ),
@@ -854,7 +956,10 @@ mod tests {
                                 (KeyClass, K0),
                                 (PointerClass, POINTER_ON),
                             ],
-                            screen[i].map(|t| (ScreenActivity, t)).into_iter().collect(),
+                            screen_sentence_while_off
+                                .map(|t| (ScreenActivity, t))
+                                .into_iter()
+                                .collect(),
                         ]
                         .concat(),
                     ),
@@ -890,10 +995,6 @@ mod tests {
     fn ct9_passwords_and_typed_ahead_for_each_platform_guard_and_value_of_the_typing_line_are_the_tables_of_the_rulings(
     ) {
         use crate::proto::SourceName;
-        let classes = [
-            "off", "may run", "runs", "runs", "runs", "runs", "stopped", "may run", "stopped",
-            "may run", "may run", "may run",
-        ];
         let cell = |platform: Platform, guard: PasswordGuard, class: &str| -> &'static str {
             match (platform, guard, class) {
                 (Platform::Macos, PasswordGuard::Os, _) => PM,
@@ -910,7 +1011,14 @@ mod tests {
             (Platform::Windows, SourceName::Keyboard),
         ] {
             for guard in [PasswordGuard::Os, PasswordGuard::None, PasswordGuard::Halvo] {
-                for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
+                for LineRow {
+                    value,
+                    state,
+                    mark,
+                    typing_class,
+                    ..
+                } in line_rows()
+                {
                     rows += 1;
                     let status = status_beside(
                         platform,
@@ -924,7 +1032,25 @@ mod tests {
                         ],
                         guard,
                     );
-                    let want = cell(platform, guard, classes[i]);
+                    let held = status
+                        .fields()
+                        .sources
+                        .iter()
+                        .find(|l| l.name == typing)
+                        .map(class)
+                        .map(|c| match c {
+                            SourceClass::Off => "off",
+                            SourceClass::Runs => "runs",
+                            SourceClass::Stopped => "stopped",
+                            SourceClass::MayRun => "may run",
+                        });
+                    if held != Some(typing_class) {
+                        wrong.push(format!(
+                            "the class of the {} line [{value}]: {held:?}, the row says {typing_class:?}",
+                            typing.as_str()
+                        ));
+                    }
+                    let want = cell(platform, guard, typing_class);
                     let want_typed_ahead = (want == PM).then_some(TA);
                     let got = texts(&status);
                     if got.passwords != want {
@@ -963,11 +1089,6 @@ mod tests {
     #[test]
     fn ct9_the_why_of_the_screen_row_says_not_recorded_only_where_recorded_says_it() {
         use crate::proto::SourceName;
-        const WHY_ON: &str = "lets Halvo note screen activity, a record that the screen changed with no stored image; system audio stays off";
-        let off_rows = [
-            S0, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON, WHY_ON,
-            WHY_ON,
-        ];
         let mut wrong = Vec::new();
         let mut rows = 0;
         for (switch_on, on) in [
@@ -989,7 +1110,14 @@ mod tests {
                 ][..],
             ),
         ] {
-            for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
+            for LineRow {
+                value,
+                state,
+                mark,
+                screen_why_while_off,
+                ..
+            } in line_rows()
+            {
                 rows += 1;
                 let status = status_beside(
                     Platform::Macos,
@@ -999,7 +1127,11 @@ mod tests {
                     on,
                     PasswordGuard::Os,
                 );
-                let want = if switch_on { WHY_ON } else { off_rows[i] };
+                let want = if switch_on {
+                    WHY_ON
+                } else {
+                    screen_why_while_off
+                };
                 let held = &status.fields().onboarding.permissions;
                 let got = onboarding_rows(&status);
                 let mut want_rows = held.clone();
@@ -1024,6 +1156,173 @@ mod tests {
             wrong.len(),
             wrong.join("\n")
         );
+    }
+
+    #[test]
+    fn ct11_the_type_takes_the_three_kinds_of_status_the_client_offers_a_pause_and_a_delete_and_the_texts_promise_nothing(
+    ) {
+        use crate::client::{Client, DeleteOutcome};
+        use crate::proto::{
+            decode_reply, encode_reply, Capture, CaptureReason, Reason, Reply, SourceName,
+            SourceState,
+        };
+        use crate::testing::{ScriptedConnector, ScriptedDaemon};
+        let failed = SourceState::Failed {
+            reason: Reason::Timeout,
+            error: None,
+        };
+        let on = [
+            SwitchName::TitleText,
+            SwitchName::KeyClass,
+            SwitchName::PointerClass,
+        ];
+        let kinds = [
+            (
+                "macOS with the guard none beside an input line that may run",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Input,
+                    &failed,
+                    false,
+                    &on,
+                    PasswordGuard::None,
+                ),
+                PW,
+                false,
+                false,
+            ),
+            (
+                "macOS with the guard halvo beside an input line that may run",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Input,
+                    &failed,
+                    true,
+                    &on,
+                    PasswordGuard::Halvo,
+                ),
+                PW,
+                false,
+                false,
+            ),
+            (
+                "Windows with the guard os beside a keyboard line that may run",
+                status_beside(
+                    Platform::Windows,
+                    SourceName::Keyboard,
+                    &failed,
+                    false,
+                    &on,
+                    PasswordGuard::Os,
+                ),
+                PW,
+                false,
+                true,
+            ),
+            (
+                "the mark beside a keyboard line that reads off",
+                status_beside(
+                    Platform::Windows,
+                    SourceName::Keyboard,
+                    &SourceState::Off,
+                    true,
+                    &on,
+                    PasswordGuard::None,
+                ),
+                PW,
+                false,
+                true,
+            ),
+            (
+                "the mark beside a screen line that reads stopped",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Screen,
+                    &SourceState::Stopped { by_user: false },
+                    true,
+                    &on,
+                    PasswordGuard::Os,
+                ),
+                PM,
+                true,
+                false,
+            ),
+            (
+                "a screen row that says S0 beside a screen line that runs",
+                status_beside(
+                    Platform::Macos,
+                    SourceName::Screen,
+                    &SourceState::Running,
+                    false,
+                    &on,
+                    PasswordGuard::Os,
+                ),
+                PM,
+                true,
+                false,
+            ),
+        ];
+        for (kind, pausing, want_passwords, screen_runs, keyboard_runs) in kinds {
+            let mut f = pausing.into_fields();
+            let required: Vec<&crate::proto::SourceLine> = f
+                .sources
+                .iter()
+                .filter(|l| l.state != SourceState::Off)
+                .collect();
+            let running = required
+                .iter()
+                .filter(|l| matches!(l.state, SourceState::Running | SourceState::Impaired { .. }))
+                .count();
+            f.capture = if running == required.len() {
+                Capture::Running
+            } else if running > 0 {
+                Capture::Partial
+            } else {
+                Capture::Faulted
+            };
+            f.capture_reason = (f.capture == Capture::Faulted).then_some(CaptureReason::NoSource);
+            let status = DaemonStatus::new(f).unwrap_or_else(|e| panic!("{kind}: {e}"));
+            let frame = encode_reply(&Reply::Status(status.clone()));
+            assert_eq!(
+                decode_reply(&frame),
+                Ok(Reply::Status(status.clone())),
+                "{kind}"
+            );
+            let connector = ScriptedConnector::new(ScriptedDaemon::new(status.clone()));
+            let client = Client::new(connector.clone());
+            let read = client.status().unwrap_or_else(|e| panic!("{kind}: {e}"));
+            assert_eq!(read, status, "{kind}");
+            let id = read.fields().store_id;
+            assert!(id.is_some(), "{kind}");
+            assert!(client.pause().is_ok(), "{kind}: the pause");
+            assert!(
+                matches!(client.delete_all(id), Ok(DeleteOutcome::Deleted(_))),
+                "{kind}: the delete armed with the shown id"
+            );
+            let f = status.fields();
+            let told = texts(&status);
+            assert_eq!(
+                told.passwords, want_passwords,
+                "{kind}: the password sentence of the table"
+            );
+            let sentences = texts_of(&told.recorded);
+            if screen_runs {
+                assert!(!sentences.contains(&S0), "{kind}: {sentences:?}");
+                let rows = onboarding_rows(&status);
+                assert!(rows.iter().all(|r| r.why != S0), "{kind}: the screen row");
+                assert!(
+                    f.onboarding.permissions.iter().any(|r| r.why == S0),
+                    "{kind}: the status itself holds S0 in its screen row"
+                );
+            }
+            if keyboard_runs {
+                assert!(!sentences.contains(&K0), "{kind}: {sentences:?}");
+            }
+            assert!(
+                screen_runs || keyboard_runs || f.platform == Platform::Macos,
+                "{kind}"
+            );
+        }
     }
 
     #[test]

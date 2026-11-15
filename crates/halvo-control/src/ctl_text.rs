@@ -344,6 +344,10 @@ pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
 /// What ctl says on standard error for `delete_refused` (ruling PL-8 part (4)(c)).
 pub const DELETE_REFUSED_TEXT: &str = "this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again";
 
+/// What ctl says on standard error for a delete whose root reads unknown (contracts.md C2.6).
+pub const ROOTS_NOT_LISTED_TEXT: &str =
+    "the roots of this custody cannot be listed; a root may survive";
+
 pub fn stopped_text(stopped: &Stopped) -> String {
     format!(
         "stopped flushed={} events_lost={}\n",
@@ -369,6 +373,19 @@ pub fn peer_text(text: &str) -> String {
         .collect()
 }
 
+/// What ctl says on standard error for the busy of a life that is ending: what the verb did not
+/// do (ruling PL-17 (h)).
+pub const fn ending_line(verb: &Verb) -> &'static str {
+    match verb {
+        Verb::DeleteAll(_) => "the capture service is ending; this request deleted nothing; ask again once the service has started again",
+        Verb::Stop => "the capture service is ending already; this stop request changed nothing",
+        Verb::SetCap(_) => "the capture service is ending; the cap was not changed",
+        Verb::Status { .. } | Verb::Inventory | Verb::Pause | Verb::Resume => {
+            "the capture service is ending; this request changed nothing"
+        }
+    }
+}
+
 fn failed(message: impl std::fmt::Display, status: i32) -> Printed {
     Printed {
         stdout: String::new(),
@@ -390,7 +407,7 @@ fn printed(stdout: String, status: i32) -> Printed {
 pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir) -> Printed {
     let reply = match result {
         Ok(reply) => reply,
-        Err(ClientError::Daemon(error)) => Reply::Error(error),
+        Err(ClientError::Daemon(error) | ClientError::ServiceEnding(error)) => Reply::Error(error),
         Err(ClientError::Unreachable { endpoint }) => {
             return failed(
                 format!("capture service not running at {endpoint}"),
@@ -412,8 +429,9 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         Err(other) => return failed(other, crate::exit::ERROR),
     };
     match (verb, reply) {
+        (_, Reply::Error(error)) if error.ending() => failed(ending_line(verb), crate::exit::BUSY),
         (_, Reply::Error(error)) => {
-            let status = match error.code {
+            let status = match error.code() {
                 ErrorCode::Busy => crate::exit::BUSY,
                 ErrorCode::InvalidArgument => crate::exit::USAGE,
                 _ => crate::exit::ERROR,
@@ -487,6 +505,11 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                             .display()
                     ),
                     status: crate::exit::ERROR,
+                },
+                (RootDestroyed::Unknown, _) => Printed {
+                    stdout,
+                    stderr: format!("halvo-capture: {ROOTS_NOT_LISTED_TEXT}\n"),
+                    status: crate::exit::CLEAN,
                 },
                 _ => printed(stdout, crate::exit::CLEAN),
             }
@@ -978,6 +1001,8 @@ mod tests {
             for line in &mut f.sources {
                 line.state = SourceState::Off;
             }
+            f.capture = Capture::Faulted;
+            f.capture_reason = Some(CaptureReason::NoSource);
         });
         let text = status_text(&status);
         assert!(text.contains("\ncap_bytes=unknown\n"));
@@ -1024,6 +1049,32 @@ mod tests {
             "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=2 database_left=yes not_followed=0 entries_removed=3 entries_left=1 unknown_entries=5 intent=failed store_id=-\n"
         );
         assert_eq!(printed.status, 0);
+    }
+
+    #[test]
+    fn ct12_a_deleted_reply_with_root_destroyed_unknown_prints_both_streams_of_c2_6_and_exits_0() {
+        let report = DeleteReport::new(DeleteFields {
+            root_destroyed: RootDestroyed::Unknown,
+            root_id: None,
+            ..*sample_delete_report().fields()
+        })
+        .unwrap();
+        let printed = print(
+            &Verb::DeleteAll(Some(FRESH)),
+            Ok(Reply::Deleted(Deleted {
+                report,
+                store: Some(FRESH),
+            })),
+            &data_dir(),
+        );
+        assert_eq!(
+            printed,
+            Printed {
+                stdout: "deleted segments_shredded=2 keys_destroyed=3 root_destroyed=unknown root_id=- files_left=0 database_left=no not_followed=0 entries_removed=4 entries_left=0 unknown_entries=0 intent=written store_id=fedcba9876543210fedcba9876543210\n".to_string(),
+                stderr: "halvo-capture: the roots of this custody cannot be listed; a root may survive\n".to_string(),
+                status: 0,
+            }
+        );
     }
 
     #[test]
@@ -1087,10 +1138,7 @@ mod tests {
         let message = "\u{1b}]0;Halvo\u{7}\u{1b}[2K\rcapture=paused\nhalvo-capture: capture service not running at /x \u{e9}";
         let printed = print(
             &Verb::Pause,
-            Ok(Reply::Error(ErrorReply {
-                code: ErrorCode::Internal,
-                message: message.into(),
-            })),
+            Ok(Reply::Error(ErrorReply::new(ErrorCode::Internal, message))),
             &data_dir(),
         );
         one_clean_line(&printed);
@@ -1127,10 +1175,7 @@ mod tests {
         ] {
             let printed = print(
                 &Verb::Status { indicator: false },
-                Ok(Reply::Error(ErrorReply {
-                    code,
-                    message: filler.clone(),
-                })),
+                Ok(Reply::Error(ErrorReply::new(code, filler.clone()))),
                 &data_dir(),
             );
             one_clean_line(&printed);
@@ -1265,10 +1310,7 @@ mod tests {
             ),
             (ErrorCode::Internal, "a\u{1b}[2Kb", 1),
         ] {
-            let reply = ErrorReply {
-                code,
-                message: message.into(),
-            };
+            let reply = ErrorReply::new(code, message);
             let as_reply = print(&Verb::Pause, Ok(Reply::Error(reply.clone())), &data_dir());
             let as_error = print(&Verb::Pause, Err(ClientError::Daemon(reply)), &data_dir());
             if as_error != as_reply || as_error.status != want {
@@ -1278,15 +1320,79 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:?}");
         let busy = print(
             &Verb::Pause,
-            Err(ClientError::Daemon(ErrorReply {
-                code: ErrorCode::Busy,
-                message: "another mutation is in flight".into(),
-            })),
+            Err(ClientError::Daemon(ErrorReply::new(
+                ErrorCode::Busy,
+                "another mutation is in flight",
+            ))),
             &data_dir(),
         );
         assert_eq!(
             busy.stderr,
             "halvo-capture: another mutation is in flight\n"
+        );
+    }
+
+    #[test]
+    fn pl17_the_busy_of_a_life_that_is_ending_exits_75_with_a_line_that_names_what_did_not_happen()
+    {
+        let ending = ErrorReply::busy_of_an_ending_life();
+        assert_eq!(ending.code(), ErrorCode::Busy);
+        assert!(ending.ending());
+        for (verb, line) in [
+            (
+                Verb::DeleteAll(Some(FRESH)),
+                "halvo-capture: the capture service is ending; this request deleted nothing; ask again once the service has started again\n",
+            ),
+            (
+                Verb::DeleteAll(None),
+                "halvo-capture: the capture service is ending; this request deleted nothing; ask again once the service has started again\n",
+            ),
+            (
+                Verb::Stop,
+                "halvo-capture: the capture service is ending already; this stop request changed nothing\n",
+            ),
+            (
+                Verb::SetCap(StorageCap::MIN),
+                "halvo-capture: the capture service is ending; the cap was not changed\n",
+            ),
+            (
+                Verb::Pause,
+                "halvo-capture: the capture service is ending; this request changed nothing\n",
+            ),
+            (
+                Verb::Resume,
+                "halvo-capture: the capture service is ending; this request changed nothing\n",
+            ),
+        ] {
+            let as_reply = print(&verb, Ok(Reply::Error(ending.clone())), &data_dir());
+            assert_eq!(
+                as_reply,
+                Printed {
+                    stdout: String::new(),
+                    stderr: line.to_string(),
+                    status: 75,
+                },
+                "{verb:?}"
+            );
+            let as_error = print(
+                &verb,
+                Err(ClientError::ServiceEnding(ending.clone())),
+                &data_dir(),
+            );
+            assert_eq!(as_error, as_reply, "{verb:?}");
+        }
+        let plain = print(
+            &Verb::Stop,
+            Ok(Reply::Error(ErrorReply::new(
+                ending.code(),
+                ending.message.clone(),
+            ))),
+            &data_dir(),
+        );
+        assert_eq!(plain.status, 75);
+        assert_eq!(
+            plain.stderr,
+            "halvo-capture: the capture service is ending\n"
         );
     }
 
@@ -1304,10 +1410,10 @@ mod tests {
         ] {
             let printed = print(
                 &Verb::Pause,
-                Ok(Reply::Error(ErrorReply {
+                Ok(Reply::Error(ErrorReply::new(
                     code,
-                    message: "store unavailable: sealed".into(),
-                })),
+                    "store unavailable: sealed",
+                ))),
                 &data_dir(),
             );
             assert_eq!(printed.status, status, "{code:?}");

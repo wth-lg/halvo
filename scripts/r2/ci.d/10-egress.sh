@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: The egress check's self-test passes in each mode of the job, fails with probes=miss when its deny rule is off on a hosted runner, and the tests of the mode pass.
+# lane: alone
 set -u
 name=10-egress
 

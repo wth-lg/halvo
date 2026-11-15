@@ -90,7 +90,8 @@ pub fn holds(verdict: &Verdict, attempts: &Attempts) -> bool {
 /// Why the lines of the verdict's driver and writer do not hold.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Unsaid {
-    /// The `drive` or `reply` line of this number breaks its form or its rule.
+    /// The `drive` or `reply` line of this number breaks its form or its rule, or the `limits`
+    /// line of this number names a task of a driver or a writer that the verdict does not name.
     Line(usize),
     /// A `drive` line of the driver or a `reply` line of the writer is missing.
     Missing,
@@ -118,7 +119,9 @@ fn agrees(model: &Model, line: &Drive, attempts: &Attempts) -> bool {
 /// that name its writer among `said` (each with its line number): each of its form, one per
 /// machine, task and seed (`bill` and `order` for a `drive` line), a `drive` line with the values
 /// of a driver that passed and agreeing with the attempt lines of its machine, task and seed, and a
-/// `reply` line with `bodies=2`. Then the driver's twelve and the writer's six must all be there.
+/// `reply` line with `bodies=2`; and among them, in the same file order, each `limits` line, which
+/// names no task of `bill` and `order` while the verdict names no driver and not `reply` while it
+/// names no writer. Then the driver's twelve and the writer's six must all be there.
 pub fn verdict_lines(
     verdict: &Verdict,
     said: &[(usize, &[u8])],
@@ -132,7 +135,13 @@ pub fn verdict_lines(
     let mut drives = HashSet::new();
     let mut replies = HashSet::new();
     for &(number, bytes) in said {
-        if let (true, Some(driver)) = (names(&verdict.driver, lines::DRIVE, bytes), &verdict.driver)
+        if let Some(limits) = lines::limits(bytes) {
+            if limits.drive && verdict.driver.is_none() || limits.reply && verdict.writer.is_none()
+            {
+                return Err(Unsaid::Line(number));
+            }
+        } else if let (true, Some(driver)) =
+            (names(&verdict.driver, lines::DRIVE, bytes), &verdict.driver)
         {
             let line = lines::drive(bytes)
                 .filter(|line| DRIVE_TASKS.contains(&line.task))

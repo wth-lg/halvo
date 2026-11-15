@@ -22,9 +22,10 @@ mod rows;
 mod serve;
 mod sources;
 
-pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused, RUNS_HELD_MAX};
+pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused, LINES_HELD_MAX, RUNS_HELD_MAX};
 pub use host::{Clock, LearnHost};
 pub use routine::LearnStep;
+pub use rows::newest_routine;
 
 #[cfg(test)]
 mod tests;
