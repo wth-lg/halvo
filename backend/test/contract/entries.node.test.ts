@@ -1856,4 +1856,32 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([]);
     expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
   });
+
+  test("M3 (e): under the mark a due time at or before the step's now that the run does not consume arms at now plus ALARM_RETRY_MS: no run without a pause", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.accountsNextDue = 5000;
+    const runs: Ms[] = [];
+    for (let run = 0; run < 4; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      runs.push(now);
+      await w.entries.alarm();
+    }
+    expect(runs).toEqual([8000, 8000 + ALARM_RETRY_MS, 8000 + 2 * ALARM_RETRY_MS, 8000 + 3 * ALARM_RETRY_MS]);
+    expect(events()).not.toContain("alarm-error");
+  });
+
+  test("M3 (e): under a frozen test clock the same due time makes one run and no second at that instant", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one", time: 8000 });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.accountsNextDue = 5000;
+    w.reset();
+    expect(await w.entries.testSetClock(9000)).toEqual({ result: "clock-set" });
+    expect(w.names().filter((name) => name === "accounts.forget")).toHaveLength(1);
+  });
 });

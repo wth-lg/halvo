@@ -311,6 +311,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           dueErrorsOfTheRun?.push(error);
           due = host.clock() + ALARM_RETRY_MS;
         }
+        if (dueErrorsOfTheRun !== null && due !== null) {
+          const now = Math.max(time(sql), lastNow(sql));
+          let marked = true;
+          try {
+            marked = markOf(sql).since !== null;
+          } catch {}
+          if (marked && due <= now) due = now + ALARM_RETRY_MS;
+        }
       }
       return result;
     });
