@@ -24,6 +24,111 @@ link_line() {
   emit_pass "$name"
 }
 
+stall_guard_s=120
+
+ere_literal() {
+  printf '%s\n' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'
+}
+
+check_is_past_its_fork() {
+  pgrep -P "$1" -x sleep > /dev/null
+}
+
+end_check_group() {
+  perl -e "kill 'KILL', -\$ARGV[0]" "$1"
+  wait "$1"
+}
+
+hup_leaves_no_child() {
+  command -v "$1" > /dev/null 2>&1 || return 1
+  hup_root=$gate_scratch/hup-$1${2:+-slow}
+  mkdir -p "$hup_root" || return 1
+  mkfifo "$hup_root/ready" || return 1
+  cat > "$hup_root/standin" <<'WRAPPER'
+#!/bin/sh
+store_dir=''
+flag=''
+for word in "$@"; do
+  [ "$flag" != --store-dir ] || store_dir=$word
+  flag=$word
+done
+printf '%s %s\n' "$$" "$store_dir" >&3
+[ -z "$HUP_SLOW_S" ] || exec "$HUP_STANDIN" deaf "$HUP_SLOW_S"
+exec "$HUP_STANDIN" "$@"
+WRAPPER
+  chmod 755 "$hup_root/standin" || return 1
+  hup_start=$(date +%s)
+  HUP_SLOW_S=${2:-} HUP_STANDIN=$standin TMPDIR=$hup_root perl -MPOSIX -e "setpgrp(0, 0); \$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" \
+    "$1" -c "hup_wrapper=\$1; set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; standin=\$hup_wrapper; against_the_standin hang none" \
+    "$DIR/check-$name.sh" "$hup_root/standin" > "$hup_root/check.out" 2>&1 3> "$hup_root/ready" &
+  hup_pid=$!
+  hup_line=$(perl -e "\$SIG{ALRM} = sub { exit 3 }; alarm \$ARGV[1]; open(my \$ready, '<', \$ARGV[0]) or exit 4; my \$line = <\$ready>; exit 1 unless defined \$line; print \$line; exit 0;" "$hup_root/ready" "$stall_guard_s")
+  case $? in
+    0) ;;
+    3)
+      end_check_group "$hup_pid"
+      printf 'the child of the check did not start within the guard of %s s against a stall\n' "$stall_guard_s"
+      return 1 ;;
+    *)
+      wait "$hup_pid"
+      hup_status=$?
+      printf 'the check ended with exit %s before its child started\n' "$hup_status"
+      return 1 ;;
+  esac
+  hup_child=${hup_line%% *}
+  hup_store=${hup_line#* }
+  if [ ! -d "$hup_store" ]; then
+    end_check_group "$hup_pid"
+    printf 'the child of the check names no store directory after --store-dir\n'
+    return 1
+  fi
+  hup_until=$((hup_start + stall_guard_s))
+  until check_is_past_its_fork "$hup_pid"; do
+    kill -0 "$hup_pid" 2> /dev/null || break
+    hup_now=$(date +%s)
+    if [ "$hup_now" -ge "$hup_until" ]; then
+      end_check_group "$hup_pid"
+      printf 'the check did not start to watch its child within the guard of %s s against a stall\n' "$stall_guard_s"
+      return 1
+    fi
+    sleep 0.1
+  done
+  kill -HUP "$hup_pid"
+  hup_now=$(date +%s)
+  hup_until=$((hup_now + stall_guard_s))
+  while kill -0 "$hup_pid" 2> /dev/null; do
+    hup_now=$(date +%s)
+    if [ "$hup_now" -ge "$hup_until" ]; then
+      end_check_group "$hup_pid"
+      printf 'the check did not end within the guard of %s s against a stall after HUP\n' "$stall_guard_s"
+      return 1
+    fi
+    sleep 0.1
+  done
+  wait "$hup_pid"
+  hup_status=$?
+  hup_pattern=$(ere_literal "--store-dir $hup_store")
+  hup_left=$(pgrep -f -- "$hup_pattern")
+  case $? in
+    0) ;;
+    1) hup_left='' ;;
+    *) printf 'pgrep could not read the processes after the check ended with exit %s\n' "$hup_status"; return 1 ;;
+  esac
+  ! kill -0 "$hup_child" 2> /dev/null || hup_left="$hup_left $hup_child"
+  if [ -n "$hup_left" ]; then
+    for hup_one in $hup_left; do kill -KILL "$hup_one" 2> /dev/null; done
+    printf 'the child of the check is left after the check ended with exit %s\n' "$hup_status"
+    return 1
+  fi
+  if [ -e "$hup_store/store.key" ]; then
+    printf 'the child ran to its own end: the check ended with exit %s only after it\n' "$hup_status"
+    return 1
+  fi
+  [ "$hup_status" -eq 129 ] && return 0
+  printf 'the check ended with exit %s after HUP, not 129\n' "$hup_status"
+  return 1
+}
+
 cases() {
   scratch_root
   marker=HALVOMARKERselftest
@@ -77,7 +182,8 @@ cases() {
   t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 none
   t standin-verify-past-its-deadline FAIL fails_saying 'verify-store ran past its deadline of 1s and was ended' past_the_deadline
   t term-ends-the-verify-child PASS signal_leaves_no_child sh TERM
-  t hup-ends-the-verify-child PASS signal_leaves_no_child sh HUP
+  t hup-ends-the-verify-child PASS hup_leaves_no_child sh
+  t hup-waits-for-a-slow-verify-child PASS hup_leaves_no_child sh 5.25
   if command -v dash > /dev/null 2>&1; then
     t term-ends-the-verify-child-under-dash PASS signal_leaves_no_child dash TERM
   fi
