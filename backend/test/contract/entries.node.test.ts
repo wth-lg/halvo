@@ -8,6 +8,7 @@ import {
   ALARM_RETRY_LIMIT,
   ALARM_PAUSE_CAP_MS,
   ALARM_RETRY_MS,
+  CANCEL_IN_FLIGHT_MS,
   CLOCK_RUN_LIMIT,
   DELETE_REMOVAL_BOUND_MS,
   type Entries,
@@ -610,9 +611,10 @@ describe("destroy", () => {
     expect(await w.holds()).toBe(true);
   });
 
-  test("step 6: a cancel call that spans a delete and a remake of the id answers not-finished, and the open hold and the new mark stay stored", async () => {
+  test("step 6: a cancel call that spans a delete and a remake of the id answers not-finished, and the open hold and the new mark stay stored (the call made for a null id, which no call in flight holds back: P7-110 L4)", async () => {
     const w = world({ clock: () => 8000 });
     await w.seeded({ customerId: "cus_one" });
+    w.answers.subscription = { ...METERED, subscriptionId: null };
     let release: (answer: { kind: "cancelled" }) => void = () => {};
     const waiting = new Promise<{ kind: "cancelled" }>((resolve) => {
       release = resolve;
@@ -1147,6 +1149,10 @@ describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => 
 });
 
 describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
+  const skeletonOf = async (w: ReturnType<typeof world>) => {
+    const snapshot = await w.entries.testInspect();
+    return snapshot.result === "snapshot" ? { row: snapshot.tables.skeleton?.[0], due: snapshot.due } : null;
+  };
   const underTheMark = async (o: { clock?: () => Ms } = {}) => {
     const w = world({ clock: o.clock ?? (() => 8000) });
     await w.seeded({ customerId: "cus_one" });
@@ -1426,5 +1432,50 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     const gaps = runs.slice(1).map((at, index) => at - (runs[index] ?? 0));
     expect(gaps.every((gap, index) => gap >= pause(index + 1))).toBe(true);
     expect(runs.filter((at) => at >= 8000 + 3 * 3_600_000).length).toBeLessThanOrEqual(22);
+  });
+
+  test("L4 (b): a destroy from outside that meets a cancel call in flight for the row's id answers not-finished, makes no call, writes no answer and deletes nothing; status answers closing; the due time is the call's end bound", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    let release: (answer: { kind: "cancelled" }) => void = () => {};
+    const waiting = new Promise<{ kind: "cancelled" }>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    w.host.port.cancelSubscription = async () => {
+      calls += 1;
+      return waiting;
+    };
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = await w.entries.destroy(HASH);
+    const during = { status: await w.entries.status(HASH), snapshot: await skeletonOf(w) };
+    release({ kind: "cancelled" });
+    expect(await first).toEqual({ result: "deleted" });
+    expect([second, calls]).toEqual([{ result: "not-finished" }, 1]);
+    expect(during.status).toEqual({ result: "closing" });
+    expect(during.snapshot).toEqual({ row: expect.objectContaining({ cancel_answered_at: null, cancel_next_at: null }), due: 8000 + CANCEL_IN_FLIGHT_MS });
+  });
+
+  test("L4 (b): a cancel call in flight for one id does not hold back the call for another id that the row holds now", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    let release: (answer: { kind: "cancelled" }) => void = () => {};
+    const waiting = new Promise<{ kind: "cancelled" }>((resolve) => {
+      release = resolve;
+    });
+    const ids: (string | null)[] = [];
+    w.host.port.cancelSubscription = async (id) => {
+      ids.push(id);
+      return ids.length === 1 ? waiting : { kind: "cancelled" };
+    };
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    w.answers.subscription = { ...METERED, subscriptionId: "sub_two" };
+    await w.entries.destroy(HASH);
+    release({ kind: "cancelled" });
+    await first;
+    expect(ids).toEqual(["sub_one", "sub_two"]);
   });
 });

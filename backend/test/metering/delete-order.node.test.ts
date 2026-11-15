@@ -216,7 +216,7 @@ describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
     w.close();
   });
 
-  test("two deletes in flight: both call, the later answer keeps the time that the first stored", async () => {
+  test("two deletes in flight: one cancel call; the second meets the call in flight, answers not-finished and calls nothing, and the first stores the answer (P7-110 L4)", async () => {
     const d = await deleting({ testClock: false, faults: [{ kind: "request-lost" }, { kind: "request-lost" }] });
     const w = d.w;
     w.at(START + 1000);
@@ -236,12 +236,9 @@ describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
     w.at(START + 3 * MINUTE);
     release();
     expect([await first, second]).toEqual([{ result: "not-finished" }, { result: "not-finished" }]);
-    expect(stored).toEqual(expect.objectContaining({ cancel_answered_at: START + 2 * MINUTE, cancel_answered_for: "sub_1" }));
-    expect(await skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_at: START + 2 * MINUTE, cancel_answered_for: "sub_1" }));
-    expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([
-      ["sub_1", "nothing-to-cancel"],
-      ["sub_1", "cancelled"],
-    ]);
+    expect(stored).toEqual(expect.objectContaining({ cancel_answered_at: null }));
+    expect(await skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_at: START + 3 * MINUTE, cancel_answered_for: "sub_1" }));
+    expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([["sub_1", "cancelled"]]);
     w.close();
   });
 

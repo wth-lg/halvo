@@ -9,6 +9,7 @@ import type {
   StatusAnswer,
 } from "../contract/schemas.ts";
 import type { EndResult, Ledger, Price, ReserveResult, Usage } from "../ledger/index.ts";
+import { PROVIDER_CALL_TIMEOUT_MS } from "../billing/stripe/timeout.ts";
 import { errorName, log } from "../log.ts";
 import { type Metering, type Next, RETRY_DELAY_CAP_MS, SYNC_RETRY_MS, type UsageAnswer, type UsageCall } from "../metering/index.ts";
 import type { Cap, Micro, Ms, Sql, Step, Tier } from "../types.ts";
@@ -25,6 +26,7 @@ export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
  * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes.
  */
 export const ALARM_PAUSE_CAP_MS = 3_600_000;
+export const CANCEL_IN_FLIGHT_MS = PROVIDER_CALL_TIMEOUT_MS + ALARM_RETRY_MS;
 export interface Host {
   step: Step;
   clock(): Ms;
@@ -200,7 +202,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     const mark = markOf(sql);
     const subscription = accounts.subscription(sql);
     if (mark.since !== null && subscription !== null) {
+      const inFlight = subscription.subscriptionId === null ? undefined : cancelsInFlight.get(subscription.subscriptionId);
       if (mark.answeredAt !== null && answeredFor(mark, subscription.subscriptionId)) times.push(mark.answeredAt + DELETE_REMOVAL_BOUND_MS);
+      else if (inFlight !== undefined) times.push(inFlight.since + CANCEL_IN_FLIGHT_MS);
       else if (mark.nextAt !== null) times.push(mark.nextAt);
       else if (ledger.openHoldsAt(sql, Math.max(time(sql), lastNow(sql))) === 0) times.push(mark.since);
     }
@@ -481,7 +485,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const prior = Number(skeletonRow(sql).alarm_failures);
         const failures = markedNow ? prior + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET last_now = ?, alarm_failures = ?", now, failures);
-        const owed = mark.answeredAt === null ? mark.nextAt : mark.answeredAt + DELETE_REMOVAL_BOUND_MS;
+        const inFlight = earliest([...cancelsInFlight.values()].map((each) => each.since + CANCEL_IN_FLIGHT_MS));
+        const owed = earliest([mark.answeredAt === null ? mark.nextAt : mark.answeredAt + DELETE_REMOVAL_BOUND_MS, inFlight]);
         return { failures, tested: testTime(sql) !== null, marked: markedNow, owed };
       });
       count = counted.failures;
@@ -569,7 +574,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
-      if (hash === null && subscriptionId !== null && cancelsInFlight.has(subscriptionId)) return { kind: "answer", answer: NOT_FINISHED };
+      if (subscriptionId !== null && cancelsInFlight.has(subscriptionId)) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
       return { kind: "cancel", subscriptionId, mark: mark.since };
     });
