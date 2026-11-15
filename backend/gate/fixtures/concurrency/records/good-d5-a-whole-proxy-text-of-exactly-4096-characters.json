@@ -1,0 +1,27 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K2, on D5 of P7-83 (7) (c) and B-36",
+  "about": "the proxy's error line and whole miniflare frames, 4,096 characters in all: the longest body that the rule reads as the proxy's text",
+  "source": "by hand, after P7-107 K2 (c)",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)\n    at async Object.fetch (file:///SCRATCH/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "lostInTransport": 1
+    }
+  }
+}

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common::{ask_store, effect, id, wait_until, Rig, Script};
-use halvo_agent_client::{CallError, EndRun};
+use halvo_agent_client::{CallError, EndRun, StartError};
 use halvo_schema::executable::names::{EffectState, Outcome};
 use halvo_schema::executable::text::EffectId;
 
@@ -127,7 +127,10 @@ fn the_owner_gets_a_store_request_only_while_the_mark_is_complete() {
 
     let early = rig.script(&[&send_store(&id(6), &load()), "hello", "idle"]);
     let spec = rig.spec(&early);
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_eq!(seen.lock().unwrap().as_slice(), &[true]);
     assert_eq!(rig.store.count(&id(6)), 0);
 }

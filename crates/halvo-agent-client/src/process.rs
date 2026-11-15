@@ -13,9 +13,7 @@ pub fn creation_time(pid: u32) -> Option<CreationTime> {
     #[cfg(target_os = "macos")]
     {
         match sys::info(pid) {
-            sys::Read::Found(i) if !i.zombie => {
-                NonZeroU64::new(i.started_us).map(CreationTime::from_micros)
-            }
+            sys::Read::Found(i) => NonZeroU64::new(i.started_us).map(CreationTime::from_micros),
             _ => None,
         }
     }
@@ -37,7 +35,7 @@ pub fn process_group(pid: u32) -> Option<NonZeroU32> {
     #[cfg(target_os = "macos")]
     {
         match sys::info(pid) {
-            sys::Read::Found(i) if !i.zombie => NonZeroU32::new(i.pgid),
+            sys::Read::Found(i) => NonZeroU32::new(i.pgid),
             _ => None,
         }
     }
@@ -77,7 +75,6 @@ mod tests {
         };
         assert_eq!(i.pid, me);
         assert_eq!(i.ppid, std::os::unix::process::parent_id());
-        assert!(!i.zombie);
         let child = std::process::Command::new("/bin/sleep")
             .arg("5")
             .spawn()

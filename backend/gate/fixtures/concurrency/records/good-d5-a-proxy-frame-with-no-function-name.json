@@ -1,0 +1,27 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K2 (a), on D5 of P7-83 (7) (c)",
+  "about": "the proxy's error line and a frame in V8's form with no function name, `    at file:///…:<line>:<column>`, of a miniflare file: the proxy's text, lost in transport",
+  "source": "by hand, after the verifier's changed copy m12",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "lostInTransport": 1
+    }
+  }
+}

@@ -1,11 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it builds learn-gate and plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, twice through one function, the first play without --restart-all and the second with it, on the derived store or, while the binary refuses it with store, on the memory store; each play exits 0 with drift result=ok; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
+# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it removes the built learn-gate at its two names under the build directory, builds it with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, takes the one of the two names that then exists (none or both is the cause build) and runs that file directly; it plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, printing one line set=dev or set=heldout before the lines of that set, so that every line up to the next set= line belongs to that set, twice through one function, the first play without --restart-all and the second with it, on the derived store or, only when the derived call ends with status 2, nothing on standard output and exactly the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF, on the memory store, every other status 2 of the derived call failing the check with the cause refused and no memory play following; each play exits 0 with drift result=ok, and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
 name=50-r5-drift
 script_path=scripts/r5/ci.d/50-r5-drift.sh
+not_built='REFUSED store: the derived store is not in this build'
 lfx=$(printf '\nx')
 nl=${lfx%x}
 
@@ -79,13 +80,44 @@ run_gate() {
   "$gate" "$@"
 }
 
+# build_gate: removes the built learn-gate at both names under the build directory, builds it, checks the tree, and
+# sets gate to the one of the two names that the build directory then lists; ends the check with build when the build
+# fails or when it lists none or both.
+build_gate() {
+  built=${CARGO_TARGET_DIR:-target}/debug/learn-gate
+  rm -f -- "$built" "$built.exe" || finish build
+  cargo build --locked -p halvo-learn-gate --bin learn-gate >"$art/build.txt" 2>&1 </dev/null || finish build
+  tree_same build
+  listed=$(ls -1a -- "${built%/*}") || finish build
+  plain=no
+  exe=no
+  case "$nl$listed$nl" in
+    *"${nl}learn-gate$nl"*) plain=yes ;;
+  esac
+  case "$nl$listed$nl" in
+    *"${nl}learn-gate.exe$nl"*) exe=yes ;;
+  esac
+  case $plain-$exe in
+    yes-no) gate=$built ;;
+    no-yes) gate=$built.exe ;;
+    *) finish build ;;
+  esac
+}
+
 run_trial() {
   sh "$trial_script" "$@"
 }
 
-# gate_play SET DIR OUT [--restart-all]: runs the gate host on the set, on the derived store or, when the binary
-# refuses that with store, on the memory store, with the same further arguments; sets played (the exit status) and
-# store.
+# not_built_refusal OUT: the derived call wrote nothing to OUT, and OUT.err holds byte for byte the build's own
+# refusal line and its final LF, the file not_built_file.
+not_built_refusal() {
+  [ ! -s "$1" ] && cmp -s "$not_built_file" "$1.err"
+}
+
+# gate_play SET DIR OUT [--restart-all]: runs the gate host on the set on the derived store and, only when the call
+# gives the build's own refusal (status 2, nothing on standard output and the one line not_built on standard error),
+# on the memory store, with the same further arguments; ends the check with refused at any other status 2 of the
+# derived call; sets played (the exit status) and store.
 gate_play() {
   set_name=$1
   set_dir=$2
@@ -94,7 +126,8 @@ gate_play() {
   store=derived
   run_gate drift --gate "$set_name" --cases "$set_dir" --store derived "$@" >"$out" 2>"$out.err" </dev/null
   played=$?
-  if [ "$played" -eq 2 ] && grep -q '^REFUSED store: ' "$out.err"; then
+  if [ "$played" -eq 2 ]; then
+    not_built_refusal "$out" || finish refused
     store=memory
     run_gate drift --gate "$set_name" --cases "$set_dir" --store memory "$@" >"$out" 2>"$out.err" </dev/null
     played=$?
@@ -196,7 +229,7 @@ readers() {
 }
 
 # judge SET: prints the lines of one set from its two plays and the readers' counts, and sets cause to the first
-# FAIL cause that holds, in the order result, expired, restart, readers, spread, or to nothing.
+# FAIL cause that holds, in the order stderr, result, expired, restart, readers, spread, or to nothing.
 judge() {
   cause=
   grep -E '^(improve|rollback|drift result)' "$first_out" || true
@@ -219,7 +252,9 @@ judge() {
   fi
   first_cause=$(play_cause "$first" "$first_out") || first_cause=result
   second_cause=$(play_cause "$second" "$second_out") || second_cause=result
-  if [ -n "$first_cause$second_cause" ]; then
+  if wrote_at_0_or_1 "$first" "$first_out.err" || wrote_at_0_or_1 "$second" "$second_out.err"; then
+    cause=stderr
+  elif [ -n "$first_cause$second_cause" ]; then
     cause=result
   elif [ "$zero" != 0 ]; then
     cause=expired
@@ -230,6 +265,14 @@ judge() {
   elif [ "$spread" != same ]; then
     cause=spread
   fi
+}
+
+# wrote_at_0_or_1 STATUS ERR: a play that ended with status 0 or 1 wrote to its standard error, the file ERR.
+wrote_at_0_or_1() {
+  case $1 in
+    0 | 1) [ -s "$2" ] ;;
+    *) return 1 ;;
+  esac
 }
 
 measure() {
@@ -250,17 +293,13 @@ measure() {
     sed -n '3,8p' "$art/heldout.txt" >"$art/spread-file.txt" || finish heldout
   fi
   command -v cargo >/dev/null 2>&1 || finish cargo
-  cargo build --locked -p halvo-learn-gate --bin learn-gate >"$art/build.txt" 2>&1 </dev/null || finish build
-  tree_same build
-  target=${CARGO_TARGET_DIR:-target}
-  gate=$target/debug/learn-gate
-  if [ -x "$gate.exe" ]; then
-    gate=$gate.exe
-  fi
-  [ -x "$gate" ] || finish build
+  not_built_file=$art/not-built.expected
+  printf '%s\n' "$not_built" >"$not_built_file" || finish artifacts
+  build_gate
   trial_script=tools/r5-trials/drift/run.sh
   status=pass
   for set_name in $sets; do
+    printf 'set=%s\n' "$set_name"
     play_set "$set_name" "fixtures/r5/cases/$set_name"
     tree_same "gate-$set_name"
     for play_status in "$first" "$second"; do
@@ -340,6 +379,11 @@ for arg in "$@"; do
   previous=$arg
 done
 if [ "$store" = derived ] && [ ! -e "$FX/derived" ]; then
+  if [ -e "$FX/derived-$play.code" ]; then
+    cat "$FX/derived-$play.out"
+    cat "$FX/derived-$play.err" >&2
+    exit "$(cat "$FX/derived-$play.code")"
+  fi
   printf 'REFUSED store: the derived store is not in this build\n' >&2
   exit 2
 fi
@@ -347,6 +391,9 @@ if [ -e "$FX/change-at-$set_name-$play" ]; then
   cat "$FX/change-at-$set_name-$play" >>"$FX/$(cat "$FX/change-file")"
 fi
 sed "s/store=memory/store=$store/" "$FX/$set_name-$play.out"
+if [ -e "$FX/$set_name-$play.err" ]; then
+  cat "$FX/$set_name-$play.err" >&2
+fi
 exit "$(cat "$FX/$set_name-$play.code")"
 EOF
 }
@@ -386,17 +433,37 @@ stand_in_git() {
 }
 
 stand_in_cargo() {
-  printf 'cargo %s\n' "$*" >>"$FX/calls"
+  [ ! -e "$FX/cargo-warns" ] || printf 'warning: unused variable: x\n' >&2
   case $* in
     'build --locked -p halvo-learn-gate --bin learn-gate')
+      printf 'cargo %s\n' "$*" >>"$FX/calls"
       [ -e "$FX/build-fails" ] && return 101
       if [ -e "$FX/change-at-build" ]; then
         cat "$FX/change-at-build" >>"$FX/$(cat "$FX/change-file")"
       fi
-      mkdir -p target/debug && cp "$FX/gate.sh" target/debug/learn-gate && chmod +x target/debug/learn-gate
+      mkdir -p "${CARGO_TARGET_DIR:-target}/debug" || return 101
+      while read -r made; do
+        cp "$FX/gate.sh" "${CARGO_TARGET_DIR:-target}/debug/$made" && chmod +x "${CARGO_TARGET_DIR:-target}/debug/$made" || return 101
+      done <"$FX/built-names"
       ;;
-    *) return 97 ;;
+    'run --locked -q -p halvo-learn-gate --bin learn-gate -- '*)
+      shift 8
+      sh "$FX/gate.sh" "$@"
+      ;;
+    *)
+      printf 'cargo %s\n' "$*" >>"$FX/calls"
+      return 97
+      ;;
   esac
+}
+
+# old_gate: an old learn-gate under target/debug, which records that it ran and fails every play.
+old_gate() {
+  cat <<'EOF'
+#!/bin/sh
+printf 'old %s\n' "$*" >>"$FX/calls"
+exit 3
+EOF
 }
 
 # fixture NAME [heldout]: a fixture tree with one development case, and with one held-out case when asked.
@@ -413,6 +480,7 @@ fixture() {
   : >"$FX/flags" || broken
   : >"$FX/calls" || broken
   printf 'status\n' >"$FX/change-file" || broken
+  printf 'learn-gate\n' >"$FX/built-names" || broken
   printf 'H %s\n' "$script_path" >"$FX/own-line" || broken
   spread_cases=1
   sets=dev
@@ -447,10 +515,19 @@ check() {
     git() {
       stand_in_git "$@"
     }
-    cargo() {
-      stand_in_cargo "$@"
-    }
+    if [ -e "$FX/no-cargo" ]; then
+      mkdir -p "$work/no-cargo-path" || exit 1
+      PATH=$work/no-cargo-path:/usr/bin:/bin
+    else
+      cargo() {
+        stand_in_cargo "$@"
+      }
+    fi
     unset CARGO_TARGET_DIR
+    if [ -e "$FX/target-dir" ]; then
+      CARGO_TARGET_DIR=$(cat "$FX/target-dir") || exit 1
+      export CARGO_TARGET_DIR
+    fi
     export FX
     CI_D_REPO=$fx_repo
     CI_D_ARTIFACTS=$work/$case_name/art
@@ -499,6 +576,40 @@ calls_are() {
   fi
 }
 
+# sets_hold FILE SET...: the set= lines of FILE are one for each SET, in that order, and each line of a set's own
+# keys stands below a set= line, a spread= line below set=heldout.
+sets_hold() {
+  file=$1
+  shift
+  awk -v want="$*" '
+    /^set=/ { set = substr($0, 5); got = got (got == "" ? "" : " ") set; next }
+    /^(improve|rollback|drift result|restart=|readers |store=|spread=)/ {
+      if (set == "" || ($0 ~ /^spread=/ && set != "heldout")) bad = 1
+    }
+    END { if (bad || got != want) exit 1 }
+  ' "$file"
+}
+
+# set_rejected LABEL: the output $work/LABEL.out does not hold the sets dev and heldout as sets_hold reads them.
+set_rejected() {
+  if sets_hold "$work/$1.out" dev heldout; then
+    wrong="$wrong $1"
+  else
+    rejected=$((rejected + 1))
+  fi
+}
+
+# two_sets_wanted: the lines that the check prints for the fixture two-sets.
+two_sets_wanted() {
+  for one_set in dev heldout; do
+    printf 'set=%s\n' "$one_set"
+    printf 'improve cases=1 admit=1 none=3 bound=1 worse=0\n'
+    printf 'rollback cases=0 wins=0 losses=0 critical=0 cost=0 budget=1\n'
+    printf 'drift result=ok\nrestart=same\nreaders same=2 of=2\nstore=memory\n'
+  done
+  printf 'spread=same\nPASS %s\n' "$name"
+}
+
 broken() {
   printf 'FAIL self-test:%s (scratch)\n' "$name"
   exit 1
@@ -518,6 +629,50 @@ self_test() {
   calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
     "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
 
+  for olds in 'learn-gate learn-gate.exe' learn-gate learn-gate.exe; do
+    fixture "old-files-under-target-$(printf '%s' "$olds" | tr ' ' '+')"
+    mkdir -p "$fx_repo/target/debug" || broken
+    for old in $olds; do
+      old_gate >"$fx_repo/target/debug/$old" || broken
+      chmod +x "$fx_repo/target/debug/$old" || broken
+    done
+    check PASS 'readers same=2 of=2'
+    calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+      "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
+  done
+
+  fixture cargo-warns-beside-a-clean-play
+  : >"$FX/cargo-warns"
+  check PASS 'readers same=2 of=2'
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+    "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
+
+  fixture build-directory-of-its-own
+  printf '%s\n' "$work/$case_name/build" >"$FX/target-dir" || broken
+  mkdir -p "$fx_repo/target/debug" || broken
+  for old in learn-gate learn-gate.exe; do
+    old_gate >"$fx_repo/target/debug/$old" || broken
+    chmod +x "$fx_repo/target/debug/$old" || broken
+  done
+  check PASS 'readers same=2 of=2'
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+    "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
+
+  fixture none-after-the-build
+  : >"$FX/built-names"
+  check FAIL-build "FAIL $name (build)"
+  calls_are "$build"
+
+  fixture both-after-the-build
+  printf 'learn-gate\nlearn-gate.exe\n' >"$FX/built-names"
+  check FAIL-build "FAIL $name (build)"
+  calls_are "$build"
+
+  fixture no-cargo
+  : >"$FX/no-cargo"
+  check FAIL-cargo "FAIL $name (cargo)"
+  calls_are
+
   fixture derived-taken
   : >"$FX/derived"
   check PASS 'store=derived'
@@ -529,12 +684,118 @@ self_test() {
     "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all" \
     "gate $held --store derived" "gate $held --store memory" \
     "gate $held --store derived --restart-all" "gate $held --store memory --restart-all"
+  printf '%s\n' "$out" >"$work/two-sets.out" || broken
+  two_sets_wanted >"$work/two-sets.wanted" || broken
+  cmp -s "$work/two-sets.out" "$work/two-sets.wanted" || wrong="$wrong two-sets:lines"
+  sets_hold "$work/two-sets.out" dev heldout || wrong="$wrong two-sets:sets"
+  grep -v '^set=heldout$' "$work/two-sets.out" >"$work/set-line-missing.out" || broken
+  set_rejected set-line-missing
+  awk '/^set=heldout$/ { h = 1 } /^PASS / { p = 1 } { if (p) tail = tail $0 "\n"; else if (h) held = held $0 "\n"; else dev = dev $0 "\n" } END { printf "%s%s%s", held, dev, tail }' "$work/two-sets.out" >"$work/sets-in-the-other-order.out" || broken
+  set_rejected sets-in-the-other-order
+  awk '/^spread=/ { next } { print } /^set=dev$/ { print "spread=same" }' "$work/two-sets.out" >"$work/spread-below-dev.out" || broken
+  set_rejected spread-below-dev
+
+  fixture one-set
+  check PASS 'readers same=2 of=2'
+  printf '%s\n' "$out" >"$work/one-set.out" || broken
+  sets_hold "$work/one-set.out" dev || wrong="$wrong one-set:sets"
 
   fixture two-sets-derived-taken heldout
   : >"$FX/derived"
   check PASS 'spread=same'
   calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
     "gate $held --store derived" "gate $held --store derived --restart-all"
+
+  for at in first second; do
+    for form in other-detail second-line blank-line-after longer-line nul-in-line no-final-lf beside-output blank-output status-1 status-3; do
+      fixture "derived-$at-$form"
+      code=2
+      : >"$FX/derived-$at.out" || broken
+      case $form in
+        other-detail) printf 'REFUSED store: the data directory cannot be opened\n' ;;
+        second-line) printf 'a line before it\n%s\n' "$not_built" ;;
+        blank-line-after) printf '%s\n\n' "$not_built" ;;
+        longer-line) printf '%s yet\n' "$not_built" ;;
+        nul-in-line) printf 'REFUSED store: the derived store\000 is not in this build\n' ;;
+        no-final-lf) printf '%s' "$not_built" ;;
+        blank-output)
+          printf '\n' >"$FX/derived-$at.out" || broken
+          printf '%s\n' "$not_built"
+          ;;
+        status-3)
+          code=3
+          printf '%s\n' "$not_built"
+          ;;
+        beside-output)
+          printf 'drift result=ok\n' >"$FX/derived-$at.out" || broken
+          printf '%s\n' "$not_built"
+          ;;
+        status-1)
+          code=1
+          printf '%s\n' "$not_built"
+          ;;
+      esac >"$FX/derived-$at.err" || broken
+      printf '%s\n' "$code" >"$FX/derived-$at.code" || broken
+      case $at:$form in
+        first:status-1)
+          check FAIL-stderr "FAIL $name (stderr)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
+            "gate $dev --store memory --restart-all"
+          ;;
+        second:status-1)
+          check FAIL-stderr "FAIL $name (stderr)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+            "gate $dev --store derived --restart-all"
+          ;;
+        first:status-3)
+          check FAIL-exit "FAIL $name (exit)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
+            "gate $dev --store memory --restart-all"
+          ;;
+        second:status-3)
+          check FAIL-exit "FAIL $name (exit)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+            "gate $dev --store derived --restart-all"
+          ;;
+        first:*)
+          check FAIL-refused "FAIL $name (refused)"
+          calls_are "$build" "gate $dev --store derived"
+          ;;
+        second:*)
+          check FAIL-refused "FAIL $name (refused)"
+          calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+            "gate $dev --store derived --restart-all"
+          ;;
+      esac
+    done
+  done
+
+  fixture stderr-in-the-first-play-at-status-0
+  printf 'x\n' >"$FX/dev-first.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-the-second-play-at-status-0
+  printf '\n' >"$FX/dev-second.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture derived-taken-with-stderr-in-the-first-play
+  : >"$FX/derived"
+  printf 'x\n' >"$FX/dev-first.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-the-first-play-at-status-1
+  play_lines dev memory 2 "" miss >"$FX/dev-first.out" || broken
+  printf '1\n' >"$FX/dev-first.code" || broken
+  printf 'x\n' >"$FX/dev-first.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-a-held-out-play-at-status-0 heldout
+  printf 'warning: a line of the build\n' >"$FX/heldout-second.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
+
+  fixture stderr-in-the-development-set-of-two heldout
+  printf 'x\n' >"$FX/dev-first.err" || broken
+  check FAIL-stderr "FAIL $name (stderr)"
 
   fixture two-changed-files-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-gate/src/stub.rs\n1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/dev/renamed-pay.jsonl\n' >"$FX/status"

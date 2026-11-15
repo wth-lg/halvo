@@ -1,0 +1,32 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K2, on D5 of P7-83 (7) (c) and B-36",
+  "about": "the same climb written percent-encoded, %2e%2e and %2E%2e, after the anchor: a violation",
+  "source": "by hand, after P7-107 K2 (a)",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at Object.fetch (file:///SCRATCH/node_modules/miniflare/%2e%2e/%2E%2e/backend/.wrangler/tmp/dev-x1y2z3/index.js:81:20)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}

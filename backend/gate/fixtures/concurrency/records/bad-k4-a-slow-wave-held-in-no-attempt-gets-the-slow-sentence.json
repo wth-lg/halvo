@@ -1,0 +1,186 @@
+{
+  "kind": "line",
+  "ruling": "P7-107 K4, on B-33 and the N4 sentence of P7-83 (7) (c)",
+  "about": "a wave run that never counted, whose six attempts were all slow and all held the wave in none: the B-33 sentence comes before the N4 sentence, as contract 9.6 gives such a run",
+  "source": "by hand, after the review's B4",
+  "selected": [
+    {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 200,
+      "switch": "usage-last",
+      "k": 120,
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-wave-at-200-plain-1-try6",
+      "cell": "wave@200",
+      "kind": "wave",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 150,
+        "settled": 0,
+        "expired": 150,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": true,
+        "burstWaits": [
+          2700,
+          2800,
+          2900
+        ],
+        "burstMedianMs": 2800,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0,
+        "held": false,
+        "streams": 150,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        }
+      },
+      "discarded": [
+        {
+          "key": "ledger-wave-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "expired",
+            "ms": 412
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try2",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "expired",
+            "ms": 412
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try3",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "expired",
+            "ms": 412
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try4",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "expired",
+            "ms": 412
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try5",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            2700,
+            2800,
+            2900
+          ],
+          "burstMedianMs": 2800,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "expired",
+            "ms": 412
+          },
+          "violations": []
+        }
+      ],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=0 of 120 lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=6 burst-p50-at-200=2800ms rollover-redrawn=0; first failure: 6 attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was 2800 ms, over the bound of 2600 ms; ledger-wave-at-200-plain-1-try6 did not count in 6 attempts"
+  }
+}

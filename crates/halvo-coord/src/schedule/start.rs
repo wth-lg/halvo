@@ -1,4 +1,4 @@
-use super::{current_slot, finished, holds, slot_due, slot_open, Hold};
+use super::{clean, current_slot, finished, holds, slot_due, slot_open, Hold};
 use crate::types::{
     AgentState, Cause, ConfigView, Doing, Facts, Limits, Mode, Runtime, Tier, Trigger, What,
 };
@@ -153,7 +153,7 @@ pub fn start_step<C: ConfigView>(
             }
         }
         Trigger::Person => current_slot(&facts.workflow, facts.today)
-            .filter(|s| finished(facts) && slot_open(facts, *s)),
+            .filter(|s| clean(facts) && slot_open(facts, *s)),
     };
     let holds_model = needs_model(&facts.config);
     if around.live >= limits.max_live_runs || (holds_model && around.model_held) {

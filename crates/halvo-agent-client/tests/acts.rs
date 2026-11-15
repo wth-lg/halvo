@@ -5,10 +5,10 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use common::{wait_until, Rig};
-use halvo_agent_client::{CallError, OriginAnswer};
+use halvo_agent_client::{CallError, Forced, ForcedPath, OriginAnswer, RunEnd};
 use halvo_schema::executable::frame::HandbackResult;
-use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason};
-use halvo_schema::executable::text::{Name, V1};
+use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason, Outcome};
+use halvo_schema::executable::text::{Name, RunId, V1};
 
 const SHORT: Duration = Duration::from_secs(10);
 
@@ -29,6 +29,28 @@ fn handback(reason: &str, origin: &str) -> String {
 
 fn bind(origin: &str) -> String {
     format!(r#"ask {{"t":"bind","origin":"{origin}"}}"#)
+}
+
+fn sign_in() -> String {
+    handback("sign_in", "http://pay.test:18090")
+}
+
+fn signed_in(rig: &Rig, run: &RunId, n: usize) {
+    assert!(
+        wait_until(SHORT, || rig.people.handbacks.lock().unwrap().len() >= n),
+        "no handback number {n} was opened"
+    );
+    rig.sup
+        .answer_handback(run, result(HandbackOutcome::Done, None))
+        .unwrap();
+}
+
+fn binds(script: &common::Script) -> Vec<String> {
+    script
+        .replies()
+        .into_iter()
+        .filter(|r| r.contains(r#""t":"bind_reply""#))
+        .collect()
 }
 
 fn adds(rig: &Rig) -> Vec<String> {
@@ -52,10 +74,17 @@ fn a_bind_of_a_new_origin_asks_the_person_sends_add_origin_until_acknowledged_an
 ) {
     let rig = Rig::new("bind-allow");
     rig.store.fail_add_origin.store(2, Ordering::SeqCst);
-    let script = rig.script(&["hello", &bind("http://pay.test:18090"), "log bound", "idle"]);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec.clone()).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(script.wait_log("bound", SHORT), "{}", script.log());
     assert_eq!(
         rig.people.asked_origins.lock().unwrap().as_slice(),
@@ -68,10 +97,7 @@ fn a_bind_of_a_new_origin_asks_the_person_sends_add_origin_until_acknowledged_an
         r#""op":"add_origin","workflow":"{}","agent":"{}","run":"{}","origin":"http://pay.test:18090","way":"sign_in""#,
         spec.workflow, spec.agent, spec.run
     )));
-    assert_eq!(
-        script.replies(),
-        vec![r#"{"t":"bind_reply","bound":"yes"}"#]
-    );
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
     rig.sup.kill(&run).unwrap();
 }
 
@@ -79,12 +105,19 @@ fn a_bind_of_a_new_origin_asks_the_person_sends_add_origin_until_acknowledged_an
 fn a_bind_that_the_person_declines_is_answered_no_and_sends_no_add_origin() {
     let rig = Rig::new("bind-decline");
     *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
-    let script = rig.script(&["hello", &bind("http://pay.test:18090"), "log bound", "idle"]);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(script.wait_log("bound", SHORT), "{}", script.log());
-    assert_eq!(script.replies(), vec![r#"{"t":"bind_reply","bound":"no"}"#]);
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"no"}"#]);
     assert!(adds(&rig).is_empty());
     rig.sup.kill(&run).unwrap();
 }
@@ -100,6 +133,7 @@ fn a_bind_of_an_origin_that_the_bindings_hold_is_answered_yes_at_once_with_no_qu
     let script = rig.script(&[
         "hello",
         r#"ask {"t":"store","request":{"v":1,"id":"01010101010101010101010101010101","request":"runner","body":{"op":"load","agent":"{agent}","run":"{run}"}}}"#,
+        &sign_in(),
         &bind("http://pay.test:18090"),
         "log bound",
         "idle",
@@ -107,8 +141,9 @@ fn a_bind_of_an_origin_that_the_bindings_hold_is_answered_yes_at_once_with_no_qu
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(script.wait_log("bound", SHORT), "{}", script.log());
-    assert_eq!(script.replies()[1], r#"{"t":"bind_reply","bound":"yes"}"#);
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
     assert!(rig.people.asked_origins.lock().unwrap().is_empty());
     assert!(adds(&rig).is_empty());
     rig.sup.kill(&run).unwrap();
@@ -123,6 +158,7 @@ fn an_add_origin_that_is_never_acknowledged_answers_nothing_as_bound_and_stops_w
     let script = rig.script(&[
         "hello",
         "on-eof hang",
+        &sign_in(),
         &bind("http://pay.test:18090"),
         "log bound",
         "idle",
@@ -130,8 +166,9 @@ fn an_add_origin_that_is_never_acknowledged_answers_nothing_as_bound_and_stops_w
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(wait_until(SHORT, || adds(&rig).len() >= 3));
-    assert!(script.replies().is_empty(), "{}", script.log());
+    assert!(binds(&script).is_empty(), "{}", script.log());
     rig.sup.kill(&run).unwrap();
     assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
     let after = adds(&rig).len();
@@ -386,16 +423,20 @@ fn an_add_origin_reply_for_another_id_or_of_another_call_form_is_no_acknowledgem
     let rig = Rig::new("bind-wrong-reply");
     rig.store.wrong_id_coord.store(1, Ordering::SeqCst);
     rig.store.wrong_form_coord.store(1, Ordering::SeqCst);
-    let script = rig.script(&["hello", &bind("http://pay.test:18090"), "log bound", "idle"]);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(script.wait_log("bound", SHORT), "{}", script.log());
     assert_eq!(adds(&rig).len(), 3);
-    assert_eq!(
-        script.replies(),
-        vec![r#"{"t":"bind_reply","bound":"yes"}"#]
-    );
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
     rig.sup.kill(&run).unwrap();
 }
 
@@ -420,6 +461,7 @@ fn an_add_origin_without_acknowledgement_is_sent_again_while_the_runner_sends_fr
         .store(usize::MAX, Ordering::SeqCst);
     let mut lines: Vec<String> = vec![
         "hello".to_owned(),
+        sign_in(),
         r#"send {"t":"bind","origin":"http://pay.test:18090"}"#.to_owned(),
     ];
     for _ in 0..75 {
@@ -433,6 +475,7 @@ fn an_add_origin_without_acknowledgement_is_sent_again_while_the_runner_sends_fr
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(
         script.wait_log("burst-over", Duration::from_secs(30)),
         "{}",
@@ -476,7 +519,9 @@ fn an_origin_whose_add_origin_was_acknowledged_is_bound_and_asks_no_one_again() 
     let rig = Rig::new("bind-twice");
     let script = rig.script(&[
         "hello",
+        &sign_in(),
         &bind("http://pay.test:18090"),
+        &sign_in(),
         &bind("http://pay.test:18090"),
         "log both-binds-answered",
         "idle",
@@ -484,6 +529,8 @@ fn an_origin_whose_add_origin_was_acknowledged_is_bound_and_asks_no_one_again() 
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    signed_in(&rig, &run, 2);
     assert!(
         script.wait_log("both-binds-answered", SHORT),
         "{}",
@@ -492,7 +539,7 @@ fn an_origin_whose_add_origin_was_acknowledged_is_bound_and_asks_no_one_again() 
     assert_eq!(rig.people.asked_origins.lock().unwrap().len(), 1);
     assert_eq!(adds(&rig).len(), 1);
     assert_eq!(
-        script.replies(),
+        binds(&script),
         vec![
             r#"{"t":"bind_reply","bound":"yes"}"#,
             r#"{"t":"bind_reply","bound":"yes"}"#
@@ -526,6 +573,7 @@ fn a_refused_answer_handback_leaves_the_wait_for_a_bind_reply_in_place() {
     let script = rig.script(&[
         "hello",
         "on-eof hang",
+        &sign_in(),
         &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
         "log bind-sent",
         "sleep 1500",
@@ -536,6 +584,7 @@ fn a_refused_answer_handback_leaves_the_wait_for_a_bind_reply_in_place() {
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
     assert!(script.wait_log("bind-sent", SHORT), "{}", script.log());
     assert!(wait_until(SHORT, || !rig
         .people
@@ -556,4 +605,750 @@ fn a_refused_answer_handback_leaves_the_wait_for_a_bind_reply_in_place() {
         script.log()
     );
     assert_eq!(rig.people.asked_confirms.load(Ordering::SeqCst), 0);
+}
+
+fn out_of_turn(
+    name: &str,
+    lines: &[&str],
+    results: &[HandbackOutcome],
+) -> (Rig, common::Script, RunEnd) {
+    let rig = Rig::new(name);
+    let script = rig.script(lines);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    for (n, outcome) in results.iter().enumerate() {
+        assert!(
+            wait_until(SHORT, || rig.people.handbacks.lock().unwrap().len() > n),
+            "{}",
+            script.log()
+        );
+        rig.sup
+            .answer_handback(&run, result(*outcome, None))
+            .unwrap();
+    }
+    let end = rig
+        .rec
+        .wait_end(&run, SHORT)
+        .unwrap_or_else(|| panic!("the run did not end: {}", script.log()));
+    (rig, script, end)
+}
+
+fn assert_lost_unasked(
+    rig: &Rig,
+    script: &common::Script,
+    end: &RunEnd,
+    asked: usize,
+    added: usize,
+) {
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::LinkEnd,
+            browser: false
+        }),
+        "the run did not end as a lost flow: {}",
+        script.log()
+    );
+    assert_eq!(rig.people.asked_origins.lock().unwrap().len(), asked);
+    assert_eq!(adds(rig).len(), added);
+    assert_eq!(binds(script).len(), asked, "{}", script.log());
+}
+
+#[test]
+fn a_bind_as_the_runners_first_request_ends_the_run_and_asks_nobody() {
+    let send = bind("http://pay.test:18090").replacen("ask ", "send ", 1);
+    let (rig, script, end) =
+        out_of_turn("bind-first", &["hello", "on-eof hang", &send, "idle"], &[]);
+    assert_lost_unasked(&rig, &script, &end, 0, 0);
+}
+
+#[test]
+fn a_bind_after_a_handback_result_other_than_done_ends_the_run_and_asks_nobody() {
+    for outcome in [HandbackOutcome::Declined, HandbackOutcome::Timeout] {
+        let send = bind("http://pay.test:18090").replacen("ask ", "send ", 1);
+        let (rig, script, end) = out_of_turn(
+            "bind-after-declined",
+            &["hello", "on-eof hang", &sign_in(), &send, "idle"],
+            &[outcome],
+        );
+        assert_lost_unasked(&rig, &script, &end, 0, 0);
+    }
+}
+
+#[test]
+fn a_bind_after_a_done_handback_of_another_reason_ends_the_run_and_asks_nobody() {
+    for reason in ["step_failed", "effect_unknown"] {
+        let send = bind("http://pay.test:18090").replacen("ask ", "send ", 1);
+        let other = handback(reason, "http://pay.test:18090");
+        let (rig, script, end) = out_of_turn(
+            "bind-after-other-reason",
+            &["hello", "on-eof hang", &other, &send, "idle"],
+            &[HandbackOutcome::Done],
+        );
+        assert_lost_unasked(&rig, &script, &end, 0, 0);
+    }
+}
+
+#[test]
+fn a_second_bind_after_the_same_done_ends_the_run_and_asks_nobody_again() {
+    let first = bind("http://pay.test:18090");
+    let second = bind("http://mail.test:18090").replacen("ask ", "send ", 1);
+    let (rig, script, end) = out_of_turn(
+        "bind-second",
+        &["hello", "on-eof hang", &sign_in(), &first, &second, "idle"],
+        &[HandbackOutcome::Done],
+    );
+    assert_lost_unasked(&rig, &script, &end, 1, 1);
+}
+
+#[test]
+fn a_bind_after_a_done_handback_of_each_sign_in_reason_is_taken() {
+    for reason in ["sign_in", "second_factor", "captcha"] {
+        let rig = Rig::new("bind-each-reason");
+        let script = rig.script(&[
+            "hello",
+            &handback(reason, "http://pay.test:18090"),
+            &bind("http://pay.test:18090"),
+            "log bound",
+            "idle",
+        ]);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        signed_in(&rig, &run, 1);
+        assert!(
+            script.wait_log("bound", SHORT),
+            "{reason}: {}",
+            script.log()
+        );
+        assert_eq!(
+            binds(&script),
+            vec![r#"{"t":"bind_reply","bound":"yes"}"#],
+            "{reason}"
+        );
+        rig.sup.kill(&run).unwrap();
+    }
+}
+
+fn trait_calls(rig: &Rig) -> (usize, usize, usize, usize) {
+    (
+        rig.people.asked_confirms.load(Ordering::SeqCst),
+        rig.people.handbacks.lock().unwrap().len(),
+        rig.people.asked_origins.lock().unwrap().len(),
+        rig.vault.1.load(Ordering::SeqCst),
+    )
+}
+
+fn frame_out_of_turn(name: &str) -> String {
+    match name {
+        "confirm" => confirm(None).replacen("ask ", "send ", 1),
+        "handback" => sign_in().replacen("ask ", "send ", 1),
+        "bind" => bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        "secret" => r#"send {"t":"secret","ref":"fixture_token"}"#.to_owned(),
+        _ => "browser".to_owned(),
+    }
+}
+
+fn after_finish(name: &str) {
+    let finish = common::ask_finish();
+    let frame = frame_out_of_turn(name);
+    let (rig, script, end) = out_of_turn(
+        "after-finish",
+        &[
+            "hello",
+            "on-eof hang",
+            &finish,
+            "log finished",
+            &frame,
+            "idle",
+        ],
+        &[],
+    );
+    assert!(end.finish.is_some(), "{name}: the finish was stored");
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::AfterFinish,
+            browser: false
+        }),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(trait_calls(&rig), (0, 0, 0, 0), "{name}");
+    assert_eq!(
+        script.replies().len(),
+        1,
+        "{name}: a reply other than the finish's: {}",
+        script.log()
+    );
+}
+
+#[test]
+fn a_confirm_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("confirm");
+}
+
+#[test]
+fn a_handback_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("handback");
+}
+
+#[test]
+fn a_bind_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("bind");
+}
+
+#[test]
+fn a_secret_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("secret");
+}
+
+#[test]
+fn a_browser_frame_after_a_stored_finish_ends_the_run_after_finish_unanswered_and_unasked() {
+    after_finish("browser");
+}
+
+fn load_store() -> String {
+    common::ask_store(
+        &common::id(0x52),
+        r#"{"op":"load","agent":"{agent}","run":"{run}"}"#,
+    )
+    .replacen("ask ", "send ", 1)
+}
+
+fn after_bound_no(name: &str, frame: &str) {
+    let rig = Rig::new("after-bound-no");
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let script = rig.script(&[
+        "hello",
+        "on-eof hang",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log declined",
+        frame,
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    let end = rig
+        .rec
+        .wait_end(&run, SHORT)
+        .unwrap_or_else(|| panic!("{name}: the run did not end: {}", script.log()));
+    assert!(
+        script.log().contains("declined"),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(
+        binds(&script),
+        vec![r#"{"t":"bind_reply","bound":"no"}"#],
+        "{name}"
+    );
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::LinkEnd,
+            browser: false
+        }),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(trait_calls(&rig), (0, 1, 1, 0), "{name}");
+    assert_eq!(script.replies().len(), 2, "{name}: {}", script.log());
+    assert_eq!(rig.store.count(r#""op":"load""#), 0, "{name}");
+    assert!(adds(&rig).is_empty(), "{name}");
+}
+
+#[test]
+fn a_confirm_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("confirm", &frame_out_of_turn("confirm"));
+}
+
+#[test]
+fn a_handback_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("handback", &frame_out_of_turn("handback"));
+}
+
+#[test]
+fn a_bind_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("bind", &frame_out_of_turn("bind"));
+}
+
+#[test]
+fn a_secret_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("secret", &frame_out_of_turn("secret"));
+}
+
+#[test]
+fn a_browser_frame_after_bound_no_ends_the_run_unasked() {
+    after_bound_no("browser", &frame_out_of_turn("browser"));
+}
+
+#[test]
+fn a_store_of_another_body_than_finish_after_bound_no_ends_the_run_unrelayed() {
+    after_bound_no("load", &load_store());
+}
+
+#[test]
+fn the_declined_finish_after_bound_no_is_stored_and_its_done_taken() {
+    let rig = Rig::new("bound-no-finish");
+    *rig.people.allow.lock().unwrap() = OriginAnswer::Decline;
+    let finish = common::ask_finish();
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        r#"send {"t":"progress","step":2,"of":2}"#,
+        &finish,
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert!(
+        end.finish.is_some(),
+        "the finish was stored: {}",
+        script.log()
+    );
+    assert_eq!(end.outcome, Some(Outcome::Declined));
+    assert_eq!(end.forced, None, "{}", script.log());
+    assert_eq!(rig.store.count(r#""op":"finish""#), 1);
+}
+
+fn cancelled_bind_script(rig: &Rig) -> (common::Script, std::path::PathBuf) {
+    let go = rig.dir.join("go");
+    let finish = common::ask_finish();
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        &format!("wait-for {}", go.display()),
+        &finish,
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    (script, go)
+}
+
+fn assert_cancelled_bind_ended_as_declined(rig: &Rig, script: &common::Script, end: &RunEnd) {
+    assert!(script.log().contains("\ncancel"), "{}", script.log());
+    assert!(
+        binds(script).is_empty(),
+        "a bind_reply was written: {}",
+        script.log()
+    );
+    assert!(
+        end.finish.is_some(),
+        "the finish was not stored: {}",
+        script.log()
+    );
+    assert_eq!(end.outcome, Some(Outcome::Declined));
+    assert_eq!(end.forced, None, "the run was lost: {}", script.log());
+    assert_eq!(rig.store.count(r#""op":"finish""#), 1);
+}
+
+#[test]
+fn a_cancel_while_the_library_stands_in_allow_origin_drops_the_bind_and_takes_the_declined_finish()
+{
+    let rig = Rig::new("cancel-in-allow");
+    *rig.people.hold_allow.lock().unwrap() = true;
+    let (script, go) = cancelled_bind_script(&rig);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(wait_until(SHORT, || !rig
+        .people
+        .asked_origins
+        .lock()
+        .unwrap()
+        .is_empty()));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    *rig.people.hold_allow.lock().unwrap() = false;
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_cancelled_bind_ended_as_declined(&rig, &script, &end);
+    assert!(
+        adds(&rig).is_empty(),
+        "add_origin was sent: {:?}",
+        adds(&rig)
+    );
+}
+
+#[test]
+fn a_cancel_while_the_add_origin_of_a_bind_waits_drops_it_and_takes_the_declined_finish() {
+    let rig = Rig::new("cancel-in-bind-wait");
+    rig.store
+        .fail_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    let (script, go) = cancelled_bind_script(&rig);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(wait_until(SHORT, || adds(&rig).len() >= 2));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    std::thread::sleep(Duration::from_millis(300));
+    let at_cancel = adds(&rig).len();
+    std::thread::sleep(Duration::from_millis(1200));
+    assert_eq!(
+        adds(&rig).len(),
+        at_cancel,
+        "the add_origin of the bind was sent again after the cancel"
+    );
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_cancelled_bind_ended_as_declined(&rig, &script, &end);
+}
+
+#[test]
+fn two_add_origin_replies_that_cannot_be_read_and_then_an_acknowledgement_bind_the_origin() {
+    let rig = Rig::new("add-refused-two");
+    rig.store.garbage_add_origin.store(2, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("bound", SHORT), "{}", script.log());
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
+    assert_eq!(adds(&rig).len(), 3);
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn three_add_origin_replies_that_cannot_be_read_end_a_run_that_waits_for_the_bind_or_the_account_link(
+) {
+    for reason in ["sign_in", "account_link"] {
+        let rig = Rig::new("add-refused-three");
+        rig.store
+            .garbage_add_origin
+            .store(usize::MAX, Ordering::SeqCst);
+        let mut lines = vec!["hello".to_owned(), "on-eof hang".to_owned()];
+        if reason == "sign_in" {
+            lines.push(sign_in());
+            lines.push(bind("http://pay.test:18090"));
+        } else {
+            lines.push(handback("account_link", "http://mail.test:18090"));
+        }
+        lines.push("idle".to_owned());
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let script = rig.script(&refs);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        signed_in(&rig, &run, 1);
+        let end = rig
+            .rec
+            .wait_end(&run, SHORT)
+            .unwrap_or_else(|| panic!("{reason}: the run did not end: {}", script.log()));
+        assert_eq!(adds(&rig).len(), 3, "{reason}: three sends in all");
+        assert_eq!(
+            end.forced,
+            Some(Forced {
+                path: ForcedPath::LinkEnd,
+                browser: false
+            }),
+            "{reason}"
+        );
+        assert!(binds(&script).is_empty(), "{reason}: {}", script.log());
+        assert_eq!(rig.store.count(r#""op":"end_run""#), 1, "{reason}");
+    }
+}
+
+#[test]
+fn three_link_errors_on_an_add_origin_end_nothing_and_the_fourth_send_binds() {
+    let rig = Rig::new("add-link-errors");
+    rig.store.fail_add_origin.store(3, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("bound", SHORT), "{}", script.log());
+    assert_eq!(binds(&script), vec![r#"{"t":"bind_reply","bound":"yes"}"#]);
+    assert_eq!(adds(&rig).len(), 4);
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn three_add_origin_replies_that_cannot_be_read_drop_a_new_origin_and_the_run_goes_on() {
+    let rig = Rig::new("add-refused-new-origin");
+    rig.store
+        .garbage_add_origin
+        .store(usize::MAX, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &confirm(Some("http://pay.test:18090")),
+        "log answered",
+        "sleep 2500",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "log went-on",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("went-on", SHORT), "{}", script.log());
+    assert_eq!(adds(&rig).len(), 3, "three sends in all");
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_bind_after_a_sign_in_done_and_a_later_done_handback_of_another_reason_ends_the_run_and_asks_nobody(
+) {
+    for (reason, origin, added) in [
+        ("step_failed", "http://pay.test:18090", 0),
+        ("account_link", "http://mail.test:18090", 1),
+    ] {
+        let send = bind("http://pay.test:18090").replacen("ask ", "send ", 1);
+        let other = handback(reason, origin);
+        let (rig, script, end) = out_of_turn(
+            "bind-after-later-handback",
+            &["hello", "on-eof hang", &sign_in(), &other, &send, "idle"],
+            &[HandbackOutcome::Done, HandbackOutcome::Done],
+        );
+        assert_lost_unasked(&rig, &script, &end, 0, added);
+    }
+}
+
+fn bind_after_replies(name: &str, set: impl FnOnce(&Rig)) {
+    let rig = Rig::new(name);
+    set(&rig);
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090"),
+        "log bound",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(script.wait_log("bound", SHORT), "{name}: {}", script.log());
+    assert_eq!(
+        binds(&script),
+        vec![r#"{"t":"bind_reply","bound":"yes"}"#],
+        "{name}"
+    );
+    assert_eq!(
+        adds(&rig).len(),
+        4,
+        "{name}: three sends that met no count and the acknowledged one"
+    );
+    assert!(rig.rec.wait_end(&run, Duration::ZERO).is_none(), "{name}");
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn three_add_origin_replies_of_another_id_and_then_an_acknowledgement_still_bind() {
+    bind_after_replies("add-other-id-three", |rig| {
+        rig.store.wrong_id_coord.store(3, Ordering::SeqCst)
+    });
+}
+
+#[test]
+fn three_add_origin_error_replies_or_replies_of_another_form_and_then_an_acknowledgement_still_bind(
+) {
+    bind_after_replies("add-error-three", |rig| {
+        rig.store.error_add_origin.store(3, Ordering::SeqCst)
+    });
+    bind_after_replies("add-form-three", |rig| {
+        rig.store.wrong_form_coord.store(3, Ordering::SeqCst)
+    });
+}
+
+fn frame_after_cancelled_bind(name: &str, frame: &str, in_allow: bool) {
+    let rig = Rig::new(name);
+    if in_allow {
+        *rig.people.hold_allow.lock().unwrap() = true;
+    } else {
+        rig.store
+            .fail_add_origin
+            .store(usize::MAX, Ordering::SeqCst);
+    }
+    let go = rig.dir.join("go");
+    let wait = format!("wait-for {}", go.display());
+    let script = rig.script(&[
+        "hello",
+        "on-eof hang",
+        &sign_in(),
+        &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        &wait,
+        frame,
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    if in_allow {
+        assert!(wait_until(SHORT, || !rig
+            .people
+            .asked_origins
+            .lock()
+            .unwrap()
+            .is_empty()));
+    } else {
+        assert!(wait_until(SHORT, || !adds(&rig).is_empty()));
+    }
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    *rig.people.hold_allow.lock().unwrap() = false;
+    std::fs::write(&go, b"").unwrap();
+    let end = rig
+        .rec
+        .wait_end(&run, SHORT)
+        .unwrap_or_else(|| panic!("{name}: the run did not end: {}", script.log()));
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::LinkEnd,
+            browser: false
+        }),
+        "{name}: {}",
+        script.log()
+    );
+    assert_eq!(
+        rig.people.asked_confirms.load(Ordering::SeqCst),
+        0,
+        "{name}"
+    );
+    assert_eq!(rig.vault.1.load(Ordering::SeqCst), 0, "{name}");
+}
+
+#[test]
+fn a_confirm_or_a_secret_after_a_cancel_written_while_allow_origin_runs_ends_the_run_unasked() {
+    frame_after_cancelled_bind("cancel-allow-confirm", &frame_out_of_turn("confirm"), true);
+    frame_after_cancelled_bind("cancel-allow-secret", &frame_out_of_turn("secret"), true);
+}
+
+#[test]
+fn a_confirm_or_a_secret_after_a_cancel_written_while_the_add_origin_waits_ends_the_run_unasked() {
+    frame_after_cancelled_bind("cancel-add-confirm", &frame_out_of_turn("confirm"), false);
+    frame_after_cancelled_bind("cancel-add-secret", &frame_out_of_turn("secret"), false);
+}
+
+#[test]
+fn a_store_of_finish_after_a_cancel_during_an_open_handback_stays_a_lost_flow() {
+    let rig = Rig::new("cancel-in-handback");
+    let go = rig.dir.join("go");
+    let wait = format!("wait-for {}", go.display());
+    let finish = common::ask_finish().replacen("ask ", "send ", 1);
+    let script = rig.script(&[
+        "hello",
+        "on-eof hang",
+        &sign_in().replacen("ask ", "send ", 1),
+        &wait,
+        &finish,
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(wait_until(SHORT, || rig
+        .people
+        .handbacks
+        .lock()
+        .unwrap()
+        .len()
+        == 1));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert_eq!(
+        end.forced,
+        Some(Forced {
+            path: ForcedPath::LinkEnd,
+            browser: false
+        }),
+        "{}",
+        script.log()
+    );
+    assert!(
+        end.finish.is_none(),
+        "the finish was taken while a handback waited"
+    );
+    assert_eq!(rig.store.count(r#""op":"finish""#), 0);
+}
+
+#[test]
+fn an_add_origin_acknowledged_after_the_library_wrote_cancel_gives_the_runner_no_bind_reply() {
+    let rig = Rig::new("cancel-before-ack");
+    *rig.store.hold_add_origin.lock().unwrap() = true;
+    let go = rig.dir.join("go");
+    let wait = format!("wait-for {}", go.display());
+    let finish = common::ask_finish();
+    let script = rig.script(&[
+        "hello",
+        &sign_in(),
+        &bind("http://pay.test:18090").replacen("ask ", "send ", 1),
+        &wait,
+        &finish,
+        r#"send {"t":"done","outcome":"declined"}"#,
+        "exit 1",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    assert!(wait_until(SHORT, || !adds(&rig).is_empty()));
+    assert_eq!(rig.sup.cancel(&run), Ok(()));
+    assert!(script.wait_log("\ncancel", SHORT), "{}", script.log());
+    *rig.store.hold_add_origin.lock().unwrap() = false;
+    std::fs::write(&go, b"").unwrap();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert!(
+        binds(&script).is_empty(),
+        "the runner read a bind_reply after the cancel: {}",
+        script.log()
+    );
+    assert!(end.finish.is_some(), "{}", script.log());
+}
+
+#[test]
+fn a_confirm_after_a_done_account_link_and_its_reply_is_answered_and_the_run_ends_with_its_done() {
+    let rig = Rig::new("account-link-then-confirm");
+    let script = rig.script(&[
+        "hello",
+        &handback("account_link", "http://mail.test:18090"),
+        &confirm(None),
+        "log answered",
+        r#"send {"t":"done","outcome":"completed"}"#,
+        "exit 0",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    signed_in(&rig, &run, 1);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the run ended");
+    assert!(script.log().contains("answered"), "{}", script.log());
+    assert_eq!(rig.people.issued.lock().unwrap().len(), 1);
+    assert_eq!(end.outcome, Some(Outcome::Completed), "{}", script.log());
+    assert_eq!(end.forced, None, "{}", script.log());
 }
