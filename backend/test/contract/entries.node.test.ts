@@ -1938,7 +1938,7 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     expect(events()).not.toContain("alarm-stopped");
   });
 
-  test("M4: when every write of the object fails and the instance is new at each run, the pause stays at 30 s, as ALARM_PAUSE_CAP_MS's doc comment says", async () => {
+  test("M4: when every write of the object fails and the instance is new at each run, the pause stays at 30 s, as ALARM_PAUSE_CAP_MS's doc comment says of the count's one failing statement", async () => {
     const clock = { now: 8000 };
     const w = world({ clock: () => clock.now });
     await w.seeded({ customerId: "cus_one" });
@@ -2404,5 +2404,25 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     w.answers.throwIn = null;
     expect(events().filter((event) => event === "alarm-stopped")).toHaveLength(1);
     expect(w.alarmAt()).toBeNull();
+  });
+
+  test("T3: the count's own statement alone fails and the instance is new at each run: the pause stays at 30 s", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "accounts.forget";
+    inTheCountStep(w, (query) => query.startsWith("UPDATE skeleton SET alarm_failures = ?"));
+    const gaps: Ms[] = [];
+    for (let run = 0; run < 4; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      const at = now;
+      await makeEntries(w.host, w.modules).alarm();
+      gaps.push(((w.alarmAt() ?? at) - at) / 1000);
+    }
+    w.answers.throwIn = null;
+    expect(gaps).toEqual([30, 30, 30, 30]);
+    expect(skeleton(w)?.alarm_failures).toBe(0);
   });
 });

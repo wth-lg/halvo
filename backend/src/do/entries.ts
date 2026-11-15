@@ -29,9 +29,11 @@ export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
 /**
  * The cap of the pause after a failing run of the alarm under the mark. The pause starts at ALARM_RETRY_MS and doubles with
  * each failing run in a row, so a begun delete costs at most one run per ALARM_RETRY_MS, settling to one run per
- * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes. The count of failing runs is written in a
- * step of its own and also kept in the instance's memory as a floor; only when every write of the object fails and the
- * instance is new at each run does the pause stay at ALARM_RETRY_MS.
+ * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes. The count of failing runs is written by a
+ * statement of its own and also kept in the instance's memory as a floor. While that one statement fails and the object
+ * is new at each run, the pause stays at ALARM_RETRY_MS: 2,881 runs a day. No retry of the write is built, because a
+ * statement that fails in every run fails in its retry. Such a run makes a cancel call only at the stored next try of a
+ * failed answer; a cancel call that throws stores no next try, so then each run makes one.
  */
 export const ALARM_PAUSE_CAP_MS = 3_600_000;
 /**
