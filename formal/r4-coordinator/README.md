@@ -127,7 +127,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
 | `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 35,360 | 4,938,947 | 25 |
 | `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on, and no second step (`Binds` is 0, so L11 holds there with nothing bound) | 4,092 | 530,515 | 21 |
-| `Confirm4` | `bound` | `Confirm4-bound.cfg` | no | the model's own bound (ruling RD-106 (4), (5)): one run with four requests in all, each a confirmation or a second step, at most two of each, two effects; the product of two and two, which ended and stands in place of three; the confirm walks are drawn from it | 2,691,076 | 475,507,727 | 33 |
+| `Confirm4` | `bound` | `Confirm4-bound.cfg` | no | the model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4): one run with three requests in all, each a confirmation or a second step, at most two second steps, two effects; the confirm walks are drawn from it | 591,780 | 92,316,599 | 30 |
 
 | Configuration | Rows of the table of wrong designs that TLC reports in it | `Reach` properties that TLC reports violated in it |
 |---|---|---|
@@ -139,7 +139,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `left`, `reap` | none of their own: each holds the moves of one directed trace | none of their own |
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 75 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
-| `bound` | every row that `full` reports, since `full` is `bound` with two requests fewer; it adds the orders of three and four requests (a second step between two confirmations or after two, a confirmation between two second steps or after two, and two of each); row 77 of the table of wrong designs needs three requests, and only `bound` reports it | not run in it |
+| `bound` | every row that `full` reports, since `full` is `bound` with two requests fewer; it adds the orders of three requests (a second step between two confirmations or after two, a confirmation between two second steps or after two); row 77 of the table of wrong designs needs three requests, and only `bound` reports it | not run in it |
 
 The counts are TLC's own lines, each from the run of the next table, with the workers that
 it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
@@ -173,7 +173,7 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 | `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 5 s | 4 s |
 | `Confirm4` | `full` | 58.22 s, two workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1) | 1,205,305,344 bytes | 53.26 | not run yet | not run yet |
 | `Confirm4` | `apart` | 9.81 s, one worker, on 2026-11-15 with the model of commit 47a097f9a | 746,471,424 bytes | 82.23 | not run yet | not run yet |
-| `Confirm4` | `bound` | 3309.62 s, four workers, on 2026-11-15 with the model of commit 383563cc8, on the lane for timed runs | 1,856,110,592 bytes | 72.24 | not run | not run |
+| `Confirm4` | `bound` | 966.08 s, four workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1), on the lane for timed runs | 1,810,808,832 bytes | 43.16 | not run | not run |
 
 In that run the check took 203 s and its self-test 25 s in the
 `macos` job, and 238 s and 66 s in the `windows` job; the
@@ -255,9 +255,9 @@ The record adds the three passing runs one by one (`not-compared` as it is, with
 that reads its input, and under a relative `TMPDIR`) and one run that the stand-in `java`
 ends with the signal TERM, after which the temporary directory is empty as well.
 
-At the commit of this section the self-test of every push held 30 failing fixtures, the
-passing control `replaced-outside-ci` and the two controls, and the record 81 lines: 67
-failing fixtures and controls, six passing runs and eight held rules.
+At the commit of this section the self-test of every push rejected 38 failing fixtures and
+control copies (`PASS self-test:30-r4-formal (38 failing fixtures rejected)`), and the record
+held 88 lines: 75 failing fixtures and control copies, five passing runs and eight held rules.
 
 ## What a property is read from
 
@@ -712,18 +712,7 @@ or after two (the confirmation of the page presenter beside a second step among 
 the kill and the recovery over three requests' rows. The own bound `bound` holds those
 orders, and the confirm walks are drawn from it.
 
-The model's own bound (ruling RD-106 (4), (5)). Confirm4 was first given a bound of three
-requests in all, at most two second steps (`Requests` 3, `Binds` 2): TLC ended on it on
-2026-11-15 with no error, 430,868 distinct states, 68,173,207 generated, depth 29, in
-766.66 s with four workers. The product of two and two (`Requests` 4) was then tried once
-with a limit of 7,200 s of TLC and ended within it on the same day: no error, 2,691,076
-distinct states, 475,507,727 generated, depth 33, in 3,309.62 s with four workers, both on
-the lane for timed runs with the model of commit 383563cc8. So the product is the own bound
-in place of three, `Confirm4-bound.cfg` holds it, and the row `bound` of the table above
-gives its counts. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs it, and
-so does the verifier at the gate of the phase in which the change lands; no CI job runs
-it. A violation of an invariant there is a fault of the model or of the code (ruling
-RD-106 (8)).
+The model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4). With the history of RD-109 Addition 1 (commit 47a097f9a), three requests in all, at most two second steps (`Requests` 3, `Binds` 2), TLC ended on 2026-11-15 with no error, 591,780 distinct states, 92,316,599 generated, depth 30, in 966.08 s with four workers on the lane for timed runs. `Confirm4-bound.cfg` holds it, the confirm walks are drawn from it, and row 77 of the wrong designs, a Bind that hands `allow` at the third request, is reported there by L11 and in no configuration that CI runs. The product of two and two (`Requests` 4) runs after it once, with a limit of 90 minutes of TLC, off the path of the round; it started at 04:25:42Z on 2026-11-15, after the own bound, and the round's report gives how it ended. Before RD-109 Addition 1, with the model of commit 383563cc8, three requests ended with no error at 430,868 distinct states in 766.66 s and the product at 2,691,076 distinct states in 3,309.62 s, both with four workers; the Addition changed the history that L11 reads, so those runs do not check this model. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs the own bound, and so does the verifier at the gate of the phase in which the change lands; no CI job runs it. A violation of an invariant there is a fault of the model or of the code (ruling RD-106 (8)).
 
 Proved at no bound of this model, each with what holds it (ruling RD-106 (7)):
 - the third value of the guard table's release number, which needs three confirmations
@@ -912,27 +901,29 @@ replay of that design gives another answer, event, call or state at some move.
 | 54 | no `end_run` after a start whose step 8 failed | C12 | 54 of 213 |
 | 55 | a start of the agent before the store's record of a run that the coordinator owes, a failed start among them | C4 | 92 of 213 |
 | 56 | the scheduler's start in a tick does not ask whether the store has ended the agent's newest run | C4, in `holds` alone | 16 of 213 |
-| 57 | a press calls `Runs::answer_bind` although its row got no acknowledgement | L11 | 35 of 215 |
-| 58 | a press of Allow is taken after a stored `decline` that the run did not take | none: the press stores an acknowledged `allow` row first | 74 of 215 |
+| 57 | a press calls `Runs::answer_bind` although its row got no acknowledgement | L11 | 34 of 215 |
+| 58 | a press of Allow is taken after a stored `decline` that the run did not take | none: the press stores an acknowledged `allow` row first | 77 of 215 |
 | 59 | a press of Don't allow after a stored `allow` that the run did not take sends that `allow` | L11 | 2 of 215 |
-| 60 | a lapse with `wait_limit` or `cancelled` of a step with a stored `allow` sends that `allow` | L11 | 1 of 215 |
-| 61 | the next life after a kill sends a stored `allow` to the waiting run | L11 | 1 of 215 |
-| 62 | a press of Don't allow whose row lost its acknowledgement keeps the step at its stored `allow`, so that the next press of Allow sends it with no row of its own | L11 | 1 of 215 |
+| 60 | a lapse with `wait_limit` or `cancelled` of a step with a stored `allow` sends that `allow` | L11 | 2 of 215 |
+| 61 | the next life after a kill sends a stored `allow` to the waiting run | L11 | 2 of 215 |
+| 62 | a press of Don't allow whose row lost its acknowledgement keeps the step at its stored `allow`, so that the next press of Allow sends it with no row of its own | L11 | 2 of 215 |
 | 63 | a lapse of a second step with `wait_limit` or `cancelled` does not stop the run | L9 | 187 of 215 |
-| 64 | a step closes when `Runs::answer_bind` answers `busy` | L11: the runner still waits on the step that closed, so the `allow` that a press of the next step hands is recorded for the closed one (none before RD-109 Addition 1, whose history counts every Bind) | 160 of 215 |
+| 64 | a step closes when `Runs::answer_bind` answers `busy` | L11: the runner still waits on the step that closed, so the `allow` that a press of the next step hands is recorded for the closed one (none before RD-109 Addition 1, whose history counts every Bind) | 144 of 215 |
 | 65 | a start goes on with the verdict that it computed before the read that brought a lost `hold_set` | C4 | 15 of 213 |
 | 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 213 |
 | 67 | the start by the person under the hold `failures` takes its verdict from the state before its store of `hold_cleared` and launches on the state after the read, with no second decision, which is the code's design with the second decision of schedule/drive.rs line 754 taken out (ruling RD-109 Addition 1, point 5) | C4, in `holds` alone. The test `a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms` (tests/coordinator_moves.rs line 3850) holds the code's second decision: with it taken out the test fails with `Reply left: Ok(()) right: Err(Hold)`. A directed trace of the case goes to unit U2.4b | 0 of 213 |
 | 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 6 of 213 |
 | 69 | a press of Allow calls `Runs::answer_bind` before its row is written, in the same move | L11 | 0 of 215 |
-| 70 | a press of Don't allow after a stored `allow` stores its row, loses the reply, reports no row and keeps the step at `allow`, so that the next press of Allow sends it | L11 | 35 of 215 |
-| 71 | the same press reports its row under the other step's item | L11 | 35 of 215 |
-| 72 | a Bind of a stopped run is answered `state` and hands `allow` in that move (the verifier's B01) | L11 | 19 of 215 |
+| 70 | a press of Don't allow after a stored `allow` stores its row, loses the reply, reports no row and keeps the step at `allow`, so that the next press of Allow sends it | L11 | 34 of 215 |
+| 71 | the same press reports its row under the other step's item | L11 | 34 of 215 |
+| 72 | a Bind of a stopped run is answered `state` and hands `allow` in that move (the verifier's B01) | L11 | 20 of 215 |
 | 73 | a Bind beside an open confirmation ends the run with `state` and hands `allow` in that move (B02) | L11 | 2 of 215 |
 | 74 | an accepted raise answers another word than `ok`, beside a press of Allow that sends after its row lost its reply (B20) | L11 | 200 of 215 |
-| 75 | the row of a press on the second step is written under the first step's item, and `allow` goes to the second (B11) | L11 | 19 of 215 |
-| 76 | the guard refuses a press of a closed item with `approval` and hands `allow` to the open step in that move | L11 | 9 of 215 |
-| 77 | a Bind hands `allow` in its own move when the run has asked twice before, so the design needs three requests | L11 in `bound`; `full` holds two requests and finds no error | 24 of 215 |
+| 75 | the row of a press on the second step is written under the first step's item, and `allow` goes to the second (B11) | L11 | 17 of 215 |
+| 76 | the guard refuses a press of a closed item with `approval` and hands `allow` to the open step in that move | L11 | 8 of 215 |
+| 77 | a Bind hands `allow` in its own move when the run has asked twice before, so the design needs three requests | L11 in `bound`; `full` holds two requests and finds no error | 23 of 215 |
+| 78 | a press of Allow on a closed step is answered `stale` and hands the `allow` that another step stores and the runner has not taken, closing that step | L11: the pressed item is not the waited step, whatever that step stores | 0 of 215 |
+| 79 | a press of Don't allow that writes a row writes and sends `allow` | L11: the press is not one of Allow, whatever its row says | 62 of 215 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -940,7 +931,7 @@ sends the event of row 34 again after the owner's `no_workflow` is row 34 at a l
 tick: the models hold no answer `no_workflow`, and C10 reports the first sending. Rows 15,
 18, 20 and 24 are the replacements of rows 12, 6, 2 and 11 under the words of an earlier
 round. Rows 40 to 45 are the round of rulings XA-1, XA-2 and XA-5, and rows 46 to 50 the
-round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. The counts of rows 57 to 64 and 69 to 77 are against the confirm walks drawn from `bound` (unit U1.2c's second round), those of the rows before them against the walks of their own rounds. Rows 57 to 64 and 69 to 77 are the second step of a sign-in (ruling RD-48 (g)); rows 72 to 75 are the verifier's cases B01, B02, B20 and B11 at the gates of unit U1.2c, which the history before ruling RD-109 did not report, because it wrote the raise only when the step answered `ok` and keyed a row by the pressed item; rows 76 and 77 are the moves outside a press that RD-109 Addition 1 names, a refused guard move and a Bind, and row 77 is the design that needs three requests, which only the own bound reports; rows 69 to 71 are the review's cases that the first history did not report, and row 69 changes no trace line because a line lists `e` and `p` apart, so that the order between a row and a call does not show in it: row 58 breaks no property and changes traces alone, because the person's last press is an acknowledged Allow. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a): rows 65 and 67 are reported, and rows 66 and 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
+round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. The counts of rows 57 to 64 and 69 to 79 are against the confirm walks drawn from `bound` (unit U1.2c's second round), those of the rows before them against the walks of their own rounds. Rows 57 to 64 and 69 to 79 are the second step of a sign-in (ruling RD-48 (g)); rows 72 to 75 are the verifier's cases B01, B02, B20 and B11 at the gates of unit U1.2c, which the history before ruling RD-109 did not report, because it wrote the raise only when the step answered `ok` and keyed a row by the pressed item; rows 76 and 77 are the moves outside a press that RD-109 Addition 1 names, a refused guard move and a Bind, and row 77 is the design that needs three requests, which only the own bound reports; row 78 is the design that holds L11 to the pressed item, since its waited step does hold an acknowledged `allow`, and row 79 the design that holds it to the choice; rows 69 to 71 are the review's cases that the first history did not report, and row 69 changes no trace line because a line lists `e` and `p` apart, so that the order between a row and a call does not show in it: row 58 breaks no property and changes traces alone, because the person's last press is an acknowledged Allow. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a): rows 65 and 67 are reported, and rows 66 and 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
 reading 9 of `Confirm4` takes out of `full`; `apart` holds it. `Confirm4` as it stood before this round is rows 43 and 45 at once,
 and none of its ten invariants reported either: it refused a repeat with `approval`, and
 its run asked again after a `reject_once`. These changes break no property and change traces alone: a tick that skips an agent
@@ -1246,7 +1237,7 @@ TLC searches. The export checks every move of it against `Next` of the model und
 constants, fails at a move that they do not allow, and prints the configuration of each
 trace: `hold_start` under `holds`, `store_not_ended` under `left`, `reap_alive` under
 `reap` and the ten others under `full`; the confirm walks are drawn under the constants of
-`bound`, the model's own bound, so that the replay holds the code to runs of three and four requests
+`bound`, the model's own bound, so that the replay holds the code to runs of three requests
 (ruling RD-106 (6)); the fifteen confirm traces under `full` of
 `Confirm4`. `MaxRuns` bounds the search, not the moves: `hold_start` stores four starts.
 The walks are not held to a configuration: the generator draws frames, ports, `left` and
