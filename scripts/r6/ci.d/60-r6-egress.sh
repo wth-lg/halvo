@@ -74,6 +74,7 @@ The limits that stay:
 3. what the system does with a path that it opens over a network.
 4. what a process did after the command ended, in the egress check's own words.
 5. the egress check's writes under target/egress/.
+With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner.
 EOF
 }
 
@@ -1217,6 +1218,9 @@ case $* in
       [ "$n" = "$STUB_CANARY_DROP" ] && continue
       printf '{"reason":"compiler-message","message":{"rendered":"error: x\\n  --> src/lib.rs:%s:1\\n","children":[],"code":{"code":"%s","explanation":null},"level":"error","spans":[]}}\n' "$at" "$code"
     done <"$CI_D_ARTIFACTS/canary/expected.txt"
+    if [ "$STUB_CANARY" = refer ]; then
+      printf '{"reason":"compiler-message","message":{"rendered":"warning: `std::x` does not refer to a reachable type\\n","children":[],"code":null,"level":"warning","spans":[]}}\n'
+    fi
     exit 101
     ;;
   'clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code')
@@ -1272,6 +1276,9 @@ if [ "$#" -eq 1 ] && [ "$1" = reachword ] && [ -n "$STUB_REACH" ]; then
 fi
 if [ "$#" -eq 1 ] && [ "$1" = hangword ] && [ -n "$STUB_HANG" ]; then
   exec sleep 30
+fi
+if [ "$1" = argword ] && [ -n "$STUB_ARGONLY" ]; then
+  [ "$#" -ge 2 ] && exit 0
 fi
 for odd in $STUB_ODD; do
   [ "$1" = "${odd%%:*}" ] || continue
@@ -1331,7 +1338,8 @@ fn main() {
     let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
     let adjacent = words! {"see help","adjword"};
     let odd = ["stdoutword", "exitword", "textword"];
-    let wrapped = ["reachword", "hangword"];
+    let wrapped = ["reachword", "hangword", "argword"];
+    let q = '"'; let w = "quoteword";
 }
 EOF
   printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
@@ -1399,7 +1407,13 @@ mkdir -p "target/egress/$n"
 lines=$denied
 [ "$STUB_CHECK" != short-log ] || lines=$((denied + 1))
 awk -v n="$lines" 'BEGIN { for (i = 0; i < n; i++) print "denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x" }' >"target/egress/$n/denied.log"
-[ "$STUB_CHECK" != reuse-log ] || n=1
+case $STUB_CHECK:$1:$2 in
+  reuse-log:*) n=1 ;;
+  reuse-log-run:sh:*) ;;
+  reuse-log-run:*) n=1 ;;
+  reuse-log-asking:sh:*asker.sh) n=1 ;;
+esac
+[ "$STUB_CHECK" != wrong-list ] || list=scripts/egress/lists/empty.txt
 printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/%s/denied.log\n' "$list" "$code" "$denied" "$n" >&2
 [ "$STUB_CHECK" != exit3 ] || exit 3
 [ "$STUB_CHECK" != denied0 ] || exit 0
@@ -1461,15 +1475,29 @@ case_reset() {
   case_actions=
   case_arg=
   case_env=
+  case_self=
+  STUB_ARGONLY=
+}
+
+case_wanted() {
+  [ -z "${R6_EGRESS_CASES:-}" ] && return 0
+  case " $R6_EGRESS_CASES " in
+    *" $1 "*) return 0 ;;
+  esac
+  return 1
 }
 
 case_run() {
+  if ! case_wanted "$1"; then
+    case_reset
+    return
+  fi
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
     STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
-    env ${case_env:+"$case_env"} sh "$self" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_ARGONLY=$STUB_ARGONLY env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -1650,6 +1678,26 @@ check_forms() {
   [ "$got" = PASS ] || wrong="$wrong forms-control"
 }
 
+odd_repo() {
+  write_repo "$1" '' >/dev/null || self_failed setup
+  case $2 in
+    link)
+      blob=$(printf 'gate.txt' | git -C "$1" hash-object -w --stdin) || self_failed setup
+      if ! ln -s gate.txt "$1/scripts/r6/egress/link" 2>/dev/null || [ ! -h "$1/scripts/r6/egress/link" ]; then
+        printf 'gate.txt' >"$1/scripts/r6/egress/link" || self_failed setup
+      fi
+      git -C "$1" update-index --add --cacheinfo "120000,$blob,scripts/r6/egress/link" || self_failed setup
+      ;;
+    gitlink)
+      mkdir -p "$1/scripts/r6/egress/sub" || self_failed setup
+      git -C "$1" update-index --add --cacheinfo "160000,1111111111111111111111111111111111111111,scripts/r6/egress/sub" ||
+        self_failed setup
+      ;;
+  esac
+  git -C "$1" update-index -q --refresh >/dev/null 2>&1
+  git -C "$1" write-tree 2>/dev/null || self_failed setup
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_failed setup
   case $work in
@@ -1665,6 +1713,10 @@ self_test() {
   entry_tree=$(write_repo "$work/repo-entry" '127.0.0.1:443') || self_failed setup
   patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed setup
   features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed setup
+  link_tree=$(odd_repo "$work/repo-link" link) || self_failed setup
+  gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed setup
+  awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
+    self_failed setup
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
     '#[cfg(target_os = "linux")]') || self_failed setup
   nested_tree=$(write_repo "$work/repo-nested" '' '' '' crates/halvo-route-gate/src/net.rs \
@@ -1710,7 +1762,7 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=22 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=7 asked=24 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
   case_run asking-wrapped PASS - 'egress asking denied=0 command=0 exit=0'
@@ -1738,8 +1790,8 @@ self_test() {
   case_run env-deny-flag PASS - 'egress rules files='
   case_env="$v_flags=-Aclippy::disallowed_types"
   case_run env-allow-flag FAIL check "rule env $v_flags holds an allow, a cap on lints or a cfg"
-  case_env="$v_encoded=-Dwarnings$(printf '\037')--cap-lints$(printf '\037')warn"
-  case_run env-encoded-cap FAIL check "rule env $v_encoded holds"
+  case_env="$v_encoded=-Dwarnings$(printf '\037')-Aunsafe_code"
+  case_run env-encoded-allow FAIL check "rule env $v_encoded holds"
   case_env="${w_cargo}_TARGET_X86_64_UNKNOWN_LINUX_GNU_$v_flags=--cfg=nonet"
   case_run env-per-target-cfg FAIL check "rule env ${w_cargo}_TARGET_X86_64_UNKNOWN_LINUX_GNU_$v_flags holds"
   case_env="$v_clippy=--cap-lints=allow"
@@ -1813,6 +1865,28 @@ self_test() {
   case_run command-behind-adjacent-literals FAIL check 'egress on-neither-list=adjword'
   STUB_COMMANDS="$STUB_COMMANDS plainword"
   case_run command-in-a-non-rs-file-with-a-non-ascii-name FAIL check 'egress on-neither-list=plainword'
+  STUB_COMMANDS="$STUB_COMMANDS quoteword"
+  case_run command-after-a-quote-character FAIL check 'egress on-neither-list=quoteword'
+  STUB_ARGONLY=1
+  case_run command-only-with-an-argument FAIL check 'egress on-neither-list=argword'
+  case_self=$work/twice.sh
+  case_run word-on-both-lists FAIL check 'egress listed-twice=probe'
+  case_repo=$work/no-such-repository
+  case_run repository-missing FAIL setup 'FAIL'
+  STUB_CHECK='wrong-list'
+  case_run line-of-another-list FAIL check 'egress run=probe line=missing'
+  case_repo=$work/repo-link
+  case_tree=$link_tree
+  case_run list-directory-holds-a-link FAIL entries 'egress checks=6 denied=0 entries=1'
+  case_repo=$work/repo-gitlink
+  case_tree=$gitlink_tree
+  case_run list-directory-holds-a-submodule FAIL entries 'egress checks=6 denied=0 entries=1'
+  STUB_CANARY=refer
+  case_run canary-list-entry-refers-to-nothing FAIL check 'egress canary: the forbid run let the canary through'
+  STUB_CHECK=reuse-log-run
+  case_run log-of-another-run-of-the-gate-tool FAIL check 'egress run=generate log=not-new-or-not-its-own'
+  STUB_CHECK=reuse-log-asking
+  case_run log-of-another-asking FAIL check 'egress asking log=not-new-or-not-its-own'
   STUB_ODD=stdoutword:stdout
   case_run answer-on-standard-output FAIL check 'egress on-neither-list=stdoutword'
   STUB_ODD=exitword:exit3
@@ -1822,7 +1896,7 @@ self_test() {
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=22'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=24'
   STUB_CHECK=denied
   case_run denied-in-each-run FAIL denied 'egress checks=6 denied=7 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
@@ -1833,7 +1907,7 @@ self_test() {
   STUB_CHECK=mode
   case_run refusal-mode FAIL check 'NOT VERIFIED egress requirement=W2'
   STUB_RUN_EXIT=1
-  case_run command-exits-1 FAIL check 'egress run=probe mode=sandbox command=1 denied=0 exit=1'
+  case_run command-exits-1 FAIL check 'egress run=probe mode=sandbox command=1 denied=0 exit=1' 'denied=0 proves'
   STUB_CHECK=exit3
   case_run check-exits-3-with-a-clean-line FAIL check 'egress run=probe mode=sandbox command=0 denied=0 exit=3'
   STUB_FRESH=false
@@ -1849,6 +1923,13 @@ self_test() {
   case_arg=--bogus
   case_run usage FAIL usage 'FAIL'
 
+  if case_wanted help; then
+    help_sentences
+  fi
+  self_test_end
+}
+
+help_sentences() {
   sh "$self" --help >"$work/help.txt" 2>&1 || wrong="$wrong help-exit"
   tr '\n' ' ' <"$work/help.txt" | tr -s ' ' >"$work/help-line.txt" || self_failed setup
   for sentence in \
@@ -1864,8 +1945,12 @@ self_test() {
       wrong="$wrong help"
     fi
   done
+}
 
-  check_forms
+self_test_end() {
+  if case_wanted forms; then
+    check_forms
+  fi
   if [ -n "$wrong" ]; then
     self_failed "wrong:$wrong"
   fi
