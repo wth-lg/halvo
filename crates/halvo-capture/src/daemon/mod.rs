@@ -1383,6 +1383,8 @@ mod tests {
         assert!(outcome.loss.is_none());
     }
 
+    /// A store whose every write takes 6 s, three times the settle bound of
+    /// the test that uses it, and fails.
     struct SlowStore;
 
     impl MaintainStore for SlowStore {
@@ -1409,7 +1411,7 @@ mod tests {
 
     impl CaptureStore for SlowStore {
         fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
-            std::thread::sleep(Duration::from_secs(3));
+            std::thread::sleep(Duration::from_secs(6));
             Err(WriteFault::Io(std::io::ErrorKind::TimedOut))
         }
 
@@ -1429,7 +1431,7 @@ mod tests {
             SlowStore,
             clocks,
             &stop,
-            Duration::from_millis(200),
+            Duration::from_secs(2),
         )
         .unwrap();
         assert_eq!(outcome.status, exit::ERROR);
