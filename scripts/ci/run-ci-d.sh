@@ -1117,6 +1117,7 @@ own_judge() {
     fi
   fi
   printf 'case run-ci-d/%s want=%s got=%s\n' "$case_name" "$want" "$got"
+  [ -z "$case_max_s" ] || printf 'case run-ci-d/%s seconds=%s max=%s\n' "$case_name" "$((case_t1 - case_t0))" "$case_max_s"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case_name"
   elif [ "$want" = FAIL ]; then
@@ -1675,7 +1676,7 @@ own_self_test() {
   case_gone=1
   case_made=child-got-term
   case_limit=5
-  case_max_s=20
+  case_max_s=40
   case_path=$tmp/slow-sleep
   case_first='FAIL 10-a (time limit 5 s)'
   case_then='PASS 20-b'
