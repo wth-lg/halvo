@@ -119,6 +119,68 @@ jobs:
         with:
           name: ci-artifacts-macos
           path: target/ci-artifacts/
+      - name: U4.5 changed copies of lines that only a shown dialog reaches
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          change() {
+            file=crates/halvo-coord-app/src/present/$1; id=$2; shift 2
+            while [ "$#" -ge 2 ]; do
+              OLD=$1 NEW=$2 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+              shift 2
+            done
+            if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --no-fail-fast --test guard_hosted --test dialog_hosted > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+            target=$?
+            failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '[a-z_]*_hosted case [^:]* FAIL\|[a-z_]*_hosted watchdog FAIL\|error\[E[0-9]*\]' | tr '\n' ';')
+            ends=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep '_hosted end: ' | tr '\n' ';')
+            echo "u45 change $id applied=yes target_exit=$target failed: ${failed:-none} ends: ${ends:-none}"
+            tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -E '_hosted (case .* FAIL|watchdog|end: |unreported|reading .*(no report|never reported|report made by nothing))' | head -30 | sed "s/^/u45 change $id line: /"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" = macOS ]; then
+            change moment.rs H1-guard-taken-out 'Event::Press { .. } if guard.press(now) => Decision::Answer,' 'Event::Press { .. } if guard.press(now) || true => Decision::Answer,'
+            change system.rs H2-report-before-the-key-window 'let _ = hold.ivars().shown.send(Step::Shown);' 'let _ = &hold.ivars().shown;' 'let response = alert.runModal();' 'let _ = tx.send(Step::Shown); let response = alert.runModal();'
+            change system.rs H3-buttons-keep-their-own-action 'button.setTarget(Some(target));' 'let _ = target;' 'button.setAction(Some(sel!(press:)));' 'let _ = sel!(press:);'
+            change system.rs H4-no-reading-but-at-a-press '(sel!(becameKey:), NSWindowDidBecomeKeyNotification),' '(sel!(becameKey:), NSWindowDidResignKeyNotification),' '                        NSApplicationDidBecomeActiveNotification,' '                        NSApplicationDidResignActiveNotification,' '*hold.ivars().timer.borrow_mut() = Some(timer.clone());' 'timer.invalidate();'
+            change system.rs H5-hold-from-before-the-report 'lock(&state).guard.reported(Instant::now())' 'lock(&state).guard.reported(Instant::now() - Duration::from_secs(5))'
+          else
+            change system.rs W1-guard-taken-out 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) =>' 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) && false =>'
+            change system.rs W4-no-subclass 'unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };' 'windows::core::BOOL(SUBCLASS as i32);'
+            change system.rs W5-deactivation-as-activation 'as u32 != WA_INACTIVE =>' 'as u32 == WA_INACTIVE =>'
+          fi
+          libchange() {
+            file=crates/halvo-coord-app/src/present/$1; id=$2
+            OLD=$3 NEW=$4 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+            if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --no-fail-fast --lib > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+            target=$?
+            failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '^test [^ ]* \.\.\. FAILED' | tr '\n' ';')
+            echo "u45 change $id applied=yes lib_exit=$target failed: ${failed:-none}"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" != macOS ]; then
+            libchange card.rs W6-no-access-key-marks 'const MARKS: &[char] = WINDOWS_MARKS;' 'const MARKS: &[char] = &[];'
+            change system.rs W8-hidden-report-at-tdn-created 'show.active(unsafe { IsWindowVisible(window) }.as_bool(), &Instant::now);' 'show.active(true, &Instant::now);'
+            change system.rs W9-no-report-at-the-show 'show.shown(unsafe { GetActiveWindow() } == window, &Instant::now)' 'let _ = &show;'
+            rawchange() {
+              file=crates/halvo-coord-app/src/present/$1; id=$2
+              perl -0pi -e "$3" "$file"
+              if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+              cargo test -p halvo-coord-app --locked --no-fail-fast --test guard_hosted --test dialog_hosted > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+              target=$?
+              failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '[a-z_]*_hosted case [^:]* FAIL\|[a-z_]*_hosted watchdog FAIL\|error\[E[0-9]*\]' | tr '\n' ';')
+              ends=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep '_hosted end: ' | tr '\n' ';')
+              echo "u45 change $id applied=yes target_exit=$target failed: ${failed:-none} ends: ${ends:-none}"
+              tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -E '_hosted (case .* FAIL|watchdog|end: |unreported|reading .*(no report|never reported|report made by nothing))' | head -30 | sed "s/^/u45 change $id line: /"
+              git checkout -- "$file"
+            }
+            # shellcheck disable=SC2016
+            rawchange system.rs W10-hidden-report-at-an-activation 's/(WA_INACTIVE => \{\s+\/\/ SAFETY: as at TDN_CREATED\.\s+show\.active\()unsafe \{ IsWindowVisible\(window\) \}\.as_bool\(\)/${1}true/'
+          fi
+          echo "u45 changes done; tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
 
   windows:
     runs-on: windows-2025
@@ -207,3 +269,65 @@ jobs:
         with:
           name: ci-artifacts-windows
           path: target/ci-artifacts/
+      - name: U4.5 changed copies of lines that only a shown dialog reaches
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          change() {
+            file=crates/halvo-coord-app/src/present/$1; id=$2; shift 2
+            while [ "$#" -ge 2 ]; do
+              OLD=$1 NEW=$2 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+              shift 2
+            done
+            if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --no-fail-fast --test guard_hosted --test dialog_hosted > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+            target=$?
+            failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '[a-z_]*_hosted case [^:]* FAIL\|[a-z_]*_hosted watchdog FAIL\|error\[E[0-9]*\]' | tr '\n' ';')
+            ends=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep '_hosted end: ' | tr '\n' ';')
+            echo "u45 change $id applied=yes target_exit=$target failed: ${failed:-none} ends: ${ends:-none}"
+            tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -E '_hosted (case .* FAIL|watchdog|end: |unreported|reading .*(no report|never reported|report made by nothing))' | head -30 | sed "s/^/u45 change $id line: /"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" = macOS ]; then
+            change moment.rs H1-guard-taken-out 'Event::Press { .. } if guard.press(now) => Decision::Answer,' 'Event::Press { .. } if guard.press(now) || true => Decision::Answer,'
+            change system.rs H2-report-before-the-key-window 'let _ = hold.ivars().shown.send(Step::Shown);' 'let _ = &hold.ivars().shown;' 'let response = alert.runModal();' 'let _ = tx.send(Step::Shown); let response = alert.runModal();'
+            change system.rs H3-buttons-keep-their-own-action 'button.setTarget(Some(target));' 'let _ = target;' 'button.setAction(Some(sel!(press:)));' 'let _ = sel!(press:);'
+            change system.rs H4-no-reading-but-at-a-press '(sel!(becameKey:), NSWindowDidBecomeKeyNotification),' '(sel!(becameKey:), NSWindowDidResignKeyNotification),' '                        NSApplicationDidBecomeActiveNotification,' '                        NSApplicationDidResignActiveNotification,' '*hold.ivars().timer.borrow_mut() = Some(timer.clone());' 'timer.invalidate();'
+            change system.rs H5-hold-from-before-the-report 'lock(&state).guard.reported(Instant::now())' 'lock(&state).guard.reported(Instant::now() - Duration::from_secs(5))'
+          else
+            change system.rs W1-guard-taken-out 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) =>' 'TDN_BUTTON_CLICKED if !show.click(wparam.0 == TASK_ALLOW as usize, Instant::now()) && false =>'
+            change system.rs W4-no-subclass 'unsafe { SetWindowSubclass(window, Some(subclass), SUBCLASS, data as usize) };' 'windows::core::BOOL(SUBCLASS as i32);'
+            change system.rs W5-deactivation-as-activation 'as u32 != WA_INACTIVE =>' 'as u32 == WA_INACTIVE =>'
+          fi
+          libchange() {
+            file=crates/halvo-coord-app/src/present/$1; id=$2
+            OLD=$3 NEW=$4 perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$file"
+            if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+            cargo test -p halvo-coord-app --locked --no-fail-fast --lib > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+            target=$?
+            failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '^test [^ ]* \.\.\. FAILED' | tr '\n' ';')
+            echo "u45 change $id applied=yes lib_exit=$target failed: ${failed:-none}"
+            git checkout -- "$file"
+          }
+          if [ "$RUNNER_OS" != macOS ]; then
+            libchange card.rs W6-no-access-key-marks 'const MARKS: &[char] = WINDOWS_MARKS;' 'const MARKS: &[char] = &[];'
+            change system.rs W8-hidden-report-at-tdn-created 'show.active(unsafe { IsWindowVisible(window) }.as_bool(), &Instant::now);' 'show.active(true, &Instant::now);'
+            change system.rs W9-no-report-at-the-show 'show.shown(unsafe { GetActiveWindow() } == window, &Instant::now)' 'let _ = &show;'
+            rawchange() {
+              file=crates/halvo-coord-app/src/present/$1; id=$2
+              perl -0pi -e "$3" "$file"
+              if git diff --quiet -- "$file"; then echo "u45 change $id applied=no"; return; fi
+              cargo test -p halvo-coord-app --locked --no-fail-fast --test guard_hosted --test dialog_hosted > "$RUNNER_TEMP/u45-$id.txt" 2>&1
+              target=$?
+              failed=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -o '[a-z_]*_hosted case [^:]* FAIL\|[a-z_]*_hosted watchdog FAIL\|error\[E[0-9]*\]' | tr '\n' ';')
+              ends=$(tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep '_hosted end: ' | tr '\n' ';')
+              echo "u45 change $id applied=yes target_exit=$target failed: ${failed:-none} ends: ${ends:-none}"
+              tr -d '\r' < "$RUNNER_TEMP/u45-$id.txt" | grep -E '_hosted (case .* FAIL|watchdog|end: |unreported|reading .*(no report|never reported|report made by nothing))' | head -30 | sed "s/^/u45 change $id line: /"
+              git checkout -- "$file"
+            }
+            # shellcheck disable=SC2016
+            rawchange system.rs W10-hidden-report-at-an-activation 's/(WA_INACTIVE => \{\s+\/\/ SAFETY: as at TDN_CREATED\.\s+show\.active\()unsafe \{ IsWindowVisible\(window\) \}\.as_bool\(\)/${1}true/'
+          fi
+          echo "u45 changes done; tree: $(git status --porcelain | wc -l | tr -d ' ') changed files"
