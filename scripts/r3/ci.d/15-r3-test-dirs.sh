@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), unless a loop retries the create_dir and its own tested success alone ends that loop by a return or a break in that arm within three lines (a word in a string is no loop word), is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and paths equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), unless a loop retries the create_dir and its own tested success alone ends that loop by a return or a break in that arm within three lines (a word in a string is no loop word), is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -52,7 +52,7 @@ EOF
 
 pinned_rows=33
 pinned_places=46
-pinned_paths=1509690412
+pinned_paths=2322449105
 
 program='
 function code(s) {
@@ -296,11 +296,11 @@ BEGIN {
     printf "test-dirs pin=places known=%d pinned=%d: the known list may not grow; a higher count needs a ruling, else take halvo_test_dir::make at the new place\n", kp, pin_places
     faults++
   } else if (kp < pin_places) {
-    printf "test-dirs pin=places known=%d pinned=%d: set pinned_places=%d beside known() in scripts/r3/ci.d/15-r3-test-dirs.sh, in the commit that mends the place\n", kp, pin_places, kp
+    printf "test-dirs pin=places known=%d pinned=%d: set pinned_places=%d and pinned_paths=%s beside known() in scripts/r3/ci.d/15-r3-test-dirs.sh, in the commit that mends the place\n", kp, pin_places, kp, paths
     faults++
   }
-  if (nk == pin_rows && paths != pin_paths) {
-    printf "test-dirs pin=paths: known() names a file that pinned_paths does not allow; a new row needs a ruling (after a mend that took a row out, pinned_paths=%s)\n", paths
+  if (nk == pin_rows && kp == pin_places && paths != pin_paths) {
+    printf "test-dirs pin=paths: known() names a file or a count that pinned_paths does not allow; a new row, a raised count or a count moved to another row needs a ruling (after a mend that lowered pinned_rows or pinned_places, pinned_paths=%s)\n", paths
     faults++
   }
   while ((r = (getline path < filelist)) > 0) {
@@ -337,7 +337,7 @@ BEGIN {
       printf "test-dirs count=%s places=%d known=%d: take halvo_test_dir::make at the new place; the known list in scripts/r3/ci.d/15-r3-test-dirs.sh may not grow\n", p, got[p], want[p]
       faults++
     } else if (got[p] < want[p]) {
-      printf "test-dirs count=%s places=%d known=%d: set its row in known() to %d and lower pinned_places beside it in scripts/r3/ci.d/15-r3-test-dirs.sh\n", p, got[p], want[p], got[p]
+      printf "test-dirs count=%s places=%d known=%d: set its row in known() to %d and lower pinned_places and pinned_paths beside it in scripts/r3/ci.d/15-r3-test-dirs.sh\n", p, got[p], want[p], got[p]
       faults++
     }
   }
@@ -359,7 +359,7 @@ fail() {
 }
 
 paths_of() {
-  awk 'NF { print $1 }' "$1" | sort | cksum | awk '{ print $1 }'
+  awk 'NF { print $1, $2 }' "$1" | sort | cksum | awk '{ print $1 }'
 }
 
 measure() {
@@ -436,6 +436,9 @@ Forms that it does not read (each can share a folder and pass):
 
 The known list, known() in this script, holds each file of another unit with its count of
 places. A file's count must equal its row: a new place takes halvo_test_dir::make.
+Beside it, pinned_rows, pinned_places and pinned_paths (a cksum of the sorted pairs of
+path and count) pin the list: it may shrink with its pins and may not grow, and a count
+may not move from one row to another without a ruling.
 EOF
 }
 
@@ -462,8 +465,9 @@ pin_file() {
   places=$3
   shift 3
   : >"$work/$label.pinned-paths" || broken "$label: pinned paths"
-  for p do
-    printf '%s 1 pinned\n' "$p" >>"$work/$label.pinned-paths" || broken "$label: pinned paths"
+  while [ $# -ge 2 ]; do
+    printf '%s %s pinned\n' "$1" "$2" >>"$work/$label.pinned-paths" || broken "$label: pinned paths"
+    shift 2
   done
   digest=$(paths_of "$work/$label.pinned-paths") || broken "$label: digest"
   printf '%s %s %s\n' "$rows" "$places" "$digest" >"$work/$label.pins" || broken "$label: pins"
@@ -731,7 +735,7 @@ self_test() {
   repo count-down-line-names-the-fix
   put crates/a/tests/t.rs "$place"
   printf 'crates/a/tests/t.rs 2 a run\n' >"$work/count-down-line-names-the-fix.known" || broken known
-  case_of count-down-line-names-the-fix FAIL 'test-dirs count=crates/a/tests/t.rs places=1 known=2: set its row in known() to 1 and lower pinned_places beside it in scripts/r3/ci.d/15-r3-test-dirs.sh'
+  case_of count-down-line-names-the-fix FAIL 'test-dirs count=crates/a/tests/t.rs places=1 known=2: set its row in known() to 1 and lower pinned_places and pinned_paths beside it in scripts/r3/ci.d/15-r3-test-dirs.sh'
 
   repo gone-line-names-the-fix
   put crates/a/tests/t.rs 'fn f() {}\n'
@@ -747,7 +751,7 @@ self_test() {
   repo count-raised-with-a-second-place
   put crates/a/tests/t.rs "$place\n$place"
   printf 'crates/a/tests/t.rs 2 a run\n' >"$work/count-raised-with-a-second-place.known" || broken known
-  pin_file count-raised-with-a-second-place 1 1 crates/a/tests/t.rs
+  pin_file count-raised-with-a-second-place 1 1 crates/a/tests/t.rs 1
   case_of count-raised-with-a-second-place FAIL 'test-dirs pin=places known=2 pinned=1'
 
   repo mend-with-row-and-pins-lowered
@@ -757,14 +761,27 @@ self_test() {
 
   repo mend-with-the-pins-left
   put crates/a/tests/t.rs 'fn f() {}\n'
-  pin_file mend-with-the-pins-left 1 1 crates/a/tests/t.rs
+  pin_file mend-with-the-pins-left 1 1 crates/a/tests/t.rs 1
   case_of mend-with-the-pins-left FAIL 'test-dirs pin=rows known=0 pinned=1'
 
   repo row-swapped-under-the-pins
   put crates/a/tests/u.rs "$place"
   printf 'crates/a/tests/u.rs 1 a run\n' >"$work/row-swapped-under-the-pins.known" || broken known
-  pin_file row-swapped-under-the-pins 1 1 crates/a/tests/t.rs
+  pin_file row-swapped-under-the-pins 1 1 crates/a/tests/t.rs 1
   case_of row-swapped-under-the-pins FAIL 'test-dirs pin=paths'
+
+  repo count-moved-between-rows
+  put crates/a/tests/a.rs "$place"
+  put crates/a/tests/b.rs "$place\n$place"
+  printf 'crates/a/tests/a.rs 1 a run\ncrates/a/tests/b.rs 2 a run\n' >"$work/count-moved-between-rows.known" || broken known
+  pin_file count-moved-between-rows 2 3 crates/a/tests/a.rs 2 crates/a/tests/b.rs 1
+  case_of count-moved-between-rows FAIL 'test-dirs pin=paths'
+
+  repo mend-with-the-three-pins-moved
+  put crates/a/tests/a.rs "$place"
+  printf 'crates/a/tests/a.rs 1 a run\n' >"$work/mend-with-the-three-pins-moved.known" || broken known
+  pin_file mend-with-the-three-pins-moved 1 1 crates/a/tests/a.rs 1
+  case_of mend-with-the-three-pins-moved PASS 'test-dirs files=1 places=1 known=1 faults=0'
 
   repo pid-under-another-name
   put crates/a/tests/t.rs 'use std::process::id as pid;\n\nfn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", pid()));\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
