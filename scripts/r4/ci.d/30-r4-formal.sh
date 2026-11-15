@@ -856,15 +856,15 @@ every_push() {
   for form in 'CONSTANT HInPress<- HTaken' 'CONSTANT HInPress <- HTaken HTries <- HTaken' 'CONSTANT NRequests = 3' \
     'CONSTRAINT Bound' 'VIEW View' 'NEXT Next'; do
     case $form in
-      *'<-'*) want=replaced ;;
-      *) want=lines ;;
+      *'<-'*) form_result=replaced ;;
+      *) form_result=lines ;;
     esac
     forms=$((forms + 1))
     fixture "line-form-$forms"
     edit "line-form-$forms" README.md "$elsewhere"
     printf '%s\n' "$form" >>"$fdir/Confirm4.cfg" || fail selftest
     restamp "line-form-$forms"
-    expect "line-form-$forms" "1:FAIL $name (invariant)" good '' " result=$want"
+    expect "line-form-$forms" "1:FAIL $name (invariant)" good '' " result=$form_result"
   done
   fixture comment-mark
   {
