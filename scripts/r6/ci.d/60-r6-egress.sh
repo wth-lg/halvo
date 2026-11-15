@@ -147,7 +147,10 @@ enter_repo() {
   else
     repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail setup
   fi
-  cd "$repo" 2>/dev/null || fail setup
+  if ! cd "$repo" 2>/dev/null; then
+    printf 'egress setup repository=unreadable\n'
+    fail setup
+  fi
 }
 
 platform_of() {
@@ -1216,6 +1219,7 @@ case $* in
     while IFS=' ' read -r code at; do
       n=$((n + 1))
       [ "$n" = "$STUB_CANARY_DROP" ] && continue
+      [ "$STUB_CANARY_DROP:$code" = unsafe:unsafe_code ] && continue
       printf '{"reason":"compiler-message","message":{"rendered":"error: x\\n  --> src/lib.rs:%s:1\\n","children":[],"code":{"code":"%s","explanation":null},"level":"error","spans":[]}}\n' "$at" "$code"
     done <"$CI_D_ARTIFACTS/canary/expected.txt"
     if [ "$STUB_CANARY" = refer ]; then
@@ -1240,6 +1244,7 @@ case $* in
   "tree --locked -e normal,build --target all -p halvo-route-gate --prefix none --format {p}")
     paths
     printf 'serde v1.0.229\nserde_core v1.0.229\nserde_derive v1.0.229 (proc-macro)\nproc-macro2 v1.0.107\nunicode-ident v1.0.27\nquote v1.0.47\nsyn v3.0.10\nproc-macro2 v1.0.107 (*)\n'
+    [ "$STUB_GRAPH" != extra-build ] || printf 'thiserror-impl v2.0.0 (proc-macro)\n'
     linked_rest
     exit 0
     ;;
@@ -1412,6 +1417,8 @@ case $STUB_CHECK:$1:$2 in
   reuse-log-run:sh:*) ;;
   reuse-log-run:*) n=1 ;;
   reuse-log-asking:sh:*asker.sh) n=1 ;;
+  reuse-previous:sh:*) ;;
+  reuse-previous:*) n=$((n - 1)) ;;
 esac
 [ "$STUB_CHECK" != wrong-list ] || list=scripts/egress/lists/empty.txt
 printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/%s/denied.log\n' "$list" "$code" "$denied" "$n" >&2
@@ -1754,6 +1761,9 @@ self_test() {
   # shellcheck disable=SC2016
   printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: `std::nope` does not refer to a reachable type\n","$message_type":"diagnostic","children":[],"code":null,"level":"warning","message":"x","spans":[]}}' \
     >"$work/clippy-refer.json" || self_failed setup
+  # shellcheck disable=SC2016
+  printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: x\n  --> crates/halvo-route/src/x.rs:3:1\n","$message_type":"diagnostic","children":[{"children":[],"code":{"code":"unsafe_code","explanation":null},"level":"note","message":"n","rendered":null,"spans":[]}],"code":null,"level":"warning","message":"m","spans":[]}}' \
+    >"$work/clippy-child-code.json" || self_failed setup
   wrong=
   rejected=0
   case_reset
@@ -1818,6 +1828,8 @@ self_test() {
   case_run rule-dep-info-missing FAIL check 'rule unread gone-1.d'
   STUB_GRAPH=extra-third
   case_run graph-third-party-package-added FAIL check 'egress graph unknown=libc'
+  STUB_GRAPH=extra-build
+  case_run graph-build-time-package-added FAIL check 'egress graph unknown=thiserror-impl'
   STUB_GRAPH=extra-path
   case_run graph-path-package-added FAIL check 'egress graph unknown=halvo-cap'
   STUB_GRAPH=missing
@@ -1837,6 +1849,8 @@ self_test() {
   STUB_CANARY=real
   case_job=$own_job
   case_run canary-on-the-real-cargo PASS - 'egress canary entries='
+  STUB_CANARY_DROP=unsafe
+  case_run canary-without-its-unsafe-finding FAIL check 'egress canary missing=unsafe_code:'
   STUB_CANARY_DROP=1
   case_run canary-let-through FAIL check "egress canary missing=clippy::disallowed_types:1${nl}egress canary entries="
   case_job=windows
@@ -1848,6 +1862,8 @@ self_test() {
   case_run forbid-finding-with-exit-0 FAIL check 'forbid crates/halvo-route/src/x.rs:7 unsafe_code'
   STUB_CLIPPY_EXIT=101
   case_run forbid-exit-without-a-finding FAIL check 'egress forbid findings=0 exit=101'
+  STUB_CLIPPY_JSON=$work/clippy-child-code.json
+  case_run forbid-child-code-is-no-finding PASS - 'egress forbid findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-refer.json
   case_run forbid-list-entry-refers-to-nothing FAIL check 'egress forbid list-entry=refers-to-nothing'
   case_repo=$work/repo-entry
@@ -1872,7 +1888,7 @@ self_test() {
   case_self=$work/twice.sh
   case_run word-on-both-lists FAIL check 'egress listed-twice=probe'
   case_repo=$work/no-such-repository
-  case_run repository-missing FAIL setup 'FAIL'
+  case_run repository-missing FAIL setup 'egress setup repository=unreadable'
   STUB_CHECK='wrong-list'
   case_run line-of-another-list FAIL check 'egress run=probe line=missing'
   case_repo=$work/repo-link
@@ -1885,6 +1901,8 @@ self_test() {
   case_run canary-list-entry-refers-to-nothing FAIL check 'egress canary: the forbid run let the canary through'
   STUB_CHECK=reuse-log-run
   case_run log-of-another-run-of-the-gate-tool FAIL check 'egress run=generate log=not-new-or-not-its-own'
+  STUB_CHECK=reuse-previous
+  case_run log-of-the-run-before FAIL check 'egress run=generate log=not-new-or-not-its-own'
   STUB_CHECK=reuse-log-asking
   case_run log-of-another-asking FAIL check 'egress asking log=not-new-or-not-its-own'
   STUB_ODD=stdoutword:stdout
