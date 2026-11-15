@@ -770,6 +770,7 @@ nl='
 '
 mkdir -p "$answers/discover" || exit 2
 : >"$answers/commands.txt" || exit 2
+cd "$answers/discover" || exit 2
 (
   trap 'kill "$nap" 2>/dev/null; exit 0' TERM
   sleep "$seconds" &
@@ -783,7 +784,7 @@ mkdir -p "$answers/discover" || exit 2
 ) &
 watchdog=$!
 answers_unknown() {
-  (cd "$answers/discover" && exec "$exe" "$@") >"$answers/ask.out" 2>"$answers/ask.err" </dev/null &
+  "$exe" "$@" >"$answers/ask.out" 2>"$answers/ask.err" </dev/null &
   printf '%s\n' "$!" >"$answers/child"
   wait "$!"
   code=$?
@@ -1002,20 +1003,19 @@ compare_lists() {
   else
     commands=$(awk 'END { print NR }' "$work/commands.txt") || fail setup
   fi
-  while IFS= read -r word; do
-    [ "$job" != windows ] || continue
-    if ! grep -q -x -F -e "$word" "$work/listed-once.txt"; then
-      printf 'egress on-neither-list=%s\n' "$word"
+  if [ "$job" != windows ]; then
+    awk '
+      FILENAME == ARGV[1] { listed[$0] = 1; next }
+      { found[$0] = 1 }
+      !($0 in listed) { print "egress on-neither-list=" $0 }
+      END { for (word in listed) if (!(word in found)) missing[word] = 1 }
+      END { for (word in missing) print "egress no-command=" word }
+    ' "$work/listed-once.txt" "$work/commands.txt" >"$work/mismatch.txt" || fail setup
+    while IFS= read -r line; do
+      printf '%s\n' "$line"
       matched=no
-    fi
-  done <"$work/commands.txt"
-  while IFS= read -r word; do
-    [ "$job" != windows ] || continue
-    if ! grep -q -x -F -e "$word" "$work/commands.txt"; then
-      printf 'egress no-command=%s\n' "$word"
-      matched=no
-    fi
-  done <"$work/listed-once.txt"
+    done <"$work/mismatch.txt"
+  fi
   cannot=$(awk 'END { print NR }' "$work/cannot-list.txt") || fail setup
   printf 'egress commands=%s asked=%s run=%s cannot=%s crates=%s\n' "$commands" "$asked" "$checks" "$cannot" "$crates"
   while IFS=' ' read -r word reason; do
@@ -1705,6 +1705,7 @@ odd_repo() {
       blob=$(printf 'gate.txt' | git -C "$1" hash-object -w --stdin) || self_failed "setup at line $LINENO"
       if ! ln -s gate.txt "$1/scripts/r6/egress/link" 2>/dev/null || [ ! -h "$1/scripts/r6/egress/link" ]; then
         printf 'gate.txt' >"$1/scripts/r6/egress/link" || self_failed "setup at line $LINENO"
+        git -C "$1" config core.symlinks false || self_failed "setup at line $LINENO"
       fi
       git -C "$1" update-index --add --cacheinfo "120000,$blob,scripts/r6/egress/link" || self_failed "setup at line $LINENO"
       ;;
