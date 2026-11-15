@@ -52,9 +52,22 @@ fn gone_within(p: &Proc, bound: Duration) -> bool {
     }
 }
 
+/// What a test started, ended on every way out of the test: its child through the handle, and the
+/// fixture server by its row through `procs::kill` behind the fence (CP-161 (3)), which admits that
+/// row alone, by number and start time.
 struct Ends {
     child: Option<Child>,
     server: Option<Proc>,
+}
+
+impl Ends {
+    fn new() -> Ends {
+        procs::fence::on();
+        Ends {
+            child: None,
+            server: None,
+        }
+    }
 }
 
 impl Drop for Ends {
@@ -64,11 +77,27 @@ impl Drop for Ends {
             let _ = c.wait();
         }
         if let Some(p) = &self.server {
+            let _admitted = procs::fence::admit_process(p);
             if procs::running(p) {
                 procs::kill(p);
             }
         }
     }
+}
+
+/// Runs `drop_it` on a thread of its own and fails the test when it has not returned within
+/// `GONE` (CP-191 F5: a drop that never returns fails the test at its bound).
+fn returns_within_gone(drop_it: impl FnOnce() + Send + 'static) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        drop_it();
+        let _ = tx.send(());
+    });
+    assert!(
+        rx.recv_timeout(GONE).is_ok(),
+        "the drop did not return within {} ms",
+        GONE.as_millis()
+    );
 }
 
 #[test]
@@ -84,10 +113,7 @@ fn a_trial_process_that_holds_a_server() {
 
 #[test]
 fn the_server_is_gone_within_its_bound_when_its_trial_process_is_killed() {
-    let mut ends = Ends {
-        child: None,
-        server: None,
-    };
+    let mut ends = Ends::new();
     let mut child = Command::new(std::env::current_exe().expect("test binary"))
         .args([CHILD, "--exact", "--nocapture", "--test-threads=1"])
         .env(VAR, "1")
@@ -98,14 +124,20 @@ fn the_server_is_gone_within_its_bound_when_its_trial_process_is_killed() {
         .expect("trial process");
     let out = child.stdout.take().expect("stdout");
     ends.child = Some(child);
-    let mut pid = None;
-    for line in BufReader::new(out).lines() {
-        let Ok(line) = line else { break };
-        if let Some(rest) = line.strip_prefix("server ") {
-            pid = rest.split(' ').next().and_then(|p| p.parse::<u32>().ok());
-            break;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(out).lines() {
+            let Ok(line) = line else { break };
+            if let Some(rest) = line.strip_prefix("server ") {
+                let _ = tx.send(rest.split(' ').next().and_then(|p| p.parse::<u32>().ok()));
+                return;
+            }
         }
-    }
+        let _ = tx.send(None);
+    });
+    let pid = rx
+        .recv_timeout(Duration::from_secs(30))
+        .expect("the trial process printed no line within 30 s");
     let server = row(pid.expect("the trial process printed its server"));
     ends.server = Some(server.clone());
     let trial = ends.child.as_mut().expect("child");
@@ -122,15 +154,13 @@ fn the_server_is_gone_within_its_bound_when_its_trial_process_is_killed() {
 fn a_server_that_its_trial_drops_without_a_stop_is_gone_when_the_drop_returns() {
     let server = start();
     let p = row(server.pid());
-    let _ends = Ends {
-        child: None,
-        server: Some(p.clone()),
-    };
+    let mut ends = Ends::new();
+    ends.server = Some(p.clone());
     assert!(
         Control { port: server.port }.state().is_ok(),
         "the server serves while its trial holds it"
     );
-    drop(server);
+    returns_within_gone(move || drop(server));
     assert!(!procs::running(&p), "the server runs after its drop");
 }
 
@@ -144,37 +174,34 @@ fn a_server_that_ignores_its_input_is_gone_when_the_drop_returns() {
     .expect("program");
     let server = Server::start(&program, &[]).expect("server");
     let p = row(server.pid());
-    let _ends = Ends {
-        child: None,
-        server: Some(p.clone()),
-    };
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        drop(server);
-        let _ = tx.send(());
-    });
-    assert!(
-        rx.recv_timeout(GONE).is_ok(),
-        "the drop did not return within {} ms",
-        GONE.as_millis()
-    );
+    let mut ends = Ends::new();
+    ends.server = Some(p.clone());
+    returns_within_gone(move || drop(server));
     assert!(!procs::running(&p), "the server runs after its drop");
 }
 
 #[test]
 fn a_server_of_a_trial_that_panics_is_gone_when_the_panic_has_unwound() {
+    let mut ends = Ends::new();
     let (tx, rx) = std::sync::mpsc::channel();
-    let joined = std::thread::spawn(move || {
+    let trial = std::thread::spawn(move || {
         let server = start();
         tx.send(row(server.pid())).expect("send");
         panic!("the trial fails while it holds its server");
-    })
-    .join();
-    assert!(joined.is_err(), "the trial thread panicked");
-    let p = rx.recv().expect("row of the server");
-    let _ends = Ends {
-        child: None,
-        server: Some(p.clone()),
-    };
+    });
+    let p = rx
+        .recv_timeout(Duration::from_secs(30))
+        .expect("row of the server");
+    ends.server = Some(p.clone());
+    let until = Instant::now() + GONE;
+    while !trial.is_finished() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(
+        trial.is_finished(),
+        "the panic had not unwound within {} ms",
+        GONE.as_millis()
+    );
+    assert!(trial.join().is_err(), "the trial thread panicked");
     assert!(!procs::running(&p), "the server runs after the panic");
 }
