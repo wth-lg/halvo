@@ -21,10 +21,13 @@ the pull request into one commit whose message it checks first, so that no
 attribution line reaches the default branch.
 
   sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]
-      First run git fetch origin main, and stop with exit 1 when this file or
-      scripts/check-commit-messages.sh beside it differs from the copy that
-      origin/main holds, so that no checkout merges by an older rule. Then
-      read pull request <number> with gh and refuse unless all of these hold:
+      Before its other checks the script reads with gh api the copies that the
+      default branch of the repository that gh merges into holds of the file
+      that runs, of scripts/check-commit-messages.sh and of each file that
+      these source (scripts/commit-range.sh), and stops with exit 1 when one
+      differs from the copy that this run uses, and with exit 2 when a read
+      fails.
+      Then read pull request <number> with gh and refuse unless all of these hold:
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
         - its head is the commit given with --head, the one that was reviewed
         - for each of the events push and pull_request, the newest workflow
