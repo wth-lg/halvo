@@ -337,6 +337,21 @@ pub(crate) fn absolute_paths(config: &Config, spec: &RunSpec) -> Result<(), Rela
     Ok(())
 }
 
+/// A point of `reap` at which the hook that a test set runs: a seam of the crate's tests, which the app does not
+/// set.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReapStep {
+    /// Every mark is answered and the walk of `agents/profiles` has not begun.
+    Answered,
+    /// The folder `profiles` is held and none of its entries is read yet.
+    ProfilesHeld,
+}
+
+/// The hook of `ReapStep`.
+#[doc(hidden)]
+pub type ReapHook = Arc<dyn Fn(ReapStep) + Send + Sync>;
+
 /// The answer of `reap` for one mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Reaped {

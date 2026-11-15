@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use common::{gone, line_gone, wait_until, Rig};
 use halvo_agent_client::marks::{first_line, marks_dir, proc_line, Group, ProcLine};
-use halvo_agent_client::{process, Forced, ForcedPath, Reaped};
+use halvo_agent_client::{process, Forced, ForcedPath, ReapHook, ReapStep, Reaped};
 use halvo_schema::executable::text::{CreationTime, RunId};
 
 const SHORT: Duration = Duration::from_secs(10);
@@ -707,4 +707,113 @@ fn reap_keeps_the_profile_of_a_run_of_this_life_that_runs_after_its_finish_remov
         "the profile of a running run was removed"
     );
     rig.sup.kill(&run).unwrap();
+}
+
+fn hold_reap_at(
+    rig: &Rig,
+    at: ReapStep,
+) -> (std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>) {
+    let (reached_tx, reached) = std::sync::mpsc::channel();
+    let (release, release_rx) = std::sync::mpsc::channel::<()>();
+    let release_rx = std::sync::Mutex::new(release_rx);
+    let reached_tx = std::sync::Mutex::new(reached_tx);
+    let hook: ReapHook = std::sync::Arc::new(move |step| {
+        if step == at {
+            let _ = reached_tx.lock().unwrap().send(());
+            let _ = release_rx
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(60));
+        }
+    });
+    rig.sup.set_reap_hook(Some(hook));
+    (reached, release)
+}
+
+#[test]
+fn a_run_started_while_reap_is_held_after_its_listing_keeps_its_profile() {
+    let rig = Rig::new("reap-held-start");
+    let root = profiles(&rig);
+    let left: Vec<RunId> = (0..20).map(|_| common::run_id()).collect();
+    for run in &left {
+        profile_tree(&root.join(run.as_str()));
+    }
+    let (reached, release) = hold_reap_at(&rig, ReapStep::Answered);
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let live = spec.run.clone();
+    let kept = std::thread::scope(|s| {
+        let reaper = s.spawn(|| rig.sup.reap().unwrap());
+        reached
+            .recv_timeout(SHORT)
+            .expect("reap reached the point after its listing");
+        rig.sup.start(spec).unwrap();
+        profile_tree(&root.join(live.as_str()));
+        release.send(()).unwrap();
+        reaper.join().unwrap();
+        root.join(live.as_str())
+            .join("tmp")
+            .join("scratch")
+            .exists()
+    });
+    let gone = left
+        .iter()
+        .filter(|r| !root.join(r.as_str()).exists())
+        .count();
+    rig.sup.kill(&live).unwrap();
+    assert!(
+        kept,
+        "reap removed the profile of a run that started and lives while it was held"
+    );
+    assert_eq!(
+        gone,
+        left.len(),
+        "reap left profiles of runs that no run names"
+    );
+}
+
+#[test]
+fn a_kill_and_a_start_answer_while_a_reap_of_many_left_trees_runs() {
+    let rig = Rig::new("reap-busy-calls");
+    let root = profiles(&rig);
+    for _ in 0..300 {
+        profile_tree(&root.join(common::run_id().as_str()));
+    }
+    let first = rig.script(&["hello", "idle"]);
+    let first_spec = rig.spec(&first);
+    let killed = first_spec.run.clone();
+    rig.sup.start(first_spec).unwrap();
+    let (reached, release) = hold_reap_at(&rig, ReapStep::Answered);
+    let second = rig.script(&["hello", "idle"]);
+    let second_spec = rig.spec(&second);
+    let started = second_spec.run.clone();
+    let (kill_wait, start_wait) = std::thread::scope(|s| {
+        let reaper = s.spawn(|| rig.sup.reap().unwrap());
+        reached.recv_timeout(SHORT).expect("reap reached its walk");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let sup = rig.sup.clone();
+        let killed = killed.clone();
+        s.spawn(move || {
+            let at = std::time::Instant::now();
+            let k = sup.kill(&killed);
+            let kill_wait = at.elapsed();
+            let at = std::time::Instant::now();
+            let st = sup.start(second_spec);
+            let _ = tx.send((k, kill_wait, st, at.elapsed()));
+        });
+        let answered = rx.recv_timeout(Duration::from_secs(30));
+        release.send(()).unwrap();
+        reaper.join().unwrap();
+        let (k, kill_wait, st, start_wait) =
+            answered.expect("a kill and a start answered while reap was held in its walk");
+        assert_eq!(k, Ok(()));
+        assert_eq!(st, Ok(()));
+        (kill_wait, start_wait)
+    });
+    eprintln!(
+        "u46 calls during a held reap of 300 left trees: kill answered after {} ms, start after {} ms",
+        kill_wait.as_millis(),
+        start_wait.as_millis()
+    );
+    rig.sup.kill(&started).unwrap();
 }

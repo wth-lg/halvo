@@ -18,4 +18,6 @@ pub use api::{
     MarkSink, NotStarted, OriginAnswer, OwnerLink, Parts, ReapAnswer, Reaped, RelativePath, RunEnd,
     RunSpec, RunnerExit, Secrets, StartError, SystemValue, LINK_END, START_WAIT,
 };
+#[doc(hidden)]
+pub use api::{ReapHook, ReapStep};
 pub use supervisor::Supervisor;

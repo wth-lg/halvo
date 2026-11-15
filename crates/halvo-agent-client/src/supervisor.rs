@@ -23,8 +23,8 @@ use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::acts::Acts;
 use crate::api::{
-    absolute_paths, CallError, Config, EndRun, ForcedPath, NotStarted, Parts, ReapAnswer, Reaped,
-    RelativePath, RunEnd, RunSpec, RunnerExit, StartError, SystemValue,
+    absolute_paths, CallError, Config, EndRun, ForcedPath, NotStarted, Parts, ReapAnswer, ReapHook,
+    ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError, SystemValue,
 };
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
@@ -135,6 +135,7 @@ pub(crate) struct Inner {
     runs: Mutex<HashMap<RunId, Arc<Slot>>>,
     spawn_lock: Mutex<()>,
     read_value: ReadValue,
+    reap_hook: Mutex<Option<ReapHook>>,
 }
 
 /// The supervisor library: it starts runners, relays their store requests, answers their frames through the
@@ -177,7 +178,21 @@ impl Supervisor {
                 runs: Mutex::new(HashMap::new()),
                 spawn_lock: Mutex::new(()),
                 read_value,
+                reap_hook: Mutex::new(None),
             }),
+        }
+    }
+
+    /// Sets the hook that `reap` calls at each `ReapStep`: a seam of the crate's tests, which the app does not call.
+    #[doc(hidden)]
+    pub fn set_reap_hook(&self, hook: Option<ReapHook>) {
+        *lock(&self.inner.reap_hook) = hook;
+    }
+
+    fn reap_step(&self, step: ReapStep) {
+        let hook = lock(&self.inner.reap_hook).clone();
+        if let Some(hook) = hook {
+            hook(step);
         }
     }
 
@@ -370,8 +385,14 @@ impl Supervisor {
     /// not exited is `alive` and is left alone; for any other the library ends the processes of its mark that it
     /// may end, answers `gone` when its runner is gone, or its mark not complete, and then removes the mark, and
     /// `alive` when its runner lives and could not be ended. Then it removes each profile directory that a run left
-    /// under `<data directory>/agents/profiles/` whose run id no mark of a live run names, and that no run of this
-    /// life that has not ended names (contracts.md A8.3).
+    /// under `<data directory>/agents/profiles/` (contracts.md A8.3): just before it removes each entry, it reads
+    /// under the lock of the run table whether a run of this life that has not ended, or a run that this reap
+    /// answered `alive`, names that entry, and keeps the entry if so; the removal runs outside the lock, so a start,
+    /// a kill, an answer and the runs never wait on a reap. That holds because a start puts its run id into the
+    /// table before it writes the mark or makes any process, and only the runner makes a profile. The one case left:
+    /// a run id that this reap answered `gone` and that is started again while its old directory is still being
+    /// removed; the runner then refuses the existing path (A8.3). A mark that cannot be read makes `reap` answer
+    /// `Err`, with no profile removed.
     pub fn reap(&self) -> io::Result<Vec<ReapAnswer>> {
         let data_dir = &self.inner.config.data_dir;
         let mut answers = Vec::new();
@@ -400,18 +421,18 @@ impl Supervisor {
                 forced,
             });
         }
-        let mut keep: HashSet<RunId> = answers
+        let alive: HashSet<RunId> = answers
             .iter()
             .filter(|a| a.answer == Reaped::Alive)
             .map(|a| a.run.clone())
             .collect();
-        keep.extend(
-            lock(&self.inner.runs)
-                .iter()
-                .filter(|(_, slot)| !slot.ended())
-                .map(|(run, _)| run.clone()),
-        );
-        remove_profiles(data_dir, &keep);
+        self.reap_step(ReapStep::Answered);
+        remove_profiles(data_dir, |run| {
+            alive.contains(run)
+                || lock(&self.inner.runs)
+                    .get(run)
+                    .is_some_and(|slot| !slot.ended())
+        });
         Ok(answers)
     }
 
@@ -775,7 +796,7 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
 /// is a link, that is no directory or whose name is no run id stays. `fs::remove_dir_all` holds the directory by a
 /// handle that it opened without following a link and removes what it holds through that handle, a link in it as a
 /// link. A directory that cannot be removed stays until the next reap.
-fn remove_profiles(data_dir: &Path, keep: &HashSet<RunId>) {
+fn remove_profiles(data_dir: &Path, keep: impl Fn(&RunId) -> bool) {
     let agents = data_dir.join("agents");
     let profiles = agents.join("profiles");
     for folder in [data_dir, agents.as_path(), profiles.as_path()] {
@@ -794,7 +815,7 @@ fn remove_profiles(data_dir: &Path, keep: &HashSet<RunId>) {
         let Some(run) = name.to_str().and_then(|n| RunId::parse(n).ok()) else {
             continue;
         };
-        if !keep.contains(&run) {
+        if !keep(&run) {
             let _ = fs::remove_dir_all(profiles.join(run.as_str()));
         }
     }
