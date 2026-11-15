@@ -429,3 +429,90 @@ fn a_prepare_of_another_workbook_in_the_run_sends_that_checkpoints_rows() {
         "the other is filled"
     );
 }
+
+/// A11.3, A7.4, CP-139 (b): the person removes the run's checkpoint and changes the workbook between the run's
+/// two `prepare` calls of one workbook. The later `prepare` would make the checkpoint again from the changed
+/// workbook, under a `made` row that holds the first copy's SHA-256; the runner checks first that the checkpoint
+/// stands with its `made` row's length and SHA-256, and fails the step with `step_failed` before `prepare`: no copy
+/// stands that a row names with another digest, nothing is written, and no second row is sent.
+#[test]
+fn a_later_prepare_after_the_person_removed_the_checkpoint_makes_no_copy() {
+    let files = FillFiles::new("checkpoint-removed", 2);
+    let sup = fill(179, &files);
+    let copy = files.dir.join(checkpoint_name(&sup));
+    let mut persons = None;
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |n| {
+            if n == 3 {
+                std::fs::remove_file(&copy).expect("the person removes the checkpoint");
+                persons = Some(person_changes(&files));
+            }
+        },
+    );
+    let persons = persons.expect("the person changed the workbook");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)]
+    );
+    assert!(
+        !copy.exists(),
+        "no checkpoint made again: {:?}",
+        files.names()
+    );
+    assert_eq!(prepared_copies(&files), 0, "{:?}", files.names());
+    assert_eq!(files.workbook_bytes(), persons, "the person's workbook");
+}
+
+/// A11.3, A7.4: the person writes the changed workbook's bytes over the run's checkpoint between the run's two
+/// `prepare` calls. The later `prepare` would take that checkpoint as equal to the workbook and the edit would go
+/// on under a `made` row whose SHA-256 is not the copy's; the runner fails the step with `step_failed` before
+/// `prepare`, and the workbook and the person's file stay as the person left them.
+#[test]
+fn a_later_prepare_after_the_person_changed_the_checkpoint_writes_nothing() {
+    let files = FillFiles::new("checkpoint-overwritten", 2);
+    let sup = fill(180, &files);
+    let copy = files.dir.join(checkpoint_name(&sup));
+    let mut persons = None;
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |n| {
+            if n == 3 {
+                let changed = person_changes(&files);
+                std::fs::write(&copy, &changed).expect("the person writes over the checkpoint");
+                persons = Some(changed);
+            }
+        },
+    );
+    let persons = persons.expect("the person changed the workbook");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)]
+    );
+    assert_eq!(files.workbook_bytes(), persons, "the person's workbook");
+    assert_eq!(
+        std::fs::read(&copy).expect("the person's checkpoint"),
+        persons
+    );
+    assert_eq!(prepared_copies(&files), 0, "{:?}", files.names());
+}
