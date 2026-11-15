@@ -83,8 +83,11 @@ descriptor or a handle from a reply.
   so the store, its roots and the socket lie where it leads, and the check of the data
   directory (`paths::check_data_dir`, macOS) never narrows a directory that it reached
   through such a link and fails when that directory belongs to another user or its mode
-  gives group or others access. The check reads the mode and no access list, so an access
-  list on the folder that lets others in passes it.
+  gives group or others access. It also fails on a volume that ignores ownership and when
+  the mode that it set did not take. The check reads the mode and no access list, so an access
+  list on the folder that lets others in passes it. It speaks for the users of this Mac alone:
+  on a volume that is not local (SMB, NFS) the owner and the mode are what the server
+  reports, and who else can read the folder is the server's to say.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
   guard against that is the pid of the child it started; `ctl` has none. Exit 0 of

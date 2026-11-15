@@ -153,6 +153,14 @@ pub enum DataDirFault {
     LinkedAndOpenToOthers,
     #[error("the data directory could not be read or tightened: {0}")]
     Io(std::io::ErrorKind),
+    #[error(
+        "the data directory is on a volume that ignores ownership, so every user of this Mac can open it"
+    )]
+    OwnOnAVolumeThatIgnoresOwnership,
+    #[error("the data directory is reached through a link to a volume that ignores ownership, so every user of this Mac can open it")]
+    LinkedToAVolumeThatIgnoresOwnership,
+    #[error("the data directory's mode was set to 0700 and did not take")]
+    ModeDidNotTake,
 }
 
 /// The check of a data directory, on the lock's own descriptor when `held` is given and on a
@@ -188,7 +196,31 @@ pub fn check_data_dir(
     };
     // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
     let me = unsafe { libc::geteuid() };
-    check_opened(directory, through_a_link, me)
+    let flags = volume_flags(directory).map_err(|e| DataDirFault::Io(e.kind()))?;
+    check_opened(directory, through_a_link, me, flags, set_mode_0700)
+}
+
+/// The flags of the volume that holds the open directory, as fstatfs reads them.
+#[cfg(target_os = "macos")]
+pub(crate) fn volume_flags(directory: &std::fs::File) -> std::io::Result<u32> {
+    use std::os::unix::io::AsRawFd;
+
+    // SAFETY: statfs holds integers and arrays of them alone, so all-zero bytes are a valid
+    // value; fstatfs fills it before a field is read.
+    let mut volume: libc::statfs = unsafe { std::mem::zeroed() };
+    // SAFETY: the descriptor is the open file of `directory`, which outlives the call, and
+    // `volume` is a live statfs that the call writes.
+    if unsafe { libc::fstatfs(directory.as_raw_fd(), &mut volume) } == -1 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(volume.f_flags)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn set_mode_0700(directory: &std::fs::File) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    directory.set_permissions(std::fs::Permissions::from_mode(0o700))
 }
 
 #[cfg(target_os = "macos")]
@@ -196,10 +228,19 @@ pub(crate) fn check_opened(
     directory: &std::fs::File,
     through_a_link: bool,
     me: u32,
+    volume_flags: u32,
+    set_0700: fn(&std::fs::File) -> std::io::Result<()>,
 ) -> Result<DataDirCheck, DataDirFault> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::MetadataExt;
 
     let io = |e: std::io::Error| DataDirFault::Io(e.kind());
+    if volume_flags & libc::MNT_IGNORE_OWNERSHIP as u32 != 0 {
+        return Err(if through_a_link {
+            DataDirFault::LinkedToAVolumeThatIgnoresOwnership
+        } else {
+            DataDirFault::OwnOnAVolumeThatIgnoresOwnership
+        });
+    }
     let held = directory.metadata().map_err(io)?;
     if held.uid() != me {
         return Err(DataDirFault::OtherOwner);
@@ -208,9 +249,10 @@ pub(crate) fn check_opened(
     if !through_a_link {
         let set_to_0700 = held.mode() & 0o777 != 0o700;
         if set_to_0700 {
-            directory
-                .set_permissions(std::fs::Permissions::from_mode(0o700))
-                .map_err(io)?;
+            set_0700(directory).map_err(io)?;
+            if directory.metadata().map_err(io)?.mode() & 0o777 != 0o700 {
+                return Err(DataDirFault::ModeDidNotTake);
+            }
         }
         return Ok(DataDirCheck::Own { set_to_0700 });
     }
@@ -1913,7 +1955,13 @@ mod tests {
             let lock = InstanceLock::take(&path).unwrap().unwrap();
             let me = std::fs::metadata(&path).unwrap().uid();
             assert_eq!(
-                check_opened(lock.directory(), lock.through_a_link(), me.wrapping_add(1)),
+                check_opened(
+                    lock.directory(),
+                    lock.through_a_link(),
+                    me.wrapping_add(1),
+                    0,
+                    set_mode_0700
+                ),
                 Err(DataDirFault::OtherOwner)
             );
             assert_eq!(mode(&path), 0o755);
@@ -1922,8 +1970,120 @@ mod tests {
             let linked = link(&target, &root.path().join("l"));
             let lock = InstanceLock::take(linked.path()).unwrap().unwrap();
             assert_eq!(
-                check_opened(lock.directory(), lock.through_a_link(), me.wrapping_add(1)),
+                check_opened(
+                    lock.directory(),
+                    lock.through_a_link(),
+                    me.wrapping_add(1),
+                    0,
+                    set_mode_0700
+                ),
                 Err(DataDirFault::OtherOwner)
+            );
+        }
+
+        const NO_OWNERS: u32 = libc::MNT_IGNORE_OWNERSHIP as u32;
+
+        fn changes_nothing(_: &std::fs::File) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        #[test]
+        fn g1_a_volume_that_ignores_ownership_is_refused_in_both_branches_before_the_owner_and_any_change(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let own = root.path().join("own");
+            dir_of_mode(&own, 0o755);
+            let target = root.path().join("moved");
+            dir_of_mode(&target, 0o755);
+            let linked = link(&target, &root.path().join("d"));
+            let me = std::fs::metadata(&own).unwrap().uid();
+            for owner in [me, me.wrapping_add(1)] {
+                let lock = InstanceLock::take(&own).unwrap().unwrap();
+                assert_eq!(
+                    check_opened(
+                        lock.directory(),
+                        lock.through_a_link(),
+                        owner,
+                        NO_OWNERS | libc::MNT_LOCAL as u32,
+                        set_mode_0700
+                    ),
+                    Err(DataDirFault::OwnOnAVolumeThatIgnoresOwnership),
+                    "own, owner {owner}"
+                );
+                assert_eq!(
+                    mode(&own),
+                    0o755,
+                    "own, owner {owner}: the check wrote the mode"
+                );
+                drop(lock);
+                let lock = InstanceLock::take(linked.path()).unwrap().unwrap();
+                assert_eq!(
+                    check_opened(
+                        lock.directory(),
+                        lock.through_a_link(),
+                        owner,
+                        NO_OWNERS,
+                        set_mode_0700
+                    ),
+                    Err(DataDirFault::LinkedToAVolumeThatIgnoresOwnership),
+                    "linked, owner {owner}"
+                );
+                assert_eq!(mode(&target), 0o755);
+            }
+            let lock = InstanceLock::take(&own).unwrap().unwrap();
+            assert_eq!(
+                check_opened(
+                    lock.directory(),
+                    lock.through_a_link(),
+                    me,
+                    !NO_OWNERS,
+                    set_mode_0700
+                ),
+                Ok(DataDirCheck::Own { set_to_0700: true }),
+                "every other flag of the volume"
+            );
+            assert_eq!(
+                DataDirFault::OwnOnAVolumeThatIgnoresOwnership.to_string(),
+                "the data directory is on a volume that ignores ownership, so every user of this Mac can open it"
+            );
+            assert_eq!(
+                DataDirFault::LinkedToAVolumeThatIgnoresOwnership.to_string(),
+                "the data directory is reached through a link to a volume that ignores ownership, so every user of this Mac can open it"
+            );
+        }
+
+        #[test]
+        fn g1_a_mode_that_did_not_take_after_the_set_is_a_fault_of_its_own() {
+            let root = tempfile::tempdir().unwrap();
+            let own = root.path().join("own");
+            dir_of_mode(&own, 0o755);
+            let me = std::fs::metadata(&own).unwrap().uid();
+            let lock = InstanceLock::take(&own).unwrap().unwrap();
+            assert_eq!(
+                check_opened(lock.directory(), false, me, 0, changes_nothing),
+                Err(DataDirFault::ModeDidNotTake)
+            );
+            assert_eq!(mode(&own), 0o755);
+            set_mode(&own, 0o700);
+            assert_eq!(
+                check_opened(lock.directory(), false, me, 0, changes_nothing),
+                Ok(DataDirCheck::Own { set_to_0700: false })
+            );
+            assert_eq!(
+                DataDirFault::ModeDidNotTake.to_string(),
+                "the data directory's mode was set to 0700 and did not take"
+            );
+        }
+
+        #[test]
+        fn g1_the_flag_reader_reads_a_local_temporary_directory_without_the_flag() {
+            let root = tempfile::tempdir().unwrap();
+            let flags = volume_flags(&std::fs::File::open(root.path()).unwrap()).unwrap();
+            assert_eq!(flags & NO_OWNERS, 0, "{flags:#x}");
+            assert_ne!(
+                flags & libc::MNT_LOCAL as u32,
+                0,
+                "{flags:#x}: the reader read no flag"
             );
         }
 
