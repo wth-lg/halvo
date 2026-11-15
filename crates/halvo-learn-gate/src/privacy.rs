@@ -9,6 +9,7 @@ use crate::case::Case;
 use crate::cli::{Cause, Flags, Refusal, Report};
 use crate::delete::{seed, seed_cases, Cascade, MARKERS};
 use crate::store::{Family, MemoryStore};
+use halvo_schema::kinds::registry;
 
 /// The six checks of contracts.md L11.4, in the order of their lines.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,6 +84,30 @@ fn naming(store: &MemoryStore, workflow: &str) -> Vec<Row> {
     rows
 }
 
+fn key_names(kind: &str, json: &str, id: &WorkflowId) -> bool {
+    let Some(key) = registry()
+        .find(|e| e.name == kind)
+        .map_or(Some("workflow"), |e| e.workflow_key)
+    else {
+        return false;
+    };
+    serde_json::from_str::<serde_json::Value>(json)
+        .ok()
+        .and_then(|v| Some(WorkflowId::parse(v.as_object()?.get(key)?.as_str()?).ok()? == *id))
+        .unwrap_or(false)
+}
+
+fn keyed(store: &MemoryStore, id: &WorkflowId) -> Vec<Row> {
+    let mut rows: Vec<Row> = store
+        .rows(Family::Learn)
+        .all()
+        .filter(|(kind, json)| key_names(kind, json, id))
+        .map(|(kind, json)| (kind, json.to_owned()))
+        .collect();
+    rows.sort();
+    rows
+}
+
 fn deleted(
     first_before: &[Row],
     stored: bool,
@@ -98,9 +123,19 @@ fn deleted(
 }
 
 fn markers_seeded(first: &[Row], second: &[Row]) -> bool {
+    let in_state = |rows: &[Row], marker: &str, state: &str| {
+        rows.iter().any(|(kind, json)| {
+            *kind == "learn_edit"
+                && json.contains(marker)
+                && serde_json::from_str::<serde_json::Value>(json)
+                    .is_ok_and(|v| v["state"] == state)
+        })
+    };
     [(first, MARKERS[0]), (second, MARKERS[1])]
         .iter()
-        .all(|(rows, marker)| rows.iter().any(|(_, json)| json.contains(marker)))
+        .all(|(rows, marker)| {
+            in_state(rows, marker, "active") && in_state(rows, marker, "reverted")
+        })
 }
 
 fn has_marker(bytes: &[u8]) -> bool {
@@ -168,7 +203,8 @@ fn clean_under(dir: &Path, made_after: Option<&BTreeSet<OsString>>) -> bool {
 /// `cascade` with the first workflow's id; then it calls `after` with `data_dir` and `temp`. `learn_deleted` is ok
 /// when the first workflow had rows, the cascade answered that it was stored, no row holds its id after the
 /// cascade, and the second workflow's rows are the same rows as before it, by kind and bytes, and more than none.
-/// `learn_outside` is ok when each marker was in a row of its own workflow, so that the search can find one, and
+/// `learn_outside` is ok when each marker was in an `active` and in a `reverted` `learn_edit` row of its own
+/// workflow, read by the kind's workflow key, so that the search can find one, and
 /// neither marker's bytes are in a name, the bytes of a regular file or the target of a symbolic link, which is not
 /// followed, at any depth under `data_dir`, or under an entry of `temp` whose name was not there before the seed;
 /// a directory that cannot be listed or an entry that cannot be read counts as holding a marker, and an entry that
@@ -189,7 +225,9 @@ pub fn outcomes(
     let store = &mut play.host.store;
     let first_rows = naming(store, &first);
     let kept = naming(store, &second);
-    let seeded = markers_seeded(&first_rows, &kept);
+    let second_id =
+        WorkflowId::parse(&second).map_err(|_| "the second workflow's id".to_owned())?;
+    let seeded = markers_seeded(&keyed(store, &id), &keyed(store, &second_id));
     let stored = cascade(store, &id);
     let deleted = deleted(
         &first_rows,
@@ -591,20 +629,6 @@ mod tests {
     }
 
     #[test]
-    fn learn_outside_needs_each_marker_in_a_row_of_its_own_workflow() {
-        let row = |text: &str| ("learn_edit", text.to_owned());
-        let a = row(&format!("{{\"name\":\"{}\"}}", MARKERS[0]));
-        let b = row(&format!("{{\"name\":\"{}\"}}", MARKERS[1]));
-        let none = row("{\"name\":\"Pay now\"}");
-        let one = |r: &(&'static str, String)| vec![r.clone()];
-        assert!(markers_seeded(&[none.clone(), a.clone()], &one(&b)));
-        assert!(!markers_seeded(&one(&none), &one(&b)));
-        assert!(!markers_seeded(&one(&a), &one(&none)));
-        assert!(!markers_seeded(&one(&b), &one(&a)));
-        assert!(!markers_seeded(&[], &[]));
-    }
-
-    #[test]
     fn the_report_is_ok_with_not_run_lines_and_not_ok_with_a_miss() {
         let all = |o: Outcome| Check::ALL.map(|c| (c, o));
         assert!(report(&all(Outcome::NotRun)).ok);
@@ -712,5 +736,53 @@ mod tests {
             other.line(),
             "REFUSED usage: an unknown command; commands: drift, delete, routine, privacy"
         );
+    }
+
+    #[test]
+    fn learn_outside_needs_each_marker_in_an_active_and_a_reverted_row_of_its_own_workflow() {
+        let edit = |state: &str, name: &str| -> Row {
+            (
+                "learn_edit",
+                format!("{{\"state\":\"{state}\",\"target\":{{\"desc\":\"{name}\"}}}}"),
+            )
+        };
+        let [a, b] = MARKERS;
+        let first = vec![edit("active", a), edit("reverted", &format!("{a} second"))];
+        let second = vec![edit("reverted", &format!("{b} second")), edit("active", b)];
+        assert!(markers_seeded(&first, &second));
+        assert!(
+            !markers_seeded(&first[..1], &second),
+            "no reverted row of the first"
+        );
+        assert!(
+            !markers_seeded(&first, &second[..1]),
+            "no active row of the second"
+        );
+        assert!(
+            !markers_seeded(&second, &first),
+            "each marker in the other workflow"
+        );
+        let withdrawn = vec![edit("active", a), edit("withdrawn", a)];
+        assert!(
+            !markers_seeded(&withdrawn, &second),
+            "withdrawn in place of reverted"
+        );
+        let runs = vec![
+            (
+                "learn_run",
+                format!("{{\"state\":\"active\",\"x\":\"{a}\"}}"),
+            ),
+            first[1].clone(),
+        ];
+        assert!(
+            !markers_seeded(&runs, &second),
+            "the active marker in a run row"
+        );
+        let plain = vec![edit("active", "Pay now"), first[1].clone()];
+        assert!(
+            !markers_seeded(&plain, &second),
+            "an active row without the marker"
+        );
+        assert!(!markers_seeded(&[], &[]));
     }
 }
