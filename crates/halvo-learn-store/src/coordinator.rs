@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use halvo_learn::RunCause;
 use halvo_schema::executable::body::{CreateAgent, EndRun, StartRun};
-use halvo_schema::executable::{CoordinatorCall, CoordinatorReply, RunId};
+use halvo_schema::executable::{CoordinatorCall, CoordinatorReply};
 use halvo_schema::learning::body::{LearnedRead, Refinement, Refinements};
 use halvo_schema::learning::names::{Mark, RefinementKind};
 use halvo_schema::learning::record::{Day, EditState, LearnRoutine, LearnRun, RunStatus};
@@ -90,15 +90,11 @@ impl LearnHandlers {
         host: &mut dyn LearnHost,
         read: &LearnedRead,
     ) -> Result<Refinements, ErrorName> {
-        let probe = RunId::from_random(self.ids.bytes());
-        #[cfg(test)]
-        self.probes.push(probe.clone());
-        let Some(loaded) = agent::load(host, &read.agent, &probe)? else {
+        let Some(newest) = agent::newest_number(host, &read.agent)? else {
             return Ok(Refinements {
                 refinements: Vec::new(),
             });
         };
-        let newest = loaded.playbook.map(|p| p.number);
         let Read::Rows(edits) = Edits::read(host.rows(), &read.workflow) else {
             return Err(ErrorName::Store);
         };

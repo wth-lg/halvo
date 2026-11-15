@@ -16,9 +16,9 @@ fn loc(name: &str) -> Value {
 
 fn lines(total: usize) -> Vec<Sent> {
     let mut out: Vec<Sent> = vec![
-        (1, "step_failed", 2, Some("step_failed")),
-        (2, "recovered", 3, None),
-        (3, "step_ok", 3, None),
+        (2, "step_failed", 2, Some("step_failed")),
+        (3, "recovered", 3, None),
+        (4, "step_ok", 3, None),
     ];
     let mut seq = 4;
     while out.len() < total {
