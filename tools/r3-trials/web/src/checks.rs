@@ -112,103 +112,107 @@ pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
 }
 
 /// Whether two paths are one by the stated rule of CP-189 G1: component by component, a separator
-/// at the end and a repeated separator ignored; on macOS the letters as they stand; on Windows `/`
-/// and `\` as one and the letter case ignored, as `inside` reads paths there. No link is followed
-/// and no `..` is resolved.
+/// at the end and a repeated separator inside the path ignored, and a path that begins with two
+/// separators (a share on Windows) not one that begins with one; on macOS the letters as they
+/// stand; on Windows `/` and `\` as one and the case of the letters A to Z ignored, and no other
+/// letter folded. No link is followed and no `..` is resolved.
 pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
     let parts = |p: &str| {
         let p = if windows {
-            p.replace('\\', "/").to_lowercase()
+            p.replace('\\', "/").to_ascii_lowercase()
         } else {
             p.to_string()
         };
+        let lead = p.chars().take_while(|c| *c == '/').count().min(2);
         let parts: Vec<String> = p
             .split('/')
             .filter(|c| !c.is_empty())
             .map(str::to_string)
             .collect();
-        (p.starts_with('/'), parts)
+        (lead, parts)
     };
     !a.is_empty() && !b.is_empty() && parts(a) == parts(b)
 }
 
-/// The arguments of a Windows command line by the system's rule (`CommandLineToArgvW`): the
-/// program's name runs to the first space or tab outside quotes, its quotes dropped; each later
-/// argument runs to the next space or tab outside quotes; 2n backslashes before a quote give n
-/// backslashes and the quote opens or closes the quoted part, 2n+1 give n backslashes and a
-/// quote; backslashes before any other character stand as they are; `""` inside a quoted part
-/// gives one quote. The mark alone calls it (`bears_profile`); `command_args` and `command_line`
-/// stay as they are for the six rules.
+/// The arguments of a Windows command line by the rule of `CommandLineToArgvW` of shell32. The
+/// program's name: when the line begins with a quote, up to the next quote, the quotes dropped;
+/// else up to the first space or tab, a quote kept as it stands. Each later argument runs to the
+/// next space or tab outside a quoted part; 2n backslashes before a quote give n backslashes and
+/// the quote opens or closes a quoted part, 2n+1 give n backslashes and a quote; backslashes before
+/// any other character stand as they are; in a run of quotes each third one counted from the
+/// opening quote gives a quote, and a count that ends at two leaves the part closed. The mark
+/// alone calls it (`bears_profile`); `command_args` and `command_line` stay as they are for the six
+/// rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
-    let chars: Vec<char> = line.chars().collect();
-    let space = |c: char| c == ' ' || c == '\t';
+    let c: Vec<char> = line.chars().collect();
+    let space = |x: char| x == ' ' || x == '\t';
     let mut out = Vec::new();
+    if c.is_empty() {
+        return out;
+    }
     let mut i = 0;
     let mut name = String::new();
-    let mut quoted = false;
-    let mut any = false;
-    while i < chars.len() {
-        let c = chars[i];
-        if c == '"' {
-            quoted = !quoted;
-            any = true;
+    if c[0] == '"' {
+        i = 1;
+        while i < c.len() && c[i] != '"' {
+            name.push(c[i]);
             i += 1;
-            continue;
         }
-        if !quoted && space(c) {
-            break;
+        i = (i + 1).min(c.len());
+    } else {
+        while i < c.len() && !space(c[i]) {
+            name.push(c[i]);
+            i += 1;
         }
-        name.push(c);
-        any = true;
+    }
+    out.push(name);
+    while i < c.len() && space(c[i]) {
         i += 1;
     }
-    if any {
-        out.push(name);
-    }
-    loop {
-        while i < chars.len() && space(chars[i]) {
-            i += 1;
-        }
-        if i >= chars.len() {
-            break;
-        }
-        let mut cur = String::new();
-        let mut quoted = false;
-        while i < chars.len() {
-            let c = chars[i];
-            if c == '\\' {
-                let mut n = 0;
-                while i < chars.len() && chars[i] == '\\' {
-                    n += 1;
-                    i += 1;
-                }
-                if i < chars.len() && chars[i] == '"' {
-                    cur.extend(std::iter::repeat_n('\\', n / 2));
-                    if n % 2 == 1 {
-                        cur.push('"');
-                        i += 1;
-                    }
-                } else {
-                    cur.extend(std::iter::repeat_n('\\', n));
-                }
-                continue;
-            }
-            if c == '"' {
-                if quoted && chars.get(i + 1) == Some(&'"') {
-                    cur.push('"');
-                    i += 2;
-                    continue;
-                }
-                quoted = !quoted;
+    let mut open = i < c.len();
+    let mut cur = String::new();
+    let (mut quotes, mut backslashes) = (0u32, 0usize);
+    while i < c.len() {
+        let x = c[i];
+        if space(x) && quotes == 0 {
+            out.push(std::mem::take(&mut cur));
+            backslashes = 0;
+            while i < c.len() && space(c[i]) {
                 i += 1;
-                continue;
             }
-            if !quoted && space(c) {
-                break;
+            open = i < c.len();
+        } else if x == '\\' {
+            cur.push('\\');
+            backslashes += 1;
+            i += 1;
+        } else if x == '"' {
+            if backslashes % 2 == 0 {
+                cur.truncate(cur.len() - backslashes / 2);
+                quotes += 1;
+            } else {
+                cur.truncate(cur.len() - backslashes / 2 - 1);
+                cur.push('"');
             }
-            cur.push(c);
+            backslashes = 0;
+            i += 1;
+            while i < c.len() && c[i] == '"' {
+                quotes += 1;
+                if quotes == 3 {
+                    cur.push('"');
+                    quotes = 0;
+                }
+                i += 1;
+            }
+            if quotes == 2 {
+                quotes = 0;
+            }
+        } else {
+            cur.push(x);
+            backslashes = 0;
             i += 1;
         }
+    }
+    if open {
         out.push(cur);
     }
     out
@@ -1061,6 +1065,117 @@ pub(crate) mod tests {
         }
         assert!(split_command_line("").is_empty());
         assert_eq!(split_command_line(r#""""#), strings(&[""]));
+        let review: [(&str, &[&str]); 6] = [
+            (
+                r#"ch"rome x" --user-data-dir=C:\P"#,
+                &[r#"ch"rome"#, r"x --user-data-dir=C:\P"],
+            ),
+            (
+                r#"chrome.exe x"""" --user-data-dir=C:\P"#,
+                &["chrome.exe", r#"x" --user-data-dir=C:\P"#],
+            ),
+            (
+                r#"chrome.exe x"""a" --user-data-dir=C:\P"#,
+                &["chrome.exe", r#"x"a --user-data-dir=C:\P"#],
+            ),
+            (
+                r#""chrome"a\"" --user-data-dir=C:\P"#,
+                &["chrome", r#"a" --user-data-dir=C:\P"#],
+            ),
+            (r#""a b"c d"#, &["a b", "c", "d"]),
+            ("b.exe a ", &["b.exe", "a"]),
+        ];
+        for (line, want) in review {
+            assert_eq!(split_command_line(line), strings(want), "{line}");
+            assert!(
+                !bears_profile_on(&strings(&[line]), r"C:\P", true),
+                "{line}"
+            );
+        }
+    }
+
+    /// The review of U0.7d, on Windows: `split_command_line` gives the arguments that the
+    /// system's own `CommandLineToArgvW` gives, line by line over a table of quotes, backslashes,
+    /// tabs and program names.
+    #[cfg(windows)]
+    #[test]
+    fn the_split_is_the_system_s_own_on_a_table_of_lines() {
+        use windows_sys::Win32::Foundation::LocalFree;
+        use windows_sys::Win32::UI::Shell::CommandLineToArgvW;
+        let lines = [
+            r#""C:\P F\b.exe" a b"#,
+            r#"b.exe "a b" c"#,
+            r#"b.exe a\"b"#,
+            r#"b.exe "a\\" b"#,
+            r#"b.exe a\\\"b"#,
+            r"b.exe a\\b",
+            r#"b.exe "a""b""#,
+            "b.exe\ta  \t b",
+            r#"ch"rome x" --user-data-dir=C:\P"#,
+            r#"chrome.exe x"""" --user-data-dir=C:\P"#,
+            r#"chrome.exe x"""a" --user-data-dir=C:\P"#,
+            r#""chrome"a\"" --user-data-dir=C:\P"#,
+            r#""a b"c d"#,
+            "b.exe a ",
+            r#"b.exe """"""" x"#,
+            r#"b.exe a"""b"""c d"#,
+            r#"b.exe "--user-data-dir=C:\t\p" --type=gpu"#,
+            r#"b.exe \\"x y" z\"#,
+            r#""""#,
+            "b.exe",
+        ];
+        for line in lines {
+            let wide: Vec<u16> = line.encode_utf16().chain([0]).collect();
+            let mut n = 0i32;
+            // SAFETY: `wide` is a NUL-terminated wide string that lives across the call, and `n` is
+            // a live i32.
+            let argv = unsafe { CommandLineToArgvW(wide.as_ptr(), &mut n) };
+            assert!(!argv.is_null(), "{line}");
+            let mut system = Vec::new();
+            for k in 0..n.max(0) as usize {
+                // SAFETY: `argv` holds `n` pointers to NUL-terminated wide strings, which live
+                // until the LocalFree below.
+                let arg = unsafe {
+                    let p = *argv.add(k);
+                    let mut len = 0;
+                    while *p.add(len) != 0 {
+                        len += 1;
+                    }
+                    String::from_utf16_lossy(std::slice::from_raw_parts(p, len))
+                };
+                system.push(arg);
+            }
+            // SAFETY: `argv` was given by CommandLineToArgvW, is freed once and not used after.
+            unsafe { LocalFree(argv.cast()) };
+            assert_eq!(split_command_line(line), system, "{line}");
+        }
+    }
+
+    /// The review of U0.7d: a Windows share (`\\srv\share\p`) is not the path below the root of a
+    /// drive (`\srv\share\p`), and the letter case is ignored for the letters A to Z alone, so the
+    /// Kelvin sign is not `k`.
+    #[test]
+    fn a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored() {
+        let share = r"\\srv\share\p";
+        let win = |line: &str, profile: &str| bears_profile_on(&strings(&[line]), profile, true);
+        assert!(win(r"b.exe --user-data-dir=\\SRV\share\p\", share));
+        assert!(win(r"b.exe --user-data-dir=//srv/share/p", share));
+        assert!(!win(r"b.exe --user-data-dir=\srv\share\p", share));
+        assert!(!win(r"b.exe --user-data-dir=/srv/share/p", share));
+        assert!(!win(
+            r"b.exe --user-data-dir=\\srv\share\p",
+            r"\srv\share\p"
+        ));
+        assert!(!win(
+            "b.exe --user-data-dir=C:\\work\\\u{212A}p",
+            r"C:\work\kp"
+        ));
+        assert!(win(r"b.exe --user-data-dir=C:\WORK\KP", r"C:\work\kp"));
+        assert!(!bears_profile_on(
+            &strings(&["--user-data-dir=//t/p"]),
+            "/t/p",
+            false
+        ));
     }
 
     /// The pr-review-19 test (join-1), as the review wrote it: a failed start ends each process that
@@ -1690,6 +1805,10 @@ pub(crate) mod tests {
                 strings(&[r"b.exe C:\t\p"]),
                 strings(&[r"b.exe --database=C:\t\p"]),
                 strings(&[r"b.exe --database=C:\t\p\Crashpad\x"]),
+                strings(&[r#"b"exe x" --user-data-dir=C:\t\p"#]),
+                strings(&[r#"b.exe x"""" --user-data-dir=C:\t\p"#]),
+                strings(&[r#""b.exe"a\"" --user-data-dir=C:\t\p"#]),
+                strings(&[r"b.exe --user-data-dir=\t\p"]),
             ]
         } else {
             vec![
