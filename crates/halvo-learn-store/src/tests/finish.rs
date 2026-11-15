@@ -401,3 +401,63 @@ fn log_lines_are_read_in_the_order_of_their_seq_whatever_the_order_of_their_bodi
         }
     ));
 }
+
+fn run_id(r: u32) -> halvo_schema::executable::RunId {
+    halvo_schema::executable::RunId::parse(&run(r)).expect("a run id")
+}
+
+fn going_run_proposed_on(w: &mut World, day: u32) {
+    w.host.day = day;
+    let served = w.replay(2);
+    let proposed = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
+    let reply = w.put(2, 1, vec![proposed]);
+    assert!(reply.is_ok(), "the replay's put_playbook: {reply:?}");
+}
+
+#[test]
+fn a_start_under_a_clock_one_day_back_keeps_a_going_run_whose_finish_then_stores_its_edit() {
+    let mut w = active_world();
+    going_run_proposed_on(&mut w, DAY + 2);
+    w.host.day = DAY + 1;
+    w.start(3, "replay");
+    assert!(
+        w.handlers.facts.contains_key(&run_id(2)),
+        "run 2 keeps its facts"
+    );
+    w.host.day = DAY + 2;
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
+    let reply = w.finish(2, "replay", "completed");
+    assert!(reply.is_ok(), "run 2's finish: {reply:?}");
+    assert_eq!(
+        w.host.edits().len(),
+        1,
+        "run 2's verified finish stores its edit"
+    );
+    assert_eq!(run_row(&w, 2).rev(), 2);
+}
+
+#[test]
+fn a_log_body_of_a_going_run_sent_under_a_clock_one_day_back_is_stored_and_the_run_keeps_its_facts()
+{
+    let mut w = active_world();
+    going_run_proposed_on(&mut w, DAY + 2);
+    w.host.day = DAY + 1;
+    w.log(2, &[(2, "recovered", 2, None)]);
+    assert!(
+        w.handlers.facts.contains_key(&run_id(2)),
+        "run 2 keeps its facts"
+    );
+}
+
+#[test]
+fn a_start_under_a_clock_three_days_back_drops_the_facts_of_a_run_whose_start_row_it_cannot_read() {
+    let mut w = active_world();
+    going_run_proposed_on(&mut w, DAY + 3);
+    assert!(w.handlers.facts.contains_key(&run_id(2)));
+    w.host.day = DAY;
+    w.start(3, "replay");
+    assert!(
+        !w.handlers.facts.contains_key(&run_id(2)),
+        "the sweep drops run 2"
+    );
+}
