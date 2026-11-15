@@ -1542,6 +1542,7 @@ own_self_test() {
     sleep 0.1
     n=$((n + 1))
   done
+  [ ! -f "$fixture/pids" ] || true >"$fixture/pids"
   case_witness=yes
   case_absent='FAIL run-ci-d (10-a changed a tracked file: tool.sh)'
   own_case writer-left-by-the-self-test-step-is-named-before-the-step-ci.d 1 "$tool_line" macos
@@ -1790,6 +1791,7 @@ own_self_test() {
   case_first='FAIL 10-a (time limit 5 s)'
   case_then='PASS 20-b'
   own_case script-that-ignores-term-past-its-limit 1 'FAIL 10-a (time limit 5 s)' macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
   case_limit=2s
   own_case limit-not-a-number-in-the-step-ci.d 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=2s is not a whole number from 1 to 999999999)' macos
   new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
