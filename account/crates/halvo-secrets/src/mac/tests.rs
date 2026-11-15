@@ -1774,8 +1774,21 @@ mod real_files {
     const X: &[u8] = b"credential X of an earlier build";
 
     fn stopped_after_the_claim(label: &str, bytes: &[u8], pid: u32) {
-        assert_eq!(file_item(label).write(&secret(bytes)), Write::Stored);
         let store = parent(label).join("store");
+        if store.exists() {
+            // A write beside a claim answers a fault, so the next file is made by hand.
+            use std::io::Write as _;
+            use std::os::unix::fs::OpenOptionsExt;
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(store.join("account"))
+                .and_then(|mut file| file.write_all(bytes))
+                .expect("the file of a later write");
+        } else {
+            assert_eq!(file_item(label).write(&secret(bytes)), Write::Stored);
+        }
         std::fs::rename(
             store.join("account"),
             store.join(format!(".account.{pid}.0.claim")),
@@ -1887,8 +1900,8 @@ mod real_files {
         std::fs::set_permissions(&claim, std::fs::Permissions::from_mode(0o644))
             .expect("the mode of the claim");
         let store = signed(label, Keys::holding(&[X]));
-        assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
-        assert!(store.keychain.keychain.items().is_empty());
+        assert_eq!(store.delete(), Delete::Locked(Locked::Mode));
+        assert_eq!(store.keychain.keychain.items(), [X.to_vec()]);
         assert_eq!(names_in(label), [".account.4241.0.claim"]);
 
         let label = "readable-claim-same-delete";
@@ -2248,24 +2261,30 @@ mod real_files {
         MetaOfClaim,
         RenameBack,
         RemoveClaim,
+        Exists,
+        RemoveTemp,
+        Names,
     }
 
+    type Hooks = Vec<(At, Box<dyn FnOnce()>)>;
+
     struct HookedFs {
-        at: At,
-        hooks: RefCell<Vec<Box<dyn FnOnce()>>>,
+        hooks: RefCell<Hooks>,
         opened: RefCell<String>,
     }
 
     impl HookedFs {
+        /// Runs the first hook left for `at`, once.
         fn fire(&self, at: At) {
-            if self.at == at {
-                let next = {
-                    let mut hooks = self.hooks.borrow_mut();
-                    (!hooks.is_empty()).then(|| hooks.remove(0))
-                };
-                if let Some(hook) = next {
-                    hook();
-                }
+            let next = {
+                let mut hooks = self.hooks.borrow_mut();
+                hooks
+                    .iter()
+                    .position(|(when, _)| *when == at)
+                    .map(|first| hooks.remove(first).1)
+            };
+            if let Some(hook) = next {
+                hook();
             }
         }
     }
@@ -2292,6 +2311,7 @@ mod real_files {
         }
 
         fn exists(&self, dir: &Self::Dir, name: &str) -> std::io::Result<bool> {
+            self.fire(At::Exists);
             Fs::exists(&UnixFs, dir, name)
         }
 
@@ -2347,6 +2367,8 @@ mod real_files {
                 self.fire(At::RemoveName);
             } else if name.ends_with(".claim") {
                 self.fire(At::RemoveClaim);
+            } else if name.ends_with(".tmp") {
+                self.fire(At::RemoveTemp);
             }
             Fs::remove(&UnixFs, dir, name)
         }
@@ -2356,6 +2378,7 @@ mod real_files {
         }
 
         fn names(&self, dir: &Self::Dir) -> std::io::Result<Vec<String>> {
+            self.fire(At::Names);
             Fs::names(&UnixFs, dir)
         }
     }
@@ -2365,9 +2388,12 @@ mod real_files {
     }
 
     fn hooked_items(label: &str, at: At, hooks: Vec<Box<dyn FnOnce()>>) -> Item<HookedFs, Plain> {
+        hooked_at(label, hooks.into_iter().map(|hook| (at, hook)).collect())
+    }
+
+    fn hooked_at(label: &str, hooks: Hooks) -> Item<HookedFs, Plain> {
         Item {
             fs: HookedFs {
-                at,
                 hooks: RefCell::new(hooks),
                 opened: RefCell::new(String::new()),
             },
@@ -2678,6 +2704,344 @@ mod real_files {
         let read = this.read();
         assert_eq!(found(read), X);
         assert_eq!(*items.borrow(), [X.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+    }
+
+    const Y: &[u8] = b"credential Y of a second sign-in";
+
+    /// Puts `bytes` under `name` in the store directory, made with mode 0700 when absent, as
+    /// another process's file of mode 0600.
+    fn put(label: &str, name: &str, bytes: &[u8]) {
+        use std::io::Write as _;
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+        let store = parent(label).join("store");
+        if !store.exists() {
+            std::fs::DirBuilder::new()
+                .mode(0o700)
+                .create(&store)
+                .expect("the store directory");
+        }
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(store.join(name))
+            .and_then(|mut file| file.write_all(bytes))
+            .expect("a file of another process");
+    }
+
+    fn bytes_in(label: &str, name: &str) -> Option<Vec<u8>> {
+        std::fs::read(parent(label).join("store").join(name)).ok()
+    }
+
+    fn another_claim(n: u32) -> String {
+        format!(".account.{}.0.claim", std::process::id() + n)
+    }
+
+    fn another_temp(n: u32) -> String {
+        format!(".account.{}.0.tmp", std::process::id() + n)
+    }
+
+    /// G1 (b), the verifier's H interleaving: another process claims the file that holds X
+    /// while the write looks, so the write publishes Y beside X's claim.
+    #[test]
+    fn a_write_that_looks_while_another_process_claims_the_file_never_answers_stored() {
+        let label = "write-looks-during-a-claim";
+        put(label, "account", X);
+        let store = parent(label).join("store");
+        let (from, to) = (store.join("account"), store.join(another_claim(1)));
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            std::fs::rename(&from, &to).expect("another process's claim of X");
+        });
+        let wrote =
+            hooked_item(label, At::Exists, hook).after_claims(|item| item.write(&secret(Y)));
+        println!(
+            "write-looks-during-a-claim wrote={wrote:?} names={:?}",
+            names_in(label)
+        );
+        assert_eq!(wrote, Write::Fault(Fault { code: -1 }));
+        assert_eq!(bytes_in(label, &another_claim(1)), Some(X.to_vec()));
+        assert_eq!(bytes_in(label, "account"), Some(Y.to_vec()));
+    }
+
+    /// G1 (c), the replace window: the caller read X, the file is replaced by W before the
+    /// claim, and a write of Y falls inside the claim.
+    #[test]
+    fn a_file_replaced_between_the_read_and_the_claim_of_a_delete_if_holds_answers_by_the_limit() {
+        let label = "replace-window";
+        put(label, "account", X);
+        let w: &[u8] = b"credential W that replaced X....";
+        let name = parent(label).join("store").join("account");
+        let replace: Box<dyn FnOnce()> = Box::new(move || {
+            use std::io::Write as _;
+            use std::os::unix::fs::OpenOptionsExt;
+            std::fs::remove_file(&name).expect("another process's delete of X");
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&name)
+                .and_then(|mut file| file.write_all(w))
+                .expect("another process's write of W");
+        });
+        let wrote = Rc::new(RefCell::new(None));
+        let answer = Rc::clone(&wrote);
+        let writer = label.to_string();
+        let write_inside: Box<dyn FnOnce()> = Box::new(move || {
+            *answer.borrow_mut() = Some(file_item(&writer).write(&secret(Y)));
+        });
+        let item = hooked_at(
+            label,
+            vec![(At::BeforeClaim, replace), (At::Claim, write_inside)],
+        );
+        let deleted = item.after_claims(|item| item.delete_if_holds(X));
+        let wrote = wrote.borrow_mut().take();
+        let claims: Vec<String> = names_in(label)
+            .into_iter()
+            .filter(|entry| entry.ends_with(".claim"))
+            .collect();
+        println!(
+            "replace-window wrote={wrote:?} deleted={deleted:?} names={:?}",
+            names_in(label)
+        );
+        assert_eq!(wrote, Some(Write::Fault(Fault { code: -1 })));
+        assert!(
+            matches!(deleted, DeleteIfHolds::Fault(Fault { code: -1 })),
+            "{deleted:?}"
+        );
+        assert_eq!(claims.len(), 1, "{claims:?}");
+        assert_eq!(bytes_in(label, &claims[0]), Some(w.to_vec()));
+        assert_eq!(bytes_in(label, "account"), Some(Y.to_vec()));
+        let later = file_item(label);
+        assert!(matches!(
+            later.after_claims(Item::read),
+            Read::Fault(Fault { code: -1 })
+        ));
+        assert_eq!(
+            later.after_claims(|item| item.write(&secret(X))),
+            Write::Fault(Fault { code: -1 })
+        );
+        assert_eq!(
+            later.after_claims(Item::delete),
+            Delete::Fault(Fault { code: -1 })
+        );
+        assert!(matches!(
+            later.after_claims(|item| item.delete_if_holds(Y)),
+            DeleteIfHolds::Fault(Fault { code: -1 })
+        ));
+        assert_eq!(names_in(label).len(), 2, "{:?}", names_in(label));
+        assert_eq!(later.remove_at_word(None), Delete::Deleted);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+        assert!(matches!(later.after_claims(Item::read), Read::NotStored));
+    }
+
+    /// G2: in the build with the Keychain, a claim beside a taken name that the settle can
+    /// neither put back nor give is the answer of every read, write and delete, and nothing
+    /// is removed, moved or stored. The cases 23, 28, 34, 39 and 42 of verifier-38.
+    #[test]
+    fn a_claim_that_cannot_be_settled_beside_a_keychain_item_is_the_answer_and_nothing_changes() {
+        let a: &[u8] = b"AAAAAAAAAAAAAAAA";
+        let ab: &[u8] = b"AAAAAAAAAAAAAAAB";
+        let bb: &[u8] = b"BBBBBBBB";
+        type Op = fn(&Mac<Item<UnixFs, Plain>, Keys>) -> String;
+        let read: Op = |store| format!("{:?}", store.read());
+        let delete: Op = |store| format!("{:?}", store.delete());
+        let write: Op = |store| format!("{:?}", store.write(&secret(Y)));
+        let dih_a: Op = |store| format!("{:?}", store.delete_if_holds(b"AAAAAAAAAAAAAAAA"));
+        let dih_ab: Op = |store| format!("{:?}", store.delete_if_holds(b"AAAAAAAAAAAAAAAB"));
+        for (at, (case, file, keychain, claim, temp, op)) in [
+            (42, a, ab, a, false, read),
+            (23, ab, bb, ab, false, delete),
+            (34, bb, a, ab, true, delete),
+            (28, a, ab, a, false, dih_a),
+            (39, a, a, ab, false, dih_ab),
+            (42, a, ab, a, false, write),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let label = format!("unsettled-claim-{case}-{at}");
+            put(&label, "account", file);
+            put(&label, &another_claim(1), claim);
+            if temp {
+                put(&label, &another_temp(2), b"a write that was stopped");
+            }
+            let before = names_in(&label);
+            let store = signed(&label, Keys::holding(&[keychain]));
+            let answer = op(&store);
+            println!("unsettled claim case {case}: {answer}");
+            assert_eq!(answer, "Fault(Fault { code: -1 })", "case {case}");
+            assert_eq!(
+                store.keychain.keychain.items(),
+                [keychain.to_vec()],
+                "case {case}"
+            );
+            assert_eq!(names_in(&label), before, "case {case}");
+            assert_eq!(
+                bytes_in(&label, "account"),
+                Some(file.to_vec()),
+                "case {case}"
+            );
+            assert_eq!(
+                bytes_in(&label, &another_claim(1)),
+                Some(claim.to_vec()),
+                "case {case}"
+            );
+            assert_eq!(
+                store.remove(StoreKind::File),
+                Some(Delete::Deleted),
+                "case {case}"
+            );
+            assert_eq!(found(store.read()), keychain, "case {case}: what stands");
+            assert!(
+                names_in(&label).is_empty(),
+                "case {case}: {:?}",
+                names_in(&label)
+            );
+        }
+        let label = "unsettled-claim-none-beside-an-item";
+        let store = signed(label, Keys::holding(&[a]));
+        assert_eq!(
+            found(store.read()),
+            a,
+            "NotStored from the file place reads Found"
+        );
+    }
+
+    /// G4 (b): a live write takes or renames its temporary file between the removal's
+    /// listing and its removal of that file; the removal goes on.
+    #[test]
+    fn a_temporary_file_that_goes_during_a_removal_at_the_person_s_word_is_passed_over() {
+        for renamed in [false, true] {
+            let label = format!("temp-goes-during-removal-{renamed}");
+            put(&label, &another_temp(1), Y);
+            let store = parent(&label).join("store");
+            let (temp, name) = (store.join(another_temp(1)), store.join("account"));
+            let hook: Box<dyn FnOnce()> = Box::new(move || {
+                if renamed {
+                    std::fs::rename(&temp, &name).expect("the write publishes Y");
+                } else {
+                    std::fs::remove_file(&temp).expect("the write removes its file");
+                }
+            });
+            let item = hooked_item(&label, At::RemoveTemp, hook);
+            let removed = item.remove_at_word(None);
+            let then = file_item(&label).after_claims(Item::read);
+            println!("temp-goes renamed={renamed} removed={removed:?} then={then:?}");
+            assert!(
+                matches!(removed, Delete::Deleted | Delete::NotStored),
+                "{renamed}: {removed:?}"
+            );
+            assert!(
+                matches!(&then, Read::NotStored)
+                    || matches!(&then, Read::Found(held) if held.expose() == Y),
+                "{renamed}: {then:?}"
+            );
+        }
+    }
+
+    /// G4 (c): another process renames the move's claim back to the store's name before the
+    /// move's unlink, so the listing is not empty: the move looks once more.
+    #[test]
+    fn a_move_whose_claim_is_named_back_before_its_unlink_looks_once_more() {
+        let label = "move-claim-named-back-before-its-unlink";
+        put(label, "account", X);
+        let store = parent(label).join("store");
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            let claim = std::fs::read_dir(&store)
+                .expect("the store directory")
+                .map(|entry| entry.expect("an entry").path())
+                .find(|path| path.to_string_lossy().ends_with(".claim"))
+                .expect("the move's claim");
+            std::fs::rename(claim, store.join("account")).expect("another process names it back");
+        });
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        let this = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_item(label, At::RemoveClaim, hook),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        assert_eq!(found(this.read()), X);
+        assert_eq!(*items.borrow(), [X.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+    }
+
+    /// G4 (d): only the removal at the person's word removes a temporary file.
+    #[test]
+    fn no_operation_but_the_removal_at_the_person_s_word_removes_a_temporary_file() {
+        for keeps in [Keeps::File, Keeps::Keychain] {
+            let label = format!("temp-kept-{keeps:?}").to_lowercase();
+            put(&label, "account", X);
+            put(&label, &another_temp(1), Y);
+            let this = Mac {
+                keeps,
+                file: file_item(&label),
+                keychain: keys(Keys::empty()),
+            };
+            assert!(matches!(this.read(), Read::Found(_)), "{keeps:?}");
+            assert_eq!(this.write(&secret(Y)), Write::Occupied, "{keeps:?}");
+            assert!(
+                matches!(this.delete_if_holds(Y), DeleteIfHolds::Other(_)),
+                "{keeps:?}"
+            );
+            assert_eq!(this.delete(), Delete::Deleted, "{keeps:?}");
+            assert_eq!(names_in(&label), [another_temp(1)], "{keeps:?}");
+            assert_eq!(
+                this.remove(StoreKind::File),
+                Some(Delete::NotStored),
+                "{keeps:?}"
+            );
+            assert!(names_in(&label).is_empty(), "{keeps:?}");
+        }
+    }
+
+    /// G4 (f): a claim that appears between the removal's first settle and its delete. One of
+    /// other bytes than the Keychain's is a credential: the removal answers Deleted. One of
+    /// the Keychain's bytes is a killed move's leftover: NotStored. And a claim of other bytes
+    /// that the removal took away beside a name that then goes leaves Deleted, not NotStored.
+    #[test]
+    fn a_removal_at_the_person_s_word_that_removed_a_credential_never_answers_not_stored() {
+        let k: &[u8] = b"the Keychain item's credential..";
+        for (bytes, want) in [(Y, Delete::Deleted), (k, Delete::NotStored)] {
+            let label = format!("claim-before-the-delete-{}", bytes == Y);
+            put(&label, &another_temp(3), b"a write that was stopped");
+            let claim = parent(&label).join("store").join(another_claim(1));
+            let owned = bytes.to_vec();
+            let make: Box<dyn FnOnce()> = Box::new(move || {
+                use std::io::Write as _;
+                use std::os::unix::fs::OpenOptionsExt;
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(&claim)
+                    .and_then(|mut file| file.write_all(&owned))
+                    .expect("another process's claim");
+            });
+            let item = hooked_at(
+                &label,
+                vec![(At::Names, Box::new(|| {})), (At::Names, make)],
+            );
+            let removed = item.remove_at_word(Some(k));
+            println!(
+                "claim-before-the-delete other={} removed={removed:?}",
+                bytes == Y
+            );
+            assert_eq!(removed, want, "{}", bytes == Y);
+            assert!(names_in(&label).is_empty(), "{:?}", names_in(&label));
+        }
+
+        let label = "stranded-claim-then-the-name-goes";
+        put(label, "account", X);
+        put(label, &another_claim(1), Y);
+        let name = parent(label).join("store").join("account");
+        let goes: Box<dyn FnOnce()> = Box::new(move || {
+            std::fs::remove_file(&name).expect("another process's delete");
+        });
+        let removed = hooked_item(label, At::OpenName, goes).remove_at_word(Some(k));
+        assert_eq!(removed, Delete::Deleted);
         assert!(names_in(label).is_empty(), "{:?}", names_in(label));
     }
 }

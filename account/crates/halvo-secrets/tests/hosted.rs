@@ -292,14 +292,37 @@ mod by_reference {
         );
     }
 
+    /// The control of the stale-reference test: an item deleted by a fresh reference, with no
+    /// other process and no older reference, is gone. `Err` with the codes when the search
+    /// after the delete is refused, so that the control did not run.
+    #[cfg(feature = "keychain")]
+    fn a_delete_by_a_fresh_reference_removes_the_item() -> Result<usize, String> {
+        let account = name("stale-control");
+        let account = account.as_str();
+        let _ = search(account).delete();
+        SecKeychain::default()
+            .expect("the default keychain")
+            .add_generic_password(SERVICE, account, HELD)
+            .expect("the control's item is added");
+        let (password, item) =
+            find_generic_password(None, SERVICE, account).expect("the control's item is found");
+        assert_eq!(&*password, HELD);
+        item.delete();
+        let left = look(account).map(|held| held.len());
+        let _ = search(account).delete();
+        left
+    }
+
     #[cfg(feature = "keychain")]
     #[test]
     fn a_stale_reference_between_two_processes_keeps_the_later_item() {
         const STALE_CHILD: &str = "HALVO_SECRETS_STALE_REFERENCE_CHILD";
+        const STALE_SEEN: &str = "HALVO_SECRETS_STALE_REFERENCE_SEEN";
         const STALE_ROUNDS: &str = "HALVO_SECRETS_STALE_REFERENCE_ROUNDS";
         on_a_hosted_runner();
         let later = held_one_byte_off(0);
         if let Ok(account) = std::env::var(STALE_CHILD) {
+            let seen = PathBuf::from(std::env::var(STALE_SEEN).expect("the file of what it saw"));
             search(&account)
                 .delete()
                 .expect("the child deletes the item");
@@ -307,16 +330,31 @@ mod by_reference {
                 .expect("the default keychain")
                 .add_generic_password(SERVICE, &account, &later)
                 .expect("the child adds a later item");
+            let saw = match look(&account) {
+                Ok(held) if held.len() == 1 => [b"bytes:".as_slice(), &held[0]].concat(),
+                Ok(held) => format!("items:{}", held.len()).into_bytes(),
+                Err(codes) => format!("refused:{codes}").into_bytes(),
+            };
+            std::fs::write(&seen, saw).expect("the child writes what it saw");
             return;
         }
         let rounds: usize = std::env::var(STALE_ROUNDS)
             .ok()
             .and_then(|rounds| rounds.parse().ok())
             .unwrap_or(200);
-        let (mut kept, mut gone, mut not_run, mut unknown) = (0, 0, 0, 0);
+        let control = a_delete_by_a_fresh_reference_removes_the_item();
+        println!("\nstale-reference control: a delete by a fresh reference left {control:?} items");
+        match control {
+            Ok(0) => {}
+            Ok(items) => panic!("the control's delete by a fresh reference left {items} items"),
+            Err(codes) => panic!("the control did not run: {codes}"),
+        }
+        let (mut run, mut kept, mut gone, mut unknown) = (0, 0, 0, 0);
         for round in 0..rounds {
             let account = name(&format!("stale-{round}"));
             let account = account.as_str();
+            let seen = dir(&format!("stale-seen-{round}")).with_file_name("seen");
+            let _ = std::fs::remove_file(&seen);
             SecKeychain::default()
                 .expect("the default keychain")
                 .add_generic_password(SERVICE, account, HELD)
@@ -332,11 +370,23 @@ mod by_reference {
                 "--test-threads=1",
             ])
             .env(STALE_CHILD, account)
+            .env(STALE_SEEN, &seen)
             .output()
             .expect("the child")
             .status;
-            let before = look(account);
-            let added = before.as_ref().is_ok_and(|held| *held == [later.clone()]);
+            let saw = std::fs::read(&seen).unwrap_or_default();
+            let added = status.success() && saw == [b"bytes:".as_slice(), &later].concat();
+            let child_saw = if added {
+                "later".to_string()
+            } else if saw.starts_with(b"bytes:") {
+                "other bytes".to_string()
+            } else {
+                String::from_utf8_lossy(&saw).into_owned()
+            };
+            let parent_before = match look(account) {
+                Ok(held) => format!("{} items", held.len()),
+                Err(codes) => codes,
+            };
             item.delete();
             let left = look(account);
             let shown = match &left {
@@ -346,26 +396,32 @@ mod by_reference {
                 Err(codes) => format!("unknown ({codes})"),
             };
             println!(
-                "stale-reference round {round} child={status} child_added={added} before={} parent=deleted-by-reference stands={shown}",
-                before.as_ref().map(|held| held.len().to_string()).unwrap_or_else(|codes| codes.clone())
+                "stale-reference round {round} child={status} child_saw={child_saw} parent_before={parent_before} parent=deleted-by-reference stands={shown}"
             );
-            if !added {
-                not_run += 1;
-            } else if shown == "later" {
-                kept += 1;
-            } else if shown.starts_with("unknown") {
-                unknown += 1;
-            } else {
-                gone += 1;
+            if added {
+                run += 1;
+                if shown == "later" {
+                    kept += 1;
+                } else if shown.starts_with("unknown") {
+                    unknown += 1;
+                } else {
+                    gone += 1;
+                }
             }
             let _ = search(account).delete();
         }
         println!(
-            "\nstale-reference rounds={rounds} later_kept={kept} later_gone={gone} not_run={not_run} unknown={unknown}"
+            "\nstale-reference rounds={rounds} run={run} later_kept={kept} later_gone={gone} unknown={unknown} not_run={}",
+            rounds - run
         );
         assert_eq!(
             gone, 0,
             "a removal by a stale reference removed the later item"
+        );
+        assert_eq!(run, rounds, "fewer rounds ran than were asked");
+        assert_eq!(
+            kept, rounds,
+            "a round's later item was not seen after the delete"
         );
     }
 

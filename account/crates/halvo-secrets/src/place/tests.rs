@@ -621,7 +621,8 @@ fn a_write_makes_the_bytes_durable_before_it_publishes_the_name_and_syncs_the_na
             "write_temp",
             "sync_temp",
             "publish",
-            "sync_dir"
+            "sync_dir",
+            "names"
         ]
     );
     let steps = store.fs.steps();
@@ -1497,8 +1498,10 @@ fn a_delete_if_holds_claims_the_file_compares_it_and_only_then_removes_it() {
     assert_eq!(store.fs.paths(), [DIR]);
     let steps = step_names(&store.fs);
     let at = |name: &str| steps.iter().position(|step| step == name);
-    assert!(at("publish") < at("read_item"), "{steps:?}");
-    assert!(at("read_item") < at("remove"), "{steps:?}");
+    let last = |name: &str| steps.iter().rposition(|step| step == name);
+    assert!(at("read_item") < at("publish"), "{steps:?}");
+    assert!(at("publish") < last("read_item"), "{steps:?}");
+    assert!(last("read_item") < at("remove"), "{steps:?}");
     assert!(at("remove") < at("sync_dir"), "{steps:?}");
     assert!(store
         .fs
@@ -1577,19 +1580,28 @@ fn a_claimed_file_that_another_operation_put_back_is_claimed_again_once() {
 
 #[test]
 fn a_claimed_file_that_cannot_be_named_back_stays_under_its_private_name_and_answers_a_fault() {
-    let memory = stored().before_call("publish", 2, |entries| {
-        entries.insert(
-            PathBuf::from(PATH),
-            Entry::file(0o600, b"a later sign-in!!"),
-        );
-    });
+    // The replace window: the file is replaced between the read, which gives the caller's
+    // bytes, and the claim, and another file takes the name while the claim holds.
+    let memory = stored()
+        .before_call("publish", 1, |entries| {
+            entries.insert(PathBuf::from(PATH), Entry::file(0o600, b"W, a replacement"));
+        })
+        .before_call("publish", 2, |entries| {
+            entries.insert(
+                PathBuf::from(PATH),
+                Entry::file(0o600, b"a later sign-in!!"),
+            );
+        });
     let store = item(memory);
-    let answer = store.delete_if_holds(b"another secret!!!");
+    let answer = store.delete_if_holds(STORED);
     assert!(
         matches!(answer, DeleteIfHolds::Fault(Fault { code: -1 })),
         "{answer:?}"
     );
-    assert_eq!(bytes_at(&store.fs, &own_claim()), Some(STORED.to_vec()));
+    assert_eq!(
+        bytes_at(&store.fs, &own_claim()),
+        Some(b"W, a replacement".to_vec())
+    );
     assert_eq!(
         bytes_at(&store.fs, PATH),
         Some(b"a later sign-in!!".to_vec())

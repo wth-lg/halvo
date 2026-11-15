@@ -1,6 +1,6 @@
 use crate::answer::{Delete, DeleteIfHolds, Fault, Locked, Read, StoreKind, Write};
 use crate::keychain::{Keychain, KeychainItem};
-use crate::place::{Claim, Codec, Fs, Item};
+use crate::place::{Claim, Codec, Fs, Item, Unsettled};
 use crate::Secret;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,6 +17,10 @@ pub(crate) trait FileSide {
     fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds;
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim;
     fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>>;
+    /// `settle`, telling a failure of a claim from one of the place.
+    fn settle_claims(&self, keychain: Option<&[u8]>) -> Result<(), Unsettled> {
+        self.settle(keychain).map_err(Unsettled::Place)
+    }
     fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>>;
 }
 
@@ -27,6 +31,10 @@ impl<F: Fs, C: Codec> FileSide for Item<F, C> {
 
     fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
         Item::settle_claimed(self, keychain)
+    }
+
+    fn settle_claims(&self, keychain: Option<&[u8]>) -> Result<(), Unsettled> {
+        Item::settle_claims(self, keychain)
     }
 
     fn claimed_or_named(&self) -> Result<bool, Result<Locked, Fault>> {
@@ -75,13 +83,14 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     fn look_and_move(&self, again: Again) -> Read {
         match self.keychain.read() {
             Read::Found(secret) => match self.settled_file(Some(secret.expose())) {
-                Read::Found(other) if other.expose() == secret.expose() => {
+                Looked::File(Read::Found(other)) if other.expose() == secret.expose() => {
                     self.remove_the_file(secret, again)
                 }
-                Read::Found(_) => Read::Locked(Locked::OtherStore),
-                _ => Read::Found(secret),
+                Looked::File(Read::Found(_)) => Read::Locked(Locked::OtherStore),
+                Looked::Claim(answer) => answer,
+                Looked::File(_) => Read::Found(secret),
             },
-            Read::NotStored => match self.settled_file(None) {
+            Read::NotStored => match self.settled_file(None).read() {
                 Read::Found(secret) => self.move_in(secret, again),
                 Read::NotStored => self.keychain.read(),
                 answer => answer,
@@ -132,31 +141,33 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
         if matches!(self.keychain_beside(), Read::Locked(Locked::OtherStore)) {
             return Read::Locked(Locked::OtherStore);
         }
-        match self.settled_file(None) {
+        match self.settled_file(None).read() {
             Read::NotStored => self.keychain_beside(),
             answer => answer,
         }
     }
 
-    fn settled_file(&self, keychain: Option<&[u8]>) -> Read {
+    /// The file place's answer after it ends each claim, and whether that answer comes
+    /// from a claim: one that cannot be read or removed, or put back because the name is
+    /// taken, or a second listing that still finds the name or a claim.
+    fn settled_file(&self, keychain: Option<&[u8]>) -> Looked {
         for last in [false, true] {
-            let read = match self.file.settle(keychain) {
+            let read = match self.file.settle_claims(keychain) {
                 Ok(()) => self.file.read(),
-                Err(Ok(locked)) => return Read::Locked(locked),
-                Err(Err(fault)) => return Read::Fault(fault),
+                Err(Unsettled::Claim(answer)) => return Looked::Claim(failed(answer)),
+                Err(Unsettled::Place(answer)) => return Looked::File(failed(answer)),
             };
             if !matches!(read, Read::NotStored) {
-                return read;
+                return Looked::File(read);
             }
             match self.file.claimed_or_named() {
-                Ok(false) => return read,
-                Ok(true) if last => return Read::Fault(Fault { code: -1 }),
+                Ok(false) => return Looked::File(read),
+                Ok(true) if last => return Looked::Claim(Read::Fault(Fault { code: -1 })),
                 Ok(true) => {}
-                Err(Ok(locked)) => return Read::Locked(locked),
-                Err(Err(fault)) => return Read::Fault(fault),
+                Err(answer) => return Looked::File(failed(answer)),
             }
         }
-        Read::Fault(Fault { code: -1 })
+        Looked::Claim(Read::Fault(Fault { code: -1 }))
     }
 
     fn keychain_beside(&self) -> Read {
@@ -257,13 +268,35 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
                 Err(Ok(locked)) => Other::Locked(locked),
                 Err(Err(fault)) => Other::Fault(fault),
             },
-            Keeps::Keychain => match self.settled_file(None) {
+            Keeps::Keychain => match self.settled_file(None).read() {
                 Read::NotStored => Other::Empty,
                 Read::Found(_) => Other::Holds,
                 Read::Locked(locked) => Other::Locked(locked),
                 Read::Fault(fault) => Other::Fault(fault),
             },
         }
+    }
+}
+
+/// What the file place answers after its claims are ended: `Claim` when the answer comes
+/// from a claim that could not be ended, which no Keychain item may stand in for.
+enum Looked {
+    File(Read),
+    Claim(Read),
+}
+
+impl Looked {
+    fn read(self) -> Read {
+        match self {
+            Looked::File(read) | Looked::Claim(read) => read,
+        }
+    }
+}
+
+fn failed(answer: Result<Locked, Fault>) -> Read {
+    match answer {
+        Ok(locked) => Read::Locked(locked),
+        Err(fault) => Read::Fault(fault),
     }
 }
 

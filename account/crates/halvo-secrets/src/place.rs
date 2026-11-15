@@ -506,9 +506,23 @@ impl<F: Fs, C: Codec> Item<F, C> {
                 return Stop::of(&error).into();
             }
         }
-        match self.fs.sync_dir(&dir) {
-            Ok(()) => Write::Stored,
-            Err(error) => Write::Fault(Stop::fault(&error)),
+        if let Err(error) = self.fs.sync_dir(&dir) {
+            return Write::Fault(Stop::fault(&error));
+        }
+        self.stored_beside_no_claim(&dir)
+    }
+
+    /// The last step of a write: the store directory is listed once more after the publish,
+    /// and a name of the claim's form there means that another operation held a credential
+    /// in a claim while the write looked, so the write answers `Fault` with -1 and keeps the
+    /// file that it published.
+    fn stored_beside_no_claim(&self, dir: &F::Dir) -> Write {
+        match self.fs.names(dir) {
+            Ok(names) if names.iter().any(|entry| self.is_claimed(entry)) => {
+                Write::Fault(Fault { code: -1 })
+            }
+            Ok(_) => Write::Stored,
+            Err(error) => Stop::of(&error).into(),
         }
     }
 
@@ -559,10 +573,13 @@ impl<F: Fs, C: Codec> Item<F, C> {
     /// `keychain` as `settle_claimed` does and also removes each claim that cannot be named
     /// back because the name is taken, removes each temporary file of a write of the store's
     /// form, and then removes the file under the store's name as `delete_settling` does.
+    /// After it removed a claim of other bytes than `keychain` it answers `Deleted` or a
+    /// failure, never `NotStored`.
     pub(crate) fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
-        if let Err(stop) = self.settle_with(keychain, Stranded::Removed) {
-            return Stop::from(stop).into();
-        }
+        let removed_a_credential = match self.settle_with(keychain, Stranded::Removed) {
+            Ok(removed) => removed,
+            Err(unsettled) => return Stop::from(unsettled.answer()).into(),
+        };
         let dir = match self.place() {
             Ok(Reached::Dir(dir)) => dir,
             Ok(Reached::Absent(_)) => return Delete::NotStored,
@@ -582,7 +599,10 @@ impl<F: Fs, C: Codec> Item<F, C> {
                 Err(error) => return Stop::of(&error).into(),
             }
         }
-        self.delete_settling(keychain)
+        match self.delete_settling(keychain) {
+            Delete::NotStored if removed_a_credential => Delete::Deleted,
+            answer => answer,
+        }
     }
 
     #[cfg_attr(windows, allow(dead_code))]
@@ -631,16 +651,23 @@ impl<F: Fs, C: Codec> Item<F, C> {
         self.take_if_holds(held, true)
     }
 
+    /// Reads the file under the store's name and compares before it claims: other bytes
+    /// answer `Other` and nothing is claimed, so that no claim of this call ever holds a
+    /// credential that is not the caller's. With the caller's bytes it claims, compares what
+    /// it claimed once more, and removes it; a claimed file of other bytes (the file was
+    /// replaced between the read and the claim) is named back.
     fn take_if_holds(&self, held: &[u8], again: bool) -> DeleteIfHolds {
         let dir = match self.place() {
             Ok(Reached::Dir(dir)) => dir,
             Ok(Reached::Absent(_)) => return DeleteIfHolds::NotStored,
             Err(stop) => return stop.into(),
         };
-        match self.open(&dir) {
-            Ok(Some(_)) => {}
-            Ok(None) => return self.gone_or_again(held, again),
-            Err(stop) => return stop.into(),
+        match self.read_at(&dir, self.name.as_str()) {
+            Read::Found(stands) if stands.expose() == held => {}
+            Read::Found(stands) => return DeleteIfHolds::Other(stands),
+            Read::NotStored => return self.gone_or_again(held, again),
+            Read::Locked(locked) => return DeleteIfHolds::Locked(locked),
+            Read::Fault(fault) => return DeleteIfHolds::Fault(fault),
         }
         let private = match self.claim(&dir) {
             Ok(Some(private)) => private,
@@ -795,40 +822,50 @@ impl<F: Fs, C: Codec> Item<F, C> {
         &self,
         keychain: Option<&[u8]>,
     ) -> Result<(), Result<Locked, Fault>> {
-        self.settle_with(keychain, Stranded::Kept)
+        self.settle_claims(keychain).map_err(Unsettled::answer)
     }
 
-    fn settle_with(
-        &self,
-        keychain: Option<&[u8]>,
-        stranded: Stranded,
-    ) -> Result<(), Result<Locked, Fault>> {
+    /// `settle_claimed`, telling a failure of a claim from a failure of the place or its
+    /// listing.
+    #[cfg_attr(windows, allow(dead_code))]
+    pub(crate) fn settle_claims(&self, keychain: Option<&[u8]>) -> Result<(), Unsettled> {
+        self.settle_with(keychain, Stranded::Kept).map(|_| ())
+    }
+
+    /// Ends each claim; `Ok(true)` when it removed a claim of other bytes than `keychain`,
+    /// which only a removal at the person's word does.
+    fn settle_with(&self, keychain: Option<&[u8]>, stranded: Stranded) -> Result<bool, Unsettled> {
         let dir = match self.place() {
             Ok(Reached::Dir(dir)) => dir,
-            Ok(Reached::Absent(_)) => return Ok(()),
-            Err(stop) => return Err(stop.into()),
+            Ok(Reached::Absent(_)) => return Ok(false),
+            Err(stop) => return Err(Unsettled::Place(stop.into())),
         };
-        let names = self.fs.names(&dir).map_err(|error| stopped(&error))?;
+        let names = self
+            .fs
+            .names(&dir)
+            .map_err(|error| Unsettled::Place(stopped(&error)))?;
+        let mut removed_a_credential = false;
         for private in names.iter().filter(|entry| self.is_claimed(entry)) {
             match self.read_at(&dir, private) {
                 Read::Found(held) if keychain == Some(held.expose()) => {
-                    self.remove_claim(&dir, private)?;
+                    self.remove_claim(&dir, private).map_err(Unsettled::Claim)?;
                 }
                 Read::Found(_) => match self.fs.publish(&dir, private, self.name.as_str()) {
                     Ok(Published::Done) => {}
                     Ok(Published::Exists) if stranded == Stranded::Removed => {
-                        self.remove_claim(&dir, private)?;
+                        self.remove_claim(&dir, private).map_err(Unsettled::Claim)?;
+                        removed_a_credential = true;
                     }
-                    Ok(Published::Exists) => return Err(Err(Fault { code: -1 })),
+                    Ok(Published::Exists) => return Err(Unsettled::Claim(Err(Fault { code: -1 }))),
                     Err(error) if self.fs.is_absent(&error) => {}
-                    Err(error) => return Err(stopped(&error)),
+                    Err(error) => return Err(Unsettled::Claim(stopped(&error))),
                 },
                 Read::NotStored => {}
-                Read::Locked(locked) => return Err(Ok(locked)),
-                Read::Fault(fault) => return Err(Err(fault)),
+                Read::Locked(locked) => return Err(Unsettled::Claim(Ok(locked))),
+                Read::Fault(fault) => return Err(Unsettled::Claim(Err(fault))),
             }
         }
-        Ok(())
+        Ok(removed_a_credential)
     }
 
     fn remove_claim(&self, dir: &F::Dir, private: &str) -> Result<(), Result<Locked, Fault>> {
@@ -847,6 +884,22 @@ impl<F: Fs, C: Codec> Item<F, C> {
 enum Stranded {
     Kept,
     Removed,
+}
+
+/// Why a settle stopped: the place or its listing failed, or a claim could not be read,
+/// removed or put back (put back because the name is taken: `Fault` with -1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Unsettled {
+    Place(Result<Locked, Fault>),
+    Claim(Result<Locked, Fault>),
+}
+
+impl Unsettled {
+    pub(crate) fn answer(self) -> Result<Locked, Fault> {
+        match self {
+            Unsettled::Place(answer) | Unsettled::Claim(answer) => answer,
+        }
+    }
 }
 
 const CLAIMED: &str = "claim";

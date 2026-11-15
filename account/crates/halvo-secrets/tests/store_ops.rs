@@ -230,8 +230,43 @@ fn a_removal_at_the_person_s_word_leaves_no_temporary_file_of_a_killed_write() {
     assert!(names_in(&dir).is_empty(), "{:?}", names_in(&dir));
 }
 
+/// G4 (a): the removal at the person's word removes a temporary file only of the exact form
+/// `.<name>.<digits>.<digits>.tmp`, and keeps every near form and every other file.
+#[test]
+fn a_removal_at_the_person_s_word_removes_only_temporary_files_of_the_exact_form() {
+    let dir = scratch("near-forms");
+    let store = store_in(&dir);
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    let mut near = [
+        ".notes.tmp",
+        ".other.1.0.tmp",
+        ".account.1.tmp",
+        "account.1.0.tmp",
+        ".account.1.0.tmpx",
+        ".account.1.0.0.tmp",
+        ".account.x.3.tmp",
+        ".account..3.tmp",
+        ".account.3.x.tmp",
+        ".account.3..tmp",
+        ".account2.1.1.tmp",
+        "notes",
+        ".account.1.0.claimx",
+    ];
+    for name in near {
+        fs::write(dir.join(name), b"not a file of the store").expect("a near form");
+    }
+    fs::write(dir.join(".account.1.0.tmp"), b"a killed write").expect("a temporary file");
+    let removal = store
+        .remove(kind_of_this_store())
+        .expect("the store of this place");
+    assert_eq!(removal.removed, Delete::Deleted);
+    near.sort();
+    assert_eq!(names_in(&dir), near);
+}
+
 const RACE_ROLE: &str = "HALVO_SECRETS_RACE_ROLE";
 const RACE_DIR: &str = "HALVO_SECRETS_RACE_DIR";
+const RACE_LIST: &str = "HALVO_SECRETS_RACE_LIST";
 const RACE_ROUNDS: usize = 200;
 
 fn shown_read(read: Read) -> String {
@@ -287,11 +322,34 @@ fn child_of_the_two_process_races() {
             role => panic!("no role {role}"),
         };
         println!("RACE {role} {round} {answer}");
+        if std::env::var_os(RACE_LIST).is_some() {
+            let claims: Vec<String> = names_in(&dir)
+                .into_iter()
+                .filter(|name| name.starts_with(".account.") && name.ends_with(".claim"))
+                .collect();
+            if !claims.is_empty() {
+                println!("CLAIMSEEN {role} {round} {claims:?}");
+            }
+        }
     }
 }
 
 fn child(role: &str, dir: &Path) -> std::process::Child {
-    std::process::Command::new(std::env::current_exe().expect("the test binary"))
+    child_with(role, dir, false)
+}
+
+/// A child that also lists the store directory after each round and prints each name of
+/// the claim's form that it finds.
+fn child_listing(role: &str, dir: &Path) -> std::process::Child {
+    child_with(role, dir, true)
+}
+
+fn child_with(role: &str, dir: &Path, listing: bool) -> std::process::Child {
+    let mut command = std::process::Command::new(std::env::current_exe().expect("the test binary"));
+    if listing {
+        command.env(RACE_LIST, "1");
+    }
+    command
         .args([
             "--exact",
             "child_of_the_two_process_races",
@@ -338,6 +396,12 @@ impl Tally {
     fn child(&mut self, race: &str, child: std::process::Child, allowed: &[&str]) {
         let output = child.wait_with_output().expect("the child's output");
         let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        for line in text
+            .lines()
+            .filter_map(|line| line.find("CLAIMSEEN ").map(|at| &line[at..]))
+        {
+            self.wrong.push(format!("{race}: {line}"));
+        }
         let mut rounds = 0;
         for line in text
             .lines()
@@ -396,6 +460,8 @@ fn two_processes_on_one_store_answer_what_stands_or_a_fault_of_contention() {
     tally.child("i-write", reading, &["Found(X)", FAULT_OF_CONTENTION]);
     assert_eq!(found(store.read()), HELD, "X stands after the writes");
 
+    write_beside_a_delete_of_other_bytes(&mut tally, "iii");
+
     for (race, second) in [("ii-remove", "remove"), ("ii-delete", "delete-x")] {
         let dir = scratch(race);
         let store = store_in(&dir);
@@ -428,6 +494,59 @@ fn two_processes_on_one_store_answer_what_stands_or_a_fault_of_contention() {
     }
     println!(
         "race rounds {} each, seconds {}, windows forms {}",
+        RACE_ROUNDS,
+        started.elapsed().as_secs(),
+        tally.windows_forms.len()
+    );
+    assert!(
+        tally.wrong.is_empty(),
+        "answers outside the rule: {:#?}",
+        tally.wrong
+    );
+}
+
+/// The pair of G1: one child loops `delete_if_holds` of other bytes than X and one loops a
+/// write of Y, on a store that holds X. Every delete answers `Other(X)` and every write
+/// `Occupied`, no child sees a name of the claim's form after a round, and X stands.
+fn write_beside_a_delete_of_other_bytes(tally: &mut Tally, race: &str) {
+    let dir = scratch("write-beside-other-delete");
+    let store = store_in(&dir);
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    let (deleting, writing) = (
+        child_listing("delete-other", &dir),
+        child_listing("write-y", &dir),
+    );
+    tally.child(race, deleting, &["Other(X)"]);
+    tally.child(race, writing, &["Occupied"]);
+    assert_eq!(
+        names_in(&dir),
+        ["account"],
+        "{race}: no claim and no second file"
+    );
+    assert_eq!(
+        fs::read(dir.join("account")).expect("the file of X"),
+        HELD,
+        "{race}: X stands byte for byte"
+    );
+    assert!(
+        !tally.counts.contains_key(&format!("{race} write-y Stored")),
+        "{race}: a write stored beside X"
+    );
+}
+
+#[test]
+fn a_write_beside_a_delete_if_holds_of_other_bytes_stores_nothing_and_leaves_no_claim() {
+    let started = std::time::Instant::now();
+    let mut tally = Tally::default();
+    write_beside_a_delete_of_other_bytes(&mut tally, "write-beside-other-delete");
+    for (key, count) in &tally.counts {
+        println!("pair answers {key}: {count}");
+    }
+    for line in &tally.windows_forms {
+        println!("pair windows form {line}");
+    }
+    println!(
+        "pair rounds {} each, seconds {}, windows forms {}",
         RACE_ROUNDS,
         started.elapsed().as_secs(),
         tally.windows_forms.len()

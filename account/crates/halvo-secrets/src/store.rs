@@ -400,3 +400,85 @@ fn dpapi_place(dir: &Directory, name: Name) -> Place {
         name,
     })
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+    use crate::keychain::{ItemRef, DUPLICATE_ITEM, ITEM_NOT_FOUND};
+    use std::sync::Mutex;
+
+    /// A Keychain of one item at most, which a `Store` can hold.
+    struct Held(Mutex<Vec<Vec<u8>>>);
+
+    impl Keychain for Held {
+        fn count(&self, _service: &str, _account: &str) -> Result<usize, i32> {
+            Ok(self.0.lock().expect("the items").len())
+        }
+
+        fn data(&self, _service: &str, _account: &str) -> Result<Vec<u8>, i32> {
+            self.0
+                .lock()
+                .expect("the items")
+                .first()
+                .cloned()
+                .ok_or(ITEM_NOT_FOUND)
+        }
+
+        fn add(&self, _service: &str, _account: &str, bytes: &[u8]) -> Result<(), i32> {
+            let mut items = self.0.lock().expect("the items");
+            if !items.is_empty() {
+                return Err(DUPLICATE_ITEM);
+            }
+            items.push(bytes.to_vec());
+            Ok(())
+        }
+
+        fn delete(&self, _service: &str, _account: &str) -> Result<(), i32> {
+            let mut items = self.0.lock().expect("the items");
+            if items.is_empty() {
+                return Err(ITEM_NOT_FOUND);
+            }
+            items.clear();
+            Ok(())
+        }
+
+        fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+            Ok((self.data(service, account)?, ItemRef::Fake(0)))
+        }
+
+        fn delete_item(&self, _item: ItemRef) {
+            self.0.lock().expect("the items").clear();
+        }
+    }
+
+    /// G4 (e): `remove` gives what then stands, here the other store's item.
+    #[test]
+    fn a_removal_gives_what_then_stands_beside_the_item_of_the_other_store() {
+        let parent =
+            std::env::temp_dir().join(format!("halvo-secrets-store-{}-then", std::process::id()));
+        std::fs::create_dir_all(&parent).expect("the parent of the store directory");
+        let dir = Directory::new(parent.join("store")).expect("an absolute directory");
+        let name = Name::new("account").expect("a name");
+        let kept: &[u8] = b"the Keychain item's credential..";
+        let store = Store {
+            place: mac_place(
+                Keeps::Keychain,
+                &dir,
+                Name::new("dev.halvo.test").expect("a service"),
+                name.clone(),
+                Box::new(Held(Mutex::new(vec![kept.to_vec()]))),
+            ),
+        };
+        let file = Secret::new(b"the file's other credential.....".to_vec()).expect("a secret");
+        assert_eq!(file_item(&dir, name).write(&file), Write::Stored);
+        let removal = store
+            .remove(StoreKind::File)
+            .expect("a store of this place");
+        assert_eq!(removal.removed, Delete::Deleted);
+        assert!(
+            matches!(&removal.then, Read::Found(held) if held.expose() == kept),
+            "{:?}",
+            removal.then
+        );
+    }
+}
