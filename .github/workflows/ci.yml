@@ -103,7 +103,7 @@ jobs:
             unset "$name"
           done
           in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.fileMode=true "$@"
+            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default -c core.fileMode=true "$@"
           }
           head=$(in_checkout rev-parse HEAD)
           if [ "$head" != "$GITHUB_SHA" ]; then
@@ -199,7 +199,7 @@ jobs:
             unset "$name"
           done
           in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false "$@"
+            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default "$@"
           }
           head=$(in_checkout rev-parse HEAD)
           if [ "$head" != "$GITHUB_SHA" ]; then
