@@ -562,22 +562,32 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         });
       }
     }
+    if (made !== null) {
+      const recorded = step((open): DeleteAnswer | null => {
+        if (!holds(open.sql)) return { result: "deleted" };
+        const now = open.begin();
+        if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
+        const current = markOf(open.sql);
+        const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
+        if (!answeredFor(current, made.subscriptionId) && !answeredFor(current, subscriptionId)) {
+          open.sql.exec(
+            "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?",
+            now,
+            made.subscriptionId,
+            null,
+            null,
+          );
+        }
+        return null;
+      });
+      if (recorded !== null) return recorded;
+    }
     const last = step((open): DeleteAnswer | { closed: number } => {
       if (!holds(open.sql)) return { result: "deleted" };
       const now = open.begin();
       if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
-      const current = markOf(open.sql);
-      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
-      if (made !== null && !answeredFor(current, made.subscriptionId) && !answeredFor(current, subscriptionId)) {
-        open.sql.exec(
-          "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?",
-          now,
-          made.subscriptionId,
-          null,
-          null,
-        );
-      }
       const stored = markOf(open.sql);
+      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (stored.answeredAt === null || !answeredFor(stored, subscriptionId)) return NOT_FINISHED;
       const metered = isMetered(open.sql);
       if (ledger.openHolds(open.sql) === 0 && (!metered || metering.settled(open.sql))) {

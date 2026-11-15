@@ -1227,4 +1227,23 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
       expect(w.alarms.at(-1)).not.toBeNull();
     });
   }
+
+  test("L1 (d): metering.settled throwing on every call after a cancelled answer: the answer is stored once in a step of its own, and the next run makes no second cancel call", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    let made = 0;
+    w.host.port.cancelSubscription = async () => {
+      made += 1;
+      return { kind: "cancelled" };
+    };
+    w.answers.throwIn = "metering.settled";
+    await w.entries.destroy(HASH).catch(() => null);
+    const stored = await w.entries.testInspect();
+    now = 68_000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(stored.result === "snapshot" && stored.tables.skeleton?.[0]?.cancel_answered_at).toBe(8000);
+    expect(made).toBe(1);
+  });
 });
