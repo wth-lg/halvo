@@ -84,12 +84,13 @@ What the check asks of the table and of the files, each with the cause that ends
 - Every configuration file of the table, one that CI does not run among them, holds
   exactly the invariant lines of its model, each as a whole line, and no comment, neither
   `(*` nor a line with `\*`, because TLC reads no line inside a comment (`invariant`).
-- A configuration that the table marks for CI replaces the definition of none of those
-  invariants: a line with `<-` whose left side is one of their names ends the check with
-  `invariant`. A replacement of another definition stays allowed. That a definition which
-  an invariant uses can be changed, there or in the model's own file, is outside what a
-  check of this kind can hold; the two control copies and the review of a change are what
-  stand against it.
+- A configuration that the table marks for CI replaces no definition at all: a line with
+  `<-` in it ends the check with `invariant` (ruling RD-109 point 3), since a replaced
+  operator that an invariant reads, such as `CONSTANT HInPress <- HTaken`, can switch the
+  invariant off while every count stays as it was. A configuration that CI does not run may
+  hold a replacement. That a definition which an invariant uses can be changed in the
+  model's own file is outside what a check of this kind can hold; the two control copies and
+  the review of a change are what stand against it.
 - This directory holds no module, configuration or limits file (`*.tla`, `*.cfg`,
   `*.json`) that neither the stamp's list nor the table names (`traces`). The stamp's list
   holds every file that the export reads, the three configurations of the directed traces
@@ -217,7 +218,7 @@ shows in the diff of its pull request.
 | marked lines that are not the names in the script | `invariant` | `days-not-for-ci` | `line-deleted`, `apart-not-for-ci`, `no-schedule-for-ci`, `no-confirm-for-ci` |
 | a configuration without exactly its invariant lines | `invariant` | `invariant-twice` | `renamed-invariant`, `extra-invariant`, `full-without-an-invariant`, `confirm-without-l11` (`Confirm4.cfg` without L11, so that the check holds eleven and not at least ten) |
 | a comment in a configuration | `invariant` | `comment-mark` | `comment-in-configuration` |
-| an invariant that a CI configuration replaces | `invariant` | `replaced-invariant` | none |
+| a replacement in a configuration that CI runs | `invariant` | `replaced-invariant`, and `replaced-operator` (`CONSTANT HInPress <- HTaken` in `Confirm4.cfg`), beside the passing control `replaced-outside-ci` (a replacement in `Schedule.cfg`, which CI does not run) | none |
 | a run in which TLC reports an invariant violated | `invariant` | `violated` | `violated-status`, twice |
 | a run that ends with a status other than 0 | `invariant` | `status` | `killed` |
 | a run that does not say that it finished | `invariant` | `unfinished` | `silent` |

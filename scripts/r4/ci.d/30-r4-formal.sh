@@ -236,9 +236,7 @@ declared() {
       for (i = 1; i <= count; i++) if (!((letter i) in have)) { print "invariants"; exit }
       if (comment) { print "comment"; exit }
       if (lines != count) { print "invariants"; exit }
-      if (ci == "yes") {
-        for (i = 1; i <= count; i++) if (flat ~ ("(^| )" letter i " *<-")) { print "replaced"; exit }
-      }
+      if (ci == "yes" && index(flat, "<-") > 0) { print "replaced"; exit }
       print "ok"
     }' "$dir/$2") || result=missing
   [ -n "$result" ] || result=missing
@@ -819,6 +817,16 @@ every_push() {
   fixture replaced-invariant
   printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule-queue.cfg" || fail selftest
   expect replaced-invariant "1:FAIL $name (invariant)" good '' ' result=replaced'
+  fixture replaced-operator
+  edit replaced-operator README.md "$elsewhere"
+  printf 'CONSTANT HInPress <- HTaken\n' >>"$fdir/Confirm4.cfg" || fail selftest
+  restamp replaced-operator
+  expect replaced-operator "1:FAIL $name (invariant)" good '' ' result=replaced'
+  fixture replaced-outside-ci
+  edit replaced-outside-ci README.md "$elsewhere"
+  printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule.cfg" || fail selftest
+  restamp replaced-outside-ci
+  expect replaced-outside-ci "0:PASS $name" good
   fixture comment-mark
   {
     printf '\\* a note\n'
