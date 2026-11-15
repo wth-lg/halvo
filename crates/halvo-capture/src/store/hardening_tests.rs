@@ -3648,6 +3648,37 @@ fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages_when_rows_expire_o
     );
 }
 
+#[test]
+fn a_shred_keeps_the_key_row_with_a_null_key_and_a_later_segment_takes_another_key_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (shredded, shredded_key_id) = store
+        .write_segment_with_expiry(&mut Cursor::new(b"expired before the next write"), 0, 1)
+        .unwrap();
+    assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+    let row = match store.db().unwrap().connection().query_row(
+        "SELECT id, wrapped_key FROM segment_keys WHERE segment_id = ?1",
+        [shredded.segment_id.simple().to_string()],
+        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<Vec<u8>>>(1)?)),
+    ) {
+        Ok(row) => Some(row),
+        Err(halvo_sqlcipher::rusqlite::Error::QueryReturnedNoRows) => None,
+        Err(other) => panic!("the key row of the shredded segment could not be read: {other}"),
+    };
+    let (_, later_key_id) = store
+        .write_segment(&mut Cursor::new(b"written after the shred"))
+        .unwrap();
+    assert!(
+        row == Some((shredded_key_id.0, None)) && later_key_id != shredded_key_id,
+        "ADR 0005 (RD-21): a shred keeps the key row of its segment with a NULL key, and a later segment takes another key id; \
+         the key row of shredded segment {} with key id {}: {:?} (none: no row); the key id of the segment written after the shred: {}",
+        shredded.segment_id,
+        shredded_key_id.0,
+        row.map(|(id, key)| (id, key.map(|k| k.len()))),
+        later_key_id.0
+    );
+}
+
 fn tamper_pattern(len: usize, seed: u8) -> Vec<u8> {
     (0..len)
         .map(|i| ((i as u64 * 31 + seed as u64 * 7) % 251) as u8)

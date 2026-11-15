@@ -85,8 +85,7 @@ production-hold-gives-nothing-back
 production-hold-calls-swapped
 production-hold-takes-nothing
 checkpoint-after-removal
-formal-key-row-deleted
-formal-key-row-deleted-oldest-first
+formal-shred-never-committed
 formal-checkpoint-removed
 formal-checkpoint-not-verified
 formal-journal-mode-not-wal
