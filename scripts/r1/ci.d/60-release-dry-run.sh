@@ -338,6 +338,14 @@ $upgrading"
   network_case hook-refusal no 'error: CHANGELOG.md:315: this line is not a typed entry' "$upgrading
 error: CHANGELOG.md:315: this line is not a typed entry, - <Type>: <text>, so the release cannot group it
 error: release of halvo aborted by non-zero return of prerelease hook."
+  network_case network-phrase-in-an-entry-text no 'error: the pre-release hook exited 1' "$upgrading
+CHANGELOG.md section 0.0.1 that --execute writes, grouped by type:
+### Fixed
+- Retry when the connection timed out or the host could not be resolved: Connection refused, dns error
+error: the pre-release hook exited 1"
+  network_case network-phrase-in-a-path-under-an-error-line no 'error: uncommitted changes detected, please resolve before release:' "error: uncommitted changes detected, please resolve before release:
+         crates/Connection refused/timed out/Cargo.toml (Status(WT_MODIFIED))
+$upgrading"
   network_case connection-refused yes 'error: io: Connection refused (os error 61)' 'error: io: Connection refused (os error 61)'
   grep -q 'check that this computer is online and run the same command again' "$work/out-connection-refused" && got=PASS || got=FAIL
   verdict connection-refused-says-what-to-do PASS "$got"
@@ -476,6 +484,17 @@ GITSTUB
   put_back tag-fails-after-the-commit 'cargo-release failed: error: a stand-in failure after the tag'
   execute_case another-tag-at-the-release-commit STUB_ACTION=commit-tag STUB_TAG=halvo-v1.2.4
   put_back another-tag-at-the-release-commit 'the tag at the release commit is halvo-v1.2.4, not v1.2.4'
+  repository other-tag-is-kept "$typed"
+  git -C "$repo" checkout -q -B main
+  git -C "$repo" tag kept-before-the-run
+  recorded=$(git -C "$repo" rev-parse HEAD)
+  status=0
+  (cd "$repo" && PATH="$work/bin:$PATH" STUB_ACTION=commit-tag STUB_STATUS=1 STUB_TEXT='error: a stand-in failure after the tag' STUB_LOG=$work/argv-other-tag-is-kept CARGO_HOME=$work/no-cargo-home sh scripts/release.sh --execute) >"$work/out-other-tag-is-kept" 2>&1 || status=$?
+  tags_now=$(git -C "$repo" tag --list)
+  head_now=$(git -C "$repo" rev-parse HEAD)
+  got=FAIL
+  [ "$status" = 1 ] && [ "$head_now" = "$recorded" ] && [ "$tags_now" = kept-before-the-run ] && grep -q 'are undone; nothing was released' "$work/out-other-tag-is-kept" && got=PASS
+  verdict undone-run-keeps-another-tag-of-the-clone PASS "$got"
   execute_case failure-that-changed-nothing STUB_STATUS=1 'STUB_TEXT=error: a stand-in failure before any change'
   got=FAIL
   [ "$status" = 1 ] && [ "$head_now" = "$recorded" ] && [ -z "$tracked_now" ] && grep -q 'nothing was changed' "$work/out-failure-that-changed-nothing" && got=PASS

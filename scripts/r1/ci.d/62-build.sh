@@ -354,6 +354,11 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
     (export "$variable=stand-in-value" && signing_defect >/dev/null) && got=PASS
     verdict "signing-name-$variable-set" FAIL "$got"
   done
+  for variable in APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_KEY_PATH APPLE_API_ISSUER APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID HALVO_WINDOWS_SIGN_COMMAND; do
+    got=FAIL
+    (export "$variable=stand-in-value" && signing_defect >/dev/null) && got=PASS
+    verdict "signing-name-$variable-of-rl-1-set" FAIL "$got"
+  done
   got=FAIL
   (HALVO_WINDOWS_SIGN_COMMAND=stand-in-command signing_defect >/dev/null) && got=PASS
   verdict windows-signing-name-set FAIL "$got"

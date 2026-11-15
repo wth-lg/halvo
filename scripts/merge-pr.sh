@@ -844,6 +844,14 @@ EOF
   else
     printf 'PASS own-copy-list-follows-a-braced-variable\n'
   fi
+  printf '#!/bin/sh\necho a listed file that runs nothing\n' >"$work/runs-nothing.sh"
+  cases=$((cases + 1))
+  if own_copy_list_defect "$work" runs-nothing.sh braced.sh >/dev/null; then
+    printf 'FAIL own-copy-list-reads-each-listed-file (a file sourced by the second listed file was not seen)\n'
+    failures=$((failures + 1))
+  else
+    printf 'PASS own-copy-list-reads-each-listed-file\n'
+  fi
   cases=$((cases + 1))
   # shellcheck disable=SC2086
   if missing=$(own_copy_list_defect "$script_directory" $compared_scripts); then
