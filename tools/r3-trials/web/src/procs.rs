@@ -168,6 +168,7 @@ pub fn kill(p: &Proc) -> bool {
     if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
         return false;
     }
+    fence::pass(p, true);
     // SAFETY: kill with a pid and a signal number has no memory effect on this process; the pid was
     // read back just above with the creation time of `p`.
     unsafe { libc::kill(p.pid as libc::c_int, libc::SIGKILL) == 0 }
@@ -178,6 +179,7 @@ pub fn ask_end(p: &Proc) -> bool {
     if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
         return false;
     }
+    fence::pass(p, false);
     // SAFETY: kill with a pid and a signal number has no memory effect on this process; the pid was
     // read back just above with the creation time of `p`.
     unsafe { libc::kill(p.pid as libc::c_int, libc::SIGTERM) == 0 }
@@ -186,6 +188,241 @@ pub fn ask_end(p: &Proc) -> bool {
 #[cfg(not(target_os = "macos"))]
 pub fn ask_end(_p: &Proc) -> bool {
     false
+}
+
+/// The fence of the tests that reach the real end of a process (the coordinator's ruling CP-161
+/// (3)). While it is on, `kill` and `ask_end` send a signal only to a process that it admits, by the
+/// number and the start time that they have just read again, and every other call sends nothing,
+/// is recorded with a line `fence_refused pid=<n> started_us=<n> force=<yes|no>` on standard error,
+/// and panics at the call. It is on from the start in the crate's own test build; another test
+/// build turns it on with `on`, and the trial's program with `from_env`. It never turns off. A
+/// test admits its own processes for the thread that holds the returned `Admitted`, so that one
+/// test's admission opens nothing for another test.
+pub mod fence {
+    use super::Proc;
+    use std::cell::RefCell;
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+
+    /// The variable that turns the fence of the trial's program on (`from_env`): a directory below
+    /// which the program of each process lies that the program may end.
+    pub const VAR: &str = "R3_WEB_FENCE_BELOW";
+
+    /// What one admission takes: processes by number and start time, the processes whose line of
+    /// parents reaches one of them, and the processes whose program lies below one of the
+    /// directories.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Admits {
+        pub pairs: Vec<(u32, u64)>,
+        pub dirs: Vec<PathBuf>,
+    }
+
+    impl Admits {
+        /// Whether `p` is admitted, read with `table`, the process table at the call: `p` is one of
+        /// `pairs` by number and start time; or `table` holds `p` by number and start time and its
+        /// program lies below one of `dirs`; or its line of parents in `table`, each parent found by
+        /// its number with a known start time at or before its child's, reaches one of `pairs`. A
+        /// start time of 0 is unknown and admits nothing.
+        pub fn admits(&self, p: &Proc, table: &[Proc]) -> bool {
+            if p.started_us == 0 {
+                return false;
+            }
+            if self.pairs.contains(&(p.pid, p.started_us)) {
+                return true;
+            }
+            let Some(row) = table.iter().find(|t| super::same(t, p)) else {
+                return false;
+            };
+            let below = |e: &Path| {
+                self.dirs
+                    .iter()
+                    .any(|d| !d.as_os_str().is_empty() && e.starts_with(d))
+            };
+            if row.exe.as_deref().is_some_and(below) {
+                return true;
+            }
+            let mut at = row;
+            for _ in 0..table.len() {
+                let Some(parent) = table.iter().find(|t| {
+                    t.pid == at.ppid
+                        && t.pid != at.pid
+                        && t.started_us != 0
+                        && t.started_us <= at.started_us
+                }) else {
+                    return false;
+                };
+                if self.pairs.contains(&(parent.pid, parent.started_us)) {
+                    return true;
+                }
+                at = parent;
+            }
+            false
+        }
+    }
+
+    /// One call that the fence refused: the process's number and start time, and whether it was the
+    /// end by force.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Refused {
+        pub pid: u32,
+        pub started_us: u64,
+        pub force: bool,
+    }
+
+    struct State {
+        on: bool,
+        program: Option<Admits>,
+        refused: Vec<Refused>,
+    }
+
+    static STATE: Mutex<State> = Mutex::new(State {
+        on: cfg!(test),
+        program: None,
+        refused: Vec::new(),
+    });
+
+    thread_local! {
+        static HELD: RefCell<Vec<(u64, Admits)>> = const { RefCell::new(Vec::new()) };
+        static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    fn state() -> std::sync::MutexGuard<'static, State> {
+        STATE.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// An admission of this thread; dropped, the fence admits it no more.
+    pub struct Admitted {
+        id: u64,
+    }
+
+    impl Drop for Admitted {
+        fn drop(&mut self) {
+            let _ = HELD.try_with(|h| h.borrow_mut().retain(|(id, _)| *id != self.id));
+        }
+    }
+
+    /// Turns the fence on in this process.
+    pub fn on() {
+        state().on = true;
+    }
+
+    /// Whether the fence is on.
+    pub fn is_on() -> bool {
+        state().on
+    }
+
+    /// Admits `admits` for this thread while the returned value is held.
+    pub fn admit(admits: Admits) -> Admitted {
+        let id = NEXT.with(|n| {
+            n.set(n.get() + 1);
+            n.get()
+        });
+        HELD.with(|h| h.borrow_mut().push((id, admits)));
+        Admitted { id }
+    }
+
+    /// Admits the process `p`, a row that the test read of a process that it started.
+    pub fn admit_process(p: &Proc) -> Admitted {
+        admit(Admits {
+            pairs: vec![(p.pid, p.started_us)],
+            dirs: Vec::new(),
+        })
+    }
+
+    /// Admits the processes whose program lies below `dir`, a directory of the test's own into
+    /// which it wrote the programs that it starts, in the form that the process table gives (its
+    /// links resolved on macOS).
+    pub fn admit_below(dir: &Path) -> Admitted {
+        admit(Admits {
+            pairs: Vec::new(),
+            dirs: vec![std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf())],
+        })
+    }
+
+    /// Admits the processes whose line of parents reaches this process, the children that the
+    /// test started and theirs; this process itself is never admitted.
+    pub fn admit_descendants() -> Admitted {
+        admit(Admits {
+            pairs: super::own()
+                .map(|o| (o.pid, o.started_us))
+                .into_iter()
+                .collect(),
+            dirs: Vec::new(),
+        })
+    }
+
+    /// Turns the fence on when `VAR` names a directory, and admits for every thread of this process
+    /// the processes whose program lies below it. Returns whether it did.
+    pub fn from_env() -> bool {
+        let Some(dir) = std::env::var_os(VAR).filter(|d| !d.is_empty()) else {
+            return false;
+        };
+        let dir = PathBuf::from(dir);
+        let mut s = state();
+        s.on = true;
+        s.program = Some(Admits {
+            pairs: Vec::new(),
+            dirs: vec![std::fs::canonicalize(&dir).unwrap_or(dir)],
+        });
+        true
+    }
+
+    /// The calls that the fence refused in this process so far.
+    pub fn refused() -> Vec<Refused> {
+        state().refused.clone()
+    }
+
+    /// The fence at the point where `kill` or `ask_end` sends its signal to `p`, whose start time
+    /// it has just read again: it returns when the fence is off or admits `p`, and otherwise records
+    /// the call and panics, so that nothing is sent.
+    pub(crate) fn pass(p: &Proc, force: bool) {
+        let program = {
+            let s = state();
+            if !s.on {
+                return;
+            }
+            s.program.clone()
+        };
+        let table = if p.pid == std::process::id() {
+            Vec::new()
+        } else {
+            super::table().unwrap_or_default()
+        };
+        let held = HELD
+            .try_with(|h| {
+                h.borrow()
+                    .iter()
+                    .map(|(_, a)| a.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let admitted = p.pid != std::process::id()
+            && program
+                .iter()
+                .chain(held.iter())
+                .any(|a| a.admits(p, &table));
+        if admitted {
+            return;
+        }
+        let refused = {
+            let mut s = state();
+            s.refused.push(Refused {
+                pid: p.pid,
+                started_us: p.started_us,
+                force,
+            });
+            s.refused.clone()
+        };
+        let word = if force { "yes" } else { "no" };
+        eprintln!(
+            "fence_refused pid={} started_us={} force={word}",
+            p.pid, p.started_us
+        );
+        panic!(
+            "the fence refused an end of pid={} started_us={} force={word}; refused so far: {refused:?}",
+            p.pid, p.started_us
+        );
+    }
 }
 
 pub fn own() -> Option<Proc> {
@@ -314,6 +551,9 @@ pub fn kill(p: &Proc) -> bool {
         return false;
     };
     let same_process = created_us(h) == Some(p.started_us);
+    if same_process {
+        fence::pass(p, true);
+    }
     let killed = same_process
         // SAFETY: `h` was opened with PROCESS_TERMINATE, and its creation time, read through the
         // same handle just above, is that of `p`, so the call ends that process and no other.
@@ -342,7 +582,7 @@ pub fn kill(_p: &Proc) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[cfg(target_os = "macos")]
@@ -359,6 +599,7 @@ mod tests {
             .into_iter()
             .find(|p| p.pid == child.id())
             .unwrap();
+        let _admitted = fence::admit_process(&row);
         let other = Proc {
             started_us: row.started_us + 1,
             ..row.clone()
@@ -370,6 +611,62 @@ mod tests {
         let _ = child.wait();
         assert!(!sent && alive, "the ask reached a process of another start");
         assert!(asked, "the ask did not reach the process of its own start");
+    }
+
+    /// A child of the test, ended through its handle and reaped on every way out of the test.
+    pub(crate) struct OwnChild(pub(crate) std::process::Child);
+
+    impl Drop for OwnChild {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    /// A child of the test that runs 5 s and ends by itself, so that a test that is itself killed
+    /// leaves it at most that long.
+    #[cfg(any(target_os = "macos", windows))]
+    fn own_child() -> (OwnChild, Proc) {
+        let child = if cfg!(windows) {
+            std::process::Command::new("ping")
+                .args(["-n", "6", "127.0.0.1"])
+                .stdout(std::process::Stdio::null())
+                .start()
+                .unwrap()
+        } else {
+            std::process::Command::new("/bin/sleep")
+                .arg("5")
+                .start()
+                .unwrap()
+        };
+        let own = OwnChild(child);
+        let row = found(own.0.id()).expect("the child is in the table");
+        (own, row)
+    }
+
+    /// CP-161 (3), failing first: in the crate's test build an end of a process that the test did
+    /// not admit sends nothing and fails at the call, also for the test's own child, by number and
+    /// start time read again at the call.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn an_end_of_a_process_that_no_fence_admits_sends_nothing_and_fails_at_the_call() {
+        let (mut own, row) = own_child();
+        let killed = std::panic::catch_unwind(|| kill(&row));
+        #[cfg(target_os = "macos")]
+        let asked = std::panic::catch_unwind(|| ask_end(&row));
+        #[cfg(not(target_os = "macos"))]
+        let asked: std::thread::Result<bool> = Err(Box::new(()));
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let alive = matches!(own.0.try_wait(), Ok(None));
+        assert!(alive, "the end reached the child");
+        assert!(
+            killed.is_err(),
+            "the kill outside the fence did not fail at the call"
+        );
+        assert!(
+            asked.is_err(),
+            "the ask outside the fence did not fail at the call"
+        );
     }
     use crate::start::Start;
 
@@ -507,22 +804,36 @@ mod tests {
         cond()
     }
 
+    /// The processes of the tree of `root`, a child that the test started, ended on every way out
+    /// of the test through the fenced `kill`, each only while it still runs and only when the fence
+    /// admits it through `root` at that moment; one that the fence would refuse is left to end by
+    /// itself.
+    struct OwnTree {
+        root: Proc,
+        rows: Vec<Proc>,
+    }
+
+    impl Drop for OwnTree {
+        fn drop(&mut self) {
+            let admits = fence::Admits {
+                pairs: vec![(self.root.pid, self.root.started_us)],
+                dirs: Vec::new(),
+            };
+            let _admitted = fence::admit(admits.clone());
+            let table = table().unwrap_or_default();
+            for p in self.rows.iter().rev() {
+                if running(p) && admits.admits(p, &table) {
+                    kill(p);
+                }
+            }
+        }
+    }
+
     #[cfg(any(target_os = "macos", windows))]
     #[test]
     fn kill_reads_the_creation_time_again_and_acts_only_on_the_recorded_process() {
-        let mut child = if cfg!(windows) {
-            std::process::Command::new("ping")
-                .args(["-n", "30", "127.0.0.1"])
-                .stdout(std::process::Stdio::null())
-                .start()
-                .unwrap()
-        } else {
-            std::process::Command::new("/bin/sleep")
-                .arg("30")
-                .start()
-                .unwrap()
-        };
-        let real = found(child.id()).expect("the child is in the table");
+        let (mut own, real) = own_child();
+        let _admitted = fence::admit_process(&real);
         assert!(real.started_us > 0, "{real:?}");
         let other = Proc {
             started_us: real.started_us + 1,
@@ -532,68 +843,160 @@ mod tests {
         assert!(!kill(&other));
         std::thread::sleep(std::time::Duration::from_millis(200));
         assert!(running(&real));
-        assert!(child.try_wait().unwrap().is_none());
+        assert!(own.0.try_wait().unwrap().is_none());
         assert!(kill(&real));
-        let _ = child.wait();
+        let _ = own.0.wait();
         assert!(wait_for(|| !running(&real)));
+    }
+
+    /// CP-161 (3): the fence admits a test's own processes alone, on built tables: its pairs by
+    /// number and start time, a process whose line of parents reaches one of them, and a program
+    /// below one of its directories; another number, another start time, an unknown start time, a
+    /// parent that began after its child, and a program elsewhere are not admitted.
+    #[test]
+    fn the_fence_admits_the_test_s_own_processes_alone_on_built_tables() {
+        let row = |pid: u32, ppid: u32, started_us: u64, exe: &str| Proc {
+            pid,
+            ppid,
+            started_us,
+            exe: Some(PathBuf::from(exe)),
+        };
+        let table = vec![
+            row(10, 1, 100, "/x/test"),
+            row(11, 10, 110, "/bin/sleep"),
+            row(12, 11, 120, "/bin/sleep"),
+            row(13, 1, 130, "/own/dir/helper"),
+            row(14, 1, 140, "/other/helper"),
+            row(15, 10, 90, "/bin/sleep"),
+            row(16, 15, 95, "/bin/sleep"),
+            row(17, 10, 0, "/bin/sleep"),
+            row(18, 1, 180, "/own/directory"),
+        ];
+        let admits = fence::Admits {
+            pairs: vec![(10, 100)],
+            dirs: vec![PathBuf::from("/own/dir")],
+        };
+        let admitted: Vec<u32> = table
+            .iter()
+            .filter(|p| admits.admits(p, &table))
+            .map(|p| p.pid)
+            .collect();
+        assert_eq!(admitted, [10, 11, 12, 13]);
+        assert!(!admits.admits(&row(10, 1, 101, "/x/test"), &table));
+        assert!(!admits.admits(&row(11, 10, 111, "/bin/sleep"), &table));
+        assert!(!admits.admits(&row(19, 10, 190, "/own/dir/x"), &table));
+        assert!(!fence::Admits::default().admits(&table[0], &table));
+        let empty_dir = fence::Admits {
+            pairs: Vec::new(),
+            dirs: vec![PathBuf::new()],
+        };
+        assert!(!empty_dir.admits(&table[4], &table));
+    }
+
+    /// CP-161 (3): an admission holds for the thread that took it while it is held, and for no
+    /// other thread.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn an_admission_holds_for_its_own_thread_while_it_is_held() {
+        let (mut own, row) = own_child();
+        {
+            let _admitted = fence::admit_process(&row);
+            let r = row.clone();
+            let elsewhere = std::thread::spawn(move || std::panic::catch_unwind(|| kill(&r)))
+                .join()
+                .unwrap();
+            assert!(elsewhere.is_err(), "another thread's kill passed the fence");
+        }
+        assert!(std::panic::catch_unwind(|| kill(&row)).is_err());
+        assert!(
+            matches!(own.0.try_wait(), Ok(None)),
+            "the end reached the child"
+        );
+        let _admitted = fence::admit_process(&row);
+        assert!(kill(&row));
+        let _ = own.0.wait();
+        assert!(fence::refused().iter().any(|r| r.pid == row.pid && r.force));
     }
 
     #[cfg(target_os = "macos")]
     #[test]
     fn table_sees_a_grandchild_and_kill_ends_it() {
-        let mut child = std::process::Command::new("/bin/sh")
+        let child = std::process::Command::new("/bin/sh")
             .args(["-c", "/bin/sleep 30 & /bin/sleep 30; wait"])
             .start()
             .unwrap();
-        let root = child.id();
+        let mut child = OwnChild(child);
+        let tree = own_tree_of(&mut child, 3);
+        assert_eq!(tree.rows.len(), 3, "{:?}", tree.rows);
+        assert!(tree.rows.iter().all(running));
+        for p in tree.rows.iter().rev() {
+            assert!(kill(p));
+        }
+        let _ = child.0.wait();
+        assert!(
+            wait_for(|| !tree.rows.iter().any(running)),
+            "{:?}",
+            tree.rows
+        );
+    }
+
+    /// The tree of the test's child `child` as `descendants` reads it, once it holds `want`
+    /// processes or after 5 s, with the fence admitting the child and the processes whose line of
+    /// parents reaches it for this thread while the returned value is held.
+    #[cfg(any(target_os = "macos", windows))]
+    fn own_tree_of(child: &mut OwnChild, want: usize) -> OwnTreeHeld {
+        let root = found(child.0.id()).expect("the child is in the table");
+        let admitted = fence::admit_process(&root);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        let tree = loop {
+        let rows = loop {
             let table = table().unwrap();
-            let tree = table
+            let rows = table
                 .iter()
-                .find(|p| p.pid == root)
+                .find(|p| same(p, &root))
                 .map(|r| descendants(&table, std::slice::from_ref(r)))
                 .unwrap_or_default();
-            if tree.len() >= 3 || std::time::Instant::now() > deadline {
-                break tree;
+            if rows.len() >= want || std::time::Instant::now() > deadline {
+                break rows;
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         };
-        assert_eq!(tree.len(), 3, "{tree:?}");
-        assert!(tree.iter().all(running));
-        for p in &tree {
-            assert!(kill(p));
+        OwnTreeHeld {
+            tree: OwnTree { root, rows },
+            _admitted: admitted,
         }
-        let _ = child.wait();
-        assert!(wait_for(|| !tree.iter().any(running)), "{tree:?}");
+    }
+
+    /// An `OwnTree` with the admission of its root.
+    struct OwnTreeHeld {
+        tree: OwnTree,
+        _admitted: fence::Admitted,
+    }
+
+    impl std::ops::Deref for OwnTreeHeld {
+        type Target = OwnTree;
+        fn deref(&self) -> &OwnTree {
+            &self.tree
+        }
     }
 
     #[cfg(windows)]
     #[test]
     fn table_sees_a_child_of_cmd_and_kill_ends_it() {
-        let mut child = std::process::Command::new("cmd")
+        let child = std::process::Command::new("cmd")
             .args(["/C", "ping -n 30 127.0.0.1 >NUL"])
             .start()
             .unwrap();
-        let root = child.id();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        let tree = loop {
-            let table = table().unwrap();
-            let tree = table
-                .iter()
-                .find(|p| p.pid == root)
-                .map(|r| descendants(&table, std::slice::from_ref(r)))
-                .unwrap_or_default();
-            if tree.len() >= 2 || std::time::Instant::now() > deadline {
-                break tree;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        };
-        assert!(tree.len() >= 2, "{tree:?}");
-        for p in &tree {
+        let mut child = OwnChild(child);
+        let tree = own_tree_of(&mut child, 2);
+        assert!(tree.rows.len() >= 2, "{:?}", tree.rows);
+        for p in tree.rows.iter().rev() {
             assert!(kill(p));
         }
-        let _ = child.wait();
-        assert!(wait_for(|| !tree.iter().any(running)), "{tree:?}");
+        let _ = child.0.wait();
+        assert!(
+            wait_for(|| !tree.rows.iter().any(running)),
+            "{:?}",
+            tree.rows
+        );
     }
 }

@@ -37,6 +37,10 @@ fn signal_case(signal: libc::c_int, name: &str) {
     let dir = std::env::temp_dir().join(format!("r3-web-signal-{name}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let stand_in = standin::bundle(&dir);
+    r3_web::procs::fence::on();
+    let _admitted = r3_web::procs::fence::admit_below(&dir);
+    let fenced_dir = std::fs::canonicalize(&dir).unwrap();
+    let stderr_path = dir.join("program-stderr.txt");
     // the process table names a program by its resolved path: a temporary directory under a link
     // (the hosted Mac's /var/folders) is compared resolved
     let macos = std::fs::canonicalize(stand_in.binary.parent().unwrap()).unwrap();
@@ -72,9 +76,10 @@ fn signal_case(signal: libc::c_int, name: &str) {
             "--step",
             "signin_form",
         ])
+        .env(r3_web::procs::fence::VAR, &fenced_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::fs::File::create(&stderr_path).unwrap())
         .start()
         .unwrap();
     let until = Instant::now() + Duration::from_secs(30);
@@ -106,6 +111,15 @@ fn signal_case(signal: libc::c_int, name: &str) {
     for p in &left {
         r3_web::procs::kill(p);
     }
+    let refused = std::fs::read_to_string(&stderr_path)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.starts_with("fence_refused "))
+        .count();
+    assert_eq!(
+        refused, 0,
+        "the program's fence refused an end of a process outside the test's directory"
+    );
     assert!(
         seen >= 2,
         "the stand-in browser and its helper did not run ({seen})"

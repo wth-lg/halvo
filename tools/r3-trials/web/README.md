@@ -500,6 +500,19 @@ both of its stand-ins on every way out. A changed copy of the guard's loop, its 
 the forced end or the fence runs by the exact names of the tests on stand-in tables alone, never
 with that test or with the whole suite (CP-161).
 
+Every other way to the real end of a process is fenced too (CP-161 (3), U0.7d): `procs::kill` and
+`procs::ask_end` pass their signal through `procs::fence` at the point where they send it, after
+they have read the process's start time again. In the crate's own test build the fence is on from
+the start and admits nothing; a test admits, for its own thread and while it holds the admission,
+the processes that it started by number and start time, the processes whose line of parents
+reaches one of them, or the processes whose program lies below a directory of its own into which
+it wrote its stand-ins. Any other call sends nothing, prints `fence_refused pid=<n> started_us=<n>
+force=<yes|no>` on standard error and panics at the call. The integration tests turn it on with
+`fence::on`, and the trial's program turns it on when `R3_WEB_FENCE_BELOW` names a directory, which
+`tests/signals.rs` sets to its own; that test fails on a `fence_refused` line of the program. A
+changed copy of `procs::kill`, `procs::ask_end`, `checks::Mark`, `checks::end_runs_own` or the fence
+that could widen who is signalled runs on the hosted runners alone.
+
 ### The checks of a session (CP-89 (c))
 
 `src/checks.rs` reads six rules, each with a count that is 0 when the rule holds: `port_flag` (a

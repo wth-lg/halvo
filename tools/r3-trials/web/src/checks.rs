@@ -1133,15 +1133,17 @@ pub(crate) mod tests {
     #[test]
     fn a_number_that_another_process_took_is_left_alone() {
         use crate::start::Start;
-        let mut other = std::process::Command::new("/bin/sleep")
-            .arg("30")
-            .start()
-            .unwrap();
+        let mut other = crate::procs::tests::OwnChild(
+            std::process::Command::new("/bin/sleep")
+                .arg("30")
+                .start()
+                .unwrap(),
+        );
         std::thread::sleep(std::time::Duration::from_millis(100));
         let real = procs::table()
             .unwrap()
             .into_iter()
-            .find(|p| p.pid == other.id())
+            .find(|p| p.pid == other.0.id())
             .unwrap();
         let read = Proc {
             started_us: real.started_us.saturating_sub(5_000_000),
@@ -1159,14 +1161,65 @@ pub(crate) mod tests {
             &|_| true,
             &procs::kill,
         );
-        let alive = matches!(other.try_wait(), Ok(None));
-        let _ = other.kill();
-        let _ = other.wait();
+        let alive = matches!(other.0.try_wait(), Ok(None));
+        drop(other);
         assert!(
             alive,
             "the process that has the number now was ended ({ended:?})"
         );
         assert_eq!(ended.ended, 1, "the read process was recorded");
+    }
+
+    /// CP-161 (3) for `end_runs_own`: on a table that the test builds, with its own stand-in of the
+    /// run (7, started at 10) and three processes of no run (one of another bundle, one of another
+    /// profile, one begun before the run), the end reaches the stand-in alone through a fence that
+    /// admits it by number and start time in front of a kill that records and sends nothing; any
+    /// other call fails the test at that call.
+    #[test]
+    fn end_runs_own_on_a_built_table_sends_the_end_to_the_own_stand_in_alone_through_the_fence() {
+        let own = (7u32, 10u64);
+        let killed = std::cell::RefCell::new(Vec::new());
+        let gone = std::cell::Cell::new(false);
+        let other_bundle = Proc {
+            exe: Some(std::path::PathBuf::from("/c/x")),
+            ..bundle_row(8, 1, 10)
+        };
+        let ended = end_runs_own_with(
+            &Mark {
+                since_us: 5,
+                ..stand_in_mark()
+            },
+            &|| {
+                let mut t = vec![
+                    other_bundle.clone(),
+                    bundle_row(9, 1, 10),
+                    bundle_row(11, 1, 4),
+                ];
+                if !gone.get() {
+                    t.push(bundle_row(7, 1, 10));
+                }
+                Ok(t)
+            },
+            &|pid| {
+                Some(match pid {
+                    9 => another_profile(),
+                    _ => the_profile_s_own_forms()[0].clone(),
+                })
+            },
+            &|_| true,
+            &|p| {
+                assert_eq!(
+                    (p.pid, p.started_us),
+                    own,
+                    "the fence refused an end of {p:?}"
+                );
+                killed.borrow_mut().push(p.pid);
+                gone.set(true);
+                true
+            },
+        );
+        assert_eq!(*killed.borrow(), [7]);
+        assert_eq!((ended.before, ended.after, ended.ended), (1, 0, 1));
     }
 
     /// A started child on the pipe and the test's own `sleep`, whose row stands for the browser's

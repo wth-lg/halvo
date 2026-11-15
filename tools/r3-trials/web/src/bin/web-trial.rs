@@ -322,6 +322,7 @@ fn port_free(port: u16) -> bool {
 }
 
 fn main() -> ExitCode {
+    r3_web::procs::fence::from_env();
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if let Some(spec) = argv.iter().find_map(|a| a.strip_prefix(EGRESS_WRAP_FLAG)) {
         return egress_wrap(spec, &argv);

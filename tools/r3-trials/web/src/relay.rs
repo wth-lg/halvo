@@ -1490,6 +1490,7 @@ mod tests {
             .find(|p| p.pid == executor_pid)
             .unwrap()
             .clone();
+        let _admitted = procs::fence::admit_process(&b);
         let start = std::time::Instant::now();
         let killer = {
             let executor = executor.clone();
