@@ -1666,6 +1666,53 @@ mod tests {
         );
     }
 
+    /// Ruling DM-16 (1) c, the verifier's Issue 1: the Shutdown's wait from
+    /// below. The figures hook arms an expiry that blocks the owner for three
+    /// quarters of the Shutdown's part, so the Shutdown's answer comes after
+    /// half of the part and before its end; the run takes that answer and
+    /// stores what it holds. It waits on time, with a margin of a quarter of
+    /// the part, 1 s, on each side.
+    #[test]
+    fn a_shutdown_answered_late_in_its_part_is_taken_and_stores_the_events() {
+        let clocks = ManualClocks::at(noon());
+        let bound = Duration::from_secs(4);
+        assert_eq!(StopBounds::of(bound).shutdown, bound);
+        let armed = Arc::new(AtomicBool::new(false));
+        let entered = Arc::new(AtomicBool::new(false));
+        let store = ExpiryThatBlocksOnceArmed {
+            inner: ModelStore::new(),
+            armed: Arc::clone(&armed),
+            entered: Arc::clone(&entered),
+            block: bound * 3 / 4,
+        };
+        let model = store.inner.clone();
+        let mut scripted = sources();
+        let hook_clocks = clocks.clone();
+        scripted.on_figures = Some(Box::new(move || {
+            armed.store(true, Ordering::SeqCst);
+            hook_clocks.advance(Duration::from_secs(61));
+            let until = std::time::Instant::now() + Duration::from_secs(5);
+            while !entered.load(Ordering::SeqCst) && std::time::Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(entered.load(Ordering::SeqCst), "the owner ran no expiry");
+        }));
+        let stop = AtomicBool::new(false);
+        let outcome = run_timed(
+            &run_of(5, SecureInput::DoNotHold, &[]),
+            &mut scripted,
+            store,
+            clocks,
+            &stop,
+            bound,
+        )
+        .unwrap();
+        assert!(outcome.loss.is_none(), "{:?}", outcome.loss);
+        assert_eq!(outcome.status, exit::CLEAN, "{outcome:?}");
+        assert_eq!(outcome.report.events_persisted, 4);
+        assert_eq!(model.records().len(), 4);
+    }
+
     /// Pin of the coordinator's answer msg_3e2afe836f9b (b): a signalled run
     /// with a loss gives status 1, because the loss is taken first, where
     /// contracts.md C4 item 6 says that a signalled run exits 2.
