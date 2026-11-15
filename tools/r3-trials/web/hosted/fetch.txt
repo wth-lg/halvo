@@ -1,0 +1,1 @@
+fetch file=pypdf-4.3.1-py3-none-any.whl version=4.3.1 bytes=295825 sha256=64b31da97eda0771ef22edb1bfecd5deee4b72c3d1736b7df2689805076d6418 url=https://files.pythonhosted.org/packages/3c/60/eccdd92dd4af3e4bea6d6a342f7588c618a15b9bec4b968af581e498bcc4/pypdf-4.3.1-py3-none-any.whl source=pypi.org/pypi/pypdf/4.3.1/json read_by=coordinator read=2026-11-15

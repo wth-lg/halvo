@@ -2,9 +2,16 @@
 
 LIMIT=${LIMIT:-420}
 RUN_SH=${RUN_SH:-tools/r3-trials/web/run.sh}
+PREFS_DAEMON=${PREFS_DAEMON:-/usr/sbin/cfprefsd}
 recorded=""
 ncall=0
 code=0
+current_call=""
+pending=""
+pending_tag=""
+pending_name=""
+earlier=no
+made_dir=no
 
 alive() {
   s=$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ')
@@ -15,6 +22,90 @@ alive() {
 
 group_count() {
   ps -axo pgid= | awk -v g="$1" '$1 == g' | wc -l | tr -d ' '
+}
+
+started_at() {
+  ps -o lstart= -p "$1" 2>/dev/null | awk '{ print $1 "_" $2 "_" $3 "_" $4 "_" $5 }'
+}
+
+prefs_flush() {
+  found=0
+  ended=0
+  for pair in $(ps -axo pid=,lstart=,comm= | awk -v d="$PREFS_DAEMON" '$7 == d { print $1 ":" $2 "_" $3 "_" $4 "_" $5 "_" $6 }'); do
+    found=$((found + 1))
+    pid=${pair%%:*}
+    if [ "$(started_at "$pid")" = "${pair#*:}" ] && sudo kill "$pid" 2>/dev/null; then
+      ended=$((ended + 1))
+    fi
+  done
+  echo "prefs_daemon found=$found ended=$ended"
+}
+
+set_policy() {
+  plist="$dir/$1.plist"
+  pending_name=$3
+  pending_tag="$2-$3"
+  hadf=no
+  earlier=no
+  [ -e "$plist" ] && hadf=yes
+  if [ ! -d "$dir" ]; then
+    sudo mkdir -p "$dir" && made_dir=yes
+  fi
+  if [ "$hadf" = yes ] && sudo mv "$plist" "$work/earlier-$pending_tag.plist"; then
+    earlier=yes
+  fi
+  pending=$1
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>%s</key>\n\t%s\n</dict>\n</plist>\n' "$3" "$4" >"$work/$1.plist"
+  lint=bad
+  plutil -lint "$work/$1.plist" >/dev/null 2>&1 && lint=ok
+  sudo install -o root -g wheel -m 644 "$work/$1.plist" "$plist"
+  irc=$?
+  prefs_flush
+  sleep 1
+}
+
+take_away() {
+  [ -n "$pending" ] || return 0
+  p="$dir/$pending.plist"
+  sudo mv "$p" "$work/removed-$pending_tag.plist" 2>/dev/null
+  back=-
+  if [ "$earlier" = yes ]; then
+    if sudo mv "$work/earlier-$pending_tag.plist" "$p"; then back=yes; else back=no; fi
+  fi
+  prefs_flush
+  sleep 1
+  if [ "$earlier" = yes ]; then
+    removed=$back
+  elif [ -e "$p" ]; then
+    removed=no
+  else
+    removed=yes
+  fi
+  echo "policy removed=$removed name=$pending_name earlier=$earlier put_back=$back"
+  pending=""
+  earlier=no
+}
+
+undo() {
+  if [ -n "$current_call" ] && alive "$current_call"; then
+    kill -TERM -- "-$current_call" 2>/dev/null
+    sleep 3
+    kill -KILL -- "-$current_call" 2>/dev/null
+  fi
+  take_away
+  dir_removed=-
+  if [ "$made_dir" = yes ]; then
+    if sudo rmdir "$dir" 2>/dev/null; then dir_removed=yes; else dir_removed=no; fi
+    made_dir=no
+  fi
+  echo "harness_end dir_removed=$dir_removed"
+}
+
+arm_undo() {
+  trap 'undo' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 }
 
 listing() {
@@ -120,6 +211,7 @@ run_call() {
   perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' sh "$RUN_SH" --candidate cdp --browser "$b" \
     --port "$cport" "$@" >"$out" 2>&1 &
   cp=$!
+  current_call=$cp
   recorded="$recorded $cp"
   stopped=no
   while alive "$cp"; do
@@ -134,6 +226,7 @@ run_call() {
   done
   wait "$cp"
   e=$?
+  current_call=""
   while read -r fp; do
     recorded="$recorded $fp"
   done <<EOF
@@ -168,17 +261,7 @@ cell() {
   before=$(ctl before "$step")
   echo "$before"
   case "$before" in *" reply=yes"*) cb=reply ;; *) cb=none ;; esac
-  plist="$dir/$dom.plist"
-  hadf=no
-  [ -e "$plist" ] && hadf=yes
-  sudo mkdir -p "$dir"
-  printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>%s</key>\n\t%s\n</dict>\n</plist>\n' "$name" "$xml" >"$work/$dom.plist"
-  lint=bad
-  plutil -lint "$work/$dom.plist" >/dev/null 2>&1 && lint=ok
-  sudo install -o root -g wheel -m 644 "$work/$dom.plist" "$plist"
-  irc=$?
-  sudo killall cfprefsd 2>/dev/null
-  sleep 1
+  set_policy "$dom" "$k" "$name" "$xml"
   listing plist_install
   back=$(defaults read "$dir/$dom" "$name" 2>/dev/null)
   matches=no
@@ -199,14 +282,7 @@ cell() {
   else
     echo "notrun candidate=cdp machine=hosted-mac browser=$k step=$step cause=$why"
   fi
-  sudo mv "$plist" "$work/removed-$k-$name.plist" 2>/dev/null
-  sudo killall cfprefsd 2>/dev/null
-  sleep 1
-  if [ -e "$plist" ]; then
-    echo "policy removed=no name=$name"
-  else
-    echo "policy removed=yes name=$name"
-  fi
+  take_away
   ctl after "$step"
 }
 
@@ -220,6 +296,7 @@ mac_main() {
   work="$RUNNER_TEMP/org"
   bin="$PWD/tools/r3-trials/web/target/$(rustc -vV | sed -n 's/^host: //p')/release/web-trial"
   mkdir -p "$work"
+  arm_undo
   echo "runner macos=$(sw_vers -productVersion)"
   if [ -d "$dir" ]; then echo "managed_dir existed=yes"; else echo "managed_dir existed=no"; fi
   s0=$(date +%s)
