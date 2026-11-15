@@ -1,0 +1,9 @@
+measured earlier run=43653642344 job=132627327625 head=6825cecfaadb70d38fa05bba0e57f78963913411 form=long result=pass note=a_passing_long_run_of_an_earlier_head_of_this_round
+measured earlier run=43662069989 job=132653356049 head=8e7c3a65d45ce05afc35b87fd48190ece09b67b7 form=long result=fail wf=total=83,pass=75,known_defect=7,fail=1 short_controls=gate_not_clear=1,late_read_no_latch=0,other=0 second_controls_taken=0 note=an_earlier_heads_attempt_failed_by_browser::swap_phases_of_the_page_in_edge
+measured attempt=1 run=43670143805 job=132678163748 form=long result=pass commit=586f7bcaf90f2d7b07f08ab531dc45fc80356b78 wf=total=86,pass=78,known_defect=8,fail=0 short_controls=gate_not_clear=0,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/2 seconds_50_long=3692 loops=14_at_full_count scratch=0f7f6322fb58c61566e68602f09fee4c6be322fb
+measured tree path=crates/halvo-capture/src/windows id=03fbe9673db662d89968039d7c1273e82eb98ab1
+measured blob path=crates/halvo-capture/src/secure_input.rs id=a569015943bfb27d5b5a27562a58b613a032770b
+measured tree path=crates/halvo-capture/tests id=a0fbe3ee49d85f02a1f7787d6bd1939997a620f3
+measured blob path=crates/halvo-capture/Cargo.toml id=a07171e773caa6bf36ccab9bd3d2e1d5edbe1481
+measured blob path=scripts/r1/ci.d/50-windows-functional.sh id=6f5daafa3166bf36eeee2ce13560cb954d17785c
+measured lock path=Cargo.lock crates=windows id=f04eeed9a768c50f3e3d259c9c57f2917de5b6a7
