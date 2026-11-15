@@ -116,7 +116,9 @@ fn ledger<'a, C>(ledgers: &'a mut Vec<(AgentId, Ledger)>, facts: &Facts<C>) -> &
 
 fn hold_stop<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, now: u64, by: StopBy) {
     *table = table.stop(run);
-    schedule::stop_run(board, run, now, by.cause().end());
+    if !board.runs.iter().any(|r| &r.run == run && r.stop.is_some()) {
+        schedule::stop_run(board, run, now, by.cause().end());
+    }
 }
 
 fn waiting_on(doing: &Doing) -> Option<RunItem> {
@@ -138,19 +140,16 @@ struct Reading<'a, P, C> {
     ports: &'a P,
     board: &'a mut Board<C>,
     i: usize,
-    off_before: bool,
     made: bool,
     stopped: bool,
 }
 
 impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
     fn new(ports: &'a P, board: &'a mut Board<C>, i: usize) -> Reading<'a, P, C> {
-        let off_before = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
         Reading {
             ports,
             board,
             i,
-            off_before,
             made: false,
             stopped: false,
         }
@@ -163,7 +162,7 @@ impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
         l.take(&facts.events);
         let agent = facts.agent.clone();
         let off = schedule::holds(facts).contains(&schedule::Hold::Off);
-        self.stopped = !self.off_before && off && live_unstopped_run(self.board, &agent).is_some();
+        self.stopped = off && live_unstopped_run(self.board, &agent).is_some();
         match (read, self.stopped) {
             (Err(_), _) => items::Read::Failed,
             (Ok(()), true) => items::Read::Off,
@@ -425,18 +424,21 @@ where
             let Some(i) = index(board, h.ask().agent()) else {
                 continue;
             };
-            if let Ok(now) = self.ports.now() {
+            let l = ledger(ledgers, &board.members[i].facts);
+            let before = (l.last(), l.waiting().len());
+            let _ = items::flush(&self.ports, l, &self.limits);
+            if let Ok(stamp) = crate::ports::Stamp::read(&self.ports) {
                 let lapses = matches!(
-                    items::due(h, now, &self.limits),
+                    items::due(h, stamp.now(), &self.limits),
                     Some(ConfirmMove::Lapse(LapseCause::WaitLimit))
                 );
                 if lapses {
-                    hold_stop(board, table, h.ask().run(), now, StopBy::WaitLimit);
+                    hold_stop(board, table, h.ask().run(), stamp.now(), StopBy::WaitLimit);
                 }
+                let l = ledger(ledgers, &board.members[i].facts);
+                let _ = items::tick_at(&self.ports, l, table, h, stamp, &self.limits);
             }
             let l = ledger(ledgers, &board.members[i].facts);
-            let before = (l.last(), l.waiting().len());
-            let _ = items::tick(&self.ports, l, table, h, &self.limits);
             if (l.last(), l.waiting().len()) != before {
                 self.read_back(board, i);
             }
@@ -1234,10 +1236,20 @@ where
             .iter_mut()
             .find(|b| b.item() == item)
             .ok_or(Cause::Stale)?;
+        let agent = board.members[i].facts.agent.clone();
         let l = ledger(ledgers, &board.members[i].facts);
-        let out = items::answer_bind(&self.ports, l, table, &self.limits, b, choice);
+        let mut reading = Reading::new(&self.ports, board, i);
+        let out =
+            items::answer_bind_reading(&self.ports, l, table, &self.limits, b, choice, &mut |l| {
+                reading.read(l)
+            });
+        let stopped = reading.stopped;
         let closed = *b.state() == items::BindState::Closed;
         self.read_back(board, i);
+        if stopped {
+            self.switch_off(st, i, Move::Off { agent })?;
+            return Err(Cause::UnknownItem);
+        }
         if closed {
             binds.retain(|b| b.item() != item);
             self.act(st, Act::Resume { run: run.clone() })?;

@@ -499,6 +499,40 @@ fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
     Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
+fn store_once_reading<P: Owner>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    whats: Vec<What>,
+    stamp: Stamp,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<bool, PortError> {
+    if !flush_reading(ports, ledger, limits, read)? {
+        return Ok(false);
+    }
+    let mut events = ledger.number(whats.clone(), stamp);
+    let mut resynced = false;
+    loop {
+        match ports.log(&events) {
+            Ok(()) => {
+                ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.kept(&events);
+                return Ok(true);
+            }
+            Err(e) if refused_with(&e, "seq") && !resynced => {
+                match read(ledger) {
+                    Read::Failed => return Err(e),
+                    Read::Off => return Ok(false),
+                    Read::Taken => {}
+                }
+                events = ledger.number(whats.clone(), stamp);
+                resynced = true;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
 /// Stores the events in one body once the waiting ones are stored, and keeps none of them
 /// waiting: rows that get no acknowledgement count as not stored (I4.5).
 fn store_once<P: Owner>(
@@ -551,8 +585,8 @@ pub enum Read {
     Failed,
     /// The ledger took the events.
     Taken,
-    /// The ledger took the events, which show the agent's hold `off` standing beside its live
-    /// run where the coordinator did not know it: the run's stop comes first.
+    /// The ledger took the events, which show the agent's hold `off` standing beside a live run
+    /// of it that no stop has reached: the run's stop comes first.
     Off,
 }
 
@@ -792,9 +826,25 @@ pub fn tick<P: Owner + Runs + Clock>(
     limits: &Limits,
 ) -> Result<(), Cause> {
     let _ = flush(ports, ledger, limits);
-    let now = ports.now().map_err(|e| cause_of(&e))?;
-    match due(held, now, limits) {
-        Some(ConfirmMove::Lapse(cause)) => lapse(ports, ledger, table, held, cause, limits),
+    let stamp = clock_at(ports)?;
+    tick_at(ports, ledger, table, held, stamp, limits)
+}
+
+/// The move that `due` gives for a held confirmation at the one reading `stamp`, which is also
+/// the stamp of a lapse's `item_lapsed` row; it reads no clock and sends no waiting rows first
+/// (I5.9, ruling RD-101 item 1).
+pub fn tick_at<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    stamp: Stamp,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    match due(held, stamp.now(), limits) {
+        Some(ConfirmMove::Lapse(cause)) => {
+            lapse_stamped(ports, ledger, table, held, cause, limits, Some(stamp))
+        }
         Some(mv) => {
             held.confirmation = confirm_step(Some(&held.confirmation), mv)?;
             Ok(())
@@ -898,10 +948,10 @@ pub fn answer<P: Owner + Runs + Clock>(
 /// A lapse with `wait_limit` or `cancelled`, also where the person's stop made it, goes in four
 /// steps (ruling RD-83): first, in memory and before any port call, the item `lapsed`, its rows
 /// out of the guard's table, the run stopped in the guard's table (the caller holds the stop on
-/// the board before it, ruling RD-48 (a)), and the `item_lapsed` row, at a time read then,
-/// waiting in the ledger; second, `Runs::cancel` once; third, the decision, only where the
-/// cancel answered success or `ended`, so that the runner holds the cancel when the decision
-/// comes; fourth, the row to the owner. After a cancel that answered another error no decision
+/// the board before it, ruling RD-48 (a)), and the `item_lapsed` row, at the reading that the
+/// tick hands on (`tick_at`) or else at a time read then, waiting in the ledger; second,
+/// `Runs::cancel` once; third, the decision, only where the cancel answered success or `ended`,
+/// so that the runner holds the cancel when the decision comes; fourth, the row to the owner. After a cancel that answered another error no decision
 /// is sent, and the kill of I5.7 ends the run.
 ///
 /// Every other lapse first sends the decision, then lapses the item, takes its rows out of the
@@ -913,6 +963,18 @@ pub fn lapse<P: Owner + Runs + Clock>(
     held: &mut Held,
     cause: LapseCause,
     limits: &Limits,
+) -> Result<(), Cause> {
+    lapse_stamped(ports, ledger, table, held, cause, limits, None)
+}
+
+fn lapse_stamped<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    cause: LapseCause,
+    limits: &Limits,
+    stamp: Option<Stamp>,
 ) -> Result<(), Cause> {
     let next = confirm_step(Some(&held.confirmation), ConfirmMove::Lapse(cause))?;
     let run = held.ask.run().clone();
@@ -926,7 +988,7 @@ pub fn lapse<P: Owner + Runs + Clock>(
     if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
         held.confirmation = next;
         *table = table.lapse(&held.item).stop(&run);
-        if let Ok(stamp) = Stamp::read(ports) {
+        if let Some(stamp) = stamp.or_else(|| Stamp::read(ports).ok()) {
             queue_at(ledger, vec![lapsed], stamp);
         }
         let cancelled = ports.cancel(&run);
@@ -1145,8 +1207,13 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     answer_handback_reading(ports, ledger, limits, item, ask, choice, &mut read)
 }
 
-/// `answer_handback` with `read` as the one read of the owner's events after a failed log of the
-/// press's row: it takes the events into the ledger and says what it showed.
+/// `answer_handback` with `read` as the one read of the owner's events: after a refusal `seq` of
+/// the rows that waited in the ledger, after a failed log of the press's row, or, where the kept
+/// rows decide and the move has read nothing, before their result goes to the run. It takes the
+/// events into the ledger and says what it showed. Where it shows the agent switched off beside
+/// its run, nothing of the press is logged or handed to the run, the waiting rows stay for the
+/// rest of the switch-off, and the move answers `unknown_item` (ruling RD-52 (b) rule 3); where
+/// the read before a kept row's result fails, the move answers `no_service` and hands nothing.
 pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1182,14 +1249,29 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
         answer: &answer,
         result,
     };
-    flush(ports, ledger, limits).map_err(|e| cause_of(&e))?;
+    let made = std::cell::Cell::new(false);
+    let mut reading = |l: &mut Ledger| {
+        made.set(true);
+        read(l)
+    };
+    if !flush_reading(ports, ledger, limits, &mut reading).map_err(|e| cause_of(&e))? {
+        return Err(Cause::UnknownItem);
+    }
     let decided = if ledger.unsure.contains(item) {
         Decided::LogOwnRow
     } else {
         press.decide(ledger.closing(item).map(|e| &e.what))
     };
     let decided = match decided {
-        Decided::LogOwnRow => match log_press(ports, ledger, &press, &row, stamp, read) {
+        Decided::Own(_) | Decided::Other(_) if !made.get() => match reading(ledger) {
+            Read::Off => return Err(Cause::UnknownItem),
+            Read::Failed => return Err(Cause::NoService),
+            Read::Taken => press.decide(ledger.closing(item).map(|e| &e.what)),
+        },
+        decided => decided,
+    };
+    let decided = match decided {
+        Decided::LogOwnRow => match log_press(ports, ledger, &press, &row, stamp, &mut reading) {
             Ok(decided) => decided,
             Err(e) => {
                 if !ledger.unsure.contains(item) {
@@ -1340,6 +1422,26 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
     held: &mut HeldBind,
     choice: Choice,
 ) -> Result<(), Cause> {
+    let mut read = |l: &mut Ledger| own_read(ports, l);
+    answer_bind_reading(ports, ledger, table, limits, held, choice, &mut read)
+}
+
+/// `answer_bind` with `read` as the read after a refusal `seq` of the rows that waited in the
+/// ledger or of its own row, and as the one read before a stored answer that the run did not take
+/// is sent again, which the coordinator hands: a read that shows the agent switched off beside
+/// its run stores no row of the press, sends no answer and answers `unknown_item`, as for a step
+/// that is no longer open, and the step stays for the rest of the switch-off (ruling RD-52 (b)
+/// rule 3, RD-101 item 5 (a)); a read before a stored answer that fails answers `no_service` and
+/// sends nothing.
+pub fn answer_bind_reading<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    held: &mut HeldBind,
+    choice: Choice,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<(), Cause> {
     if held.state == BindState::Closed {
         return Err(Cause::Stale);
     }
@@ -1347,6 +1449,7 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
     if table.is_stopped(&held.ask.run) {
         return Err(Cause::State);
     }
+    let again = held.state == BindState::Recorded(result);
     match held.state {
         BindState::Recorded(stored) if stored == result => {}
         BindState::Recorded(BindResult::Decline) => return Err(Cause::State),
@@ -1359,11 +1462,22 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
                     origin: held.ask.origin.clone(),
                 })),
             };
-            if let Err(e) = store_once(ports, ledger, limits, vec![row], stamp) {
-                held.state = BindState::Open;
-                return Err(cause_of(&e));
+            match store_once_reading(ports, ledger, limits, vec![row], stamp, read) {
+                Ok(true) => {}
+                Ok(false) => return Err(Cause::UnknownItem),
+                Err(e) => {
+                    held.state = BindState::Open;
+                    return Err(cause_of(&e));
+                }
             }
             held.state = BindState::Recorded(result);
+        }
+    }
+    if again {
+        match read(ledger) {
+            Read::Off => return Err(Cause::UnknownItem),
+            Read::Failed => return Err(Cause::NoService),
+            Read::Taken => {}
         }
     }
     match ports.answer_bind(&held.ask.run, result) {

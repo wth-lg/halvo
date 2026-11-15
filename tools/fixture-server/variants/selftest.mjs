@@ -18,6 +18,8 @@ const VARIANTS = [
   'inject_shop',
   'inject_mail',
   'get_effect',
+  'no_reply',
+  'amount_changes',
 ];
 const SEEDS = [1, 2, 3];
 const TASKS = ['bill', 'order', 'reply', 'cleanup'];
@@ -107,6 +109,38 @@ function http(port, method, host, path, { headers = {}, body } = {}) {
   });
 }
 
+function unanswered(port, method, host, path, { headers = {}, body } = {}, ms = 2000) {
+  return new Promise((resolve) => {
+    const payload = body === undefined ? undefined : Buffer.from(body);
+    let settled = false;
+    const end = (value) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+    const req = request(
+      {
+        host: '127.0.0.1',
+        port,
+        method,
+        path,
+        headers: { Host: `${host}:${port}`, ...(payload ? { 'Content-Length': payload.length } : {}), ...headers },
+      },
+      (res) => {
+        res.resume();
+        end({ replied: true, status: res.statusCode });
+      },
+    );
+    req.setTimeout(ms, () => {
+      end({ replied: false, status: 0 });
+      req.destroy();
+    });
+    req.on('error', () => end({ replied: false, status: 0 }));
+    req.end(payload);
+  });
+}
+
 function startServer(dir, args, { input = 'pipe', startMs = 15000, throughShellPipe = false } = {}) {
   return new Promise((resolve) => {
     const program = [join(dir, 'server.mjs'), ...args];
@@ -150,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 187;
-const CASES_WINDOWS = 185;
+const CASES_UNIX = 197;
+const CASES_WINDOWS = 195;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -799,9 +833,10 @@ async function runTask(env, b, c, task, seed, vs, first) {
 async function walkCases(env) {
   for (const n of SEEDS) {
     const seed = seeds[n];
-    for (const v of ['none', ...VARIANTS]) {
+    for (const v of ['none', ...VARIANTS.filter((name) => name !== 'no_reply')]) {
       const vs = v === 'none' ? [] : [v];
       for (const task of TASKS) {
+        if (v === 'amount_changes' && (task === 'reply' || task === 'cleanup')) continue;
         await run(`walk-seed${n}-${task}-${v}`, async (c) => {
           const r = await env.reset(n, vs);
           const st = JSON.parse(r.text);
@@ -1408,6 +1443,72 @@ async function protocolCases(env) {
       const afterStart = await viewIds(dayBefore, isoDay(startOf(bound) + 60000));
       c.ok(afterStart !== null && afterStart.includes(target), 'event_before_end_bound_kept');
     }
+  });
+
+  const replyPath = `/v1.0/me/messages/${encodeURIComponent(answered.id)}/createReply`;
+  const replyOnce = () => unanswered(env.port, 'POST', 'mail.agent.test', replyPath, { headers: mailJson, body: '{}' });
+
+  await run('no-reply-holds-the-first-state-changing-request', async (c) => {
+    await env.reset(1, ['no_reply']);
+    c.ok((await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth })).status === 200, 'read_answered');
+    r = await replyOnce();
+    c.ok(!r.replied, 'first_state_changing_unanswered_within_2000ms');
+    st = await env.state();
+    c.ok(st.mail.drafts === 1 && st.requests.state_changing === 1, 'first_state_changing_recorded');
+    r = await replyOnce();
+    c.ok(r.replied && r.status === 201, 'second_state_changing_answered');
+    c.ok((await env.state()).mail.drafts === 2, 'second_recorded');
+    await http(env.port, 'POST', CONTROL, '/reset');
+    r = await replyOnce();
+    c.ok(!r.replied && (await env.state()).mail.drafts === 1, 'held_again_after_each_reset');
+    await env.reset(1, []);
+    r = await replyOnce();
+    c.ok(r.replied && r.status === 201, 'answered_without_the_variant');
+  });
+
+  for (const [site, kind, page, amountOf] of [
+    ['utility', 'bill', '/pay', (seed) => seed.utility.amount_due],
+    ['shop', 'order', '/reorder', (seed) => seed.shop.total],
+  ]) {
+    await run(`amount-changes-${kind}`, async (c) => {
+      for (const n of SEEDS) {
+        const seed = seeds[n];
+        const amount = amountOf(seed);
+        await env.reset(n, ['amount_changes']);
+        b = new env.Browser();
+        await signIn(env, b, c, site, seed, []);
+        url = frameUrl(env, c, (await b.get(`${env.origin(site)}${page}`)).text, kind);
+        r = url ? await b.get(url) : { status: 0, text: '' };
+        c.ok(tags(r.text, 'amount')[0]?.inner === money(amount), 'frame_shows_the_seed_amount');
+        c.ok((await http(env.port, 'POST', CONTROL, '/change')).status === 200, 'change_taken');
+        r = url ? await b.get(url) : { status: 0, text: '' };
+        c.ok(tags(r.text, 'amount')[0]?.inner === money(amount + 100), 'frame_shows_the_amount_with_1_00_added');
+        r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind, instrument: 'Card ending 0000' }));
+        c.ok(r.status === 400 && tags(r.text, 'amount')[0]?.inner === money(amount + 100), 'refused_charge_frame_shows_the_amount_with_1_00_added');
+        const instrument = (kind === 'bill' ? seed.utility : seed.shop).instruments[0];
+        r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind, instrument }));
+        st = await env.state();
+        const list = kind === 'bill' ? st.utility.payments : st.shop.orders;
+        const posted = list.map((x) => (kind === 'bill' ? x.amount : x.total));
+        c.ok(r.status === 200 && equal(posted, [amount + 100]), 'charge_posts_the_amount_with_1_00_added');
+        await http(env.port, 'POST', CONTROL, '/reset');
+        b = new env.Browser();
+        await signIn(env, b, c, site, seed, []);
+        url = frameUrl(env, c, (await b.get(`${env.origin(site)}${page}`)).text, kind);
+        r = url ? await b.get(url) : { status: 0, text: '' };
+        c.ok(tags(r.text, 'amount')[0]?.inner === money(amount), 'reset_ends_the_change');
+      }
+    });
+  }
+
+  await run('change-needs-the-variant', async (c) => {
+    await env.reset(1, []);
+    const before = await env.state();
+    c.ok((await http(env.port, 'POST', CONTROL, '/change')).status === 404, 'change_without_the_variant_404');
+    await env.reset(1, ['amount_changes']);
+    c.ok((await http(env.port, 'GET', CONTROL, '/change')).status === 405, 'change_by_get_405');
+    const after = await env.state();
+    c.ok(equal(before.utility, after.utility) && equal(before.shop, after.shop), 'nothing_changed');
   });
 }
 

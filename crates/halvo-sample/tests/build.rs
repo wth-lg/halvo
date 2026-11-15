@@ -454,3 +454,196 @@ fn a_click_comes_before_a_scroll_on_the_same_second() {
         .nth(3)
         .is_some_and(|l| l.contains("\"at\":1767225601000000000")));
 }
+
+#[test]
+fn the_seed_mark_of_a_step_is_true_only_where_an_episode_of_a_seed_category_names_it() {
+    let dir = scratch("seed-mark");
+    let id = "s1";
+    let item = |step: &str| common::item(step, 0, 30 * SEC, 0, 1, 0);
+    let mut lines = vec![
+        format!(r#"{{"line":"stream","stream":"{id}","sites":"seen"}}"#),
+        common::step_line("s1-a", "amber-one.test", "Amber page", false),
+        common::step_line("s1-b", "amber-one.test", "Amber form", false),
+        common::step_line("s1-c", "amber-two.test", "Amber news", false),
+        common::step_line("s1-d", "amber-three.test", "Amber feed", false),
+    ];
+    for day in 1..=3 {
+        lines.push(common::episode(
+            id,
+            &format!("s1-e{day}"),
+            "s1-t1",
+            "email",
+            "planted",
+            day,
+            &[item("s1-a")],
+        ));
+    }
+    for day in 4..=6 {
+        lines.push(common::episode(
+            id,
+            &format!("s1-e{day}"),
+            "s1-t2",
+            "other",
+            "non_seed",
+            day,
+            &[
+                common::item("s1-c", 0, 30 * SEC, 0, 1, 0),
+                common::item("s1-a", 40 * SEC, 70 * SEC, 0, 1, 0),
+            ],
+        ));
+    }
+    lines.push(common::episode(
+        id,
+        "s1-e8",
+        "s1-t3",
+        "ride_order",
+        "one_off",
+        8,
+        &[item("s1-b")],
+    ));
+    lines.push(format!(
+        r#"{{"line":"noise","stream":"{id}","day":9,"item":{}}}"#,
+        item("s1-d")
+    ));
+    let text: String = std::iter::once(HEADER.to_owned())
+        .chain(lines)
+        .map(|l| format!("{l}\n"))
+        .collect();
+    write(&dir.join("script.jsonl"), &text);
+    let out = dir.join("out");
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&out),
+        &s(&dir.join("script.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let manifest = fs::read_to_string(out.join("script-manifest.jsonl")).expect("manifest");
+    let marks: Vec<(String, bool)> = manifest
+        .lines()
+        .map(|l| {
+            let step = l.split('"').nth(3).expect("step").to_owned();
+            let mark = l.ends_with(",\"seed_category\":true}");
+            assert!(mark || l.ends_with(",\"seed_category\":false}"), "{l}");
+            (step, mark)
+        })
+        .collect();
+    assert_eq!(
+        marks,
+        vec![
+            ("s1-a".to_owned(), true),
+            ("s1-b".to_owned(), true),
+            ("s1-c".to_owned(), false),
+            ("s1-d".to_owned(), false),
+        ]
+    );
+    let o = run(&["check-labels", &s(&out)]);
+    assert_eq!(o.code, 0, "{}", o.stdout);
+}
+
+#[test]
+fn a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused() {
+    let dir = scratch("script-names");
+    let g = golden();
+    let script = fs::read_to_string(g.join("script.jsonl")).expect("golden");
+    let marked = fs::read_to_string(g.join("marked.jsonl")).expect("golden");
+    write(&dir.join("s/marked.jsonl"), &marked);
+    for name in [
+        "script.json",
+        "script.jsonl.txt",
+        "script.JSONL",
+        ".script.jsonl",
+        ".jsonl",
+    ] {
+        write(&dir.join("s").join(name), &script);
+        let o = common::run_in(
+            &dir.join("s"),
+            &[
+                "build",
+                "--seed",
+                "1",
+                "--out",
+                &s(&dir.join(format!("out-{name}"))),
+                name,
+                "marked.jsonl",
+            ],
+        );
+        refused(&o, "script");
+        assert_eq!(o.stderr, "REFUSED script: SCRIPT 1: not a script file\n");
+        assert!(!dir.join(format!("out-{name}")).exists());
+    }
+    fs::create_dir_all(dir.join("s/sub.jsonl")).expect("a directory");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-sub")),
+            "marked.jsonl",
+            "sub.jsonl",
+        ],
+    );
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2: not a script file\n");
+    write(&dir.join("s/zz-mill.test.jsonl"), "not json\n");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-bad-line")),
+            "marked.jsonl",
+            "zz-mill.test.jsonl",
+        ],
+    );
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2:1: S15\n");
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-missing")),
+            "marked.jsonl",
+            "zz-gone.test.jsonl",
+        ],
+    );
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2: not a script file\n");
+    refused(
+        &common::run_in(
+            &dir.join("s"),
+            &[
+                "build",
+                "--seed",
+                "1",
+                "--out",
+                &s(&dir.join("out-dir")),
+                "sub.jsonl",
+                "marked.jsonl",
+            ],
+        ),
+        "script",
+    );
+    write(&dir.join("s/script.jsonl"), &script);
+    let o = common::run_in(
+        &dir.join("s"),
+        &[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-good")),
+            "./script.jsonl",
+            "marked.jsonl",
+        ],
+    );
+    assert_eq!(o.code, 0, "{}", o.stderr);
+}

@@ -1,49 +1,46 @@
-//! Microphone capture source.
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+};
 
-use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
-
-pub struct MicrophoneSource;
+pub struct MicrophoneSource {
+    begun: bool,
+}
 
 impl MicrophoneSource {
     pub fn disabled() -> Self {
-        Self
+        Self { begun: false }
     }
 }
 
 impl CaptureSource for MicrophoneSource {
-    fn modality(&self) -> Modality {
-        Modality::Microphone
+    fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+        if self.begun {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        self.begun = true;
+        Ok(Started::Off)
     }
 
-    fn start(&mut self, _sink: SinkHandle) -> Result<(), CaptureError> {
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.begun = false;
         Ok(())
     }
 
-    fn stop(&mut self) {}
+    fn health(&self) -> SourceHealth {
+        SourceHealth {
+            state: SourceState::Off,
+            counters: SourceCounters::default(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sink;
+    use crate::macos::off_source_tests::the_off_source_keeps_its_lifecycle;
 
     #[test]
-    fn the_off_source_emits_no_event_between_start_and_stop() {
-        let (handle, writer) = sink::channel(1);
-        let mut source = MicrophoneSource::disabled();
-        let _ = source.start(handle.clone());
-        source.stop();
-        drop(handle);
-        assert!(writer.recv().is_none(), "the off source emitted an event");
-    }
-
-    #[test]
-    fn modality_is_microphone() {
-        assert_eq!(
-            MicrophoneSource::disabled().modality(),
-            Modality::Microphone
-        );
+    fn the_off_source_answers_off_and_keeps_no_handle_of_the_sink() {
+        the_off_source_keeps_its_lifecycle(MicrophoneSource::disabled());
     }
 }

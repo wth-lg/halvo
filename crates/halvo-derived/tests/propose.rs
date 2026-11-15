@@ -678,3 +678,57 @@ fn of_proposals_of_one_key_in_one_call_the_first_that_passes_stands_and_each_lat
         "two proposals of two keys are both stored"
     );
 }
+
+/// DS-5 (a), C2.11: the summary read keeps its upper side. With the clock set back below two stored summaries, one
+/// and two days after the clock's day, which the expiry keeps, a commit's summary read visits neither; each is
+/// visited from the first commit after the clock has reached its day, and no expiry on the way removes a summary.
+#[test]
+fn the_summary_read_visits_a_summary_of_a_day_after_the_clock_s_day_only_once_the_clock_reaches_it()
+{
+    let scratch = Scratch::new("summary-read-upper");
+    let clock = TestClock::at_day(DAY + 2);
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(
+        Box::new(clock.clone()),
+        Box::new(Recorder(Rc::clone(&seen))),
+    );
+    let mut store = open_host(&scratch, host).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, DAY, None),
+                episode(2, DAY + 1, None),
+                episode(3, DAY + 2, None),
+            ],
+            position(1, 0),
+            &mut Seq(1),
+        )
+        .unwrap();
+    let mut walked = Vec::new();
+    for (at, day) in [(2, DAY), (3, DAY + 1), (4, DAY + 2)] {
+        clock.set_day(day);
+        let removed = store.expire().unwrap();
+        seen.borrow_mut().clear();
+        store
+            .commit_batch(&store_id(1), &[], position(at, 0), &mut Seq(1))
+            .unwrap();
+        let ids: Vec<String> = seen.borrow().iter().map(|(_, id)| id.clone()).collect();
+        walked.push((ids, removed));
+    }
+    drop(store);
+    let id = |n: u64| summary_id(n).as_str().to_owned();
+    assert_eq!(
+        walked,
+        vec![
+            (vec![id(1)], 0),
+            (vec![id(1), id(2)], 0),
+            (vec![id(1), id(2), id(3)], 0),
+        ],
+        "(the summaries visited, the rows that the expiry removed) with the clock on DAY, DAY + 1 and DAY + 2"
+    );
+    assert_eq!(
+        count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'summary'"),
+        3
+    );
+}

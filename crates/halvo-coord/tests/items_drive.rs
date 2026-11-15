@@ -1107,8 +1107,14 @@ fn rd61c_a_read_of_another_move_that_brings_the_lost_row_ends_the_doubt_of_its_p
         .map(|t| t.call.clone())
         .collect();
     assert!(
-        matches!(&calls[..], [Call::AnswerHandback(_, HandbackResult::Done)]),
-        "the stored answer goes with no log: {calls:?}"
+        matches!(
+            &calls[..],
+            [
+                Call::History(..),
+                Call::AnswerHandback(_, HandbackResult::Done)
+            ]
+        ),
+        "the stored answer goes with no log, after one read: {calls:?}"
     );
 }
 

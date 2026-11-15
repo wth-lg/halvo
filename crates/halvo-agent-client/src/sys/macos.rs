@@ -1,8 +1,12 @@
 #![allow(unsafe_code)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
-use std::ffi::c_void;
+use std::ffi::{c_void, OsString};
 use std::io;
 use std::mem::{size_of, MaybeUninit};
+use std::os::unix::ffi::OsStringExt;
+use std::os::unix::process::CommandExt;
+use std::process::Command;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -33,7 +37,21 @@ struct ProcBsdInfo {
 
 const _: () = assert!(size_of::<ProcBsdInfo>() == 136);
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct ProcFdInfo {
+    proc_fd: i32,
+    proc_fdtype: u32,
+}
+
+const _: () = assert!(size_of::<ProcFdInfo>() == 8);
+
+const PROC_PIDLISTFDS: i32 = 1;
 const PROC_PIDTBSDINFO: i32 = 3;
+const CS_DARWIN_USER_TEMP_DIR: i32 = 65537;
+const F_SETFD: i32 = 2;
+const FD_CLOEXEC: i32 = 1;
+const EMFILE: i32 = 24;
 const SZOMB: u32 = 5;
 const SIGKILL: i32 = 9;
 const SIGSTOP: i32 = 17;
@@ -51,6 +69,77 @@ extern "C" {
     fn proc_listallpids(buffer: *mut c_void, size: i32) -> i32;
     fn kill(pid: i32, sig: i32) -> i32;
     fn getentropy(buffer: *mut c_void, len: usize) -> i32;
+    fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+    fn confstr(name: i32, buf: *mut c_void, len: usize) -> usize;
+}
+
+/// The per-user temporary directory that the system answers by `confstr`, read from no variable of this process;
+/// none when it cannot be read.
+pub(crate) fn user_temp_dir() -> Option<OsString> {
+    // SAFETY: with a null buffer and a length of 0, confstr writes nothing and returns the length that it needs.
+    let len = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, std::ptr::null_mut(), 0) };
+    if len < 2 {
+        return None;
+    }
+    let mut buf = vec![0u8; len];
+    // SAFETY: `buf` is live and writable for `buf.len()` bytes, the length passed, and confstr writes at most that.
+    let got = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, buf.as_mut_ptr().cast(), buf.len()) };
+    if got != len {
+        return None;
+    }
+    buf.truncate(len - 1);
+    Some(OsString::from_vec(buf))
+}
+
+/// Makes the process that `cmd` starts close, at its exec and so before it runs, every descriptor beyond its
+/// standard input, output and error. The child reads its list of open descriptors after the fork, into room that
+/// this process makes beforehand for twice as many as it holds now; a list that cannot be read, that fills the room
+/// or a descriptor that cannot be marked fails the start, so that no start goes on with a descriptor left open.
+/// Two limits: no test makes the list call or a mark fail in the child, because nothing can make them fail there,
+/// so the tests hold `listed` and `mark_close_on_exec` instead; and no test holds that the room is twice the count:
+/// the doubling guards a start against descriptors that other threads open between the count and the fork, and a
+/// start that outruns its room fails closed.
+pub(crate) fn close_beyond_three(cmd: &mut Command) {
+    let own = i32::try_from(std::process::id()).unwrap_or(0);
+    // SAFETY: with a null buffer and a size of 0, proc_pidinfo writes nothing and returns the size that the list needs.
+    let held = unsafe { proc_pidinfo(own, PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
+    let room = usize::try_from(held).unwrap_or(0) / size_of::<ProcFdInfo>() * 2 + 64;
+    let mut list = vec![ProcFdInfo::default(); room];
+    // SAFETY: the step runs in the child between fork and exec, where only async-signal-safe calls may be made: it calls getpid, proc_pidinfo and fcntl alone, allocates nothing, since `list` is made here beforehand and moved in, and takes no lock.
+    unsafe {
+        cmd.pre_exec(move || close_at_exec_beyond_three(&mut list));
+    }
+}
+
+fn close_at_exec_beyond_three(list: &mut [ProcFdInfo]) -> io::Result<()> {
+    let room = i32::try_from(std::mem::size_of_val(list))
+        .map_err(|_| io::Error::from_raw_os_error(EMFILE))?;
+    let pid = i32::try_from(std::process::id()).map_err(|_| io::Error::from_raw_os_error(ESRCH))?;
+    // SAFETY: `list` is live and writable for `room` bytes, the size passed, and the call writes at most that.
+    let got = unsafe { proc_pidinfo(pid, PROC_PIDLISTFDS, 0, list.as_mut_ptr().cast(), room) };
+    let open = listed(got, room)?;
+    mark_close_on_exec(&list[..open])
+}
+
+/// The count of entries in `got`, the answer of a list call into `room` bytes: an answer of 0 or less is no list,
+/// and an answer that fills the room may have been cut short, so both refuse. Allocates nothing and takes no lock.
+fn listed(got: i32, room: i32) -> io::Result<usize> {
+    if got <= 0 || got >= room {
+        return Err(io::Error::from_raw_os_error(EMFILE));
+    }
+    Ok(usize::try_from(got).unwrap_or(0) / size_of::<ProcFdInfo>())
+}
+
+/// Marks close-on-exec each descriptor of `entries` beyond the standard three; the first that cannot be marked
+/// gives its error. Allocates nothing and takes no lock.
+fn mark_close_on_exec(entries: &[ProcFdInfo]) -> io::Result<()> {
+    for entry in entries {
+        // SAFETY: F_SETFD takes a descriptor number and an int flag, and the call reads no memory of this process.
+        if entry.proc_fd > 2 && unsafe { fcntl(entry.proc_fd, F_SETFD, FD_CLOEXEC) } == -1 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
 }
 
 /// What the process table holds for one process.
@@ -81,6 +170,7 @@ pub(crate) fn info(pid: u32) -> Read {
     };
     let mut buf = MaybeUninit::<ProcBsdInfo>::zeroed();
     let size = size_of::<ProcBsdInfo>() as i32;
+    // SAFETY: `buf` is live and writable for `size` bytes, the size of the struct passed, and the call writes at most that.
     let got = unsafe { proc_pidinfo(p, PROC_PIDTBSDINFO, 0, buf.as_mut_ptr().cast(), size) };
     if got != size {
         return match io::Error::last_os_error().raw_os_error() {
@@ -88,6 +178,7 @@ pub(crate) fn info(pid: u32) -> Read {
             _ => Read::Unknown,
         };
     }
+    // SAFETY: the call above wrote all `size` bytes of `buf`, as `got == size` shows, and every field of the struct is plain data.
     let i = unsafe { buf.assume_init() };
     let started_us = i
         .pbi_start_tvsec
@@ -119,6 +210,7 @@ pub(crate) enum ChildState {
 
 pub(crate) fn child_state(pid: u32) -> ChildState {
     let mut info = [0u64; 16];
+    // SAFETY: `info` is live and writable for 128 bytes, more than the siginfo_t that waitid writes, and WNOWAIT leaves the child unreaped.
     let r = unsafe {
         waitid(
             P_PID,
@@ -145,6 +237,7 @@ pub(crate) fn child_state(pid: u32) -> ChildState {
 /// 0, -1 and a negative number of another form as the caller's own group or as every process.
 pub(crate) fn kill_group(pgid: u32) -> bool {
     match as_pid(pgid) {
+        // SAFETY: kill takes two ints and touches no memory of this process; as_pid keeps 0, -1 and other forms that kill reads otherwise out.
         Some(g) => unsafe { kill(-g, SIGKILL) == 0 },
         None => false,
     }
@@ -153,6 +246,7 @@ pub(crate) fn kill_group(pgid: u32) -> bool {
 /// Sends SIGSTOP to the process group `pgid`, with the guard of `kill_group`.
 pub(crate) fn stop_group(pgid: u32) -> bool {
     match as_pid(pgid) {
+        // SAFETY: kill takes two ints and touches no memory of this process; as_pid keeps 0, -1 and other forms that kill reads otherwise out.
         Some(g) => unsafe { kill(-g, SIGSTOP) == 0 },
         None => false,
     }
@@ -161,6 +255,7 @@ pub(crate) fn stop_group(pgid: u32) -> bool {
 /// Sends SIGKILL to the one process `pid`, never to a number below 2 or above the largest pid.
 pub(crate) fn kill_pid(pid: u32) -> bool {
     match as_pid(pid) {
+        // SAFETY: kill takes two ints and touches no memory of this process; as_pid keeps 0, 1 and numbers beyond the largest pid out.
         Some(p) => unsafe { kill(p, SIGKILL) == 0 },
         None => false,
     }
@@ -168,12 +263,14 @@ pub(crate) fn kill_pid(pid: u32) -> bool {
 
 /// Every process of the table whose information can be read.
 pub(crate) fn table() -> io::Result<Vec<Info>> {
+    // SAFETY: with a null buffer and a size of 0, proc_listallpids writes nothing and returns the count of processes.
     let needed = unsafe { proc_listallpids(std::ptr::null_mut(), 0) };
     if needed <= 0 {
         return Err(io::Error::last_os_error());
     }
     let mut pids = vec![0i32; usize::try_from(needed).unwrap_or(0) + 512];
     let bytes = i32::try_from(pids.len() * size_of::<i32>()).unwrap_or(i32::MAX);
+    // SAFETY: `pids` is live and writable for `bytes` bytes, the size passed, and the call writes at most that.
     let got = unsafe { proc_listallpids(pids.as_mut_ptr().cast(), bytes) };
     if got <= 0 {
         return Err(io::Error::last_os_error());
@@ -191,6 +288,7 @@ pub(crate) fn table() -> io::Result<Vec<Info>> {
 
 pub(crate) fn random16() -> io::Result<[u8; 16]> {
     let mut buf = [0u8; 16];
+    // SAFETY: `buf` is live and writable for `buf.len()` bytes, the length passed, which is at most the 256 that getentropy takes.
     if unsafe { getentropy(buf.as_mut_ptr().cast(), buf.len()) } != 0 {
         return Err(io::Error::last_os_error());
     }
@@ -201,6 +299,8 @@ pub(crate) fn random16() -> io::Result<[u8; 16]> {
 mod tests {
     use super::*;
 
+    const EBADF: i32 = 9;
+
     #[test]
     fn the_pid_guard_takes_neither_0_nor_1_nor_a_number_beyond_the_largest_pid() {
         assert_eq!(as_pid(0), None);
@@ -209,6 +309,49 @@ mod tests {
         assert_eq!(as_pid(2_147_483_647), Some(i32::MAX));
         assert_eq!(as_pid(2_147_483_648), None);
         assert_eq!(as_pid(u32::MAX), None);
+    }
+
+    #[test]
+    fn a_list_answer_of_0_or_less_or_one_that_fills_its_room_refuses_and_one_entry_less_passes() {
+        let room = 100 * size_of::<ProcFdInfo>() as i32;
+        let entry = size_of::<ProcFdInfo>() as i32;
+        let refused = |got| listed(got, room).map_err(|e| e.raw_os_error());
+        assert_eq!(refused(0), Err(Some(EMFILE)), "an answer of 0");
+        assert_eq!(refused(-1), Err(Some(EMFILE)), "an answer below 0");
+        assert_eq!(
+            refused(room),
+            Err(Some(EMFILE)),
+            "an answer that fills the room"
+        );
+        assert_eq!(
+            refused(room - entry).ok(),
+            Some(99),
+            "one entry less than the room"
+        );
+    }
+
+    #[test]
+    fn a_number_that_cannot_be_marked_gives_its_error() {
+        let not_open = ProcFdInfo {
+            proc_fd: i32::MAX,
+            proc_fdtype: 0,
+        };
+        assert_eq!(
+            mark_close_on_exec(&[not_open]).map_err(|e| e.raw_os_error()),
+            Err(Some(EBADF)),
+            "a number above the limit of open files, which no descriptor of this process has"
+        );
+    }
+
+    #[test]
+    fn a_list_of_descriptors_that_fills_its_room_fails_the_start() {
+        let mut room = [ProcFdInfo::default(); 1];
+        let refused = close_at_exec_beyond_three(&mut room);
+        assert_eq!(
+            refused.map_err(|e| e.raw_os_error()),
+            Err(Some(EMFILE)),
+            "a process holds at least its three standard descriptors, which do not fit one entry"
+        );
     }
 
     #[test]

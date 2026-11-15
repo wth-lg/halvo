@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs mutants in an order that the commit decides, starts no row after budget_s seconds and fails when a row that ran is not caught.
+# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in an order that the commit decides, starts no row after budget_s seconds, prints how many rows ran less those whose line says that the mutant does not build, and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
 set -u
 name=30-mutants
 budget_s=240
@@ -30,9 +30,12 @@ fail() {
 run_rows() {
   label=$1
   shift
+  started=$(date +%s) || exit 2
   out=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh "$@" --remove-scratch 2>&1)
   code=$?
+  ended=$(date +%s) || exit 2
   printf '%s\n' "$out"
+  printf 'phase apply-only %s s\n' "$((ended - started))"
   first=$(printf '%s\n' "$out" | sed -n '/^FAIL /{p;q;}')
   [ "$code" -eq 0 ] || fail "$label exited $code: ${first:-it printed no FAIL line}"
   [ -z "$first" ] || fail "$label exited 0 and printed: $first"
@@ -66,16 +69,19 @@ budget_run() {
     set -- "$@" --only "$row"
   done <"$scratch/ordered"
   label="mutation-test.sh --budget $budget_s"
+  started=$(date +%s) || exit 2
   out=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh --remove-scratch --budget "$budget_s" "$@" 2>&1)
   code=$?
+  ended=$(date +%s) || exit 2
   printf '%s\n' "$out"
+  printf 'phase budget %s s\n' "$((ended - started))"
   printf '%s\n' "$out" >"$scratch/full" || exit 2
   awk -v m="$m" '
-    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; next }
+    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; unbuilt[$2] = (index($0, "the mutant does not build") > 0); next }
     /^seconds mutation:[^ ]+ [0-9]+$/ {
-      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++ }
+      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++; if (!unbuilt[$2]) built++ }
     }
-    END { printf "ran %d of %d rows\n", n, m }' "$scratch/full" >"$scratch/ran" || exit 2
+    END { printf "ran %d of %d rows\nbuilt %d of %d rows\n", n, m, built, m }' "$scratch/full" >"$scratch/ran" || exit 2
   cat "$scratch/ran" || exit 2
   ran=$(sed -n 's/^ran \([0-9]*\) of .*/\1/p' "$scratch/ran")
   first=$(sed -n '/^FAIL /{p;q;}' "$scratch/full")
@@ -108,6 +114,10 @@ check() {
     STUB_CALLS=$work/$1/calls
     TMPDIR=$work/$1/tmp
     export CI_D_REPO STUB_CALLS TMPDIR
+    if [ -n "$dates" ]; then
+      PATH=$work/$dates/bin:$PATH
+      export PATH
+    fi
     unset GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA
     if [ -n "$event" ]; then
       GITHUB_EVENT_NAME=$event
@@ -152,6 +162,7 @@ check() {
   ref=refs/heads/a-branch
   sha=$commit1
   script=$0
+  dates=
 }
 
 signalled() {
@@ -208,12 +219,22 @@ runner() {
 }
 
 # shellcheck disable=SC2016
+stand_in_date() {
+  mkdir -p "$work/$1/bin" || exit 2
+  dates=$1
+  shift
+  printf '%s\n' "$@" >"$work/$dates/bin/date.values" || exit 2
+  printf '%s\n' '#!/bin/sh' 'here=${0%/*}' 'n=0' '[ ! -f "$here/date.n" ] || read -r n <"$here/date.n"' 'n=$((n + 1))' 'printf "%s\n" "$n" >"$here/date.n"' 'sed -n "${n}p" "$here/date.values"' >"$work/$dates/bin/date" || exit 2
+  chmod +x "$work/$dates/bin/date" || exit 2
+}
+
+# shellcheck disable=SC2016
 self_test() {
   make_scratch
   work=$scratch
   repo=$(cd "$(dirname "$0")/../../.." && pwd) || exit 2
   only='[ "${1:-}" = --apply-only ] || exit 9'
-  applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and builds)\n"; exit 0 ;; esac'
+  applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and type-checks)\n"; exit 0 ;; esac'
   apply_only='call --apply-only --remove-scratch'
   commit1=1111111111111111111111111111111111111111
   commit2=2222222222222222222222222222222222222222
@@ -229,6 +250,7 @@ self_test() {
   counted='mutation rows: 1 caught, 0 failed, 0 open, 0 transitional, 0 for the measuring Mac not run, 0 expected names with no row'
   rejected=0
   wrong=
+  dates=
   event=push
   ref=refs/heads/a-branch
   sha=$commit1
@@ -236,15 +258,23 @@ self_test() {
 
   runner rows-apply "$applies; exit 9"
   check rows-apply PASS '' "$apply_only"
-  runner anchor-moved "$only; printf \"PASS mutation:checkpoint-not-verified (applies and builds)\\nFAIL mutation:shredded-key-survives (the substitution did not apply)\\n\"; exit 1"
+  runner rows-type-checked-and-timed "$applies; exit 9"
+  check rows-type-checked-and-timed PASS "PASS mutation:shredded-key-survives (applies and type-checks)${nl}phase apply-only " "$apply_only"
+  runner anchor-moved "$only; printf \"PASS mutation:checkpoint-not-verified (applies and type-checks)\\nFAIL mutation:shredded-key-survives (the substitution did not apply)\\n\"; exit 1"
   check anchor-moved FAIL 'mutation-test.sh --apply-only exited 1: FAIL mutation:shredded-key-survives (the substitution did not apply))' "$apply_only"
-  runner runner-exits-2 "$only; printf \"PASS mutation:shredded-key-survives (applies and builds)\\n\"; exit 2"
+  runner rows-apply-timed-by-the-clock "$applies; exit 9"
+  stand_in_date rows-apply-timed-by-the-clock 1000 1007
+  check rows-apply-timed-by-the-clock PASS "${nl}phase apply-only 7 s${nl}" "$apply_only"
+  runner anchor-moved-is-timed-by-the-clock "$only; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\"; exit 1"
+  stand_in_date anchor-moved-is-timed-by-the-clock 1000 1007
+  check anchor-moved-is-timed-by-the-clock FAIL "${nl}phase apply-only 7 s${nl}FAIL $name (mutation-test.sh --apply-only exited 1" "$apply_only"
+  runner runner-exits-2 "$only; printf \"PASS mutation:shredded-key-survives (applies and type-checks)\\n\"; exit 2"
   check runner-exits-2 FAIL 'mutation-test.sh --apply-only exited 2: it printed no FAIL line)' "$apply_only"
   runner fail-line-with-exit-0 "$only; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\""
   check fail-line-with-exit-0 FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL mutation:shredded-key-survives' "$apply_only"
-  runner other-fail-line-with-exit-0 "$only; printf \"PASS mutation:shredded-key-survives (applies and builds)\\nFAIL unmutated:store (gate said: FAIL store)\\n\""
+  runner other-fail-line-with-exit-0 "$only; printf \"PASS mutation:shredded-key-survives (applies and type-checks)\\nFAIL unmutated:store (gate said: FAIL store)\\n\""
   check other-fail-line-with-exit-0 FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL unmutated:store' "$apply_only"
-  runner fail-line-on-standard-error "$only; printf \"PASS mutation:checkpoint-not-verified (applies and builds)\\n\"; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\" >&2"
+  runner fail-line-on-standard-error "$only; printf \"PASS mutation:checkpoint-not-verified (applies and type-checks)\\n\"; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\" >&2"
   check fail-line-on-standard-error FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL mutation:shredded-key-survives' "$apply_only"
   runner no-row "$only; exit 0"
   check no-row FAIL 'mutation-test.sh --apply-only printed no PASS mutation line)' "$apply_only"
@@ -264,7 +294,16 @@ self_test() {
 
   runner push-to-main-runs-rows-in-the-order-of-the-commit "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-runs-rows-in-the-order-of-the-commit PASS "row mutation:segment-roundtrip-broken PASS 31 s${nl}ran 1 of 5 rows${nl}PASS $name" "$order1"
+  check push-to-main-runs-rows-in-the-order-of-the-commit PASS "row mutation:segment-roundtrip-broken PASS 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}PASS $name" "$order1"
+  runner push-to-main-times-the-budget-run "$applies; $listing; printf \"$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-times-the-budget-run PASS "${nl}phase budget " "$order1"
+  runner push-to-main-mutant-that-does-not-build "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (the mutant does not build)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
+  ref=refs/heads/main
+  check push-to-main-mutant-that-does-not-build FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}FAIL $name" "$order1"
+  runner push-to-main-control-row-is-not-built "$applies; $listing; printf \"PASS mutation:segment-roundtrip-broken (control: the mutant does not build, and the runner did not count it as caught)\\nseconds mutation:segment-roundtrip-broken 12\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-control-row-is-not-built PASS "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}PASS $name" "$order1"
   runner push-to-main-same-commit-same-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-same-commit-same-rows PASS 'ran 1 of 5 rows' "$order1"
@@ -280,7 +319,7 @@ self_test() {
   ref=refs/heads/main
   check push-to-main-name-in-two-row-files PASS 'ran 1 of 5 rows' "$order1"
   if command -v dash >/dev/null 2>&1; then
-    runner term-under-dash-leaves-no-directory "case \${1:-} in --apply-only) : >\"\$STUB_CALLS.started\"; sleep 2; printf \"PASS mutation:shredded-key-survives (applies and builds)\\n\" ;; esac"
+    runner term-under-dash-leaves-no-directory "case \${1:-} in --apply-only) : >\"\$STUB_CALLS.started\"; sleep 2; printf \"PASS mutation:shredded-key-survives (applies and type-checks)\\n\" ;; esac"
     signalled term-under-dash-leaves-no-directory
   fi
   real_runner real-runner-rows-and-count
@@ -294,7 +333,11 @@ self_test() {
   check real-runner-first-row-only PASS "PASS $name" '' "row mutation:alpha-gone PASS N s${nl}ran 1 of 4 rows"
   runner push-to-main-row-not-caught "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
-  check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
+  check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
+  runner push-to-main-budget-is-timed-by-the-clock "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
+  ref=refs/heads/main
+  stand_in_date push-to-main-budget-is-timed-by-the-clock 1000 1007 2000 2042
+  check push-to-main-budget-is-timed-by-the-clock FAIL "${nl}phase budget 42 s${nl}" "$order1"
   runner push-to-main-not-caught-with-exit-0 "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-not-caught-with-exit-0 FAIL 'mutation-test.sh --budget 240 exited 0 and printed: FAIL mutation:segment-roundtrip-broken' "$order1"

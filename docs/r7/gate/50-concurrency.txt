@@ -1,5 +1,5 @@
-line: PASS concurrency: runs=165 of 165 cells=28 of 28 violations=0 wave=600 of 600 lost-sends=0 settle-p99-at-200=13ms second-attempts=9 rollover-uncrossed=0 slow=0 burst-p50-at-200=437ms rollover-redrawn=0
-stamp: 2026-11-13T19:04:32Z
-load: 10.89
-tree: 686f7f842745ae164c3160e16d7f957a82825e35
+line: PASS concurrency: runs=165 of 165 cells=28 of 28 violations=0 wave=600 of 600 lost-sends=0 settle-p99-at-200=16ms second-attempts=9 rollover-uncrossed=0 slow=0 burst-p50-at-200=443ms rollover-redrawn=0
+stamp: 2026-11-14T09:04:18Z
+load: 5.75
+tree: 1bb800d47b4e91cc58feb2ebc6bca6de05cea91b
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

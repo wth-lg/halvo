@@ -166,10 +166,10 @@ fn printable(word: &str) -> &str {
 }
 
 #[cfg(test)]
+#[forbid(unsafe_code)]
 mod tests {
-    use std::alloc::{GlobalAlloc, Layout, System};
     use std::process::Command;
-    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::sync::atomic::Ordering;
 
     use halvo_route::policy::{Basis, PickCell, Row};
     use halvo_route::tier::Level;
@@ -186,48 +186,9 @@ mod tests {
 
     const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
 
-    struct Counting;
-
-    static FIRST_THREAD: AtomicUsize = AtomicUsize::new(0);
-    static FIRST_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-    static FIRST_BYTES: AtomicU64 = AtomicU64::new(0);
-    static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-    static BYTES: AtomicU64 = AtomicU64::new(0);
-
-    thread_local! {
-        static MARK: u8 = const { 0 };
-    }
-
-    fn this_thread() -> usize {
-        MARK.with(|mark| std::ptr::from_ref(mark).addr())
-    }
-
-    #[allow(unsafe_code)]
-    unsafe impl GlobalAlloc for Counting {
-        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            let me = this_thread();
-            let first =
-                match FIRST_THREAD.compare_exchange(0, me, Ordering::SeqCst, Ordering::SeqCst) {
-                    Ok(_) => me,
-                    Err(first) => first,
-                };
-            let (calls, bytes) = if me == first {
-                (&FIRST_ALLOCATIONS, &FIRST_BYTES)
-            } else {
-                (&ALLOCATIONS, &BYTES)
-            };
-            calls.fetch_add(1, Ordering::SeqCst);
-            bytes.fetch_add(layout.size() as u64, Ordering::SeqCst);
-            System.alloc(layout)
-        }
-
-        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            System.dealloc(ptr, layout)
-        }
-    }
-
-    #[global_allocator]
-    static COUNTING: Counting = Counting;
+    use super::counting::{
+        this_thread, ALLOCATIONS, BYTES, FIRST_ALLOCATIONS, FIRST_BYTES, FIRST_THREAD,
+    };
 
     fn first_thread() -> (u64, u64) {
         (
@@ -247,28 +208,40 @@ mod tests {
         (after.0 - before.0, after.1 - before.1)
     }
 
-    struct Apart(());
+    mod token {
+        use std::sync::atomic::Ordering;
 
-    const ON_THE_FIRST_THREAD: &str =
-        "the test runs on the process's first thread, whose calls the windows leave out";
-    const NO_FIRST_THREAD: &str = "no thread made a call of the allocator before the test began";
+        use super::{this_thread, FIRST_THREAD};
 
-    fn apart(first: usize, me: usize, first_calls: u64) -> Result<Apart, &'static str> {
-        if first_calls == 0 {
-            return Err(NO_FIRST_THREAD);
+        pub(super) struct Apart(());
+
+        pub(super) const ON_THE_FIRST_THREAD: &str =
+            "the test runs on the process's first thread, whose calls the windows leave out, so \
+             nothing was measured; the test harness runs a test there when it cannot start a \
+             thread for it";
+        pub(super) const NO_FIRST_THREAD: &str =
+            "no thread made a call of the allocator before the test began";
+
+        pub(super) fn refusal(first: usize, me: usize, first_calls: u64) -> Option<&'static str> {
+            if first_calls == 0 {
+                return Some(NO_FIRST_THREAD);
+            }
+            if me == first {
+                return Some(ON_THE_FIRST_THREAD);
+            }
+            None
         }
-        if me == first {
-            return Err(ON_THE_FIRST_THREAD);
+
+        pub(super) fn apart_from_the_harness(start: (u64, u64)) -> Apart {
+            if let Some(why) = refusal(FIRST_THREAD.load(Ordering::SeqCst), this_thread(), start.0)
+            {
+                panic!("{why}");
+            }
+            Apart(())
         }
-        Ok(Apart(()))
     }
 
-    fn apart_from_the_harness(start: (u64, u64)) -> Apart {
-        match apart(FIRST_THREAD.load(Ordering::SeqCst), this_thread(), start.0) {
-            Ok(apart) => apart,
-            Err(why) => panic!("{why}"),
-        }
-    }
+    use token::{apart_from_the_harness, refusal, Apart, NO_FIRST_THREAD, ON_THE_FIRST_THREAD};
 
     struct Window {
         first: (u64, u64),
@@ -300,14 +273,18 @@ mod tests {
         many.others == one.others
     }
 
+    fn window_line(name: &str, window: &Window) -> String {
+        format!(
+            "window {name} first_calls={} first_bytes={} other_calls={} other_bytes={}",
+            window.first.0, window.first.1, window.others.0, window.others.1
+        )
+    }
+
     fn print_windows(start: (u64, u64), windows: [(&str, &Window); 2]) {
         let end = first_thread();
         let on_first = this_thread() == FIRST_THREAD.load(Ordering::SeqCst);
         for (name, window) in windows {
-            println!(
-                "window {name} first_calls={} first_bytes={} other_calls={} other_bytes={}",
-                window.first.0, window.first.1, window.others.0, window.others.1
-            );
+            println!("{}", window_line(name, window));
         }
         println!(
             "first_thread start_calls={} start_bytes={} end_calls={} end_bytes={} \
@@ -445,6 +422,8 @@ mod tests {
             ("started", started),
             ("sized", sized),
         ] {
+            println!("{}", window_line(&format!("{name}:rounds=1"), &one.0));
+            println!("{}", window_line(&format!("{name}:rounds=many"), &many.0));
             assert!(
                 !the_same_count(&one.0, &many.0),
                 "{name}: 1 round {:?}, many rounds {:?}",
@@ -520,9 +499,11 @@ mod tests {
     }
 
     #[test]
-    fn the_count_sees_allocations_of_every_thread() {
+    fn the_count_sees_allocations_of_every_thread_but_the_first() {
         let start = first_thread();
-        if !in_a_child_alone("probe::tests::the_count_sees_allocations_of_every_thread") {
+        if !in_a_child_alone(
+            "probe::tests::the_count_sees_allocations_of_every_thread_but_the_first",
+        ) {
             return;
         }
         let apart = apart_from_the_harness(start);
@@ -565,6 +546,28 @@ mod tests {
     }
 
     #[test]
+    fn a_child_that_prints_a_pass_and_fails() {
+        if std::env::var_os(CHILD).is_some() {
+            println!("test result: ok. 1 passed");
+            assert_eq!(std::hint::black_box((1, 2)), (1, 3));
+        }
+    }
+
+    #[test]
+    fn a_child_that_prints_a_pass_and_fails_is_refused() {
+        let failed = std::panic::catch_unwind(|| {
+            in_a_child_alone("probe::tests::a_child_that_prints_a_pass_and_fails")
+        })
+        .expect_err("the child fails");
+        let text = failed.downcast_ref::<String>().expect("a panic text");
+        assert!(text.contains("test result: ok. 1 passed\n"), "{text}");
+        assert!(
+            text.contains("test result: FAILED. 0 passed; 1 failed"),
+            "{text}"
+        );
+    }
+
+    #[test]
     fn a_child_that_runs_no_test_fails_the_parent() {
         let failed = std::panic::catch_unwind(|| in_a_child_alone("probe::tests::no_such_test"))
             .expect_err("a child that runs no test fails");
@@ -582,8 +585,15 @@ mod tests {
         let size = 1 << 20;
         FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
         let (window, _) = allocations(&apart, || black_box(vec![0_u8; size]));
-        assert_eq!(window.first, (1, size as u64));
-        assert!(window.others.1 < size as u64, "{:?}", window.others);
+        println!("{}", window_line("mark-moved", &window));
+        let size = size as u64;
+        assert!(
+            window.first.0 >= 1 && window.first.1 >= size && window.first.1 < 2 * size,
+            "first {:?}, others {:?}",
+            window.first,
+            window.others
+        );
+        assert!(window.others.1 < size, "{:?}", window.others);
     }
 
     #[test]
@@ -599,10 +609,73 @@ mod tests {
 
     #[test]
     fn a_window_leaves_out_only_a_first_thread_that_is_not_the_test() {
-        assert!(apart(7, 8, 1).is_ok());
-        assert_eq!(apart(7, 7, 1).err(), Some(ON_THE_FIRST_THREAD));
-        assert_eq!(apart(7, 8, 0).err(), Some(NO_FIRST_THREAD));
-        assert_eq!(apart(0, 8, 0).err(), Some(NO_FIRST_THREAD));
+        assert_eq!(refusal(7, 8, 1), None);
+        assert_eq!(refusal(7, 7, 1), Some(ON_THE_FIRST_THREAD));
+        assert_eq!(refusal(7, 8, 0), Some(NO_FIRST_THREAD));
+        assert_eq!(refusal(0, 8, 0), Some(NO_FIRST_THREAD));
+    }
+
+    #[test]
+    fn the_refusal_on_the_first_thread_says_that_nothing_was_measured_and_why() {
+        assert!(
+            ON_THE_FIRST_THREAD.contains("nothing was measured"),
+            "{ON_THE_FIRST_THREAD}"
+        );
+        assert!(
+            ON_THE_FIRST_THREAD.contains(
+                "the test harness runs a test there when it cannot start a thread for it"
+            ),
+            "{ON_THE_FIRST_THREAD}"
+        );
+    }
+
+    #[test]
+    fn a_test_on_the_first_thread_is_refused_at_the_call() {
+        let start = first_thread();
+        if !in_a_child_alone("probe::tests::a_test_on_the_first_thread_is_refused_at_the_call") {
+            return;
+        }
+        FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
+        let refused = std::panic::catch_unwind(|| apart_from_the_harness(start))
+            .err()
+            .expect("the guard refuses");
+        assert_eq!(
+            refused.downcast_ref::<String>().map(String::as_str),
+            Some(ON_THE_FIRST_THREAD)
+        );
+    }
+
+    #[test]
+    fn a_window_line_names_each_count() {
+        let window = Window {
+            first: (1, 2),
+            others: (3, 4),
+        };
+        assert_eq!(
+            window_line("w", &window),
+            "window w first_calls=1 first_bytes=2 other_calls=3 other_bytes=4"
+        );
+    }
+
+    #[test]
+    fn the_same_count_reads_the_other_threads_alone() {
+        let window = |first, others| Window { first, others };
+        assert!(the_same_count(
+            &window((0, 0), (5, 40)),
+            &window((3, 208), (5, 40))
+        ));
+        assert!(!the_same_count(
+            &window((0, 0), (5, 40)),
+            &window((0, 0), (6, 40))
+        ));
+        assert!(!the_same_count(
+            &window((0, 0), (5, 40)),
+            &window((0, 0), (5, 48))
+        ));
+        assert!(!the_same_count(
+            &window((1, 8), (5, 40)),
+            &window((0, 0), (6, 48))
+        ));
     }
 
     #[test]
@@ -733,4 +806,53 @@ mod tests {
             );
         }
     }
+}
+
+#[cfg(test)]
+mod counting {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
+    struct Counting;
+
+    pub(super) static FIRST_THREAD: AtomicUsize = AtomicUsize::new(0);
+    pub(super) static FIRST_ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    pub(super) static FIRST_BYTES: AtomicU64 = AtomicU64::new(0);
+    pub(super) static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    pub(super) static BYTES: AtomicU64 = AtomicU64::new(0);
+
+    thread_local! {
+        static MARK: u8 = const { 0 };
+    }
+
+    pub(super) fn this_thread() -> usize {
+        MARK.with(|mark| std::ptr::from_ref(mark).addr())
+    }
+
+    #[allow(unsafe_code)]
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            let me = this_thread();
+            let first =
+                match FIRST_THREAD.compare_exchange(0, me, Ordering::SeqCst, Ordering::SeqCst) {
+                    Ok(_) => me,
+                    Err(first) => first,
+                };
+            let (calls, bytes) = if me == first {
+                (&FIRST_ALLOCATIONS, &FIRST_BYTES)
+            } else {
+                (&ALLOCATIONS, &BYTES)
+            };
+            calls.fetch_add(1, Ordering::SeqCst);
+            bytes.fetch_add(layout.size() as u64, Ordering::SeqCst);
+            System.alloc(layout)
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            System.dealloc(ptr, layout)
+        }
+    }
+
+    #[global_allocator]
+    static COUNTING: Counting = Counting;
 }

@@ -353,6 +353,9 @@ impl World {
             "mode": mode, "outcome": outcome, "playbook": null, "steps": 3, "prompts": 0,
             "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
             "tokens_in": 0, "tokens_out": 0, "wall_s": 9, "model": null,
+            "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+            "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+            "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
         });
         self.runner(json!({"op": "finish", "agent": agent(1), "run": run(r), "record": record}))
     }

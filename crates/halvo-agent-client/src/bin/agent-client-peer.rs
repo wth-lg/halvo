@@ -1,7 +1,15 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
 //! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
 //! it plays a browser that sleeps, as `child` a process that sleeps, and as `stderr-child MARKER` a process that
-//! prints MARKER on standard error and exits.
+//! prints MARKER on standard error and exits. On macOS `holder-parent LOG [SECONDS]` starts `holder [SECONDS]`, a
+//! process of a group of its own that sleeps with the standard input and output it was given and then exits with
+//! the status 0, logs it to LOG and exits, or ends it and exits with 1 when it cannot read its creation time or
+//! write the line; on Windows `hold PID IN OUT LOG [SECONDS]` copies the two handles IN and OUT of the process PID
+//! into itself, logs how many to LOG, sleeps and exits with the status 0. Each sleeps SECONDS, 300 by default. As
+//! `console-report HOST RUNNER LOG` it appends to LOG whether HOST and RUNNER are attached to its console and whether
+//! that console has a window.
+
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -44,6 +52,8 @@ enum OnEof {
 }
 
 const FLOOD_CHUNK: usize = 65_536;
+
+const HOLD_BOUND: u64 = 300;
 
 fn write_stderr(bytes: &[u8]) -> bool {
     let mut err = io::stderr().lock();
@@ -101,12 +111,310 @@ fn stderr_kind() -> &'static str {
     const FILE_TYPE_PIPE: u32 = 3;
     let handle = io::stderr().as_raw_handle();
     let mut mode = 0u32;
+    // SAFETY: `handle` is this process's standard error handle, which stays open for the call, and GetFileType only reads it.
     match unsafe { GetFileType(handle) } {
+        // SAFETY: `handle` stays open for the call, and `mode` is a live place for the answer.
         FILE_TYPE_CHAR if unsafe { GetConsoleMode(handle, &mut mode) } == 0 => "null",
         FILE_TYPE_PIPE => "pipe",
         FILE_TYPE_DISK => "file",
         _ => "other",
     }
+}
+
+#[cfg(target_os = "macos")]
+fn own_descriptors() -> String {
+    extern "C" {
+        fn proc_pidinfo(
+            pid: i32,
+            flavor: i32,
+            arg: u64,
+            buffer: *mut std::ffi::c_void,
+            size: i32,
+        ) -> i32;
+    }
+    const PROC_PIDLISTFDS: i32 = 1;
+    let mut list = vec![[0u32; 2]; 65_536];
+    let room = (list.len() * 8) as i32;
+    let pid = std::process::id() as i32;
+    // SAFETY: `list` is live and writable for `room` bytes, the size passed, and the call writes at most that.
+    let got = unsafe { proc_pidinfo(pid, PROC_PIDLISTFDS, 0, list.as_mut_ptr().cast(), room) };
+    if got <= 0 || got >= room {
+        return "unreadable".to_owned();
+    }
+    let mut fds: Vec<u32> = list[..got as usize / 8].iter().map(|e| e[0]).collect();
+    fds.sort_unstable();
+    fds.iter().map(u32::to_string).collect::<Vec<_>>().join(",")
+}
+
+#[cfg(windows)]
+fn own_descriptors() -> String {
+    "none".to_owned()
+}
+
+#[cfg(unix)]
+fn console_line(_host: u32, _runner: u32) -> String {
+    "attached=none".to_owned()
+}
+
+#[cfg(windows)]
+fn console_line(host: u32, runner: u32) -> String {
+    use std::ffi::c_void;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
+        fn GetConsoleWindow() -> *mut c_void;
+    }
+    #[link(name = "user32")]
+    extern "system" {
+        fn IsWindowVisible(window: *mut c_void) -> i32;
+    }
+    let mut list = [0u32; 256];
+    // SAFETY: `list` is live and writable for the count of entries passed, and the call writes at most that many.
+    let n = unsafe { GetConsoleProcessList(list.as_mut_ptr(), list.len() as u32) };
+    let held = &list[..(n as usize).min(list.len())];
+    let yes = |pid: u32| if held.contains(&pid) { "yes" } else { "no" };
+    // SAFETY: GetConsoleWindow takes no argument and returns a window handle or null.
+    let window = unsafe { GetConsoleWindow() };
+    // SAFETY: `window` is the handle that GetConsoleWindow returned, which the call only reads.
+    let visible = !window.is_null() && unsafe { IsWindowVisible(window) } != 0;
+    let window = if window.is_null() {
+        "none"
+    } else if visible {
+        "visible"
+    } else {
+        "hidden"
+    };
+    format!(
+        "attached={n} runner={} host={} window={window}",
+        yes(runner),
+        yes(host)
+    )
+}
+
+#[cfg(unix)]
+fn pipes_beyond_three() -> usize {
+    use std::os::unix::fs::FileTypeExt;
+    let Ok(entries) = std::fs::read_dir("/dev/fd") else {
+        return usize::MAX;
+    };
+    let fds: Vec<i32> = entries
+        .flatten()
+        .filter_map(|e| e.file_name().to_str()?.parse().ok())
+        .filter(|fd| *fd > 2)
+        .collect();
+    fds.iter()
+        .filter(|fd| {
+            std::fs::metadata(format!("/dev/fd/{fd}")).is_ok_and(|m| {
+                let t = m.file_type();
+                t.is_fifo() || t.is_socket()
+            })
+        })
+        .count()
+}
+
+#[cfg(windows)]
+fn pipes_beyond_three() -> usize {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileType(file: *mut c_void) -> u32;
+    }
+    const FILE_TYPE_PIPE: u32 = 3;
+    let own = [
+        io::stdin().as_raw_handle(),
+        io::stdout().as_raw_handle(),
+        io::stderr().as_raw_handle(),
+    ];
+    (1..=0x1000usize)
+        .map(|n| (n * 4) as *mut c_void)
+        .filter(|h| !own.contains(h))
+        // SAFETY: GetFileType takes any value and answers FILE_TYPE_UNKNOWN for one that is no open handle; this process's own three, on which a read may wait, are left out above.
+        .filter(|h| unsafe { GetFileType(*h) } == FILE_TYPE_PIPE)
+        .count()
+}
+
+#[cfg(windows)]
+fn hold(args: &[String]) -> ! {
+    use std::ffi::c_void;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn GetCurrentProcess() -> *mut c_void;
+        fn DuplicateHandle(
+            source_process: *mut c_void,
+            source: *mut c_void,
+            target_process: *mut c_void,
+            target: *mut *mut c_void,
+            access: u32,
+            inherit: i32,
+            options: u32,
+        ) -> i32;
+    }
+    const PROCESS_DUP_HANDLE: u32 = 0x0040;
+    const DUPLICATE_SAME_ACCESS: u32 = 0x0002;
+    let num = |i: usize| {
+        args.get(i)
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0)
+    };
+    // SAFETY: OpenProcess takes plain values and returns a new handle or null.
+    let runner = unsafe { OpenProcess(PROCESS_DUP_HANDLE, 0, num(1) as u32) };
+    let mut held = 0;
+    if !runner.is_null() {
+        for value in [num(2), num(3)] {
+            let mut copy: *mut c_void = std::ptr::null_mut();
+            // SAFETY: `runner` is the live handle opened above, GetCurrentProcess gives a pseudo handle that needs no close, and `copy` is a live place for the new handle.
+            let ok = unsafe {
+                DuplicateHandle(
+                    runner,
+                    value as *mut c_void,
+                    GetCurrentProcess(),
+                    &mut copy,
+                    0,
+                    0,
+                    DUPLICATE_SAME_ACCESS,
+                )
+            };
+            if ok != 0 {
+                held += 1;
+            }
+        }
+    }
+    if let Some(log) = args.get(4) {
+        if let Ok(mut f) = OpenOptions::new().append(true).open(log) {
+            let _ = f.write_all(format!("holder holds={held}\n").as_bytes());
+        }
+    }
+    let bound = args
+        .get(5)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(HOLD_BOUND);
+    thread::sleep(Duration::from_secs(bound));
+    std::process::exit(0)
+}
+
+#[cfg(unix)]
+fn write_inherited(number: &str, text: &[u8]) -> &'static str {
+    extern "C" {
+        fn write(fd: i32, buf: *const std::ffi::c_void, len: usize) -> isize;
+    }
+    match number.parse::<i32>() {
+        Ok(fd) if fd > 2 => {
+            // SAFETY: `text` is live and readable for its length, the length passed; a number that is no open descriptor only makes the call fail.
+            if unsafe { write(fd, text.as_ptr().cast(), text.len()) } > 0 {
+                "wrote"
+            } else {
+                "absent"
+            }
+        }
+        Ok(_) => "own",
+        Err(_) => "bad",
+    }
+}
+
+#[cfg(windows)]
+fn write_inherited(number: &str, text: &[u8]) -> &'static str {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetHandleInformation(handle: *mut c_void, flags: *mut u32) -> i32;
+        fn WriteFile(
+            handle: *mut c_void,
+            buf: *const u8,
+            len: u32,
+            written: *mut u32,
+            overlapped: *mut c_void,
+        ) -> i32;
+    }
+    let Ok(value) = number.parse::<usize>() else {
+        return "bad";
+    };
+    let handle = value as *mut c_void;
+    let own = [
+        io::stdin().as_raw_handle(),
+        io::stdout().as_raw_handle(),
+        io::stderr().as_raw_handle(),
+    ];
+    if own.contains(&handle) {
+        return "own";
+    }
+    let mut flags = 0u32;
+    // SAFETY: GetHandleInformation takes any value and fails for one that is no open handle; `flags` is a live place for the answer.
+    if unsafe { GetHandleInformation(handle, &mut flags) } == 0 || flags & 1 == 0 {
+        return "absent";
+    }
+    let mut wrote = 0u32;
+    // SAFETY: `handle` is an inheritable handle that this process holds open, as checked above, and the buffer and `wrote` are live for the call.
+    let ok = unsafe {
+        WriteFile(
+            handle,
+            text.as_ptr(),
+            text.len() as u32,
+            &mut wrote,
+            std::ptr::null_mut(),
+        )
+    };
+    if ok != 0 && wrote > 0 {
+        "wrote"
+    } else {
+        "absent"
+    }
+}
+
+#[cfg(unix)]
+fn in_system_directory() -> bool {
+    std::env::current_dir().is_ok_and(|d| d == Path::new("/"))
+}
+
+#[cfg(windows)]
+fn in_system_directory() -> bool {
+    use std::os::windows::ffi::OsStringExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
+    }
+    let mut buf = [0u16; 1024];
+    // SAFETY: `buf` is live and writable for its length in units, the size passed, and the call writes at most that.
+    let n = unsafe { GetSystemDirectoryW(buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    if n == 0 || n >= buf.len() {
+        return false;
+    }
+    let system = std::ffi::OsString::from_wide(&buf[..n]);
+    let trim = |s: &str| s.trim_end_matches('\\').to_ascii_lowercase();
+    std::env::current_dir()
+        .is_ok_and(|d| trim(&d.to_string_lossy()) == trim(&system.to_string_lossy()))
+}
+
+fn environment_lines(marker: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut marked = Vec::new();
+    let mut equal = Vec::new();
+    let mut temporary = 0;
+    for (name, value) in std::env::vars_os() {
+        let name = name.to_string_lossy().into_owned();
+        let text = value.to_string_lossy();
+        if text.contains(marker) {
+            marked.push(name.clone());
+        }
+        if text == marker {
+            equal.push(name.clone());
+        }
+        if ["TMPDIR", "TEMP", "TMP"].contains(&name.as_str()) && Path::new(&value).is_dir() {
+            temporary += 1;
+        }
+        names.push(name);
+    }
+    names.sort();
+    marked.sort();
+    equal.sort();
+    vec![
+        format!("environment names={}", names.join(",")),
+        format!("environment marked={}", marked.join(",")),
+        format!("environment equal={}", equal.join(",")),
+        format!("environment temporary-directories={temporary}"),
+    ]
 }
 
 fn wait_for_file(path: &Path, within: Duration) -> bool {
@@ -129,6 +437,7 @@ struct Peer {
     out: io::Stdout,
     replies: Receiver<Vec<u8>>,
     on_eof: Arc<Mutex<OnEof>>,
+    first_descriptors: String,
     browsers: Arc<Mutex<Vec<Child>>>,
 }
 
@@ -192,12 +501,14 @@ fn browser_in_group_of_last_child(
 #[cfg(unix)]
 fn close_stdout() {
     use std::os::fd::FromRawFd;
+    // SAFETY: the step closes standard output on purpose: descriptor 1 is open, and nothing of this process writes to it after the step.
     drop(unsafe { std::os::fd::OwnedFd::from_raw_fd(1) });
 }
 
 #[cfg(windows)]
 fn close_stdout() {
     use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    // SAFETY: the step closes standard output on purpose: its handle is open, and nothing of this process writes to it after the step.
     drop(unsafe {
         std::os::windows::io::OwnedHandle::from_raw_handle(io::stdout().as_raw_handle())
     });
@@ -383,6 +694,86 @@ impl Peer {
             }
             "stderr-marker" => self.stderr_marker(rest),
             "stderr-kind" => self.log.line(&format!("stderr-kind {}", stderr_kind())),
+            "write-inherited" => {
+                let (number, text) = rest.split_once(' ').unwrap_or((rest, ""));
+                let result = write_inherited(number, format!("{text}\n").as_bytes());
+                self.log.line(&format!("inherited {number} {result}"));
+            }
+            "environment" => {
+                for line in environment_lines(rest) {
+                    self.log.line(&line);
+                }
+            }
+            "environment-is" => {
+                let (name, expected) = rest.split_once(' ').unwrap_or((rest, ""));
+                let same = |v: &str| {
+                    if cfg!(windows) {
+                        v.trim_end_matches('\\')
+                            .eq_ignore_ascii_case(expected.trim_end_matches('\\'))
+                    } else {
+                        v == expected
+                    }
+                };
+                let word = match std::env::var(name) {
+                    Ok(v) if same(&v) => "same",
+                    Ok(_) => "other",
+                    Err(_) => "absent",
+                };
+                self.log.line(&format!("environment-is {name} {word}"));
+            }
+            "directory" => {
+                let yes = if in_system_directory() { "yes" } else { "no" };
+                self.log.line(&format!("directory system={yes}"));
+            }
+            "write-relative" => {
+                let made = std::fs::File::create(rest).is_ok();
+                self.log.line(&format!(
+                    "relative made={}",
+                    if made { "yes" } else { "no" }
+                ));
+                if made && in_system_directory() && std::fs::remove_file(rest).is_ok() {
+                    self.log.line("relative removed=yes");
+                }
+            }
+            "console" => {
+                let host = rest.parse().unwrap_or(0);
+                let me = std::process::id();
+                self.log
+                    .line(&format!("console {}", console_line(host, me)));
+                let reported = std::env::current_exe().and_then(|exe| {
+                    Command::new(exe)
+                        .arg("console-report")
+                        .arg(host.to_string())
+                        .arg(me.to_string())
+                        .arg(&self.log_path)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status()
+                });
+                if !reported.is_ok_and(|s| s.success()) {
+                    self.log.line("console-child failed");
+                }
+            }
+            "pipes" => self
+                .log
+                .line(&format!("pipes beyond={}", pipes_beyond_three())),
+            "holder" => self.holder(),
+            "descriptors" => self
+                .log
+                .line(&format!("descriptors first={}", self.first_descriptors)),
+            "wait-for" => {
+                let there = wait_for_file(Path::new(rest), Duration::from_secs(30));
+                self.log.line(&format!(
+                    "waited found={}",
+                    if there { "yes" } else { "no" }
+                ));
+            }
+            "socket" => {
+                let ok = std::net::TcpListener::bind("127.0.0.1:0").is_ok();
+                self.log
+                    .line(&format!("socket ok={}", if ok { "yes" } else { "no" }));
+            }
             "stderr-flood" => {
                 let (total, after) = rest.split_once(' ').unwrap_or((rest, ""));
                 if !after.is_empty() && !wait_for_file(Path::new(after), Duration::from_secs(30)) {
@@ -518,6 +909,36 @@ impl Peer {
         }
     }
 
+    fn holder(&mut self) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let made = std::env::current_exe().and_then(|exe| {
+                Command::new(exe)
+                    .arg("holder-parent")
+                    .arg(&self.log_path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::null())
+                    .process_group(0)
+                    .status()
+            });
+            let ok = made.is_ok_and(|s| s.success());
+            self.log
+                .line(&format!("holder made={}", if ok { "yes" } else { "no" }));
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::io::AsRawHandle;
+            self.log.line(&format!(
+                "own-handles pid={} in={} out={}",
+                std::process::id(),
+                io::stdin().as_raw_handle() as usize,
+                io::stdout().as_raw_handle() as usize
+            ));
+        }
+    }
+
     fn breakaway(&mut self) {
         #[cfg(windows)]
         {
@@ -574,6 +995,7 @@ fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
 }
 
 fn runner(args: &[String]) {
+    let first_descriptors = own_descriptors();
     let script = PathBuf::from(arg_after(args, "--browser"));
     let log_path = Path::new(&format!("{}.log", script.display())).to_path_buf();
     let file = match OpenOptions::new().create(true).append(true).open(&log_path) {
@@ -623,6 +1045,7 @@ fn runner(args: &[String]) {
         out: io::stdout(),
         replies: rx,
         on_eof,
+        first_descriptors,
         browsers,
     };
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
@@ -671,6 +1094,66 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        Some("console-report") => {
+            let pid = |i: usize| args.get(i).and_then(|v| v.parse().ok()).unwrap_or(0);
+            let line = format!("console-child {}\n", console_line(pid(1), pid(2)));
+            let wrote = args.get(3).is_some_and(|log| {
+                OpenOptions::new()
+                    .append(true)
+                    .open(log)
+                    .is_ok_and(|mut f| f.write_all(line.as_bytes()).is_ok())
+            });
+            std::process::exit(if wrote { 0 } else { 1 });
+        }
+        #[cfg(unix)]
+        Some("holder-parent") => {
+            use std::os::unix::process::CommandExt;
+            let bound = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| HOLD_BOUND.to_string());
+            let made = std::env::current_exe().and_then(|exe| {
+                Command::new(exe)
+                    .arg("holder")
+                    .arg(&bound)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::null())
+                    .process_group(0)
+                    .spawn()
+            });
+            let Ok(mut c) = made else {
+                std::process::exit(1);
+            };
+            let written = process::creation_time(c.id()).is_some_and(|created| {
+                args.get(1).is_some_and(|log| {
+                    OpenOptions::new()
+                        .append(true)
+                        .open(log)
+                        .is_ok_and(|mut f| {
+                            let line = format!("child pid={} created={created}\n", c.id());
+                            f.write_all(line.as_bytes()).is_ok()
+                        })
+                })
+            });
+            if !written {
+                let _ = c.kill();
+                let _ = c.wait();
+                std::process::exit(1);
+            }
+            std::process::exit(0);
+        }
+        #[cfg(unix)]
+        Some("holder") => {
+            let bound = args
+                .get(1)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(HOLD_BOUND);
+            thread::sleep(Duration::from_secs(bound));
+            std::process::exit(0);
+        }
+        #[cfg(windows)]
+        Some("hold") => hold(&args),
         Some("stderr-child") => {
             let marker = args.get(1).cloned().unwrap_or_default();
             let wrote = write_stderr(format!("{marker}\n").as_bytes());

@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that scripts/r2/20-schema-tests.txt lists at HEAD is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
+# rule: Before cargo runs, the check fails when scripts/r2/20-schema-tests.txt at HEAD holds a byte other than a printable ASCII character, a space, a tab, a carriage return or a line feed, a carriage return before the end of a line, a line that is not three fields, a line whose package is neither halvo-schema-core nor halvo-schema, or a line that stands twice; then the tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that the list names is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a tool that a step of the workflow itself puts earlier on the PATH (the step Prerequisites copies cargo-deny and cargo-release into $CARGO_HOME/bin, the directory of cargo that the driver puts first), a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
 set -u
 name=20-schema
 golden=crates/halvo-schema/tests/golden/names.txt
@@ -36,18 +36,30 @@ enter_repo() {
   cd "$repo" || fail "the repository root cannot be entered"
 }
 
-required_gap() {
-  awk -v pkg="$1" -v list="$required" -v file="$list_file" '
-    { sub(/\r$/, "") }
-    FILENAME == file {
+list_fault() {
+  awk -v list="$required" '
+    bad != "" { next }
+    {
+      sub(/\r$/, "")
+      if (index($0, "\r")) { bad = "the line " FNR " of " list " holds a carriage return before its end"; next }
       if (NF == 0) next
-      if (NF != 3) {
-        if (bad == "") bad = "the line " FNR " of " list " is not <package> <test target> <test name>"
+      if (NF != 3) { bad = "the line " FNR " of " list " is not <package> <test target> <test name>"; next }
+      if ($1 != "halvo-schema-core" && $1 != "halvo-schema") {
+        bad = "the line " FNR " of " list " names the package " $1 ", which is neither halvo-schema-core nor halvo-schema"
         next
       }
-      if (($1, $2, $3) in listed && bad == "") bad = "the line " FNR " of " list " stands twice: " $1 " " $2 " " $3
+      if (($1, $2, $3) in listed) { bad = "the line " FNR " of " list " stands twice: " $1 " " $2 " " $3; next }
       listed[$1, $2, $3] = 1
-      if ($1 == pkg) { n++; target[n] = $2; test[n] = $3 }
+    }
+    END { if (bad != "") print bad }
+  ' "$list_file"
+}
+
+required_gap() {
+  awk -v pkg="$1" -v file="$list_file" -v list="$required" '
+    { sub(/\r$/, "") }
+    FILENAME == file {
+      if (NF == 3 && $1 == pkg) { n++; target[n] = $2; test[n] = $3 }
       next
     }
     $1 == "Running" || $1 == "Doc-tests" {
@@ -57,7 +69,6 @@ required_gap() {
     }
     at != "" && /^test .* \.\.\. ok$/ { ok[at, substr($0, 6, length($0) - 12)] = 1 }
     END {
-      if (bad != "") { print bad; exit }
       if (n == 0) { print "the list " list " names no test of " pkg; exit }
       for (i = 1; i <= n; i++) {
         if (!(target[i] in ran)) { print "the test target " target[i] " of " pkg " did not run"; exit }
@@ -127,6 +138,12 @@ measure() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   list_file=$work/required-at-head.txt
   git show "HEAD:$required" >"$list_file" 2>"$work/required-at-head.err" || fail "$required is missing"
+  LC_ALL=C tr -d '\011\012\015\040-\176' <"$list_file" >"$work/required-other-bytes" ||
+    fail "the list $required cannot be read"
+  [ ! -s "$work/required-other-bytes" ] ||
+    fail "$required at HEAD holds a byte other than a printable ASCII character, a space, a tab, a carriage return or a line feed"
+  fault=$(list_fault) || fail "the list $required cannot be read"
+  [ -z "$fault" ] || fail "$fault"
 
   for package in halvo-schema-core halvo-schema; do
     cargo test --locked -p "$package" >"$artifacts/cargo-test-$package.txt" 2>&1
@@ -195,13 +212,19 @@ note() {
 
 check() {
   : >"$work/runs"
+  : >"$work/calls"
   mkdir "$work/tmp/$1" || self_fail "the temporary directory of the fixture $1 cannot be made"
   out=$(
     PATH=$work/bin:$PATH
     CI_D_REPO=$repo
     CI_D_ARTIFACTS=${art:-$work/artifacts/$1}
     STUB_RUNS=$work/runs
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF
+    STUB_CALLS=$work/calls
+    if [ -n "${fixture_locale:-}" ]; then
+      LC_ALL=$fixture_locale
+      export LC_ALL
+    fi
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CALLS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF
     TMPDIR=$work/tmp/$1 sh "$self" 2>&1
   )
   code=$?
@@ -222,6 +245,7 @@ check() {
   STUB_SIGNAL=
   STUB_HEAD=
   STUB_DIFF=
+  fixture_locale=
   STUB_CORE_LOG=$work/core.log
   STUB_SCHEMA_LOG=$work/schema.log
   STUB_CORE_EXIT=0
@@ -365,6 +389,7 @@ $later_line
   STUB_SCHEMA_LOG=$work/schema.log
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
+printf '%s\n' "$*" >>"$STUB_CALLS"
 case $* in
   'test --locked -p halvo-schema-core')
     cat "$STUB_CORE_LOG"
@@ -662,6 +687,79 @@ $later_line
 $lock_line
 "
   check list-line-twice FAIL "FAIL $name (the line 4 of $required stands twice: $lock_line)"
+  repo=$work/third-package
+  make_repo "$repo" golden "$core_line
+$lock_line
+halvo-schemx tests/locked_files.rs never_checked_anywhere
+$later_line
+"
+  check list-line-of-a-third-package FAIL "FAIL $name (the line 3 of $required names the package halvo-schemx, which is neither halvo-schema-core nor halvo-schema)"
+  repo=$work/prefixed-package
+  make_repo "$repo" golden "${list}halvo-schema-extra tests/locked_files.rs each_lib_rs_holds_its_form
+"
+  check list-line-of-a-package-that-begins-with-a-crate-name FAIL "FAIL $name (the line 4 of $required names the package halvo-schema-extra, which is neither halvo-schema-core nor halvo-schema)"
+  repo=$work/out-of-form-first
+  make_repo "$repo" golden "$core_line
+halvo-schema each_lib_rs_holds_its_form
+halvo-schemx tests/locked_files.rs never_checked_anywhere
+"
+  check the-first-fault-of-the-list-is-named FAIL "FAIL $name (the line 2 of $required is not <package> <test target> <test name>)"
+  bytes="$required at HEAD holds a byte other than a printable ASCII character, a space, a tab, a carriage return or a line feed"
+  repo=$work/nul-line
+  make_repo "$repo" golden "$list"
+  printf '\000halvo-account tests/accounts.rs every_account_is_checked\n' >>"$repo/$required" ||
+    self_fail "the fixture list with a NUL byte cannot be written"
+  check list-line-led-by-a-nul FAIL "FAIL $name ($bytes)"
+  repo=$work/nul-in-name
+  make_repo "$repo" golden "$core_line
+$later_line
+"
+  printf 'halvo-schema tests/locked_files.rs each_lib_rs_holds_its_form\000_and_more\n' >>"$repo/$required" ||
+    self_fail "the fixture list with a NUL byte cannot be written"
+  check nul-inside-a-test-name FAIL "FAIL $name ($bytes)"
+  repo=$work/not-utf-8
+  make_repo "$repo" golden "$list"
+  printf 'halvo-schema tests/locked_files.rs each_lib_rs_holds_its_form\377\n' >>"$repo/$required" ||
+    self_fail "the fixture list with a byte that is no UTF-8 cannot be written"
+  fixture_locale=en_US.UTF-8
+  check a-byte-that-is-no-utf-8-under-a-utf-8-locale FAIL "FAIL $name ($bytes)"
+  repo=$work/package-first
+  make_repo "$repo" golden "$core_line
+halvo-schemx tests/locked_files.rs never_checked_anywhere
+halvo-schema each_lib_rs_holds_its_form
+"
+  check the-first-fault-is-named-when-the-package-comes-first FAIL "FAIL $name (the line 2 of $required names the package halvo-schemx, which is neither halvo-schema-core nor halvo-schema)"
+  repo=$work/third-package
+  check a-third-package-is-refused-before-cargo FAIL "FAIL $name (the line 3 of $required names the package halvo-schemx, which is neither halvo-schema-core nor halvo-schema)"
+  note a-third-package-is-refused-with-no-call-of-cargo 0 "$(grep -c '' "$work/calls")"
+  repo=$work/cr-inside
+  make_repo "$repo" golden "$core_line
+"
+  printf 'halvo-sch\015ema tests/locked_files.rs each_lib_rs_holds_its_form\n' >>"$repo/$required" ||
+    self_fail "the fixture list with a carriage return inside a line cannot be written"
+  check a-carriage-return-inside-a-line FAIL "FAIL $name (the line 2 of $required holds a carriage return before its end)"
+  note a-refusal-prints-no-carriage-return 0 "$(printf '%s' "$out" | LC_ALL=C tr -cd '\015' | wc -c | tr -d ' ')"
+  repo=$work/tab-and-tilde
+  make_repo "$repo" golden "$core_line
+"
+  printf 'halvo-schema\011tests/locked_files.rs\011each_lib_rs_holds_its_form\n%s\nhalvo-schema tests/later_file_builds.rs a\176b\n' "$later_line" >>"$repo/$required" ||
+    self_fail "the fixture list with a tab and a tilde cannot be written"
+  check a-tab-between-fields-and-a-tilde-in-a-name-pass-the-byte-rule FAIL "FAIL $name (the test a~b of tests/later_file_builds.rs of halvo-schema did not pass)"
+  repo=$work/byte-177
+  make_repo "$repo" golden "$list"
+  printf 'halvo-schema tests/locked_files.rs each_lib\177rs\n' >>"$repo/$required" ||
+    self_fail "the fixture list with the byte 0177 cannot be written"
+  check the-byte-0177-is-refused FAIL "FAIL $name ($bytes)"
+  repo=$work/byte-037
+  make_repo "$repo" golden "$list"
+  printf 'halvo-schema tests/locked_files.rs each_lib\037rs\n' >>"$repo/$required" ||
+    self_fail "the fixture list with the byte 037 cannot be written"
+  check the-byte-037-is-refused FAIL "FAIL $name ($bytes)"
+  repo=$work/byte-013
+  make_repo "$repo" golden "$list"
+  printf 'halvo-schema tests/locked_files.rs each_lib\013rs\n' >>"$repo/$required" ||
+    self_fail "the fixture list with the byte 013 cannot be written"
+  check the-byte-013-is-refused FAIL "FAIL $name ($bytes)"
   repo=$work/no-list
   make_repo "$repo" golden none
   check list-missing FAIL "FAIL $name ($required is missing)"
@@ -710,15 +808,25 @@ $lock_line
 usage() {
   cat <<'EOF'
 usage: sh scripts/r2/ci.d/20-schema.sh [--self-test | --help]
-Reads scripts/r2/20-schema-tests.txt from HEAD, then runs the tests of
-halvo-schema-core and halvo-schema. For each test that the list names, it
+Reads scripts/r2/20-schema-tests.txt from HEAD and, before cargo runs, refuses
+a byte in it other than a printable ASCII character, a space, a tab, a carriage
+return or a line feed, then a carriage return before the end of a line, a line
+that is not three fields, a line whose package is neither halvo-schema-core nor
+halvo-schema, and a line that stands twice, naming the first fault of the list.
+A line can require only a test of an integration test target, a file under
+tests/ of its package; a unit test or a doc test cannot be required. Then it
+runs the tests of halvo-schema-core and halvo-schema.
+For each test that the list names, it
 requires the ok line under its test target in the test run, and the name in
 the list of the one test binary that cargo's messages
 (cargo test --locked -p <package> --no-run --message-format=json) name for
 the target's file, built by the test run and not in its list of ignored
 tests. Then export-names must write the golden names file on two runs, and
-no tracked file may differ from HEAD. --self-test runs the checks against a
-stub cargo and a stub git.
+no tracked file may differ from HEAD. It trusts the job around it: code of
+the job that runs before its reads, and a tool earlier on the PATH, whether
+code of the job wrote it there or a step of the workflow itself put it there
+(ruling S-53). --self-test runs the checks against a stub cargo and a stub
+git.
 EOF
 }
 

@@ -361,3 +361,40 @@ fn two_streams_that_share_only_the_site_of_a_noise_item_are_one_group() {
     assert_eq!(sides[2], sides[3]);
     assert_ne!(sides[0], sides[2]);
 }
+
+#[test]
+fn two_script_arguments_of_one_name_are_refused_by_their_place_alone() {
+    let dir = scratch("split-one-name");
+    let a = stream_file(&dir.join("x"), "s1", "zz-mill.test", None, "Mill page");
+    let b = stream_file(&dir.join("y"), "s2", "zz-oak.test", None, "Weekly report");
+    let a2 = dir.join("x/zz-mill.test.jsonl");
+    let b2 = dir.join("y/zz-mill.test.jsonl");
+    fs::copy(&a, &a2).expect("copy");
+    fs::copy(&b, &b2).expect("copy");
+    let o = split(&dir, "4", "out", &[s(&a2), s(&b2)]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2\n");
+}
+
+#[test]
+fn an_output_that_cannot_be_written_is_refused_by_its_place_and_not_its_name() {
+    let dir = scratch("split-output");
+    let a = stream_file(&dir.join("x"), "s1", "zz-mill.test", None, "Mill page");
+    let b = stream_file(&dir.join("y"), "s2", "zz-oak.test", None, "Weekly report");
+    let a2 = dir.join("x/Zz-Mill.jsonl");
+    let b2 = dir.join("y/zz-mill.jsonl");
+    fs::copy(&a, &a2).expect("copy");
+    fs::copy(&b, &b2).expect("copy");
+    write(&dir.join("fold/X"), "x\n");
+    let folds = dir.join("fold/x").exists();
+    let o = split(&dir, "4", "out", &[s(&a2), s(&b2)]);
+    if folds {
+        refused(&o, "output");
+        assert_eq!(
+            o.stderr,
+            format!("REFUSED output: {}: SCRIPT 2\n", s(&dir.join("out")))
+        );
+    } else {
+        assert_eq!(o.code, 0, "{}", o.stderr);
+    }
+}

@@ -1,2 +1,9 @@
 #!/bin/sh
-exec sh "$(dirname "$0")/../scripts/check-commit-messages.sh" --message-file "$1"
+hooks=$(dirname "$0")
+for file in scripts/check-home-paths.sh scripts/home-path-allow.txt; do
+  if [ ! -f "$hooks/../$file" ]; then
+    printf 'commit-msg: %s is missing beside this hook, so the pre-push hook could not scan a push for home paths. The commit is refused: restore the file (git checkout HEAD -- %s; in a sparse checkout without scripts/, git sparse-checkout add scripts) and commit again.\n' "$file" "$file" >&2
+    exit 1
+  fi
+done
+exec sh "$hooks/../scripts/check-commit-messages.sh" --message-file "$1"

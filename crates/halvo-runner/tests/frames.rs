@@ -3,6 +3,7 @@ mod support;
 use std::time::Duration;
 
 use halvo_schema::executable::frame::{Cancel, SecretReply, StoreReply, StoreReplyFrame};
+use halvo_schema::executable::record::RUN_LIST_KEYS;
 use halvo_schema::executable::{FromRunner, Outcome, RunnerCall, ToRunner};
 use halvo_schema::{Category, RequestId};
 
@@ -48,6 +49,19 @@ fn a_category_with_no_task_ends_nothing_to_do_with_its_finish_before_done() {
         (&sup.workflow, &sup.agent, &sup.run)
     );
     assert_eq!(seen.done(), Some(Outcome::NothingToDo));
+    assert_eq!(seen.code(), Some(0), "stderr: {}", seen.stderr);
+}
+
+#[test]
+fn the_finish_record_of_a_run_holds_each_key_of_the_run_s_list_as_null() {
+    let sup = deferred();
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    let finish = seen.finish().expect("a finish");
+    let stored: serde_json::Value =
+        serde_json::from_str(&finish.to_json().expect("the record's text")).expect("json");
+    for key in RUN_LIST_KEYS {
+        assert_eq!(stored.get(*key), Some(&serde_json::Value::Null), "{key}");
+    }
     assert_eq!(seen.code(), Some(0), "stderr: {}", seen.stderr);
 }
 
@@ -381,13 +395,17 @@ fn a_load_reply_for_another_agent_or_another_workflow_is_refused_with_frame() {
             },
             LONG,
         );
-        assert_eq!(seen.code(), Some(2), "{other}");
+        assert_eq!(seen.code(), Some(2), "the {other} half");
+        let refusal = if other == "agent" {
+            "REFUSED frame: not_the_answer"
+        } else {
+            "REFUSED frame: load_of_another_agent"
+        };
         assert!(
-            seen.stderr
-                .starts_with("REFUSED frame: load_of_another_agent"),
-            "{other}: {}",
+            seen.stderr.starts_with(refusal),
+            "the {other} half: {}",
             seen.stderr
         );
-        assert_eq!(seen.tags(), ["hello", "store"], "{other}");
+        assert_eq!(seen.tags(), ["hello", "store"], "the {other} half");
     }
 }

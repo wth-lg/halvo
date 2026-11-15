@@ -312,6 +312,97 @@ fn every_range_that_overlaps_an_earlier_one_is_named_once() {
     }
 }
 
+fn body_with_rows(name: &str, rows: &[String]) -> std::path::PathBuf {
+    let dir = scratch(name).join("b");
+    fs::create_dir_all(dir.join("streams/zz")).expect("stream directory");
+    fs::copy(
+        golden().join("script-manifest.jsonl"),
+        dir.join("script-manifest.jsonl"),
+    )
+    .expect("script manifest");
+    write(
+        &dir.join("streams/zz/labels.jsonl"),
+        &rows.iter().map(|r| format!("{r}\n")).collect::<String>(),
+    );
+    dir
+}
+
+const T0: i64 = 1_767_225_600_000_000_000;
+
+fn episode_row(episode: &str, task: &str, start: i64, end: i64) -> String {
+    format!(
+        r#"{{"row":"episode","episode":"{episode}","task":"{task}","category":"utility_bill_payment","kind":"planted","start":{},"end":{}}}"#,
+        T0 + start * common::SEC,
+        T0 + end * common::SEC
+    )
+}
+
+fn range_row(episode: &str, start: i64, end: i64) -> String {
+    format!(
+        r#"{{"row":"range","episode":"{episode}","step":"g-power-bill","start":{},"end":{}}}"#,
+        T0 + start * common::SEC,
+        T0 + end * common::SEC
+    )
+}
+
+#[test]
+fn the_later_row_of_every_overlapping_pair_is_named_when_the_farthest_range_lies_between() {
+    let dir = body_with_rows(
+        "overlap-farthest",
+        &[
+            episode_row("s01-e0001", "s01-t001", 1000, 3000),
+            range_row("s01-e0001", 1000, 2500),
+            range_row("s01-e0001", 2000, 3000),
+            episode_row("s01-e0002", "s01-t001", 1500, 10000),
+            range_row("s01-e0002", 1500, 10000),
+        ],
+    );
+    for rule in ["generated", "recorded"] {
+        let o = run(&["check-labels", "--rule", rule, &s(&dir)]);
+        assert_eq!(o.code, 1, "{}", o.stdout);
+        let rows: Vec<&str> = o
+            .stdout
+            .lines()
+            .filter(|l| l.starts_with("FAIL row"))
+            .collect();
+        assert_eq!(
+            rows,
+            vec!["FAIL row zz 3 overlap", "FAIL row zz 5 overlap"],
+            "{rule}: {}",
+            o.stdout
+        );
+        assert!(o.stdout.contains(" failures=5\n"), "{rule}: {}", o.stdout);
+    }
+}
+
+#[test]
+fn overlap_of_a_last_range_that_starts_first_and_reaches_farthest_names_each_later_row() {
+    let dir = body_with_rows(
+        "overlap-last-first",
+        &[
+            episode_row("s01-e0001", "s01-t001", 2000, 2500),
+            range_row("s01-e0001", 2000, 2500),
+            episode_row("s01-e0002", "s01-t001", 3000, 3500),
+            range_row("s01-e0002", 3000, 3500),
+            range_row("s01-e0002", 3400, 3500),
+            range_row("s01-e0002", 1000, 5000),
+        ],
+    );
+    let o = run(&["check-labels", "--rule", "recorded", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let rows: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.starts_with("FAIL row"))
+        .collect();
+    assert_eq!(
+        rows,
+        vec!["FAIL row zz 5 overlap", "FAIL row zz 6 order"],
+        "{}",
+        o.stdout
+    );
+}
+
 #[test]
 fn under_the_recorded_rule_a_range_with_only_another_steps_title_fails() {
     let dir = copy_golden("recorded-other-step");
@@ -376,4 +467,204 @@ fn a_title_event_of_a_step_of_each_negative_kind_outside_every_range_fails() {
             .collect();
         assert_eq!(outside, vec![line], "{kind}: {}", o.stdout);
     }
+}
+
+fn delete_task_rows(dir: &Path, task: &str) -> usize {
+    let p = labels(dir);
+    let text = fs::read_to_string(&p).expect("labels");
+    let episodes: Vec<String> = text
+        .lines()
+        .filter(|l| l.contains(&format!("\"task\":\"{task}\"")))
+        .map(|l| l.split('"').nth(7).expect("episode id").to_owned())
+        .collect();
+    assert!(!episodes.is_empty(), "{task}");
+    let kept: String = text
+        .lines()
+        .filter(|l| {
+            !episodes
+                .iter()
+                .any(|e| l.contains(&format!("\"episode\":\"{e}\"")))
+        })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    fs::write(&p, kept).expect("write");
+    episodes.len()
+}
+
+#[test]
+fn case_210_every_row_of_a_one_off_task_deleted_fails() {
+    every_row_deleted("210", "golden-t4", "one_off", &["g-budget-sheet"]);
+}
+
+#[test]
+fn case_211_every_row_of_a_twice_task_deleted_fails() {
+    every_row_deleted(
+        "211",
+        "golden-t2",
+        "twice",
+        &["g-power-bill", "g-power-signin"],
+    );
+}
+
+#[test]
+fn case_212_every_row_of_a_planted_task_deleted_fails() {
+    every_row_deleted(
+        "212",
+        "golden-t1",
+        "planted",
+        &[
+            "g-cart-basket",
+            "g-cart-confirm",
+            "g-cart-pay",
+            "g-cart-receipt",
+            "g-cart-signin",
+        ],
+    );
+}
+
+fn every_row_deleted(case: &str, task: &str, kind: &str, steps: &[&str]) {
+    {
+        let dir = copy_golden(&format!("deleted-{case}"));
+        let gone = delete_task_rows(&dir, task);
+        let o = run(&["check-labels", &s(&dir)]);
+        assert_eq!(o.code, 1, "case {case} ({kind}): {}", o.stdout);
+        let outside: Vec<&str> = o
+            .stdout
+            .lines()
+            .filter(|l| l.starts_with("FAIL outside"))
+            .collect();
+        assert!(!outside.is_empty(), "case {case}: {}", o.stdout);
+        assert!(
+            outside
+                .iter()
+                .all(|l| steps.iter().any(|st| l.ends_with(&format!(" {st}")))),
+            "case {case}: {}",
+            o.stdout
+        );
+        assert_eq!(
+            o.stdout.lines().filter(|l| l.starts_with("FAIL")).count(),
+            outside.len(),
+            "case {case}: {}",
+            o.stdout
+        );
+        assert!(gone >= 1);
+    }
+}
+
+#[test]
+fn a_seed_step_whose_mark_is_false_fails_with_a_seed_line_for_each_of_its_ranges() {
+    let dir = copy_golden("seed-false");
+    let p = dir.join("script-manifest.jsonl");
+    let text = fs::read_to_string(&p).expect("script manifest");
+    let line = text
+        .lines()
+        .find(|l| l.starts_with("{\"step\":\"g-power-bill\","))
+        .expect("the step line");
+    assert!(line.ends_with(",\"seed_category\":true}"), "{line}");
+    fs::write(
+        &p,
+        text.replacen(
+            line,
+            &line.replace(",\"seed_category\":true}", ",\"seed_category\":false}"),
+            1,
+        ),
+    )
+    .expect("write");
+    let ranges: Vec<String> = fs::read_to_string(labels(&dir))
+        .expect("labels")
+        .lines()
+        .filter(|l| l.contains("\"step\":\"g-power-bill\""))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(ranges.len(), 2);
+    for rule in ["generated", "recorded"] {
+        let o = run(&["check-labels", "--rule", rule, &s(&dir)]);
+        assert_eq!(o.code, 1, "{rule}: {}", o.stdout);
+        let fails: Vec<&str> = o.stdout.lines().filter(|l| l.starts_with("FAIL")).collect();
+        assert_eq!(fails.len(), 2, "{rule}: {}", o.stdout);
+        for (f, r) in fails.iter().zip(&ranges) {
+            let field = |k: &str| {
+                r.split(&format!("\"{k}\":"))
+                    .nth(1)
+                    .and_then(|v| v.split([',', '}']).next())
+                    .expect("field")
+                    .trim_matches('"')
+                    .to_owned()
+            };
+            assert_eq!(
+                *f,
+                format!(
+                    "FAIL seed golden {} g-power-bill {} {}",
+                    field("episode"),
+                    field("start"),
+                    field("end")
+                ),
+                "{rule}"
+            );
+        }
+        assert!(o.stdout.contains(" failures=2\n"), "{rule}: {}", o.stdout);
+    }
+}
+
+#[test]
+fn a_script_manifest_line_without_its_seed_mark_is_refused() {
+    let dir = copy_golden("seed-missing");
+    let p = dir.join("script-manifest.jsonl");
+    let text = fs::read_to_string(&p).expect("script manifest");
+    fs::write(&p, text.replacen(",\"seed_category\":true}", "}", 1)).expect("write");
+    refused(&run(&["check-labels", &s(&dir)]), "script-manifest");
+}
+
+#[test]
+fn the_fail_lines_of_one_range_stand_in_the_order_range_seed_unmarked_keys() {
+    let dir = copy_golden("one-range-order");
+    let p = dir.join("script-manifest.jsonl");
+    let text = fs::read_to_string(&p).expect("script manifest");
+    let line = text
+        .lines()
+        .find(|l| l.starts_with("{\"step\":\"g-agenda-clear\","))
+        .expect("the step line");
+    let changed = line
+        .replace("\"password_input\":false", "\"password_input\":true")
+        .replace(",\"seed_category\":true}", ",\"seed_category\":false}");
+    assert_ne!(changed, line);
+    fs::write(&p, text.replacen(line, &changed, 1)).expect("write");
+    let start = "1771509632000000000";
+    let mut gone = 0;
+    for e in fs::read_dir(dir.join("streams/golden")).expect("stream") {
+        let path = e.expect("entry").path();
+        if !path.to_string_lossy().contains("day-") {
+            continue;
+        }
+        let day = fs::read_to_string(&path).expect("day file");
+        let kept: String = day
+            .lines()
+            .filter(|l| {
+                let title_here = l.contains("\"kind\":\"window_title\"")
+                    && l.contains(&format!("\"at\":{start},"));
+                let mark = l.contains("\"kind\":\"run_mark\"");
+                if title_here || mark {
+                    gone += 1;
+                }
+                !(title_here || mark)
+            })
+            .map(|l| format!("{l}\n"))
+            .collect();
+        fs::write(&path, kept).expect("write");
+    }
+    assert!(gone >= 3, "{gone}");
+    let o = run(&["check-labels", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let kinds: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.contains(&format!(" golden golden-e11 g-agenda-clear {start} ")))
+        .map(|l| l.split(' ').nth(1).expect("kind"))
+        .collect();
+    assert_eq!(
+        kinds,
+        vec!["range", "seed", "unmarked", "keys"],
+        "{}",
+        o.stdout
+    );
 }

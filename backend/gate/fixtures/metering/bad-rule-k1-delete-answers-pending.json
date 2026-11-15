@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "      return { result: \"deleted\" };",
+      "replace": "      return { result: \"pending\" };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "30"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 30, faults [",
+    "]: account delete ("
+  ]
+}

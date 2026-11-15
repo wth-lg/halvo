@@ -23,7 +23,8 @@ pub const PERSON: A = A {
 /// The memory ports and the memory policy as one value, which `Coordinator` needs; a test can
 /// make the next `answer_confirm` fail after its record returned, so that an item stays
 /// `recorded`, can have each call of `log` and `send` name the function that made it, and can
-/// make `start`, `cancel` or `answer_confirm` panic.
+/// make `start`, `cancel`, `answer_confirm`, `answer_bind`, `agents` or the `log` of an
+/// `item_lapsed` row panic, and can fail one read of the clock.
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
@@ -36,6 +37,7 @@ pub struct Both {
     pub next_history_fails: Cell<bool>,
     pub loss_waits_for_row: Cell<Option<LostAckRow>>,
     pub clock_fails: Cell<bool>,
+    pub fail_read_at: Cell<Option<u32>>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -96,6 +98,12 @@ impl Owner for Both {
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
         self.note("::log");
+        let lapses = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::ItemLapsed { .. }));
+        if lapses && self.panics.get() == Some("log_lapsed") {
+            panic!("the port log panics at item_lapsed");
+        }
         let waits = self
             .loss_waits_for_row
             .get()
@@ -137,6 +145,9 @@ impl Owner for Both {
     }
 
     fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        if self.panics.get() == Some("agents") {
+            panic!("the port agents panics");
+        }
         self.ports.agents()
     }
 
@@ -193,6 +204,9 @@ impl Runs for Both {
     }
 
     fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        if self.panics.get() == Some("answer_bind") {
+            panic!("the port answer_bind panics");
+        }
         let at = self.ports.events.borrow().len();
         let out = self.ports.answer_bind(run, result);
         self.binds_at
@@ -227,6 +241,14 @@ impl Clock for Both {
     fn now(&self) -> Result<u64, PortError> {
         if self.clock_fails.get() {
             return Err(PortError::NoService);
+        }
+        match self.fail_read_at.get() {
+            Some(0) => {
+                self.fail_read_at.set(None);
+                return Err(PortError::NoService);
+            }
+            Some(n) => self.fail_read_at.set(Some(n - 1)),
+            None => {}
         }
         self.ports.now()
     }
@@ -300,6 +322,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         next_history_fails: Cell::new(false),
         loss_waits_for_row: Cell::new(None),
         clock_fails: Cell::new(false),
+        fail_read_at: Cell::new(None),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }

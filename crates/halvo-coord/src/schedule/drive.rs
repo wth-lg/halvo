@@ -45,8 +45,8 @@ pub enum Move {
         agent: AgentId,
     },
     /// The rest of a switch-off in a move whose own read of the owner's events showed the hold
-    /// `off` of the agent standing where the coordinator did not know it (I5.7, ruling RD-52 (b)
-    /// rule 3); `state` where the facts hold no such hold.
+    /// `off` of the agent standing beside a live run of it that no stop has reached or a queued
+    /// start of it (I5.7, ruling RD-52 (b) rule 3); `state` where the facts hold no such hold.
     Off {
         /// The agent.
         agent: AgentId,

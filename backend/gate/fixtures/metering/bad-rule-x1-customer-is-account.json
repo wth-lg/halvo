@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "return { accountId: subscription.accountId, customerId: subscription.customerId };",
+      "replace": "return { accountId: subscription.accountId, customerId: subscription.accountId };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25, faults [",
+    "]: a call for another account ("
+  ]
+}

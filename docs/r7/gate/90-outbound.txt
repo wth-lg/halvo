@@ -1,5 +1,5 @@
-line: PASS outbound: denied=0 over the stack and the other checks, which read 8 PASS and 4 FAIL inside the sandbox; probes left out=1; control=caught
-stamp: 2026-11-13T19:15:36Z
-load: 21.71
-tree: 686f7f842745ae164c3160e16d7f957a82825e35
+line: PASS outbound: denied=0 over the stack and the other checks, which read 9 PASS and 3 FAIL inside the sandbox; probes left out=1; control=caught
+stamp: 2026-11-14T09:26:11Z
+load: 10.60
+tree: 1bb800d47b4e91cc58feb2ebc6bca6de05cea91b
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3
