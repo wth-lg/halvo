@@ -99,6 +99,13 @@ enum Want {
 use Fault::*;
 use Want::{Fail, Pass};
 
+const IGNORE_KINDS_IN_FILTERS: &str = "the filter foreground_app: 44 entries served, want 8";
+const IGNORE_KINDS_IN_STOPS: &str = "check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 178 records of that store that pass the filter from its position up to next, each once";
+const IGNORE_RANGE_IN_FILTERS: &str = "the filter the range: 44 entries served, want 19";
+const IGNORE_RANGE_IN_STOPS: &str = "check filtered_stops: the filter the range on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 86 records of that store that pass the filter from its position up to next, each once";
+const NEXT_FALLS_IN_STOPS: &str = "check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: next fell";
+const FROM_THE_START_IN_STOPS: &str = "check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} is below the cursor's position {seg 2, idx 139}";
+
 fn files_dir() -> &'static Path {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
     DIR.get_or_init(|| {
@@ -862,6 +869,115 @@ fn an_expectation_holds_only_when_its_last_part_is_the_last_part_of_the_failure(
     assert!(off.is_empty(), "{}", off.join("\n"));
 }
 
+fn batches_of(texts: &[&str]) -> Vec<Batch> {
+    let files: Vec<PathBuf> = texts.iter().map(|t| file_of(t).unwrap()).collect();
+    let mut t = FixtureTransport::open(&files, 1, None).unwrap();
+    t.handle(&ClientMessage::OpenCursor(OpenCursor::fresh(None, None)));
+    let mut out = Vec::new();
+    loop {
+        match t.handle(&ClientMessage::ReadBatch) {
+            ServerMessage::Batch(b) if b.next == b.watermark => {
+                out.push(b);
+                return out;
+            }
+            ServerMessage::Batch(b) => out.push(b),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+fn at(p: Position) -> String {
+    format!("{{seg {}, idx {}}}", p.seg, p.idx)
+}
+
+#[test]
+fn the_six_expectations_pin_the_counts_of_the_suites_data() {
+    let r: Vec<Entry> = batches_of(&conformance::SET_A)
+        .into_iter()
+        .flat_map(|b| b.records)
+        .collect();
+    let (start, end) = (r[11].record.at(), r[30].record.at());
+    let ranged = |e: &&Entry| e.record.at() >= start && e.record.at() < end;
+    let foreground = r
+        .iter()
+        .filter(|e| e.record.kind() == Kind::ForegroundApp)
+        .count();
+    let stops = batches_of(&[conformance::SET_A[3], conformance::SET_C[0]]);
+    let first = &stops[0];
+    let all: Vec<&Entry> = stops.iter().flat_map(|b| &b.records).collect();
+    let (start, end) = (all[100].record.at(), all[400].record.at());
+    let titles = first
+        .records
+        .iter()
+        .filter(|e| e.record.kind() == Kind::WindowTitle);
+    let stop_ranged = first
+        .records
+        .iter()
+        .filter(|e| e.record.at() >= start && e.record.at() < end);
+    let first_title = all
+        .iter()
+        .find(|e| e.record.kind() == Kind::WindowTitle)
+        .unwrap();
+    let place = "check filtered_stops: the filter";
+    let on = "on the fourth text of set A and set C from";
+    let batch = format!(
+        "the Batch from {{seg 0, idx 0}} to next {} served {} entries",
+        at(first.next),
+        first.records.len()
+    );
+    let tail = "records of that store that pass the filter from its position up to next, each once";
+    let pinned = [
+        (
+            IGNORE_KINDS_IN_FILTERS,
+            format!(
+                "the filter foreground_app: {} entries served, want {foreground}",
+                r.len()
+            ),
+        ),
+        (
+            IGNORE_RANGE_IN_FILTERS,
+            format!(
+                "the filter the range: {} entries served, want {}",
+                r.len(),
+                r.iter().filter(ranged).count()
+            ),
+        ),
+        (
+            IGNORE_KINDS_IN_STOPS,
+            format!(
+                "{place} window_title {on} {{seg 0, idx 0}}: {batch}; want the {} {tail}",
+                titles.count()
+            ),
+        ),
+        (
+            IGNORE_RANGE_IN_STOPS,
+            format!(
+                "{place} the range {on} {{seg 0, idx 0}}: {batch}; want the {} {tail}",
+                stop_ranged.count()
+            ),
+        ),
+        (
+            NEXT_FALLS_IN_STOPS,
+            format!("{place} window_title {on} {}: next fell", at(all[150].pos)),
+        ),
+        (
+            FROM_THE_START_IN_STOPS,
+            format!(
+                "{place} window_title {on} {}: the position {} is below the cursor's position {}",
+                at(all[150].pos),
+                at(first_title.pos),
+                at(all[150].pos)
+            ),
+        ),
+    ];
+    let moved: Vec<String> = pinned
+        .iter()
+        .filter(|(expectation, data)| expectation != data)
+        .map(|(expectation, data)| format!("pinned: {expectation}\nthe data: {data}"))
+        .collect();
+    assert!(moved.is_empty(), "{}", moved.join("\n"));
+}
+
 #[test]
 fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_shows_it() {
     check(Conforming, [Pass, Pass, Pass, Pass]);
@@ -888,8 +1004,8 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
         [
             Pass,
             Pass,
-            Fail("the filter foreground_app: 44 entries served, want 8"),
-            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 178 records of that store that pass the filter from its position up to next, each once"),
+            Fail(IGNORE_KINDS_IN_FILTERS),
+            Fail(IGNORE_KINDS_IN_STOPS),
         ],
     );
     check(
@@ -897,8 +1013,8 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
         [
             Pass,
             Pass,
-            Fail("the filter the range: 44 entries served, want 19"),
-            Fail("check filtered_stops: the filter the range on the fourth text of set A and set C from {seg 0, idx 0}: the Batch from {seg 0, idx 0} to next {seg 2, idx 175} served 186 entries; want the 86 records of that store that pass the filter from its position up to next, each once"),
+            Fail(IGNORE_RANGE_IN_FILTERS),
+            Fail(IGNORE_RANGE_IN_STOPS),
         ],
     );
     check(
@@ -950,7 +1066,7 @@ fn control_a_next_that_falls() {
             Fail("next fell"),
             Fail("next fell"),
             Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
-            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: next fell"),
+            Fail(NEXT_FALLS_IN_STOPS),
         ],
     );
 }
@@ -1309,7 +1425,7 @@ fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_
             Pass,
             Pass,
             Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} is below the cursor's position {seg 2, idx 10}"),
-            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} is below the cursor's position {seg 2, idx 139}"),
+            Fail(FROM_THE_START_IN_STOPS),
         ],
     );
 }
