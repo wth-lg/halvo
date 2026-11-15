@@ -433,7 +433,7 @@ check() {
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
-    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR STUB_FORGE_ARTIFACT STUB_FORGE_FROM STUB_UNLISTED
+    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR STUB_FORGE_ARTIFACT STUB_FORGE_FROM STUB_UNLISTED STUB_NO_COMMIT_DIRECTORY
     if [ -n "$STUB_QUIET" ]; then
       CARGO_TERM_QUIET=$STUB_QUIET
       export CARGO_TERM_QUIET
@@ -493,6 +493,7 @@ check() {
   STUB_FORGE_ARTIFACT=
   STUB_FORGE_FROM=
   STUB_UNLISTED=
+  STUB_NO_COMMIT_DIRECTORY=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -588,6 +589,7 @@ make_stub() {
   STUB_FORGE_ARTIFACT=
   STUB_FORGE_FROM=
   STUB_UNLISTED=
+  STUB_NO_COMMIT_DIRECTORY=
 }
 
 tree_cases() {
@@ -731,11 +733,7 @@ FAIL $name (specimen)"
   STUB_COLOR=always
   check job-sets-cargo-colour PASS "$want_required"
 
-  mkdir "$work/no-commit-directory" || exit 2
-  real=$(command -v mkdir) || exit 2
-  printf '#!/bin/sh\ncase $* in\n  */commit) exit 1 ;;\nesac\nexec %s "$@"\n' "$real" >"$work/no-commit-directory/mkdir" || exit 2
-  chmod +x "$work/no-commit-directory/mkdir" || exit 2
-  STUB_PATH=$work/no-commit-directory:$PATH
+  STUB_NO_COMMIT_DIRECTORY=1
   check commit-directory-cannot-be-made FAIL "FAIL $name (setup)"
 
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
@@ -1160,6 +1158,9 @@ case $kind in
 esac
 EOF
   chmod +x "$work/bin/cargo"
+  real=$(command -v mkdir) || exit 2
+  printf '#!/bin/sh\ncase ${STUB_NO_COMMIT_DIRECTORY:-}:$* in\n  1:*/commit) exit 1 ;;\nesac\nexec %s "$@"\n' "$real" >"$work/bin/mkdir" || exit 2
+  chmod +x "$work/bin/mkdir" || exit 2
   make_stub
   want_required=$(required_text) || exit 2
   restore_repo
