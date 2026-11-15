@@ -640,6 +640,7 @@ describe("destroy", () => {
     expect(await first).toEqual({ result: "not-finished" });
     const snapshot = await w.entries.testInspect();
     expect(snapshot.result === "snapshot" && snapshot.tables.skeleton?.[0]?.destroying_since).toBe(9000);
+    expect(snapshot.result === "snapshot" && snapshot.tables.skeleton?.[0]?.cancel_answered_at).toBe(null);
     expect(cancels).toBe(2);
   });
 
