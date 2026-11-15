@@ -9,8 +9,9 @@ import type {
   StatusAnswer,
 } from "../contract/schemas.ts";
 import type { EndResult, Ledger, Price, ReserveResult, Usage } from "../ledger/index.ts";
+import { PROVIDER_CALL_TIMEOUT_MS } from "../billing/stripe/timeout.ts";
 import { errorName, log } from "../log.ts";
-import type { Metering, Next, UsageAnswer, UsageCall } from "../metering/index.ts";
+import { type Metering, type Next, RETRY_DELAY_CAP_MS, SYNC_RETRY_MS, type UsageAnswer, type UsageCall } from "../metering/index.ts";
 import type { Cap, Micro, Ms, Sql, Step, Tier } from "../types.ts";
 
 export const ALARM_RETRY_MS = 30_000;
@@ -18,9 +19,31 @@ export const ALARM_RETRY_LIMIT = 5;
 export const ALARM_CALL_LIMIT = 3;
 export const START_RESTARTS = 2;
 export const CLOCK_RUN_LIMIT = 100;
+export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
+/**
+ * The cap of the pause after a failing run of the alarm under the mark. The pause starts at ALARM_RETRY_MS and doubles with
+ * each failing run in a row, so a begun delete costs at most one run per ALARM_RETRY_MS, settling to one run per
+ * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes. The count of failing runs is written in a
+ * step of its own and also kept in the instance's memory as a floor; only when every write of the object fails and the
+ * instance is new at each run does the pause stay at ALARM_RETRY_MS.
+ */
+export const ALARM_PAUSE_CAP_MS = 3_600_000;
+/**
+ * The life of a stored record of a cancel call in flight, from the call's begin in the step's now: at least the provider
+ * call's own timeout plus ALARM_RETRY_MS. A record at or after its begin plus this time is void for every reader.
+ */
+export const CALL_IN_FLIGHT_MS = PROVIDER_CALL_TIMEOUT_MS + ALARM_RETRY_MS;
+/**
+ * The bound of the await of a cancel call, on the host's timer: at least the provider call's own timeout and strictly
+ * shorter than CALL_IN_FLIGHT_MS. At the bound the run goes on as for a failed call, and the call's record stands to its
+ * expiry.
+ */
+export const CANCEL_CALL_BOUND_MS = PROVIDER_CALL_TIMEOUT_MS + ALARM_RETRY_MS / 2;
 export interface Host {
   step: Step;
   clock(): Ms;
+  /** A pause on the host's timer, never on a stored test time; the platform's timer when the host gives none. */
+  pause?(ms: Ms): Promise<void>;
   setAlarm(at: Ms | null): void;
   getAlarm(): Promise<Ms | null>;
   deleteAll(): Promise<void>;
@@ -66,17 +89,57 @@ export interface Entries {
 
 const SKELETON = "skeleton";
 const TEST_CLOCK = "test_clock";
+const CANCEL_CALL = "cancel_call";
 const ENGINE_PREFIX = "sqlite_";
 const PLATFORM_PREFIX = "_cf_";
 const LOCAL_RUNTIME_TABLE = "__miniflare_do_name";
 type Removal = "expired-unpaid" | "dropped" | "unanswered";
+
+interface Mark {
+  since: Ms | null;
+  answeredAt: Ms | null;
+  answeredFor: string | null;
+  nextAt: Ms | null;
+  delay: Ms | null;
+  decidedAt: Ms | null;
+}
+
+type Fourth =
+  | { kind: "answer"; answer: DeleteAnswer }
+  | { kind: "again" }
+  | { kind: "cancel"; subscriptionId: string | null; mark: Ms; unacknowledged: number; began: Ms | null }
+  | { kind: "answered"; mark: Ms };
+
+const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
+
+interface AlarmRun {
+  mark: Mark | null | "unknown";
+}
 
 interface Open {
   sql: Sql;
   begin(): Ms;
   beginWithoutAlarm(): Ms;
   arm(): void;
+  caught(error: unknown): void;
 }
+
+class LoggedAlarmError extends Error {
+  readonly first: unknown;
+  constructor(first: unknown) {
+    super("an error of the alarm's run under the mark, already logged");
+    this.name = "LoggedAlarmError";
+    this.first = first;
+  }
+}
+
+/** Who runs a step: its caught errors are logged with the caller's line and counted for the caller. */
+interface Caller {
+  line: "alarm-error" | "destroy-error";
+  caught: number;
+}
+
+const byTheAlarm = (): Caller => ({ line: "alarm-error", caught: 0 });
 
 function contractBroken(): never {
   const error = new Error("a module answered what contract 3.1 rules out");
@@ -88,6 +151,14 @@ function earliest(times: (Ms | null)[]): Ms | null {
   let found: Ms | null = null;
   for (const each of times) if (each !== null && (found === null || each < found)) found = each;
   return found;
+}
+
+function timeOrNull(value: string | number | null | undefined): Ms | null {
+  return value === null || value === undefined ? null : Number(value);
+}
+
+function answeredFor(mark: Mark, subscriptionId: string | null): boolean {
+  return mark.answeredAt !== null && mark.answeredFor === subscriptionId;
 }
 
 function isRemoval(answer: string): answer is Removal {
@@ -108,26 +179,91 @@ export function ownTables(sql: Sql): string[] {
 
 export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: Ledger; metering: Metering }): Entries {
   const { accounts, ledger, metering } = modules;
+  const removalRejections = new WeakSet<object>();
+  let dueErrorsOfTheRun: unknown[] | null = null;
+  let removalLogged: Ms | null = null;
+  let failuresKept = 0;
+  const sendsEndedHere = new Map<string, Ms>();
+  const sendKey = (interval: Ms, sentAt: Ms) => `${interval}:${sentAt}`;
+  const sendEnds = (sql: Sql, now: Ms): Ms | null => {
+    for (const [key, sentAt] of sendsEndedHere) if (sentAt + CALL_IN_FLIGHT_MS <= now) sendsEndedHere.delete(key);
+    const open = metering.sendsInFlight(sql, now, CALL_IN_FLIGHT_MS).filter((each) => !sendsEndedHere.has(sendKey(each.interval, each.sentAt)));
+    return earliest(open.map((each) => each.sentAt + CALL_IN_FLIGHT_MS));
+  };
+  const planned = (call: UsageCall | null, now: Ms) => {
+    if (call !== null && call.kind === "send") sendsEndedHere.set(sendKey(call.interval, now), now);
+  };
+  const leavesDestroy = (error: unknown) =>
+    errorName(error) === "ObjectStoppedError" || (typeof error === "object" && error !== null && removalRejections.has(error));
 
   const tableExists = (sql: Sql, name: string) =>
     sql.exec("SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "table", name).length > 0;
   const holds = (sql: Sql) => tableExists(sql, SKELETON);
-  const skeletonRow = (sql: Sql) => sql.exec("SELECT destroying_since, last_now, alarm_failures FROM skeleton")[0] ?? contractBroken();
+  const skeletonRow = (sql: Sql) =>
+    sql.exec(
+      "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at FROM skeleton",
+    )[0] ??
+    contractBroken();
   const lastNow = (sql: Sql) => Number(skeletonRow(sql).last_now);
-  const destroyingSince = (sql: Sql) => {
-    const value = skeletonRow(sql).destroying_since;
-    return value === null || value === undefined ? null : Number(value);
+  const markOf = (sql: Sql): Mark => {
+    const row = skeletonRow(sql);
+    const answeredFor = row.cancel_answered_for;
+    return {
+      since: timeOrNull(row.destroying_since),
+      answeredAt: timeOrNull(row.cancel_answered_at),
+      answeredFor: answeredFor === null || answeredFor === undefined ? null : String(answeredFor),
+      nextAt: timeOrNull(row.cancel_next_at),
+      delay: timeOrNull(row.cancel_delay),
+      decidedAt: timeOrNull(row.removal_decided_at),
+    };
   };
+  const destroyingSince = (sql: Sql) => markOf(sql).since;
   const testTime = (sql: Sql): Ms | null => {
     if (!host.config.testClock || !tableExists(sql, TEST_CLOCK)) return null;
     const row = sql.exec("SELECT time FROM test_clock")[0];
     return row === undefined ? null : Number(row.time);
   };
   const time = (sql: Sql) => testTime(sql) ?? host.clock();
+  const callRecord = (sql: Sql): { subscriptionId: string; beganAt: Ms } | null => {
+    if (!tableExists(sql, CANCEL_CALL)) return null;
+    const row = sql.exec("SELECT subscription_id, began_at FROM cancel_call")[0];
+    return row === undefined ? null : { subscriptionId: String(row.subscription_id), beganAt: Number(row.began_at) };
+  };
+  const callEnds = (sql: Sql, subscriptionId: string | null, now: Ms): Ms | null => {
+    const record = callRecord(sql);
+    if (record === null || subscriptionId === null || record.subscriptionId !== subscriptionId) return null;
+    const ends = record.beganAt + CALL_IN_FLIGHT_MS;
+    return now < ends ? ends : null;
+  };
+  const storeCallRecord = (sql: Sql, subscriptionId: string, began: Ms) => {
+    sql.exec("CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT NOT NULL, began_at INTEGER NOT NULL)");
+    sql.exec("DELETE FROM cancel_call");
+    sql.exec("INSERT INTO cancel_call (subscription_id, began_at) VALUES (?, ?)", subscriptionId, began);
+  };
+  const clearCallRecord = (sql: Sql, subscriptionId: string | null, began: Ms | null) => {
+    if (subscriptionId === null || began === null || !tableExists(sql, CANCEL_CALL)) return;
+    sql.exec("DELETE FROM cancel_call WHERE subscription_id = ? AND began_at = ?", subscriptionId, began);
+  };
   const isMetered = (sql: Sql) => {
     const subscription = accounts.subscription(sql);
     return subscription !== null && subscription.customerId !== null;
   };
+
+  /**
+   * The delete term of the due time under the mark, keyed by the subscription id that the account row holds now: with an
+   * answer stored for that id, the stored decision's retry, or the removal's bound while no decision is stored; else the end
+   * of a cancel call in flight for that id; else the end of a send in flight, the stored next try, and the mark itself while no hold and no send is open.
+   */
+  function deleteTerm(sql: Sql, mark: Mark & { since: Ms }, subscriptionId: string | null): Ms | null {
+    if (answeredFor(mark, subscriptionId)) return mark.decidedAt === null ? (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS : mark.decidedAt + SYNC_RETRY_MS;
+    const now = Math.max(time(sql), lastNow(sql));
+    const callEnd = callEnds(sql, subscriptionId, now);
+    if (callEnd !== null) return callEnd;
+    const sendEnd = sendEnds(sql, now);
+    if (mark.nextAt !== null) return earliest([sendEnd, mark.nextAt]);
+    if (sendEnd !== null) return sendEnd;
+    return ledger.openHoldsAt(sql, Math.max(time(sql), lastNow(sql))) === 0 ? mark.since : null;
+  }
 
   function dueOf(sql: Sql): Ms | null {
     const metered = isMetered(sql);
@@ -137,6 +273,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const u = metering.oldestUnsealed(sql);
       if (u !== null && ledger.intervalTotals(sql, u.interval).open === 0) times.push(u.end);
     }
+    const mark = markOf(sql);
+    const subscription = accounts.subscription(sql);
+    if (mark.since !== null && subscription !== null) times.push(deleteTerm(sql, { ...mark, since: mark.since }, subscription.subscriptionId));
     return earliest(times);
   }
 
@@ -148,11 +287,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
   }
 
-  function step<T>(run: (open: Open) => T): T {
+  function step<T>(run: (open: Open) => T, by: Caller = byTheAlarm()): T {
     let arm = false;
     let due: Ms | null = null;
     let tested = false;
+    let errors: unknown[] = [];
     const value = host.step((sql) => {
+      errors = [];
       const begin = (withAlarm: boolean) => {
         const now = Math.max(time(sql), lastNow(sql));
         sql.exec("UPDATE skeleton SET last_now = ?", now);
@@ -166,20 +307,51 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         arm: () => {
           arm = true;
         },
+        caught: (error) => {
+          errors.push(error);
+        },
       });
       if (arm) {
-        due = dueOf(sql);
         tested = testTime(sql) !== null;
+        try {
+          due = dueOf(sql);
+        } catch (error) {
+          errors.push(error);
+          dueErrorsOfTheRun?.push(error);
+          due = host.clock() + ALARM_RETRY_MS;
+        }
+        if (dueErrorsOfTheRun !== null && due !== null) {
+          const now = Math.max(time(sql), lastNow(sql));
+          let marked = true;
+          try {
+            marked = markOf(sql).since !== null;
+          } catch {}
+          if (marked && due <= now) due = now + ALARM_RETRY_MS;
+        }
       }
       return result;
     });
+    for (const error of errors) log({ event: by.line, error: errorName(error) });
+    by.caught += errors.length;
     if (arm) armAlarm(tested ? null : due);
     return value;
   }
 
   function createTables(sql: Sql, now: Ms): void {
-    sql.exec("CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL)");
-    sql.exec("INSERT INTO skeleton (destroying_since, last_now, alarm_failures) VALUES (?, ?, ?)", null, now, 0);
+    sql.exec(
+      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER)",
+    );
+    sql.exec(
+      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      null,
+      now,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+    );
     accounts.init(sql);
     ledger.init(sql);
     metering.init(sql);
@@ -241,80 +413,155 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return host.port.readUsageTotal({ ...ids, from: call.from, to: call.to });
   }
 
-  async function sendAndRecord(): Promise<"gone" | "done"> {
+  async function sendAndRecord(by: Caller = byTheAlarm()): Promise<"gone" | "done"> {
     const sent = step((open) => {
       if (!holds(open.sql)) return null;
       const now = open.begin();
       ledger.expire(open.sql, now);
       const next = metering.send(open.sql, now);
-      return { next, ids: next.call === null ? null : idsOf(open.sql) };
-    });
+      return { next, ids: next.call === null ? null : idsOf(open.sql), now };
+    }, by);
     if (sent === null) return "gone";
+    planned(sent.next.call, sent.now);
     logNotBillable(sent.next);
     let call = sent.next.call;
     let ids = sent.ids;
+    let plannedAt = sent.now;
     for (let calls = 0; call !== null && ids !== null && calls < ALARM_CALL_LIMIT; calls += 1) {
       const made = call;
-      const answer = await callPort(made, ids);
+      const key = sendKey(made.interval, plannedAt);
+      if (made.kind === "send") sendsEndedHere.delete(key);
+      let answer: UsageAnswer;
+      try {
+        answer = await callPort(made, ids);
+      } finally {
+        if (made.kind === "send") sendsEndedHere.set(key, plannedAt);
+      }
       const recorded = step((open) => {
         if (!holds(open.sql)) return null;
         const now = open.begin();
         ledger.expire(open.sql, now);
         if (!isMetered(open.sql)) return "not-metered" as const;
         const next = metering.record(open.sql, made, answer, now);
-        return { next, ids: next.call === null ? null : idsOf(open.sql) };
-      });
+        return { next, ids: next.call === null ? null : idsOf(open.sql), now };
+      }, by);
       if (recorded === null) return "gone";
       if (recorded === "not-metered") return "done";
+      planned(recorded.next.call, recorded.now);
       logNotBillable(recorded.next);
       call = recorded.next.call;
       ids = recorded.ids;
+      plannedAt = recorded.now;
     }
     return "done";
   }
 
-  async function alarmBody(): Promise<void> {
-    const first = step((open) => {
-      if (!holds(open.sql)) return null;
-      const now = open.begin();
-      const failures = Number(skeletonRow(open.sql).alarm_failures);
-      ledger.expire(open.sql, now);
-      if (isMetered(open.sql)) sealLoop(open.sql, now);
-      accounts.forget(open.sql, now);
-      return { failures, wake: accounts.wake(open.sql, now), metered: isMetered(open.sql) };
-    });
-    if (first === null) return;
-    let metered = first.metered;
-    if (first.wake !== null) {
-      const sessionId = first.wake.sessionId;
-      const answer = await host.port.readSession(sessionId);
-      const after = step((open) => {
+  async function alarmBody(run: AlarmRun): Promise<void> {
+    const outer = dueErrorsOfTheRun;
+    const dueErrors: unknown[] = [];
+    dueErrorsOfTheRun = dueErrors;
+    try {
+      await alarmRun(run, dueErrors);
+    } finally {
+      dueErrorsOfTheRun = outer;
+    }
+  }
+
+  async function alarmRun(run: AlarmRun, dueErrors: unknown[]): Promise<void> {
+    const caught: unknown[] = [];
+    let head: { mark: Mark; failures: number } | null | "unknown";
+    try {
+      head = host.step((sql) => (holds(sql) ? { mark: markOf(sql), failures: Number(skeletonRow(sql).alarm_failures) } : null));
+    } catch (error) {
+      caught.push(error);
+      log({ event: "alarm-error", error: errorName(error) });
+      head = "unknown";
+    }
+    if (head === null) return;
+    run.mark = head === "unknown" ? "unknown" : head.mark;
+    const marked = head === "unknown" || head.mark.since !== null;
+    async function part<T>(work: () => Promise<T> | T): Promise<T | undefined> {
+      if (!marked) return work();
+      try {
+        return await work();
+      } catch (error) {
+        caught.push(error);
+        log({ event: "alarm-error", error: errorName(error) });
+        return undefined;
+      }
+    }
+    const since = head === "unknown" ? null : head.mark.since;
+    if (since !== null) await part(() => cutAtTheMark(since));
+    const first = await part(() =>
+      step((open) => {
         if (!holds(open.sql)) return null;
         const now = open.begin();
         ledger.expire(open.sql, now);
-        if (answer.kind === "complete") {
-          const made = accounts.complete(open.sql, answer.session);
-          if (made.kind === "account-made") {
-            accountMade(open.sql, made, (accounts.subscription(open.sql) ?? contractBroken()).accountId, now);
+        if (isMetered(open.sql)) sealLoop(open.sql, now);
+        accounts.forget(open.sql, now);
+        return { wake: accounts.wake(open.sql, now), metered: isMetered(open.sql) };
+      }),
+    );
+    if (first === null) return;
+    let metered = first?.metered ?? true;
+    const wake = first?.wake ?? null;
+    if (wake !== null) {
+      const sessionId = wake.sessionId;
+      const after = await part(async () => {
+        const answer = await host.port.readSession(sessionId);
+        return step((open) => {
+          if (!holds(open.sql)) return null;
+          const now = open.begin();
+          ledger.expire(open.sql, now);
+          if (answer.kind === "complete") {
+            const made = accounts.complete(open.sql, answer.session);
+            if (made.kind === "account-made") {
+              accountMade(open.sql, made, (accounts.subscription(open.sql) ?? contractBroken()).accountId, now);
+            }
+            return { removal: null, metered: isMetered(open.sql) };
+          }
+          const recorded = accounts.record(open.sql, sessionId, answer.kind, now);
+          if (isRemoval(recorded)) {
+            open.beginWithoutAlarm();
+            return { removal: recorded, metered: false };
           }
           return { removal: null, metered: isMetered(open.sql) };
-        }
-        const recorded = accounts.record(open.sql, sessionId, answer.kind, now);
-        if (isRemoval(recorded)) {
-          open.beginWithoutAlarm();
-          return { removal: recorded, metered: false };
-        }
-        return { removal: null, metered: isMetered(open.sql) };
+        });
       });
       if (after === null) return;
-      if (after.removal !== null) {
-        await removeAll(after.removal);
+      if (after !== undefined) {
+        if (after.removal !== null) {
+          await removeAll(after.removal);
+          return;
+        }
+        metered = after.metered;
+      }
+    }
+    let thrown: { error: unknown } | null = null;
+    try {
+      if (metered && (await sendAndRecord()) === "gone") return;
+    } catch (error) {
+      thrown = { error };
+    }
+    if (marked) {
+      let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
+      try {
+        finished = await finishDelete(null);
+      } catch (error) {
+        if (thrown === null) throw error;
+        log({ event: "alarm-error", error: errorName(error) });
+      }
+      thrown = thrown ?? finished.thrown;
+      if (finished.answer.result === "deleted") {
+        if (thrown !== null) log({ event: "alarm-error", error: errorName(thrown.error) });
         return;
       }
-      metered = after.metered;
     }
-    if (metered && (await sendAndRecord()) === "gone") return;
-    if (first.failures > 0) {
+    if (thrown !== null) throw thrown.error;
+    if (caught.length > 0) throw new LoggedAlarmError(caught[0]);
+    if (dueErrors.length > 0) throw new LoggedAlarmError(dueErrors[0]);
+    failuresKept = 0;
+    if (head === "unknown" || head.failures > 0) {
       step((open) => {
         if (!holds(open.sql)) return;
         open.begin();
@@ -323,22 +570,67 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
   }
 
-  function countFailure(error: unknown): void {
-    const name = errorName(error);
-    log({ event: "alarm-error", error: name });
+  function countFailure(error: unknown, run: AlarmRun): void {
+    const logged = error instanceof LoggedAlarmError;
+    const name = errorName(logged ? error.first : error);
+    if (!logged) log({ event: "alarm-error", error: name });
+    let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null);
     let count = ALARM_RETRY_LIMIT;
     let tested = false;
+    let waits: Ms | null = null;
+    let nextAt: Ms | null = null;
+    let removal: { overdue: boolean } | null = null;
     try {
       const counted = host.step((sql) => {
-        const now = Math.max(time(sql), lastNow(sql));
-        const failures = Math.min(Number(skeletonRow(sql).alarm_failures) + 1, ALARM_RETRY_LIMIT);
-        sql.exec("UPDATE skeleton SET last_now = ?, alarm_failures = ?", now, failures);
-        return { failures, tested: testTime(sql) !== null };
+        const mark = markOf(sql);
+        const markedNow = marked || mark.since !== null;
+        const prior = Number(skeletonRow(sql).alarm_failures);
+        const failures = markedNow ? Math.max(prior, failuresKept) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
+        sql.exec("UPDATE skeleton SET alarm_failures = ?", failures);
+        return { failures, tested: testTime(sql) !== null, marked: markedNow, nextAt: mark.nextAt };
       });
       count = counted.failures;
       tested = counted.tested;
-    } catch {
-      count = ALARM_RETRY_LIMIT;
+      marked = counted.marked;
+      nextAt = counted.nextAt;
+    } catch (counting) {
+      log({ event: "alarm-error", error: errorName(counting) });
+      count = marked ? failuresKept + 1 : ALARM_RETRY_LIMIT;
+    }
+    if (marked) failuresKept = count;
+    try {
+      host.step((sql) => {
+        sql.exec("UPDATE skeleton SET last_now = ?", Math.max(time(sql), lastNow(sql)));
+      });
+    } catch (writing) {
+      log({ event: "alarm-error", error: errorName(writing) });
+    }
+    if (marked) {
+      try {
+        const owed = host.step((sql) => {
+          const mark = markOf(sql);
+          if (mark.since === null) return null;
+          const subscriptionId = (accounts.subscription(sql) ?? contractBroken()).subscriptionId;
+          const answered = answeredFor(mark, subscriptionId);
+          const now = Math.max(time(sql), lastNow(sql));
+          return {
+            term: deleteTerm(sql, { ...mark, since: mark.since }, subscriptionId),
+            removal: answered ? { overdue: now >= (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS } : null,
+          };
+        });
+        waits = owed?.term ?? null;
+        removal = owed?.removal ?? null;
+      } catch {
+        waits = nextAt;
+      }
+    }
+    if (marked) {
+      const pause = Math.min(ALARM_RETRY_MS * 2 ** Math.min(count - 1, 30), ALARM_PAUSE_CAP_MS);
+      let at = Math.max(host.clock() + pause, waits ?? 0);
+      if (removal !== null) at = Math.min(at, Math.max(waits ?? 0, host.clock() + SYNC_RETRY_MS));
+      if (removal?.overdue === true) log({ event: "removal-overdue" });
+      armAlarm(tested ? null : at);
+      return;
     }
     if (count < ALARM_RETRY_LIMIT) {
       armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
@@ -348,7 +640,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     armAlarm(null);
   }
 
-  function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T): T {
+  function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T, by: Caller = byTheAlarm()): T {
     return step((open) => {
       if (!holds(open.sql)) return answers.nothing;
       const now = open.begin();
@@ -357,7 +649,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (look === "mismatch") return answers.mismatch;
       if (look === "pending") return answers.pending;
       return onAccount(open, now);
-    });
+    }, by);
   }
 
   function capAnswer(sql: Sql, now: Ms): { result: "cap"; cap: Cap; spend: { spent: Micro; held: Micro; period_end: Ms } } | null {
@@ -366,16 +658,199 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return { result: "cap", cap: read.cap, spend: { spent: read.spent, held: read.held, period_end: read.periodEnd } };
   }
 
-  async function destroyStepThree(metered: boolean): Promise<"gone" | "done"> {
+  async function destroyStepThree(by: Caller = byTheAlarm()): Promise<"gone" | "done"> {
     const sealed = step((open) => {
-      if (!holds(open.sql)) return false;
+      if (!holds(open.sql)) return null;
       const now = open.begin();
       ledger.expire(open.sql, now);
+      const metered = isMetered(open.sql);
       if (metered) sealLoop(open.sql, now);
-      return true;
-    });
-    if (!sealed) return "gone";
-    return metered ? sendAndRecord() : "done";
+      return { metered };
+    }, by);
+    if (sealed === null) return "gone";
+    return sealed.metered ? sendAndRecord(by) : "done";
+  }
+
+  function cutAtTheMark(mark: Ms, by: Caller = byTheAlarm()): void {
+    step((open) => {
+      if (!holds(open.sql)) return;
+      const now = open.begin();
+      if (isMetered(open.sql)) metering.cut(open.sql, "delete", mark, now);
+    }, by);
+  }
+
+  function holder(sql: Sql, hash: string | null): DeleteAnswer | null {
+    if (hash === null) return accounts.subscription(sql) === null ? NOT_FINISHED : null;
+    const look = accounts.look(sql, hash);
+    if (look === "nothing") return { result: "deleted" };
+    if (look === "mismatch") return { result: "credential-mismatch" };
+    if (look === "pending") return { result: "pending" };
+    return null;
+  }
+
+  function fourth(hash: string | null, again: boolean, by: Caller): Fourth {
+    return step((open): Fourth => {
+      if (!holds(open.sql)) return { kind: "answer", answer: { result: "deleted" } };
+      const now = open.begin();
+      const refused = holder(open.sql, hash);
+      if (refused !== null) return { kind: "answer", answer: refused };
+      const mark = markOf(open.sql);
+      if (mark.since === null || ledger.openHoldsAt(open.sql, now) > 0) return { kind: "answer", answer: NOT_FINISHED };
+      if (!again) {
+        try {
+          if (isMetered(open.sql) && metering.oldestUnsealed(open.sql) !== null) return { kind: "again" };
+        } catch (error) {
+          open.caught(error);
+        }
+      }
+      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
+      if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
+      if (callEnds(open.sql, subscriptionId, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
+      if (sendEnds(open.sql, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
+      if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
+      let unacknowledged = 0;
+      try {
+        unacknowledged = isMetered(open.sql) ? metering.unacknowledged(open.sql) : 0;
+      } catch (error) {
+        open.caught(error);
+      }
+      if (subscriptionId !== null) storeCallRecord(open.sql, subscriptionId, now);
+      return { kind: "cancel", subscriptionId, mark: mark.since, unacknowledged, began: subscriptionId === null ? null : now };
+    }, by);
+  }
+
+  async function finishDelete(hash: string | null, by: Caller = byTheAlarm()): Promise<{ answer: DeleteAnswer; thrown: { error: unknown } | null }> {
+    let thrown: { error: unknown } | null = null;
+    let next = fourth(hash, false, by);
+    if (next.kind === "again") {
+      try {
+        if ((await destroyStepThree(by)) === "gone") return { answer: { result: "deleted" }, thrown };
+      } catch (error) {
+        thrown = { error };
+      }
+      next = fourth(hash, true, by);
+    }
+    return { answer: await finishFrom(hash, next, by), thrown };
+  }
+
+  async function finishFrom(hash: string | null, next: Fourth, by: Caller): Promise<DeleteAnswer> {
+    if (next.kind === "answer") return next.answer;
+    if (next.kind === "again") return contractBroken();
+    const mark = next.mark;
+    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId } : null;
+    if (made !== null) {
+      for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
+      const id = made.subscriptionId;
+      const began = next.kind === "cancel" ? next.began : null;
+      const clear = () => {
+        try {
+          step((open) => {
+            if (!holds(open.sql)) return;
+            open.begin();
+            clearCallRecord(open.sql, id, began);
+          }, by);
+        } catch (clearing) {
+          log({ event: by.line, error: errorName(clearing) });
+        }
+      };
+      const settled = (async () => host.port.cancelSubscription(id))().then(
+        (answer) => ({ answer }),
+        (error: unknown) => ({ error }),
+      );
+      const pause = host.pause ?? ((ms: Ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+      const first = await Promise.race([settled, pause(CANCEL_CALL_BOUND_MS).then(() => null)]);
+      let cancelled: Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
+      if (first === null) {
+        log({ event: "cancel-call-unsettled" });
+        void settled.then(clear);
+        cancelled = { kind: "failed" };
+      } else if ("error" in first) {
+        clear();
+        throw first.error;
+      } else cancelled = first.answer;
+      if (cancelled.kind === "failed") {
+        const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
+          if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
+          const now = open.begin();
+          if (first !== null) clearCallRecord(open.sql, id, began);
+          const current = markOf(open.sql);
+          if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, capped: false };
+          const delay = current.delay ?? SYNC_RETRY_MS;
+          open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));
+          return { answer: NOT_FINISHED, capped: delay >= RETRY_DELAY_CAP_MS };
+        }, by);
+        if (unanswered.capped) log({ event: "cancel-unanswered" });
+        return unanswered.answer;
+      }
+    }
+    if (made !== null) {
+      const began = next.kind === "cancel" ? next.began : null;
+      const recorded = step((open): DeleteAnswer | null => {
+        if (!holds(open.sql)) return { result: "deleted" };
+        const now = open.begin();
+        clearCallRecord(open.sql, made.subscriptionId, began);
+        if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
+        const current = markOf(open.sql);
+        const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
+        if (!answeredFor(current, made.subscriptionId) && !answeredFor(current, subscriptionId)) {
+          open.sql.exec(
+            "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?, removal_decided_at = ?",
+            now,
+            made.subscriptionId,
+            null,
+            null,
+            null,
+          );
+        }
+        return null;
+      }, by);
+      if (recorded !== null) return recorded;
+    }
+    const last = step((open): DeleteAnswer | { decidedAt: Ms; closed: number | { unknown: unknown } } => {
+      if (!holds(open.sql)) return { result: "deleted" };
+      const now = open.begin();
+      if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
+      const stored = markOf(open.sql);
+      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
+      if (stored.answeredAt === null || !answeredFor(stored, subscriptionId)) return NOT_FINISHED;
+      const closedAtBound = (): number | { unknown: unknown } => {
+        try {
+          return isMetered(open.sql) ? metering.closedAtBound(open.sql) : 0;
+        } catch (error) {
+          open.caught(error);
+          return { unknown: error };
+        }
+      };
+      if (stored.decidedAt !== null) return { decidedAt: stored.decidedAt, closed: closedAtBound() };
+      if (now >= stored.answeredAt + DELETE_REMOVAL_BOUND_MS) {
+        let unknown: { unknown: unknown } | null = null;
+        try {
+          if (isMetered(open.sql)) metering.closeOpen(open.sql, now);
+        } catch (error) {
+          open.caught(error);
+          unknown = { unknown: error };
+        }
+        open.sql.exec("UPDATE skeleton SET removal_decided_at = ?", now);
+        return { decidedAt: now, closed: unknown ?? closedAtBound() };
+      }
+      const metered = isMetered(open.sql);
+      if (ledger.openHoldsAt(open.sql, now) > 0 || (metered && !metering.settled(open.sql))) return NOT_FINISHED;
+      open.sql.exec("UPDATE skeleton SET removal_decided_at = ?", now);
+      return { decidedAt: now, closed: closedAtBound() };
+    }, by);
+    if ("result" in last) return last;
+    if (removalLogged !== last.decidedAt) {
+      removalLogged = last.decidedAt;
+      if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
+      else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
+    }
+    try {
+      await host.deleteAll();
+    } catch (error) {
+      if (typeof error === "object" && error !== null) removalRejections.add(error);
+      throw error;
+    }
+    return { result: "deleted" };
   }
 
   return {
@@ -501,7 +976,12 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       return guarded<StatusAnswer>(
         hash,
         { nothing: { result: "no-such-account" }, mismatch: { result: "credential-mismatch" }, pending: { result: "pending" } },
-        (open) => ({ result: (accounts.subscription(open.sql) ?? contractBroken()).state }),
+        (open) => {
+          const subscription = accounts.subscription(open.sql) ?? contractBroken();
+          const mark = markOf(open.sql);
+          if (mark.since === null) return { result: subscription.state };
+          return { result: answeredFor(mark, subscription.subscriptionId) ? "cancelled" : "closing" };
+        },
       );
     },
 
@@ -548,40 +1028,51 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         mismatch: { result: "credential-mismatch" as const },
         pending: { result: "pending" as const },
       };
-      const first = guarded<DeleteAnswer | { metered: boolean }>(hash, answers, (open, now) => {
-        const metered = isMetered(open.sql);
-        if (destroyingSince(open.sql) === null) {
-          open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
-          if (metered) metering.cut(open.sql, "delete", now, now);
-        }
-        return { metered };
-      });
-      if ("result" in first) return first;
-      if ((await destroyStepThree(first.metered)) === "gone") return { result: "deleted" };
-      const fourth = guarded<DeleteAnswer | { subscriptionId: string | null; mark: Ms }>(
+      const by: Caller = { line: "destroy-error", caught: 0 };
+      const first = guarded<DeleteAnswer | { cut: Ms | null }>(
         hash,
-        { ...answers, nothing: { result: "deleted" } },
-        (open) => {
-          const metered = isMetered(open.sql);
-          const mark = destroyingSince(open.sql);
-          const unfinished = mark === null || ledger.openHolds(open.sql) > 0 || (metered && !metering.settled(open.sql));
-          if (unfinished) return { result: "not-finished" };
-          return { subscriptionId: (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId, mark };
+        answers,
+        (open, now) => {
+          if (destroyingSince(open.sql) !== null) return { cut: null };
+          open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
+          return { cut: now };
         },
+        by,
       );
-      if ("result" in fourth) return fourth;
-      const cancelled = await host.port.cancelSubscription(fourth.subscriptionId);
-      if (cancelled.kind === "failed") return { result: "not-finished" };
-      const last = step((open): DeleteAnswer | "delete" => {
-        if (!holds(open.sql)) return { result: "deleted" };
-        open.begin();
-        if (accounts.look(open.sql, hash) !== "account" || destroyingSince(open.sql) !== fourth.mark) return { result: "not-finished" };
-        open.beginWithoutAlarm();
-        return "delete";
-      });
-      if (last !== "delete") return last;
-      await host.deleteAll();
-      return { result: "deleted" };
+      if ("result" in first) return first;
+      let failed = false;
+      let leave: { error: unknown } | null = null;
+      const caught = (error: unknown) => {
+        if (leavesDestroy(error)) {
+          leave = leave ?? { error };
+          return;
+        }
+        failed = true;
+        log({ event: "destroy-error", error: errorName(error) });
+      };
+      const mark = first.cut;
+      if (mark !== null) {
+        try {
+          cutAtTheMark(mark, by);
+        } catch (error) {
+          caught(error);
+        }
+      }
+      try {
+        if ((await destroyStepThree(by)) === "gone") return { result: "deleted" };
+      } catch (error) {
+        caught(error);
+      }
+      let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
+      try {
+        finished = await finishDelete(hash, by);
+      } catch (error) {
+        caught(error);
+      }
+      if (finished.thrown !== null) caught(finished.thrown.error);
+      if (leave !== null) throw (leave as { error: unknown }).error;
+      if (!failed && by.caught === 0) return finished.answer;
+      return host.step((sql) => holds(sql)) ? finished.answer : { result: "deleted" };
     },
 
     async reserve(hash, req) {
@@ -620,10 +1111,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     },
 
     async alarm() {
+      const run: AlarmRun = { mark: "unknown" };
       try {
-        await alarmBody();
+        await alarmBody(run);
       } catch (error) {
-        countFailure(error);
+        countFailure(error, run);
       }
     },
 
@@ -649,10 +1141,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const due = host.step((sql) => (holds(sql) ? dueOf(sql) : null));
         if (due === null || due > at || (runs > 0 && due === before)) break;
         before = due;
+        const run: AlarmRun = { mark: "unknown" };
         try {
-          await alarmBody();
+          await alarmBody(run);
         } catch (error) {
-          countFailure(error);
+          countFailure(error, run);
           break;
         }
       }

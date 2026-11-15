@@ -445,6 +445,11 @@ export function makeLedger(config: { holdLifeMs: number }): Ledger {
       return int(row, "n");
     },
 
+    openHoldsAt(sql, now) {
+      const row = sql.exec("SELECT COUNT(*) AS n FROM ledger_holds WHERE state = ? AND expires_at > ?", "open", now)[0] ?? rowBroken("the count of open holds");
+      return int(row, "n");
+    },
+
     nextDue(sql) {
       const row = sql.exec("SELECT MIN(expires_at) AS at FROM ledger_holds WHERE state = ?", "open")[0] ?? rowBroken("the next expiry");
       return intOrNull(row, "at");
