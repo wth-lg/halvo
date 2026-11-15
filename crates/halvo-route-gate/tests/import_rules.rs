@@ -846,7 +846,7 @@ fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     let mut wrong = Vec::new();
     for (what, driver, want) in [
         (
-            "a broken attempt line before an indented one",
+            "the order alone: a broken attempt line before an indented one is named first",
             vec![
                 attempt_with("pass", "maybe"),
                 format!(" {ATTEMPT}"),
