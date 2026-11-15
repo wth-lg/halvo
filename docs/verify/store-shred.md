@@ -346,8 +346,8 @@ spawns no child, so nothing else shares its descriptor.
 | Cases with moves that fail | 32 (`FAILING_MOVE_CASES`), 1 to 12 ops each | the second random test; it interleaves the moves that fail or are refused with the others, and no row depends on a case that it draws |
 | The fixed order | 24 moves | each move that fails or is refused at least once, in the state that it needs; the rows of these moves are judged by it |
 | Segment sizes | 0 to 512 bytes, one chunk and one byte either side of it, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
-| Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | the size at which a key row that is deleted, not set to NULL, leaves keys in `store.db`: 3 of 900 after the one pass |
-| Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | with deleted key rows a key is left after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50 |
+| Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | chosen as the size at which a key row that is deleted, not set to NULL, left keys in `store.db` under the build before ADR 0013: 3 of 900 after the one pass. Under the build of ADR 0013 a deleted key row leaves none (Not covered); the row of this case is `formal-secure-delete-off` |
+| Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | chosen when, under the build before ADR 0013, deleted key rows left a key after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50. Its row is `formal-shred-never-committed`, which fails it after pass 1 |
 | Check 2 cases | 30 (`RACE_CASES`) | each case spawns processes, and a row of check 2 fails only in a case in which two contenders meet; 30 follows from the measured share of such cases, under Break proofs |
 | Contenders | 2 to 5 (`MAX_CONTENDERS`) | two is the minimal race; five covers a queue of waiters |
 | Acquisitions per contender | 1 to 3 | re-acquisition after a release, with the lock file possibly recreated |
@@ -540,8 +540,8 @@ The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
 `[Write { len: 0, expiry: Past }, ShredExpired]`.
 
-Eleven rows share their substitution with a `formal-` row of the same file
-that has another verdict: `shredded-key-survives`, `key-row-deleted`,
+Ten rows share their substitution with a `formal-` row of the same file
+that has another verdict: `shredded-key-survives`,
 `checkpoint-not-verified`, `raw-store-key-in-key-file`,
 `delete-all-destroys-nothing`, `custody-wrap-under-constant-key`,
 `custody-root-is-all-zero`, `store-db-mode-not-narrowed`, and the three
@@ -550,8 +550,7 @@ create that destroys a root, `create-destroys-a-root-it-cannot-read`,
 `create-destroys-a-root-file-it-cannot-read` and
 `create-destroys-the-root-of-a-create-at-the-same-instant`. A row has
 one verdict, and the covered table needs the formal check to fail, so each
-of these substitutions stands under more than one name: that of
-`key-row-deleted` under three, once for each scaled case, and that of the
+of these substitutions stands under more than one name, and that of the
 three rows on a create under four, with
 `formal-refused-create-destroys-the-root`.
 
