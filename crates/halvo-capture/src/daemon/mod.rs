@@ -1577,10 +1577,12 @@ mod tests {
         );
     }
 
+    /// A model store whose expiry, once armed, blocks the owner for `block`.
     struct ExpiryThatBlocksOnceArmed {
         inner: ModelStore,
         armed: Arc<AtomicBool>,
         entered: Arc<AtomicBool>,
+        block: Duration,
     }
 
     impl MaintainStore for ExpiryThatBlocksOnceArmed {
@@ -1591,7 +1593,7 @@ mod tests {
         ) -> Result<Pass, MaintFault> {
             if self.armed.load(Ordering::SeqCst) {
                 self.entered.store(true, Ordering::SeqCst);
-                std::thread::sleep(Duration::from_secs(2));
+                std::thread::sleep(self.block);
             }
             self.inner.expire_due(now, max)
         }
@@ -1625,12 +1627,14 @@ mod tests {
     #[test]
     fn a_shutdown_unanswered_after_a_clean_settle_gives_exit_1() {
         let clocks = ManualClocks::at(noon());
+        let bound = Duration::from_secs(2);
         let armed = Arc::new(AtomicBool::new(false));
         let entered = Arc::new(AtomicBool::new(false));
         let store = ExpiryThatBlocksOnceArmed {
             inner: ModelStore::new(),
             armed: Arc::clone(&armed),
             entered: Arc::clone(&entered),
+            block: 3 * bound,
         };
         let mut scripted = sources();
         let hook_clocks = clocks.clone();
@@ -1650,7 +1654,7 @@ mod tests {
             store,
             clocks,
             &stop,
-            Duration::from_secs(2),
+            bound,
         )
         .unwrap();
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
