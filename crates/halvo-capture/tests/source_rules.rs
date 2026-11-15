@@ -891,3 +891,70 @@ fn the_macos_timed_run_hands_the_signal_flag_to_the_run() {
         "the fifth argument of run_timed in {file} is not the binary's signal flag"
     );
 }
+
+/// The body of each match arm in `tokens` that opens with `head` followed by
+/// `=>`: its tokens up to the comma or the closing delimiter at its own depth,
+/// without a comma that stands just before a closing delimiter, which the
+/// formatter adds to a call that it breaks over lines.
+fn arm_bodies(tokens: &[String], head: &[&str]) -> Vec<Vec<String>> {
+    let mut bodies = Vec::new();
+    for at in 0..tokens.len() {
+        let end = at + head.len();
+        if end + 2 > tokens.len()
+            || tokens[at..end].iter().zip(head).any(|(t, h)| t != h)
+            || tokens[end] != "="
+            || tokens[end + 1] != ">"
+        {
+            continue;
+        }
+        let mut body = Vec::new();
+        let mut depth = 0usize;
+        for token in &tokens[end + 2..] {
+            match token.as_str() {
+                "(" | "[" | "{" => depth += 1,
+                ")" | "]" | "}" if depth == 0 => break,
+                ")" | "]" | "}" => {
+                    depth -= 1;
+                    if body.last().is_some_and(|last: &String| last == ",") {
+                        body.pop();
+                    }
+                }
+                "," if depth == 0 => break,
+                _ => {}
+            }
+            body.push(token.clone());
+        }
+        bodies.push(body);
+    }
+    bodies
+}
+
+/// Ruling DM-15 (1), the binary's own arm (G3): the usage arm of the binary
+/// returns the status that `usage_answer` gives, and its run arm the status
+/// that `outcome_answer` gives, each arm once. Both answers are tested in the
+/// lib; a process test of the binary's exit code is daemon-3's tests/cli.rs,
+/// so the two calls are held over the source text.
+#[test]
+fn the_binary_returns_what_usage_answer_and_outcome_answer_give() {
+    let file = "crates/halvo-capture/src/bin/halvo-capture.rs";
+    let tokens = read_tokens(file).unwrap();
+    let arms = [
+        (
+            &["Err", "(", "usage", ")"][..],
+            "status(daemon::usage_answer(&usage, &mut std::io::stderr()))",
+        ),
+        (
+            &["Ok", "(", "outcome", ")"][..],
+            "status(daemon::outcome_answer(&outcome, &mut std::io::stdout().lock(), &mut std::io::stderr()))",
+        ),
+    ];
+    for (head, body) in arms {
+        let want = lex(body).unwrap();
+        assert_eq!(
+            arm_bodies(&tokens, head),
+            [want],
+            "the arm {} of {file} does not return {body} alone, once",
+            head.concat()
+        );
+    }
+}
