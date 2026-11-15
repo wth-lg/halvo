@@ -113,7 +113,8 @@ read_commit() {
     fail_now
   fi
   wanted_text=
-  if [ -s "$committed/$required" ] && wanted_text=$(printf '%s\n' "$fixed_tests" && cat "$committed/$required") &&
+  if [ -s "$committed/$required" ] && awk 'seen[$0]++ { twice = 1 } END { exit twice }' "$committed/$required" &&
+    wanted_text=$(printf '%s\n' "$fixed_tests" && cat "$committed/$required") &&
     R6_WANTED=$wanted_text awk '
       BEGIN {
         n = split(ENVIRON["R6_WANTED"], line, "\n")
@@ -795,6 +796,9 @@ required_cases() {
   check list-with-a-name-of-two-words FAIL 'required list=bad'
   mv "$work/repo/$required" "$work/repo/$required.away" || exit 2
   check no-list FAIL 'required list=bad'
+  restore_repo
+  tail -n 1 "$work/pristine/$required" >>"$work/repo/$required"
+  check list-with-a-line-twice FAIL 'required list=bad'
   restore_repo
 
   stub_case carriage-returns
