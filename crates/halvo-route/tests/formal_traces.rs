@@ -2,6 +2,7 @@
 
 use halvo_route::spend::{step, Account, Hold, Move, SpendCause, State};
 use serde_json::{json, Map, Value};
+use std::collections::BTreeSet;
 
 const TRACES: &str = "../../formal/r6-spend/traces.jsonl";
 const MICRO_PER_MINOR: u64 = 10_000;
@@ -226,9 +227,14 @@ fn read_file(text: &str) -> Result<Vec<Trace>, String> {
         }
     }
     let drawn = traces.len().saturating_sub(DIRECTED);
-    if drawn < LEAST_TRACES {
+    let differ = text
+        .lines()
+        .skip(1 + DIRECTED)
+        .collect::<BTreeSet<_>>()
+        .len();
+    if differ < LEAST_TRACES {
         return Err(format!(
-            "the file holds {drawn} drawn traces, fewer than {LEAST_TRACES}"
+            "the file holds {drawn} drawn traces, of which {differ} differ, fewer than {LEAST_TRACES}"
         ));
     }
     if u64::try_from(traces.len()) != Ok(count) {
@@ -710,8 +716,50 @@ fn the_floor_refuses_199_drawn_traces() {
     let fewer = &lines[..lines.len() - 1];
     let fault = check(&with_header(fewer.len(), fewer)).expect_err("199 drawn traces");
     assert!(
-        fault.contains("the file holds 199 drawn traces, fewer than 200"),
+        fault.contains("the file holds 199 drawn traces, of which 199 differ, fewer than 200"),
         "{fault}"
+    );
+}
+
+#[test]
+fn the_floor_counts_the_drawn_traces_that_differ() {
+    let text = committed();
+    let lines: Vec<&str> = text.lines().collect();
+    let mut one_drawn = lines[1..7].to_vec();
+    one_drawn.extend(vec![lines[7]; 200]);
+    let mut last_twice = lines[1..].to_vec();
+    let last = last_twice.len() - 1;
+    last_twice[last] = last_twice[last - 1];
+    let cases = [
+        (
+            "six directed traces and one drawn trace written 200 times",
+            with_header(206, &one_drawn),
+            "the file holds 200 drawn traces, of which 1 differ, fewer than 200",
+        ),
+        (
+            "the last drawn trace a copy of the one before it",
+            with_header(206, &last_twice),
+            "the file holds 200 drawn traces, of which 199 differ, fewer than 200",
+        ),
+    ];
+    let taken: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, text, fragment)| match check(text) {
+            Err(fault) if fault.contains(fragment) => None,
+            Err(fault) => Some(format!("{name}: refused as {fault}")),
+            Ok(_) => Some(format!("{name}: accepted")),
+        })
+        .collect();
+    assert!(
+        taken.is_empty(),
+        "the floor took or refused otherwise: {taken:?}"
+    );
+    let mut one_more = lines[1..].to_vec();
+    one_more.push(lines[7]);
+    assert_eq!(
+        check(&with_header(207, &one_more)).map(|(traces, _)| traces),
+        Ok(207),
+        "200 drawn traces that differ and one written again"
     );
 }
 
