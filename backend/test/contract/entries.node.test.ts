@@ -1542,7 +1542,7 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     const w = world({ clock: () => now });
     await w.seeded({ customerId: "cus_one" });
     w.answers.settled = false;
-    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    w.answers.openHolds = 1;
     await w.entries.destroy(HASH);
     w.answers.throwIn = "ledger.expire";
     const inner = w.host.step;
@@ -1561,5 +1561,29 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     w.answers.throwIn = null;
     expect(w.alarmAt()).toBe(9000 + ALARM_RETRY_MS);
     expect(events()).not.toContain("alarm-stopped");
+  });
+});
+
+describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
+  const skeleton = (w: ReturnType<typeof world>) => w.host.step((sql) => sql.exec("SELECT * FROM skeleton")[0]);
+
+  test("M1: accounts.subscription throwing in every run under the mark, the count step among them: the count is stored and the gaps double", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.openHolds = 0;
+    w.answers.throwIn = "accounts.subscription";
+    const gaps: Ms[] = [];
+    for (let run = 0; run < 5; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      const at = now;
+      await w.entries.alarm();
+      gaps.push((w.alarmAt() ?? 0) - at);
+    }
+    w.answers.throwIn = null;
+    expect(gaps).toEqual([30_000, 60_000, 120_000, 240_000, 480_000]);
+    expect(skeleton(w)?.alarm_failures).toBe(5);
   });
 });
