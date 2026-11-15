@@ -5,7 +5,7 @@ set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=45
+failing_fixtures=47
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -133,16 +133,31 @@ EOF
 
 ledger_paths() {
   cat <<'EOF'
-crates/halvo-capture/src/windows
-crates/halvo-capture/src/secure_input.rs
-crates/halvo-capture/tests
-crates/halvo-capture/Cargo.toml
 scripts/r1/ci.d/50-windows-functional.sh
 EOF
 }
 
+macos_only_paths() {
+  cat <<'EOF'
+crates/halvo-capture/src/macos	src/lib.rs:11 #[cfg(target_os = "macos")] pub mod macos;
+crates/halvo-capture/src/secure_input_macos.rs	src/secure_input.rs:14 #[cfg(target_os = "macos")] #[path = "secure_input_macos.rs"] pub mod macos;
+crates/halvo-capture/src/custody/macos.rs	src/custody/mod.rs:6 #[cfg(target_os = "macos")] pub mod macos;
+EOF
+}
+
+crate_view_id() {
+  macos_only_paths | cut -f 1 >"$work/macos-only" || return 1
+  git ls-tree -r "$1" -- crates/halvo-capture >"$work/crate-tree" || return 1
+  awk -F '\t' 'NR == FNR { skip[$1] = 1; next }
+    {
+      path = $2
+      for (prefix in skip) if (path == prefix || index(path, prefix "/") == 1) next
+      print
+    }' "$work/macos-only" "$work/crate-tree" | git hash-object --no-filters --stdin
+}
+
 windows_lock_id() {
-  git show HEAD:Cargo.lock | tr -d '\r' | awk '
+  git show "${1:-HEAD}:Cargo.lock" | tr -d '\r' | awk '
     /^\[\[package\]\]$/ { if (keep) printf "%s", block; block = $0 "\n"; keep = 0; next }
     /^name = "windows/ { keep = 1 }
     { block = block $0 "\n" }
@@ -188,12 +203,28 @@ ledger_check() {
     [ "$recorded" = "$head_id" ] ||
       fail "the measured run $run ran on another $path than the head's ($recorded against $head_id): $fix"
   done <"$work/listed-paths"
+  macos_only_paths >"$work/macos-only-lines" || fail "the list of the crate's macOS-only paths cannot be read"
+  while IFS="$(printf '\t')" read -r path where; do
+    file=${where%%:*}
+    line=${where#*:}
+    line=${line%% *}
+    text=$(git show "HEAD:crates/halvo-capture/$file" 2>/dev/null | sed -n "${line}p")
+    case $text in
+      *'#[cfg(target_os = "macos")]'*) ;;
+      *) fail "the line $line of crates/halvo-capture/$file no longer holds the macOS cfg that leaves $path out of the ledger's tree: read the crate's cfg lines and mend the list" ;;
+    esac
+  done <"$work/macos-only-lines"
+  recorded=$(sed -n 's/^measured view path=crates\/halvo-capture without=macos-only id=\([0-9a-f]*\)$/\1/p' "$work/ledger")
+  head_id=$(crate_view_id HEAD) || fail "the tree of crates/halvo-capture cannot be read"
+  [ -n "$recorded" ] || fail "$ledger records no id of the tree of crates/halvo-capture without its macOS-only paths: $fix"
+  [ "$recorded" = "$head_id" ] ||
+    fail "the measured run $run ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's ($recorded against $head_id): $fix"
   recorded=$(sed -n 's/^measured lock path=Cargo.lock crates=windows id=\([0-9a-f]*\)$/\1/p' "$work/ledger")
   head_id=$(windows_lock_id) || fail "the windows lines of Cargo.lock cannot be read"
   [ -n "$recorded" ] || fail "$ledger records no id of the windows lines of Cargo.lock: $fix"
   [ "$recorded" = "$head_id" ] ||
     fail "the measured run $run ran on other windows lines of Cargo.lock than the head's ($recorded against $head_id): $fix"
-  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of the listed paths and of the windows lines of Cargo.lock\n' "$run" "$total"
+  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check and of the windows lines of Cargo.lock\n' "$run" "$total"
 }
 
 loops() {
@@ -557,7 +588,7 @@ launch() {
   fi
   (
     PATH=$work/bin:$PATH
-    CI_D_REPO=$work/repo
+    CI_D_REPO=${repo_knob:-$work/repo}
     CI_D_ARTIFACTS=$work/artifacts-$1
     STUB_SPEC=$work/spec-$1
     STUB_TF=$work/bin/tf-stub
@@ -647,6 +678,7 @@ reset_knobs() {
   tool=
   form_word=
   ledger_knob=
+  repo_knob=
   loop_list=
   STUB_LIB_EXE=one
   STUB_LIB_FAIL=
@@ -830,7 +862,9 @@ EOF
 make_ledger_repo() {
   repo=$work/repo
   mkdir -p "$repo/crates/halvo-capture/src/windows" "$repo/crates/halvo-capture/tests" "$repo/scripts/r1/ci.d" \
-    "$repo/docs/baseline/ledger.d" || exit 2
+    "$repo/docs/baseline/ledger.d" "$repo/crates/halvo-capture/src/macos" || exit 2
+  printf 'pub fn s() {}\n' >"$repo/crates/halvo-capture/src/source.rs" || exit 2
+  printf 'fn m() {}\n' >"$repo/crates/halvo-capture/src/macos/input.rs" || exit 2
   printf 'fn a() {}\n' >"$repo/crates/halvo-capture/src/windows/input.rs" || exit 2
   printf 'pub mod windows;\n' >"$repo/crates/halvo-capture/src/secure_input.rs" || exit 2
   printf 'fn t() {}\n' >"$repo/crates/halvo-capture/tests/windows_functional.rs" || exit 2
@@ -838,36 +872,72 @@ make_ledger_repo() {
   printf '#!/bin/sh\n' >"$repo/scripts/r1/ci.d/50-windows-functional.sh" || exit 2
   printf '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "windows"\nversion = "0.62.2"\n' \
     >"$repo/Cargo.lock" || exit 2
+  mkdir -p "$repo/crates/halvo-capture/src/custody" || exit 2
+  macos_only_paths | while IFS="$(printf '\t')" read -r path where; do
+    file=${where%%:*}
+    line=${where#*:}
+    line=${line%% *}
+    target=$repo/crates/halvo-capture/$file
+    index=1
+    while [ "$index" -lt "$line" ]; do
+      printf '// filler\n'
+      index=$((index + 1))
+    done >"$target"
+    printf '#[cfg(target_os = "macos")]\npub mod macos;\n' >>"$target"
+  done || exit 2
   (
     cd "$repo" || exit 2
-    git init -q . || exit 2
-    git add -A || exit 2
-    git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
-      -c commit.gpgsign=false commit -q -m fixture || exit 2
-    {
-      commit=$(git rev-parse HEAD) || exit 2
+    commit_all() {
+      git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+        -c commit.gpgsign=false commit -q -m "$1"
+    }
+    ledger_at() {
+      commit=$(git rev-parse "$1") || exit 2
       printf 'measured attempt=1 run=6 job=60 form=long result=fail commit=%s wf=total=3,fail=1 short_controls=gate_not_clear=1,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=0\n' "$commit"
       printf 'measured attempt=2 run=6 job=61 form=long result=pass commit=%s wf=total=3,fail=0 short_controls=gate_not_clear=0,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=1\n' "$commit"
+      view=$(crate_view_id "$1") || exit 2
+      printf 'measured view path=crates/halvo-capture without=macos-only id=%s\n' "$view"
       ledger_paths | while read -r path; do
-        kind=$(git cat-file -t "HEAD:$path") || exit 2
-        id=$(git rev-parse "HEAD:$path") || exit 2
+        kind=$(git cat-file -t "$1:$path") || exit 2
+        id=$(git rev-parse "$1:$path") || exit 2
         printf 'measured %s path=%s id=%s\n' "$kind" "$path" "$id"
       done
-      lock=$(windows_lock_id) || exit 2
+      lock=$(windows_lock_id "$1") || exit 2
       printf 'measured lock path=Cargo.lock crates=windows id=%s\n' "$lock"
-    } >"$repo/docs/baseline/ledger.d/win-3.txt" || exit 2
+    }
+    git init -q . || exit 2
+    commit_all fixture || exit 2
+    first=$(git rev-parse HEAD) || exit 2
+    printf 'pub fn s() { let _ = 1; }\n' >crates/halvo-capture/src/source.rs || exit 2
+    commit_all "a changed source.rs" || exit 2
+    second=$(git rev-parse HEAD) || exit 2
+    printf 'fn m() { let _ = 2; }\n' >crates/halvo-capture/src/macos/input.rs || exit 2
+    commit_all "a changed file under src/macos" || exit 2
+    ledger_at HEAD >docs/baseline/ledger.d/win-3.txt || exit 2
+    ledger_at "$first" >"$work/ledger-source-changed" || exit 2
+    ledger_at "$second" >"$work/ledger-macos-changed" || exit 2
   ) || exit 2
   right_ledger=$repo/docs/baseline/ledger.d/win-3.txt
+  git clone -q "$repo" "$work/repo-moved" || exit 2
+  mkdir -p "$work/repo-moved/docs/baseline/ledger.d" || exit 2
+  cp "$right_ledger" "$work/repo-moved/docs/baseline/ledger.d/win-3.txt" || exit 2
+  (
+    cd "$work/repo-moved" || exit 2
+    { printf '// a line above\n' && cat crates/halvo-capture/src/lib.rs; } >"$work/lib-moved.rs" || exit 2
+    cp "$work/lib-moved.rs" crates/halvo-capture/src/lib.rs || exit 2
+    git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m "the macOS cfg line moved" || exit 2
+  ) || exit 2
   sed 's/^measured attempt=2 /measured attempt=3 /' "$right_ledger" >"$work/ledger-out-of-order" || exit 2
   sed 's/^\(measured attempt=2 .*\) form=long /\1 form=short /' "$right_ledger" >"$work/ledger-short" || exit 2
   sed 's/^\(measured attempt=2 .*\) result=pass /\1 result=fail /' "$right_ledger" >"$work/ledger-newest-failed" || exit 2
   sed 's/^\(measured attempt=1 .*\) result=fail /\1 result=pass /' "$right_ledger" >"$work/ledger-pass-before" || exit 2
   { printf 'measured run=7 form=long result=pass figures=none\n' && cat "$right_ledger"; } >"$work/ledger-old-form" || exit 2
-  sed -E 's#^(measured tree path=crates/halvo-capture/tests id=).*#\10000000000000000000000000000000000000000#' \
+  sed -E 's#^(measured view path=crates/halvo-capture without=macos-only id=).*#\10000000000000000000000000000000000000000#' \
     "$right_ledger" >"$work/ledger-stale" || exit 2
   sed -E 's#^(measured lock path=Cargo.lock crates=windows id=).*#\10000000000000000000000000000000000000000#' \
     "$right_ledger" >"$work/ledger-lock" || exit 2
-  grep -v 'path=crates/halvo-capture/Cargo.toml ' "$right_ledger" >"$work/ledger-paths" || exit 2
+  grep -v 'path=scripts/r1/ci.d/50-windows-functional.sh ' "$right_ledger" >"$work/ledger-paths" || exit 2
 }
 
 self_test() {
@@ -918,7 +988,7 @@ fixtures() {
     "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
     "${nl}WF form=short counted_rounds_at_each_wait_ms=150:20,200:5${nl}" \
     "${nl}WF left out: 15 of the 20 counted rounds at the wait of 200 ms${nl}" \
-    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture" \
     "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}ledger: " "${nl}WF form=short seconds=" \
     "${nl}PASS $name"
   check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
@@ -1019,7 +1089,14 @@ fixtures() {
   ledger_knob=$work/ledger-old-form
   check the-ledger-holds-a-run-line-of-the-old-form FAIL "$right" "holds a line of the form measured run=, which records no attempts"
   ledger_knob=$work/ledger-stale
-  check the-ledger-holds-another-tree-of-the-tests FAIL "$right" "the measured run 6 ran on another crates/halvo-capture/tests than the head's (0000000000000000000000000000000000000000 against "
+  check the-ledger-holds-another-tree-of-the-crate FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against "
+  ledger_knob=$work/ledger-source-changed
+  check a-changed-source-rs-is-refused FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's"
+  ledger_knob=$work/ledger-macos-changed
+  repo_knob=$work/repo-moved
+  check a-moved-macos-cfg-line-is-refused FAIL "$right" "the line 11 of crates/halvo-capture/src/lib.rs no longer holds the macOS cfg that leaves crates/halvo-capture/src/macos out"
+  ledger_knob=$work/ledger-macos-changed
+  check a-changed-file-under-src-macos-is-not-refused PASS "$right" "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture without its macOS-only paths" "${nl}PASS $name"
   ledger_knob=$work/ledger-lock
   check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 6 ran on other windows lines of Cargo.lock than the head's"
   ledger_knob=$work/ledger-paths
