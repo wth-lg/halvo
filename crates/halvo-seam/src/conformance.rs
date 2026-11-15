@@ -306,7 +306,8 @@ impl<S: Subject> Conn<S> {
             Ok(None) => return Err("the server ended the stream before its reply".to_owned()),
             Err(FrameError::Length(n)) => {
                 return Err(format!(
-                    "a reply frame of {n} payload bytes, outside 1 to 262,144"
+                    "a reply frame to {} of {n} payload bytes, outside 1 to 262,144",
+                    message_name(payload)
                 ))
             }
             Err(e) => return Err(format!("the reply could not be read: {e:?}")),
@@ -327,6 +328,13 @@ impl<S: Subject> Conn<S> {
             _ => Err(format!("{what} got another reply than an error")),
         }
     }
+}
+
+fn message_name(payload: &str) -> &str {
+    payload
+        .strip_prefix(r#"{"msg":""#)
+        .and_then(|rest| rest.split('"').next())
+        .unwrap_or("a message")
 }
 
 fn show(p: Position) -> String {
@@ -392,7 +400,14 @@ fn check(
     }
     let mut prev = last;
     for e in &b.records {
-        if e.pos < cursor || prev.is_some_and(|p| e.pos <= p) {
+        if e.pos < cursor {
+            return Err(format!(
+                "the position {} is below the cursor's position {}",
+                show(e.pos),
+                show(cursor)
+            ));
+        }
+        if prev.is_some_and(|p| e.pos <= p) {
             return Err(format!("the position {} does not rise", show(e.pos)));
         }
         if e.pos >= b.next {
@@ -406,10 +421,21 @@ fn check(
     let mut segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
     segs.dedup();
     let named: Vec<u64> = b.expiry.iter().map(|e| e.seg).collect();
-    if named != segs {
-        return Err(
-            "expiry does not name exactly the segments of the records, in rising order".to_owned(),
-        );
+    if let Some(w) = named.windows(2).find(|w| w[0] >= w[1]) {
+        return Err(format!(
+            "expiry names segment {} after segment {}, out of rising order",
+            w[1], w[0]
+        ));
+    }
+    if let Some(s) = named.iter().find(|s| !segs.contains(s)) {
+        return Err(format!(
+            "expiry names segment {s}, which holds no record of the Batch"
+        ));
+    }
+    if let Some(s) = segs.iter().find(|s| !named.contains(s)) {
+        return Err(format!(
+            "expiry names no instant for segment {s} of the records"
+        ));
     }
     for x in &b.expiry {
         if b.records
@@ -449,7 +475,11 @@ fn open<S: Subject>(
         _ => return Err("open_cursor got a reply other than batch or error".to_owned()),
     };
     if !opened.records.is_empty() || !opened.expiry.is_empty() {
-        return Err("the reply to open_cursor holds records or expiry entries".to_owned());
+        return Err(format!(
+            "the reply to open_cursor holds {} records and {} expiry entries; want none",
+            opened.records.len(),
+            opened.expiry.len()
+        ));
     }
     if opened.next != position {
         return Err(format!(
@@ -810,17 +840,22 @@ fn at_the_watermark<S: Subject>(
 /// with no restart between, and `open_while_open` again on the second connection. Last, after `load(D)`, a
 /// read of set D from the zero position must serve its records in order, the `at` of the `keystroke` after the
 /// step back must lie exactly 999 ms below that of the pointer before it, as `load` keeps it when it moves every
-/// `at` by a whole number of seconds (C5.13 item 2), and five reads, each from the zero position and from the
-/// position of that pointer, must each serve every entry of D at or after the start position that passes the
+/// `at` by a whole number of seconds (C5.13 item 2), and eight reads, each from the zero position, from the
+/// position of that pointer and from the position of every other entry of D up to the keystroke's, must each serve every entry of D at or after the start position that passes the
 /// read's filter, at its position: the range from the `at` of the first entry of D to that of the pointer
 /// (C5.13 item 8), the range from the same start to 1 ns after the `at` of the `keystroke`, the range from the
 /// `at` of the `keystroke` to that of the entry after it, the range from 1 ns after the `at` of the `keystroke`
-/// to the same end, and the first range with the kinds filter `keystroke`. A server fails that ends a ranged
+/// to the same end, the first range with the kinds filter `keystroke`, the range from the `at` of the first
+/// entry to that of the seventh, the range from the same start to the `at` of the `keystroke`, and the first
+/// range with the kinds filter `pointer` and `keystroke`. A server fails that ends a ranged
 /// read at the first entry whose `at` is at or after the end of the range, or after it by less than the step
-/// of D, also only under a kinds filter of one name or only from a position other than zero, or that ends it at the first
-/// line of a Batch whose `at` is at or after the end, or that drops an entry whose `at` is below that of an
-/// entry that it served before, or that finds the first line of a range by a binary search over `at`, or that
-/// checks the start only until the first `at` at or after it.
+/// of D, also only under a kinds filter or only from a position other than zero, or that ends it at the first
+/// line of a Batch whose `at` is at or after the end, or under a kinds filter at the first line of a kind that
+/// the filter names whose `at` is at or after the end, or that ends it after it served an entry whose `at` is
+/// below that of the line before it, or that serves such an entry whose `at` equals the end, or that drops an
+/// entry whose `at` is below that of an entry that it served before, or under a kinds filter below that of the
+/// last line of a kind that the filter names, or that finds the first line of a range, or the end of a read, by
+/// a binary search over `at`, or that checks the start only until the first `at` at or after it.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -1006,9 +1041,11 @@ fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), Stri
         ));
     }
     let after = d.entries[STEP_BACK + 1].record.at();
+    let seventh = d.entries[STEP_BACK + 2].record.at();
     let just_after = Instant(keystroke.0.saturating_add(1));
     let keystrokes: &[&str] = &["keystroke"];
-    let reads: [RangeRead; 5] = [
+    let pointers_and_keystrokes: &[&str] = &["pointer", "keystroke"];
+    let reads: [RangeRead; 8] = [
         (
             "up to the pointer before its step back",
             (first, pointer.record.at()),
@@ -1034,8 +1071,26 @@ fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), Stri
             (first, pointer.record.at()),
             Some(keystrokes),
         ),
+        ("up to its seventh entry", (first, seventh), None),
+        (
+            "up to the keystroke of its step back",
+            (first, keystroke),
+            None,
+        ),
+        (
+            "up to the pointer before its step back with pointer and keystroke",
+            (first, pointer.record.at()),
+            Some(pointers_and_keystrokes),
+        ),
     ];
-    for start in [ZERO, pointer.pos] {
+    let mut starts = vec![ZERO, pointer.pos];
+    starts.extend(
+        d.entries[..=STEP_BACK]
+            .iter()
+            .map(|e| e.pos)
+            .filter(|p| *p != pointer.pos),
+    );
+    for start in starts {
         for (name, (a, b), kinds) in reads {
             let name = if start == ZERO {
                 format!("the range of set D {name}")
