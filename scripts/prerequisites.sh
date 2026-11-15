@@ -448,6 +448,10 @@ ensure_pnpm() {
   export PATH
   found=$(pnpm --version 2>/dev/null) || found=
   if [ "$found" = "$pinned" ]; then
+    if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ]; then
+      echo "prerequisites: error: this is a hosted runner of GitHub Actions (GITHUB_ACTIONS=true, RUNNER_ENVIRONMENT=github-hosted), and the path finds pnpm $pinned at $(command -v pnpm), which this step did not install; a hosted job runs only a pnpm that this step installed and checked, so take that pnpm off the PATH before this step, then run the job again" >&2
+      return 1
+    fi
     echo "prerequisites: pnpm $pinned present"
   else
     if [ -n "$found" ]; then
@@ -911,6 +915,13 @@ EOF
     (
       cd "$case_dir/repo" || exit 2
       PATH="$case_dir/stubs:/usr/bin:/bin"
+      unset GITHUB_ACTIONS RUNNER_ENVIRONMENT
+      case ${2:-} in
+        hosted) export GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted ;;
+        actions-only) export GITHUB_ACTIONS=true ;;
+        environment-only) export RUNNER_ENVIRONMENT=github-hosted ;;
+        self-hosted) export GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted ;;
+      esac
       ensure_backend "$case_dir/home/.local"
     ) >>"$case_dir/output" 2>&1 || status=$?
     case "$1:$status" in
@@ -1765,6 +1776,38 @@ EOF
   [ "$(count 'which is not on your PATH' "$case_dir/output")" = 0 ] || problems="$problems; a line asked for the PATH although pnpm is on it"
   [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once in backend/"
   [ "$(count "fetch-tools $repo_dir" "$case_dir/calls")" = 1 ] || problems="$problems; backend/scripts/fetch-tools.sh did not run once"
+  verdict "$name"
+
+  name='on a hosted runner (GITHUB_ACTIONS=true and RUNNER_ENVIRONMENT=github-hosted) a pnpm of the pinned version that the step found on the path fails the step: it installs nothing, and one line names that pnpm and the way on'
+  new_backend_case backend-hosted-present
+  write_unchecked_pnpm "$case_dir/stubs/pnpm" runner-pnpm
+  run_ensure_backend fails hosted
+  [ "$(count 'runner-pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; the runner's pnpm ran the install"
+  [ "$(grep -c '^npm ' "$case_dir/calls" || :)" = 0 ] || problems="$problems; npm ran"
+  [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched"
+  [ "$(count "prerequisites: error: this is a hosted runner of GitHub Actions (GITHUB_ACTIONS=true, RUNNER_ENVIRONMENT=github-hosted), and the path finds pnpm 12.14.0 at $case_dir/stubs/pnpm, which this step did not install; a hosted job runs only a pnpm that this step installed and checked, so take that pnpm off the PATH before this step, then run the job again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the pnpm found present and the way on"
+  [ "$(count 'prerequisites: pnpm 12.14.0 present' "$case_dir/output")" = 0 ] || problems="$problems; a line took the pnpm as present"
+  verdict "$name"
+
+  name='on a hosted runner the step installs pnpm itself and goes on, and a second run of the step, which finds that pnpm present, fails'
+  new_backend_case backend-hosted-installs
+  run_ensure_backend ok hosted
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm once"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once"
+  run_ensure_backend fails hosted
+  [ "$(count "the path finds pnpm 12.14.0 at $case_dir/home/.local/bin/pnpm, which this step did not install" "$case_dir/output")" = 1 ] || problems="$problems; the second run did not refuse the pnpm that it found present"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; the second run ran pnpm install"
+  verdict "$name"
+
+  name='off a hosted runner, as with one of the two markers alone or a self-hosted runner, a pnpm of the pinned version on the path is used as it is'
+  new_backend_case backend-hosted-markers-apart
+  cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
+  run_ensure_backend ok actions-only
+  run_ensure_backend ok environment-only
+  run_ensure_backend ok self-hosted
+  [ "$(count 'prerequisites: pnpm 12.14.0 present' "$case_dir/output")" = 3 ] || problems="$problems; a run did not take the pnpm as present"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 3 ] || problems="$problems; pnpm install did not run on each run"
+  [ "$(count 'prerequisites: error:' "$case_dir/output")" = 0 ] || problems="$problems; a run printed an error"
   verdict "$name"
 
   name='a backend/package.json that pins no pnpm stops the step before anything is installed'
