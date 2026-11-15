@@ -1329,4 +1329,23 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     const snapshot = await w.entries.testInspect();
     expect(snapshot.result === "snapshot" && snapshot.tables.skeleton?.[0]?.cancel_answered_at).toBe(68_000);
   });
+
+  test("L3 (a): under the mark an error that recurs in every run never stops the alarm: ten runs, no alarm-stopped, and no run arms null", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = "ledger.expire";
+    w.reset();
+    for (let run = 0; run < 10; run += 1) {
+      now = w.alarmAt() ?? now + ALARM_RETRY_MS;
+      await w.entries.alarm();
+    }
+    w.answers.throwIn = null;
+    expect(events().filter((event) => event === "alarm-stopped")).toEqual([]);
+    expect(w.alarms.filter((at) => at === null)).toEqual([]);
+    expect(w.alarmAt()).not.toBeNull();
+  });
 });

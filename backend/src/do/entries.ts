@@ -447,23 +447,31 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
   }
 
-  function countFailure(error: unknown): void {
+  function countFailure(error: unknown, run: AlarmRun): void {
     const logged = error instanceof LoggedAlarmError;
     const name = errorName(logged ? error.first : error);
     if (!logged) log({ event: "alarm-error", error: name });
+    let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null);
     let count = ALARM_RETRY_LIMIT;
     let tested = false;
     try {
       const counted = host.step((sql) => {
         const now = Math.max(time(sql), lastNow(sql));
-        const failures = Math.min(Number(skeletonRow(sql).alarm_failures) + 1, ALARM_RETRY_LIMIT);
+        const markedNow = marked || markOf(sql).since !== null;
+        const prior = Number(skeletonRow(sql).alarm_failures);
+        const failures = markedNow ? prior + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET last_now = ?, alarm_failures = ?", now, failures);
-        return { failures, tested: testTime(sql) !== null };
+        return { failures, tested: testTime(sql) !== null, marked: markedNow };
       });
       count = counted.failures;
       tested = counted.tested;
+      marked = counted.marked;
     } catch {
       count = ALARM_RETRY_LIMIT;
+    }
+    if (marked) {
+      armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
+      return;
     }
     if (count < ALARM_RETRY_LIMIT) {
       armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
@@ -887,7 +895,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       try {
         await alarmBody(run);
       } catch (error) {
-        countFailure(error);
+        countFailure(error, run);
       }
     },
 
@@ -917,7 +925,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         try {
           await alarmBody(run);
         } catch (error) {
-          countFailure(error);
+          countFailure(error, run);
           break;
         }
       }
