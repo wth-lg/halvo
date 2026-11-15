@@ -218,7 +218,7 @@ function world(o: { clock?: () => Ms; config?: Partial<Host["config"]>; port?: P
     expect((await entries.testSeed({ accountId: ACCOUNT, hash: HASH, subscription: "active", ...seed })).result).toBe("seeded");
     reset();
   };
-  return { calls, answers, entries, host: test.host, alarms, portCalls, names, reset, holds, seeded, alarmAt: test.alarmAt };
+  return { calls, answers, entries, host: test.host, alarms, portCalls, names, reset, holds, seeded, alarmAt: test.alarmAt, modules };
 }
 
 const events = () => lines.map((line) => line.event);
@@ -1633,7 +1633,7 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     expect(record(w)).toEqual([]);
     expect(events()).toContain("destroy-error");
     answer = "cancelled";
-    now = w.alarmAt() ?? now;
+    now = Math.max(now, w.alarmAt() ?? now);
     const began = now;
     await w.entries.alarm();
     expect(during[1]).toEqual([{ subscription_id: "sub_one", began_at: began }]);
@@ -1653,5 +1653,86 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     };
     await w.entries.destroy(HASH);
     expect(during).toEqual([[]]);
+  });
+
+  test("M3 (b): two instances over one storage: while the first instance's cancel call is in flight, the second makes no cancel call before the record's expiry, its destroy answers not-finished, status answers closing, and its due time is the expiry; at the expiry it calls", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    let release: (answer: { kind: "cancelled" }) => void = () => {};
+    let cancels = 0;
+    w.host.port.cancelSubscription = async () => {
+      cancels += 1;
+      if (cancels > 1) return { kind: "cancelled" };
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    };
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(cancels).toBe(1);
+    const second = makeEntries(w.host, w.modules);
+    now = 9000;
+    expect(await second.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(await second.status(HASH)).toEqual({ result: "closing" });
+    expect(cancels).toBe(1);
+    expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
+    now = 8000 + CALL_IN_FLIGHT_MS - 1;
+    await second.alarm();
+    expect(cancels).toBe(1);
+    now = 8000 + CALL_IN_FLIGHT_MS;
+    await second.alarm();
+    expect(cancels).toBe(2);
+    release({ kind: "cancelled" });
+    await first;
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+  });
+
+  test("M3 (b): a restart during the cancel call: the new instance makes no cancel call before the record's expiry and makes it at the expiry", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    let cancels = 0;
+    w.host.port.cancelSubscription = async () => {
+      cancels += 1;
+      if (cancels > 1) return { kind: "cancelled" };
+      return new Promise(() => {});
+    };
+    void w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const restarted = makeEntries(w.host, w.modules);
+    await restarted.rearm();
+    expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
+    now = 9000;
+    await restarted.alarm();
+    expect(cancels).toBe(1);
+    now = w.alarmAt() ?? now;
+    await restarted.alarm();
+    expect(now).toBe(8000 + CALL_IN_FLIGHT_MS);
+    expect(cancels).toBe(2);
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+  });
+
+  test("M3 (b): a failing run under the mark while a cancel call is in flight arms no earlier than the record's expiry", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    let release: (answer: { kind: "cancelled" }) => void = () => {};
+    w.host.port.cancelSubscription = async () =>
+      new Promise((resolve) => {
+        release = resolve;
+      });
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    w.answers.throwIn = "accounts.forget";
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
+    release({ kind: "cancelled" });
+    await first;
   });
 });

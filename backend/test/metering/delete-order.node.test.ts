@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DELETE_REMOVAL_BOUND_MS, makeEntries } from "../../src/do/entries.ts";
+import { CALL_IN_FLIGHT_MS, DELETE_REMOVAL_BOUND_MS, makeEntries } from "../../src/do/entries.ts";
 import { makeAccounts } from "../../src/accounts/index.ts";
 import { makeLedger } from "../../src/ledger/index.ts";
 import { LATE_READ_SPAN_MS, makeMetering, SYNC_RETRY_MS, UNIQUENESS_WINDOW_MS } from "../../src/metering/index.ts";
@@ -230,7 +230,7 @@ describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
     d.during = () => held;
     const first = destroy(w);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    w.at(START + 2 * MINUTE);
+    w.at(START + MINUTE + 10_000);
     const second = await destroy(w);
     const stored = await skeleton(w);
     w.at(START + 3 * MINUTE);
@@ -258,6 +258,37 @@ describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
     expect(stopped).toBe("ObjectStoppedError");
     expect(afterTheStop).toEqual(expect.objectContaining({ destroying_since: START + MINUTE, cancel_answered_at: null }));
     expect(kinds(w.calls).filter((each) => each.startsWith("cancel"))).toEqual(["cancel cancelled", "cancel nothing-to-cancel"]);
+    expect(await holds(w)).toBe(false);
+    w.close();
+  });
+
+  test("a stop between the cancel call for the row's subscription id and the write of its answer: nothing is stored, the call's record stands, and the next call comes at the record's expiry, not 1 s after the restart (P7-111 M3)", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START + 2000 }));
+    w.at(START + MINUTE);
+    d.during = () => w.stopNextStep("before");
+    const stopped = await destroy(w).then(
+      () => "answered",
+      (error: Error) => error.name,
+    );
+    w.restart();
+    await quiet(w.lines, () => w.entries().rearm());
+    const due = await w.host.getAlarm();
+    w.at(START + MINUTE + 1000);
+    await quiet(w.lines, () => w.entries().alarm());
+    const beforeTheExpiry = w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer]);
+    w.at(START + MINUTE + CALL_IN_FLIGHT_MS);
+    await quiet(w.lines, () => w.entries().alarm());
+    expect(stopped).toBe("ObjectStoppedError");
+    expect(due).toBe(START + MINUTE + CALL_IN_FLIGHT_MS);
+    expect(beforeTheExpiry).toEqual([["sub_1", "cancelled"]]);
+    expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([
+      ["sub_1", "cancelled"],
+      ["sub_1", "nothing-to-cancel"],
+    ]);
     expect(await holds(w)).toBe(false);
     w.close();
   });

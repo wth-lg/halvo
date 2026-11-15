@@ -159,7 +159,6 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const { accounts, ledger, metering } = modules;
   const removalRejections = new WeakSet<object>();
   let dueErrorsOfTheRun: unknown[] | null = null;
-  const cancelsInFlight = new Map<string, { since: Ms; call: object }>();
   const sendsInFlight = new Map<object, Ms>();
   let removalLogged: Ms | null = null;
   const leavesDestroy = (error: unknown) =>
@@ -193,6 +192,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return row === undefined ? null : Number(row.time);
   };
   const time = (sql: Sql) => testTime(sql) ?? host.clock();
+  const callRecord = (sql: Sql): { subscriptionId: string; beganAt: Ms } | null => {
+    if (!tableExists(sql, CANCEL_CALL)) return null;
+    const row = sql.exec("SELECT subscription_id, began_at FROM cancel_call")[0];
+    return row === undefined ? null : { subscriptionId: String(row.subscription_id), beganAt: Number(row.began_at) };
+  };
+  const callEnds = (sql: Sql, subscriptionId: string | null, now: Ms): Ms | null => {
+    const record = callRecord(sql);
+    if (record === null || subscriptionId === null || record.subscriptionId !== subscriptionId) return null;
+    const ends = record.beganAt + CALL_IN_FLIGHT_MS;
+    return now < ends ? ends : null;
+  };
   const storeCallRecord = (sql: Sql, subscriptionId: string, began: Ms) => {
     sql.exec("CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT NOT NULL, began_at INTEGER NOT NULL)");
     sql.exec("DELETE FROM cancel_call");
@@ -216,8 +226,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (answeredFor(mark, subscriptionId)) {
       return earliest([(mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS, mark.decidedAt === null ? null : mark.decidedAt + SYNC_RETRY_MS]);
     }
-    const inFlight = subscriptionId === null ? undefined : cancelsInFlight.get(subscriptionId);
-    if (inFlight !== undefined) return inFlight.since + CALL_IN_FLIGHT_MS;
+    const callEnd = callEnds(sql, subscriptionId, Math.max(time(sql), lastNow(sql)));
+    if (callEnd !== null) return callEnd;
     const sendEnds = earliest([...sendsInFlight.values()].map((since) => since + CALL_IN_FLIGHT_MS));
     if (mark.nextAt !== null) return earliest([sendEnds, mark.nextAt]);
     if (sendEnds !== null) return sendEnds;
@@ -628,7 +638,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
-      if (subscriptionId !== null && cancelsInFlight.has(subscriptionId)) return { kind: "answer", answer: NOT_FINISHED };
+      if (callEnds(open.sql, subscriptionId, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
       if (sendsInFlight.size > 0) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
       let unacknowledged = 0;
@@ -664,23 +674,21 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (made !== null) {
       for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
       const id = made.subscriptionId;
-      const call = {};
-      if (id !== null) cancelsInFlight.set(id, { since: host.clock(), call });
       const began = next.kind === "cancel" ? next.began : null;
       let cancelled: Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
       try {
         cancelled = await host.port.cancelSubscription(id);
       } catch (error) {
         try {
-          host.step((sql) => {
-            if (holds(sql)) clearCallRecord(sql, id, began);
+          step((open) => {
+            if (!holds(open.sql)) return;
+            open.begin();
+            clearCallRecord(open.sql, id, began);
           });
         } catch (clearing) {
           log({ event: "alarm-error", error: errorName(clearing) });
         }
         throw error;
-      } finally {
-        if (id !== null && cancelsInFlight.get(id)?.call === call) cancelsInFlight.delete(id);
       }
       if (cancelled.kind === "failed") {
         const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
