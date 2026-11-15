@@ -692,6 +692,38 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         );
         return 0;
     };
+    let name = browser.name;
+    let (sink, second) = one_control(test, name, keyboard, hwnd, which);
+    if sink >= 5 {
+        return sink;
+    }
+    match second {
+        Err(reason) => {
+            say(
+                test,
+                format!("browser={name} control={which} second_control=refused reason={reason}"),
+            );
+            sink
+        }
+        Ok(()) => {
+            say(
+                test,
+                format!("browser={name} control={which} second_control=taken first_control_keystroke_events={sink}"),
+            );
+            let (second_sink, _) =
+                one_control(test, name, keyboard, hwnd, &format!("{which}-second"));
+            second_sink
+        }
+    }
+}
+
+fn one_control(
+    test: &str,
+    name: &str,
+    keyboard: &Keyboard,
+    hwnd: HWND,
+    which: &str,
+) -> (usize, Result<(), &'static str>) {
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
     let gate_before = keyboard.source.field_state();
@@ -713,8 +745,7 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
     say(
         test,
         format!(
-            "browser={} control={which} foreground={front} focus_at_the_reset={} gate_before_the_letters={gate_before:?} {}",
-            browser.name,
+            "browser={name} control={which} foreground={front} focus_at_the_reset={} gate_before_the_letters={gate_before:?} {}",
             start.focus,
             r.line()
         ),
@@ -787,10 +818,9 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
     say(
         test,
         format!(
-            "browser={} control={which} control_state={state} pump_largest_lag_ms={largest_lag} \
+            "browser={name} control={which} control_state={state} pump_largest_lag_ms={largest_lag} \
              open_latches_before_the_first_letter={latches_before} letters=[{}] \
              marks_since_the_start_kept_by_the_seam={} marks=[{}]",
-            browser.name,
             listed.join(","),
             all_marks.len(),
             all_marks.join(",")
@@ -807,7 +837,40 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         !r.sink_differs(),
         "the control's sink held another number of keystroke events than the seam recorded"
     );
-    r.sink
+    let second = if r.sink < 5 {
+        let proof_letters: Vec<evidence::Letter> = letters
+            .iter()
+            .map(|key| evidence::Letter {
+                input: key.os_tick,
+                recorded: key.verdict == seam::Verdict::Recorded,
+                not_cleared_in_time: key.rule == Some(seam::Rule::NotClearedInTime),
+            })
+            .collect();
+        let proof_marks: Vec<evidence::Mark> = marks
+            .iter()
+            .map(|mark| evidence::Mark {
+                what: mark.what,
+                reading: mark.state.map(|state| match state {
+                    FieldState::Clear => evidence::Reading::Clear,
+                    FieldState::Password => evidence::Reading::Password,
+                    FieldState::Unknown => evidence::Reading::Unknown,
+                }),
+                another_element: mark.moved == Some(seam::Moved::Another),
+                began: mark.began,
+                at: mark.at,
+            })
+            .collect();
+        evidence::second_control_allowed(
+            &proof_letters,
+            &proof_marks,
+            gate_before == Some(FieldState::Clear),
+            open_latches.unwrap_or(usize::MAX),
+            r.sink,
+        )
+    } else {
+        Err("the_control_is_full")
+    };
+    (r.sink, second)
 }
 
 fn end_round(keyboard: &Keyboard, hwnd: HWND, sent: i64, counted_before: bool) -> Round {

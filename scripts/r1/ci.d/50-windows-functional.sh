@@ -1,11 +1,11 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=41
+failing_fixtures=42
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -471,7 +471,13 @@ measure() {
     done
     short="$short $state=$found"
   done
-  line="WF short controls$short"
+  seconds_taken=0
+  for log in "$work"/test-*.log; do
+    [ -f "$log" ] || continue
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )second_control=taken( |$)")
+    seconds_taken=$((seconds_taken + in_log))
+  done
+  line="WF short controls$short second_controls_taken=$seconds_taken"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
 
@@ -494,6 +500,8 @@ measure() {
   [ "$form" = short ] || loops
   [ "$fixed" -eq 0 ] || fail "$fixed listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
+  [ "$seconds_taken" -le 1 ] ||
+    fail "$seconds_taken second controls were taken in this run, and more than one fails the run (ruling W3-18 (13))"
   [ "$loop_failed" -eq 0 ] || fail "$loop_failed loops had a run that was not one passed test"
   if [ "$form" = long ]; then
     printf 'ledger: not read in the long form, whose passing run the ledger records\n'
@@ -729,6 +737,13 @@ case $kind in
     printf 'test %s ... FAILED\n\nfailures:\n    %s\n\n%s\n\n' "$test" "$test" "$failed"
     exit 101
     ;;
+  second-control)
+    printf 'TF %s browser=edge control=before control_state=late_read_no_latch pump_largest_lag_ms=3\n' "$test"
+    printf 'TF %s browser=edge control=before second_control=taken first_control_keystroke_events=0\n' "$test"
+    printf 'TF %s browser=edge control=before-second control_state=full pump_largest_lag_ms=3\n' "$test"
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
   short-control)
     printf 'TF %s browser=edge control=before control_state=late_read_no_latch pump_largest_lag_ms=3\n' "$test"
     printf 'TF %s browser=edge control=after control_state=full pump_largest_lag_ms=3\n' "$test"
@@ -842,7 +857,7 @@ self_test() {
 fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 7 " "${nl}WF form=short seconds=" "${nl}PASS $name"
@@ -927,7 +942,12 @@ fixtures() {
   check a-regular-test-passes-with-a-panic-on-another-thread FAIL "c1_raw_input|pass-with-panic${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
   check a-short-control-is-summed-by-its-state FAIL "c1_raw_input|short-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0${nl}" "FAIL $name (1 tests failed)"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0${nl}" "FAIL $name (1 tests failed)"
+  check one-second-control-is-taken PASS "c1_raw_input|second-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1${nl}" "${nl}PASS $name"
+  check two-second-controls-in-one-run FAIL "c1_raw_input|second-control${nl}helper_child_window|second-control${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2${nl}" \
+    "FAIL $name (2 second controls were taken in this run, and more than one fails the run (ruling W3-18 (13)))"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
 

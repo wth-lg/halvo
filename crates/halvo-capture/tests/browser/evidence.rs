@@ -81,3 +81,108 @@ pub(crate) fn cold_evidence(
     }
     Ok(span.len())
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Reading {
+    Clear,
+    Password,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Letter {
+    pub(crate) input: u32,
+    pub(crate) recorded: bool,
+    pub(crate) not_cleared_in_time: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Mark {
+    pub(crate) what: &'static str,
+    pub(crate) reading: Option<Reading>,
+    pub(crate) another_element: bool,
+    pub(crate) began: u32,
+    pub(crate) at: Option<u32>,
+}
+
+pub(crate) const HOLD_MS: i64 = 120;
+pub(crate) const LATE_MS: i64 = 250;
+pub(crate) const POLL_STEP_MS: i64 = 30;
+
+pub(crate) fn second_control_allowed(
+    letters: &[Letter],
+    marks: &[Mark],
+    gate_clear_before: bool,
+    open_latches_before: usize,
+    sink: usize,
+) -> Result<(), &'static str> {
+    if letters.iter().filter(|letter| letter.recorded).count() != sink {
+        return Err("the_sink_differs_from_the_seam");
+    }
+    let missing: Vec<&Letter> = letters.iter().filter(|letter| !letter.recorded).collect();
+    let (Some(first), Some(last)) = (missing.first(), missing.last()) else {
+        return Err("no_letter_is_missing");
+    };
+    if !missing.iter().all(|letter| letter.not_cleared_in_time) {
+        return Err("a_missing_letter_was_decided_by_another_rule");
+    }
+    if !gate_clear_before {
+        return Err("the_gate_did_not_read_clear_before_the_letters");
+    }
+    let span_end = i64::from(last.input) + LATE_MS;
+    let in_span = |tick: u32| {
+        let at = rel(tick, first.input);
+        at >= 0 && at <= rel(span_end as u32, first.input)
+    };
+    if open_latches_before > 0
+        || marks
+            .iter()
+            .any(|mark| mark.what.starts_with("latch") && in_span(mark.began))
+    {
+        return Err("a_latch_was_open_at_a_missing_letter");
+    }
+    if marks.iter().any(|mark| {
+        matches!(mark.what, "read" | "event" | "start")
+            && in_span(mark.at.unwrap_or(mark.began))
+            && (mark.reading != Some(Reading::Clear) || mark.another_element)
+    }) {
+        return Err("a_mark_through_the_letters_was_not_a_clear_reading_of_the_same_element");
+    }
+    let mut reads: Vec<(u32, u32, bool)> = marks
+        .iter()
+        .filter(|mark| mark.what == "read")
+        .filter_map(|mark| {
+            mark.at.map(|at| {
+                let clear = mark.reading == Some(Reading::Clear) && !mark.another_element;
+                (mark.began, at, clear)
+            })
+        })
+        .collect();
+    reads.sort_by_key(|(began, _, _)| rel(*began, first.input));
+    for letter in &missing {
+        let hold_end = letter.input.wrapping_add(HOLD_MS as u32);
+        let Some(&(began, at, clear)) = reads
+            .iter()
+            .find(|(began, _, _)| rel(*began, hold_end) >= 0)
+        else {
+            return Err("no_read_began_after_a_missing_letters_hold");
+        };
+        let asked_at_the_hold = rel(began, hold_end) <= POLL_STEP_MS;
+        let asked_behind_a_read_out_then = reads.iter().any(|(out_began, out_at, _)| {
+            rel(*out_began, hold_end) < 0
+                && rel(*out_at, hold_end) > 0
+                && rel(began, *out_at) >= 0
+                && rel(began, *out_at) <= POLL_STEP_MS
+        });
+        if !asked_at_the_hold && !asked_behind_a_read_out_then {
+            return Err("a_missing_letters_read_was_not_asked_on_time");
+        }
+        if rel(at, letter.input) <= LATE_MS {
+            return Err("a_missing_letters_read_was_answered_within_its_250_ms");
+        }
+        if !clear {
+            return Err("a_missing_letters_read_was_not_a_clear_reading_of_the_same_element");
+        }
+    }
+    Ok(())
+}

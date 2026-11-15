@@ -3,7 +3,9 @@
 #[path = "browser/evidence.rs"]
 mod evidence;
 
-use evidence::{cold_evidence, newest_mark_of, Seen};
+use evidence::{
+    cold_evidence, newest_mark_of, second_control_allowed, Letter, Mark, Reading, Seen,
+};
 
 fn seen(what: &'static str, password: bool, element: Option<&str>, at: u32) -> Seen {
     Seen {
@@ -121,4 +123,193 @@ fn the_span_is_read_across_the_wrap_of_the_tick_count() {
         seen("read", true, None, 20),
     ];
     assert_eq!(cold_evidence(&marks, 5, 30), Ok(2));
+}
+
+fn letters_from(first: u32, step: u32) -> Vec<Letter> {
+    (0..5)
+        .map(|k| Letter {
+            input: first.wrapping_add(k * step),
+            recorded: false,
+            not_cleared_in_time: true,
+        })
+        .collect()
+}
+
+fn mark(what: &'static str, reading: Reading, began: u32, at: u32) -> Mark {
+    Mark {
+        what,
+        reading: Some(reading),
+        another_element: false,
+        began,
+        at: Some(at),
+    }
+}
+
+fn late_reads(first: u32) -> Vec<Mark> {
+    vec![
+        mark("event", Reading::Clear, first - 500, first - 500),
+        mark("read", Reading::Clear, first - 500, first - 480),
+        mark("read", Reading::Clear, first + 120, first + 305),
+        mark("read", Reading::Clear, first + 310, first + 450),
+    ]
+}
+
+#[test]
+fn a_short_control_whose_reads_were_asked_on_time_and_answered_late_takes_a_second_control() {
+    let first = 10_000;
+    assert_eq!(
+        second_control_allowed(&letters_from(first, 40), &late_reads(first), true, 0, 0),
+        Ok(())
+    );
+}
+
+#[test]
+fn the_reckoned_ticks_of_chromes_run_4_take_a_second_control() {
+    let first = 729_570;
+    let marks = vec![
+        mark("event", Reading::Clear, 729_296, 729_296),
+        mark("read", Reading::Clear, 729_296, 729_296),
+        mark("read", Reading::Clear, 729_690, 729_875),
+        mark("read", Reading::Clear, 729_875, 730_000),
+    ];
+    assert_eq!(
+        second_control_allowed(&letters_from(first, 40), &marks, true, 0, 0),
+        Ok(())
+    );
+}
+
+#[test]
+fn each_condition_taken_away_refuses_the_second_control() {
+    let first = 10_000;
+    let letters = letters_from(first, 40);
+    let marks = late_reads(first);
+    let mut other_rule = letters.clone();
+    other_rule[2].not_cleared_in_time = false;
+    let mut latch = marks.clone();
+    latch.push(Mark {
+        what: "latch-input",
+        reading: None,
+        another_element: false,
+        began: first + 60,
+        at: None,
+    });
+    let mut password = marks.clone();
+    password.push(mark("event", Reading::Password, first + 90, first + 90));
+    let mut unknown = marks.clone();
+    unknown[2].reading = Some(Reading::Unknown);
+    let mut another = marks.clone();
+    another[2].another_element = true;
+    let mut asked_late = marks.clone();
+    asked_late[2] = mark("read", Reading::Clear, first + 200, first + 305);
+    let mut answered_early = marks.clone();
+    answered_early[3] = mark("read", Reading::Clear, first + 310, first + 360);
+    let mut recorded = letters.clone();
+    recorded[0].recorded = true;
+    let mut waited_on_password = marks.clone();
+    waited_on_password[3].reading = Some(Reading::Password);
+    let cases: [(&str, Result<(), &str>); 11] = [
+        (
+            "the read waited on answered Password after the letters",
+            second_control_allowed(&letters, &waited_on_password, true, 0, 0),
+        ),
+        (
+            "another rule",
+            second_control_allowed(&other_rule, &marks, true, 0, 0),
+        ),
+        (
+            "a latch open before",
+            second_control_allowed(&letters, &marks, true, 1, 0),
+        ),
+        (
+            "a latch among the letters",
+            second_control_allowed(&letters, &latch, true, 0, 0),
+        ),
+        (
+            "the gate not Clear before",
+            second_control_allowed(&letters, &marks, false, 0, 0),
+        ),
+        (
+            "a Password event among the letters",
+            second_control_allowed(&letters, &password, true, 0, 0),
+        ),
+        (
+            "an Unknown read among the letters",
+            second_control_allowed(&letters, &unknown, true, 0, 0),
+        ),
+        (
+            "a read of another element",
+            second_control_allowed(&letters, &another, true, 0, 0),
+        ),
+        (
+            "a read not asked on time",
+            second_control_allowed(&letters, &asked_late, true, 0, 0),
+        ),
+        (
+            "a read answered within 250 ms",
+            second_control_allowed(&letters, &answered_early, true, 0, 0),
+        ),
+        (
+            "the sink differs from the seam",
+            second_control_allowed(&recorded, &marks, true, 0, 0),
+        ),
+    ];
+    for (name, verdict) in cases {
+        assert!(verdict.is_err(), "{name}: {verdict:?}");
+    }
+    assert_eq!(
+        second_control_allowed(&recorded, &marks, true, 0, 1),
+        Ok(()),
+        "four missing letters of the same case"
+    );
+}
+
+#[test]
+fn drawn_short_controls_take_a_second_control_only_while_all_four_conditions_hold() {
+    let mut draw: u64 = 0x5eed_0317;
+    let mut next = move |below: u32| {
+        draw = draw
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((draw >> 33) % u64::from(below)) as u32
+    };
+    for case in 0..400 {
+        let first = 1_000_000u32.wrapping_add(next(u32::MAX / 2));
+        let step = 30 + next(40);
+        let letters = letters_from(first, step);
+        let last = letters[4].input;
+        let latency = 260 + next(200);
+        let mut marks = vec![mark("event", Reading::Clear, first - 400, first - 400)];
+        let mut began = first + 120 + next(20);
+        let mut answered = began + latency;
+        marks.push(mark("read", Reading::Clear, began, answered));
+        while answered < last + 120 + 400 {
+            began = answered + next(25);
+            answered = began + latency;
+            marks.push(mark("read", Reading::Clear, began, answered));
+        }
+        let allowed = second_control_allowed(&letters, &marks, true, 0, 0);
+        assert_eq!(
+            allowed,
+            Ok(()),
+            "case {case}: step {step} latency {latency}"
+        );
+        let mut broken = marks.clone();
+        let refused = match next(4) {
+            0 => {
+                let mut other = letters.clone();
+                other[next(5) as usize].not_cleared_in_time = false;
+                second_control_allowed(&other, &marks, true, 0, 0)
+            }
+            1 => second_control_allowed(&letters, &marks, true, 1 + next(3) as usize, 0),
+            2 => second_control_allowed(&letters, &marks, false, 0, 0),
+            _ => {
+                broken[1].reading = Some(Reading::Password);
+                second_control_allowed(&letters, &broken, true, 0, 0)
+            }
+        };
+        assert!(
+            refused.is_err(),
+            "case {case}: a condition taken away was allowed"
+        );
+    }
 }
