@@ -55,7 +55,7 @@ parenthesis, an equals sign or a path separator; and before its first cargo comm
 refuses a flags variable of the compiler (plain, encoded, build or per-target) or the clippy
 arguments variable that holds an allow flag, a cap on lints, a cfg flag or a word that starts with @
 (an argument file, which the rule cannot read), and a compiler or wrapper
-variable that is set.
+variable that is set; it reads a name without regard to letter case, as Windows does.
 The asking: the asking asks each one-word string literal with no space, quote or backslash of the
 tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command
 that it does not find, by any form, runs under no egress check, and the forbid run alone holds it, in
@@ -347,14 +347,15 @@ run_canary() {
 env_rules() {
   env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort -u >"$work/env-names.txt" || fail setup
   while IFS= read -r var; do
+    upper=$(printf '%s\n' "$var" | tr '[:lower:]' '[:upper:]') || fail setup
     case " $v_wrappers " in
-      *" $var "*)
+      *" $upper "*)
         printf 'rule env %s is set\n' "$var"
         holds=no
         continue
         ;;
     esac
-    case $var in
+    case $upper in
       "$v_flags" | "$v_encoded" | "$v_build" | "$v_clippy" | "${w_cargo}_TARGET_"*"_$v_flags") ;;
       *) continue ;;
     esac
@@ -2101,6 +2102,8 @@ self_test() {
     >"$work/clippy-child-code.json" || self_failed "setup at line $LINENO"
   wrong=
   rejected=0
+  v_lower_flags=$(printf '%s\n' "$v_flags" | tr '[:upper:]' '[:lower:]') || self_failed "setup at line $LINENO"
+  v_lower_wrapper=$(printf '%s\n' "${w_rustc}_WRAPPER" | tr '[:upper:]' '[:lower:]') || self_failed "setup at line $LINENO"
   case_reset
   if case_wanted forbid-table-pinned; then
     forbid_table | sed 's/|.*//' >"$work/table-rows.txt" || self_failed "setup at line $LINENO"
@@ -2223,6 +2226,10 @@ EOF
   case_run env-build-flags-allow FAIL check "rule env $v_build holds"
   case_env="$v_flags=@args.txt"
   case_run env-flags-argument-file FAIL check "rule env $v_flags holds"
+  case_env="$v_lower_flags=-Aunsafe_code"
+  case_run env-lowercase-flags FAIL check "rule env $v_lower_flags holds"
+  case_env="$v_lower_wrapper=/x"
+  case_run env-lowercase-wrapper FAIL check "rule env $v_lower_wrapper is set"
   case_env="$v_flags=--allow=unsafe_code"
   case_run env-long-allow-flag FAIL check "rule env $v_flags holds"
   case_repo=$work/repo-cfg
