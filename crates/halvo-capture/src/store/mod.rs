@@ -2,18 +2,18 @@
 
 pub mod db;
 pub(crate) mod durable;
-pub mod expiry;
+pub(in crate::store) mod expiry;
 #[cfg(test)]
 pub(crate) mod failpoint;
-pub(crate) mod lock;
+pub(in crate::store) mod lock;
 #[cfg(not(test))]
-pub(crate) mod failpoint {
+pub(in crate::store) mod failpoint {
     pub(crate) fn hit(_name: &'static str) -> super::StoreResult<()> {
         Ok(())
     }
 }
-pub mod segment;
-pub mod verify;
+pub(in crate::store) mod segment;
+pub(in crate::store) mod verify;
 
 #[cfg(test)]
 mod formal_tests;
@@ -21,7 +21,7 @@ mod formal_tests;
 mod hardening_tests;
 #[cfg(test)]
 #[path = "test_support/pages.rs"]
-pub(crate) mod pages;
+pub(in crate::store) mod pages;
 #[cfg(test)]
 #[path = "test_support/roots.rs"]
 pub(crate) mod roots;
@@ -34,7 +34,7 @@ use std::time::Duration;
 use crate::custody::{CustodyError, RootId};
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
-pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
+pub(in crate::store) const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 /// The store the capture daemon appends to.
 pub trait SegmentStore {
@@ -179,7 +179,7 @@ pub struct DeleteReport {
     pub not_followed: u64,
 }
 
-pub use crate::custody::file_root::RootsLeft;
+pub(in crate::store) use crate::custody::file_root::RootsLeft;
 
 impl DeleteReport {
     /// The store's root reads destroyed.
@@ -190,7 +190,7 @@ impl DeleteReport {
     /// The root reads destroyed or unnamed, no root file that the step
     /// counted stays, and the delete left nothing of the store: the report of
     /// an `Ok`. A root that reads left never gives `Ok`.
-    pub fn complete(&self) -> bool {
+    pub(in crate::store) fn complete(&self) -> bool {
         matches!(self.root, RootReading::Destroyed | RootReading::Unnamed)
             && self.roots.none_left()
             && self.root_not_handled.is_none()
