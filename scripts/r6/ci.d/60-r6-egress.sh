@@ -37,7 +37,8 @@ The canary: a crate of one file under the artifacts directory names each entry o
 goes through the same cargo call, in each profile, before any finding of the three crates counts; one finding per
 entry of the job's system is required, else "the forbid run let the canary through". It holds an
 untracked cargo configuration, a cap on lints and a wrapper, which silence the canary too.
-The closed graph: the path packages of cargo tree -e normal,build are the three crates, the linked
+The closed graph: the path packages of cargo tree -e normal,build are the three crates, each at
+crates/<name> of the repository where the check runs, the linked
 third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, the build-time ones are
 proc-macro2, quote, serde_derive, syn and unicode-ident, and the three crates have no build script, no
 proc-macro target and no features, and the root manifest no [patch] table; another name fails.
@@ -645,7 +646,8 @@ closed_graph() {
     >"$artifacts/cargo-tree.txt" 2>"$artifacts/cargo-tree.err" || fail setup
   cargo metadata --locked --format-version 1 --no-deps >"$artifacts/cargo-metadata.json" 2>"$artifacts/cargo-metadata.err" ||
     fail setup
-  awk -v linked_file="$artifacts/cargo-tree.txt" '
+  graph_root=$({ pwd -W 2>/dev/null || pwd -P; }) || fail setup
+  awk -v linked_file="$artifacts/cargo-tree.txt" -v root="$graph_root" '
     function name_of(line) {
       sub(/ \(\*\)$/, "", line)
       sub(/ \(proc-macro\)$/, "", line)
@@ -674,7 +676,7 @@ closed_graph() {
         sub(/^[^(]*\(/, "", path)
         sub(/\)$/, "", path)
         gsub(/\\/, "/", path)
-        if (!(f[1] in path_ok) || path !~ ("/crates/" f[1] "$")) print "graph unknown=" f[1]
+        if (!(f[1] in path_ok) || tolower(path) != tolower(root "/crates/" f[1])) print "graph unknown=" f[1]
         else paths[f[1]] = 1
         next
       }
@@ -1348,8 +1350,11 @@ EOF
   cat >"$work/bin/cargo" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 paths() {
+  repo_w=$(cd "$CI_D_REPO" && { pwd -W 2>/dev/null || pwd -P; }) || exit 96
   for crate in halvo-route-gate halvo-route halvo-route-wire; do
-    printf '%s v0.0.0 (%s/crates/%s)\n' "$crate" "$CI_D_REPO" "$crate"
+    at=crates/$crate
+    [ "$STUB_GRAPH:$crate" != moved:halvo-route ] || at=vendor/crates/$crate
+    printf '%s v0.0.0 (%s/%s)\n' "$crate" "$repo_w" "$at"
   done
   [ "$STUB_GRAPH" != extra-path ] || printf 'halvo-cap v0.0.0 (%s/crates/halvo-cap)\n' "$CI_D_REPO"
 }
@@ -2229,6 +2234,8 @@ EOF
   case_run graph-build-time-package-added FAIL check 'egress graph unknown=thiserror-impl'
   STUB_GRAPH=linked-syn
   case_run graph-build-time-package-linked FAIL check 'egress graph unknown=syn'
+  STUB_GRAPH=moved
+  case_run graph-path-package-moved FAIL check 'egress graph unknown=halvo-route'
   STUB_GRAPH=extra-path
   case_run graph-path-package-added FAIL check 'egress graph unknown=halvo-cap'
   STUB_GRAPH=missing
