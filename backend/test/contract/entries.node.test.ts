@@ -2425,4 +2425,84 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     expect(gaps).toEqual([30, 30, 30, 30]);
     expect(skeleton(w)?.alarm_failures).toBe(0);
   });
+
+  test("T5 (N16): a second instance plans the same interval again inside CALL_IN_FLIGHT_MS of this instance's own send, as the late-read bound allows: this instance's memory does not drop the newer row, and its destroy waits", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.send = { call: SEND, notBillable: 0 };
+    await w.entries.alarm();
+    w.answers.send = { call: null, notBillable: 0 };
+    expect(w.portCalls.filter((call) => call[0] === "sendUsage")).toHaveLength(1);
+    const secondPlan = now + 10_000;
+    w.answers.sendInFlight = (at) => (at < secondPlan + CALL_IN_FLIGHT_MS ? secondPlan + CALL_IN_FLIGHT_MS : null);
+    now = secondPlan + 5000;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([]);
+    expect(w.alarmAt()).toBe(secondPlan + CALL_IN_FLIGHT_MS);
+  });
+
+  test("T5 (N21): three failing runs whose count's write throws, then one whose write works: the count kept in memory is the floor, and the gap after the fourth is 240 s", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "accounts.forget";
+    let writes = 0;
+    inTheCountStep(w, (query) => {
+      if (!query.startsWith("UPDATE skeleton SET alarm_failures = ?")) return false;
+      writes += 1;
+      return writes <= 3;
+    });
+    const gaps: Ms[] = [];
+    for (let run = 0; run < 4; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      const at = now;
+      await w.entries.alarm();
+      gaps.push(((w.alarmAt() ?? at) - at) / 1000);
+    }
+    w.answers.throwIn = null;
+    expect(gaps).toEqual([30, 60, 120, 240]);
+  });
+
+  test("T5 (N28): an answer stored for no id, then an id whose cancel keeps failing past that answer's 24 hours, every run failing: no removal-overdue line, because no answer is stored for the row's id", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.subscription = { ...METERED, subscriptionId: null };
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async (id) => ({ kind: id === null ? "nothing-to-cancel" : "failed" });
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.subscription = METERED;
+    w.answers.throwIn = "accounts.forget";
+    for (let run = 0; run < 200 && now < 8000 + DELETE_REMOVAL_BOUND_MS + 2 * 3_600_000; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      await w.entries.alarm();
+    }
+    w.answers.throwIn = null;
+    expect(now).toBeGreaterThan(8000 + DELETE_REMOVAL_BOUND_MS);
+    expect(events()).not.toContain("removal-overdue");
+  });
+
+  test("T5 (N29): the count step cannot read the id and no answer is stored: the failing run arms at the stored next try, not at the pause", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    expect(skeleton(w)?.cancel_next_at).toBe(68_000);
+    const subscription = w.modules.accounts.subscription;
+    w.modules.accounts.subscription = (...a) => {
+      if (String(new Error().stack).includes("countFailure")) throw new RangeError("the id's read throws in the count step");
+      return subscription(...a);
+    };
+    w.answers.throwIn = "accounts.forget";
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    w.modules.accounts.subscription = subscription;
+    expect(w.alarmAt()).toBe(68_000);
+  });
 });
