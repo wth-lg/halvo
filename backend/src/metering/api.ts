@@ -30,4 +30,5 @@ export interface Metering {
   record(sql: Sql, call: UsageCall, answer: UsageAnswer, now: Ms): Next;
   nextSend(sql: Sql): Ms | null;
   settled(sql: Sql): boolean;
+  closeOpen(sql: Sql, now: Ms): number;
 }

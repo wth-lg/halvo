@@ -60,7 +60,7 @@ describe("the cut at the destroy step (unit 5.1)", () => {
     w.close();
   });
 
-  test("a destroy whose send gets no answer answers not-finished and makes no cancel call; the next destroy sends the same identifier, then cancels", async () => {
+  test("a destroy whose send gets no answer makes the cancel call in the same call and answers not-finished; one retry delay later the alarm sends the same identifier and deletes by itself (unit 5.6)", async () => {
     const w = await world({ faults: [{ kind: "request-lost" }] });
     await w.use("r1", 25_500);
     await w.clock(START + 10 * MINUTE);
@@ -68,8 +68,8 @@ describe("the cut at the destroy step (unit 5.1)", () => {
     const afterFirst = kinds(w.calls);
     await w.clock(START + 10 * MINUTE + SYNC_RETRY_MS);
     const second = await w.entries().destroy(HASH);
-    expect([first, afterFirst, second]).toEqual([{ result: "not-finished" }, ["send failed"], { result: "deleted" }]);
-    expect(kinds(w.calls)).toEqual(["send failed", "send recorded", "cancel nothing-to-cancel"]);
+    expect([first, afterFirst, second]).toEqual([{ result: "not-finished" }, ["send failed", "cancel nothing-to-cancel"], { result: "no-such-account" }]);
+    expect(kinds(w.calls)).toEqual(["send failed", "cancel nothing-to-cancel", "send recorded"]);
     expect(new Set(w.calls.flatMap((each) => (each.kind === "send" ? [each.identifier] : []))).size).toBe(1);
     w.close();
   });

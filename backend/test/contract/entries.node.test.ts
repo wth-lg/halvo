@@ -8,6 +8,7 @@ import {
   ALARM_RETRY_LIMIT,
   ALARM_RETRY_MS,
   CLOCK_RUN_LIMIT,
+  DELETE_REMOVAL_BOUND_MS,
   type Entries,
   type Host,
   makeEntries,
@@ -48,6 +49,7 @@ interface Answers {
   record5: Next;
   nextSend: Ms | null;
   settled: boolean;
+  closeOpen: number;
   throwIn: string | null;
   onForget: () => void;
 }
@@ -72,6 +74,7 @@ function defaults(): Answers {
     record5: { call: null, notBillable: 0 },
     nextSend: null,
     settled: true,
+    closeOpen: 0,
     throwIn: null,
     onForget: () => {},
   };
@@ -138,6 +141,7 @@ function scripted() {
     record: answering("metering.record", () => answers.record5),
     nextSend: answering("metering.nextSend", () => answers.nextSend),
     settled: answering("metering.settled", () => answers.settled),
+    closeOpen: answering("metering.closeOpen", () => answers.closeOpen),
   };
   return { calls, answers, modules: { accounts, ledger, metering } };
 }
@@ -556,26 +560,31 @@ describe("destroy", () => {
     expect(await w.holds()).toBe(false);
   });
 
-  test("open holds, an unsettled sync and a failed cancel answer not-finished, and a repeat cuts once", async () => {
+  test("open holds and a failed cancel answer not-finished; an unsettled sync no longer holds the cancel back, its answer is stored, a repeat makes no second cancel call and cuts once, and the storage goes once the sync is settled (unit 5.6)", async () => {
     const w = world({ clock: () => 8000 });
     await w.seeded({ customerId: "cus_one" });
     w.answers.openHolds = 1;
     expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
-    w.answers.openHolds = 0;
-    w.answers.settled = false;
-    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
     expect(w.portCalls).toEqual([]);
-    w.answers.settled = true;
+    w.answers.openHolds = 0;
+    const cancelled = w.host.port.cancelSubscription;
     w.host.port.cancelSubscription = async () => ({ kind: "failed" });
     expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.host.port.cancelSubscription = cancelled;
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(w.portCalls).toEqual([["cancelSubscription", "sub_one"]]);
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(w.portCalls).toHaveLength(1);
     expect(w.calls.filter((call) => call[0] === "metering.cut")).toHaveLength(1);
     expect(await w.entries.reserve(HASH, { requestId: "r", tier: "frontier", amount: 1, price: { input: 1, output: 1 } })).toEqual({
       outcome: "refused",
       reason: "closing",
     });
     expect(await w.entries.start(ACCOUNT, HASH, CAP)).toEqual({ result: "account-exists" });
-    w.host.port.cancelSubscription = async () => ({ kind: "nothing-to-cancel" });
+    w.answers.settled = true;
     expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    expect(w.portCalls).toHaveLength(1);
   });
 
   test("an account that is not metered: no cut, step 3 is one step of expire, and settled is not asked", async () => {
@@ -854,7 +863,17 @@ describe("the test methods", () => {
     const snapshot = await w.entries.testInspect();
     expect(snapshot).toMatchObject({ result: "snapshot", now: 9000, test_time: 500, alarm: null });
     expect(snapshot.result === "snapshot" && snapshot.tables).toEqual({
-      skeleton: [{ destroying_since: null, last_now: 500, alarm_failures: 0 }],
+      skeleton: [
+        {
+          destroying_since: null,
+          last_now: 500,
+          alarm_failures: 0,
+          cancel_answered_at: null,
+          cancel_answered_for: null,
+          cancel_next_at: null,
+          cancel_delay: null,
+        },
+      ],
       test_clock: [{ time: 500 }],
     });
   });
@@ -897,5 +916,228 @@ describe("the test methods", () => {
     clock = 6000;
     await w.entries.capSet(HASH, NEW_CAP);
     expect(w.calls).toContainEqual(["ledger.setCap", NEW_CAP, 6000]);
+  });
+});
+
+describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => {
+  const skeletonOf = async (w: ReturnType<typeof world>) => {
+    const snapshot = await w.entries.testInspect();
+    return snapshot.result === "snapshot" ? { row: snapshot.tables.skeleton?.[0], due: snapshot.due } : null;
+  };
+  const cancels = (w: ReturnType<typeof world>) => w.portCalls.filter((call) => call[0] === "cancelSubscription").length;
+
+  test("status answers closing under the mark while no answer is stored for the row's id, and cancelled once one is; without the mark it answers the account's state", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    expect(await w.entries.status(HASH)).toEqual({ result: "active" });
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    w.answers.settled = false;
+    await w.entries.destroy(HASH);
+    expect(await w.entries.status(HASH)).toEqual({ result: "closing" });
+    w.host.port.cancelSubscription = async () => ({ kind: "cancelled" });
+    await w.entries.destroy(HASH);
+    expect(await w.entries.status(HASH)).toEqual({ result: "cancelled" });
+    w.answers.subscription = { ...METERED, subscriptionId: "sub_two" };
+    expect(await w.entries.status(HASH)).toEqual({ result: "closing" });
+  });
+
+  test("a failed cancel stores the next try at now plus the delay, which doubles from 60 s to 3,600 s; the alarm tries at that time and not before, and the due time is the next try while no answer is stored", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now, port: { cancelSubscription: async () => ({ kind: "failed" }) } });
+    await w.seeded({ customerId: "cus_one" });
+    const tries: Ms[] = [];
+    w.host.port.cancelSubscription = async () => {
+      tries.push(now);
+      return { kind: "failed" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(await skeletonOf(w)).toEqual({ row: expect.objectContaining({ cancel_next_at: 68_000, cancel_delay: 120_000, cancel_answered_at: null }), due: 68_000 });
+    now = 67_999;
+    await w.entries.alarm();
+    expect(tries).toEqual([8000]);
+    for (let each = 0; each < 8; each += 1) {
+      const read = await skeletonOf(w);
+      now = Number(read?.due);
+      await w.entries.alarm();
+    }
+    const gaps = tries.slice(1).map((at, index) => (at - (tries[index] ?? 0)) / 1000);
+    expect(gaps).toEqual([60, 120, 240, 480, 960, 1920, 3600, 3600]);
+    expect(await skeletonOf(w)).toEqual({ row: expect.objectContaining({ cancel_delay: 3_600_000 }), due: now + 3_600_000 });
+    expect(w.alarms.at(-1)).toBe(now + 3_600_000);
+  });
+
+  test("a call of destroy from outside makes the cancel call at once, before the stored next try", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    let made = 0;
+    w.host.port.cancelSubscription = async () => {
+      made += 1;
+      return { kind: "cancelled" };
+    };
+    now = 9000;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    expect(made).toBe(1);
+  });
+
+  test("with an answer stored the due time is the answered time plus DELETE_REMOVAL_BOUND_MS; at that time the alarm calls closeOpen, logs one usage-not-billable for each interval it closed, and deletes", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(await skeletonOf(w)).toEqual({
+      row: expect.objectContaining({ cancel_answered_at: 8000, cancel_answered_for: "sub_one" }),
+      due: 8000 + DELETE_REMOVAL_BOUND_MS,
+    });
+    w.reset();
+    now = 8000 + DELETE_REMOVAL_BOUND_MS - 1;
+    await w.entries.alarm();
+    expect([w.names().includes("metering.closeOpen"), w.portCalls, await w.holds()]).toEqual([false, [], true]);
+    w.answers.closeOpen = 2;
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    await w.entries.alarm();
+    expect(w.calls).toContainEqual(["metering.closeOpen", 8000 + DELETE_REMOVAL_BOUND_MS]);
+    expect(events()).toEqual(["usage-not-billable", "usage-not-billable"]);
+    expect([w.portCalls, await w.holds()]).toEqual([[], false]);
+  });
+
+  test("the alarm deletes before the bound once the sync is settled and no hold is open", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    await w.entries.destroy(HASH);
+    now = 9000;
+    w.answers.openHolds = 1;
+    w.answers.settled = true;
+    await w.entries.alarm();
+    expect(await w.holds()).toBe(true);
+    w.answers.openHolds = 0;
+    await w.entries.alarm();
+    expect([await w.holds(), cancels(w)]).toEqual([false, 1]);
+  });
+
+  test("an account that is not metered: the alarm under the mark makes the cancel call once the hold has ended, and deletes", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded();
+    w.answers.subscription = UNMETERED;
+    w.answers.openHolds = 1;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(w.portCalls).toEqual([]);
+    w.answers.openHolds = 0;
+    await w.entries.alarm();
+    expect([w.portCalls, await w.holds()]).toEqual([[["cancelSubscription", null]], false]);
+  });
+
+  test("a cancel call that throws stores nothing; the due time is then the mark, and the next run of the alarm calls again", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => {
+      throw new Error("stopped");
+    };
+    await expect(w.entries.destroy(HASH)).rejects.toThrow("stopped");
+    expect(await skeletonOf(w)).toEqual({ row: expect.objectContaining({ destroying_since: 8000, cancel_answered_at: null, cancel_next_at: null }), due: 8000 });
+    let made = 0;
+    w.host.port.cancelSubscription = async () => {
+      made += 1;
+      return { kind: "nothing-to-cancel" };
+    };
+    now = 9000;
+    await w.entries.alarm();
+    expect(made).toBe(1);
+    expect((await skeletonOf(w))?.row).toEqual(expect.objectContaining({ cancel_answered_at: 9000, cancel_answered_for: "sub_one" }));
+  });
+
+  test("an error in step 3 of destroy: the cancel call is made and its answer stored before the error leaves", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.throwIn = "metering.send";
+    await expect(w.entries.destroy(HASH)).rejects.toThrow("scripted");
+    w.answers.throwIn = null;
+    expect(w.portCalls).toEqual([["cancelSubscription", "sub_one"]]);
+    expect(await w.holds()).toBe(false);
+  });
+
+  test("an error in the alarm's seal and send part under the mark: the owed cancel call is made in that run, and the error is counted", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    let made = 0;
+    w.host.port.cancelSubscription = async () => {
+      made += 1;
+      return { kind: "cancelled" };
+    };
+    w.answers.throwIn = "metering.send";
+    now = 68_000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(made).toBe(1);
+    expect(events()).toContain("alarm-error");
+    expect((await skeletonOf(w))?.row).toEqual(expect.objectContaining({ cancel_answered_at: 68_000, alarm_failures: 1 }));
+  });
+
+  test("an account deleted and made again during the alarm's cancel call: the step after it stores nothing and deletes nothing", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    w.host.port.cancelSubscription = async () => {
+      w.host.step((sql) => sql.exec("UPDATE skeleton SET destroying_since = ?", 60_000));
+      return { kind: "cancelled" };
+    };
+    w.answers.settled = true;
+    now = 68_000;
+    await w.entries.alarm();
+    expect([await w.holds(), (await skeletonOf(w))?.row?.cancel_answered_at]).toEqual([true, null]);
+  });
+
+  test("a failed cancel during which the account is deleted and made again stores no next try on the new account's row", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => {
+      w.host.step((sql) => sql.exec("UPDATE skeleton SET destroying_since = ?", 60_000));
+      return { kind: "failed" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect((await skeletonOf(w))?.row).toEqual(expect.objectContaining({ destroying_since: 60_000, cancel_next_at: null, cancel_delay: null }));
+  });
+
+  test("a hold that is open at step 6 keeps the storage although the sync is settled", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.host.port.cancelSubscription = async () => {
+      w.answers.openHolds = 1;
+      return { kind: "cancelled" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(await w.holds()).toBe(true);
+  });
+
+  test("an error in the alarm's seal and send part of a run that then deletes the storage logs alarm-error and no alarm-stopped", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    w.host.port.cancelSubscription = async () => ({ kind: "cancelled" });
+    w.answers.settled = true;
+    w.answers.throwIn = "metering.send";
+    w.reset();
+    now = 68_000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect([await w.holds(), events()]).toEqual([false, ["alarm-error"]]);
   });
 });

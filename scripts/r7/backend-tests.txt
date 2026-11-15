@@ -8,7 +8,7 @@ test/billing/stripe-adapter.node.test.ts	39
 test/billing/stripe-read-session.node.test.ts	1
 test/contract/billing-stub.node.test.ts	2
 test/contract/constants.node.test.ts	1
-test/contract/entries.node.test.ts	44
+test/contract/entries.node.test.ts	57
 test/contract/env.test.ts	6
 test/contract/log.node.test.ts	3
 test/contract/names.node.test.ts	2
@@ -50,6 +50,9 @@ test/metering/cancel.node.test.ts	7
 test/metering/closed-list-tests.node.test.ts	4
 test/metering/closed-list.node.test.ts	4
 test/metering/cuts.node.test.ts	10
+test/metering/delete-bound-engines.node.test.ts	1
+test/metering/delete-bound-engines.test.ts	1
+test/metering/delete-order.node.test.ts	26
 test/metering/engines.node.test.ts	3
 test/metering/engines.test.ts	3
 test/metering/interval-bound.node.test.ts	1

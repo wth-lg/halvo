@@ -238,7 +238,7 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
 
   expect(run.afterReserve.alarm).toBeNull();
   expect(run.afterReserve.tables.ledger_holds).toEqual([expect.objectContaining({ request_id: "stale", state: "open", dispatched: 0, created_at: RESERVE_AT, expires_at: due })]);
-  expect(run.afterReserve.tables.skeleton).toEqual([{ destroying_since: null, last_now: RESERVE_AT, alarm_failures: 0 }]);
+  expect(run.afterReserve.tables.skeleton).toEqual([{ destroying_since: null, last_now: RESERVE_AT, alarm_failures: 0, cancel_answered_at: null, cancel_answered_for: null, cancel_next_at: null, cancel_delay: null }]);
   expect(run.afterRejection.lines).toEqual([ALARM_ERROR]);
   expect(run.afterRejection.rejections).toEqual([]);
   expect(run.afterRejection.alarm).toBeNull();
@@ -271,7 +271,7 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
   expect(run.afterDispatch.lines).toEqual([ALARM_ERROR]);
   expect(run.afterDispatch.rejections).toEqual([]);
   const holdAfterDispatch = { ...(run.afterReserve.tables.ledger_holds?.[0] as Row), dispatched: 1 };
-  expect(run.afterDispatch.tables).toEqual({ ...run.afterReserve.tables, ledger_holds: [holdAfterDispatch], skeleton: [{ destroying_since: null, last_now: DISPATCH_AT, alarm_failures: 0 }] });
+  expect(run.afterDispatch.tables).toEqual({ ...run.afterReserve.tables, ledger_holds: [holdAfterDispatch], skeleton: [{ destroying_since: null, last_now: DISPATCH_AT, alarm_failures: 0, cancel_answered_at: null, cancel_answered_for: null, cancel_next_at: null, cancel_delay: null }] });
 
   expect(run.afterSecondReserve.alarm).toBe(due);
   expect(run.afterSecondRejection.lines).toEqual([ALARM_ERROR, ALARM_ERROR]);
@@ -286,5 +286,5 @@ test("unit 4.9 (iii), ruling P7-96 point 7, on workerd: after a reserve whose se
   expect(run.end.lines).toEqual([ALARM_ERROR, ALARM_ERROR]);
   expect(run.end.rejections).toEqual([]);
   const holdsAtEnd = [holdAfterDispatch, { ...(secondHold as Row), dispatched: 1 }].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  expect(run.end.tables).toEqual({ ...run.afterSecondReserve.tables, ledger_holds: holdsAtEnd, skeleton: [{ destroying_since: null, last_now: SECOND_DISPATCH_AT, alarm_failures: 0 }] });
+  expect(run.end.tables).toEqual({ ...run.afterSecondReserve.tables, ledger_holds: holdsAtEnd, skeleton: [{ destroying_since: null, last_now: SECOND_DISPATCH_AT, alarm_failures: 0, cancel_answered_at: null, cancel_answered_for: null, cancel_next_at: null, cancel_delay: null }] });
 });

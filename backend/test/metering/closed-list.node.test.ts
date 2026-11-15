@@ -80,6 +80,6 @@ describe("the margin (unit 5.1, B-32)", () => {
       }
     };
     const atTheTimeout = PROVIDER_CALL_TIMEOUT_MS / 1000;
-    expect([made(0), made(atTheTimeout), made(atTheTimeout + 1), made(300)]).toEqual(["RangeError", "RangeError", "made", "made"]);
+    expect([made(0), made(atTheTimeout), made(atTheTimeout + 1), made(300)]).toEqual(["RangeError", "RangeError", "RangeError", "made"]);
   });
 });

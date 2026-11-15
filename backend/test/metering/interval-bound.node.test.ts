@@ -28,6 +28,7 @@ function scriptedMetering(oldest: () => Ms): Metering {
     record: () => ({ call: null, notBillable: 0 }),
     nextSend: () => null,
     settled: () => true,
+    closeOpen: () => 0,
   };
 }
 

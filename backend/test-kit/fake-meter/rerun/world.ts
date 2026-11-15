@@ -117,6 +117,8 @@ type Account = {
   lastSeen: { carry: number; writtenOff: number | null } | null;
   cancelsAfterAReactivation: number;
   closedNotBillable: Set<string>;
+  providerEnded: boolean;
+  deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
 };
 
 function blocker(): Blocker {
@@ -304,6 +306,8 @@ class World {
       lastSeen: null,
       cancelsAfterAReactivation: 0,
       closedNotBillable: new Set(),
+      providerEnded: false,
+      deleteBound: new Map(),
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
     this.accounts.push(account);
@@ -373,9 +377,15 @@ class World {
       verifyWebhook: async () => ({ kind: "rejected" }),
       readSession: async () => failed,
       openManagePage: async () => failed,
-      cancelSubscription: async () => {
-        this.meter.endSubscription(account.id, seconds());
+      cancelSubscription: async (subscriptionId) => {
         this.count("call.cancel");
+        if (this.cancelAnswerStored(account, subscriptionId)) this.fail("a cancel call though an answer is stored", `${account.id}: ${subscriptionId}`);
+        if (account.providerEnded) {
+          this.count("call.cancel-of-an-ended-subscription");
+          return { kind: "nothing-to-cancel" };
+        }
+        account.providerEnded = true;
+        this.meter.endSubscription(account.id, seconds());
         return { kind: "cancelled" };
       },
       sendUsage: async (e) => {
@@ -419,6 +429,14 @@ class World {
         return { kind: "total", from: read.widenedFrom, to: read.widenedTo, totalMinor: read.totalMinor };
       },
     };
+  }
+
+  private cancelAnswerStored(account: Account, subscriptionId: string | null): boolean {
+    return account.test.host.step((sql) => {
+      if (ownTables(sql).length === 0) return false;
+      const mark = sql.exec("SELECT cancel_answered_at, cancel_answered_for FROM skeleton")[0];
+      return mark !== undefined && mark.cancel_answered_at !== null && mark.cancel_answered_for === subscriptionId;
+    });
   }
 
   private attemptOf(account: Account, identifier: string): string {
@@ -636,6 +654,7 @@ class World {
     const openHolds = account.holds.some((h) => h.open && this.now < h.expiresAt);
     if (kind === "cancel") {
       account.cancelled = true;
+      account.providerEnded = true;
       account.cancelSinceReactivation = true;
       if (account.reactivateEventsSent > 0) account.cancelsAfterAReactivation += 1;
       const endedAt = this.meter.endSubscription(account.id, this.now);
@@ -754,10 +773,18 @@ class World {
   private readRecordAgainstTheProvider(account: Account, rows: Row[] | null): void {
     const intervals =
       rows ??
-      account.test.host.step((sql) => (ownTables(sql).length === 0 ? [] : sql.exec("SELECT start, identifier, outcome FROM metering_interval WHERE outcome = ?", "not-billable")));
+      account.test.host.step((sql) =>
+        ownTables(sql).length === 0 ? [] : sql.exec("SELECT start, identifier, outcome, refusal, amount, timestamp FROM metering_interval WHERE outcome = ?", "not-billable"),
+      );
     const held = new Set(this.meter.recordedEvents(account.id).map((e) => e.identifier));
     for (const interval of intervals) {
       if (interval.outcome === "not-billable") account.closedNotBillable.add(String(interval.identifier));
+      if (interval.outcome === "not-billable" && interval.refusal === "delete-bound") {
+        const identifier = String(interval.identifier);
+        if (!account.deleteBound.has(identifier)) this.count(held.has(identifier) ? "delete-bound.closed-held-by-the-meter" : "delete-bound.closed-not-at-the-meter");
+        account.deleteBound.set(identifier, { amountMinor: int(interval, "amount"), timestamp: int(interval, "timestamp") });
+        continue;
+      }
       if (interval.outcome !== "not-billable" || !held.has(String(interval.identifier))) continue;
       this.fail("the record disagrees with the provider", `${account.id} interval ${interval.start} is not billable while the meter holds ${interval.identifier}`);
     }
@@ -795,7 +822,7 @@ class World {
   }
 
   private async destroy(account: Account): Promise<void> {
-    if (!account.deleting || account.inFlight !== null || this.now < account.downUntil) return;
+    if (!account.deleting || account.destroyStarted || account.inFlight !== null || this.now < account.downUntil) return;
     let answer: unknown = null;
     account.destroyStarted = true;
     await this.drive(account, async () => {
@@ -873,6 +900,10 @@ class World {
     for (const account of this.accounts) await this.destroy(account);
   }
 
+  private heldEvents(account: Account): number {
+    return this.meter.recordedEvents(account.id).filter((e) => !account.deleteBound.has(e.identifier)).length;
+  }
+
   private holdsStorage(account: Account): boolean {
     return account.test.host.step((sql) => ownTables(sql).length > 0);
   }
@@ -898,7 +929,7 @@ class World {
       if (account.unexplainedReads > 0) this.fail("a read the sync cannot explain", account.id);
       if (account.cancelSinceReactivation || account.destroyStarted) this.readRemainder(account);
       if (account.ended !== null && account.eventsHeldWhenEndCompleted === null && account.inFlight === null && this.objectEnded(account)) {
-        account.eventsHeldWhenEndCompleted = this.meter.recordedEvents(account.id).length;
+        account.eventsHeldWhenEndCompleted = this.heldEvents(account);
       }
     }
   }
@@ -970,6 +1001,12 @@ class World {
           const closed = account.closedNotBillable.has(identifier);
           if (!atTheMeter && closed && sent.timestamp >= period.start && sent.timestamp < countedUntil) unsent += sent.amountMinor * RULE_MICRO_PER_MINOR;
         }
+        for (const [identifier, closed] of account.deleteBound) {
+          const atTheMeter = events.some((e) => e.identifier === identifier);
+          if (!atTheMeter && !account.refused.has(identifier) && closed.timestamp >= period.start && closed.timestamp < countedUntil) {
+            unsent += closed.amountMinor * RULE_MICRO_PER_MINOR;
+          }
+        }
         const carryOut = reported + carryIn - provider - unsent;
         this.rows.push({ account: account.id, period: period.index, reported, carryIn, provider, carryOut, invoicedMinor: this.meter.invoicedTotal(account.id, period) });
         if (carryIn > 0) this.count("period.starts-with-a-remainder");
@@ -1000,7 +1037,7 @@ class World {
       if (everything !== insidePeriods) this.fail("an event outside every billing period", `${account.id}: ${everything - insidePeriods} minor units`);
       if (account.ended !== null) {
         if (account.eventsHeldWhenEndCompleted === null) this.fail("the end did not complete", `${account.id} after ${account.ended}`);
-        else if (events.length !== account.eventsHeldWhenEndCompleted) this.fail("an event recorded after the last acknowledgement", account.id);
+        else if (this.heldEvents(account) !== account.eventsHeldWhenEndCompleted) this.fail("an event recorded after the last acknowledgement", account.id);
         else {
           this.count(`${account.ended}.completed`);
           if (carryIn > 0) this.count(`${account.ended}.left-a-remainder`);
