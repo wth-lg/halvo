@@ -2274,6 +2274,14 @@ case_run() {
   case_ended=$(date +%s) || case_ended=$case_started
   printf 'case-seconds %s %s job=%s\n' "$1" "$((case_ended - case_started))" "$case_job"
   if [ "$got" != "$2" ]; then
+    printf 'case %s/%s exit=%s, its last lines:\n' "$name" "$1" "$code"
+    tail -n 12 "$work/case.txt" | awk -v work="$work" '
+      {
+        line = $0
+        while ((at = index(line, work)) > 0) line = substr(line, 1, at - 1) "<work>" substr(line, at + length(work))
+        print "  | " line
+      }
+    '
     wrong="$wrong $1"
   elif [ "$2" = FAIL ]; then
     rejected=$((rejected + 1))
