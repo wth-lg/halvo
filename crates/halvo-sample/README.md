@@ -68,7 +68,8 @@ row of each overlapping pair gets its `FAIL row` line.
 ## `leak`
 
 `leak` refuses a PATH argument that is a symbolic link with `path`, also when separators, `.`
-or a name and `..` follow its name; a link among the other components of an argument is
+or a name and `..` follow its name, and when `..` after a linked component leads to it with
+separators or `.` after its name; a link among the other components of an argument is
 followed. It refuses a TIER argument that is a symbolic link in the same forms with
 `tier-manifest`, whose detail is the argument as given. `input-copy` follows a TIER argument
 that is a link. Inside a walk `leak` follows no link. A stream directory, `streams` directory, manifest,

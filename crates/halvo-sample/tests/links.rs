@@ -204,6 +204,32 @@ fn a_tier_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
 }
 
 #[test]
+fn a_link_reached_through_a_linked_parent_and_a_trailing_separator_is_refused() {
+    let dir = scratch("link-parent-slash");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "nothing here\n");
+    write(&dir.join("walked/notes.md"), "nothing here\n");
+    let real = s(&dir.join("real"));
+    fs::create_dir_all(dir.join("a/inner")).expect("the physical parent");
+    link_dir(&dir.join("a/inner"), &dir.join("x"));
+    link_dir(&t, &dir.join("a/t"));
+    link_dir(&dir.join("walked"), &dir.join("a/p"));
+    assert!(!dir.join("t").exists() && !dir.join("p").exists());
+    let sep = std::path::MAIN_SEPARATOR;
+    let x = s(&dir.join("x"));
+    for end in ["", &sep.to_string(), &format!("{sep}.")] {
+        let form = format!("{x}{sep}..{sep}t{end}");
+        let o = run(&["leak", &form, &real]);
+        refused(&o, "tier-manifest");
+        assert_eq!(o.stderr, format!("REFUSED tier-manifest: {form}\n"));
+        let form = format!("{x}{sep}..{sep}p{end}");
+        let o = run(&["leak", &s(&t), &form]);
+        refused(&o, "path");
+        assert_eq!(o.stderr, format!("REFUSED path: {form}\n"));
+    }
+}
+
+#[test]
 fn a_link_inside_a_walk_is_not_followed() {
     let dir = scratch("link-inside");
     let t = tier(&dir);

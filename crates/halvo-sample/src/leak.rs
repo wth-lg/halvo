@@ -155,7 +155,7 @@ fn names_in<'a>(hay: &[u8], names: &[&'a str]) -> BTreeSet<&'a str> {
 }
 
 fn names_a_link(raw: &Path) -> bool {
-    if is_link(raw) {
+    if is_link(&raw.components().collect::<PathBuf>()) {
         return true;
     }
     let mut named = PathBuf::new();
