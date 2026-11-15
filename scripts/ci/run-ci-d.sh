@@ -1547,6 +1547,15 @@ own_self_test() {
   case_made=rm-failed-once
   case_witness=yes
   own_case tmpdir-whose-first-removal-fails-is-removed-on-a-later-try 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  mkdir -p "$tmp/rm-fails-twice" &&
+    printf '#!/bin/sh\nfor a in "$@"; do last=$a; done\ncase $last in *.10-a/t)\n  now=$(%s -MTime::HiRes=time -e '"'"'printf "%%d\\n", time * 1000'"'"') || exit 1\n  n=0; [ ! -r rm-count ] || read -r n <rm-count\n  prev=0; [ ! -r rm-last ] || read -r prev <rm-last\n  if [ "$n" -lt 2 ] || [ "$((now - prev))" -lt 900 ]; then echo "$((n + 1))" >rm-count; echo "$now" >rm-last; exit 1; fi ;;\nesac\nexec %s "$@"\n' "$perl_bin" "$real_rm" >"$tmp/rm-fails-twice/rm" &&
+    chmod +x "$tmp/rm-fails-twice/rm" || wrong="$wrong stand-in-rm-not-made"
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'"
+  case_path=$tmp/rm-fails-twice
+  case_gone=1
+  case_made=rm-last
+  case_witness=yes
+  own_case tmpdir-removed-on-the-third-try-after-two-waits 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_empty=yes
@@ -1646,6 +1655,32 @@ own_self_test() {
   case_max_s=40
   case_witness=yes
   own_case own-cases-past-1200-s-pass-below-their-limit 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
+  new_repo && printf '2300\n' >"$fixture/jump"
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=slow
+  case_path=$tmp/jump-date
+  case_max_s=40
+  case_witness=yes
+  own_case own-cases-reach-their-limit-at-2300-s 1 'FAIL self-test:run-ci-d (time limit 2300 s)' macos --self-test run-ci-d
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ "${1:-}" = --self-test ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
+    printf '1200\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_witness=yes
+  own_case limit-line-raises-the-limit-of-its-self-test 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 2" 'sleep 4; printf "PASS 10-a\n"'
+  case_witness=yes
+  own_case limit-line-below-the-default-leaves-the-default 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  for bound in 0 0100 1000000000; do
+    new_repo && add_script r1 10-a.sh "$good$nl# limit: $bound" "$pass_a"
+    own_case "limit-line-of-$bound-is-refused" 1 "FAIL 10-a (its '# limit:' line is not a whole number of seconds from 1 to 999999999)" --rules
+  done
+  new_repo && add_script r1 10-a.sh "$good$nl$seven$nl# limit: 20m" "$pass_a"
+  own_case limit-line-at-line-11-is-no-limit-line 0 '10-a (macos windows): A fixture rule.' --rules
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500$cr" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+    printf '1200\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_witness=yes
+  own_case limit-line-with-a-carriage-return-raises-the-limit 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
