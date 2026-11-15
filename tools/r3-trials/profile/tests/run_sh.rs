@@ -171,3 +171,71 @@ fn the_argument_reader_follows_the_usage_line_of_a13_3() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+#[test]
+fn the_reader_hands_each_argument_on_to_the_program() {
+    let p = places();
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("run-sh-reader");
+    let pass = root.join("pass-bin");
+    let scratch = root.join("scratch");
+    for d in [&pass, &scratch] {
+        std::fs::create_dir_all(d).unwrap_or_else(|e| panic!("{}: {e}", d.display()));
+    }
+    for name in ["node", "cargo"] {
+        write(&pass.join(name), "#!/bin/sh\nexit 0\n", true);
+    }
+    write(
+        &pass.join("rustc"),
+        "#!/bin/sh\necho 'host: stand-in'\n",
+        true,
+    );
+    let program = s(&p.program);
+    let scratch = s(&scratch);
+    let rows: [(&str, &[&str], &[&str]); 3] = [
+        (
+            "the_first_set",
+            &["--item", "3", "--flags", "first", "--port", "18090"],
+            &["--item 3 ", " --flags first"],
+        ),
+        (
+            "the_control",
+            &["--item", "3", "--sandbox-off", "--port", "18090"],
+            &["--item 3 ", " --sandbox-off"],
+        ),
+        (
+            "a_cookie_left_out",
+            &["--item", "1", "--leave-out", "sid", "--port", "18191"],
+            &["--item 1 ", " --leave-out sid"],
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (name, head, want) in rows {
+        let mut args: Vec<&str> = head.to_vec();
+        args.extend(["--browser", &program, "--scratch", &scratch]);
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let mut dirs = vec![pass.clone()];
+        dirs.extend(std::env::split_paths(&path));
+        let out = Command::new("sh")
+            .arg("-x")
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("run.sh"))
+            .args(&args)
+            .env("PATH", std::env::join_paths(dirs).expect("a PATH"))
+            .env("RUSTC", pass.join("rustc"))
+            .output()
+            .expect("sh starts");
+        let err = String::from_utf8_lossy(&out.stderr);
+        let exec = err
+            .lines()
+            .rfind(|l| {
+                l.trim_start_matches('+').starts_with(" exec ") && l.contains("profile-trial")
+            })
+            .unwrap_or("")
+            .to_string();
+        let ok = want.iter().all(|w| exec.contains(w))
+            && !(name == "the_first_set" && exec.contains("--flags final"));
+        if !ok {
+            wrong.push(format!("{name}: the traced exec line is [{exec}]"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

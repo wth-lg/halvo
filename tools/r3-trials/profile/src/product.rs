@@ -576,6 +576,13 @@ mod tests {
             ))
         );
         assert_eq!(o(None, false), Outer::NotRun("egress_check".into()));
+        for value in ["maybe", ""] {
+            assert_eq!(
+                o(Some(&inner(value, "ok", "-")), false),
+                Outer::NotRun("egress_check".into()),
+                "{value}"
+            );
+        }
         assert_eq!(
             o(
                 Some(&format!(

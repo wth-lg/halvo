@@ -12,6 +12,8 @@ cat case/inner
 cat case/err >&2
 mkdir -p target/egress/1
 cat case/denied >target/egress/1/denied.log
+mkdir -p target/egress/0
+cat case/early >target/egress/0/denied.log
 if [ -f case/signal ]; then
   kill -TERM \"$PPID\"
   exec sleep 20
@@ -23,6 +25,7 @@ struct Case {
     name: &'static str,
     inner: Vec<String>,
     denied: Vec<&'static str>,
+    early: Vec<&'static str>,
     first: bool,
     sandbox_off: bool,
     signal: bool,
@@ -43,6 +46,7 @@ fn case(name: &'static str, inner_lines: &[String], want: &[String], code: i32) 
         name,
         inner: inner_lines.to_vec(),
         denied: Vec::new(),
+        early: Vec::new(),
         first: false,
         sandbox_off: false,
         signal: false,
@@ -145,6 +149,24 @@ fn cases() -> Vec<Case> {
         0,
     );
     first.first = true;
+    let mut two = case(
+        "the_last_check_line_names_the_log",
+        std::slice::from_ref(&ok),
+        &[
+            ok.clone(),
+            denial("final", "proto=tcp port=80 loopback=yes"),
+            denial("final", "proto=tcp port=80 loopback=yes"),
+            set("final"),
+            "egress machine=mac mode=sandbox browser_started=yes denied=2".into(),
+        ],
+        0,
+    );
+    two.early = vec!["denied at=1 proto=udp dest=10.0.0.9:9 pid=1 image=x"];
+    two.denied = vec![
+        "denied at=2 proto=tcp dest=127.0.0.1:80 pid=1 image=x",
+        "denied at=3 proto=tcp dest=127.0.0.1:80 pid=1 image=x",
+    ];
+    list.push(two);
     first.denied = vec![
         "denied at=1 proto=udp dest=-:443 pid=5 image=Google_Chrome_Helper",
         "denied at=2 proto=tcp dest=127.0.0.1:9 pid=5 image=Google_Chrome_Helper",
@@ -205,7 +227,20 @@ fn run(c: &Case, repo: &Path, scratch: &Path, browser: &Path) -> (Vec<String>, i
     let dir = repo.join("case");
     let mut text: String = c.inner.iter().map(|l| format!("{l}\n")).collect();
     write(&dir.join("inner"), &text);
-    write(&dir.join("err"), &err_line(c.denied.len()));
+    let early = if c.early.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "egress mode=sandbox list=x command=0 denied={} log=target/egress/0/denied.log\n",
+            c.early.len()
+        )
+    };
+    write(
+        &dir.join("err"),
+        &format!("{early}{}", err_line(c.denied.len())),
+    );
+    text = c.early.iter().map(|l| format!("{l}\n")).collect();
+    write(&dir.join("early"), &text);
     text = c.denied.iter().map(|l| format!("{l}\n")).collect();
     write(&dir.join("denied"), &text);
     let signal = dir.join("signal");
@@ -276,5 +311,5 @@ fn the_whole_program_prints_each_line_of_item_3_through_a_stand_in_check() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-    assert_eq!(all.len(), if cfg!(unix) { 9 } else { 8 });
+    assert_eq!(all.len(), if cfg!(unix) { 10 } else { 9 });
 }

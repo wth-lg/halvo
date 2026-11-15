@@ -1249,6 +1249,13 @@ async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
     }
 }
 
+fn sandbox(mut opts: StartOptions, off: bool) -> StartOptions {
+    if off {
+        opts.flags.push("--no-sandbox".into());
+    }
+    opts
+}
+
 async fn egress_run_line(args: &Args, kind: &'static str) -> RunLine {
     let Ok(stop) = watch_signals() else {
         return product::run_line(None, Err("runtime"));
@@ -1281,13 +1288,8 @@ async fn egress_run_line(args: &Args, kind: &'static str) -> RunLine {
     let dir = args
         .scratch
         .join(format!("{}-profile-egress", std::process::id()));
-    let (done, _, start_returned) = if args.sandbox_off {
-        let mut opts = ctx.options(dir);
-        opts.flags.push("--no-sandbox".into());
-        task_with(&ctx, opts).await
-    } else {
-        task(&ctx, dir).await
-    };
+    let opts = sandbox(ctx.options(dir), args.sandbox_off);
+    let (done, _, start_returned) = task_with(&ctx, opts).await;
     server.stop();
     product::run_line(start_returned, done.map_err(|f| f.0))
 }
@@ -1324,6 +1326,24 @@ mod item3_end_tests {
 
     fn inner(rest: &str) -> String {
         format!("egress_run {CELL} {rest}")
+    }
+
+    #[test]
+    fn the_control_alone_starts_the_browser_with_its_own_sandbox_off() {
+        let opts = || {
+            product::options(
+                PathBuf::from("chrome"),
+                PathBuf::from("profile"),
+                EGRESS_PORT,
+                &Start::ProductDirect,
+            )
+        };
+        let off = sandbox(opts(), true).flags;
+        let on = sandbox(opts(), false).flags;
+        assert_eq!(off.iter().filter(|f| *f == "--no-sandbox").count(), 1);
+        assert_eq!(off.last().map(String::as_str), Some("--no-sandbox"));
+        assert_eq!(on, opts().flags);
+        assert!(!on.iter().any(|f| f == "--no-sandbox"));
     }
 
     #[test]
