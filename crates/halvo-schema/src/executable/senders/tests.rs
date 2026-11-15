@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use serde_json::Value;
@@ -12,6 +13,29 @@ fn read(slot: &str) -> Result<Vec<String>, SendersError> {
 
 fn list(addresses: &[&str]) -> Result<Vec<String>, SendersError> {
     Ok(addresses.iter().map(|a| (*a).to_owned()).collect())
+}
+
+fn at(piece: usize) -> NonZeroUsize {
+    NonZeroUsize::new(piece).expect("a piece counted from 1")
+}
+
+fn empty(piece: usize) -> Result<Vec<String>, SendersError> {
+    Err(SendersError::Empty(at(piece)))
+}
+
+fn not_an_address(piece: usize) -> Result<Vec<String>, SendersError> {
+    Err(SendersError::NotAnAddress(at(piece)))
+}
+
+fn not_ascii(piece: usize) -> Result<Vec<String>, SendersError> {
+    Err(SendersError::NotAscii(at(piece)))
+}
+
+fn twice(earlier: usize, later: usize) -> Result<Vec<String>, SendersError> {
+    Err(SendersError::Twice {
+        earlier: at(earlier),
+        later: at(later),
+    })
 }
 
 fn of_length(length: usize) -> String {
@@ -70,24 +94,26 @@ fn the_seed_lists_joined_with_a_comma_and_a_space_read_back() {
 }
 
 #[test]
-fn an_empty_piece_refuses_the_slot() {
-    for slot in [
-        "",
-        " ",
-        ",",
-        "ann@people.test,",
-        "ann@people.test, ",
-        ",ann@people.test",
-        " , ann@people.test",
-        "ann@people.test,,bob@people.test",
-        "ann@people.test, ,bob@people.test",
-    ] {
-        assert_eq!(read(slot), Err(SendersError::Empty), "{slot:?}");
+fn an_empty_piece_refuses_the_slot_with_its_number() {
+    let rows = [
+        ("", 1),
+        (" ", 1),
+        (",", 1),
+        ("ann@people.test,", 2),
+        ("ann@people.test, ", 2),
+        (",ann@people.test", 1),
+        (" , ann@people.test", 1),
+        ("ann@people.test,,bob@people.test", 2),
+        ("ann@people.test, ,bob@people.test", 2),
+        ("a@people.test, b@people.test, c@people.test,", 4),
+    ];
+    for (slot, piece) in rows {
+        assert_eq!(read(slot), empty(piece), "{slot:?}");
     }
 }
 
 #[test]
-fn a_piece_that_is_no_address_refuses_the_slot() {
+fn a_piece_that_is_no_address_refuses_the_slot_with_its_number() {
     let long = of_length(321);
     for slot in [
         "Ann Berg",
@@ -102,15 +128,38 @@ fn a_piece_that_is_no_address_refuses_the_slot() {
         "ann@people.test; bob@people.test",
         "Ann <ann@people.test>",
         "ann\t@people.test",
-        "ann@people.test\u{a0}x",
-        "ännchen@people.test",
         long.as_str(),
-        "bob@people.test, Ann Berg",
     ] {
-        assert_eq!(read(slot), Err(SendersError::NotAnAddress), "{slot:?}");
+        assert_eq!(read(slot), not_an_address(1), "{slot:?}");
     }
+    assert_eq!(read("bob@people.test, Ann Berg"), not_an_address(2));
+    assert_eq!(read("a@people.test, b@people.test, ann"), not_an_address(3));
     let at_bound = of_length(320);
     assert_eq!(read(&at_bound), Ok(vec![at_bound.clone()]));
+}
+
+#[test]
+fn a_piece_that_holds_a_byte_outside_ascii_has_a_value_of_its_own() {
+    let long = format!("é{}", of_length(320));
+    let rows = [
+        ("ännchen@people.test", 1),
+        ("ann@péople.test", 1),
+        ("Ann Bérg", 1),
+        ("é", 1),
+        ("ann@people\u{a0}.test", 1),
+        ("ann@people.test\u{a0}x", 1),
+        ("bob@people.test, élan@people.test", 2),
+        ("bob@people.test, ann@people.test, \u{1f600}", 3),
+        (long.as_str(), 1),
+    ];
+    for (slot, piece) in rows {
+        assert_eq!(read(slot), not_ascii(piece), "{slot:?}");
+    }
+    for c in ['\u{80}', '\u{ff}', '\u{100}', '\u{10ffff}'] {
+        for slot in [format!("a{c}@people.test"), format!("ann@peo{c}ple.test")] {
+            assert_eq!(read(&slot), not_ascii(1), "{slot:?}");
+        }
+    }
 }
 
 fn white_space() -> Vec<char> {
@@ -141,67 +190,89 @@ fn the_white_space_of_char_is_whitespace_is_trimmed_from_the_ends_of_each_piece(
                 assert_eq!(read(&slot), senders, "{slot:?}");
             }
         }
-        for slot in [format!("{c}"), format!("{ann},{c}"), format!("{c} ,{ann}")] {
-            assert_eq!(read(&slot), Err(SendersError::Empty), "{slot:?}");
+        let rows = [
+            (format!("{c}"), 1),
+            (format!("{ann},{c}"), 2),
+            (format!("{c} ,{ann}"), 1),
+        ];
+        for (slot, piece) in rows {
+            assert_eq!(read(&slot), empty(piece), "{slot:?}");
         }
         let at_bound = of_length(320);
         assert_eq!(read(&format!("{c}{at_bound}{c}")), Ok(vec![at_bound]));
         let over = of_length(321);
-        assert_eq!(
-            read(&format!("{c}{over}{c}")),
-            Err(SendersError::NotAnAddress)
-        );
+        assert_eq!(read(&format!("{c}{over}{c}")), not_an_address(1));
     }
 }
 
 #[test]
 fn white_space_inside_a_piece_and_other_bytes_at_its_ends_refuse_the_slot() {
     for c in white_space() {
+        let fault = if c.is_ascii() {
+            not_an_address(1)
+        } else {
+            not_ascii(1)
+        };
         for slot in [format!("ann{c}@people.test"), format!("ann@people{c}.test")] {
-            assert_eq!(read(&slot), Err(SendersError::NotAnAddress), "{slot:?}");
+            assert_eq!(read(&slot), fault, "{slot:?}");
         }
     }
-    for c in ['\0', '\u{1f}', '\u{7f}', '\u{200b}', '\u{feff}'] {
+    let rows = [
+        ('\0', not_an_address(1)),
+        ('\u{1f}', not_an_address(1)),
+        ('\u{7f}', not_an_address(1)),
+        ('\u{200b}', not_ascii(1)),
+        ('\u{feff}', not_ascii(1)),
+    ];
+    for (c, fault) in rows {
         assert!(!c.is_whitespace());
         for slot in [format!("{c}ann@people.test"), format!("ann@people.test{c}")] {
-            assert_eq!(read(&slot), Err(SendersError::NotAnAddress), "{slot:?}");
+            assert_eq!(read(&slot), fault, "{slot:?}");
         }
     }
 }
 
 #[test]
-fn an_address_twice_without_ascii_case_refuses_the_slot() {
-    for slot in [
-        "ann@people.test, ann@people.test",
-        "ann@people.test, ANN@People.TEST",
-        "ann@people.test, bob@people.test, Ann@people.test",
-        "bob@people.test, ann@people.test, BOB@people.test",
-    ] {
-        assert_eq!(read(slot), Err(SendersError::Twice), "{slot}");
+fn an_address_twice_without_ascii_case_refuses_the_slot_with_both_numbers() {
+    let rows = [
+        ("ann@people.test, ann@people.test", (1, 2)),
+        ("ann@people.test, ANN@People.TEST", (1, 2)),
+        ("ann@people.test, bob@people.test, Ann@people.test", (1, 3)),
+        ("bob@people.test, ann@people.test, BOB@people.test", (1, 3)),
+        (
+            "a@people.test, b@people.test, c@people.test, B@people.test",
+            (2, 4),
+        ),
+    ];
+    for (slot, (earlier, later)) in rows {
+        assert_eq!(read(slot), twice(earlier, later), "{slot}");
     }
-    assert_eq!(
-        read("élan@people.test, ÉLAN@people.test"),
-        Err(SendersError::NotAnAddress)
-    );
+    assert_eq!(read("élan@people.test, ÉLAN@people.test"), not_ascii(1));
 }
 
 #[test]
 fn the_first_fault_in_the_order_of_the_text_is_given() {
     let rows = [
-        ("Ann Berg, , ann@people.test", SendersError::NotAnAddress),
-        (", Ann Berg", SendersError::Empty),
-        (
-            "ann@people.test, ANN@people.test, Ann Berg",
-            SendersError::Twice,
-        ),
+        ("Ann Berg, , ann@people.test", not_an_address(1)),
+        (", Ann Berg", empty(1)),
+        ("ann@people.test, ANN@people.test, Ann Berg", twice(1, 2)),
         (
             "ann@people.test, Ann Berg, ann@people.test",
-            SendersError::NotAnAddress,
+            not_an_address(2),
         ),
-        ("ann@people.test, ann@people.test,", SendersError::Twice),
+        ("ann@people.test, ann@people.test,", twice(1, 2)),
+        (
+            "bob@people.test, ännchen@people.test, Ann Berg",
+            not_ascii(2),
+        ),
+        (
+            "bob@people.test, Ann Berg, ännchen@people.test",
+            not_an_address(2),
+        ),
+        ("bob@people.test, , ännchen@people.test", empty(2)),
     ];
     for (slot, fault) in rows {
-        assert_eq!(read(slot), Err(fault), "{slot}");
+        assert_eq!(read(slot), fault, "{slot}");
     }
 }
 
@@ -229,20 +300,36 @@ fn the_rule_for_a_sender_takes_printable_ascii_but_spaces_and_specials() {
 fn texts() {
     let rows = [
         (
-            SendersError::Empty,
+            SendersError::Empty(at(1)),
             "the list of senders holds an empty entry",
         ),
         (
-            SendersError::NotAnAddress,
+            SendersError::NotAnAddress(at(2)),
             "an entry of the list of senders is not an address",
         ),
         (
-            SendersError::Twice,
+            SendersError::NotAscii(at(3)),
+            "an entry of the list of senders holds a character outside ASCII, which Halvo does not take",
+        ),
+        (
+            SendersError::Twice {
+                earlier: at(4),
+                later: at(5),
+            },
             "the list of senders names one address twice",
         ),
     ];
     for (error, text) in rows {
         assert_eq!(error.to_string(), text);
     }
-    assert_eq!(format!("{:?}", SendersError::Twice), "Twice");
+    assert_eq!(
+        format!(
+            "{:?}",
+            SendersError::Twice {
+                earlier: at(1),
+                later: at(2)
+            }
+        ),
+        "Twice { earlier: 1, later: 2 }"
+    );
 }

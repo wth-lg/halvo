@@ -1,4 +1,5 @@
 use std::fmt;
+use std::num::NonZeroUsize;
 
 const ADDRESS_MAX: usize = 320;
 const SPECIALS: &[u8] = b"\"(),:;<>[\\]";
@@ -19,14 +20,17 @@ pub fn same_address(a: &str, b: &str) -> bool {
 
 /// The senders of the slot `reply_senders` (CP-112): the text cut at each comma, each piece without the white
 /// space that `char::is_whitespace` names at its ends, in the order of the text; white space inside a piece is
-/// no address. Refuses the whole slot for an empty piece, so also for an empty
-/// text, for a piece that is no address by the adapter's rule for a sender, and for a piece that is one address
-/// with an earlier piece by [`same_address`], with the first fault in the order of the text. The adapter's rule
-/// for a sender takes a piece of at most 320 bytes with one `@`, at least one byte on each side of it, and every
-/// byte printable ASCII, no space and none of the eleven bytes `"(),:;<>[\]`:
+/// no address. Refuses the whole slot with the first fault in the order of the text, which names its piece by
+/// its number counted from 1: an empty piece, so also an empty text; a piece that holds a byte outside ASCII; a
+/// piece that is no address by the adapter's rule for a sender; and a piece that is one address with an earlier
+/// piece by [`same_address`]. The adapter's rule for a sender takes a piece of at most 320 bytes with one `@`, at
+/// least one byte on each side of it, and every byte printable ASCII, no space and none of the eleven bytes
+/// `"(),:;<>[\]`:
 ///
 /// ```
+/// use std::num::NonZeroUsize;
 /// use halvo_schema::executable::{reply_senders, SendersError};
+/// let piece = |n| NonZeroUsize::new(n).unwrap();
 /// assert_eq!(
 ///     reply_senders("ann@people.test, bob@people.test"),
 ///     Ok(vec!["ann@people.test".to_owned(), "bob@people.test".to_owned()])
@@ -35,25 +39,45 @@ pub fn same_address(a: &str, b: &str) -> bool {
 ///     reply_senders("\tann@people.test\u{a0}"),
 ///     Ok(vec!["ann@people.test".to_owned()])
 /// );
-/// assert_eq!(reply_senders("ann@people.test,"), Err(SendersError::Empty));
-/// assert_eq!(reply_senders("Ann Berg"), Err(SendersError::NotAnAddress));
+/// assert_eq!(
+///     reply_senders("ann@people.test,"),
+///     Err(SendersError::Empty(piece(2)))
+/// );
+/// assert_eq!(
+///     reply_senders("Ann Berg"),
+///     Err(SendersError::NotAnAddress(piece(1)))
+/// );
+/// assert_eq!(
+///     reply_senders("bob@people.test, ännchen@people.test"),
+///     Err(SendersError::NotAscii(piece(2)))
+/// );
 /// assert_eq!(
 ///     reply_senders("ann@people.test, ANN@people.test"),
-///     Err(SendersError::Twice)
+///     Err(SendersError::Twice { earlier: piece(1), later: piece(2) })
 /// );
 /// ```
 pub fn reply_senders(slot: &str) -> Result<Vec<String>, SendersError> {
     let mut senders: Vec<String> = Vec::new();
-    for piece in slot.split(',') {
+    for (index, piece) in slot.split(',').enumerate() {
+        let number = NonZeroUsize::MIN.saturating_add(index);
         let piece = piece.trim_matches(char::is_whitespace);
         if piece.is_empty() {
-            return Err(SendersError::Empty);
+            return Err(SendersError::Empty(number));
+        }
+        if !piece.is_ascii() {
+            return Err(SendersError::NotAscii(number));
         }
         if !is_sender(piece) {
-            return Err(SendersError::NotAnAddress);
+            return Err(SendersError::NotAnAddress(number));
         }
-        if senders.iter().any(|sender| same_address(sender, piece)) {
-            return Err(SendersError::Twice);
+        if let Some(earlier) = senders
+            .iter()
+            .position(|sender| same_address(sender, piece))
+        {
+            return Err(SendersError::Twice {
+                earlier: NonZeroUsize::MIN.saturating_add(earlier),
+                later: number,
+            });
         }
         senders.push(piece.to_owned());
     }
@@ -71,23 +95,36 @@ pub fn is_sender(text: &str) -> bool {
         })
 }
 
-/// Why the reader refused the slot `reply_senders`. No variant holds text of the slot.
+/// Why the reader refused the slot `reply_senders`: the first fault, with the number of its piece counted from 1.
+/// No variant holds text of the slot. The numbers are for the set-up's answer alone and go into no row, log line
+/// or frame; `Display` prints none of them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendersError {
-    /// A piece is empty once the white space at its ends is trimmed.
-    Empty,
-    /// A piece is no address by the adapter's rule for a sender, which the doc of [`reply_senders`] states.
-    NotAnAddress,
-    /// A piece is one address with an earlier piece.
-    Twice,
+    /// The piece is empty once the white space at its ends is trimmed.
+    Empty(NonZeroUsize),
+    /// The piece holds a byte outside ASCII, which Halvo does not take: a limit of Halvo, apart from
+    /// `NotAnAddress`, so that the person is not told that they typed something wrong.
+    NotAscii(NonZeroUsize),
+    /// The piece is no address by the adapter's rule for a sender, which the doc of [`reply_senders`] states.
+    NotAnAddress(NonZeroUsize),
+    /// The piece `later` is one address with the earlier piece `earlier`.
+    Twice {
+        /// The number of the earlier piece.
+        earlier: NonZeroUsize,
+        /// The number of the later piece.
+        later: NonZeroUsize,
+    },
 }
 
 impl fmt::Display for SendersError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            SendersError::Empty => "the list of senders holds an empty entry",
-            SendersError::NotAnAddress => "an entry of the list of senders is not an address",
-            SendersError::Twice => "the list of senders names one address twice",
+            SendersError::Empty(_) => "the list of senders holds an empty entry",
+            SendersError::NotAscii(_) => {
+                "an entry of the list of senders holds a character outside ASCII, which Halvo does not take"
+            }
+            SendersError::NotAnAddress(_) => "an entry of the list of senders is not an address",
+            SendersError::Twice { .. } => "the list of senders names one address twice",
         })
     }
 }
