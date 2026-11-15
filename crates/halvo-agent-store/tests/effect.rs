@@ -205,6 +205,7 @@ fn an_approval_held_by_any_row_is_used() {
         row(1, 1, 5, "approved", "payment", 1, Some(3), None),
     );
 
+    start(&mut store, 2);
     ok(&mut store, row(2, 3, 1, "held", "payment", 1, None, None));
     refused(
         &mut store,
@@ -448,5 +449,86 @@ fn a_commit_a_reject_or_an_end_row_with_another_digest_is_refused() {
     ok(
         &mut store,
         row(1, 3, 2, "rejected", "payment", 1, None, Some("ended")),
+    );
+}
+
+fn day_refused(store: &mut MemoryStore, now: halvo_agent_store::Now, row: Value) {
+    let before = effects(store).len();
+    assert_eq!(
+        put_at(store, now, row.clone()),
+        Err(declared("day")),
+        "{row}"
+    );
+    assert_eq!(effects(store).len(), before, "{row}");
+}
+
+#[test]
+fn a_row_of_the_local_day_of_its_at_is_stored_and_the_utc_day_of_the_same_instant_is_refused() {
+    let mut store = payment().with_utc_offset(WEST);
+    let evening = local(ROW_DAY, 23 * 3600 + 30 * 60, WEST);
+    assert_eq!(evening.div_euclid(NANOS_PER_DAY), i64::from(ROW_DAY) + 1);
+    let held = |e| {
+        dated(
+            row(1, e, 1, "held", "payment", 1, None, None),
+            ROW_DAY,
+            evening,
+        )
+    };
+    day_refused(&mut store, NOW, dated(held(2), ROW_DAY + 1, evening));
+    assert_eq!(put_at(&mut store, NOW, held(1)), Ok(stored(1)));
+    assert_eq!(last_of(&store, &effect(1)).day, ROW_DAY);
+}
+
+#[test]
+fn a_row_whose_day_is_a_day_off_the_day_of_its_at_is_refused() {
+    let mut store = payment();
+    let held = row(1, 1, 1, "held", "payment", 1, None, None);
+    day_refused(&mut store, NOW, dated(held.clone(), ROW_DAY + 1, ROW_AT));
+    day_refused(&mut store, NOW, dated(held.clone(), ROW_DAY - 1, ROW_AT));
+    assert_eq!(put_at(&mut store, NOW, held), Ok(stored(1)));
+}
+
+#[test]
+fn a_row_after_the_day_of_the_clock_or_outside_its_bound_is_refused() {
+    let mut store = payment();
+    let held = |e| row(1, e, 1, "held", "payment", 1, None, None);
+    let ahead = NOW.at.0 + NANOS_PER_DAY;
+    day_refused(&mut store, NOW, dated(held(1), TODAY + 1, ahead));
+    let gone = NOW.at.0 - 93 * NANOS_PER_DAY;
+    day_refused(&mut store, NOW, dated(held(2), TODAY - 93, gone));
+    let last = NOW.at.0 - 92 * NANOS_PER_DAY;
+    assert_eq!(
+        put_at(&mut store, NOW, dated(held(3), TODAY - 92, last)),
+        Ok(stored(1))
+    );
+}
+
+#[test]
+fn a_row_built_before_midnight_is_stored_and_repeated_just_after_it() {
+    let mut store = payment().with_utc_offset(WEST);
+    let before = local(ROW_DAY, 86_399, WEST);
+    let after = at(local(ROW_DAY + 1, 1, WEST));
+    let held = dated(
+        row(1, 1, 1, "held", "payment", 1, None, None),
+        ROW_DAY,
+        before,
+    );
+    assert_eq!(put_at(&mut store, after, held.clone()), Ok(stored(1)));
+    assert_eq!(put_at(&mut store, after, held), Ok(stored(1)));
+    assert_eq!(effects(&store).len(), 1);
+}
+
+#[test]
+fn a_repeat_of_the_last_row_is_answered_as_the_first_under_a_clock_that_would_refuse_it() {
+    let mut store = payment();
+    let held = row(1, 1, 1, "held", "payment", 1, None, None);
+    assert_eq!(put_at(&mut store, NOW, held.clone()), Ok(stored(1)));
+    let late = at(ROW_AT + 93 * NANOS_PER_DAY);
+    assert_eq!(put_at(&mut store, late, held.clone()), Ok(stored(1)));
+    assert_eq!(effects(&store).len(), 1);
+    day_refused(
+        &mut store,
+        late,
+        row(1, 1, 2, "rejected", "payment", 1, None, None),
     );
 }

@@ -7,6 +7,7 @@
 mod bind;
 mod bindings;
 mod coordinator;
+mod day;
 mod effect;
 mod end;
 mod errors;

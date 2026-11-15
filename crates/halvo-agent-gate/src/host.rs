@@ -10,8 +10,6 @@ use halvo_schema::{
     ErrorName, Instant, RowRead, SeedCategory, Workflow, WorkflowId, WorkflowState,
 };
 
-const NANOS_PER_DAY: i128 = 86_400 * 1_000_000_000;
-
 /// One coordinator body that the gate host sent to the handler, by its `op`, with the handler's answer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sent {
@@ -121,11 +119,7 @@ fn now() -> Now {
         Err(e) => -i128::try_from(e.duration().as_nanos()).unwrap_or(i128::MAX),
     };
     let at = i64::try_from(nanos).unwrap_or(if nanos < 0 { i64::MIN } else { i64::MAX });
-    let day = u32::try_from(nanos.div_euclid(NANOS_PER_DAY)).unwrap_or(0);
-    Now {
-        at: Instant(at),
-        day,
-    }
+    Now { at: Instant(at) }
 }
 
 fn seed_workflow(id: &WorkflowId, category: SeedCategory) -> Workflow {

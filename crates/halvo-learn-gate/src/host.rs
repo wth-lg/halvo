@@ -25,10 +25,7 @@ impl GateHost {
         let at = i64::from(self.day)
             .saturating_mul(NANOS_PER_DAY)
             .saturating_add(NANOS_PER_DAY / 2);
-        Now {
-            at: Instant(at),
-            day: self.day,
-        }
+        Now { at: Instant(at) }
     }
 }
 

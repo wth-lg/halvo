@@ -4,14 +4,15 @@ use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{
     Accepted, CreateAgent, RevReply, SetState, StartRun, StateReply,
 };
-use halvo_schema::executable::names::{AgentState, Mode};
-use halvo_schema::executable::{CoordinatorCall, CoordinatorReply, Runtime};
+use halvo_schema::executable::names::{AgentState, LogEvent, Mode};
+use halvo_schema::executable::text::V1;
+use halvo_schema::executable::{AgentLog, CoordinatorCall, CoordinatorReply, Runtime};
 use halvo_schema::{Category, ErrorName, TypedRecord, Workflow, WorkflowState};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
-use crate::rows;
-use crate::{bind, bindings, end};
+use crate::rows::{self, record};
+use crate::{bind, bindings, day, end};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
@@ -28,7 +29,11 @@ use crate::{bind, bindings, end};
 ///   the agent's runtime is `web` and no playbook step of the agent is stored; then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
-///   and `active` for `replay`. It stores nothing.
+///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
+///   names another agent; `effect` for a run whose `agent_run` record is stored. Where the run's start row of the
+///   agent stands within the bound of `agent_log` it stores nothing; else it stores the start row, one `agent_log`
+///   row with the event `start_accepted`, `seq` 1, no step, cause, model or figure, and the request's instant and
+///   day. It answers `{"ok":"yes"}` (CP-135 (5)).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
 ///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
 ///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
@@ -36,7 +41,8 @@ use crate::{bind, bindings, end};
 /// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
 ///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
 /// - `end_run`: `no_workflow`; `binding`; `binding` for a run of which a stored effect row, log line or
-///   `agent_run` record names another agent. Where the run's `agent_run` record is stored it changes nothing.
+///   `agent_run` record names another agent. It needs no start row. Where the run's `agent_run` record is stored it
+///   changes nothing.
 ///   Else, in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and
 ///   no model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`. It answers
 ///   `{"ok":"yes"}`.
@@ -49,7 +55,7 @@ pub fn coordinator(
         CoordinatorCall::CreateAgent(b) => create_agent(host, &b),
         CoordinatorCall::SetBindings(b) => bindings::set_bindings(host, &b),
         CoordinatorCall::SetState(b) => set_state(host, &b),
-        CoordinatorCall::StartRun(b) => start_run(&*host, &b),
+        CoordinatorCall::StartRun(b) => start_run(host, now, &b),
         CoordinatorCall::EndRun(b) => end::end_run(host, now, &b),
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
         CoordinatorCall::ListCheckpoints(_) | CoordinatorCall::MarkCheckpoint(_) => {
@@ -108,14 +114,35 @@ fn set_state(host: &mut dyn Host, b: &SetState) -> Result<CoordinatorReply, Erro
     Ok(CoordinatorReply::State(StateReply { state: b.state }))
 }
 
-fn start_run(host: &dyn Host, b: &StartRun) -> Result<CoordinatorReply, ErrorName> {
-    let w = bind::of_agent(host, &b.workflow, &b.agent)?;
+fn start_run(host: &mut dyn Host, now: Now, b: &StartRun) -> Result<CoordinatorReply, ErrorName> {
+    let w = bind::of_agent(&*host, &b.workflow, &b.agent)?;
     let open = match b.mode {
         Mode::Compile => matches!(w.state, WorkflowState::Approved | WorkflowState::Active),
         Mode::Replay => w.state == WorkflowState::Active,
     };
     if !open {
         return Err(ErrorName::State);
+    }
+    bind::no_other_agent(&*host, &b.run, &b.agent)?;
+    bind::open_run(&*host, &b.run)?;
+    if bind::start_row(&*host, now, &b.run, &b.agent)?.is_none() {
+        let row = AgentLog {
+            v: V1,
+            workflow: b.workflow.clone(),
+            agent: b.agent.clone(),
+            run: b.run.clone(),
+            seq: NonZeroU32::MIN,
+            day: day::of(&*host, now),
+            at: now.at,
+            event: LogEvent::StartAccepted,
+            step: None,
+            cause: None,
+            model: None,
+            ms: None,
+            tokens_in: None,
+            tokens_out: None,
+        };
+        day::commit(host, now, vec![record(rows::AGENT_LOG, row.to_json())?])?;
     }
     Ok(CoordinatorReply::Accepted(Accepted {}))
 }

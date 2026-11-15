@@ -33,6 +33,7 @@ fn finish_stores_the_record_and_makes_the_moves_of_the_end() {
         put(&mut store, row(1, 2, 1, "held", "payment", 1, None, None)),
         Ok(stored(1))
     );
+    start(&mut store, 2);
     payment_through_begin(&mut store, 2, 3);
     let record = run_record(1, Some("replay"), "effect_unknown");
     assert_eq!(finish(&mut store, record.clone()), Ok(stored(1)));
@@ -50,7 +51,7 @@ fn finish_stores_the_record_and_makes_the_moves_of_the_end() {
         lost.approval.map(|a| a.as_str().to_owned()),
         Some(approval(1))
     );
-    assert_eq!((lost.day, lost.at), (NOW.day, NOW.at));
+    assert_eq!((lost.day, lost.at), (TODAY, NOW.at));
     let ended = last_of(&store, &effect(2));
     assert_eq!(ended.state, EffectState::Rejected);
     assert_eq!(ended.cause, Some(Cause::Ended));
@@ -131,9 +132,9 @@ fn a_runner_body_naming_a_run_of_another_agent_is_refused() {
         "workflow": wf(2),
         "agent": agent(2),
         "run": run(1),
-        "seq": 1,
-        "day": 20_770,
-        "at": 1_794_400_000_000_000_000_i64,
+        "seq": 2,
+        "day": ROW_DAY,
+        "at": ROW_AT,
         "event": "step_ok",
         "step": 1,
         "cause": null,
@@ -150,7 +151,7 @@ fn a_runner_body_naming_a_run_of_another_agent_is_refused() {
         Err(declared("binding"))
     );
     assert_eq!(effects(&store).len(), 3);
-    assert!(rows(&store, "agent_log").is_empty());
+    assert_eq!(rows(&store, "agent_log").len(), 1);
     assert_eq!(
         finish(&mut store, run_record(1, Some("replay"), "effect_unknown")),
         Ok(stored(1))
@@ -179,9 +180,9 @@ fn a_run_that_another_agent_ended_or_logged_is_not_this_agent_s() {
         "workflow": wf(2),
         "agent": agent(2),
         "run": run(8),
-        "seq": 1,
-        "day": 20_770,
-        "at": 1_794_400_000_000_000_000_i64,
+        "seq": 2,
+        "day": ROW_DAY,
+        "at": ROW_AT,
         "event": "step_ok",
         "step": 1,
         "cause": null,
@@ -190,6 +191,7 @@ fn a_run_that_another_agent_ended_or_logged_is_not_this_agent_s() {
         "tokens_in": null,
         "tokens_out": null,
     });
+    assert_eq!(start_at(&mut store, NOW, 2, 2, 8), Ok(accepted()));
     assert_eq!(
         runner(
             &mut store,
@@ -290,4 +292,47 @@ fn configs_json_with_allow(class: &str) -> String {
         wf(1),
         agent(1)
     )
+}
+
+#[test]
+fn end_run_of_a_run_with_no_start_row_stores_its_record_as_before() {
+    let mut store = unstarted("utility_bill_payment");
+    assert!(rows(&store, "agent_log").is_empty());
+    assert_eq!(end_run(&mut store, 3), Ok(accepted()));
+    let stored_runs = runs(&store);
+    assert_eq!(stored_runs.len(), 1);
+    assert_eq!(stored_runs[0].run.as_str(), run(3));
+    assert_eq!(stored_runs[0].mode, None);
+    assert_eq!(end_run(&mut store, 3), Ok(accepted()));
+    assert_eq!(runs(&store).len(), 1);
+}
+
+#[test]
+fn a_finish_dated_after_the_clock_or_outside_its_bound_is_refused_with_nothing_of_the_end_stored() {
+    let mut store = store_with("utility_bill_payment");
+    payment_through_begin(&mut store, 1, 1);
+    let before = effects(&store).len();
+    for day in [TODAY + 1, TODAY - 93] {
+        let mut record = run_record(1, Some("replay"), "effect_unknown");
+        record["day"] = json!(day);
+        assert_eq!(finish(&mut store, record), Err(declared("day")), "{day}");
+        assert!(runs(&store).is_empty());
+        assert_eq!(effects(&store).len(), before);
+    }
+    let mut record = run_record(1, Some("replay"), "effect_unknown");
+    record["day"] = json!(TODAY - 92);
+    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+}
+
+#[test]
+fn end_run_and_the_moves_of_the_end_take_the_local_day_of_the_request() {
+    let mut store = store_with("utility_bill_payment").with_utc_offset(WEST);
+    payment_through_begin(&mut store, 1, 1);
+    let night = at(local(TODAY, 22 * 3600, WEST));
+    assert_eq!(night.at.0.div_euclid(NANOS_PER_DAY), i64::from(TODAY) + 1);
+    let body = json!({"op": "end_run", "workflow": wf(1), "agent": agent(1), "run": run(1)});
+    assert_eq!(coordinator_at(&mut store, night, body), Ok(accepted()));
+    assert_eq!(runs(&store)[0].day, TODAY);
+    let lost = last_of(&store, &effect(1));
+    assert_eq!((lost.day, lost.at), (TODAY, night.at));
 }

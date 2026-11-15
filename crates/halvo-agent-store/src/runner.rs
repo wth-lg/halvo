@@ -6,6 +6,7 @@ use halvo_schema::executable::body::{
     Load, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutLog,
     PutPlaybook, PutSession, SessionReply, StepsReply, Stored, STEPS_PER_REQUEST_MAX,
 };
+use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     AgentPlaybook, AgentSession, ExecutableStep, RunnerCall, RunnerReply, WebOrigin,
@@ -15,14 +16,15 @@ use halvo_schema::{AgentId, ErrorName};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, effect, end};
+use crate::{bind, day, effect, end};
 
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
 /// bound of A7.1 `length`. Every body is refused with `binding` unless the agent's configuration is stored and the
 /// agent is its workflow's, and a body whose record names another workflow is refused with `binding`. A run belongs
-/// to the agent whose effect row, log line or `agent_run` record first names it: `effect`, `log` and `finish` are
-/// refused with `binding` for a run of which a stored row names another agent. Once the run's `agent_run` record is
+/// to the agent whose start row `start_run` stored (CP-135 (5)): every body is refused with `binding` for a run of
+/// which a stored effect row, log line or `agent_run` record names another agent, and for a run of which no start
+/// row of the body's agent stands within the bound of `agent_log` at the request's day. Once the run's `agent_run` record is
 /// stored, by `finish` or `end_run`, every body that names the run is refused with `effect`, but for the repeat
 /// of the run's own `finish` and an `effect` row equal to the effect's last row, which are answered as the first.
 /// Then:
@@ -39,7 +41,8 @@ use crate::{bind, effect, end};
 ///   each step that is not stored and answers the count of the body's steps.
 /// - `put_session`: `binding` where the place of the part (origin, revision, part) holds a part with another `of`
 ///   or other data; else it stores the part, with the request's day, unless it is stored, and answers 1.
-/// - `log`: stores each record that is not stored and answers the count of the body's records.
+/// - `log`: `effect` for a body with a record of the event `start_accepted` or of `seq` 1, the start row's place;
+///   else it stores each record that is not stored and answers the count of the body's records.
 /// - `effect`: `binding` where a stored row of the effect id names another workflow, agent or run. A row equal to
 ///   the effect's last row by seq in its state, digest and approval is answered as the first, `{"stored":1}`, and
 ///   stores nothing. Else `effect` for every row of an ended run, and for every row that A5.2 does not allow. A first row has seq 1 and the state that
@@ -52,6 +55,11 @@ use crate::{bind, effect, end};
 ///   move other than `rebind` keeps the digest and the kept fields of the last row. `effect_step` takes the effect
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
 ///   the row's state.
+/// - Every row that a body stores is held to the day rule (CP-122): a row that holds `at` (`effect`, `log`) is
+///   refused with `day` unless its `day` is `Host::day` of its `at`, and every row of a bounded kind, the record of
+///   `finish` among them, is refused with `day` when its day is after the day of the request's instant or already
+///   outside its kind's bound; a refused body stores nothing. A row that the handler builds itself takes the
+///   request's instant and its day. A repeat that stores nothing is answered before the day is read.
 /// - `finish`: where the run's record is stored, `{"stored":1}` for the same record and `effect` for another.
 ///   Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
@@ -59,13 +67,13 @@ use crate::{bind, effect, end};
 ///   instant.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
-        RunnerCall::Load(b) => load(&*host, &b),
-        RunnerCall::LoadSteps(b) => load_steps(&*host, &b),
-        RunnerCall::LoadSession(b) => load_session(&*host, &b),
-        RunnerCall::PutPlaybook(b) => put_playbook(host, &b),
+        RunnerCall::Load(b) => load(&*host, now, &b),
+        RunnerCall::LoadSteps(b) => load_steps(&*host, now, &b),
+        RunnerCall::LoadSession(b) => load_session(&*host, now, &b),
+        RunnerCall::PutPlaybook(b) => put_playbook(host, now, &b),
         RunnerCall::PutSession(b) => put_session(host, now, &b),
-        RunnerCall::Effect(b) => effect::put(host, &b),
-        RunnerCall::Log(b) => put_log(host, &b),
+        RunnerCall::Effect(b) => effect::put(host, now, &b),
+        RunnerCall::Log(b) => put_log(host, now, &b),
         RunnerCall::Finish(b) => end::finish(host, now, &b),
         RunnerCall::Checkpoint(_) => Err(ErrorName::Malformed),
         RunnerCall::ReplyRow(_) | RunnerCall::LoadReplies(_) => Err(ErrorName::Malformed),
@@ -92,8 +100,9 @@ fn own_sessions(host: &dyn Host, agent: &AgentId) -> Result<Vec<AgentSession>, E
         .collect())
 }
 
-fn load(host: &dyn Host, b: &Load) -> Result<RunnerReply, ErrorName> {
+fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(host, &b.agent)?;
+    bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
     let steps = own_steps(host, &b.agent)?;
     let playbook = match steps.iter().map(|p| p.number).max() {
@@ -157,8 +166,9 @@ fn complete(parts: &[&AgentSession]) -> Option<NonZeroU32> {
     all.then_some(of)
 }
 
-fn load_steps(host: &dyn Host, b: &LoadSteps) -> Result<RunnerReply, ErrorName> {
+fn load_steps(host: &dyn Host, now: Now, b: &LoadSteps) -> Result<RunnerReply, ErrorName> {
     bind::runner_agent(host, &b.agent)?;
+    bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
     let mut steps: Vec<AgentPlaybook> = own_steps(host, &b.agent)?
         .into_iter()
@@ -179,8 +189,9 @@ fn load_steps(host: &dyn Host, b: &LoadSteps) -> Result<RunnerReply, ErrorName> 
     Ok(RunnerReply::Steps(StepsReply { steps }))
 }
 
-fn load_session(host: &dyn Host, b: &LoadSession) -> Result<RunnerReply, ErrorName> {
+fn load_session(host: &dyn Host, now: Now, b: &LoadSession) -> Result<RunnerReply, ErrorName> {
     bind::runner_agent(host, &b.agent)?;
+    bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
     let row = own_sessions(host, &b.agent)?
         .into_iter()
@@ -195,8 +206,9 @@ fn load_session(host: &dyn Host, b: &LoadSession) -> Result<RunnerReply, ErrorNa
     }))
 }
 
-fn put_playbook(host: &mut dyn Host, b: &PutPlaybook) -> Result<RunnerReply, ErrorName> {
+fn put_playbook(host: &mut dyn Host, now: Now, b: &PutPlaybook) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(&*host, &b.agent)?;
+    bind::own_run(&*host, now, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
     let held = own_steps(&*host, &b.agent)?;
     let newest = held.iter().map(|p| p.number.get()).max().unwrap_or(0);
@@ -247,6 +259,7 @@ fn put_playbook(host: &mut dyn Host, b: &PutPlaybook) -> Result<RunnerReply, Err
 
 fn put_session(host: &mut dyn Host, now: Now, b: &PutSession) -> Result<RunnerReply, ErrorName> {
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
+    bind::own_run(&*host, now, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
     let held = own_sessions(&*host, &b.agent)?;
     match held
@@ -264,21 +277,27 @@ fn put_session(host: &mut dyn Host, now: Now, b: &PutSession) -> Result<RunnerRe
                 rev: b.rev,
                 part: b.part,
                 of: b.of,
-                day: now.day,
+                day: day::of(&*host, now),
                 data: b.data.clone(),
             };
-            host.commit(vec![record(rows::AGENT_SESSION, row.to_json())?])?;
+            day::commit(host, now, vec![record(rows::AGENT_SESSION, row.to_json())?])?;
         }
     }
     Ok(stored(1))
 }
 
-fn put_log(host: &mut dyn Host, b: &PutLog) -> Result<RunnerReply, ErrorName> {
+fn put_log(host: &mut dyn Host, now: Now, b: &PutLog) -> Result<RunnerReply, ErrorName> {
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
     if b.records.iter().any(|r| r.workflow != workflow.id) {
         return Err(Own::Binding.into());
     }
-    bind::own_run(&*host, &b.run, &b.agent)?;
+    bind::own_run(&*host, now, &b.run, &b.agent)?;
+    if b.records
+        .iter()
+        .any(|r| r.event == LogEvent::StartAccepted || r.seq.get() == 1)
+    {
+        return Err(Own::Effect.into());
+    }
     bind::open_run(&*host, &b.run)?;
     let mut held = rows::logs(host.rows())?;
     let mut new = Vec::new();
@@ -289,7 +308,7 @@ fn put_log(host: &mut dyn Host, b: &PutLog) -> Result<RunnerReply, ErrorName> {
         }
     }
     if !new.is_empty() {
-        host.commit(new)?;
+        day::commit(host, now, new)?;
     }
     Ok(stored(b.records.len()))
 }

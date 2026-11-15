@@ -12,10 +12,18 @@ use halvo_schema::{
 };
 use serde_json::{json, Value};
 
+/// The instant of every request of a test, 2026-11-12T16:13:20Z, and its day in UTC, the memory store's calendar
+/// unless a test sets an offset.
 pub const NOW: Now = Now {
     at: Instant(1_794_500_000_000_000_000),
-    day: 20_771,
 };
+pub const TODAY: u32 = 20_769;
+
+/// The instant of the rows that a test's runner sends, 2026-11-11T12:26:40Z, and its day in UTC.
+pub const ROW_AT: i64 = 1_794_400_000_000_000_000;
+pub const ROW_DAY: u32 = 20_768;
+
+pub const NANOS_PER_DAY: i64 = 86_400_000_000_000;
 
 pub fn id(prefix: char, n: u32) -> String {
     format!("{prefix}{n:031x}")
@@ -77,12 +85,54 @@ pub fn dismissed(id: &str) -> Workflow {
     .expect("a dismissed workflow record")
 }
 
+/// A zone five hours west of UTC, as the memory store's offset.
+pub const WEST: i32 = -5 * 3600;
+
+/// The instant, in nanoseconds of UTC, of `seconds` after the start of the local `day` in a zone of `offset`
+/// seconds.
+pub fn local(day: u32, seconds: i64, offset: i32) -> i64 {
+    (i64::from(day) * 86_400 + seconds - i64::from(offset)) * 1_000_000_000
+}
+
+/// The row with its `day` and `at` set.
+pub fn dated(mut row: Value, day: u32, at: i64) -> Value {
+    row["day"] = json!(day);
+    row["at"] = json!(at);
+    row
+}
+
 pub fn coordinator(store: &mut MemoryStore, body: Value) -> Result<CoordinatorReply, ErrorName> {
-    halvo_agent_store::coordinator(store, NOW, body.to_string().as_bytes())
+    coordinator_at(store, NOW, body)
 }
 
 pub fn runner(store: &mut MemoryStore, body: Value) -> Result<RunnerReply, ErrorName> {
-    halvo_agent_store::runner(store, NOW, body.to_string().as_bytes())
+    runner_at(store, NOW, body)
+}
+
+pub fn coordinator_at(
+    store: &mut MemoryStore,
+    now: Now,
+    body: Value,
+) -> Result<CoordinatorReply, ErrorName> {
+    halvo_agent_store::coordinator(store, now, body.to_string().as_bytes())
+}
+
+pub fn runner_at(store: &mut MemoryStore, now: Now, body: Value) -> Result<RunnerReply, ErrorName> {
+    halvo_agent_store::runner(store, now, body.to_string().as_bytes())
+}
+
+pub fn put_at(store: &mut MemoryStore, now: Now, row: Value) -> Result<RunnerReply, ErrorName> {
+    let body = json!({
+        "op": "effect",
+        "agent": row["agent"].clone(),
+        "run": row["run"].clone(),
+        "record": row,
+    });
+    runner_at(store, now, body)
+}
+
+pub fn at(nanos: i64) -> Now {
+    Now { at: Instant(nanos) }
 }
 
 pub fn create(store: &mut MemoryStore, w: u32, a: u32) -> Result<CoordinatorReply, ErrorName> {
@@ -92,10 +142,38 @@ pub fn create(store: &mut MemoryStore, w: u32, a: u32) -> Result<CoordinatorRepl
     )
 }
 
-pub fn store_with(category: &str) -> MemoryStore {
+/// `start_run` of the mode `compile` for the run `r` of the agent `a` of the workflow `w`, at the instant `now`.
+pub fn start_at(
+    store: &mut MemoryStore,
+    now: Now,
+    w: u32,
+    a: u32,
+    r: u32,
+) -> Result<CoordinatorReply, ErrorName> {
+    coordinator_at(
+        store,
+        now,
+        json!({"op": "start_run", "workflow": wf(w), "agent": agent(a), "run": run(r), "mode": "compile"}),
+    )
+}
+
+/// `start_run` of the run `r` of the first agent, which every runner body of the run needs (CP-135 (5)).
+pub fn start(store: &mut MemoryStore, r: u32) {
+    start_at(store, NOW, 1, 1, r).expect("start_run of the first agent");
+}
+
+/// The first agent of an approved workflow of the category, with no run started.
+pub fn unstarted(category: &str) -> MemoryStore {
     let mut store = MemoryStore::new();
     store.put_workflow(workflow(&wf(1), category, "approved", None));
     create(&mut store, 1, 1).expect("create_agent of the first agent");
+    store
+}
+
+/// The first agent of an approved workflow of the category, with its run 1 started.
+pub fn store_with(category: &str) -> MemoryStore {
+    let mut store = unstarted(category);
+    start(&mut store, 1);
     store
 }
 
@@ -117,6 +195,7 @@ pub fn unattended_sender() -> MemoryStore {
             json: config.to_json().expect("the config's JSON"),
         }])
         .expect("the config is stored");
+    start(&mut store, 1);
     store
 }
 
@@ -199,8 +278,8 @@ pub fn row(
         "run": run(r),
         "effect": effect(e),
         "seq": seq,
-        "day": 20_770,
-        "at": 1_794_400_000_000_000_000_i64,
+        "day": ROW_DAY,
+        "at": ROW_AT,
         "state": state,
         "class": class,
         "digest": digest(d),
@@ -231,7 +310,7 @@ pub fn run_record(r: u32, mode: Option<&str>, outcome: &str) -> Value {
         "workflow": wf(1),
         "agent": agent(1),
         "run": run(r),
-        "day": 20_770,
+        "day": ROW_DAY,
         "mode": mode,
         "outcome": outcome,
         "playbook": null,

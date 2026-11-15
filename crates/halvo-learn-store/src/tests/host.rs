@@ -72,6 +72,10 @@ impl Host for AgentSide {
         }
         self.store.workflow(id)
     }
+
+    fn day(&self, at: Instant) -> u32 {
+        self.store.day(at)
+    }
 }
 
 pub struct TestHost {
@@ -210,9 +214,13 @@ impl LearnHost for TestHost {
     }
 
     fn agent_now(&self) -> Now {
+        let day = 86_400_000_000_000_i64;
         Now {
-            at: Instant(1_794_500_000_000_000_000),
-            day: self.day,
+            at: Instant(
+                i64::from(self.day)
+                    .saturating_mul(day)
+                    .saturating_add(day / 2),
+            ),
         }
     }
 
