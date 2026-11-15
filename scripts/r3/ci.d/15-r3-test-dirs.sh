@@ -451,6 +451,86 @@ self_test() {
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    (0..1_000)\n        .map(|n| base.join(format!("x-{}-{n}", std::process::id())))\n        .find(|dir| std::fs::create_dir(dir).is_ok())\n        .expect("a new directory")\n}\n'
   case_of maker-find PASS 'test-dirs files=1 places=0 known=0 faults=0'
 
+  repo tests-rs-declared-with-no-cfg
+  put crates/a/src/lib.rs 'mod tests;\n'
+  put crates/a/src/tests.rs "$place"
+  case_of tests-rs-declared-with-no-cfg FAIL 'test-dirs unknown=crates/a/src/tests.rs places=1'
+
+  repo tests-rs-control
+  put crates/a/src/lib.rs 'mod testz;\n'
+  put crates/a/src/testz.rs "$place"
+  case_of tests-rs-control PASS 'test-dirs files=2 places=0 known=0 faults=0'
+
+  repo system-time-printed
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let t = SystemTime::now();\n    let dir = base.join(format!("x-{t:?}"));\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of system-time-printed FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo system-time-control
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let t = SystemDate::now();\n    let dir = base.join(format!("x-{t:?}"));\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of system-time-control PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  stamp='fn stamp() -> String {\n    format!("{:?}", SystemTime::now())\n}\n\n'
+  repo push-str-build
+  put crates/a/tests/t.rs "${stamp}fn scratch() -> PathBuf {\n    let mut s = String::from(\"x-\");\n    s.push_str(&stamp());\n    let dir = base.join(&s);\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n"
+  case_of push-str-build FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo push-str-control
+  put crates/a/tests/t.rs "${stamp}fn scratch() -> PathBuf {\n    let mut s = String::from(\"x-\");\n    s.pusx_str(&stamp());\n    let dir = base.join(&s);\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n"
+  case_of push-str-control PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo push-build
+  put crates/a/tests/t.rs "${stamp}fn scratch() -> PathBuf {\n    let mut p = base.to_path_buf();\n    p.push(stamp());\n    fs::create_dir_all(&p).unwrap();\n    p\n}\n"
+  case_of push-build FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo push-control
+  put crates/a/tests/t.rs "${stamp}fn scratch() -> PathBuf {\n    let mut p = base.to_path_buf();\n    p.pusx(stamp());\n    fs::create_dir_all(&p).unwrap();\n    p\n}\n"
+  case_of push-control PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo maker-if-let-ok
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if let Ok(()) = fs::create_dir(&dir) {\n            return dir;\n        }\n    }\n    unreachable!()\n}\n'
+  case_of maker-if-let-ok PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo maker-if-let-control
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if let Okay(()) = fs::create_dir(&dir) {\n            return dir;\n        }\n    }\n    unreachable!()\n}\n'
+  case_of maker-if-let-control FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo cfg-test-after-a-space
+  put crates/a/src/lib.rs "#[cfg(any(unix, test))]\nmod tests {\n$place}\n"
+  case_of cfg-test-after-a-space FAIL 'test-dirs unknown=crates/a/src/lib.rs places=1'
+
+  repo cfg-test-after-a-comma
+  put crates/a/src/lib.rs "#[cfg(any(unix,test))]\nmod tests {\n$place}\n"
+  case_of cfg-test-after-a-comma FAIL 'test-dirs unknown=crates/a/src/lib.rs places=1'
+
+  repo cfg-after-a-comma-control
+  put crates/a/src/lib.rs "#[cfg(any(unix,tesx))]\nmod tests {\n$place}\n"
+  case_of cfg-after-a-comma-control PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo one-line-cfg-file-module
+  put crates/a/src/lib.rs '#[cfg(test)] mod support;\n'
+  put crates/a/src/support.rs "$place"
+  case_of one-line-cfg-file-module FAIL 'test-dirs unknown=crates/a/src/support.rs places=1'
+
+  repo one-line-cfg-file-module-control
+  put crates/a/src/lib.rs '#[cfg(tesx)] mod support;\n'
+  put crates/a/src/support.rs "$place"
+  case_of one-line-cfg-file-module-control PASS 'test-dirs files=2 places=0 known=0 faults=0'
+
+  helper_filler=
+  i=0
+  while [ "$i" -lt 15 ]; do
+    helper_filler="$helper_filler    let _ = $i;\n"
+    i=$((i + 1))
+  done
+  use_stamp='fn scratch() -> PathBuf {\n    let dir = base.join(stamp().to_string());\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  repo helper-source-sixteen-lines-down
+  put crates/a/tests/t.rs "fn stamp() -> u64 {\n${helper_filler}    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()\n}\n\n$use_stamp"
+  case_of helper-source-sixteen-lines-down FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo helper-source-seventeen-lines-down
+  put crates/a/tests/t.rs "fn stamp() -> u64 {\n${helper_filler}    let _ = 15;\n    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()\n}\n\n$use_stamp"
+  case_of helper-source-seventeen-lines-down PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
   repo two-places-known
   put crates/a/tests/t.rs "$place\n$place"
   printf 'crates/a/tests/t.rs 2 a run\n' >"$work/two-places-known.known" || broken known
