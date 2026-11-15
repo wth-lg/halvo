@@ -5,7 +5,7 @@ use halvo_schema::coordinator::names::BindResult;
 use halvo_schema::coordinator::record::{
     Answered, BindAnswer, CoordEvent, ItemId, SignInAnswer, What,
 };
-use halvo_schema::coordinator::REQUEST_BYTES;
+use halvo_schema::coordinator::{REQUEST_BYTES, REQUEST_RECORDS};
 use halvo_schema::executable::WebOrigin;
 use halvo_schema::record::Instant;
 use halvo_schema::{AgentId, WorkflowId};
@@ -115,15 +115,25 @@ fn the_bound_on_the_input(name: &str, text: &str, parse: Parse) {
         ("white space outside the value", around(text, REQUEST_BYTES)),
     ] {
         assert_eq!(input.len(), REQUEST_BYTES);
-        assert_eq!(parse(input.as_bytes()), Ok(()), "{name}: 4096 bytes, {how}");
+        assert_eq!(
+            parse(input.as_bytes()),
+            Ok(()),
+            "{name}: {REQUEST_BYTES} bytes, {how}"
+        );
     }
     let one_over = REQUEST_BYTES + 1;
     for (how, input) in [
         ("white space before the value", before(text, one_over)),
         ("white space after the value", after(text, one_over)),
         ("white space inside the value", inside(text, one_over)),
-        ("no JSON at the first byte", no_json_first(text, 5000)),
-        ("broken at the last byte", broken_last(text, 5000)),
+        (
+            "no JSON at the first byte",
+            no_json_first(text, REQUEST_BYTES + 904),
+        ),
+        (
+            "broken at the last byte",
+            broken_last(text, REQUEST_BYTES + 904),
+        ),
         ("1 MiB", after(text, 1 << 20)),
     ] {
         assert_eq!(
@@ -161,42 +171,26 @@ fn r4_bounds_the_compact_coord_history_has_at_most_130_bytes() {
     assert!(first.to_json().unwrap().len() < 130);
 }
 
-fn body_of(host_len: usize, last_host: usize) -> CoordLog {
-    let mut records: Vec<CoordEvent> = (1..=7).map(|seq| bound(seq, host_len)).collect();
-    records.push(bound(8, last_host));
-    CoordLog {
+#[test]
+fn r4_bounds_the_writer_writes_request_records_rows_of_the_longest_origin_below_request_bytes() {
+    let records: Vec<CoordEvent> = (1..=REQUEST_RECORDS as u32)
+        .map(|n| CoordEvent {
+            day: u32::MAX,
+            at: Instant(i64::MAX),
+            ..bound(u32::MAX - REQUEST_RECORDS as u32 + n, 253)
+        })
+        .collect();
+    let longest = CoordLog {
         workflow: WorkflowId::parse(WORKFLOW).unwrap(),
         agent: AgentId::parse(AGENT).unwrap(),
         records,
-    }
-}
-
-#[test]
-fn r4_bounds_the_writer_writes_a_compact_body_of_4096_bytes_and_refuses_4097() {
-    let mut found = None;
-    for host_len in (1..=253).rev() {
-        let Ok(text) = body_of(host_len, 1).to_json() else {
-            continue;
-        };
-        let need = REQUEST_BYTES - text.len() + 1;
-        if need < 253 {
-            found = Some((host_len, need));
-            break;
-        }
-    }
-    let (host_len, need) = found.expect("a body that reaches the bound");
-    let at = body_of(host_len, need);
-    let text = at.to_json().unwrap();
-    assert_eq!(text.len(), REQUEST_BYTES);
-    assert_eq!(serde_json::to_string(&at).unwrap(), text);
-    assert!(CoordLog::parse(text.as_bytes()).is_ok());
-
-    let over = body_of(host_len, need + 1);
-    let refusal = over.to_json().unwrap_err();
-    assert_eq!(
-        (refusal.key(), refusal.rule()),
-        (None, "bytes"),
-        "I7.2: the writer refuses a body whose compact text has 4097 bytes"
+    };
+    let text = longest.to_json().unwrap();
+    assert!(
+        text.len() > 4_096 && text.len() < REQUEST_BYTES,
+        "I7.2 and RD-73 7.1: {REQUEST_RECORDS} rows of a 253-byte host fit one body; {} bytes",
+        text.len()
     );
-    assert!(serde_json::to_string(&over).is_err());
+    assert_eq!(serde_json::to_string(&longest).unwrap(), text);
+    assert_eq!(CoordLog::parse(text.as_bytes()).unwrap(), longest);
 }

@@ -98,7 +98,9 @@ impl CoordLog {
         CoordLog::from_raw(json::whole("CoordLog", bytes)?)
     }
 
-    /// The compact JSON of the body, `op` first, or the refusal of a rule or of the bound in bytes that it breaks.
+    /// The compact JSON of the body, `op` first, or the refusal of a rule or of the bound in bytes that it breaks. No
+    /// valid body of 20 records reaches the bound in bytes; it stays as a guard for a later row form, and no test
+    /// reaches it.
     pub fn to_json(&self) -> Result<String, Refusal> {
         self.rules()?;
         let text = json::write("CoordLog", &LogFields(self))?;

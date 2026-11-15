@@ -1,52 +1,8 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{coordinator, Clock, CommitRefused, DayFault, Host, MemoryStore};
-use halvo_schema::{ErrorName, RowRead, TypedRecord, WorkflowId, WorkflowItem};
-
-struct StandIn {
-    store: MemoryStore,
-    extra: Vec<String>,
-    refusal: Option<CommitRefused>,
-}
-
-impl RowRead for StandIn {
-    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
-        self.store.for_each(kind, visit);
-        for row in &self.extra {
-            visit(row);
-        }
-    }
-}
-
-impl Host for StandIn {
-    fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), CommitRefused> {
-        match self.refusal {
-            Some(refused) => Err(refused),
-            None => Host::commit(&mut self.store, records),
-        }
-    }
-
-    fn rows(&self) -> &dyn RowRead {
-        self
-    }
-
-    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
-        Host::workflow(&self.store, id)
-    }
-
-    fn clock(&self) -> &dyn Clock {
-        Host::clock(&self.store)
-    }
-}
-
-fn stand_in(extra: Vec<String>, refusal: Option<CommitRefused>) -> StandIn {
-    StandIn {
-        store: store(),
-        extra,
-        refusal,
-    }
-}
+use halvo_coord_store::{coordinator, CommitRefused, DayFault, Host};
+use halvo_schema::ErrorName;
 
 #[test]
 fn each_refusal_of_the_commit_has_its_error_name() {
