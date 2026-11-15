@@ -820,25 +820,23 @@ pub(crate) mod tests {
         cond()
     }
 
-    /// The processes of the tree of `root`, a child that the test started, ended on every way out
-    /// of the test through the fenced `kill`, each only while it still runs and only when the fence
-    /// admits it through `root` at that moment; one that the fence would refuse is left to end by
-    /// itself.
+    /// The processes of the tree of a child that the test started (`rows`, as `descendants` read
+    /// them) and `own`, those of them that the fence admitted through that child at one read, by
+    /// number and start time. On every way out of the test each of `own` that still runs is ended
+    /// through the fenced `kill`; a row outside `own` is never ended here.
     struct OwnTree {
-        root: Proc,
         rows: Vec<Proc>,
+        own: Vec<(u32, u64)>,
     }
 
     impl Drop for OwnTree {
         fn drop(&mut self) {
-            let admits = fence::Admits {
-                pairs: vec![(self.root.pid, self.root.started_us)],
+            let _admitted = fence::admit(fence::Admits {
+                pairs: self.own.clone(),
                 dirs: Vec::new(),
-            };
-            let _admitted = fence::admit(admits.clone());
-            let table = table().unwrap_or_default();
-            for p in self.rows.iter().rev() {
-                if running(p) && admits.admits(p, &table) {
+            });
+            for p in &self.rows {
+                if self.own.contains(&(p.pid, p.started_us)) && running(p) {
                     kill(p);
                 }
             }
@@ -963,7 +961,7 @@ pub(crate) mod tests {
         let tree = own_tree_of(&mut child, 3);
         assert_eq!(tree.rows.len(), 3, "{:?}", tree.rows);
         assert!(tree.rows.iter().all(running));
-        for p in tree.rows.iter().rev() {
+        for p in &tree.rows {
             assert!(kill(p));
         }
         let _ = child.0.wait();
@@ -975,12 +973,11 @@ pub(crate) mod tests {
     }
 
     /// The tree of the test's child `child` as `descendants` reads it, once it holds `want`
-    /// processes or after 5 s, with the fence admitting the child and the processes whose line of
-    /// parents reaches it for this thread while the returned value is held.
+    /// processes or after 5 s, with the fence admitting for this thread, while the returned value is
+    /// held, the rows that it admits through the child at one read, by number and start time.
     #[cfg(any(target_os = "macos", windows))]
     fn own_tree_of(child: &mut OwnChild, want: usize) -> OwnTreeHeld {
         let root = found(child.0.id()).expect("the child is in the table");
-        let admitted = fence::admit_process(&root);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let rows = loop {
             let table = table().unwrap();
@@ -994,13 +991,27 @@ pub(crate) mod tests {
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         };
+        let through_root = fence::Admits {
+            pairs: vec![(root.pid, root.started_us)],
+            dirs: Vec::new(),
+        };
+        let now = table().unwrap_or_default();
+        let own: Vec<(u32, u64)> = rows
+            .iter()
+            .filter(|p| through_root.admits(p, &now))
+            .map(|p| (p.pid, p.started_us))
+            .collect();
+        let admitted = fence::admit(fence::Admits {
+            pairs: own.clone(),
+            dirs: Vec::new(),
+        });
         OwnTreeHeld {
-            tree: OwnTree { root, rows },
+            tree: OwnTree { rows, own },
             _admitted: admitted,
         }
     }
 
-    /// An `OwnTree` with the admission of its root.
+    /// An `OwnTree` with the admission of its rows.
     struct OwnTreeHeld {
         tree: OwnTree,
         _admitted: fence::Admitted,
@@ -1023,7 +1034,7 @@ pub(crate) mod tests {
         let mut child = OwnChild(child);
         let tree = own_tree_of(&mut child, 2);
         assert!(tree.rows.len() >= 2, "{:?}", tree.rows);
-        for p in tree.rows.iter().rev() {
+        for p in &tree.rows {
             assert!(kill(p));
         }
         let _ = child.0.wait();

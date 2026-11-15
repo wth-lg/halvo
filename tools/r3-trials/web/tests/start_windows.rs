@@ -7,10 +7,13 @@ use std::os::windows::io::AsRawHandle;
 use std::path::Path;
 
 /// A start on the pipe of `cmd /C exit 0` with its standard error in `stderr`, ended and waited for
-/// on every way out of the test.
+/// on every way out of the test. The start names its program to `CreateProcessW` as the
+/// application, which no search of the path finds, so the program is the full path that
+/// `ComSpec` gives.
 fn start_exit(stderr: Option<&Path>) -> start::OnPipe {
+    let cmd = std::path::PathBuf::from(std::env::var_os("ComSpec").expect("ComSpec"));
     let spec = Spec {
-        program: Path::new("cmd"),
+        program: &cmd,
         args: vec!["/C".into(), "exit".into(), "0".into()],
         env: Vec::new(),
         stderr,
