@@ -184,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 197;
-const CASES_WINDOWS = 195;
+const CASES_UNIX = 198;
+const CASES_WINDOWS = 196;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -997,6 +997,27 @@ async function protocolCases(env) {
     url = frameUrl(env, c, p.text, 'bill');
     await http(env.port, 'POST', CONTROL, '/reset');
     c.ok(url && (await b.get(url)).status === 401, 'token_dies_with_reset');
+  });
+
+  await run('slow-charge', async (c) => {
+    await env.reset(1, ['slow_charge']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, ['slow_charge']);
+    p = await b.get(`${env.origin('utility')}/pay`);
+    url = frameUrl(env, c, p.text, 'bill');
+    const token = url ? new URL(url).searchParams.get('token') : 'none';
+    const inst = s.utility.instruments[0];
+    const began = Date.now();
+    const pending = b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: inst }));
+    await new Promise((done) => setTimeout(done, 1500));
+    st = await env.state();
+    c.ok(st.utility.payments.length === 1, 'slow_charge_recorded_before_the_answer');
+    const second = await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: inst }));
+    c.ok(second.status === 401, 'slow_charge_token_used_once');
+    const first = await pending;
+    c.ok(first.status === 200 && /Payment received/.test(first.text), 'slow_charge_answer');
+    c.ok(Date.now() - began >= 5500, 'slow_charge_answer_after_its_wait');
+    c.ok((await env.state()).utility.payments.length === 1, 'slow_charge_one_payment');
   });
 
   await run('reset-rules', async (c) => {

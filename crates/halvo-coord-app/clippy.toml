@@ -1,0 +1,6 @@
+disallowed-methods = [
+  { path = "std::process::Command::new", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+  { path = "std::process::Command::spawn", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+  { path = "std::process::Command::output", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+  { path = "std::process::Command::status", reason = "no code of the interface run's crates starts a process; a runner is reached through the supervisor library alone (contracts I10.1, ruling RD-67 2.2)" },
+]

@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: An ignore attribute on a test carries a reason string.
+# lane: free
 set -u
 name=30-store-ignore-reason
 

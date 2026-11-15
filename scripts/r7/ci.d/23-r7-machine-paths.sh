@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: backend/scripts/check-machine-paths.sh, the backend's own check, finds no home-directory path of any platform in the tracked files under backend/, under formal/r7-ledger/ (the model), under docs/r7/gate/ (the gate's records) and under scripts/r7/ (the run's scripts), and git lists at least one file under each.
+# lane: free
 set -u
 name=23-r7-machine-paths
 

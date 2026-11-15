@@ -23,7 +23,7 @@ zero_bound_verdict() {
 }
 
 bounds_of_the_unit() {
-  for pair in rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=90 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2; do
+  for pair in rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=120 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2; do
     bound_is "${pair%%=*}" "${pair#*=}" || return 1
   done
 }
@@ -115,9 +115,33 @@ deadline_ends_the_child() {
   return 1
 }
 
+stall_guard_s=120
+
+ere_literal() {
+  printf '%s\n' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'
+}
+
+check_is_past_its_fork() {
+  pgrep -P "$1" -x sleep > /dev/null
+}
+
+end_check_group() {
+  perl -e "kill 'KILL', -\$ARGV[0]" "$1"
+  wait "$1"
+}
+
 signal_ends_the_child() {
   mini_shell=$1; shift
-  mini=$gate_scratch/mini-check-$mini_shell-$1.sh
+  mini_dir=$gate_scratch/mini-$mini_shell-$1${3:+-slow}
+  mini=$mini_dir.sh
+  mkdir -p "$mini_dir" || return 1
+  if [ -n "${3:-}" ]; then
+    standin_words="$standin deaf $2"
+    mini_run="timed_child 60 \"$mini_dir\" \"$standin\" deaf \"$2\""
+  else
+    standin_words="$standin --timed-run $2 --store-dir $mini_dir"
+    mini_run="timed_child 60 \"$mini_dir\" \"$standin\" --timed-run \"$2\" --store-dir \"$mini_dir\""
+  fi
   cat > "$mini" <<MINI
 #!/bin/sh
 set -u
@@ -126,27 +150,63 @@ GATE_ROOT=$GATE_ROOT
 name=mini
 cases() { :; }
 measure() {
-  scratch_root
-  timed_child 60 "\$gate_scratch" "$standin" sleep "$2"
+  export STANDIN_SCENARIO=ok
+  $mini_run
 }
 check_main --measure
 MINI
-  "$mini_shell" "$mini" > "$gate_scratch/mini-$mini_shell-$1.out" 2>&1 &
+  mini_start=$(date +%s)
+  perl -MPOSIX -e "setpgrp(0, 0); \$SIG{HUP} = \$SIG{TERM} = 'DEFAULT'; sigprocmask(SIG_UNBLOCK, POSIX::SigSet->new(SIGHUP, SIGTERM)); exec { \$ARGV[0] } @ARGV; exit 127;" "$mini_shell" "$mini" > "$mini_dir.out" 2>&1 &
   mini_pid=$!
-  polls=0
-  until pgrep -f "load-standin sleep $2" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
+  standin_pattern=$(ere_literal "$standin_words")
+  mini_until=$((mini_start + stall_guard_s))
+  until pgrep -f "^$standin_pattern\$" > /dev/null && check_is_past_its_fork "$mini_pid"; do
+    if ! kill -0 "$mini_pid" 2>/dev/null; then
+      wait "$mini_pid"
+      mini_status=$?
+      printf 'the check ended with exit %s before its child started\n' "$mini_status"
+      return 1
+    fi
+    mini_now=$(date +%s)
+    if [ "$mini_now" -ge "$mini_until" ]; then
+      end_check_group "$mini_pid"
+      printf 'the child of the check did not start within the guard of %s s against a stall\n' "$stall_guard_s"
+      return 1
+    fi
     sleep 0.1
   done
   kill "-$1" "$mini_pid"
-  polls=0
+  mini_now=$(date +%s)
+  mini_until=$((mini_now + stall_guard_s))
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
+    mini_now=$(date +%s)
+    if [ "$mini_now" -ge "$mini_until" ]; then
+      end_check_group "$mini_pid"
+      printf 'the check did not end within the guard of %s s against a stall after %s\n' "$stall_guard_s" "$1"
+      return 1
+    fi
     sleep 0.1
   done
-  left=$(pgrep -f "load-standin sleep $2")
-  [ -z "$left" ] && return 0
-  printf 'a stand-in process is left after %s polls of 0.1 s\n' "$polls"
+  wait "$mini_pid"
+  mini_status=$?
+  left=$(pgrep -f -- "$standin_pattern\$")
+  case $? in
+    0) ;;
+    1) left='' ;;
+    *) printf 'pgrep could not read the processes after the check ended with exit %s\n' "$mini_status"; return 1 ;;
+  esac
+  if [ -n "$left" ]; then
+    for one in $left; do kill -KILL "$one" 2>/dev/null; done
+    printf 'a stand-in process is left after the check ended with exit %s\n' "$mini_status"
+    return 1
+  fi
+  if [ -s "$mini_dir/stdout" ]; then
+    printf 'the stand-in ran to its own end: the check ended with exit %s only after it\n' "$mini_status"
+    return 1
+  fi
+  case $1 in HUP) mini_want=129 ;; *) mini_want=143 ;; esac
+  [ "$mini_status" -eq "$mini_want" ] && return 0
+  printf 'the check ended with exit %s after %s, not %s\n' "$mini_status" "$1" "$mini_want"
   return 1
 }
 
@@ -326,6 +386,7 @@ cases() {
   t deadline-zero FAIL deadline_run 0 sleep 1
   t term-ends-the-child PASS signal_ends_the_child sh TERM 33.25
   t hup-ends-the-child PASS signal_ends_the_child sh HUP 34.25
+  t hup-waits-for-a-slow-child PASS signal_ends_the_child sh HUP 5.75 slow
   if command -v dash > /dev/null 2>&1; then
     t term-ends-the-child-under-dash PASS signal_ends_the_child dash TERM 35.25
     t hup-ends-the-child-under-dash PASS signal_ends_the_child dash HUP 37.25

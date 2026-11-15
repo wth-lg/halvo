@@ -1461,6 +1461,94 @@ fn c4_window_title_source_reports_a_title_change() {
 const UNINSTALL: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
 const UNINSTALL_WOW: &str = r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
 const PROBE_KEY: &str = "HalvoVerifyProbe";
+const FIRST_SUBKEYS_SHOWN: usize = 20;
+
+struct PerUserView {
+    view: &'static str,
+    exists: bool,
+    subkeys: Option<u32>,
+    values: Option<u32>,
+    first_subkeys: Vec<String>,
+}
+
+impl PerUserView {
+    fn holds_nothing(&self) -> bool {
+        !self.exists || (self.subkeys == Some(0) && self.values == Some(0))
+    }
+
+    fn line(&self) -> String {
+        let count = |n: Option<u32>| n.map_or_else(|| "unread".to_string(), |n| n.to_string());
+        format!(
+            "per_user_uninstall_key={} exists={} subkeys={} values={} first_subkeys={:?}",
+            self.view,
+            self.exists,
+            count(self.subkeys),
+            count(self.values),
+            self.first_subkeys
+        )
+    }
+}
+
+fn per_user_uninstall_views(hkcu: &winreg::RegKey) -> [PerUserView; 2] {
+    use winreg::enums::KEY_READ;
+
+    [("native", UNINSTALL), ("wow6432node", UNINSTALL_WOW)].map(|(view, path)| {
+        match hkcu.open_subkey_with_flags(path, KEY_READ) {
+            Ok(key) => {
+                let info = key.query_info().ok();
+                PerUserView {
+                    view,
+                    exists: true,
+                    subkeys: info.as_ref().map(|info| info.sub_keys),
+                    values: info.as_ref().map(|info| info.values),
+                    first_subkeys: key
+                        .enum_keys()
+                        .take(FIRST_SUBKEYS_SHOWN)
+                        .flatten()
+                        .collect(),
+                }
+            }
+            Err(_) => PerUserView {
+                view,
+                exists: false,
+                subkeys: Some(0),
+                values: Some(0),
+                first_subkeys: Vec::new(),
+            },
+        }
+    })
+}
+
+fn per_user_key_absent_or_removed(test: &str, hkcu: &winreg::RegKey) -> bool {
+    use winreg::enums::KEY_READ;
+
+    let views = per_user_uninstall_views(hkcu);
+    for view in &views {
+        say(test, view.line());
+    }
+    let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
+    say(test, format!("hkcu_uninstall_key_existed={key_existed}"));
+    if !key_existed {
+        return true;
+    }
+    if !views.iter().all(PerUserView::holds_nothing) {
+        say(
+            test,
+            "hkcu_uninstall_key_existed=true empty=false removed=false",
+        );
+        return false;
+    }
+    let deleted = hkcu.delete_subkey(UNINSTALL);
+    let removed = deleted.is_ok() && hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_err();
+    say(
+        test,
+        format!(
+            "hkcu_uninstall_key_existed=true empty=true removed={removed} delete={}",
+            show(&deleted)
+        ),
+    );
+    removed
+}
 
 #[test]
 #[ignore = "functional: reads and writes the Windows registry"]
@@ -1485,6 +1573,9 @@ fn c5_installed_software_returns_registry_entries() {
                     ),
                 );
             }
+        }
+        for view in per_user_uninstall_views(&hkcu) {
+            say("c5", view.line());
         }
 
         let before = scan_installed().expect("scan the registry");
@@ -3449,17 +3540,13 @@ mod known_defect {
     #[ignore = "known defect: reads and writes the Windows registry"]
     fn c5_watch_armed_while_the_per_user_key_is_absent() {
         with_deadline("c5-watch", Duration::from_secs(90), || {
-            use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+            use winreg::enums::HKEY_CURRENT_USER;
             use winreg::RegKey;
 
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
-            say(
-                "c5-watch",
-                format!("hkcu_uninstall_key_existed={key_existed}"),
-            );
+            let key_absent = per_user_key_absent_or_removed("c5-watch", &hkcu);
             assert!(
-                !key_existed,
+                key_absent,
                 "INCONCLUSIVE: the per-user Uninstall key exists, so no watch can be armed while it is absent"
             );
 

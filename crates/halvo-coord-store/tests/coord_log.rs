@@ -60,7 +60,7 @@ fn a_malformed_body_stores_nothing() {
         wf(1),
         agent(1),
         row(1, TODAY),
-        " ".repeat(4_096)
+        " ".repeat(16_384)
     );
     let deleted = format!(
         r#"{{"v":1,"workflow":"{}","agent":"{}","seq":1,"day":{TODAY},"at":{},"event":"run_ended","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"deleted","trigger":null,"origin":null}}"#,
@@ -69,12 +69,12 @@ fn a_malformed_body_stores_nothing() {
         noon(TODAY),
         run(1)
     );
-    let nine: Vec<String> = (1..=9).map(|n| row(n, TODAY)).collect();
+    let twenty_one: Vec<String> = (1..=21).map(|n| row(n, TODAY)).collect();
     let bodies = [
         "[]".to_owned(),
         r#""coord_log""#.to_owned(),
         log_body(1, 1, &[]),
-        log_body(1, 1, &nine),
+        log_body(1, 1, &twenty_one),
         log_body(
             1,
             1,
@@ -308,6 +308,61 @@ fn the_day_tie_comes_before_the_seq_check() {
         Err(ErrorName::Malformed)
     );
     assert_eq!(rows(&store).len(), 2);
+}
+
+#[test]
+fn a_body_of_twenty_records_is_stored_and_one_of_twenty_one_is_not() {
+    let mut store = store();
+    let nine: Vec<String> = (1..=9).map(|n| row(n, TODAY)).collect();
+    assert_eq!(send(&mut store, &nine), stored(9));
+    let twenty: Vec<String> = (10..=29).map(|n| row(n, TODAY)).collect();
+    assert_eq!(send(&mut store, &twenty), stored(20));
+    assert_eq!(rows(&store).len(), 29);
+    let twenty_one: Vec<String> = (30..=50).map(|n| row(n, TODAY)).collect();
+    assert_eq!(send(&mut store, &twenty_one), Err(ErrorName::Malformed));
+    assert_eq!(rows(&store).len(), 29);
+}
+
+#[test]
+fn a_confirmation_of_twenty_effects_is_stored_in_one_body_of_more_than_4096_bytes() {
+    let mut store = store();
+    let records: Vec<String> = (1..=20).map(|n| confirm_answered(n, TODAY, n)).collect();
+    let body = log_body(1, 1, &records);
+    assert!(body.len() > 4_096 && body.len() <= 16_384, "{}", body.len());
+    assert_eq!(
+        coordinator(&mut store, &request("coordinator_write", &body)),
+        stored(20)
+    );
+    assert_eq!(rows(&store), records);
+    match coordinator(&mut store, &history(None)) {
+        Ok(halvo_coord_store::CoordReply::History(h)) => {
+            assert_eq!(h.last, 20);
+            assert_eq!(h.records.len(), 20);
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_body_of_exactly_16384_bytes_is_stored_and_one_byte_more_is_not() {
+    let pad = |to: usize| {
+        let body = log_body(1, 1, &[row(1, TODAY)]);
+        let mut text = body.clone();
+        text.insert_str(1, &" ".repeat(to - body.len()));
+        text
+    };
+    let mut store = store();
+    let above = pad(16_385);
+    assert_eq!(
+        coordinator(&mut store, &request("coordinator_write", &above)),
+        Err(ErrorName::Malformed)
+    );
+    assert!(rows(&store).is_empty());
+    let at_bound = pad(16_384);
+    assert_eq!(
+        coordinator(&mut store, &request("coordinator_write", &at_bound)),
+        stored(1)
+    );
 }
 
 #[test]

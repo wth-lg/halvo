@@ -111,9 +111,17 @@ impl Dir {
         &self.path
     }
 
-    /// Removes the entry `name` and, when it is a directory, everything below
-    /// it, each directory opened through the handle of its parent; a link is
-    /// removed and not followed, and a name that is gone is no error.
+    pub(crate) fn remove_entry(&self, name: &OsStr) -> io::Result<()> {
+        match self.entry(name)?.kind {
+            EntryKind::Dir => self.remove_dir(name),
+            EntryKind::Link => match self.remove_file(name) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => self.remove_dir(name),
+                other => other,
+            },
+            EntryKind::File | EntryKind::Other => self.remove_file(name),
+        }
+    }
+
     pub(crate) fn remove_tree(&self, name: &OsStr) -> io::Result<()> {
         let gone = |removed: io::Result<()>| match removed {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -148,6 +156,9 @@ impl Dir {
 }
 
 #[cfg(target_os = "macos")]
+pub(crate) use unix_dir::{volume_of, EntryIdentity};
+
+#[cfg(target_os = "macos")]
 mod unix_dir {
     use std::ffi::{CStr, CString, OsStr, OsString};
     use std::fs::File;
@@ -156,7 +167,7 @@ mod unix_dir {
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refused, Dir, Entry, EntryKind, Refused};
+    use super::{refusal, refused, Dir, Entry, EntryKind, Refused};
 
     fn c_name(name: &OsStr) -> io::Result<CString> {
         CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
@@ -219,6 +230,35 @@ mod unix_dir {
         Ok(st)
     }
 
+    pub(crate) struct EntryIdentity {
+        pub(crate) kind: EntryKind,
+        pub(crate) device: u64,
+        pub(crate) file_number: u64,
+    }
+
+    pub(crate) struct Volume {
+        pub(crate) flags: u32,
+        pub(crate) mount_point: PathBuf,
+        pub(crate) fsid: [i32; 2],
+    }
+
+    pub(crate) fn volume_of(fd: RawFd) -> io::Result<Volume> {
+        // SAFETY: libc::statfs is plain data, for which all-zero bytes are a valid value.
+        let mut st: libc::statfs = unsafe { std::mem::zeroed() };
+        // SAFETY: st is a statfs that outlives the call, which writes only into it,
+        // and fd is a descriptor that the caller keeps open across the call.
+        checked(unsafe { libc::fstatfs(fd, &mut st) })?;
+        // SAFETY: f_mntonname is a NUL-terminated array that the call filled.
+        let mount = unsafe { CStr::from_ptr(st.f_mntonname.as_ptr()) };
+        Ok(Volume {
+            flags: st.f_flags,
+            mount_point: PathBuf::from(OsStr::from_bytes(mount.to_bytes())),
+            // SAFETY: fsid_t is a C struct of two i32 values, the size of [i32; 2],
+            // and every bit pattern of either is a valid value.
+            fsid: unsafe { std::mem::transmute::<libc::fsid_t, [i32; 2]>(st.f_fsid) },
+        })
+    }
+
     fn kind(st: &libc::stat) -> EntryKind {
         match st.st_mode & libc::S_IFMT {
             libc::S_IFDIR => EntryKind::Dir,
@@ -230,6 +270,8 @@ mod unix_dir {
 
     const DIR_FLAGS: libc::c_int =
         libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+
+    const LINK_THE_ENTRY_NOT_ITS_TARGET: libc::c_int = 0;
 
     impl Dir {
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
@@ -304,11 +346,9 @@ mod unix_dir {
             let stream = unsafe { libc::fdopendir(raw) };
             if stream.is_null() {
                 let e = io::Error::last_os_error();
-                // SAFETY: fdopendir failed, so raw is still ours alone and is closed
-                // here once. Its result is not read: the call already answers
-                // fdopendir's error, and a second error changes nothing that a
-                // caller can do.
-                unsafe { libc::close(raw) };
+                // SAFETY: fdopendir failed, so raw is still ours alone, and the
+                // OwnedFd that takes it back closes it once when dropped.
+                drop(unsafe { std::os::fd::OwnedFd::from_raw_fd(raw) });
                 return Err(e);
             }
             let mut names = Vec::new();
@@ -359,7 +399,8 @@ mod unix_dir {
             let at = self.fd.as_raw_fd();
             // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
             // while self lives.
-            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)?;
+            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
+                .map_err(|e| self.refuse_other_kind_or(name, e))?;
             match kind(&stat_of(fd.as_raw_fd())?) {
                 EntryKind::File => Ok(File::from(fd)),
                 EntryKind::Dir => Err(io::Error::from_raw_os_error(libc::EISDIR)),
@@ -407,6 +448,108 @@ mod unix_dir {
             let c = c_name(name)?;
             // SAFETY: c is NUL-terminated, and the descriptor is this handle's.
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) })
+        }
+
+        /// Sets the mode of the entry `name` by its name through this handle,
+        /// following no link.
+        pub(crate) fn set_file_mode(&self, name: &OsStr, mode: libc::mode_t) -> io::Result<()> {
+            let c = c_name(name)?;
+            // SAFETY: c is NUL-terminated, and the descriptor is this handle's,
+            // open while self lives.
+            checked(unsafe {
+                libc::fchmodat(
+                    self.fd.as_raw_fd(),
+                    c.as_ptr(),
+                    mode,
+                    libc::AT_SYMLINK_NOFOLLOW,
+                )
+            })
+        }
+
+        /// Opens the regular file `name` for reading and writing, following
+        /// no link.
+        pub(crate) fn open_file_for_update(&self, name: &OsStr) -> io::Result<File> {
+            let c = c_name(name)?;
+            let flags = libc::O_RDWR | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
+            let at = self.fd.as_raw_fd();
+            // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
+            // while self lives.
+            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
+                .map_err(|e| self.refuse_other_kind_or(name, e))?;
+            match kind(&stat_of(fd.as_raw_fd())?) {
+                EntryKind::File => Ok(File::from(fd)),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
+        pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
+            let c = c_name(name)?;
+            let flags = libc::O_WRONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
+            let at = self.fd.as_raw_fd();
+            // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
+            // while self lives.
+            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
+                .map_err(|e| self.refuse_other_kind_or(name, e))?;
+            match kind(&stat_of(fd.as_raw_fd())?) {
+                EntryKind::File => Ok(File::from(fd)),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
+        fn refuse_other_kind_or(&self, name: &OsStr, e: io::Error) -> io::Error {
+            if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() {
+                return e;
+            }
+            match stat_at(self.fd.as_raw_fd(), name).map(|st| kind(&st)) {
+                Ok(EntryKind::Other) => refused(Refused::NotARegularFile),
+                _ => e,
+            }
+        }
+
+        pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
+            let (from, to) = (c_name(from)?, c_name(to)?);
+            let fd = self.fd.as_raw_fd();
+            // SAFETY: from and to are NUL-terminated, and fd is this handle's
+            // descriptor, open while self lives.
+            checked(unsafe {
+                libc::linkat(
+                    fd,
+                    from.as_ptr(),
+                    fd,
+                    to.as_ptr(),
+                    LINK_THE_ENTRY_NOT_ITS_TARGET,
+                )
+            })
+        }
+
+        pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
+            let st = stat_of(self.fd.as_raw_fd())?;
+            Ok((st.st_dev as u64, st.st_ino))
+        }
+
+        pub(crate) fn raw_descriptor(&self) -> RawFd {
+            self.fd.as_raw_fd()
+        }
+
+        pub(crate) fn link_count(&self) -> io::Result<u64> {
+            Ok(u64::from(stat_of(self.fd.as_raw_fd())?.st_nlink))
+        }
+
+        pub(crate) fn volume(&self) -> io::Result<Volume> {
+            volume_of(self.fd.as_raw_fd())
+        }
+
+        pub(crate) fn entry_identity(&self, name: &OsStr) -> io::Result<EntryIdentity> {
+            let st = stat_at(self.fd.as_raw_fd(), name)?;
+            Ok(EntryIdentity {
+                kind: kind(&st),
+                device: st.st_dev as u64,
+                file_number: st.st_ino,
+            })
+        }
+
+        pub(crate) fn into_file(self) -> File {
+            File::from(self.fd)
         }
 
         pub(crate) fn still_named(&self) -> io::Result<bool> {
@@ -507,6 +650,22 @@ mod windows_dir {
         ) -> i32;
     }
 
+    pub(crate) fn file_link_count(file: &File) -> io::Result<u64> {
+        use std::os::windows::io::AsRawHandle;
+        let mut information = std::mem::MaybeUninit::<FileInformation>::zeroed();
+        // SAFETY: the handle is open for as long as `file` is borrowed, and the
+        // pointer is to a zeroed structure of the layout that the call writes.
+        let done =
+            unsafe { GetFileInformationByHandle(file.as_raw_handle(), information.as_mut_ptr()) };
+        if done == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: the call answered success, so it wrote every field, and the
+        // zeroed start was already a valid value of the structure.
+        let information = unsafe { information.assume_init() };
+        Ok(u64::from(information.links))
+    }
+
     fn file_id(file: &File) -> io::Result<(u32, u64)> {
         use std::os::windows::io::AsRawHandle;
         let mut information = std::mem::MaybeUninit::<FileInformation>::zeroed();
@@ -553,7 +712,14 @@ mod windows_dir {
         }
     }
 
+    /// The canonical path without its verbatim prefix, so that it reads as
+    /// the path that the caller gave, except where a part ends in a dot or a
+    /// space: Win32 trims that end on a path that is not verbatim, so such a
+    /// path keeps its prefix and names the entry that the handle holds.
     fn without_verbatim_prefix(full: PathBuf) -> PathBuf {
+        if super::has_a_part_that_windows_trims(&full) {
+            return full;
+        }
         let Some(text) = full.to_str() else {
             return full;
         };
@@ -666,8 +832,54 @@ mod windows_dir {
             std::fs::remove_dir(self.path.join(name))
         }
 
-        /// Always yes: the held handle shares no delete, so the name cannot be
-        /// moved or removed while the handle is held.
+        /// Opens the regular file `name` for reading and writing, following
+        /// no link.
+        pub(crate) fn open_file_for_update(&self, name: &OsStr) -> io::Result<File> {
+            let file = File::options()
+                .read(true)
+                .write(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(self.path.join(name))?;
+            match kind_of(&file.metadata()?) {
+                EntryKind::File => Ok(file),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
+        pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
+            let file = File::options()
+                .write(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(self.path.join(name))?;
+            match kind_of(&file.metadata()?) {
+                EntryKind::File => Ok(file),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
+        pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
+            std::fs::hard_link(self.path.join(from), self.path.join(to))
+        }
+
+        pub(crate) fn open_lock_file(&self, name: &OsStr) -> io::Result<File> {
+            let file = File::options()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(self.path.join(name))?;
+            match kind_of(&file.metadata()?) {
+                EntryKind::File => Ok(file),
+                EntryKind::Link => Err(refused(Refused::Link)),
+                EntryKind::Dir => Err(io::Error::from(io::ErrorKind::IsADirectory)),
+                EntryKind::Other => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
         pub(crate) fn still_named(&self) -> io::Result<bool> {
             Ok(true)
         }
@@ -741,20 +953,78 @@ fn fill_and_publish<T, E>(
     Ok(value)
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
-    std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
-    options
-}
-
-#[cfg(windows)]
-pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
-    std::os::windows::fs::OpenOptionsExt::custom_flags(options, FILE_FLAG_OPEN_REPARSE_POINT);
-    options
-}
-
 #[cfg(windows)]
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+
+#[cfg(windows)]
+pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
+
+/// A part of the path ends in a dot or a space, which Win32 trims when it
+/// opens a name that is not verbatim, so that an open could reach the sibling
+/// without that end.
+#[cfg(windows)]
+pub(crate) fn has_a_part_that_windows_trims(path: &Path) -> bool {
+    path.components().any(|part| match part {
+        std::path::Component::Normal(name) => {
+            let name = name.to_string_lossy();
+            name.ends_with('.') || name.ends_with(' ')
+        }
+        _ => false,
+    })
+}
+
+/// The verbatim form of a path, which Win32 opens without trimming: the path
+/// itself when it is verbatim; for an absolute path on a drive or a share,
+/// `\\?\` (or `\\?\UNC\`) and the path's parts joined with the system's
+/// separator, whatever separator the path was written with, a doubled
+/// separator and a `.` part dropped (ruling ST-45 H6 (a)); nothing for a
+/// relative path, a path on a drive with no root and a path with a `..`
+/// part.
+#[cfg(windows)]
+pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
+    use std::path::{Component, Prefix};
+    let mut parts = path.components();
+    let Some(Component::Prefix(prefix)) = parts.next() else {
+        return None;
+    };
+    let mut form = match prefix.kind() {
+        Prefix::Verbatim(_) | Prefix::VerbatimDisk(_) | Prefix::VerbatimUNC(..) => {
+            return Some(path.to_path_buf())
+        }
+        Prefix::Disk(letter) => std::ffi::OsString::from(format!(r"\\?\{}:", char::from(letter))),
+        Prefix::UNC(server, share) => {
+            let mut form = std::ffi::OsString::from(r"\\?\UNC\");
+            form.push(server);
+            form.push(r"\");
+            form.push(share);
+            form
+        }
+        _ => return None,
+    };
+    if parts.next() != Some(Component::RootDir) {
+        return None;
+    }
+    for part in parts {
+        match part {
+            Component::Normal(name) => {
+                form.push(r"\");
+                form.push(name);
+            }
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    Some(std::path::PathBuf::from(form))
+}
+
+#[cfg(windows)]
+pub(crate) use windows_dir::file_link_count;
+
+#[cfg(unix)]
+pub(crate) fn file_link_count(file: &File) -> io::Result<u64> {
+    use std::os::unix::fs::MetadataExt;
+    Ok(file.metadata()?.nlink())
+}
 
 pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     let mut builder = std::fs::DirBuilder::new();
@@ -762,20 +1032,6 @@ pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
     builder.create(dir)
-}
-
-#[cfg(test)]
-pub(crate) fn make_private(dir: &Path) -> io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = dir;
-        Ok(())
-    }
 }
 
 pub(crate) fn remove_durably(fs: &dyn DurableFs, dir: &Dir, name: &OsStr) -> io::Result<()> {
@@ -924,6 +1180,72 @@ mod tests {
 
     fn name(text: &str) -> &OsStr {
         OsStr::new(text)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_entry_refuses_a_directory_with_entries_and_unlinks_a_link_to_a_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("full")).unwrap();
+        std::fs::write(dir.path().join("full").join("kept"), b"kept").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("kept"), b"kept").unwrap();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("link")).unwrap();
+        let handle = held(&dir);
+        assert!(handle.remove_entry(name("full")).is_err());
+        assert_eq!(
+            std::fs::read(dir.path().join("full").join("kept")).unwrap(),
+            b"kept"
+        );
+        assert!(handle.remove_entry(name("link")).is_ok());
+        assert!(std::fs::symlink_metadata(dir.path().join("link")).is_err());
+        assert_eq!(std::fs::read(outside.path().join("kept")).unwrap(), b"kept");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_tree_unlinks_a_link_inside_the_tree_and_keeps_its_target() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("tree").join("below")).unwrap();
+        std::fs::write(dir.path().join("tree").join("below").join("file"), b"x").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("kept"), b"kept").unwrap();
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("tree").join("link")).unwrap();
+        held(&dir).remove_tree(name("tree")).unwrap();
+        assert!(std::fs::symlink_metadata(dir.path().join("tree")).is_err());
+        assert_eq!(std::fs::read(outside.path().join("kept")).unwrap(), b"kept");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_held_store_directory_cannot_be_renamed_and_stays_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("store");
+        std::fs::create_dir(&store).unwrap();
+        let handle = Dir::open(&store).unwrap();
+        let renamed = std::fs::rename(&store, dir.path().join("moved"));
+        println!(
+            "WINDOWS-RENAME renamed={} code={:?}",
+            renamed.is_ok(),
+            renamed.as_ref().err().and_then(|e| e.raw_os_error())
+        );
+        assert!(renamed.is_err(), "a held store directory was renamed");
+        assert!(handle.still_named().unwrap());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_identity_of_an_entry_that_is_a_link_reads_link_and_names_the_link_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("target"), b"target").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("target"), dir.path().join("link")).unwrap();
+        let handle = held(&dir);
+        let link = handle.entry_identity(name("link")).unwrap();
+        let target = handle.entry_identity(name("target")).unwrap();
+        assert_eq!(link.kind, EntryKind::Link);
+        assert_eq!(target.kind, EntryKind::File);
+        assert_ne!(link.file_number, target.file_number);
+        assert_eq!(link.device, target.device);
     }
 
     #[test]

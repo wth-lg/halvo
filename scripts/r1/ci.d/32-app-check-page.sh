@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: the built app loads its page and its read commands answer through the capability
+# lane: alone
 set -u
 name=32-app-check-page
 APP_CHECK_PAGE_MAX_S=60

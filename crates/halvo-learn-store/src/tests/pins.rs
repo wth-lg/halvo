@@ -1,7 +1,9 @@
 use halvo_schema::executable::RunId;
+use halvo_schema::learning::names::RunCause;
+use halvo_schema::learning::record::{RunStatus, Verdict};
 use serde_json::{json, Value};
 
-use super::host::{active_world, agent, compiled, locator, run, wf, with_locators};
+use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, world};
 use crate::LearnHandlers;
 
 fn loc(name: &str) -> Value {
@@ -52,6 +54,31 @@ fn a_compile_run_that_sends_no_load_keeps_its_run_row_at_rev_1() {
 }
 
 #[test]
+fn a_compile_run_that_loads_has_its_run_row_at_rev_2_after_its_finish() {
+    let mut w = world();
+    w.start(1, "compile");
+    w.load(1);
+    assert!(w.put(1, 1, compiled()).is_ok());
+    assert!(w.finish(1, "compile", "completed").is_ok());
+    let mut rows: Vec<_> = w
+        .host
+        .runs()
+        .into_iter()
+        .filter(|r| r.run.as_str() == run(1))
+        .collect();
+    rows.sort_by_key(|r| r.rev());
+    assert_eq!(rows.iter().map(|r| r.rev()).collect::<Vec<_>>(), [1, 2]);
+    assert!(matches!(
+        rows[1].status,
+        RunStatus::Ended {
+            verdict: Verdict::Verified,
+            base: None,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn an_end_run_drops_the_facts_of_its_run() {
     let mut w = active_world();
     w.replay(2);
@@ -61,6 +88,15 @@ fn an_end_run_drops_the_facts_of_its_run() {
     let id = RunId::parse(&run(2)).expect("a run id");
     assert!(!w.handlers.facts.contains_key(&id));
     assert!(!w.handlers.starts.contains_key(&id));
+    assert!(w.host.runs().iter().any(|r| r.run.as_str() == run(2)
+        && matches!(
+            r.status,
+            RunStatus::Ended {
+                verdict: Verdict::Unverified(RunCause::Failed),
+                kept: 0,
+                ..
+            }
+        )));
 }
 
 #[test]

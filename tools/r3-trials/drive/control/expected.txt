@@ -1,0 +1,100 @@
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line attempt model=standin_right machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right bill line drive model=standin_right machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=replay i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=replay i=2 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=replay i=3 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line attempt model=standin_effect_early machine=* task=bill seed=1 kind=recover i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early bill line drive model=standin_effect_early machine=* task=bill seed=1 compile=miss replays_ok=0 of=3 recover=miss steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early bill tracehas compile failed cause=provenance
+effect_early bill tracelacks effect allowed
+effect_early bill tracehas run kind=compile i=1 steps_ok=false list_ok=false entries=0 allowed=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line attempt model=standin_option_then_right machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right bill line drive model=standin_option_then_right machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+option_then_right bill requesthas is a option line and no select control; a select names the line of the control that holds the option)
+right order line attempt model=standin_right machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line attempt model=standin_right machine=* task=order seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+right order line drive model=standin_right machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=replay i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=replay i=2 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=replay i=3 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line attempt model=standin_effect_early machine=* task=order seed=1 kind=recover i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_early order line drive model=standin_effect_early machine=* task=order seed=1 compile=miss replays_ok=0 of=3 recover=miss steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_early order tracehas compile failed cause=provenance
+effect_early order tracelacks effect allowed
+effect_early order tracehas run kind=compile i=1 steps_ok=false list_ok=false entries=0 allowed=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line attempt model=standin_option_then_right machine=* task=order seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_then_right order line drive model=standin_option_then_right machine=* task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+option_then_right order requesthas is a option line and no select control; a select names the line of the control that holds the option)
+right bill requestlacks " credential
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line attempt model=standin_sign_in_click machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+sign_in_click bill line drive model=standin_sign_in_click machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+sign_in_click bill requestlacks " credential
+sign_in_click bill tracelacks compile failed cause=provenance
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line attempt model=standin_extract_then_click machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_then_click bill line drive model=standin_extract_then_click machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+extract_then_click bill tracehas run kind=compile i=1 steps_ok=true list_ok=true entries=1 allowed=1 signins=1 failed_signins=0
+option_then_right bill requestlacks select:no such option
+option_then_right order requestlacks select:no such option
+right bill requesthas (done; a request was sent)
+right bill requesthas (done; the page shows no change)
+right bill requestlacks (refused
+option_line bill line attempt model=standin_option_line machine=* task=bill seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+option_line bill line attempt model=standin_option_line machine=* task=bill seed=1 kind=replay i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+option_line bill line attempt model=standin_option_line machine=* task=bill seed=1 kind=replay i=2 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+option_line bill line attempt model=standin_option_line machine=* task=bill seed=1 kind=replay i=3 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+option_line bill line attempt model=standin_option_line machine=* task=bill seed=1 kind=recover i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+option_line bill line drive model=standin_option_line machine=* task=bill seed=1 compile=miss replays_ok=0 of=3 recover=miss steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+option_line bill tracehas compile failed cause=calls
+option_line bill tracelacks stuck
+option_line bill requesthas is a option line and no select control; a select names the line of the control that holds the option)
+option_twice_then_right bill line attempt model=standin_option_twice_then_right machine=* task=bill seed=1 kind=compile i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_twice_then_right bill line attempt model=standin_option_twice_then_right machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_twice_then_right bill line attempt model=standin_option_twice_then_right machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_twice_then_right bill line attempt model=standin_option_twice_then_right machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_twice_then_right bill line attempt model=standin_option_twice_then_right machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+option_twice_then_right bill line drive model=standin_option_twice_then_right machine=* task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+option_twice_then_right bill requesthas is a option line and no select control; a select names the line of the control that holds the option)
+option_twice_then_right bill tracelacks stuck
+extract_to_cap bill line attempt model=standin_extract_to_cap machine=* task=bill seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_to_cap bill line attempt model=standin_extract_to_cap machine=* task=bill seed=1 kind=replay i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_to_cap bill line attempt model=standin_extract_to_cap machine=* task=bill seed=1 kind=replay i=2 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_to_cap bill line attempt model=standin_extract_to_cap machine=* task=bill seed=1 kind=replay i=3 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_to_cap bill line attempt model=standin_extract_to_cap machine=* task=bill seed=1 kind=recover i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+extract_to_cap bill line drive model=standin_extract_to_cap machine=* task=bill seed=1 compile=miss replays_ok=0 of=3 recover=miss steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+extract_to_cap bill tracehas compile failed cause=calls
+extract_to_cap bill tracehas steps=3 capped=Some(false)
+extract_to_cap bill tracelacks stuck
+effect_twice bill line attempt model=standin_effect_twice machine=* task=bill seed=1 kind=compile i=1 pass=no steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_twice bill line attempt model=standin_effect_twice machine=* task=bill seed=1 kind=replay i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_twice bill line attempt model=standin_effect_twice machine=* task=bill seed=1 kind=replay i=2 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_twice bill line attempt model=standin_effect_twice machine=* task=bill seed=1 kind=replay i=3 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_twice bill line attempt model=standin_effect_twice machine=* task=bill seed=1 kind=recover i=1 pass=yes steps=* wall_s=* tokens_in=0 tokens_out=0
+effect_twice bill line drive model=standin_effect_twice machine=* task=bill seed=1 compile=miss replays_ok=3 of=3 recover=ok steps=* wall_s=* model_tokens=0 typed_credential=0 effects_without_confirm=0
+effect_twice bill tracehas compile failed cause=second_request
+effect_twice bill tracehas run kind=compile i=1 steps_ok=false list_ok=true entries=1 allowed=1 signins=1 failed_signins=0 state_changing=2
+effect_twice bill tracelacks stuck

@@ -69,7 +69,25 @@ fn r4_causes_check_is_the_lapse_of_a_ready_item_alone() {
 }
 
 #[test]
-fn r4_causes_check_stays_outside_the_six_causes_of_a_confirmation() {
+fn r4_causes_answer_lost_is_the_lapse_of_a_confirmation_alone() {
+    let entry = &halvo_schema::coordinator::KINDS[0];
+    let text = row("confirm", "answer_lost");
+    let value = CoordEvent::parse(text.as_bytes()).unwrap();
+    assert_eq!(value.to_json().unwrap(), text);
+    assert_eq!(check_record(entry, &text), Ok(()), "{text}");
+    for kind in OtherKind::ALL {
+        let text = row(kind.as_str(), "answer_lost");
+        let refusal = CoordEvent::parse(text.as_bytes()).unwrap_err();
+        assert_eq!(
+            (refusal.key(), refusal.rule()),
+            (Some("cause"), "unknown_name"),
+            "I4.2 and ruling RD-84: answer_lost is taken from answered alone, a state of a confirmation; {text}"
+        );
+    }
+}
+
+#[test]
+fn r4_causes_check_stays_outside_the_seven_causes_of_a_confirmation() {
     let refusal = CoordEvent::parse(row("confirm", "check").as_bytes()).unwrap_err();
     assert_eq!(
         (refusal.key(), refusal.rule()),

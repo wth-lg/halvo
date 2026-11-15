@@ -2,11 +2,13 @@ use std::num::NonZeroU32;
 use std::path::Path;
 
 use halvo_schema::coordinator::body::{CoordHistory, CoordLog, History, Stored};
-use halvo_schema::coordinator::names::Trigger;
-use halvo_schema::coordinator::record::{BindAnswer, CoordEvent, ItemId, SignInAnswer, What};
+use halvo_schema::coordinator::names::{EffectAnswer, Trigger};
+use halvo_schema::coordinator::record::{
+    BindAnswer, CoordEvent, Entry, ItemId, SignInAnswer, What,
+};
 use halvo_schema::coordinator::{names::BindResult, record::Answered};
 use halvo_schema::coordinator::{HISTORY_RECORDS, REQUEST_BYTES, REQUEST_RECORDS};
-use halvo_schema::executable::{RunId, WebOrigin};
+use halvo_schema::executable::{ApprovalId, Digest, EffectId, RunId, WebOrigin};
 use halvo_schema::record::Instant;
 use halvo_schema::request::{
     decode, decode_reply, write_reply, CoordinatorBody, CoordinatorRole, CoordinatorWrite, Decoded,
@@ -117,28 +119,30 @@ fn r4_bodies_coord_log_writes_op_workflow_agent_then_records_and_reads_them_back
 
 #[test]
 fn r4_bodies_coord_log_holds_one_to_request_records_records_of_its_own_agent() {
-    assert_eq!(REQUEST_RECORDS, 8);
-    let full: Vec<CoordEvent> = (1..=8).map(skipped).collect();
-    let text = log(full.clone()).to_json().unwrap();
-    assert!(text.len() <= REQUEST_BYTES);
-    assert_eq!(CoordLog::parse(text.as_bytes()).unwrap().records, full);
+    assert_eq!(REQUEST_RECORDS, 20);
+    for n in [9, 20] {
+        let full: Vec<CoordEvent> = (1..=n).map(skipped).collect();
+        let text = log(full.clone()).to_json().unwrap();
+        assert!(text.len() <= REQUEST_BYTES);
+        assert_eq!(CoordLog::parse(text.as_bytes()).unwrap().records, full);
+    }
 
-    let over: Vec<CoordEvent> = (1..=9).map(skipped).collect();
+    let over: Vec<CoordEvent> = (1..=21).map(skipped).collect();
     let refusal = log(over.clone()).to_json().unwrap_err();
     assert_eq!(
         (refusal.key(), refusal.rule()),
         (Some("records"), "records")
     );
     assert!(serde_json::to_string(&log(over.clone())).is_err());
-    let nine = format!(
+    let twenty_one = format!(
         r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{}]}}"#,
         over.iter()
             .map(|e| e.to_json().unwrap())
             .collect::<Vec<_>>()
             .join(",")
     );
-    assert!(nine.len() <= REQUEST_BYTES);
-    let refusal = CoordLog::parse(nine.as_bytes()).unwrap_err();
+    assert!(twenty_one.len() <= REQUEST_BYTES);
+    let refusal = CoordLog::parse(twenty_one.as_bytes()).unwrap_err();
     assert_eq!(
         (refusal.key(), refusal.rule()),
         (Some("records"), "records")
@@ -183,16 +187,18 @@ fn r4_bodies_coord_log_holds_one_to_request_records_records_of_its_own_agent() {
 
 #[test]
 fn r4_bodies_coord_log_holds_at_most_request_bytes_bytes() {
-    assert_eq!(REQUEST_BYTES, 4096);
-    let big: Vec<CoordEvent> = (1..=8).map(long_origin).collect();
-    let body = log(big.clone());
-    let refusal = body.to_json().unwrap_err();
-    assert_eq!((refusal.key(), refusal.rule()), (None, "bytes"));
-    assert!(serde_json::to_string(&body).is_err());
-    let id = RequestId::parse(ID).unwrap();
-    assert!(CoordinatorWrite::new(&CoordinatorRole::claim(), id, body)
-        .to_bytes()
-        .is_err());
+    assert_eq!(REQUEST_BYTES, 16_384);
+    for n in [8, 20] {
+        let big: Vec<CoordEvent> = (1..=n).map(long_origin).collect();
+        let body = log(big.clone());
+        let text = body.to_json().unwrap();
+        assert!(text.len() > 4_096 && text.len() <= REQUEST_BYTES, "{n}");
+        assert_eq!(CoordLog::parse(text.as_bytes()).unwrap(), body);
+        let id = RequestId::parse(ID).unwrap();
+        assert!(CoordinatorWrite::new(&CoordinatorRole::claim(), id, body)
+            .to_bytes()
+            .is_ok());
+    }
 
     let one = log(vec![skipped(1)]).to_json().unwrap();
     let pad = |to: usize| {
@@ -501,15 +507,108 @@ fn product_value(limits: &str, field: &str) -> u64 {
 }
 
 #[test]
-fn r4_bodies_the_bounds_equal_the_product_limits_of_halvo_coord() {
+fn r4_bodies_the_bounds_hold_at_least_the_product_limits_of_halvo_coord() {
     let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../halvo-coord/src/types/limits.rs");
     let limits = std::fs::read_to_string(file).unwrap();
-    assert_eq!(
-        product_value(&limits, "request_records"),
-        REQUEST_RECORDS as u64
+    assert!(
+        product_value(&limits, "request_records") <= REQUEST_RECORDS as u64,
+        "a reader that takes more serves an older sender, and not the reverse (RD-73 7.2)"
     );
-    assert_eq!(
-        product_value(&limits, "request_bytes"),
-        REQUEST_BYTES as u64
+    assert!(
+        product_value(&limits, "request_bytes") <= REQUEST_BYTES as u64,
+        "a reader that takes more serves an older sender, and not the reverse (RD-73 7.2)"
     );
+}
+
+const LARGEST_SEQ: u32 = u32::MAX;
+const ENVELOPE_FRAME: usize = 65_536;
+
+fn largest(n: u32, what: What) -> CoordEvent {
+    CoordEvent {
+        seq: NonZeroU32::new(LARGEST_SEQ - REQUEST_RECORDS as u32 + n).unwrap(),
+        day: u32::MAX,
+        at: Instant(i64::MAX),
+        what,
+        ..skipped(1)
+    }
+}
+
+fn confirmation_entry(n: u32) -> Entry {
+    Entry {
+        effect: EffectId::parse(&format!("5c4b3a29180f7e6d5c4b3a29180f{n:04x}")).unwrap(),
+        approval: ApprovalId::parse(&format!("6d5c4b3a29180f7e6d5c4b3a2918{n:04x}")).unwrap(),
+        digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+        answer: EffectAnswer::RejectOnce,
+    }
+}
+
+/// The largest bodies of one confirmation (RD-73 7.1, 7.3): `REQUEST_RECORDS` rows `item_answered`, and as many
+/// rows `item_released`, at the largest `seq`, `day` and `at`, each in its coordinator write.
+fn largest_confirmation_lines() -> Vec<String> {
+    let item = ItemId::from_random([0xfe; 16]);
+    let answered: Vec<CoordEvent> = (1..=REQUEST_RECORDS as u32)
+        .map(|n| {
+            largest(
+                n,
+                What::ItemAnswered {
+                    item: item.clone(),
+                    answered: Answered::Confirm(confirmation_entry(n)),
+                },
+            )
+        })
+        .collect();
+    let released: Vec<CoordEvent> = (1..=REQUEST_RECORDS as u32)
+        .map(|n| {
+            largest(
+                n,
+                What::ItemReleased {
+                    item: item.clone(),
+                    entry: confirmation_entry(n),
+                },
+            )
+        })
+        .collect();
+    [answered, released]
+        .into_iter()
+        .map(|records| {
+            let id = RequestId::parse(ID).unwrap();
+            let bytes = CoordinatorWrite::new(&CoordinatorRole::claim(), id, log(records))
+                .to_bytes()
+                .unwrap();
+            String::from_utf8(bytes).unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn r4_bodies_twenty_rows_of_a_confirmation_at_the_largest_fields_are_the_golden_body() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/r4/largest-log.jsonl");
+    let committed = std::fs::read_to_string(&path).unwrap();
+    let lines = largest_confirmation_lines();
+    let written: String = lines.iter().map(|line| format!("{line}\n")).collect();
+    assert!(
+        committed == written,
+        "tests/golden/r4/largest-log.jsonl differs from what the writers write: {} bytes committed, {} written",
+        committed.len(),
+        written.len()
+    );
+    for line in committed.lines() {
+        assert!(line.len() < ENVELOPE_FRAME, "{} bytes", line.len());
+        let Ok(Decoded::Raw(request)) = decode(line.as_bytes()) else {
+            panic!("the line is no coordinator_write that decode returns undecoded");
+        };
+        let body = request.body().get();
+        assert!(
+            body.len() > 4_096 && body.len() <= REQUEST_BYTES,
+            "{} bytes",
+            body.len()
+        );
+        let read = CoordLog::parse(body.as_bytes()).unwrap();
+        assert_eq!(read.records.len(), REQUEST_RECORDS);
+        assert_eq!(read.to_json().unwrap(), body);
+        assert_eq!(
+            read.records.last().map(|r| (r.seq.get(), r.day, r.at)),
+            Some((LARGEST_SEQ, u32::MAX, Instant(i64::MAX)))
+        );
+    }
 }
