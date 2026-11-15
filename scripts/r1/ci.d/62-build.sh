@@ -1,9 +1,10 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration at the root of the checkout or one directory below it and no source replacement in a tracked one (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration at the root of the checkout or one directory below it and no tracked one that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
 set -u
 name=62-build
 shipped_packages='halvo halvo-capture'
+allowed_configurations=''
 markers='halvo-standin-module-present
 halvo-capture:test-seam:this-build-has-it!'
 macos_calls='npm run tauri build -- -- --locked
@@ -79,10 +80,11 @@ cargo_config_defect() {
     return 1
   fi
   for file in "$@"; do
-    if grep -q -E '^[[:space:]]*\[source' "$file"; then
-      printf '%s holds a source replacement\n' "$file"
-      return 1
-    fi
+    case " $allowed_configurations " in
+      *" $file "*) continue ;;
+    esac
+    printf 'the cargo configuration %s is tracked and is not on the list allowed_configurations of scripts/r1/ci.d/62-build.sh; a unit that needs one adds it to that list with its review\n' "$file"
+    return 1
   done
 }
 
@@ -349,14 +351,27 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   source_case tauri-from-a-path FAIL "{\"name\":\"tauri\",\"version\":\"2.12.5\",\"id\":\"path+file:///w/tauri#2.12.5\"},{\"name\":\"tauri-build\",\"version\":\"2.7.4\",\"id\":\"$registry#tauri-build@2.7.4\"}"
   source_case tauri-build-from-git FAIL "{\"name\":\"tauri\",\"version\":\"2.12.5\",\"id\":\"$registry#tauri@2.12.5\"},{\"name\":\"tauri-build\",\"version\":\"2.7.4\",\"id\":\"git+https://example.invalid/t#abc\"}"
   source_case no-tauri-package FAIL "{\"name\":\"serde\",\"version\":\"1.0.0\",\"id\":\"$registry#serde@1.0.0\"}"
-  printf '[build]\njobs = 2\n' >"$work/plain-config.toml"
-  printf '[source.crates-io]\nreplace-with = "vendored"\n' >"$work/replacing-config.toml"
+  tracked_config_case() {
+    case_name=$1
+    shift
+    printf '%s\n' "$@" >"$work/$case_name.toml"
+    got=FAIL
+    cargo_config_defect '' "$work/$case_name.toml" >/dev/null && got=PASS
+    verdict "tracked-configuration-$case_name" FAIL "$got"
+  }
+  tracked_config_case table-header '[source.crates-io]' 'replace-with = "vendored"' '[source.vendored]' 'directory = "no-such-vendor-dir"'
+  tracked_config_case dotted-keys-at-top-level 'source.crates-io.replace-with = "vendored"' 'source.vendored.directory = "no-such-vendor-dir"'
+  tracked_config_case spaced-table-header '[ source.crates-io ]' 'replace-with = "vendored"' '[ source . vendored ]' 'directory = "no-such-vendor-dir"'
+  tracked_config_case inline-table 'source = { crates-io = { replace-with = "vendored" }, vendored = { directory = "no-such-vendor-dir" } }'
+  tracked_config_case quoted-key-header '["source"."crates-io"]' 'replace-with = "vendored"' '["source".vendored]' 'directory = "no-such-vendor-dir"'
+  tracked_config_case plain-header '[build]' 'jobs = 2'
+  tracked_config_case include-line 'include = "other.toml"'
   got=FAIL
-  cargo_config_defect '' "$work/plain-config.toml" >/dev/null && got=PASS
-  verdict tracked-configuration-without-a-source PASS "$got"
+  cargo_config_defect '' >/dev/null && got=PASS
+  verdict no-tracked-configuration PASS "$got"
   got=FAIL
-  cargo_config_defect '' "$work/replacing-config.toml" >/dev/null && got=PASS
-  verdict tracked-configuration-with-a-source-replacement FAIL "$got"
+  (allowed_configurations="$work/plain-header.toml"; cargo_config_defect '' "$work/plain-header.toml" >/dev/null) && got=PASS
+  verdict tracked-configuration-on-the-list PASS "$got"
   got=FAIL
   cargo_config_defect '.cargo/config.toml' >/dev/null && got=PASS
   verdict untracked-cargo-configuration-at-the-root FAIL "$got"
