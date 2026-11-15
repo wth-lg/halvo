@@ -24,6 +24,25 @@ use halvo_schema::{AgentId, Category, WorkflowId};
 
 pub const RUNNER: &str = env!("CARGO_BIN_EXE_halvo-runner");
 
+/// The instant now on the system's clock, in nanoseconds since 1970-01-01T00:00:00Z.
+pub fn now_nanos() -> i64 {
+    let since = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after 1970");
+    i64::try_from(since.as_nanos()).expect("an instant of i64")
+}
+
+/// An offset whose local day differs from the UTC day for at least two hours from now: +50,400 s when the UTC
+/// hour is 12 or later, else -50,400 s (the coordinator's ruling CP-204 D7).
+pub fn offset_of_another_day() -> i32 {
+    let max = halvo_schema::executable::day::UTC_OFFSET_S_MAX;
+    if now_nanos().div_euclid(1_000_000_000).rem_euclid(86_400) >= 12 * 3_600 {
+        max
+    } else {
+        -max
+    }
+}
+
 static NEXT: AtomicU32 = AtomicU32::new(1);
 
 /// A directory of its own under the target's temporary directory, made anew for each call: a name that stands,

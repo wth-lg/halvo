@@ -2,7 +2,7 @@ mod support;
 
 use std::time::Duration;
 
-use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{Autonomy, FieldName, HandbackReason, LogEvent};
 use halvo_schema::executable::{
@@ -10,7 +10,10 @@ use halvo_schema::executable::{
 };
 use halvo_schema::Category;
 
-use support::{is_effect, is_op, range_texts, store_error, Act, FillFiles, Supervisor, LONG};
+use support::{
+    is_effect, is_op, now_nanos, offset_of_another_day, range_texts, store_error, Act, FillFiles,
+    Supervisor, LONG,
+};
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
@@ -48,23 +51,6 @@ fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
         !locks.is_empty(),
         "a lock file under the test's data directory"
     );
-}
-
-/// An offset whose local day differs from the UTC day for at least two hours from now: +50,400 s when the UTC
-/// hour is 12 or later, else -50,400 s (the coordinator's ruling CP-204 D7).
-fn offset_of_another_day() -> i32 {
-    if now_nanos().div_euclid(1_000_000_000).rem_euclid(86_400) >= 12 * 3_600 {
-        UTC_OFFSET_S_MAX
-    } else {
-        -UTC_OFFSET_S_MAX
-    }
-}
-
-fn now_nanos() -> i64 {
-    let since = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("a clock after 1970");
-    i64::try_from(since.as_nanos()).expect("an instant of i64")
 }
 
 /// CP-204 D3 and D7: every log line and every row of an effect carries day_of(at, the run's offset), which is not

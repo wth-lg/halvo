@@ -14,7 +14,9 @@ use halvo_schema::executable::{
 };
 use halvo_sheet::{Folder, Locks, Range, Sha256, Value};
 
-use crate::clock::{day, now};
+use halvo_schema::executable::day::day_of;
+
+use crate::clock::now;
 use crate::run::{cause_of, Failure, Runner, Stop};
 
 /// The cause of A7.4 that an error of the sheet executor gives: `workbook` and `sheet` are its own, every other
@@ -185,7 +187,7 @@ impl Runner {
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),
             seq,
-            day: day(at),
+            day: day_of(at, 0),
             at,
             folder: OwnValue::new(&dir.to_string_lossy()),
             workbook: OwnValue::new(&path),

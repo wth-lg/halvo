@@ -1,6 +1,7 @@
 mod support;
 
 use halvo_schema::executable::body::RunnerCall;
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{AgentCheckpoint, Cause, CheckpointState, FromRunner, Outcome};
@@ -8,8 +9,8 @@ use halvo_schema::Category;
 use halvo_sheet::Sha256;
 
 use support::{
-    is_op, person_changes, serve_loads, set_slot, store_error, stored, Act, FillFiles, Seen,
-    Supervisor, LONG,
+    is_op, offset_of_another_day, person_changes, serve_loads, set_slot, store_error, stored, Act,
+    FillFiles, Seen, Supervisor, LONG,
 };
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
@@ -66,7 +67,8 @@ fn a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_p
     let files = FillFiles::new("checkpoint-rows", 1);
     let original = files.workbook_bytes();
     let names_before = files.names();
-    let sup = fill(171, &files);
+    let mut sup = fill(171, &files);
+    sup.utc_offset_s = offset_of_another_day();
     let copy = files.dir.join(checkpoint_name(&sup));
     let mut at_planned = None;
     let mut at_made = None;
@@ -155,9 +157,15 @@ fn a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_p
     assert!(made.at >= planned.at, "the made row's instant is later");
     for row in &rows {
         assert_eq!(
-            i64::from(row.day),
-            row.at.0.div_euclid(86_400 * 1_000_000_000),
-            "the day of the row's instant"
+            row.day,
+            day_of(row.at, sup.utc_offset_s),
+            "the day of the row's instant at the run's offset {} (CP-204 D3)",
+            sup.utc_offset_s
+        );
+        assert_ne!(
+            row.day,
+            day_of(row.at, 0),
+            "the UTC day of the row's instant"
         );
     }
 
