@@ -319,6 +319,7 @@ sleep 30 &
 current_call=$!
 undo
 if kill -0 "$current_call" 2>/dev/null; then echo call_alive; else echo call_ended; fi
+kill "$current_call" 2>/dev/null
 CASE
   verdict win_ends_the_call_in_progress_when_it_is_ended \
     "$(holds has "$c/out" call_ended)" "-"
@@ -377,8 +378,8 @@ perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' sleep 30 &
 current_call=$!
 sleep 1
 undo
-wait "$current_call" 2>/dev/null
 if alive "$current_call"; then echo call_alive; else echo call_ended; fi
+kill -TERM -- "-$current_call" 2>/dev/null
 CASE
   verdict mac_ends_the_call_in_progress_when_it_is_ended \
     "$(holds has "$c/out" call_ended)" "-"
