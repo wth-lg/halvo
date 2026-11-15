@@ -91,6 +91,7 @@ The import listing: the check prints the count of the undefined or imported symb
 route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on Windows where the
 runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
 it is a measurement and refuses nothing.
+A signal INT, TERM or HUP stops the check's listeners and ends it with FAIL 60-r6-egress (signal).
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of wrapped runs of the first
 list that were made and whose egress line was read; a job with none fails.
 The limits that stay:
@@ -1254,12 +1255,26 @@ not_observed() {
   ' "$work/trial.txt") || fail setup
 }
 
+stopped() {
+  trap '' INT TERM HUP
+  for who in control asking; do
+    : >"$work/$who-stop" 2>/dev/null
+  done
+  [ -z "$listener" ] || wait "$listener" 2>/dev/null
+  [ -z "$asking_listener" ] || wait "$asking_listener" 2>/dev/null
+  printf 'egress stopped by a signal\n'
+  fail signal
+}
+
 check() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || fail setup
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail setup
   mkdir -p "$work/out" "$work/discover" || fail setup
+  listener=
+  asking_listener=
+  trap stopped INT TERM HUP
   platform_of
   job_of
   root_abs=$(absolute_dir .) || fail setup
@@ -1638,6 +1653,7 @@ mkdir -p "target/egress/$n"
 lines=$denied
 [ "$STUB_CHECK" != short-log ] || lines=$((denied + 1))
 [ "$STUB_CHECK:$1 $2" != "noline-control:sh scripts/egress/probe.sh" ] || exit 1
+[ "$STUB_CHECK:$1 $2" != "signal:sh scripts/egress/probe.sh" ] || kill -TERM "$PPID"
 awk -v n="$lines" -v p="$probes" 'BEGIN {
   for (i = 0; i < n; i++) print "denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x"
   for (i = 0; i < p; i++) print "denied at=- proto=tcp dest=127.0.0.1:47202 pid=1 image=egress-probe"
@@ -1670,6 +1686,7 @@ case $1 in
 #!/bin/sh
 [ "$1" = serve ] || exit 2
 [ "$STUB_CONTROL" != port ] || exit 3
+[ -z "$STUB_SPAWN_PIDS" ] || printf '%s\n' "$$" >>"$STUB_SPAWN_PIDS"
 : >"$4"
 waited=0
 while [ ! -f "$3" ] && [ "$waited" -lt 600 ]; do
@@ -1761,7 +1778,7 @@ case_run() {
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
     STUB_CLIPPY_RELEASE_JSON=$STUB_CLIPPY_RELEASE_JSON STUB_CLIPPY_RELEASE_EXIT=$STUB_CLIPPY_RELEASE_EXIT STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
-    STUB_ARGONLY=$STUB_ARGONLY env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_ARGONLY=$STUB_ARGONLY STUB_SPAWN_PIDS=$work/spawn.pids env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -2378,6 +2395,17 @@ EOF
   case_run stale-build FAIL setup 'FAIL'
   STUB_CHECK=noline
   case_run no-egress-line FAIL check 'egress run=probe line=missing exit=0'
+  : >"$work/spawn.pids"
+  STUB_CHECK=signal
+  case_run signal-stops-the-listeners FAIL signal 'egress stopped by a signal'
+  if case_wanted signal-stops-the-listeners; then
+    while IFS= read -r spawned; do
+      if kill -0 "$spawned" 2>/dev/null; then
+        printf 'case %s/signal-stops-the-listeners want=PASS got=listener-alive\n' "$name"
+        wrong="$wrong listener-alive"
+      fi
+    done <"$work/spawn.pids"
+  fi
   STUB_CHECK=noline-control
   case_run control-without-an-egress-line FAIL check 'egress control line=missing exit=1'
   if [ "$own_job" = macos ]; then
