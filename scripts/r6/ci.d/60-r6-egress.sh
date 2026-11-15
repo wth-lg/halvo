@@ -881,11 +881,32 @@ exit 0
 EOF
 }
 
+list_copy() {
+  calls=$((calls + 1))
+  list_given=$work/list-$calls.txt
+  cp "$work/list-blob.txt" "$list_given" || fail setup
+}
+
+list_after() {
+  same=yes
+  cmp -s "$list_given" "$work/list-blob.txt" || same=no
+  cmp -s "$list" "$work/list-blob.txt" || same=no
+  if [ "$same" = no ]; then
+    printf 'egress %s: a wrapped run changed the list\n' "$1"
+    changed=yes
+  fi
+  tree_changes "$work/after-$calls.txt" || fail setup
+  if [ -s "$work/after-$calls.txt" ]; then
+    report_changes after "$work/after-$calls.txt"
+    changed=yes
+  fi
+}
+
 read_wrapped() {
   last_line "$1"
   rest=${last#"egress mode="}
   run_mode=${rest%% *}
-  rest=${rest#*" list=$list command="}
+  rest=${rest#*" list=$list_given command="}
   status=${rest%% *}
   rest=${rest#*" denied="}
   count=${rest%% *}
@@ -896,7 +917,7 @@ read_wrapped() {
       wrapped=refused
       return
       ;;
-    "egress mode=$run_mode list=$list command=$status denied=$count log=$log") ;;
+    "egress mode=$run_mode list=$list_given command=$status denied=$count log=$log") ;;
     *)
       wrapped=missing
       return
@@ -967,9 +988,11 @@ control() {
   while [ "$try" -lt 4 ]; do
     try=$((try + 1))
     egress_numbers "$work/before-control-$try.txt"
-    sh scripts/egress/check.sh "$list" -- sh scripts/egress/probe.sh loopback \
+    list_copy
+    sh scripts/egress/check.sh "$list_given" -- sh scripts/egress/probe.sh loopback \
       >"$artifacts/control-$try.out" 2>"$artifacts/control-$try.err" </dev/null
     code=$?
+    list_after control
     read_wrapped "$artifacts/control-$try.err"
     case $wrapped in
       refused)
@@ -1035,9 +1058,11 @@ discover() {
     answers=$work/answers-$try
     mkdir -p "$answers" || fail setup
     egress_numbers "$work/before-asking-$try.txt"
-    sh scripts/egress/check.sh "$list" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$answers" "$seconds" \
+    list_copy
+    sh scripts/egress/check.sh "$list_given" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$answers" "$seconds" \
       "$probe_word" "$repo_abs/scripts/egress/probe.sh" >"$artifacts/asking-$try.out" 2>"$artifacts/asking-$try.err" </dev/null
     code=$?
+    list_after asking
     read_wrapped "$artifacts/asking-$try.err"
     [ "$wrapped" = line ] || break
     probes=0
@@ -1158,9 +1183,11 @@ run_checks() {
 ${words%"$nl"}
 EOF
     egress_numbers "$work/before-run-$i.txt"
-    sh scripts/egress/check.sh "$list" -- "$exe" "$word" "$@" \
+    list_copy
+    sh scripts/egress/check.sh "$list_given" -- "$exe" "$word" "$@" \
       >"$artifacts/run-$i.out" 2>"$artifacts/run-$i.err" </dev/null
     code=$?
+    list_after "run=$word"
     read_wrapped "$artifacts/run-$i.err"
     case $wrapped in
       refused)
@@ -1218,6 +1245,9 @@ check() {
   fi
   env_rules
   count_entries
+  calls=0
+  changed=no
+  git cat-file blob "$tree:$list" >"$work/list-blob.txt" 2>/dev/null || fail setup
   not_observed
 
   closed_graph
@@ -1254,7 +1284,6 @@ check() {
   run_checks
 
   tree_changes "$work/after.txt" || fail setup
-  changed=no
   if [ -s "$work/after.txt" ]; then
     report_changes after "$work/after.txt"
     changed=yes
@@ -1507,6 +1536,11 @@ case $STUB_CHECK in
     "$@"
     exit
     ;;
+esac
+case $STUB_CHECK:${2:-} in
+  widen:generate) printf '127.0.0.1:47391\n' >>scripts/r6/egress/gate.txt ;;
+  widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
+  change-copy:generate) printf '127.0.0.1:47391\n' >>"$list" ;;
 esac
 reached=0
 [ -z "$STUB_REACH" ] || [ ! -f "$STUB_REACH" ] || reached=$(awk 'END { print NR }' "$STUB_REACH")
@@ -2123,6 +2157,10 @@ self_test() {
   case_run canary-list-entry-refers-to-nothing FAIL check 'egress canary: the forbid run let the canary through'
   STUB_CHECK=reuse-log-run
   case_run log-of-another-run-of-the-gate-tool FAIL check 'egress run=generate log=not-new-or-not-its-own'
+  STUB_CHECK=widen
+  case_run run-widens-the-list-and-a-later-run-restores-it FAIL check 'egress run=generate: a wrapped run changed the list'
+  STUB_CHECK=change-copy
+  case_run run-changes-its-copy-of-the-list FAIL check 'egress run=generate: a wrapped run changed the list'
   STUB_CHECK=reuse-previous
   case_run log-of-the-run-before FAIL check 'egress run=generate log=not-new-or-not-its-own'
   STUB_CHECK=reuse-log-asking
