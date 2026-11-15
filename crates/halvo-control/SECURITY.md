@@ -74,9 +74,20 @@ descriptor or a handle from a reply.
   <socket path>; capture may be running" with exit 1 while the lock is held, and never
   "capture service not running" then. The ways left are a signal to the daemon and the
   app's end of a child that does not answer. An entry planted at the data directory's
-  path that is no directory (a FIFO, a file, a socket or a link to one) makes the read and
-  the take of the lock an error at once, which ctl prints with exit 1 and never as not
-  running.
+  path that is no directory (a FIFO, a file, a socket or a link to one), or a link there
+  whose target is away, or such a link or a file as the nearest part that stands above a
+  missing data directory, makes the read and the take of the lock an error at once, which ctl
+  prints with exit 1 and never as not running. A data directory, or a folder on its path, that
+  cannot be read answers the cause "cannot be read" and never a first run.
+- Point a link to a directory at the data directory's path elsewhere: the link is followed,
+  so the store, its roots and the socket lie where it leads, and the check of the data
+  directory (`paths::check_data_dir`, macOS) never narrows a directory that it reached
+  through such a link and fails when that directory belongs to another user or its mode
+  gives group or others access. It also fails on a volume that ignores ownership and when
+  the mode that it set did not take. The check reads the mode and no access list, so an access
+  list on the folder that lets others in passes it. It speaks for the users of this Mac alone:
+  on a volume that is not local (SMB, NFS) the owner and the mode are what the server
+  reports, and who else can read the folder is the server's to say.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
   guard against that is the pid of the child it started; `ctl` has none. Exit 0 of
