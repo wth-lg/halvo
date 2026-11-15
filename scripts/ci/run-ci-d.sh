@@ -96,7 +96,7 @@ if [ -n "$job" ] && [ "$mode" != list ] && { true <&9; } 2>/dev/null; then
   read -r nested_word <&9 || nested_word=
   exec 9<&-
   case $nested_word in
-    yes | fail | slow | hold | late | gap) ;;
+    yes | fail | slow | hold | late | gap | wgap) ;;
     *) nested_word= ;;
   esac
 fi
@@ -949,10 +949,21 @@ own_run() {
   [ -z "$case_max_s" ] || case_t0=$(date +%s)
   witness=
   if [ -n "$case_witness" ]; then
+    own_term=
+    trap 'own_term=1' TERM
     "$perl_bin" -e 'setpgrp(0, 0); sleep 120' </dev/null >/dev/null 2>&1 &
     witness=$!
+    if [ "$nested_word" = wgap ]; then
+      printf '%s\n' "$witness" >>"$repo/pids"
+      printf '%s witness\n' "$witness" >>"$repo/pid-roles"
+      sleep 4
+    fi
     printf '%s\n' "$witness" >"$tmp/witness.pid"
-    [ ! -e "$tmp/own-stopping" ] || kill "$witness" 2>/dev/null
+    trap - TERM
+    if [ -n "$own_term" ] || [ -e "$tmp/own-stopping" ]; then
+      kill "$witness" 2>/dev/null
+      [ -z "$own_term" ] || exit 143
+    fi
   fi
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
@@ -1230,7 +1241,7 @@ own_self_test() {
   [ "$nested_word" != gap ] || first_b='sleep 30; printf "PASS 20-b\n"'
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$first_b"
   case $nested_word in
-    hold | late | gap) case_witness=yes ;;
+    hold | late | gap | wgap) case_witness=yes ;;
   esac
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   if [ -n "$nested_word" ]; then
@@ -1982,6 +1993,13 @@ own_self_test() {
   case_max_s=60
   case_witness=yes
   own_case own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-driver 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
+  new_repo
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=wgap
+  case_limit=2
+  case_max_s=60
+  case_witness=yes
+  own_case own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-witness 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
   new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; sleep 60 >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; w pid.10-a || exit 1; read -r p <\"\$CI_D_REPO/pid.10-a\"; n=0; while kill -0 \"\$p\" 2>/dev/null && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.20-b\"; wait; $passes"
   case_jobs=2
