@@ -1404,6 +1404,17 @@ if [ "\$*" = 'rev-parse --verify --quiet HEAD^{tree}' ]; then
 fi
 exec '$real_git' "\$@"
 EOF
+  real_rustc=$(command -v rustc) || self_failed "no rustc"
+  stub_sysroot=$(rustc --print sysroot) || self_failed "setup at line $LINENO"
+  cat >"$work/bin/rustc" <<EOF || self_failed "setup at line $LINENO"
+#!/bin/sh
+if [ "\$*" = '--print sysroot' ]; then
+  printf '%s\n' '$stub_sysroot'
+  exit 0
+fi
+exec '$real_rustc' "\$@"
+EOF
+  chmod +x "$work/bin/rustc" || self_failed "setup at line $LINENO"
   cat >"$work/bin/cargo" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 paths() {
@@ -1662,20 +1673,25 @@ case $STUB_CHECK:${2:-} in
   widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
   change-copy:generate) printf '127.0.0.1:47391\n' >>"$list" ;;
 esac
-reached=0
-[ -z "$STUB_REACH" ] || [ ! -f "$STUB_REACH" ] || reached=$(awk 'END { print NR }' "$STUB_REACH")
-probed=0
-[ ! -f "$STUB_PROBE_LOG" ] || probed=$(awk 'END { print NR }' "$STUB_PROBE_LOG")
+count_lines() {
+  counted=0
+  [ -n "$1" ] && [ -f "$1" ] || return 0
+  while IFS= read -r counted_line || [ -n "$counted_line" ]; do
+    counted=$((counted + 1))
+  done <"$1"
+}
+count_lines "$STUB_REACH"
+reached=$counted
+count_lines "$STUB_PROBE_LOG"
+probed=$counted
 "$@"
 code=$?
 [ "$empty" = no ] || code=9
-probes=0
-[ ! -f "$STUB_PROBE_LOG" ] || probes=$(($(awk 'END { print NR }' "$STUB_PROBE_LOG") - probed))
+count_lines "$STUB_PROBE_LOG"
+probes=$((counted - probed))
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
-denied=0
-if [ -n "$STUB_REACH" ] && [ -f "$STUB_REACH" ]; then
-  denied=$(($(awk 'END { print NR }' "$STUB_REACH") - reached))
-fi
+count_lines "$STUB_REACH"
+denied=$((counted - reached))
 [ "$STUB_CHECK" != denied ] || denied=$((denied + 1))
 [ "$STUB_CHECK" != denied0 ] || denied=$((denied + 1))
 [ "$STUB_CHECK:$1" != asking-status3:sh ] || code=3
@@ -1695,10 +1711,18 @@ lines=$denied
 [ "$STUB_CHECK" != short-log ] || lines=$((denied + 1))
 [ "$STUB_CHECK:$1 $2" != "noline-control:sh scripts/egress/probe.sh" ] || exit 1
 [ "$STUB_CHECK:$1 $2" != "signal:sh scripts/egress/probe.sh" ] || kill -TERM "$PPID"
-awk -v n="$lines" -v p="$probes" 'BEGIN {
-  for (i = 0; i < n; i++) print "denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x"
-  for (i = 0; i < p; i++) print "denied at=- proto=tcp dest=127.0.0.1:47202 pid=1 image=egress-probe"
-}' >"target/egress/$n/denied.log"
+{
+  i=0
+  while [ "$i" -lt "$lines" ]; do
+    printf '%s\n' 'denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x'
+    i=$((i + 1))
+  done
+  i=0
+  while [ "$i" -lt "$probes" ]; do
+    printf '%s\n' 'denied at=- proto=tcp dest=127.0.0.1:47202 pid=1 image=egress-probe'
+    i=$((i + 1))
+  done
+} >"target/egress/$n/denied.log"
 if [ "$STUB_CHECK" = link-log ]; then
   mv "target/egress/$n/denied.log" "target/egress/$n/denied.real" && ln -s denied.real "target/egress/$n/denied.log"
 fi
