@@ -45,7 +45,7 @@ fn the_task_dialog_rejects_by_default_cancels_and_closes_to_reject_and_sets_no_t
 
 mod seams {
     use super::super::{ALLOW, REJECT};
-    use crate::present::system::{task_answer, wait_alert, Step};
+    use crate::present::system::{task_answer, wait_alert, Release, Step};
     use halvo_coord::items::ConfirmAnswer;
     use std::cell::{Cell, RefCell};
     use std::sync::mpsc;
@@ -127,6 +127,46 @@ mod seams {
         assert!(order(Ok(()), &[Step::Response(1001)]).is_empty());
         assert!(order(Ok(()), &[]).is_empty());
         assert!(order(Err(()), &shown).is_empty());
+    }
+
+    #[test]
+    fn alert_a_report_that_panics_still_starts_the_hold_and_the_answer_follows() {
+        let (tx, rx) = mpsc::channel();
+        for step in [Step::Shown, Step::Response(1001)] {
+            tx.send(step).unwrap();
+        }
+        drop(tx);
+        let order = RefCell::new(Vec::new());
+        let answer = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            wait_alert(
+                Ok::<(), ()>(()),
+                &rx,
+                &|| {
+                    order.borrow_mut().push("report");
+                    panic!("the report on screen panicked");
+                },
+                &|| order.borrow_mut().push("hold"),
+            )
+        }));
+        assert_eq!(answer.ok(), Some(ALLOW), "the show goes on to its answer");
+        assert_eq!(order.into_inner(), ["report", "hold"]);
+    }
+
+    #[test]
+    fn alert_the_release_runs_once_on_every_way_out_of_the_show_a_panic_among_them() {
+        let released = Cell::new(0);
+        {
+            let _release = Release::new(|| released.set(released.get() + 1));
+            assert_eq!(released.get(), 0, "not before the show ends");
+        }
+        assert_eq!(released.get(), 1, "a show that returns");
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _release = Release::new(|| released.set(released.get() + 1));
+            assert_eq!(released.get(), 1, "not before the show unwinds");
+            panic!("a panic inside the show");
+        }));
+        assert!(unwound.is_err());
+        assert_eq!(released.get(), 2, "a show that unwinds from a panic");
     }
 
     #[test]

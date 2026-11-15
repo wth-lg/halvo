@@ -100,8 +100,8 @@ pub enum Step {
 
 /// The answer of an alert whose show on the main thread was queued with `queued` and which sends
 /// its two steps on `rx`: `on_screen` once the alert's window became the key window, then
-/// `reported` once that report has returned, so that the hold starts after it, then `allow` for
-/// the response 1001 alone. A failed queue and a channel that closes before the report answer
+/// `reported` once that report has returned, also when the report panicked, as on Windows, so
+/// that the hold starts after it, then `allow` for the response 1001 alone. A failed queue and a channel that closes before the report answer
 /// `reject` with no report; a channel that closes after the report and a response with no report
 /// before it answer `reject`.
 #[cfg(any(test, target_os = "macos"))]
@@ -116,7 +116,7 @@ pub fn wait_alert<E>(
     }
     match rx.recv() {
         Ok(Step::Shown) => {
-            on_screen();
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(on_screen));
             reported();
         }
         _ => return from_alert(None),
@@ -124,6 +124,29 @@ pub fn wait_alert<E>(
     match rx.recv() {
         Ok(Step::Response(response)) => from_alert(Some(response)),
         _ => from_alert(None),
+    }
+}
+
+/// A value that runs its release once, when it is dropped: when the show's closure on the main
+/// thread returns, and when it unwinds from a panic, so that the alert's observers and its
+/// repeating reading end on every way out of the show.
+#[cfg(any(test, target_os = "macos"))]
+pub struct Release<F: FnOnce()>(Option<F>);
+
+#[cfg(any(test, target_os = "macos"))]
+impl<F: FnOnce()> Release<F> {
+    /// A value that runs `release` when it is dropped.
+    pub fn new(release: F) -> Release<F> {
+        Release(Some(release))
+    }
+}
+
+#[cfg(any(test, target_os = "macos"))]
+impl<F: FnOnce()> Drop for Release<F> {
+    fn drop(&mut self) {
+        if let Some(release) = self.0.take() {
+            release();
+        }
     }
 }
 
@@ -139,7 +162,7 @@ mod macos {
     use super::super::guard::Guard;
     use super::super::moment::{Decision, Event, Moment, Pair};
     use super::super::Card;
-    use super::{controls, wait_alert, Step};
+    use super::{controls, wait_alert, Release, Step};
     use halvo_coord::items::ConfirmAnswer;
     use objc2::rc::Retained;
     use objc2::runtime::{AnyObject, NSObject};
@@ -350,8 +373,18 @@ mod macos {
                     center.addObserver_selector_name_object(target, selector, Some(name), None);
                 }
             }
+            let release = Release::new({
+                let hold = hold.clone();
+                move || {
+                    stop_reading(&hold);
+                    let target: &AnyObject = &hold;
+                    // SAFETY: `hold` is the observer that was added above; this runs once, when
+                    // the show's closure returns or unwinds, and `hold` lives until after it.
+                    unsafe { NSNotificationCenter::defaultCenter().removeObserver(target) };
+                }
+            });
             // SAFETY: `hold` answers the selector `reading:` with the timer, which retains it
-            // until it is invalidated at the show's first moment or after the modal session.
+            // until it is invalidated at the show's first moment or by the release.
             let timer = unsafe {
                 NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
                     READING,
@@ -361,13 +394,11 @@ mod macos {
                     true,
                 )
             };
+            *hold.ivars().timer.borrow_mut() = Some(timer.clone());
             // SAFETY: the main run loop and its common modes, in which the modal session runs.
             unsafe { NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes) };
-            *hold.ivars().timer.borrow_mut() = Some(timer);
             let response = alert.runModal();
-            stop_reading(&hold);
-            // SAFETY: `hold` is the observer that was added above.
-            unsafe { center.removeObserver(target) };
+            drop(release);
             let _ = tx.send(Step::Response(response));
         });
         wait_alert(queued, &rx, on_screen, &|| {
