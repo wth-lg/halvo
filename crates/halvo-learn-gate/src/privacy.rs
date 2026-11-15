@@ -857,4 +857,40 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn learn_deleted_misses_a_cascade_that_moves_a_row_of_the_second_workflow_to_another_kind() {
+        let second = id('3', 2);
+        let got = deleted_with(&mut |store, wid| {
+            let stored = store.delete_workflow(wid);
+            let rows = store
+                .learn_rows_mut()
+                .get_mut("learn_run")
+                .expect("run rows");
+            let at = rows
+                .iter()
+                .position(|r| names(r, &second))
+                .expect("a run row of the second");
+            let row = rows.remove(at);
+            put_back(store, "learn_routine", row);
+            stored
+        });
+        assert_eq!(got, Outcome::Miss);
+    }
+
+    #[test]
+    fn learn_deleted_misses_a_cascade_that_adds_a_copy_of_a_row_of_the_second_workflow() {
+        let second = id('3', 2);
+        let got = deleted_with(&mut |store, wid| {
+            let stored = store.delete_workflow(wid);
+            let row = store.learn_rows_mut()["learn_run"]
+                .iter()
+                .find(|r| names(r, &second))
+                .expect("a run row of the second")
+                .clone();
+            put_back(store, "learn_run", row);
+            stored
+        });
+        assert_eq!(got, Outcome::Miss);
+    }
 }
