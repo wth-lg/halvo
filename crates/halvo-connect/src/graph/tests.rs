@@ -46,21 +46,18 @@ fn ports() -> MutexGuard<'static, ()> {
     PORTS.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+fn bind_any(_ports: &MutexGuard<'static, ()>) -> TcpListener {
+    TcpListener::bind("127.0.0.1:0").expect("a port")
+}
+
 fn closed_port() -> (MutexGuard<'static, ()>, u16) {
     let held = ports();
-    let port = TcpListener::bind("127.0.0.1:0")
-        .expect("a port")
-        .local_addr()
-        .expect("its address")
-        .port();
+    let port = bind_any(&held).local_addr().expect("its address").port();
     (held, port)
 }
 
 fn listen(reply: Reply) -> (u16, mpsc::Receiver<Vec<u8>>) {
-    let listener = {
-        let _ports = ports();
-        TcpListener::bind("127.0.0.1:0").expect("a port")
-    };
+    let listener = bind_any(&ports());
     let port = listener.local_addr().expect("its address").port();
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
