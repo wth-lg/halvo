@@ -55,7 +55,9 @@ pref lines of that set for the result file.
                   larger of the two median peaks / 33554432).
   --browser PATH  the Chrome or Edge binary (the file name says which).
   --port N        the fixture port, 1 to 65532.
-  --driver PATH   taken by the webdriver candidate only; refused here.
+  --driver PATH   the driver binary of the webdriver candidate. The library of A13.2's verdict
+                  (cdp) starts the browser itself, so the trial takes the value and does not use
+                  it, and says so on standard error.
   --leave-out N   items 1 and 2: leave the cookie N out of the import; all leaves out every
                   cookie and every storage item. Repeatable. A check of the item, not a cell.
   --plant E:P     item 2: before the search, write the marker in encoding E (utf8, utf16le,
@@ -79,7 +81,10 @@ last stop. A read that fails, also of the front application's process, makes a n
 of the session line. On macOS the library adds the mock keychain, so the browser does not read the
 system keychain, and the line can show only the other prompts of the system.
 Exit 0 when every cell ran, 1 when a cell could not run (a notrun line ends with its cause),
-2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error.
+2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error. A file at
+--browser that is no program is a refusal (browser); a program there that does not start as a
+browser is a cell's notrun line with cause=browser_start. --item 3 with a port other than 18090
+is a refusal (port), because the list of A14.3 holds that port alone.
 run.sh ends by exec of the trial program, so a TERM or INT sent to run.sh reaches the program,
 which stops its browsers, removes their profiles and temporary directories (also of a browser that
 was starting), stops the fixture server and exits 1 with a notrun line, also after the session.
@@ -92,7 +97,7 @@ refuse() {
   exit 2
 }
 
-item='' browser='' port='' runs=5 scratch='' plant='' shape='' flags='' sandbox_off=''
+item='' browser='' port='' runs=5 scratch='' plant='' shape='' flags='' sandbox_off='' driver=''
 leave=''
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -104,7 +109,7 @@ while [ $# -gt 0 ]; do
     --item) item=$2 ;;
     --browser) browser=$2 ;;
     --port) port=$2 ;;
-    --driver) refuse usage "--driver belongs to the webdriver candidate, which has no adapter" ;;
+    --driver) driver=$2 ;;
     --leave-out)
       case "$2" in
         '' | *[!A-Za-z0-9_]*) refuse usage "--leave-out takes a cookie name or all" ;;
@@ -153,8 +158,6 @@ esac
 [ -n "$shape" ] && [ "$item" != 4 ] && refuse usage "--shape belongs to --item 4"
 [ -n "$flags" ] && [ "$item" != 3 ] && refuse usage "--flags belongs to --item 3"
 [ -n "$sandbox_off" ] && [ "$item" != 3 ] && refuse usage "--sandbox-off belongs to --item 3"
-[ "$item" = 3 ] && [ "$port" != 18090 ] &&
-  refuse usage "--item 3 takes --port 18090, the entry of scripts/r3/egress/fixtures.txt"
 if [ -n "$leave" ]; then
   case "$item" in
     1 | 2) ;;
@@ -176,6 +179,10 @@ case "$(basename "$browser")" in
   *) refuse browser "the file name is no Chrome or Edge binary" ;;
 esac
 [ -f "$browser" ] || refuse browser "no file at the path"
+[ -x "$browser" ] || refuse browser "the file at the path is no program"
+[ "$item" = 3 ] && [ "$port" != 18090 ] &&
+  refuse port "--item 3 takes --port 18090, the entry of scripts/r3/egress/fixtures.txt"
+[ -n "$driver" ] && echo "driver: taken and not used; the cdp library starts the browser itself" >&2
 case "$(basename "$browser")" in
   'Microsoft Edge' | msedge.exe | msedge) kind=edge ;;
   *) kind=chrome ;;
