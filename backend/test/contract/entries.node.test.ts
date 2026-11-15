@@ -1864,8 +1864,8 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     const w = world({ clock: () => now });
     await w.seeded({ customerId: "cus_one" });
     w.answers.openHolds = 1;
-    await w.entries.destroy(HASH);
     w.answers.accountsNextDue = 5000;
+    await w.entries.destroy(HASH);
     const runs: Ms[] = [];
     for (let run = 0; run < 4; run += 1) {
       now = Math.max(now, w.alarmAt() ?? now);
@@ -2248,5 +2248,21 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     now = 9000;
     await w.entries.alarm();
     expect(errorLines()).toEqual(expect.arrayContaining(["alarm-error SyntaxError", "alarm-error URIError"]));
+  });
+});
+
+describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
+  test("T1 (b): under the mark a step whose due time comes out null arms ALARM_RETRY_MS later, never null", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.subscription = null;
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.subscription = METERED;
+    expect(w.alarms).not.toContain(null);
+    expect(w.alarmAt()).toBe(9000 + ALARM_RETRY_MS);
   });
 });

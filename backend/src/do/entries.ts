@@ -141,6 +141,25 @@ interface Caller {
 
 const byTheAlarm = (): Caller => ({ line: "alarm-error", caught: 0 });
 
+/** A read of the skeleton that found no mark, or found no skeleton: the one ground, beside a test time, to stop the alarm. */
+interface NoMark {
+  readonly ground: "no mark";
+}
+
+/** A test time stored in the object: with one, no step arms the platform's alarm. */
+interface TestTime {
+  readonly ground: "test time";
+  readonly at: Ms;
+}
+
+function noMarkIn(mark: Mark | null): NoMark | null {
+  return mark === null || mark.since === null ? { ground: "no mark" } : null;
+}
+
+function testTimeOf(at: Ms | null): TestTime | null {
+  return at === null ? null : { ground: "test time", at };
+}
+
 function contractBroken(): never {
   const error = new Error("a module answered what contract 3.1 rules out");
   error.name = "ContractBrokenError";
@@ -279,9 +298,25 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return earliest(times);
   }
 
-  function armAlarm(at: Ms | null): void {
+  /** Arms the platform's alarm at a time; it never takes null, so no arm can clear the alarm under the mark. */
+  function armAlarm(at: Ms): void {
     try {
       host.setAlarm(at);
+    } catch (caught) {
+      log({ event: "alarm-error", error: errorName(caught) });
+    }
+  }
+
+  /**
+   * The one function that stops the alarm. Its ground is a read that found no mark or a stored test time. The sites: the
+   * stop at the limit of failing runs outside the mark (countFailure), the test-time branches of a step's arm (step) and of
+   * the count step's two arms (countFailure), and testSetClock. host.deleteAll removes the alarm with the storage
+   * (account-object.ts); after a rejected removal of a destroy from outside nothing arms again (unit 5.10's).
+   */
+  function stopAlarm(ground: NoMark | TestTime): void {
+    void ground;
+    try {
+      host.setAlarm(null);
     } catch (caught) {
       log({ event: "alarm-error", error: errorName(caught) });
     }
@@ -290,7 +325,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   function step<T>(run: (open: Open) => T, by: Caller = byTheAlarm()): T {
     let arm = false;
     let due: Ms | null = null;
-    let tested = false;
+    let stop: NoMark | TestTime | null = null;
     let errors: unknown[] = [];
     const value = host.step((sql) => {
       errors = [];
@@ -312,7 +347,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         },
       });
       if (arm) {
-        tested = testTime(sql) !== null;
+        stop = testTimeOf(testTime(sql));
         try {
           due = dueOf(sql);
         } catch (error) {
@@ -320,20 +355,25 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           dueErrorsOfTheRun?.push(error);
           due = host.clock() + ALARM_RETRY_MS;
         }
-        if (dueErrorsOfTheRun !== null && due !== null) {
-          const now = Math.max(time(sql), lastNow(sql));
-          let marked = true;
-          try {
-            marked = markOf(sql).since !== null;
-          } catch {}
-          if (marked && due <= now) due = now + ALARM_RETRY_MS;
-        }
+        const now = Math.max(time(sql), lastNow(sql));
+        let mark: Mark | null | "unknown" = "unknown";
+        try {
+          mark = markOf(sql);
+        } catch {}
+        const noMark = mark === "unknown" ? null : noMarkIn(mark);
+        if (due === null) {
+          if (noMark !== null) stop = stop ?? noMark;
+          else due = now + ALARM_RETRY_MS;
+        } else if (dueErrorsOfTheRun !== null && noMark === null && due <= now) due = now + ALARM_RETRY_MS;
       }
       return result;
     });
     for (const error of errors) log({ event: by.line, error: errorName(error) });
     by.caught += errors.length;
-    if (arm) armAlarm(tested ? null : due);
+    if (arm) {
+      if (stop !== null) stopAlarm(stop);
+      else if (due !== null) armAlarm(due);
+    }
     return value;
   }
 
@@ -583,7 +623,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
     let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null) || exit === "unknown" || (exit !== null && exit.mark.since !== null);
     let count = ALARM_RETRY_LIMIT;
-    let tested = false;
+    let tested: TestTime | null = null;
     let waits: Ms | null = null;
     let nextAt: Ms | null = null;
     let removal: { overdue: boolean } | null = null;
@@ -594,7 +634,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const prior = Number(skeletonRow(sql).alarm_failures);
         const failures = markedNow ? Math.max(prior, failuresKept) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET alarm_failures = ?", failures);
-        return { failures, tested: testTime(sql) !== null, marked: markedNow, nextAt: mark.nextAt };
+        return { failures, tested: testTimeOf(testTime(sql)), marked: markedNow, nextAt: mark.nextAt };
       });
       count = counted.failures;
       tested = counted.tested;
@@ -636,15 +676,19 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       let at = Math.max(host.clock() + pause, waits ?? 0);
       if (removal !== null) at = Math.min(at, Math.max(waits ?? 0, host.clock() + SYNC_RETRY_MS));
       if (removal?.overdue === true) log({ event: "removal-overdue" });
-      armAlarm(tested ? null : at);
+      if (tested !== null) stopAlarm(tested);
+      else armAlarm(at);
       return;
     }
     if (count < ALARM_RETRY_LIMIT) {
-      armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
+      if (tested !== null) stopAlarm(tested);
+      else armAlarm(host.clock() + ALARM_RETRY_MS);
       return;
     }
+    const noMark = exit === "unknown" ? null : noMarkIn(exit === null ? null : exit.mark);
+    if (noMark === null) return;
     log({ event: "alarm-stopped", error: name });
-    armAlarm(null);
+    stopAlarm(noMark);
   }
 
   function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T, by: Caller = byTheAlarm()): T {
@@ -1142,7 +1186,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         return "stored" as const;
       });
       if (stored !== "stored") return { result: stored };
-      armAlarm(null);
+      stopAlarm({ ground: "test time", at });
       let before: Ms | null = null;
       for (let runs = 0; runs < CLOCK_RUN_LIMIT; runs += 1) {
         const due = host.step((sql) => (holds(sql) ? dueOf(sql) : null));
