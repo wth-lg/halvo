@@ -36,7 +36,10 @@ module declaration resolved by another letter case prints by the name that the c
 The canary: a crate of one file under the artifacts directory names each entry of the list once and
 goes through the same cargo call, in each profile, before any finding of the three crates counts; one finding per
 entry of the job's system is required, else "the forbid run let the canary through". It holds an
-untracked cargo configuration, a cap on lints and a wrapper, which silence the canary too.
+untracked cargo configuration, a cap on lints and a wrapper, which silence the canary too. The
+environment rule reads no cargo configuration file: the compiler flags keys of its build and target
+tables and its wrapper keys reach the forbid runs and the build alike, and the canary fails a cap and
+a wrapper set there.
 The closed graph: the path packages of cargo tree -e normal,build are the three crates, each at
 crates/<name> of the repository where the check runs, the linked
 third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, the build-time ones are
@@ -55,7 +58,9 @@ parenthesis, an equals sign or a path separator; and before its first cargo comm
 refuses a flags variable of the compiler (plain, encoded, build or per-target) or the clippy
 arguments variable that holds an allow flag, a cap on lints, a cfg flag or a word that starts with @
 (an argument file, which the rule cannot read), and a compiler or wrapper
-variable that is set; it reads a name without regard to letter case, as Windows does.
+variable that is set; it reads a name without regard to letter case, as Windows does. Text in a
+comment or a string is read as code, so a doc comment that writes cfg(feature) is refused: write such
+text without the parenthesis after cfg.
 The asking: the asking asks each one-word string literal with no space, quote or backslash of the
 tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command
 that it does not find, by any form, runs under no egress check, and the forbid run alone holds it, in
@@ -87,7 +92,8 @@ egress run's loopback probe; a status of 0 with denied=0 is "the egress check le
 through". The control holds against an egress check that wraps nothing; an egress check changed in
 the same commit can pass it, and scripts/egress/ is held by its own run's checks and by the landing's
 readers. Every wrapped run must name a new log directory whose denied.log holds as many lines as its
-denied.
+denied. A port of the control or of the asking that another process holds fails the check by
+"refused=port"; on a machine that other runs share, this is a false FAIL.
 The import listing: the check prints the count of the undefined or imported symbols of the dev
 route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on Windows where the
 runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
