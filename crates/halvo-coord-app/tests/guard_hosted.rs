@@ -408,7 +408,10 @@ mod cases {
         NSApplicationDidBecomeActiveNotification, NSApplicationDidResignActiveNotification,
         NSWindowDidBecomeKeyNotification, NSWindowDidResignKeyNotification,
     };
-    use objc2_foundation::{NSNotification, NSNotificationCenter, NSPoint, NSRect, NSSize};
+    use objc2_foundation::{
+        NSDefaultRunLoopMode, NSNotification, NSNotificationCenter, NSPoint, NSRect, NSSize,
+        NSString,
+    };
     use std::ffi::c_void;
     use std::panic::{catch_unwind, AssertUnwindSafe};
     use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
@@ -858,9 +861,10 @@ mod cases {
     }
 
     /// Makes the target's app active once at its start and waits for it before the first case
-    /// (ruling RD-107 and its Addition 1): orders its own panel to the front once, asks, and while
-    /// the app does not read active on the main thread, lets the main run loop run for a second and
-    /// asks again, for at most 20 s; then orders the panel out, before any dialog. Not active then,
+    /// (ruling RD-107, its Additions 1 and 2): orders its own panel to the front once, asks, and
+    /// while the app does not read active on the main thread, takes the app's own events from its
+    /// queue and sends them on for a second, then asks again, for at most 20 s; then orders the
+    /// panel out, before any dialog. Not active then,
     /// the target runs no case, prints its inconclusive line with the pair as read and ends as
     /// failed.
     fn activate() {
@@ -870,6 +874,7 @@ mod cases {
             let _: bool = msg_send![app, setActivationPolicy: 0isize];
             let _: () = msg_send![app, finishLaunching];
         }
+        let sent = std::cell::Cell::new(0usize);
         let waited = super::activation::start(
             // SAFETY: as above; the panel is the target's own.
             || unsafe {
@@ -884,11 +889,24 @@ mod cases {
                 active
             },
             |every| {
-                // SAFETY: the main thread's own run loop, run until a date `every` from now.
+                // SAFETY: the shared application's own event queue, read and sent on on the main
+                // thread until a date `every` from now or until the app reads active.
                 unsafe {
-                    let date: *mut AnyObject = msg_send![class!(NSDate), dateWithTimeIntervalSinceNow: every.as_secs_f64()];
-                    let run_loop: *mut AnyObject = msg_send![class!(NSRunLoop), currentRunLoop];
-                    let _: () = msg_send![run_loop, runUntilDate: date];
+                    let app = app();
+                    let until: *mut AnyObject = msg_send![class!(NSDate), dateWithTimeIntervalSinceNow: every.as_secs_f64()];
+                    let mode: &NSString = NSDefaultRunLoopMode;
+                    loop {
+                        let event: *mut AnyObject = msg_send![app, nextEventMatchingMask: usize::MAX, untilDate: until, inMode: mode, dequeue: true];
+                        if event.is_null() {
+                            break;
+                        }
+                        let _: () = msg_send![app, sendEvent: event];
+                        sent.set(sent.get() + 1);
+                        let active: bool = msg_send![app, isActive];
+                        if active {
+                            break;
+                        }
+                    }
                 }
             },
             // SAFETY: as above.
@@ -897,6 +915,10 @@ mod cases {
             },
             Duration::from_secs(1),
             Duration::from_secs(20),
+        );
+        println!(
+            "guard_hosted start wait: the wait that takes the app's own events and sends them on ran (not the bare run loop); events sent on {}",
+            sent.get()
         );
         match waited {
             super::activation::Waited::Active { asks } => {
