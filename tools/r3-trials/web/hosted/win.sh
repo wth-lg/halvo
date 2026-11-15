@@ -130,10 +130,12 @@ pypdf_ready() {
 z = zipfile.ZipFile(sys.argv[1])
 meta = [n for n in z.namelist() if n.endswith(".dist-info/METADATA")]
 text = z.read(meta[0]).decode("utf-8") if meta else ""
-lic = [n for n in z.namelist() if n.endswith(".dist-info/LICENSE")]
-body = z.read(lic[0]).decode("utf-8") if lic else ""
-bsd = "Classifier: License :: OSI Approved :: BSD License" in text
-three = "Redistribution and use in source and binary forms" in body and "Neither the name" in body
+lic = [n for n in z.namelist() if ".dist-info/" in n and n.rsplit("/", 1)[-1] == "LICENSE"]
+body = " ".join(z.read(lic[0]).decode("utf-8").split()) if lic else ""
+bsd = "Classifier: License :: OSI Approved :: BSD License" in text or "License-Expression: BSD-3-Clause" in text
+clauses = ("Redistributions of source code must retain", "Redistributions in binary form must reproduce",
+           "endorse or promote products derived from this software")
+three = all(c in body for c in clauses)
 print("classifier_bsd=%s licence_file_bsd3=%s" % ("yes" if bsd else "no", "yes" if three else "no"))' "$whl" 2>/dev/null)
   echo "pypdf_licence ${lic:-classifier_bsd=no licence_file_bsd3=no}"
   [ "$lic" = "classifier_bsd=yes licence_file_bsd3=yes" ] || return 1
