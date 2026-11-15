@@ -44,6 +44,9 @@ const OFF: &str = "hosted alone: not run on this machine";
 const BOUND: Duration = Duration::from_secs(10);
 const SETTLE: Duration = Duration::from_millis(150);
 const REPORT_WAIT: Duration = Duration::from_secs(1);
+/// When a show with no report has its pair read alone (ruling RD-111 point 7): the test runtime
+/// starts a show up to 1 s late, and at 1 s the read came in about 9 of 10 hosted shows.
+const UNREPORTED_READ: Duration = Duration::from_secs(2);
 const UNHELPED: Duration = Duration::from_secs(3);
 const FRONT_LIMIT: Duration = Duration::from_secs(8);
 
@@ -150,7 +153,7 @@ trait Ui<C> {
     fn word(control: C) -> String;
     /// The reading that made a report that no press came before: a notice or the repeating one.
     fn kind(&self) -> &'static str;
-    /// A read alone, for a show with no report after a second: what the system says of it now.
+    /// A read alone, for a show with no report after two seconds: what the system says of it now.
     fn unreported(&self) -> String;
 }
 
@@ -189,12 +192,15 @@ fn drive<C: Copy, U: Ui<C>>(
         let state = ui.front();
         println!("guard_hosted reading {label}: no report yet, brought to the front {fronts} times; {state}");
     }
-    if !wait(REPORT_WAIT, || reported().is_some()) {
+    if !wait(UNREPORTED_READ, || reported().is_some()) {
         let state = ui.unreported();
         let (_, at) = now_in_show();
-        println!("guard_hosted unreported {label} +{at} ms: no report after 1 s; {state}");
+        println!(
+            "guard_hosted unreported {label} +{at} ms: no report after {} s; {state}",
+            UNREPORTED_READ.as_secs()
+        );
     }
-    if !wait(UNHELPED - REPORT_WAIT, || reported().is_some()) {
+    if !wait(UNHELPED - UNREPORTED_READ, || reported().is_some()) {
         failures.push(format!(
             "no report in {} s with no press and no help",
             UNHELPED.as_secs()

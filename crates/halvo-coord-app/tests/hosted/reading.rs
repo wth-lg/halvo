@@ -1,6 +1,6 @@
 /// What the description of the main run loop says of the dialog's repeating reading (ruling
 /// RD-107, Addition 3, point 5): the timer whose callout is `[HalvoDialogHold reading:]`, read
-/// alone, for a show with no report after a second.
+/// alone, for a show with no report after two seconds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Timer {
     /// No such timer is in the run loop: it was never added, or it was invalidated.
