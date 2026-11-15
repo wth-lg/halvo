@@ -119,6 +119,7 @@ lib 20 windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_poin
 lib 20 windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own
 lib 20 windows::input::tests::a_click_of_the_same_tick_from_the_pointer_pump_leaves_a_password_key_withheld
 lib 20 windows::input::tests::keys_at_a_gate_whose_start_read_reads_unknown_are_withheld_with_no_focus_event
+lib 20 windows::input::tests::the_pointer_owns_the_clicks_from_a_tick_step_before_its_registration
 functional 20 stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded
 lib 200 windows::input::tests::every_key_down_of_a_focus_key_latches_and_only_a_recorded_one_holds_first
 lib 200 secure_input::windows::detector::tests::the_process_file_is_the_own_executables_name_and_nothing_for_an_ended_process
