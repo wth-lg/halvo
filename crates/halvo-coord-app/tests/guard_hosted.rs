@@ -97,6 +97,8 @@ type Show<C> = (&'static [Press<C>], ConfirmAnswer);
 /// the first report, and the moment of the first report.
 static REPORTS: AtomicUsize = AtomicUsize::new(0);
 static ACTIVE_AT_REPORT: AtomicBool = AtomicBool::new(false);
+static VISIBLE_AT_REPORT: AtomicBool = AtomicBool::new(false);
+static BEFORE_VISIBLE: AtomicUsize = AtomicUsize::new(0);
 static REPORT_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static DONE: AtomicBool = AtomicBool::new(false);
 static PRESSED_BEFORE_REPORT: AtomicBool = AtomicBool::new(false);
@@ -121,9 +123,13 @@ fn reported() -> Option<Instant> {
     *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-fn on_screen(active: bool) {
+fn on_screen(active: bool, visible: bool) {
     if REPORTS.fetch_add(1, Ordering::SeqCst) == 0 {
         ACTIVE_AT_REPORT.store(active, Ordering::SeqCst);
+        VISIBLE_AT_REPORT.store(visible, Ordering::SeqCst);
+        if !visible {
+            BEFORE_VISIBLE.fetch_add(1, Ordering::SeqCst);
+        }
     }
     REPORT_AT
         .lock()
@@ -137,6 +143,7 @@ fn begin_show(label: &str) {
     PRESSED_BEFORE_REPORT.store(false, Ordering::SeqCst);
     REPORTS.store(0, Ordering::SeqCst);
     ACTIVE_AT_REPORT.store(false, Ordering::SeqCst);
+    VISIBLE_AT_REPORT.store(false, Ordering::SeqCst);
     *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
     DONE.store(false, Ordering::SeqCst);
 }
@@ -326,8 +333,12 @@ fn check(
     if !active {
         found.push("the window was not the active window at the report".into());
     }
+    let visible = VISIBLE_AT_REPORT.load(Ordering::SeqCst);
+    if reports > 0 && !visible {
+        found.push("the window was not visible at the report".into());
+    }
     println!(
-        "guard_hosted reading {label}: reports={reports} active_at_report={active} answer={}",
+        "guard_hosted reading {label}: reports={reports} active_at_report={active} visible_at_report={visible} answer={}",
         word(answer)
     );
     failures.extend(found.into_iter().map(|f| format!("{label}: {f}")));
@@ -366,12 +377,13 @@ fn end(verdicts: &[Verdict], listed: usize) -> ! {
         && std::env::var("RUNNER_ENVIRONMENT").as_deref() == Ok("github-hosted");
     let short = hosted && verdicts.len() != listed;
     println!(
-        "guard_hosted end: cases ran {} of {listed}, failed {failed}, schedule slipped {}, helped {}, moments at a press {}, retries {}{}",
+        "guard_hosted end: cases ran {} of {listed}, failed {failed}, schedule slipped {}, helped {}, moments at a press {}, retries {}, reports before visible {}{}",
         verdicts.len(),
         SLIPPED.load(Ordering::SeqCst),
         HELPED.load(Ordering::SeqCst),
         PRESS_MOMENTS.load(Ordering::SeqCst),
         RETRIES.load(Ordering::SeqCst),
+        BEFORE_VISIBLE.load(Ordering::SeqCst),
         if short {
             ", FAIL: not every case ran"
         } else {
@@ -1049,6 +1061,22 @@ mod cases {
         begun && pair.is_some_and(|(active, key, _)| active && key)
     }
 
+    /// Whether the alert's window is visible at the report, read on the main thread.
+    fn visible_now() -> bool {
+        on_main(|| {
+            // SAFETY: this runs on the main thread; the modal window, when there is one, lives
+            // for the modal session.
+            unsafe {
+                let window: *mut AnyObject = msg_send![app(), modalWindow];
+                !window.is_null() && {
+                    let visible: bool = msg_send![window, isVisible];
+                    visible
+                }
+            }
+        })
+        .unwrap_or(false)
+    }
+
     #[link(name = "CoreFoundation", kind = "framework")]
     extern "C" {
         fn CFRunLoopGetMain() -> *mut c_void;
@@ -1189,7 +1217,7 @@ mod cases {
                 let verdict = case(&Mac, name, shows, &|| {
                     *NOTICE_BOTH.lock().unwrap_or_else(PoisonError::into_inner) = None;
                     SHOW.fetch_add(1, Ordering::SeqCst);
-                    dialog.show(&card, arm(), &|| on_screen(active_now()))
+                    dialog.show(&card, arm(), &|| on_screen(active_now(), visible_now()))
                 });
                 print(&verdict);
                 verdicts.push(verdict);
@@ -1270,14 +1298,16 @@ mod cases {
         }
     }
 
-    /// The message in whose handling the report came: WM_ACTIVATE of the dialog's subclass, or
-    /// else the callback's TDN_CREATED, with the innermost message sent on this thread.
+    /// The message in whose handling the report came: WM_ACTIVATE or WM_WINDOWPOSCHANGED of the
+    /// dialog's subclass, or else the callback's TDN_CREATED, with the innermost message sent on
+    /// this thread.
     fn made_at(hooked: bool) -> String {
         if !hooked {
             return "a message that this run cannot tell (the hooks were not set)".into();
         }
         match SENT.with(|sent| sent.borrow().last().copied()) {
             Some((_, WM_ACTIVATE)) => "WM_ACTIVATE".into(),
+            Some((_, 0x0047)) => "WM_WINDOWPOSCHANGED".into(),
             Some((_, message)) => format!("TDN_CREATED (inside the message 0x{message:04x})"),
             None => "TDN_CREATED (inside no sent message)".into(),
         }
@@ -1488,7 +1518,7 @@ mod cases {
                         "guard_hosted report {label} +{ms} ms: made at {at}; visible={visible} active_window_is_the_dialog={}",
                         window == Some(active)
                     );
-                    on_screen(!active.is_invalid())
+                    on_screen(!active.is_invalid(), visible)
                 })
             });
             print(&verdict);
