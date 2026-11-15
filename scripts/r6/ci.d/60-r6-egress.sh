@@ -119,11 +119,13 @@ The limits that stay:
 4. what a process did after the command ended, in the egress check's own words.
 5. the egress check's writes under target/egress/.
 With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
-a list that names no case fails the self-test. On a Windows host the self-test runs each case of its
-asking list (the asking, and the facts of the macos job alone) not, and prints one line for each; the
-macos job's self-test runs them all. Every other case runs in the host's own job unless it names its
-job. A case on neither list, or a listed case that neither ran nor printed its line, fails the
-self-test. R6_EGRESS_SELFTEST_HOST=macos|windows chooses the cases as on that host, for a fixture.
+a list that names no case fails the self-test. On a Windows host the self-test runs the cases of its
+Windows list alone: one case for each rule of the generic code, by the table rule_cases, and every
+case of a windows path or a path form; each case of its macos list prints one line there, and the
+macos job's self-test runs every case. A case runs in the host's own job unless it names its job. A
+case on neither list, a listed case that neither ran nor printed its line, and a rule whose case is
+not on the Windows list fail the self-test. R6_EGRESS_SELFTEST_HOST=macos|windows chooses the cases
+as on that host, for a fixture.
 EOF
 }
 
@@ -1825,10 +1827,93 @@ case_reset() {
   STUB_ARGONLY=
 }
 
-asking_cases() {
+rule_cases() {
   cat <<'EOF'
+forbid-reader forbid-finding
+forbid-release forbid-finding-in-release
+forbid-outside-path forbid-finding-outside-the-repository-on-a-drive
+canary-own-entries canary-requires-a-windows-entry-in-the-windows-job
+canary-refers canary-list-entry-refers-to-nothing
+canary-real-cargo canary-on-the-real-cargo
+graph-tree graph-path-package-moved
+graph-metadata graph-features-in-metadata
+graph-tables graph-patch-table
+refusal-stops-the-runs runs-not-made-after-a-text-rule
+rule-cfg runs-not-made-after-a-text-rule
+rule-attribute rule-attribute-path-from-a-macro-variable
+rule-clippy rule-clippy-behind-a-comment
+rule-dep-info rule-file-named-by-dep-info
+env-rules env-lowercase-flags
+entries list-file-with-one-entry
+entries-link list-directory-holds-a-link
+entries-submodule list-directory-holds-a-submodule
+compare-lists word-on-both-lists
+control control-let-through
+new-log log-of-the-run-before
+log-link log-that-is-a-link
+list-in-force run-widens-the-list-and-a-later-run-restores-it
+wrapped-verdict command-exits-1
+run-arguments entry-with-no-arguments
+tree-check tracked-file-changed-by-a-run
+cause env-refused-then-a-stale-build
+signal-trap signal-stops-the-listeners
+windows-job pass
+windows-imports import-listing-printed
+windows-asking-line asking-not-run-in-the-windows-job
+checks-count job-with-no-run
+windows-sentence sentence-on-a-hosted-runner
+EOF
+}
+
+windows_cases() {
+  cat <<'EOF'
+forbid-finding
+forbid-finding-in-release
+forbid-finding-outside-the-repository-on-a-drive
+canary-requires-a-windows-entry-in-the-windows-job
+canary-list-entry-refers-to-nothing
+canary-on-the-real-cargo
+graph-path-package-moved
+graph-features-in-metadata
+graph-patch-table
+runs-not-made-after-a-text-rule
+rule-attribute-path-from-a-macro-variable
+rule-clippy-behind-a-comment
+rule-file-named-by-dep-info
+env-lowercase-flags
+list-file-with-one-entry
+list-directory-holds-a-link
+list-directory-holds-a-submodule
+word-on-both-lists
+control-let-through
+log-of-the-run-before
+log-that-is-a-link
+run-widens-the-list-and-a-later-run-restores-it
+command-exits-1
+entry-with-no-arguments
+tracked-file-changed-by-a-run
+env-refused-then-a-stale-build
+signal-stops-the-listeners
+pass
+import-listing-printed
+asking-not-run-in-the-windows-job
+job-with-no-run
+sentence-on-a-hosted-runner
+EOF
+}
+
+macos_cases() {
+  cat <<'EOF'
+sentence
 commands
+third-party
+forbid-clean
 asking-wrapped
+control-denied
+control-report-lost-four-times
+control-port-in-use
+log-of-another-run
+log-with-another-count
 asking-reaches-the-network-when-asked-bare
 asking-hangs-past-its-deadline
 asking-deadline-above-240
@@ -1838,40 +1923,6 @@ asked-command-that-kills-the-asker
 asking-report-lost-four-times
 asking-report-lost-once-and-asked-again
 asking-status-read
-command-on-neither-list
-command-with-an-underscore
-command-alone-without-arguments
-command-in-a-file-with-a-nul-byte
-command-behind-adjacent-literals
-command-in-a-non-rs-file-with-a-non-ascii-name
-command-after-a-quote-character
-command-only-with-an-argument
-entry-that-is-no-command
-answer-on-standard-output
-answer-with-exit-3
-answer-with-other-words
-word-of-tests-not-asked
-log-of-another-asking
-canary-entries-of-the-macos-job
-canary-requires-a-unix-entry-in-the-macos-job
-EOF
-}
-
-other_cases() {
-  cat <<'EOF'
-pass
-import-listing-printed
-sentence
-sentence-on-a-hosted-runner
-third-party
-forbid-clean
-control-denied
-control-let-through
-control-report-lost-four-times
-control-port-in-use
-log-of-another-run
-log-with-another-count
-asking-not-run-in-the-windows-job
 graph-closed
 rules-allowed-forms
 env-deny-flag
@@ -1883,78 +1934,67 @@ env-wrapper-set
 env-plain-wrapper-set
 env-build-flags-allow
 env-flags-argument-file
-env-lowercase-flags
 env-lowercase-wrapper
 env-long-allow-flag
 rule-cfg-target-os
-runs-not-made-after-a-text-rule
 runs-not-made-after-a-forbid-finding
 runs-not-made-after-a-graph-refusal
 rule-cfg-nested
 rule-attribute-from-a-macro-variable
-rule-attribute-path-from-a-macro-variable
 rule-cfg-macro
 rule-cfg-spaced
 rule-clippy-through-a-macro-variable
-rule-clippy-behind-a-comment
 rule-clippy-on-a-hidden-module
 rule-outside-the-crates-not-named
-rule-file-named-by-dep-info
 rule-dep-info-missing
 graph-third-party-package-added
 graph-build-time-package-added
 graph-build-time-package-linked
-graph-path-package-moved
 graph-path-package-added
 graph-package-gone
 graph-build-script
 graph-proc-macro
-graph-features-in-metadata
 graph-features-table
-graph-patch-table
-canary-on-the-real-cargo
-forbid-finding-in-release
 canary-let-through-in-release
 canary-without-its-unsafe-finding
 canary-let-through
+canary-entries-of-the-macos-job
+canary-requires-a-unix-entry-in-the-macos-job
 canary-entries-of-the-windows-job
-canary-requires-a-windows-entry-in-the-windows-job
 windows-job-runs-every-command
-job-with-no-run
 forbid-list-of-the-windows-job
-forbid-finding
 forbid-finding-outside-the-repository
-forbid-finding-outside-the-repository-on-a-drive
 forbid-finding-with-exit-0
 forbid-exit-without-a-finding
 forbid-child-code-is-no-finding
 forbid-list-entry-refers-to-nothing
-list-file-with-one-entry
-entry-with-no-arguments
-word-on-both-lists
+command-on-neither-list
+command-with-an-underscore
+command-alone-without-arguments
+command-in-a-file-with-a-nul-byte
+command-behind-adjacent-literals
+command-in-a-non-rs-file-with-a-non-ascii-name
+command-after-a-quote-character
+command-only-with-an-argument
 repository-missing
 line-of-another-list
-list-directory-holds-a-link
-list-directory-holds-a-submodule
-canary-list-entry-refers-to-nothing
 log-of-another-run-of-the-gate-tool
-run-widens-the-list-and-a-later-run-restores-it
 run-changes-its-copy-of-the-list
-log-of-the-run-before
+log-of-another-asking
+answer-on-standard-output
+answer-with-exit-3
+answer-with-other-words
+entry-that-is-no-command
+word-of-tests-not-asked
 denied-in-each-run
 check-exits-0-with-a-denial
 command-exits-1-with-a-denial
 refusal-mode
-command-exits-1
 check-exits-3-with-a-clean-line
 stale-build
-env-refused-then-a-stale-build
 forbid-finding-then-a-stale-build
 no-egress-line
-signal-stops-the-listeners
 control-without-an-egress-line
-log-that-is-a-link
-tracked-file-changed-by-a-run
 tracked-file-changed-before
 no-tree
 usage
@@ -1985,16 +2025,16 @@ case_run() {
     case_reset
     return
   fi
-  if grep -q -x -F -e "$1" "$work/asking-cases.txt"; then
-    printf '%s\n' "$1" >>"$work/asking-seen.txt"
+  if grep -q -x -F -e "$1" "$work/macos-cases.txt"; then
+    printf '%s\n' "$1" >>"$work/macos-seen.txt"
     if [ "$host_job" != macos ]; then
-      printf 'case %s/%s not-run: it tests the asking or a fact of the macos job alone; the macos job'"'"'s self-test runs it\n' "$name" "$1"
+      printf 'case %s/%s not-run: the macos job'"'"'s self-test runs it; on Windows one case of each rule runs (rule_cases)\n' "$name" "$1"
       case_reset
       return
     fi
-    [ -n "$case_job" ] || case_job=macos
-  elif grep -q -x -F -e "$1" "$work/other-cases.txt"; then
-    printf '%s\n' "$1" >>"$work/other-seen.txt"
+    [ -n "$case_job" ] || case_job=$host_job
+  elif grep -q -x -F -e "$1" "$work/windows-cases.txt"; then
+    printf '%s\n' "$1" >>"$work/windows-seen.txt"
     [ -n "$case_job" ] || case_job=$host_job
   else
     printf 'case %s/%s want=%s got=in-neither-list\n' "$name" "$1" "$2"
@@ -2365,10 +2405,17 @@ self_test() {
     macos | windows) ;;
     *) self_failed "R6_EGRESS_SELFTEST_HOST is macos or windows" ;;
   esac
-  asking_cases >"$work/asking-cases.txt" || self_failed "setup at line $LINENO"
-  other_cases >"$work/other-cases.txt" || self_failed "setup at line $LINENO"
-  : >"$work/asking-seen.txt" || self_failed "setup at line $LINENO"
-  : >"$work/other-seen.txt" || self_failed "setup at line $LINENO"
+  windows_cases >"$work/windows-cases.txt" || self_failed "setup at line $LINENO"
+  macos_cases >"$work/macos-cases.txt" || self_failed "setup at line $LINENO"
+  rule_cases >"$work/rule-cases.txt" || self_failed "setup at line $LINENO"
+  : >"$work/windows-seen.txt" || self_failed "setup at line $LINENO"
+  : >"$work/macos-seen.txt" || self_failed "setup at line $LINENO"
+  while IFS=' ' read -r rule ruled; do
+    if ! grep -q -x -F -e "$ruled" "$work/windows-cases.txt"; then
+      printf 'case %s/rule-table want=PASS got=rule-%s-has-no-case-on-the-windows-list\n' "$name" "$rule"
+      wrong="$wrong rule-table"
+    fi
+  done <"$work/rule-cases.txt"
   : >"$work/clippy-clean.json" || self_failed "setup at line $LINENO"
   finding_json "$work/clippy-finding.json" clippy::disallowed_methods 'crates\\halvo-route-gate\\src\\net.txt' 2 || self_failed "setup at line $LINENO"
   finding_json "$work/clippy-unsafe.json" unsafe_code 'crates/halvo-route/src/x.rs' 7 || self_failed "setup at line $LINENO"
@@ -2732,7 +2779,7 @@ EOF
     STUB_CHECK=link-log
     case_run log-that-is-a-link FAIL check 'egress control log=not-new-or-not-its-own'
   elif case_wanted log-that-is-a-link; then
-    printf '%s\n' log-that-is-a-link >>"$work/other-seen.txt"
+    printf '%s\n' log-that-is-a-link >>"$work/windows-seen.txt"
     printf 'case %s/log-that-is-a-link not-run: Git for Windows makes a copy for ln -s, so the stub cannot make a link here\n' "$name"
   fi
   STUB_TOUCH=$work/repo/docs/r2/trials/egress.md
@@ -2744,8 +2791,15 @@ EOF
   case_arg=--bogus
   case_run usage FAIL usage 'FAIL'
 
-  if case_wanted case-in-neither-list; then
-    awk '/^other_cases\(\) \{/ { in_list = 1 } in_list && /^EOF$/ { in_list = 0 } in_list && $0 == "forbid-clean" { next } { print }' \
+  if [ "$host_job" != macos ]; then
+    for nested in case-in-neither-list skipped-names-differ-from-the-macos-list rule-with-no-case-on-the-windows-list cases-filter-matches-nothing; do
+      if case_wanted "$nested"; then
+        printf 'case %s/%s not-run: a nested self-test; the macos job'"'"'s self-test runs it\n' "$name" "$nested"
+      fi
+    done
+  fi
+  if [ "$host_job" = macos ] && case_wanted case-in-neither-list; then
+    awk '/^macos_cases\(\) \{/ { in_list = 1 } in_list && /^EOF$/ { in_list = 0 } in_list && $0 == "forbid-clean" { next } { print }' \
       "$self" >"$work/neither.sh" || self_failed "setup at line $LINENO"
     R6_EGRESS_CASES=forbid-clean sh "$work/neither.sh" --self-test >"$work/neither.txt" 2>&1 </dev/null
     code=$?
@@ -2757,22 +2811,35 @@ EOF
       wrong="$wrong case-in-neither-list"
     fi
   fi
-  if case_wanted skipped-names-differ-from-the-asking-list; then
-    awk '{ print } /^asking_cases\(\) \{/ { getline; print; print "asking-case-with-no-run" }' \
-      "$self" >"$work/extra-asking.sh" || self_failed "setup at line $LINENO"
-    R6_EGRESS_SELFTEST_HOST=windows R6_EGRESS_CASES='asking-case-with-no-run asking-wrapped' \
-      sh "$work/extra-asking.sh" --self-test >"$work/extra-asking.txt" 2>&1 </dev/null
+  if [ "$host_job" = macos ] && case_wanted skipped-names-differ-from-the-macos-list; then
+    awk '{ print } /^macos_cases\(\) \{/ { getline; print; print "macos-case-with-no-run" }' \
+      "$self" >"$work/extra-macos.sh" || self_failed "setup at line $LINENO"
+    R6_EGRESS_SELFTEST_HOST=windows R6_EGRESS_CASES='macos-case-with-no-run asking-wrapped' \
+      sh "$work/extra-macos.sh" --self-test >"$work/extra-macos.txt" 2>&1 </dev/null
     code=$?
-    if [ "$code" = 1 ] && grep -q -F -e 'asking-wrapped not-run:' "$work/extra-asking.txt" &&
-      grep -q -F -e 'asking-case-with-no-run want=PASS got=on-the-asking-list-and-neither-run-nor-skipped' "$work/extra-asking.txt"; then
-      printf 'case %s/skipped-names-differ-from-the-asking-list want=FAIL got=FAIL\n' "$name"
+    if [ "$code" = 1 ] && grep -q -F -e 'asking-wrapped not-run:' "$work/extra-macos.txt" &&
+      grep -q -F -e 'macos-case-with-no-run want=PASS got=on-the-macos-list-and-neither-run-nor-skipped' "$work/extra-macos.txt"; then
+      printf 'case %s/skipped-names-differ-from-the-macos-list want=FAIL got=FAIL\n' "$name"
       rejected=$((rejected + 1))
     else
-      printf 'case %s/skipped-names-differ-from-the-asking-list want=FAIL got=exit-%s\n' "$name" "$code"
-      wrong="$wrong skipped-names-differ-from-the-asking-list"
+      printf 'case %s/skipped-names-differ-from-the-macos-list want=FAIL got=exit-%s\n' "$name" "$code"
+      wrong="$wrong skipped-names-differ-from-the-macos-list"
     fi
   fi
-  if case_wanted cases-filter-matches-nothing; then
+  if [ "$host_job" = macos ] && case_wanted rule-with-no-case-on-the-windows-list; then
+    awk '/^rule_cases\(\) \{/ { in_table = 1 } in_table && $1 == "entries" { print "entries list-file-with-no-run-on-windows"; next } /^EOF$/ { in_table = 0 } { print }' \
+      "$self" >"$work/rule-table.sh" || self_failed "setup at line $LINENO"
+    R6_EGRESS_CASES=forbid-clean sh "$work/rule-table.sh" --self-test >"$work/rule-table.txt" 2>&1 </dev/null
+    code=$?
+    if [ "$code" = 1 ] && grep -q -F -e 'rule-table want=PASS got=rule-entries-has-no-case-on-the-windows-list' "$work/rule-table.txt"; then
+      printf 'case %s/rule-with-no-case-on-the-windows-list want=FAIL got=FAIL\n' "$name"
+      rejected=$((rejected + 1))
+    else
+      printf 'case %s/rule-with-no-case-on-the-windows-list want=FAIL got=exit-%s\n' "$name" "$code"
+      wrong="$wrong rule-with-no-case-on-the-windows-list"
+    fi
+  fi
+  if [ "$host_job" = macos ] && case_wanted cases-filter-matches-nothing; then
     R6_EGRESS_CASES=no-such-case sh "$self" --self-test >"$work/no-case.txt" 2>&1 </dev/null
     code=$?
     if [ "$code" = 1 ] && grep -q -F -e 'R6_EGRESS_CASES matched no case' "$work/no-case.txt"; then
@@ -2819,7 +2886,7 @@ self_test_end() {
   if case_wanted forms; then
     check_forms
   fi
-  for list in asking other; do
+  for list in windows macos; do
     while IFS= read -r listed; do
       case_named "$listed" || continue
       if ! grep -q -x -F -e "$listed" "$work/$list-seen.txt"; then
