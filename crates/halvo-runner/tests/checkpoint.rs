@@ -677,3 +677,50 @@ fn a_second_write_step_on_another_workbook_after_a_committed_edit_completes() {
         "the other is filled"
     );
 }
+
+/// A11.3, CP-207 K1: between the run's two `prepare` calls of one workbook the person removes the checkpoint and puts,
+/// at its name, a link to a named pipe that no process writes. The runner opens a made copy without following a
+/// link, so it reads nothing through the link and does not wait on the pipe: the run ends `failed` with
+/// `step_failed` within the bound, as a removed checkpoint ends it.
+#[cfg(unix)]
+#[test]
+fn a_link_to_a_named_pipe_at_the_checkpoints_name_fails_the_step_at_once() {
+    let files = FillFiles::new("checkpoint-pipe-link", 2);
+    let sup = fill(184, &files);
+    let copy = files.dir.join(checkpoint_name(&sup));
+    let pipe = files.dir.join("pipe");
+    let started = std::time::Instant::now();
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |n| {
+            if n == 3 {
+                let made = std::process::Command::new("mkfifo")
+                    .arg(&pipe)
+                    .status()
+                    .expect("start mkfifo");
+                assert!(made.success(), "mkfifo made the pipe");
+                std::fs::remove_file(&copy).expect("the person removes the checkpoint");
+                std::os::unix::fs::symlink(&pipe, &copy).expect("a link at the checkpoint's name");
+            }
+        },
+    );
+    let took = started.elapsed();
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)]
+    );
+    assert!(
+        took < std::time::Duration::from_secs(20),
+        "the run ended within 20 s: {took:?}"
+    );
+}
