@@ -223,6 +223,7 @@ case $op in
     [ -z "$name" ] || printf '%s %s' "$type" "$data" >"$d/$name"
     ;;
   delete)
+    [ -n "${R3_REG_NO_DELETE:-}" ] && exit 1
     mkdir -p "$R3_REG.gone"
     to="$R3_REG.gone/$(find "$R3_REG.gone" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
     if [ -n "$name" ]; then
@@ -254,7 +255,8 @@ STUB
 
 in_stand_ins() {
   env -i PATH="${R3_FIRST_BIN:-$work/run-bin}:$work/run-bin:/usr/bin:/bin" HOME="$work" R3_STUB_LOG="$1/calls" \
-    R3_REG="$1/reg" R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" "${R3_CASE_SH:-sh}" -s >"$1/out" 2>&1
+    R3_REG="$1/reg" R3_REG_NO_DELETE="${R3_REG_NO_DELETE:-}" R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" \
+    "${R3_CASE_SH:-sh}" -s >"$1/out" 2>&1
 }
 
 posix_sh() {
@@ -300,6 +302,26 @@ CASE
   verdict win_a_term_puts_the_value_back \
     "$(holds test "$v" = "REG_SZ fixed_servers")$(has "$c/out" not_ended && echo _not_ended)$(has "$c/out" not_set && echo _not_set)" \
     "value_after=$(printf '%s' "$v" | tr ' ' '_')"
+  c="$work/w-stuck"
+  mkdir -p "$c/reg/Google/Chrome"
+  R3_REG_NO_DELETE=1 in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"; k=chrome
+policy_set "Google\\Chrome" ProxyMode REG_SZ direct >/dev/null
+policy_unset
+CASE
+  verdict win_says_removed_no_when_the_value_stays \
+    "$(holds has "$c/out" "policy removed=no name=ProxyMode earlier=no keys_left=0")" "-"
+  c="$work/w-call"
+  mkdir -p "$c"
+  in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"
+sleep 30 &
+current_call=$!
+undo
+if kill -0 "$current_call" 2>/dev/null; then echo call_alive; else echo call_ended; fi
+CASE
+  verdict win_ends_the_call_in_progress_when_it_is_ended \
+    "$(holds has "$c/out" call_ended)" "-"
   c="$work/w-port"
   mkdir -p "$c"
   in_stand_ins "$c" <<'CASE'
@@ -345,7 +367,21 @@ PREFS_DAEMON="$RUNNER_TEMP/none"; set_policy com.google.Chrome chrome RemoteDebu
 grep -q RemoteDebuggingAllowed "$dir/com.google.Chrome.plist" || echo not_set; take_away
 CASE
   verdict mac_puts_an_earlier_policy_file_back \
-    "$(holds test "$(cat "$c/managed/com.google.Chrome.plist")" = earlier)$(has "$c/out" not_set && echo _not_set)$(has "$c/out" "policy removed=yes name=RemoteDebuggingAllowed earlier=yes put_back=yes" || echo _line)" "-"
+    "$(holds test "$(cat "$c/managed/com.google.Chrome.plist")" = earlier)$(has "$c/out" not_set && echo _not_set)$(has "$c/out" "policy removed=yes name=RemoteDebuggingAllowed earlier=yes put_back=yes" || echo _line)$([ "$(grep -c '^prefs_daemon ' "$c/out")" = 2 ] || echo _flushes)" \
+    "flushes=$(grep -c '^prefs_daemon ' "$c/out")"
+  c="$work/m-call"
+  mkdir -p "$c/work"
+  in_stand_ins "$c" <<'CASE'
+. "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"; PREFS_DAEMON="$RUNNER_TEMP/none"
+perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' sleep 30 &
+current_call=$!
+sleep 1
+undo
+wait "$current_call" 2>/dev/null
+if alive "$current_call"; then echo call_alive; else echo call_ended; fi
+CASE
+  verdict mac_ends_the_call_in_progress_when_it_is_ended \
+    "$(holds has "$c/out" call_ended)" "-"
   c="$work/m-made"
   mkdir -p "$c/work"
   in_stand_ins "$c" <<'CASE'
