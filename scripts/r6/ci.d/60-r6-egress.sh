@@ -892,7 +892,12 @@ cd "$answers/discover" || exit 2
   waited=0
   while [ "$waited" -lt "$seconds" ]; do
     sleep 1
-    kill -0 "$$" 2>/dev/null || exit 0
+    if ! kill -0 "$$" 2>/dev/null; then
+      if read -r child <"$answers/child"; then
+        kill "$child" 2>/dev/null
+      fi
+      exit 0
+    fi
     waited=$((waited + 1))
   done
   : >"$answers/timeout"
@@ -940,12 +945,12 @@ EOF
 list_copy() {
   calls=$((calls + 1))
   list_given=$work/list-$calls.txt
-  git cat-file blob "$list_blob" >"$list_given" || fail setup
+  printf '%s\n' "$list_text" >"$list_given" || fail setup
 }
 
 list_after() {
   copy_id=$(git hash-object --no-filters -- "$list_given" 2>/dev/null) || copy_id=-
-  if [ "$copy_id" != "$list_blob" ]; then
+  if [ "$copy_id" != "$list_copy_id" ]; then
     printf 'egress %s: a wrapped run changed the list\n' "$1"
     changed=yes
   fi
@@ -953,7 +958,9 @@ list_after() {
 }
 
 tree_hashes() {
-  printf '%s\n' "$tracked_paths" | git -c core.quotePath=false hash-object --stdin-paths 2>/dev/null
+  printf '%s\n' "$tracked_paths" | git -c core.quotePath=false hash-object --no-filters --stdin-paths 2>/dev/null
+  find . \( -path ./.git -o -path ./target -o -name node_modules \) -prune -o -type l -print 2>/dev/null | sed 's/^/link /' | LC_ALL=C sort
+  find . \( -path ./.git -o -path ./target -o -name node_modules \) -prune -o -type f -perm -u+x -print 2>/dev/null | sed 's/^/exec /' | LC_ALL=C sort
 }
 
 git_view() {
@@ -973,6 +980,7 @@ tree_after() {
       printf '%s\n' '--now--'
       printf '%s\n' "$hashes_now"
     } | awk -v list="$list" '
+      /^(link|exec) / { kind[$0] += (part == 1 ? 1 : (part == 2 ? -1 : 0)); next }
       $0 == "--reference--" { part = 1; next }
       $0 == "--now--" { part = 2; next }
       part == 0 { path[++n] = $0; next }
@@ -986,6 +994,7 @@ tree_after() {
           if (shown < 5) print "tree changed=after M " path[i]
           shown++
         }
+        for (k in kind) if (kind[k] != 0) print "tree changed=after " k
       }
     ')
     case $nl$tree_report$nl in
@@ -1149,6 +1158,14 @@ state_before_calls() {
   candidate_words=$(cat "$work/candidates.txt") || fail setup
   candidate_count=$(printf '%s\n' "$candidate_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
   tracked_paths=$(git -c core.quotePath=false ls-tree -r "$tree" | awk -F '\t' '$1 ~ /^100/ { print $2 }') || fail setup
+  list_text=$(git cat-file blob "$list_blob") || fail setup
+  printf '%s\n' "$list_text" >"$work/list-0.txt" || fail setup
+  list_copy_id=$(git hash-object --no-filters -- "$work/list-0.txt") || fail setup
+  tree_changes "$work/before-calls.txt" || fail setup
+  if [ -s "$work/before-calls.txt" ]; then
+    report_changes before-calls "$work/before-calls.txt"
+    changed=yes
+  fi
   tracked_hashes=$(tree_hashes) || fail setup
   git_reference=$(git_view) || fail setup
   out_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name-out.XXXXXX") || fail setup
@@ -1383,6 +1400,8 @@ check() {
   listener=
   asking_listener=
   trap stopped INT TERM HUP
+  GIT_NO_REPLACE_OBJECTS=1
+  export GIT_NO_REPLACE_OBJECTS
   R6_EGRESS_CHECK_PID=$$
   export R6_EGRESS_CHECK_PID
   platform_of
@@ -1516,7 +1535,10 @@ linked_rest() {
   [ "$STUB_GRAPH" != linked-syn ] || printf 'syn v3.0.10\n'
 }
 case $* in
-  'build --locked -p halvo-route-gate --bin route-gate') exit 0 ;;
+  'build --locked -p halvo-route-gate --bin route-gate')
+    [ -z "$STUB_BUILD_TOUCH" ] || printf 'x\n' >>"$STUB_BUILD_TOUCH"
+    exit 0
+    ;;
   'build --locked -p halvo-route-gate --bin route-gate --message-format=json')
     printf '{"reason":"compiler-artifact","package_id":"path+file://%s/crates/halvo-route-gate#0.0.0","manifest_path":"%s/crates/halvo-route-gate/Cargo.toml","target":{"kind":["bin"],"name":"route-gate","src_path":"%s/crates/halvo-route-gate/src/main.rs"},"executable":"%s","fresh":%s}\n' \
       "$CI_D_REPO" "$CI_D_REPO" "$CI_D_REPO" "$STUB_EXE" "$STUB_FRESH"
@@ -1773,11 +1795,32 @@ case $STUB_CHECK:${2:-} in
     done
     parent=${out%/*}
     parent=${parent%/*}
-    if [ "$STUB_CHECK" = rewrite-record ]; then
-      printf 'generate\n' >"$parent/commands.txt"
-    else
-      : >"$parent/run-list.txt"
+    for checkdir in "$parent" "$parent"/60-r6-egress.*; do
+      [ -d "$checkdir" ] || continue
+      if [ "$STUB_CHECK" = rewrite-record ]; then
+        printf 'generate\n' >"$checkdir/commands.txt"
+      else
+        : >"$checkdir/run-list.txt"
+      fi
+    done
+    ;;
+  replace-list:generate)
+    listed=$(git rev-parse "$STUB_TREE:scripts/r6/egress/gate.txt") || exit 97
+    wide=$({ git --no-replace-objects cat-file blob "$listed"; printf '127.0.0.1:47391\n'; } | git hash-object -w --stdin) || exit 97
+    git replace -f "$listed" "$wide" || exit 97
+    ;;
+  replace-list:*)
+    if grep -q -F -e '127.0.0.1:47391' "$list"; then
+      printf 'widened %s\n' "$2" >>"$STUB_MARKER.widened"
+      listed=$(git rev-parse "$STUB_TREE:scripts/r6/egress/gate.txt") || exit 97
+      git --no-replace-objects cat-file blob "$listed" >"$list.true" && mv "$list.true" "$list"
     fi
+    ;;
+  symlink-tree:generate)
+    cp docs/r2/trials/egress.md "$STUB_MARKER.copy" && ln -sf "$STUB_MARKER.copy" docs/r2/trials/egress.md
+    ;;
+  exec-bit:generate)
+    chmod +x docs/r2/trials/egress.md
     ;;
   widen:generate) printf '127.0.0.1:47391\n' >>scripts/r6/egress/gate.txt ;;
   widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
@@ -1912,6 +1955,7 @@ case_reset() {
   STUB_RUN_EXIT=0
   STUB_REACH=
   STUB_MARKER=
+  STUB_BUILD_TOUCH=
   STUB_FORGER=
   STUB_ERASER=
   STUB_PROBE=
@@ -1951,6 +1995,8 @@ graph-metadata graph-features-in-metadata
 graph-tables graph-patch-table
 refusal-stops-the-runs runs-not-made-after-a-text-rule
 canary-refusal canary-refusal-ends-as-a-hold
+list-from-memory run-plants-a-replace-ref-for-the-list
+tree-after-builds build-changes-a-tracked-file
 rule-cfg runs-not-made-after-a-text-rule
 rule-attribute rule-attribute-path-from-a-macro-variable
 rule-clippy rule-clippy-behind-a-comment
@@ -2026,6 +2072,8 @@ run-rewrites-the-record-of-found-commands
 run-cuts-the-run-list
 run-without-its-line-names-the-missing-run
 canary-refusal-ends-as-a-hold
+run-plants-a-replace-ref-for-the-list
+build-changes-a-tracked-file
 command-exits-1
 entry-with-no-arguments
 tracked-file-changed-by-a-run
@@ -2059,6 +2107,8 @@ EOF
 
 macos_cases() {
   cat <<'EOF'
+run-swaps-a-tracked-file-for-a-link
+run-sets-an-exec-bit
 canary-refusal-in-release-ends-as-a-hold
 found-command-that-forges-the-record
 asker-that-skips-a-word
@@ -2186,7 +2236,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_MARKER=$STUB_MARKER STUB_FORGER=$STUB_FORGER STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_FORGER=$STUB_FORGER STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2577,63 +2627,65 @@ self_test() {
   v_lower_wrapper=$(printf '%s\n' "${w_rustc}_WRAPPER" | tr '[:upper:]' '[:lower:]') || self_failed "setup at line $LINENO"
   case_reset
   if case_wanted rule-table-pinned; then
-    awk '{ print $1 }' "$work/rule-cases.txt" >"$work/rule-names.txt" || self_failed "setup at line $LINENO"
+    cp "$work/rule-cases.txt" "$work/rule-names.txt" || self_failed "setup at line $LINENO"
     cat >"$work/rule-pin.txt" <<'EOF' || self_failed "setup at line $LINENO"
-forbid-reader
-forbid-release
-forbid-outside-path
-canary-own-entries
-canary-refers
-canary-real-cargo
-graph-tree
-graph-metadata
-graph-tables
-refusal-stops-the-runs
-canary-refusal
-rule-cfg
-rule-attribute
-rule-clippy
-rule-dep-info
-env-rules
-entries
-entries-link
-entries-submodule
-compare-lists
-control
-new-log
-log-link
-list-in-force
-state-in-memory-record
-state-in-memory-run-list
-checks-equal-found
-wrapped-verdict
-run-arguments
-tree-check
-cause
-signal-trap
-windows-job
-windows-imports
-windows-asking-line
-checks-count
-windows-sentence
-forbid-exit-status
-forbid-refers
-env-wrapper
-env-argument-file
-graph-unknown
-graph-build-time
-graph-build-script
-graph-proc-macro
-wrapped-missing-line
-wrapped-refused-mode
-log-count
-wrapped-exit-0-with-a-denial
-wrapped-exit-1-with-a-denial
-denials-summed
-stale-build
-usage
-no-tree
-tree-before
+forbid-reader forbid-finding
+forbid-release forbid-finding-in-release
+forbid-outside-path forbid-finding-outside-the-repository-on-a-drive
+canary-own-entries canary-requires-a-windows-entry-in-the-windows-job
+canary-refers canary-list-entry-refers-to-nothing
+canary-real-cargo canary-on-the-real-cargo
+graph-tree graph-path-package-moved
+graph-metadata graph-features-in-metadata
+graph-tables graph-patch-table
+refusal-stops-the-runs runs-not-made-after-a-text-rule
+canary-refusal canary-refusal-ends-as-a-hold
+list-from-memory run-plants-a-replace-ref-for-the-list
+tree-after-builds build-changes-a-tracked-file
+rule-cfg runs-not-made-after-a-text-rule
+rule-attribute rule-attribute-path-from-a-macro-variable
+rule-clippy rule-clippy-behind-a-comment
+rule-dep-info rule-file-named-by-dep-info
+env-rules env-lowercase-flags
+entries list-file-with-one-entry
+entries-link list-directory-holds-a-link
+entries-submodule list-directory-holds-a-submodule
+compare-lists word-on-both-lists
+control control-let-through
+new-log log-of-the-run-before
+log-link log-that-is-a-link
+list-in-force run-widens-the-list-and-a-later-run-restores-it
+state-in-memory-record run-rewrites-the-record-of-found-commands
+state-in-memory-run-list run-cuts-the-run-list
+checks-equal-found run-without-its-line-names-the-missing-run
+wrapped-verdict command-exits-1
+run-arguments entry-with-no-arguments
+tree-check tracked-file-changed-by-a-run
+cause env-refused-then-a-stale-build
+signal-trap signal-stops-the-listeners
+windows-job pass
+windows-imports import-listing-printed
+windows-asking-line asking-not-run-in-the-windows-job
+checks-count job-with-no-run
+windows-sentence sentence-on-a-hosted-runner
+forbid-exit-status forbid-exit-without-a-finding
+forbid-refers forbid-list-entry-refers-to-nothing
+env-wrapper env-wrapper-set
+env-argument-file env-flags-argument-file
+graph-unknown graph-third-party-package-added
+graph-build-time graph-build-time-package-added
+graph-build-script graph-build-script
+graph-proc-macro graph-proc-macro
+wrapped-missing-line no-egress-line
+wrapped-refused-mode refusal-mode
+log-count log-with-another-count
+wrapped-exit-0-with-a-denial check-exits-0-with-a-denial
+wrapped-exit-1-with-a-denial command-exits-1-with-a-denial
+denials-summed denied-in-each-run
+stale-build stale-build
+usage usage
+no-tree no-tree
+tree-before tracked-file-changed-before
 EOF
     if cmp -s "$work/rule-names.txt" "$work/rule-pin.txt"; then
       printf 'case %s/rule-table-pinned want=PASS got=PASS\n' "$name"
@@ -3011,6 +3063,22 @@ EOF
     printf '%s\n' log-that-is-a-link >>"$work/windows-seen.txt"
     printf 'case %s/log-that-is-a-link not-run: Git for Windows makes a copy for ln -s, so the stub cannot make a link here\n' "$name"
   fi
+  STUB_CHECK=replace-list
+  STUB_MARKER=$work/marker-replace
+  case_run run-plants-a-replace-ref-for-the-list PASS - 'egress checks=6 denied=0 entries=0'
+  marker_absent run-plants-a-replace-ref-for-the-list "$work/marker-replace.widened"
+  listed=$(git -C "$work/repo" rev-parse "$good_tree:scripts/r6/egress/gate.txt") || self_failed "setup at line $LINENO"
+  git -C "$work/repo" replace -d "$listed" >/dev/null 2>&1
+  STUB_CHECK=symlink-tree
+  STUB_MARKER=$work/marker-link
+  case_run run-swaps-a-tracked-file-for-a-link FAIL check 'tree changed=after link ./docs/r2/trials/egress.md'
+  git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
+  STUB_CHECK=exec-bit
+  case_run run-sets-an-exec-bit FAIL check 'tree changed=after'
+  chmod -x "$work/repo/docs/r2/trials/egress.md" || self_failed "setup at line $LINENO"
+  STUB_BUILD_TOUCH=$work/repo/docs/r2/trials/egress.md
+  case_run build-changes-a-tracked-file FAIL check 'tree changed=before-calls M docs/r2/trials/egress.md'
+  git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
   STUB_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run tracked-file-changed-by-a-run FAIL check 'tree changed=after M docs/r2/trials/egress.md'
   case_run tracked-file-changed-before FAIL setup 'tree changed=before M docs/r2/trials/egress.md'
