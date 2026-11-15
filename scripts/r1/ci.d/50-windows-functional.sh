@@ -5,7 +5,7 @@ set -u
 name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=40
+failing_fixtures=41
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -461,6 +461,20 @@ measure() {
     tee -a "$artifacts/wf.txt" <"$work/left-out" || fail "wf.txt cannot be written"
   fi
 
+  short=
+  for state in gate_not_clear late_read_no_latch other; do
+    found=0
+    for log in "$work"/test-*.log; do
+      [ -f "$log" ] || continue
+      in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )control_state=$state( |$)")
+      found=$((found + in_log))
+    done
+    short="$short $state=$found"
+  done
+  line="WF short controls$short"
+  printf '%s\n' "$line"
+  printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+
   for source in keyboard pointer window_title foreground screen; do
     not_ok=0
     for log in "$work"/test-*.log; do
@@ -715,6 +729,13 @@ case $kind in
     printf 'test %s ... FAILED\n\nfailures:\n    %s\n\n%s\n\n' "$test" "$test" "$failed"
     exit 101
     ;;
+  short-control)
+    printf 'TF %s browser=edge control=before control_state=late_read_no_latch pump_largest_lag_ms=3\n' "$test"
+    printf 'TF %s browser=edge control=after control_state=full pump_largest_lag_ms=3\n' "$test"
+    panic "$thread" 'a control recorded fewer than 5 letters of the text input: control_before=0 control_after=5'
+    printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
+    exit 101
+    ;;
   inconclusive)
     panic "$thread" 'INCONCLUSIVE: SendInput inserted no events on this machine'
     printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
@@ -821,6 +842,7 @@ self_test() {
 fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 7 " "${nl}WF form=short seconds=" "${nl}PASS $name"
@@ -904,6 +926,8 @@ fixtures() {
     "${nl}$name: known_defect::x1_password: a KNOWN-DEFECT line that no panic line comes right before${nl}"
   check a-regular-test-passes-with-a-panic-on-another-thread FAIL "c1_raw_input|pass-with-panic${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
+  check a-short-control-is-summed-by-its-state FAIL "c1_raw_input|short-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0${nl}" "FAIL $name (1 tests failed)"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
 

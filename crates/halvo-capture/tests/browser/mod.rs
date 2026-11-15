@@ -692,7 +692,6 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         );
         return 0;
     };
-    let _ = seam::take_marks();
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
     let gate_before = keyboard.source.field_state();
@@ -702,6 +701,7 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
     let keys = seam::take();
     let page = page_read(hwnd).unwrap_or_default();
     let marks = seam::take_marks();
+    let largest_lag = keyboard.source.health().counters.max_lag_ms;
     let r = Round {
         counted: front,
         sent,
@@ -719,47 +719,85 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
             r.line()
         ),
     );
-    let letters: Vec<String> = keys
+    let letters: Vec<&seam::Decided> = keys
         .iter()
         .filter(|key| key.class == seam::KeyClass::Printable)
+        .collect();
+    let listed: Vec<String> = letters
+        .iter()
         .map(|key| {
             format!(
-                "{}:{:?}:{:?}:decided@{}",
-                key.os_tick, key.verdict, key.rule, key.decided_tick
+                "input@{}:decided@{}:{:?}:{:?}",
+                key.os_tick, key.decided_tick, key.verdict, key.rule
             )
         })
         .collect();
-    let reads: Vec<String> = marks
+    let short_element = |element: Option<&str>| {
+        element.map_or("none".to_string(), |element| {
+            element
+                .split(' ')
+                .filter(|part| part.starts_with("kind=") || part.starts_with("is_password="))
+                .collect::<Vec<_>>()
+                .join("/")
+        })
+    };
+    let all_marks: Vec<String> = marks
         .iter()
-        .filter(|mark| mark.what == "read")
         .map(|mark| {
             format!(
-                "began@{}:arrived@{}",
+                "{}@{}->{}:{:?}:{:?}:{}",
+                mark.what,
                 mark.began,
-                mark.at.unwrap_or(mark.began)
+                mark.at.map_or("none".to_string(), |at| at.to_string()),
+                mark.state,
+                mark.moved,
+                short_element(mark.element.as_deref())
             )
         })
         .collect();
+    let open_latches = latches_before
+        .strip_prefix("count=")
+        .and_then(|rest| rest.split(' ').next())
+        .and_then(|count| count.parse::<usize>().ok());
+    let state = if r.sink >= 5 {
+        "full"
+    } else if gate_before != Some(FieldState::Clear) {
+        "gate_not_clear"
+    } else if open_latches == Some(0)
+        && letters.iter().all(|key| {
+            key.verdict == seam::Verdict::Recorded || key.rule == Some(seam::Rule::NotClearedInTime)
+        })
+        && letters
+            .iter()
+            .find(|key| key.verdict != seam::Verdict::Recorded)
+            .is_some_and(|key| {
+                marks.iter().any(|mark| {
+                    mark.what == "read"
+                        && mark.at.is_some_and(|at| {
+                            at.wrapping_sub(key.os_tick) as i32 > 250
+                                && mark.began.wrapping_sub(key.os_tick) as i32 >= 0
+                        })
+                })
+            })
+    {
+        "late_read_no_latch"
+    } else {
+        "other"
+    };
     say(
         test,
         format!(
-            "browser={} control={which} open_latches_before_the_first_letter={latches_before} \
-             letters_by_tick=[{}] reads=[{}]",
+            "browser={} control={which} control_state={state} pump_largest_lag_ms={largest_lag} \
+             open_latches_before_the_first_letter={latches_before} letters=[{}] \
+             marks_since_the_start_kept_by_the_seam={} marks=[{}]",
             browser.name,
-            letters.join(","),
-            reads.join(",")
+            listed.join(","),
+            all_marks.len(),
+            all_marks.join(",")
         ),
     );
     if r.sink < 5 {
         super::detector_line(test, "page-control");
-        say(
-            test,
-            format!(
-                "browser={} control={which} marks=[{}]",
-                browser.name,
-                marks_with_elements(&marks)
-            ),
-        );
     }
     assert!(
         front && start.focus == "plain" && sent == 5 && r.page.text == 5,
