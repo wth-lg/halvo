@@ -10,9 +10,9 @@ use halvo_schema::executable::names::{HandbackReason, LogEvent};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    ActionClass, AgentLog, AgentRun, ApprovalId, Cause, EffectState, ExecutableStep, FromRunner,
-    HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall, RunnerReply, StoreRequest,
-    ToRunner, WebOrigin,
+    ActionClass, AgentLog, AgentRun, ApprovalId, Cause, CheckpointState, EffectState,
+    ExecutableStep, FromRunner, HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall,
+    RunnerReply, StoreRequest, ToRunner, WebOrigin,
 };
 use halvo_schema::{RequestId, RunnerRequest, RunnerRole};
 use halvo_sheet::Value;
@@ -96,6 +96,8 @@ pub(crate) struct Runner {
     pub(crate) approvals: Vec<ApprovalId>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
     pub(crate) read_under: Option<ReadUnder>,
+    /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.
+    pub(crate) checkpoints: HashMap<String, CheckpointState>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -127,6 +129,7 @@ impl Runner {
             approvals: Vec::new(),
             kept: HashMap::new(),
             read_under: None,
+            checkpoints: HashMap::new(),
         }
     }
 

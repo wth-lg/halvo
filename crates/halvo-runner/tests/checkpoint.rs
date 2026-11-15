@@ -7,7 +7,10 @@ use halvo_schema::executable::{AgentCheckpoint, Cause, CheckpointState, FromRunn
 use halvo_schema::Category;
 use halvo_sheet::Sha256;
 
-use support::{is_op, store_error, Act, FillFiles, Seen, Supervisor, LONG};
+use support::{
+    is_op, person_changes, serve_loads, set_slot, store_error, Act, FillFiles, Seen, Supervisor,
+    LONG,
+};
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
@@ -238,5 +241,160 @@ fn a_made_row_that_the_store_refuses_ends_the_run_before_the_propose() {
         0,
         "no prepared copy: {:?}",
         files.names()
+    );
+}
+
+/// The states and the `seq` of each checkpoint row.
+fn states(seen: &Seen) -> Vec<(CheckpointState, u32)> {
+    seen.checkpoints()
+        .iter()
+        .map(|r| (r.state, r.seq.get()))
+        .collect()
+}
+
+/// CP-139 (b), A11.3, A7.4: a later `prepare` of the run, for the new effect after a changed range, answers the
+/// checkpoint error because the person changed the workbook between the two calls: the runner sends no second
+/// `planned` row and no second `made` row, and the `made` row keeps the SHA-256 of the copy that stands.
+#[test]
+fn a_later_prepare_that_answers_the_checkpoint_error_sends_no_second_row() {
+    let files = FillFiles::new("checkpoint-person", 2);
+    let original = files.workbook_bytes();
+    let sup = fill(175, &files);
+    let mut persons = None;
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |n| {
+            if n == 3 {
+                persons = Some(person_changes(&files));
+            }
+        },
+    );
+    let persons = persons.expect("the person changed the workbook");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)],
+        "one planned and one made row"
+    );
+    let stands =
+        std::fs::read(files.dir.join(checkpoint_name(&sup))).expect("the checkpoint stands");
+    assert_eq!(
+        stands, original,
+        "the checkpoint as the first prepare made it"
+    );
+    assert_eq!(
+        seen.checkpoints()[1].sha256.as_ref().map(|d| d.as_str()),
+        Some(Sha256::of(&stands).hex().as_str()),
+        "the made row holds the SHA-256 of the copy that stands"
+    );
+    assert_eq!(files.workbook_bytes(), persons, "the person's workbook");
+}
+
+/// A11.3, A7.4: a later `prepare` of the run that takes the run's checkpoint as it stands, for the new effect
+/// after a changed range, sends no second row: one checkpoint of one run and one workbook has one `planned` and
+/// one `made` row, and the run completes.
+#[test]
+fn a_later_prepare_that_takes_the_checkpoint_as_it_stands_sends_no_second_row() {
+    let files = FillFiles::new("checkpoint-rebind", 2);
+    let original = files.workbook_bytes();
+    let sup = fill(176, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "range", "B3:D7");
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        seen.effects().len(),
+        5,
+        "a proposed and ended effect, then a proposed, begun and committed one"
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)],
+        "one planned and one made row"
+    );
+    let stands =
+        std::fs::read(files.dir.join(checkpoint_name(&sup))).expect("the checkpoint stands");
+    assert_eq!(stands, original);
+    assert_eq!(
+        seen.checkpoints()[1].sha256.as_ref().map(|d| d.as_str()),
+        Some(Sha256::of(&stands).hex().as_str())
+    );
+}
+
+/// A7.4: one checkpoint is one run and one workbook path. A slot `workbook` that names another file of the folder
+/// at the load before the `begin` gives a new effect with its own `prepare` of that file, and that file's checkpoint
+/// gets its own `planned` and `made` rows; both copies stand with the digests of their rows.
+#[test]
+fn a_prepare_of_another_workbook_in_the_run_sends_that_checkpoints_rows() {
+    let files = FillFiles::new("checkpoint-other", 2);
+    let original = files.workbook_bytes();
+    let other = files.dir.join("other.xlsx");
+    std::fs::copy(&files.workbook, &other).expect("a second workbook");
+    let other_text = other.to_string_lossy().into_owned();
+    let sup = fill(177, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "workbook", &other_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        states(&seen),
+        [
+            (CheckpointState::Planned, 1),
+            (CheckpointState::Made, 2),
+            (CheckpointState::Planned, 1),
+            (CheckpointState::Made, 2)
+        ]
+    );
+    let rows = seen.checkpoints();
+    for row in &rows[..2] {
+        assert_names_the_checkpoint(row, &sup, &files);
+    }
+    let other_copy = format!("other.halvo-checkpoint-{}.xlsx", sup.run.as_str());
+    for row in &rows[2..] {
+        assert_eq!(
+            (row.workbook.joined(), row.copy.joined()),
+            (other_text.clone(), other_copy.clone()),
+            "the other workbook's checkpoint"
+        );
+    }
+    for (row, copy) in [(&rows[1], checkpoint_name(&sup)), (&rows[3], other_copy)] {
+        let stands = std::fs::read(files.dir.join(&copy)).expect("the checkpoint stands");
+        assert_eq!(stands, original, "{copy}");
+        assert_eq!(
+            row.sha256.as_ref().map(|d| d.as_str()),
+            Some(Sha256::of(&stands).hex().as_str()),
+            "{copy}"
+        );
+    }
+    assert_eq!(
+        files.workbook_bytes(),
+        original,
+        "the first workbook as it was"
+    );
+    assert_ne!(
+        std::fs::read(&other).expect("read"),
+        original,
+        "the other is filled"
     );
 }

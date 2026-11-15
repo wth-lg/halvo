@@ -704,3 +704,69 @@ pub fn range_texts(dir: &Path, workbook: &Path) -> Vec<Vec<String>> {
 }
 
 pub const LONG: Duration = Duration::from_secs(60);
+
+/// The load reply that the supervisor gives with `change` applied to its configuration and slots.
+pub fn load_with(sup: &Supervisor, frame: &FromRunner, change: impl FnOnce(&mut LoadReply)) -> Act {
+    let FromRunner::Store(s) = frame else {
+        unreachable!("a load is a store frame")
+    };
+    let mut reply = sup.store_answer(s.request.body());
+    if let RunnerReply::Load(l) = &mut reply {
+        change(l);
+    }
+    Act::With(ToRunner::StoreReply(StoreReplyFrame {
+        reply: StoreReply {
+            id: Some(s.request.id().clone()),
+            outcome: Ok(reply),
+        },
+    }))
+}
+
+/// Serves a fill run in which `change` may alter the reply to each load, counted from 1 (the run's first load), and
+/// `at_load` runs before that load is answered.
+pub fn serve_loads(
+    sup: &Supervisor,
+    mut change: impl FnMut(u32, &mut LoadReply),
+    mut at_load: impl FnMut(u32),
+) -> Seen {
+    let mut loads = 0;
+    sup.serve(
+        |frame, _| {
+            if !is_op(frame, "load") {
+                return Act::Answer;
+            }
+            loads += 1;
+            at_load(loads);
+            load_with(sup, frame, |l| change(loads, l))
+        },
+        LONG,
+    )
+}
+
+pub fn set_slot(l: &mut LoadReply, name: &str, value: &str) {
+    let bindings = l.bindings.as_mut().expect("bindings");
+    let at = bindings
+        .slots
+        .iter()
+        .position(|s| s.name.as_str() == name)
+        .expect("the slot");
+    bindings.slots[at] = slot(name, value);
+}
+
+/// The person's own change of the workbook: one cell outside the fill range, written through the sheet executor
+/// under a data directory and a run of the test's own; the workbook's bytes after it.
+pub fn person_changes(files: &FillFiles) -> Vec<u8> {
+    let data = scratch("person-data");
+    let locks = halvo_sheet::Locks::open(&data, LONG).expect("locks");
+    let folder = halvo_sheet::Folder::new(&files.dir, locks).expect("a folder");
+    let run = halvo_sheet::RunId::parse(&"5e".repeat(16)).expect("a run id");
+    let range = halvo_sheet::Range::parse("F9:F9").expect("a range");
+    let values = vec![vec![halvo_sheet::Value::Text(
+        "the person's note".to_string(),
+    )]];
+    let prepared = folder
+        .prepare(&files.workbook, &run, "Ledger", range, &values)
+        .expect("prepare");
+    folder.replace(&prepared).expect("replace");
+    files.workbook_bytes()
+}

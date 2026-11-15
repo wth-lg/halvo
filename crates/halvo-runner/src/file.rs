@@ -130,7 +130,8 @@ impl Runner {
     /// Stores one row of the run's checkpoint of `workbook`, which `prepare` is given in the folder `dir`, under the
     /// copy's name `copy` (A7.1, A7.4, CP-98 (4)): without `made`, the row `planned` with `seq` 1 and no digest; with
     /// the SHA-256 and the length of the copy that `prepare` made, the row `made` with `seq` 2. A row that the store
-    /// does not take with `{"stored":1}` ends the run `failed`.
+    /// takes becomes the newest of that path in `checkpoints`; a row that the store does not take with
+    /// `{"stored":1}` ends the run `failed`.
     fn checkpoint_row(
         &mut self,
         dir: &Path,
@@ -148,6 +149,7 @@ impl Runner {
                 (second, CheckpointState::Made, Some(sha), Some(len))
             }
         };
+        let path = workbook.to_string_lossy().into_owned();
         let at = now();
         let record = AgentCheckpoint {
             v: V1,
@@ -158,7 +160,7 @@ impl Runner {
             day: day(at),
             at,
             folder: OwnValue::new(&dir.to_string_lossy()),
-            workbook: OwnValue::new(&workbook.to_string_lossy()),
+            workbook: OwnValue::new(&path),
             copy: OwnValue::new(&copy.to_string_lossy()),
             sha256,
             bytes,
@@ -171,7 +173,10 @@ impl Runner {
             record,
         });
         match self.store(call)? {
-            Ok(RunnerReply::Stored(Stored { stored: 1 })) => Ok(()),
+            Ok(RunnerReply::Stored(Stored { stored: 1 })) => {
+                self.checkpoints.insert(path, state);
+                Ok(())
+            }
             Ok(_) => Err(Stop::End(Outcome::Failed, Some(Cause::StepFailed)).into()),
             Err(error) => Err(Stop::End(Outcome::Failed, Some(cause_of(error))).into()),
         }
@@ -219,7 +224,10 @@ impl Runner {
     /// prepared copy is gone and the run's checkpoint stays as `prepare` made it, until the library removes it for the
     /// stored end (A11.3); the runner removes no checkpoint. After the load before the edit and before `prepare` the
     /// runner stores the checkpoint's row `planned`, and once `prepare` has made the copy its row `made` with the
-    /// SHA-256, the length and the name that `prepare` gives, before the effect's `propose` (A7.1, CP-98 (4)).
+    /// SHA-256, the length and the name that `prepare` gives, before the effect's `propose` (A7.1, CP-98 (4)); a
+    /// later `prepare` of the run on the same path sends neither row again, whether it takes the run's checkpoint as
+    /// it stands or answers the checkpoint error, so the `made` row keeps the SHA-256 of the copy that stands
+    /// (CP-139 (b)).
     /// The load before the
     /// `begin` is also held against the sheet of the `prepare`, a changed sheet being met as another digest is
     /// (CP-159 G2), and against the source of the read step, held as a text, so that another spelling of the same
@@ -268,18 +276,26 @@ impl Runner {
             let range_text = slot_text(&loaded, target.range.as_ref())?;
             let range = Range::parse(&range_text).map_err(|e| Failure::Step(sheet_cause(&e)))?;
             let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
-            let planned = halvo_checkpoint::checkpoint_name(&workbook, &run)
-                .ok_or(Failure::Step(Cause::StepFailed))?;
-            self.checkpoint_row(&dir, &workbook, &planned, None)?;
+            let taken = self
+                .checkpoints
+                .get(workbook.to_string_lossy().as_ref())
+                .copied();
+            if taken.is_none() {
+                let planned = halvo_checkpoint::checkpoint_name(&workbook, &run)
+                    .ok_or(Failure::Step(Cause::StepFailed))?;
+                self.checkpoint_row(&dir, &workbook, &planned, None)?;
+            }
             let prepared = folder
                 .prepare(&workbook, &run, &sheet, range, &rows)
                 .map_err(|e| Failure::Step(sheet_cause(&e)))?;
-            self.checkpoint_row(
-                &dir,
-                &workbook,
-                prepared.checkpoint_name(),
-                Some((prepared.checkpoint_sha256(), prepared.checkpoint_bytes())),
-            )?;
+            if taken != Some(CheckpointState::Made) {
+                self.checkpoint_row(
+                    &dir,
+                    &workbook,
+                    prepared.checkpoint_name(),
+                    Some((prepared.checkpoint_sha256(), prepared.checkpoint_bytes())),
+                )?;
+            }
             let bound =
                 edit_bound(&workbook, &range_text).ok_or(Failure::Step(Cause::StepFailed))?;
             let facts = Facts {
