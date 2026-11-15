@@ -10,8 +10,8 @@ pub const UTC_OFFSET_S_MAX: i32 = 50_400;
 /// The day of `at` on a clock `utc_offset_s` seconds east of UTC, in days since 1970-01-01 of that clock: the whole
 /// seconds of `at`, rounded down, plus the offset, divided by a day and rounded down; a day before 1970-01-01 is 0.
 pub fn day_of(at: Instant, utc_offset_s: i32) -> u32 {
-    let _ = utc_offset_s;
-    u32::try_from(at.0.div_euclid(SECONDS_PER_DAY * NANOS_PER_SECOND)).unwrap_or(0)
+    let local = at.0.div_euclid(NANOS_PER_SECOND) + i64::from(utc_offset_s);
+    u32::try_from(local.div_euclid(SECONDS_PER_DAY)).unwrap_or(0)
 }
 
 #[cfg(test)]
