@@ -19,6 +19,11 @@ export const ALARM_CALL_LIMIT = 3;
 export const START_RESTARTS = 2;
 export const CLOCK_RUN_LIMIT = 100;
 export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
+/**
+ * The cap of the pause after a failing run of the alarm under the mark. The pause starts at ALARM_RETRY_MS and doubles with
+ * each failing run in a row, so a begun delete costs at most one run per ALARM_RETRY_MS, settling to one run per
+ * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes.
+ */
 export const ALARM_PAUSE_CAP_MS = 3_600_000;
 export interface Host {
   step: Step;
