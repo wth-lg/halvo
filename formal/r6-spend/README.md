@@ -298,8 +298,11 @@ proof that the system reaches the thing.
     floor of the test `formal_traces` counts, hold fewer than 200 that differ, before it makes
     `--out`: it prints `REFUSED drawn: <n> drawn traces differ, 200 are needed; draw again with
     a larger --count` on standard error and exits 2 with no file. It counts the traces by their
-    place in the file, so a count below 206 is always refused so, and a drawn trace that TLC's
-    output puts in the place of a missing directed one is not counted.
+    place in the file. A count below 206 is always refused: with `drawn` when no earlier check
+    refuses it. When TLC's output lacks a directed trace, a drawn trace takes its place on lines
+    2 to 7 and is not counted; when the lines from line 8 on still hold 200 that differ, the
+    result is written all the same, and the floor of `formal_traces` refuses that file by the
+    moves of the trace in that place.
 
 ## What the model does not show
 
