@@ -8,7 +8,7 @@ import {
   ALARM_RETRY_LIMIT,
   ALARM_PAUSE_CAP_MS,
   ALARM_RETRY_MS,
-  CANCEL_IN_FLIGHT_MS,
+  CALL_IN_FLIGHT_MS,
   CLOCK_RUN_LIMIT,
   DELETE_REMOVAL_BOUND_MS,
   type Entries,
@@ -1454,7 +1454,7 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     expect(await first).toEqual({ result: "deleted" });
     expect([second, calls]).toEqual([{ result: "not-finished" }, 1]);
     expect(during.status).toEqual({ result: "closing" });
-    expect(during.snapshot).toEqual({ row: expect.objectContaining({ cancel_answered_at: null, cancel_next_at: null }), due: 8000 + CANCEL_IN_FLIGHT_MS });
+    expect(during.snapshot).toEqual({ row: expect.objectContaining({ cancel_answered_at: null, cancel_next_at: null }), due: 8000 + CALL_IN_FLIGHT_MS });
   });
 
   test("L4 (b): a cancel call in flight for one id does not hold back the call for another id that the row holds now", async () => {
@@ -1477,5 +1477,26 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     release({ kind: "cancelled" });
     await first;
     expect(ids).toEqual(["sub_one", "sub_two"]);
+  });
+
+  test("L4 (c): a send in flight delays the cancel: a destroy from outside during it makes no call, and the due time is the send's end bound in place of the mark", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.answers.send = { call: SEND, notBillable: 0 };
+    let release: (answer: { kind: "recorded" }) => void = () => {};
+    const waiting = new Promise<{ kind: "recorded" }>((resolve) => {
+      release = resolve;
+    });
+    w.host.port.sendUsage = async () => waiting;
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    w.answers.send = { call: null, notBillable: 0 };
+    const second = await w.entries.destroy(HASH);
+    const during = { calls: w.portCalls.filter((call) => call[0] === "cancelSubscription").length, due: (await skeletonOf(w))?.due };
+    release({ kind: "recorded" });
+    await first;
+    expect([second, during]).toEqual([{ result: "not-finished" }, { calls: 0, due: 8000 + CALL_IN_FLIGHT_MS }]);
+    expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([["cancelSubscription", "sub_one"]]);
   });
 });

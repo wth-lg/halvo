@@ -596,4 +596,20 @@ describe("one cancel call at a time for one id, and the cut interval's send firs
     expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([["sub_1", "cancelled"]]);
     w.close();
   });
+
+  test("V2 and L4 (c): one destroy from outside, with the due alarm delivered at each of its port calls, makes one cancel call, after the cut interval's send", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(START + 10 * MINUTE);
+    const deliver = async () => void (await quiet(w.lines, () => w.entries().alarm()));
+    w.faults.push({ kind: "during", run: deliver });
+    d.during = deliver;
+    const answer = await destroy(w);
+    expect(answer).toEqual({ result: "deleted" });
+    expect(kinds(w.calls)).toEqual(["send recorded", "cancel cancelled"]);
+    w.close();
+  });
 });
