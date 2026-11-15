@@ -1383,4 +1383,25 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     for (let hour = 3; hour < 24; hour += 1) expect(hours.get(hour)).toEqual({ runs: 1, errors: perRun });
     expect(events().filter((event) => event === "alarm-stopped")).toEqual([]);
   });
+
+  test("L3 (d): a cancel that goes unanswered writes cancel-unanswered, naming no account, at each try once the delay has reached its cap", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now, port: { cancelSubscription: async () => ({ kind: "failed" }) } });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    const perTry: number[] = [];
+    const before = () => lines.filter((line) => line.event === "cancel-unanswered").length;
+    let seen = before();
+    await w.entries.destroy(HASH);
+    perTry.push(before() - seen);
+    for (let each = 0; each < 9; each += 1) {
+      seen = before();
+      const snapshot = await w.entries.testInspect();
+      now = Number(snapshot.result === "snapshot" ? snapshot.due : now);
+      await w.entries.alarm();
+      perTry.push(before() - seen);
+    }
+    expect(perTry).toEqual([0, 0, 0, 0, 0, 0, 1, 1, 1, 1]);
+    expect(lines.filter((line) => line.event === "cancel-unanswered").every((line) => Object.keys(line).join() === "event")).toBe(true);
+  });
 });

@@ -584,15 +584,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (made !== null) {
       const cancelled = await host.port.cancelSubscription(made.subscriptionId);
       if (cancelled.kind === "failed") {
-        return step((open): DeleteAnswer => {
-          if (!holds(open.sql)) return { result: "deleted" };
+        const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
+          if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
           const now = open.begin();
           const current = markOf(open.sql);
-          if (holder(open.sql, hash) !== null || current.since !== mark) return NOT_FINISHED;
+          if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, capped: false };
           const delay = current.delay ?? SYNC_RETRY_MS;
           open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));
-          return NOT_FINISHED;
+          return { answer: NOT_FINISHED, capped: delay >= RETRY_DELAY_CAP_MS };
         });
+        if (unanswered.capped) log({ event: "cancel-unanswered" });
+        return unanswered.answer;
       }
     }
     if (made !== null) {

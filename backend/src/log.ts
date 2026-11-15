@@ -13,7 +13,8 @@ export type LogEvent =
   | "usage-not-billable"
   | "cancel-overrides-order"
   | "usage-total-unexplained"
-  | "destroy-error";
+  | "destroy-error"
+  | "cancel-unanswered";
 
 export interface LogFields {
   event: LogEvent;
