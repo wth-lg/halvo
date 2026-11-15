@@ -1349,7 +1349,7 @@ fn main() {
 }
 EOF
   printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
-    >"$dir/crates/halvo-route-gate/src/nul.rs" || self_failed "setup at line $LINENO"
+    >"$dir/crates/halvo-route-gate/src/zerobyte.rs" || self_failed "setup at line $LINENO"
   printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed "setup at line $LINENO"
   cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed "setup at line $LINENO"
   printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed "setup at line $LINENO"
