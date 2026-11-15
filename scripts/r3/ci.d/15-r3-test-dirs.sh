@@ -777,6 +777,12 @@ self_test() {
   pin_file count-moved-between-rows 2 3 crates/a/tests/a.rs 2 crates/a/tests/b.rs 1
   case_of count-moved-between-rows FAIL 'test-dirs pin=paths'
 
+  repo mend-with-the-places-pin-left
+  put crates/a/tests/t.rs "$place"
+  printf 'crates/a/tests/t.rs 1 a run\n' >"$work/mend-with-the-places-pin-left.known" || broken known
+  pin_file mend-with-the-places-pin-left 1 2 crates/a/tests/t.rs 2
+  case_of mend-with-the-places-pin-left FAIL 'test-dirs pin=places known=1 pinned=2'
+
   repo mend-with-the-three-pins-moved
   put crates/a/tests/a.rs "$place"
   printf 'crates/a/tests/a.rs 1 a run\n' >"$work/mend-with-the-three-pins-moved.known" || broken known
