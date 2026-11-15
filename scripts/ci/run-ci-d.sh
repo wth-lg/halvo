@@ -96,7 +96,7 @@ if [ -n "$job" ] && [ "$mode" != list ] && { true <&9; } 2>/dev/null; then
   read -r nested_word <&9 || nested_word=
   exec 9<&-
   case $nested_word in
-    yes | fail | slow | hold | late) ;;
+    yes | fail | slow | hold | late | gap) ;;
     *) nested_word= ;;
   esac
 fi
@@ -995,9 +995,10 @@ own_run() {
 ${case_nested:-yes}
 EOF
     case_pid=$!
+    [ "$nested_word" != gap ] || sleep 4
     printf '%s\n' "$case_pid" >"$tmp/nested.pid"
     [ ! -e "$tmp/own-stopping" ] || "$perl_bin" -e "kill('TERM', -\$ARGV[0])" "$case_pid"
-    if [ "$nested_word" = hold ] || [ "$nested_word" = late ]; then
+    if [ "$nested_word" = hold ] || [ "$nested_word" = late ] || [ "$nested_word" = gap ]; then
       printf '%s\n%s\n' "$case_pid" "$witness" >>"$repo/pids"
       printf '%s nested-driver\n%s witness\n' "$case_pid" "$witness" >>"$repo/pid-roles"
     fi
@@ -1226,9 +1227,10 @@ own_self_test() {
   first_b=$pass_b
   [ "$nested_word" != hold ] || first_b='sleep 8; printf "PASS 20-b\n"'
   [ "$nested_word" != late ] || first_b='sleep 30; printf "PASS 20-b\n"'
+  [ "$nested_word" != gap ] || first_b='sleep 30; printf "PASS 20-b\n"'
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$first_b"
   case $nested_word in
-    hold | late) case_witness=yes ;;
+    hold | late | gap) case_witness=yes ;;
   esac
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   if [ -n "$nested_word" ]; then
@@ -1974,6 +1976,12 @@ own_self_test() {
   case_max_s=60
   case_witness=yes
   own_case own-cases-stopped-while-the-running-case-starts-its-driver 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=gap
+  case_limit=2
+  case_max_s=60
+  case_witness=yes
+  own_case own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-driver 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
   new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; sleep 60 >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; w pid.10-a || exit 1; read -r p <\"\$CI_D_REPO/pid.10-a\"; n=0; while kill -0 \"\$p\" 2>/dev/null && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.20-b\"; wait; $passes"
   case_jobs=2
