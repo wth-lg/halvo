@@ -4716,15 +4716,6 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         });
         control_reads(test, "phase-A", &seam::take_marks(), &seam::take());
         let gate_a = keyboard.field_state();
-        let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
-        say(
-            test,
-            format!(
-                "browser={} phase=M uia_of_the_focused_element {}",
-                run.browser.name,
-                seam::focused_element_properties()
-            ),
-        );
         let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));
         let gate_b = keyboard.field_state();
         let withheld_b = keyboard.health().counters.keys_withheld;
@@ -4809,7 +4800,7 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             test,
             format!(
                 "keyboard_start={} browser={} detector_class={} phase_A_plain_keys={} phase_A_events={a} \
-                 phase_M_masked_keys={} phase_M_events={m} phase_B_password_keys={} phase_B_events={b} \
+                 phase_B_password_keys={} phase_B_events={b} \
                  keys_withheld={withheld_b} phase_C_keys={} phase_C_events={c} phase_C_password_key_events={c_password} \
                  phase_D_keys={} phase_D_events={d} phase_E_password_keys={} phase_E_events={e} \
                  phase_F_password_keys={f_password} phase_F_events={f}",
@@ -4817,7 +4808,6 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
                 browser.name,
                 if unknown_class { "unknown" } else { "read" },
                 page(&a_page).0,
-                page(&m_page).2,
                 page(&b_page).1,
                 c_seq.len(),
                 page(&d_page).0 + page(&d_page).1,
@@ -4826,7 +4816,7 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         );
         assert!(start.is_ok(), "the keyboard source must start");
         assert!(
-            page(&a_page).0 == 5 && page(&b_page).1 == 5 && page(&m_page).2 == 5,
+            page(&a_page).0 == 5 && page(&b_page).1 == 5,
             "INCONCLUSIVE: the page did not take the scripted keys"
         );
         assert_eq!(b, 0, "phase B: a key of the password input was recorded");
@@ -4874,16 +4864,12 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
                 );
             }
             assert_eq!(
-                a + m + c + e,
+                a + c + e,
                 0,
                 "a Firefox focus must read Unknown and give no keystroke event"
             );
         } else {
             assert_eq!(a, 5, "phase A: every key of the text input");
-            assert_eq!(
-                m, 5,
-                "phase M: the CSS-masked text input is recorded, as the consent text says"
-            );
             assert!(c >= 1, "phase C: no key of the text input was recorded");
             assert_eq!(
                 e_letters, 0,
@@ -4891,6 +4877,61 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
             );
         }
     });
+}
+
+fn style_mask_phase(test: &'static str, browser: &'static Browser) -> (usize, String) {
+    let out = Arc::new(Mutex::new((0usize, String::new())));
+    let kept = Arc::clone(&out);
+    with_deadline(test, Duration::from_secs(240), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let mut run = BrowserRun::new(browser);
+        say(
+            test,
+            format!("browser={} installed={}", browser.name, run.is_some()),
+        );
+        let run = run
+            .as_mut()
+            .expect("the browser is not installed on this runner: FAIL");
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let _ = browser_phase(test, run, &keyboard, &events, 'W', Vec::new);
+        let (keys, _, page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
+        let uia = seam::focused_element_properties();
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        say(
+            test,
+            format!(
+                "browser={} phase=M uia_of_the_focused_element {uia}",
+                browser.name
+            ),
+        );
+        say(
+            test,
+            format!(
+                "browser={} phase=M keyboard_start={} masked_letters_landed={} keystroke_events={keys}",
+                browser.name,
+                show(&start),
+                page.as_ref().map_or(-1, |p| i64::from(p.masked))
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert_eq!(
+            page.map_or(0, |p| p.masked),
+            5,
+            "INCONCLUSIVE: the style-masked input did not take the 5 letters"
+        );
+        *kept
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = (keys, uia);
+    });
+    let taken = out
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    taken
 }
 
 #[test]
@@ -5046,6 +5087,32 @@ mod known_defect {
             "W3-7-Q2i",
             recorded == 0,
             format!("TF browser-held-swap-edge password_letters_recorded_while_the_page_was_held={recorded}")
+        );
+    }
+
+    #[test]
+    #[ignore = "known defect: W3-20, a text input that a page masks by style alone"]
+    fn style_masked_input_in_chrome_and_edge() {
+        let mut recorded = 0;
+        let mut lines = Vec::new();
+        for (test, browser) in [("style-mask-chrome", &CHROME), ("style-mask-edge", &EDGE)] {
+            let (keys, uia) = style_mask_phase(test, browser);
+            recorded += keys;
+            lines.push(format!("{}:{uia}", browser.name));
+        }
+        for line in &lines {
+            assert!(
+                line.contains(":is_password=false ")
+                    && line.contains(" protected=false ")
+                    && line.contains(" control_type=50004 "),
+                "the UI Automation line of the style-masked input differs, so the gate could read it \
+                 and the case is not this one: {line}"
+            );
+        }
+        defect!(
+            "W3-20-style-mask",
+            recorded == 0,
+            format!("TF style-mask keystroke_events_in_chrome_and_edge={recorded}")
         );
     }
 
