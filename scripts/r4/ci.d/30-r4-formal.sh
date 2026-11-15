@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: TLC finds no invariant of the coordinator's two models broken in the small configurations that formal/r4-coordinator/README.md names for CI, the committed traces are what the committed models export, and each of two control copies breaks its invariant.
+# rule: TLC finds no invariant of the coordinator's two models broken in the small configurations that formal/r4-coordinator/README.md names for CI, the committed traces are what the committed models export, and each of three control copies breaks its invariant.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -20,6 +20,8 @@ c1_old='ModelFree(s, a) == a \notin NeedsModel \/ \A r \in s.runs : r.agent \not
 c1_new='ModelFree(s, a) == TRUE'
 l5_old='ELSE IF s.items[i].st # "recorded" THEN No(s, "state")'
 l5_new='ELSE IF s.items[i].st \notin {"answered", "recorded"} THEN No(s, "state")'
+l11_old='ELSE IF row /\ store = "lost"'
+l11_new='ELSE IF row /\ store = "lost" /\ c # "allow"'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
@@ -223,9 +225,27 @@ declared() {
   esac
   result=missing
   [ -f "$dir/$2" ] || return 0
-  result=$(awk -v letter="$letter" -v count="$count" -v ci="$3" '
+  [ -f "$dir/$1.tla" ] || return 0
+  constants=$(awk '
+    { sub(/\r$/, "") }
+    /^CONSTANTS / { on = 1; sub(/^CONSTANTS /, "") }
+    on { gsub(/[ \t]/, ""); out = out $0; if ($0 !~ /,$/) exit }
+    END { print out }' "$dir/$1.tla") || return 0
+  result=$(awk -v letter="$letter" -v count="$count" -v ci="$3" -v constants="$constants" -v model="$1" '
+    BEGIN { n = split(constants, c, ","); for (i = 1; i <= n; i++) known[c[i]] = 1 }
     {
       sub(/\r$/, "")
+      if (index($0, "<-") > 0) arrow = 1
+      if ($0 == "") { }
+      else if ($0 == "INIT Init") inits++
+      else if ($0 == "NEXT Next") nexts++
+      else if (substr($0, 1, 10) == "INVARIANT " && $0 ~ /^INVARIANT [A-Za-z][A-Za-z0-9_]*$/) { }
+      else if (model == "Schedule" && ($0 == "CONSTRAINT Bound" || $0 == "VIEW View")) { }
+      else if ($0 ~ /^CONSTANT [A-Za-z][A-Za-z0-9_]* = (TRUE|FALSE|[0-9]+|"[^"]*"|\{[^{}=<]*\})$/) {
+        word = $2
+        if (!(word in known)) other = 1
+      }
+      else other = 1
       if (substr($0, 1, 10) == "INVARIANT ") { lines++; have[substr($0, 11)] = 1 }
       if (index($0, "(*") > 0 || index($0, "\\*") > 0) comment = 1
       line = $0
@@ -236,7 +256,8 @@ declared() {
       for (i = 1; i <= count; i++) if (!((letter i) in have)) { print "invariants"; exit }
       if (comment) { print "comment"; exit }
       if (lines != count) { print "invariants"; exit }
-      if (ci == "yes" && index(flat, "<-") > 0) { print "replaced"; exit }
+      if (arrow) { print "replaced"; exit }
+      if (other || inits != 1 || nexts != 1) { print "lines"; exit }
       print "ok"
     }' "$dir/$2") || result=missing
   [ -n "$result" ] || result=missing
@@ -476,14 +497,15 @@ control() {
 real_control() {
   case $1 in
     C1) control Schedule Schedule-queue.cfg - C1 "$c1_old" "$c1_new" ;;
-    *) control Confirm4 Confirm4.cfg - L5 "$l5_old" "$l5_new" ;;
+    L5) control Confirm4 Confirm4.cfg - L5 "$l5_old" "$l5_new" ;;
+    *) control Confirm4 Confirm4.cfg - L11 "$l11_old" "$l11_new" ;;
   esac
 }
 
 controls() {
   broken=0
   applied=yes
-  for copy in C1 L5; do
+  for copy in C1 L5 L11; do
     real_control "$copy"
     case $? in
       0) broken=$((broken + 1)) ;;
@@ -493,7 +515,7 @@ controls() {
   [ "$applied" = yes ] || printf 'formal control applied=no\n'
   printf 'formal control violated=%s\n' "$broken"
   [ "$applied" = yes ] || fail control
-  [ "$broken" -eq 2 ] || fail control
+  [ "$broken" -eq 3 ] || fail control
 }
 
 measure() {
@@ -714,6 +736,9 @@ fi
 if [ "$module" = Confirm4 ] && grep -q -F '\notin {"answered", "recorded"} THEN No(s, "state")' Confirm4.tla; then
   copy=L5
 fi
+if [ "$module" = Confirm4 ] && grep -q -F 'store = "lost" /\ c # "allow"' Confirm4.tla; then
+  copy=L11
+fi
 good() {
   printf 'Model checking completed. No error has been found.\r\n'
   printf '%s states generated, %s distinct states found, 0 states left on queue.\r\n' "$2" "$1"
@@ -826,7 +851,21 @@ every_push() {
   edit replaced-outside-ci README.md "$elsewhere"
   printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule.cfg" || fail selftest
   restamp replaced-outside-ci
-  expect replaced-outside-ci "0:PASS $name" good
+  expect replaced-outside-ci "1:FAIL $name (invariant)" good '' ' result=replaced'
+  forms=0
+  for form in 'CONSTANT HInPress<- HTaken' 'CONSTANT HInPress <- HTaken HTries <- HTaken' 'CONSTANT NRequests = 3' \
+    'CONSTRAINT Bound' 'VIEW View' 'NEXT Next'; do
+    case $form in
+      *'<-'*) want=replaced ;;
+      *) want=lines ;;
+    esac
+    forms=$((forms + 1))
+    fixture "line-form-$forms"
+    edit "line-form-$forms" README.md "$elsewhere"
+    printf '%s\n' "$form" >>"$fdir/Confirm4.cfg" || fail selftest
+    restamp "line-form-$forms"
+    expect "line-form-$forms" "1:FAIL $name (invariant)" good '' " result=$want"
+  done
   fixture comment-mark
   {
     printf '\\* a note\n'
@@ -1070,7 +1109,7 @@ selftest() {
   tmp="$keep/real copies"
   mkdir "$tmp" || fail selftest
   cp "$keep/tla2tools.jar" "$tmp/tla2tools.jar" || fail selftest
-  for copy in C1 L5; do
+  for copy in C1 L5 L11; do
     if real_control "$copy"; then
       say "selftest control=$copy rejected=yes"
       rejected=$((rejected + 1))
