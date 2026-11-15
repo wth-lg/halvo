@@ -834,9 +834,8 @@ log_holds() {
 
 control() {
   sh scripts/egress/probe.sh none >"$artifacts/control-build.out" 2>"$artifacts/control-build.err" || fail setup
-  exe_suffix=
-  [ "$job" != windows ] || exe_suffix=.exe
-  spawn=target/egress/bin/egress-spawn$exe_suffix
+  spawn=target/egress/bin/egress-spawn
+  [ ! -f "$spawn.exe" ] || spawn=$spawn.exe
   [ -f "$spawn" ] || fail setup
   "$spawn" serve 47201 "$work/control-stop" "$work/control-ready" &
   listener=$!
@@ -1176,8 +1175,8 @@ case $* in
     exit 0
     ;;
   "clippy --locked --manifest-path $CI_D_ARTIFACTS/canary/Cargo.toml --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code")
-    want=$(cd "$CI_D_ARTIFACTS/forbid-list" && pwd) || exit 96
-    got=$(cd "$CLIPPY_CONF_DIR" && pwd) || exit 96
+    want=$(cd "$CI_D_ARTIFACTS/forbid-list" && { pwd -W 2>/dev/null || pwd; }) || exit 96
+    got=$(cd "$CLIPPY_CONF_DIR" && { pwd -W 2>/dev/null || pwd; }) || exit 96
     [ "$got" = "$want" ] || exit 96
     if [ "$STUB_CANARY" = real ]; then
       exec "$REAL_CARGO" "$@"
@@ -1191,8 +1190,8 @@ case $* in
     exit 101
     ;;
   'clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code')
-    want=$(cd "$CI_D_ARTIFACTS/forbid-list" && pwd) || exit 96
-    got=$(cd "$CLIPPY_CONF_DIR" && pwd) || exit 96
+    want=$(cd "$CI_D_ARTIFACTS/forbid-list" && { pwd -W 2>/dev/null || pwd; }) || exit 96
+    got=$(cd "$CLIPPY_CONF_DIR" && { pwd -W 2>/dev/null || pwd; }) || exit 96
     [ "$got" = "$want" ] || exit 96
     invalid=$(grep -c 'allow-invalid = true' "$CLIPPY_CONF_DIR/clippy.toml")
     case $CI_D_JOB:$invalid in
@@ -1381,7 +1380,7 @@ EOF
 case $1 in
   none)
     mkdir -p target/egress/bin || exit 2
-    for spawn in target/egress/bin/egress-spawn target/egress/bin/egress-spawn.exe; do
+    for spawn in target/egress/bin/egress-spawn; do
       cat >"$spawn" <<'SPAWN' || exit 2
 #!/bin/sh
 [ "$1" = serve ] || exit 2
