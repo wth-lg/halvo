@@ -1282,7 +1282,7 @@ own_self_test() {
       dot-slash) case_scripts=./scripts ;;
       trailing-slash) case_scripts=scripts/ ;;
       absolute) case_scripts=$fixture/scripts ;;
-      doubled-slashes) case_scripts=$(printf '%s\n' "$fixture/scripts/" | sed 's|/|//|g') ;;
+      doubled-slashes) case_scripts=$(printf '%s\n' "$fixture/scripts/" | sed 's|\([^/]\)/|\1//|g') ;;
     esac
     case_witness=yes
     case_absent="FAIL 10-a ($untracked_refusal)"
@@ -1290,6 +1290,18 @@ own_self_test() {
     case_then="FAIL 20-planted ($untracked_refusal)"
     own_case "tracked-script-runs-and-untracked-script-is-refused-$spelling" 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
   done
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
+    printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
+  case_scripts=/$fixture/scripts
+  case_witness=yes
+  case_absent='PASS 20-planted'
+  if command -v cygpath >/dev/null 2>&1; then
+    own_case root-that-starts-with-two-slashes 1 'FAIL run-ci-d (no scripts for macos)' macos
+  else
+    case_first='PASS 10-a'
+    case_then="FAIL 20-planted ($untracked_refusal)"
+    own_case root-that-starts-with-two-slashes 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  fi
   : >"$tmp/case-probe"
   if [ -e "$tmp/CASE-PROBE" ]; then
     new_repo && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit &&
