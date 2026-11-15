@@ -664,3 +664,62 @@ describe("one cancel call at a time for one id, and the cut interval's send firs
     w.close();
   });
 });
+
+describe("the removal's decision is stored (unit 5.6, P7-110 L6)", () => {
+  test("V6: a deleteAll that throws once at the bound: the next run within SYNC_RETRY_MS removes, and each interval closed with delete-bound has its usage-not-billable line once", async () => {
+    const d = await deleting({ testClock: false, always: { kind: "request-lost" } });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(START + MINUTE);
+    await destroy(w);
+    const real = w.host.deleteAll;
+    let refused = 0;
+    w.host.deleteAll = async () => {
+      if (refused === 0) {
+        refused += 1;
+        throw new RangeError("deleteAll refused once");
+      }
+      await real();
+    };
+    w.at(START + MINUTE + DAY);
+    await quiet(w.lines, () => w.entries().alarm());
+    const afterTheRefusal = await holds(w);
+    const due = await w.host.getAlarm();
+    w.at(Math.max(due ?? 0, w.now()));
+    await quiet(w.lines, () => w.entries().alarm());
+    expect([afterTheRefusal, refused, await holds(w)]).toEqual([true, 1, false]);
+    expect((due ?? Number.POSITIVE_INFINITY) - (START + MINUTE + DAY)).toBeLessThanOrEqual(SYNC_RETRY_MS);
+    expect(w.lines.filter((line) => line === NOT_BILLABLE)).toHaveLength(1);
+    w.close();
+  });
+
+  test("a decision made for no subscription id is void when an id arrives before the removal: that id is cancelled first, then the storage goes", async () => {
+    const d = await deleting({ testClock: false, script: ["nothing-to-cancel"] });
+    const w = d.w;
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(START + MINUTE);
+    const real = w.host.deleteAll;
+    let refused = 0;
+    w.host.deleteAll = async () => {
+      if (refused === 0) {
+        refused += 1;
+        throw new RangeError("deleteAll refused once");
+      }
+      await real();
+    };
+    await destroy(w).catch(() => null);
+    const decided = await skeleton(w);
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_late_sub", providerTime: START + MINUTE + 1000 }));
+    w.at(START + MINUTE + SYNC_RETRY_MS);
+    await quiet(w.lines, () => w.entries().alarm());
+    expect(decided).toEqual(expect.objectContaining({ cancel_answered_for: null, removal_decided_at: START + MINUTE }));
+    expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([
+      [null, "nothing-to-cancel"],
+      ["sub_1", "cancelled"],
+    ]);
+    expect(await holds(w)).toBe(false);
+    w.close();
+  });
+});

@@ -30,6 +30,7 @@ function scriptedMetering(oldest: () => Ms): Metering {
     settled: () => true,
     closeOpen: () => 0,
     unacknowledged: () => 0,
+    closedAtBound: () => 0,
   };
 }
 

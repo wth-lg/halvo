@@ -148,6 +148,7 @@ function scripted() {
     settled: answering("metering.settled", () => answers.settled),
     closeOpen: answering("metering.closeOpen", () => answers.closeOpen),
     unacknowledged: answering("metering.unacknowledged", () => answers.unacknowledged),
+    closedAtBound: answering("metering.closedAtBound", () => answers.closeOpen),
   };
   return { calls, answers, modules: { accounts, ledger, metering } };
 }
@@ -879,6 +880,7 @@ describe("the test methods", () => {
           cancel_answered_for: null,
           cancel_next_at: null,
           cancel_delay: null,
+          removal_decided_at: null,
         },
       ],
       test_clock: [{ time: 500 }],

@@ -25,11 +25,13 @@ export function runDeleteBoundCase(step: Step): unknown {
     const before = metering.settled(sql);
     const closed = metering.closeOpen(sql, T0 + 3 * H);
     const again = metering.closeOpen(sql, T0 + 3 * H + 1);
+    const atTheBound = metering.closedAtBound(sql);
     return {
       unacknowledged,
       before,
       closed,
       again,
+      atTheBound,
       after: metering.settled(sql),
       intervals: sql.exec("SELECT start, sealed_at, amount, identifier, timestamp, outcome, refusal, closed_at FROM metering_interval ORDER BY start").map((row) => ({ ...row })),
     };
@@ -41,6 +43,7 @@ export const DELETE_BOUND_EXPECTED = {
   before: false,
   closed: 2,
   again: 0,
+  atTheBound: 2,
   after: true,
   intervals: [
     {

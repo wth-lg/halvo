@@ -86,6 +86,7 @@ interface Mark {
   answeredFor: string | null;
   nextAt: Ms | null;
   delay: Ms | null;
+  decidedAt: Ms | null;
 }
 
 type Fourth =
@@ -159,6 +160,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const dueErrors: unknown[] = [];
   const cancelsInFlight = new Map<string, { since: Ms; call: object }>();
   const sendsInFlight = new Map<object, Ms>();
+  let removalLogged: Ms | null = null;
   const leavesDestroy = (error: unknown) =>
     errorName(error) === "ObjectStoppedError" || (typeof error === "object" && error !== null && removalRejections.has(error));
 
@@ -166,7 +168,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     sql.exec("SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "table", name).length > 0;
   const holds = (sql: Sql) => tableExists(sql, SKELETON);
   const skeletonRow = (sql: Sql) =>
-    sql.exec("SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay FROM skeleton")[0] ??
+    sql.exec(
+      "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at FROM skeleton",
+    )[0] ??
     contractBroken();
   const lastNow = (sql: Sql) => Number(skeletonRow(sql).last_now);
   const markOf = (sql: Sql): Mark => {
@@ -178,6 +182,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       answeredFor: answeredFor === null || answeredFor === undefined ? null : String(answeredFor),
       nextAt: timeOrNull(row.cancel_next_at),
       delay: timeOrNull(row.cancel_delay),
+      decidedAt: timeOrNull(row.removal_decided_at),
     };
   };
   const destroyingSince = (sql: Sql) => markOf(sql).since;
@@ -204,7 +209,10 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     const subscription = accounts.subscription(sql);
     if (mark.since !== null && subscription !== null) {
       const inFlight = subscription.subscriptionId === null ? undefined : cancelsInFlight.get(subscription.subscriptionId);
-      if (mark.answeredAt !== null && answeredFor(mark, subscription.subscriptionId)) times.push(mark.answeredAt + DELETE_REMOVAL_BOUND_MS);
+      if (mark.answeredAt !== null && answeredFor(mark, subscription.subscriptionId)) {
+        times.push(mark.answeredAt + DELETE_REMOVAL_BOUND_MS);
+        if (mark.decidedAt !== null) times.push(mark.decidedAt + SYNC_RETRY_MS);
+      }
       else if (inFlight !== undefined) times.push(inFlight.since + CALL_IN_FLIGHT_MS);
       else {
         const sendEnds = earliest([...sendsInFlight.values()].map((since) => since + CALL_IN_FLIGHT_MS));
@@ -267,13 +275,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   function createTables(sql: Sql, now: Ms): void {
     sql.exec(
-      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER)",
+      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER)",
     );
     sql.exec(
-      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       null,
       now,
       0,
+      null,
       null,
       null,
       null,
@@ -497,7 +506,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const failures = markedNow ? prior + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET last_now = ?, alarm_failures = ?", now, failures);
         const inFlight = earliest([...[...cancelsInFlight.values()].map((each) => each.since), ...sendsInFlight.values()].map((since) => since + CALL_IN_FLIGHT_MS));
-        const owed = earliest([mark.answeredAt === null ? mark.nextAt : mark.answeredAt + DELETE_REMOVAL_BOUND_MS, inFlight]);
+        const owed = earliest([
+          mark.answeredAt === null ? mark.nextAt : mark.answeredAt + DELETE_REMOVAL_BOUND_MS,
+          mark.decidedAt === null ? null : mark.decidedAt + SYNC_RETRY_MS,
+          inFlight,
+        ]);
         return { failures, tested: testTime(sql) !== null, marked: markedNow, owed };
       });
       count = counted.failures;
@@ -651,9 +664,10 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
         if (!answeredFor(current, made.subscriptionId) && !answeredFor(current, subscriptionId)) {
           open.sql.exec(
-            "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?",
+            "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?, removal_decided_at = ?",
             now,
             made.subscriptionId,
+            null,
             null,
             null,
           );
@@ -662,38 +676,50 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       });
       if (recorded !== null) return recorded;
     }
-    const last = step((open): DeleteAnswer | { closed: number | { unknown: unknown } } => {
+    const last = step((open): DeleteAnswer | { decidedAt: Ms; closed: number | { unknown: unknown } } => {
       if (!holds(open.sql)) return { result: "deleted" };
       const now = open.begin();
       if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
       const stored = markOf(open.sql);
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (stored.answeredAt === null || !answeredFor(stored, subscriptionId)) return NOT_FINISHED;
-      if (now >= stored.answeredAt + DELETE_REMOVAL_BOUND_MS) {
-        let closed: number | { unknown: unknown } = 0;
+      const closedAtBound = (): number | { unknown: unknown } => {
         try {
-          closed = isMetered(open.sql) ? metering.closeOpen(open.sql, now) : 0;
+          return isMetered(open.sql) ? metering.closedAtBound(open.sql) : 0;
         } catch (error) {
           open.caught(error);
-          closed = { unknown: error };
+          return { unknown: error };
         }
-        open.beginWithoutAlarm();
-        return { closed };
+      };
+      if (stored.decidedAt !== null) return { decidedAt: stored.decidedAt, closed: closedAtBound() };
+      if (now >= stored.answeredAt + DELETE_REMOVAL_BOUND_MS) {
+        let unknown: { unknown: unknown } | null = null;
+        try {
+          if (isMetered(open.sql)) metering.closeOpen(open.sql, now);
+        } catch (error) {
+          open.caught(error);
+          unknown = { unknown: error };
+        }
+        open.sql.exec("UPDATE skeleton SET removal_decided_at = ?", now);
+        return { decidedAt: now, closed: unknown ?? closedAtBound() };
       }
       const metered = isMetered(open.sql);
       if (ledger.openHoldsAt(open.sql, now) > 0 || (metered && !metering.settled(open.sql))) return NOT_FINISHED;
-      open.beginWithoutAlarm();
-      return { closed: 0 };
+      open.sql.exec("UPDATE skeleton SET removal_decided_at = ?", now);
+      return { decidedAt: now, closed: closedAtBound() };
     });
     if ("result" in last) return last;
+    if (removalLogged !== last.decidedAt) {
+      removalLogged = last.decidedAt;
+      if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
+      else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
+    }
     try {
       await host.deleteAll();
     } catch (error) {
       if (typeof error === "object" && error !== null) removalRejections.add(error);
       throw error;
     }
-    if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
-    else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
     return { result: "deleted" };
   }
 

@@ -32,4 +32,5 @@ export interface Metering {
   settled(sql: Sql): boolean;
   closeOpen(sql: Sql, now: Ms): number;
   unacknowledged(sql: Sql): number;
+  closedAtBound(sql: Sql): number;
 }
