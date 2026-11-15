@@ -860,8 +860,8 @@ read_candidates() {
   ' "$work/grep.txt" | sort -u >"$work/candidates.txt" || fail setup
 }
 
-write_asker() {
-  cat >"$work/asker.sh" <<'EOF' || fail setup
+asker_program() {
+  cat <<'EOF'
 #!/bin/sh
 exe=$1
 words=$2
@@ -872,7 +872,7 @@ loopback=$6
 unknown='REFUSED usage: unknown command'
 nl='
 '
-all=$(cat "$words") || exit 2
+all=$words
 found=
 sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
 mkdir -p "$answers/discover" || exit 2
@@ -927,26 +927,78 @@ EOF
 list_copy() {
   calls=$((calls + 1))
   list_given=$work/list-$calls.txt
-  cp "$work/list-blob.txt" "$list_given" || fail setup
+  git cat-file blob "$list_blob" >"$list_given" || fail setup
 }
 
 list_after() {
-  same=yes
-  cmp -s "$list_given" "$work/list-blob.txt" || same=no
-  cmp -s "$list" "$work/list-blob.txt" || same=no
-  if [ "$same" = no ]; then
+  copy_id=$(git hash-object --no-filters -- "$list_given" 2>/dev/null) || copy_id=-
+  if [ "$copy_id" != "$list_blob" ]; then
     printf 'egress %s: a wrapped run changed the list\n' "$1"
     changed=yes
   fi
-  tree_changes "$work/after-$calls.txt" || fail setup
-  if [ -s "$work/after-$calls.txt" ]; then
-    report_changes after "$work/after-$calls.txt"
+  tree_after "$1"
+}
+
+tree_hashes() {
+  printf '%s\n' "$tracked_paths" | git -c core.quotePath=false hash-object --stdin-paths 2>/dev/null
+}
+
+git_view() {
+  git config --list --show-origin 2>&1
+  attributes=$(git rev-parse --git-path info/attributes) || return 0
+  [ ! -f "$attributes" ] || cat "$attributes"
+}
+
+tree_after() {
+  hashes_now=$(tree_hashes) || hashes_now=-
+  if [ "$hashes_now" != "$tracked_hashes" ]; then
+    changed=yes
+    tree_report=$({
+      printf '%s\n' "$tracked_paths"
+      printf '%s\n' '--reference--'
+      printf '%s\n' "$tracked_hashes"
+      printf '%s\n' '--now--'
+      printf '%s\n' "$hashes_now"
+    } | awk -v list="$list" '
+      $0 == "--reference--" { part = 1; next }
+      $0 == "--now--" { part = 2; next }
+      part == 0 { path[++n] = $0; next }
+      part == 1 { ref[++r] = $0; next }
+      { now[++m] = $0 }
+      END {
+        shown = 0
+        for (i = 1; i <= n; i++) {
+          if (ref[i] == now[i]) continue
+          if (path[i] == list) print "list"
+          if (shown < 5) print "tree changed=after M " path[i]
+          shown++
+        }
+      }
+    ')
+    case $nl$tree_report$nl in
+      *"${nl}list$nl"*) printf 'egress %s: a wrapped run changed the list\n' "$1" ;;
+    esac
+    printf '%s\n' "$tree_report" | grep -v '^list$'
+  fi
+  view_now=$(git_view) || view_now=-
+  if [ "$view_now" != "$git_reference" ]; then
+    printf "egress %s: a wrapped run changed git's configuration\n" "$1"
     changed=yes
   fi
 }
 
+wrapped_call() {
+  call_out=$1
+  shift
+  list_copy
+  before_numbers=$(egress_numbers)
+  call_err=$(sh scripts/egress/check.sh "$list_given" -- "$@" 2>&1 >"$call_out" </dev/null)
+  code=$?
+  printf '%s\n' "$call_err" >"$call_out.err"
+  last=${call_err##*"$nl"}
+}
+
 read_wrapped() {
-  last_line "$1"
   rest=${last#"egress mode="}
   run_mode=${rest%% *}
   rest=${rest#*" list=$list_given command="}
@@ -983,7 +1035,7 @@ wrapped_holds() {
 }
 
 egress_numbers() {
-  find target/egress -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's|.*/||' | awk '/^[0-9]+$/' >"$1"
+  find target/egress -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's|.*/||' | awk '/^[0-9]+$/'
 }
 
 log_holds() {
@@ -995,9 +1047,9 @@ log_holds() {
   case $number in
     '' | *[!0-9]*) return 1 ;;
   esac
-  if grep -q -x -F -e "$number" "$1"; then
-    return 1
-  fi
+  case $nl$before_numbers$nl in
+    *"$nl$number$nl"*) return 1 ;;
+  esac
   [ -f "$log" ] && [ ! -h "$log" ] || return 1
   lines=$(awk 'END { print NR }' "$log") || return 1
   [ "$lines" = "$count" ]
@@ -1030,13 +1082,9 @@ control() {
   try=0
   while [ "$try" -lt 4 ]; do
     try=$((try + 1))
-    egress_numbers "$work/before-control-$try.txt"
-    list_copy
-    sh scripts/egress/check.sh "$list_given" -- sh scripts/egress/probe.sh loopback \
-      >"$artifacts/control-$try.out" 2>"$artifacts/control-$try.err" </dev/null
-    code=$?
+    wrapped_call "$artifacts/control-$try.out" sh scripts/egress/probe.sh loopback
     list_after control
-    read_wrapped "$artifacts/control-$try.err"
+    read_wrapped
     case $wrapped in
       refused)
         refused_mode=yes
@@ -1055,7 +1103,7 @@ control() {
       printf 'egress control: the egress check let the control through\n'
       break
     fi
-    if ! log_holds "$work/before-control-$try.txt"; then
+    if ! log_holds; then
       holds=no
       printf 'egress control log=not-new-or-not-its-own\n'
       break
@@ -1081,16 +1129,28 @@ asking_seconds() {
   [ "$seconds" -le 240 ] || fail usage
 }
 
+state_before_calls() {
+  run_entries=$(run_list) || fail setup
+  cannot_entries=$(cannot_list) || fail setup
+  list_blob=$(git rev-parse --verify --quiet "$tree:$list") || fail setup
+  candidate_words=$(cat "$work/candidates.txt") || fail setup
+  candidate_count=$(printf '%s\n' "$candidate_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
+  tracked_paths=$(git -c core.quotePath=false ls-tree -r "$tree" | awk -F '\t' '$1 ~ /^100/ { print $2 }') || fail setup
+  tracked_hashes=$(tree_hashes) || fail setup
+  git_reference=$(git_view) || fail setup
+  out_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name-out.XXXXXX") || fail setup
+}
+
 discover() {
   asked=0
   if [ "$job" = windows ]; then
     printf 'egress asking=not-run (in the windows job the egress check names the wrapped program alone, so a reach by a child of a wrapped shell is logged and failed, not stopped; the forbid run holds the code that windows compiles)\n'
     return
   fi
-  write_asker
+  asker_text=$(asker_program) || fail setup
   asking_seconds
   if ! start_listener 47202 asking; then
-    : >"$work/commands.txt"
+    found_commands=
     return
   fi
   asking_listener=$listener
@@ -1100,15 +1160,12 @@ discover() {
     try=$((try + 1))
     answers=$work/answers-$try
     mkdir -p "$answers" || fail setup
-    egress_numbers "$work/before-asking-$try.txt"
-    list_copy
     record=target/egress/r6-asking-$$-$try.out
     mkdir -p target/egress || fail setup
-    sh scripts/egress/check.sh "$list_given" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$answers" "$seconds" \
-      "$probe_word" "$repo_abs/scripts/egress/probe.sh" >"$record" 2>"$artifacts/asking-$try.err" </dev/null
-    code=$?
+    wrapped_call "$record" sh -c "$asker_text" asker "$exe" "$candidate_words" "$answers" "$seconds" \
+      "$probe_word" "$repo_abs/scripts/egress/probe.sh"
     list_after asking
-    read_wrapped "$artifacts/asking-$try.err"
+    read_wrapped
     [ "$wrapped" = line ] || break
     probes=0
     if [ -f "$log" ] && [ ! -h "$log" ]; then
@@ -1139,7 +1196,7 @@ discover() {
       denied=$((denied + reached))
       printf 'egress asking denied=%s probes=%s tries=%s command=%s exit=%s\n' "$reached" "$probes" "$try" "$status" "$code"
       wrapped_holds "$code" || ran=no
-      if ! log_holds "$work/before-asking-$try.txt"; then
+      if ! log_holds; then
         printf 'egress asking log=not-new-or-not-its-own\n'
         ran=no
       fi
@@ -1149,109 +1206,99 @@ discover() {
       fi
       ;;
   esac
-  cp "$record" "$artifacts/asking-$try.out" || fail setup
-  sed -n 's/^found //p' "$record" >"$work/commands.txt" || fail setup
-  asked=$(sed -n 's/^asked //p' "$record") || fail setup
-  words=$(awk 'NF { n++ } END { print n + 0 }' "$work/candidates.txt") || fail setup
-  if [ "$asked" != "$words" ]; then
-    printf 'egress asking asked=%s of %s words\n' "${asked:--}" "$words"
+  record_text=$(cat "$record") || record_text=
+  printf '%s\n' "$record_text" >"$artifacts/asking-$try.out" || fail setup
+  found_commands=$(printf '%s\n' "$record_text" | sed -n 's/^found //p') || fail setup
+  asked=$(printf '%s\n' "$record_text" | sed -n 's/^asked //p') || fail setup
+  if [ "$asked" != "$candidate_count" ]; then
+    printf 'egress asking asked=%s of %s words\n' "${asked:--}" "$candidate_count"
     asked=0
     ran=no
   fi
 }
 
 compare_lists() {
-  run_list >"$work/run-list.txt" || fail setup
-  cannot_list >"$work/cannot-list.txt" || fail setup
-  awk '{ print $1 }' "$work/run-list.txt" "$work/cannot-list.txt" | sort >"$work/listed.txt" || fail setup
-  awk '{ print $1 }' "$work/run-list.txt" | sort -u >"$work/run-names.txt" || fail setup
-  checks=$(awk 'END { print NR }' "$work/run-names.txt") || fail setup
+  run_words=$(printf '%s\n' "$run_entries" | awk 'NF { print $1 }') || fail setup
+  cannot_words=$(printf '%s\n' "$cannot_entries" | awk 'NF { print $1 }') || fail setup
+  listed=$(printf '%s\n%s\n' "$run_words" "$cannot_words" | awk 'NF' | sort) || fail setup
+  run_names=$(printf '%s\n' "$run_words" | sort -u | awk 'NF { n++ } END { print n + 0 }') || fail setup
   matched=yes
-  awk 'seen[$0]++ == 1' "$work/listed.txt" >"$work/twice.txt" || fail setup
-  while IFS= read -r word; do
+  twice=$(printf '%s\n' "$listed" | awk 'seen[$0]++ == 1') || fail setup
+  for word in $twice; do
     printf 'egress listed-twice=%s\n' "$word"
     matched=no
-  done <"$work/twice.txt"
-  sort -u "$work/listed.txt" >"$work/listed-once.txt" || fail setup
+  done
   if [ "$job" = windows ]; then
-    awk '{ print $1 }' "$work/run-list.txt" >"$work/commands.txt" || fail setup
+    found_commands=$run_words
     commands=-
   else
-    commands=$(awk 'END { print NR }' "$work/commands.txt") || fail setup
-  fi
-  if [ "$job" != windows ]; then
-    awk '
-      FILENAME == ARGV[1] { listed[$0] = 1; next }
+    commands=$(printf '%s\n' "$found_commands" | awk 'NF { n++ } END { print n + 0 }') || fail setup
+    mismatch=$({
+      printf '%s\n' "$listed"
+      printf '%s\n' '--found--'
+      printf '%s\n' "$found_commands"
+    } | awk '
+      $0 == "--found--" { part = 1; next }
+      $0 == "" { next }
+      part == 0 { listed[$0] = 1; next }
       { found[$0] = 1 }
-      !($0 in listed) { print "egress on-neither-list=" $0 }
-      END { for (word in listed) if (!(word in found)) missing[word] = 1 }
-      END { for (word in missing) print "egress no-command=" word }
-    ' "$work/listed-once.txt" "$work/commands.txt" >"$work/mismatch.txt" || fail setup
-    while IFS= read -r line; do
-      printf '%s\n' "$line"
+      part == 1 && !($0 in listed) { print "egress on-neither-list=" $0 }
+      END { for (word in listed) if (!(word in found)) print "egress no-command=" word }
+    ') || fail setup
+    if [ -n "$mismatch" ]; then
+      printf '%s\n' "$mismatch"
       matched=no
-    done <"$work/mismatch.txt"
+    fi
   fi
-  cannot=$(awk 'END { print NR }' "$work/cannot-list.txt") || fail setup
-  printf 'egress commands=%s asked=%s run=%s cannot=%s crates=%s\n' "$commands" "$asked" "$checks" "$cannot" "$crates"
-  while IFS=' ' read -r word reason; do
-    printf 'egress cannot=%s reason=%s\n' "$word" "$reason"
-  done <"$work/cannot-list.txt"
-}
-
-last_line() {
-  last=
-  while IFS= read -r line || [ -n "$line" ]; do
-    last=$line
-  done <"$1"
+  cannot=$(printf '%s\n' "$cannot_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
+  printf 'egress commands=%s asked=%s run=%s cannot=%s crates=%s\n' "$commands" "$asked" "$run_names" "$cannot" "$crates"
+  printf '%s\n' "$cannot_entries" | while IFS=' ' read -r word reason; do
+    [ -z "$word" ] || printf 'egress cannot=%s reason=%s\n' "$word" "$reason"
+  done
 }
 
 run_checks() {
   i=0
   checks=0
-  while IFS= read -r entry || [ -n "$entry" ]; do
+  saved_ifs=$IFS
+  set -f
+  IFS=$nl
+  for entry in $run_entries; do
+    IFS=$saved_ifs
     i=$((i + 1))
     word=${entry%% *}
-    if ! grep -q -x -F -e "$word" "$work/commands.txt"; then
-      continue
-    fi
-    set -f
+    case $nl$found_commands$nl in
+      *"$nl$word$nl"*) ;;
+      *)
+        IFS=$nl
+        continue
+        ;;
+    esac
     # shellcheck disable=SC2086
     set -- $entry
-    set +f
     shift
-    words=
-    for arg in "$@"; do
+    for arg do
+      shift
       case $arg in
-        @/*) arg=$work/out${arg#@} ;;
+        @/*) arg=$out_dir${arg#@} ;;
       esac
-      words="$words$arg$nl"
+      set -- "$@" "$arg"
     done
-    set --
-    if [ -n "$words" ]; then
-      while IFS= read -r arg; do
-        set -- "$@" "$arg"
-      done <<EOF
-${words%"$nl"}
-EOF
-    fi
-    egress_numbers "$work/before-run-$i.txt"
-    list_copy
-    sh scripts/egress/check.sh "$list_given" -- "$exe" "$word" "$@" \
-      >"$artifacts/run-$i.out" 2>"$artifacts/run-$i.err" </dev/null
-    code=$?
+    wrapped_call "$artifacts/run-$i.out" "$exe" "$word" "$@"
     list_after "run=$word"
-    read_wrapped "$artifacts/run-$i.err"
+    read_wrapped
     case $wrapped in
       refused)
         refused_mode=yes
         ran=no
         printf 'egress run=%s refused=mode\n' "$word"
+        IFS=$nl
         continue
         ;;
       missing)
         ran=no
         printf 'egress run=%s line=missing exit=%s\n' "$word" "$code"
+        IFS=$nl
         continue
         ;;
     esac
@@ -1259,11 +1306,14 @@ EOF
     denied=$((denied + count))
     printf 'egress run=%s mode=%s command=%s denied=%s exit=%s\n' "$word" "$run_mode" "$status" "$count" "$code"
     wrapped_holds "$code" || ran=no
-    if ! log_holds "$work/before-run-$i.txt"; then
+    if ! log_holds; then
       printf 'egress run=%s log=not-new-or-not-its-own\n' "$word"
       ran=no
     fi
-  done <"$work/run-list.txt"
+    IFS=$nl
+  done
+  IFS=$saved_ifs
+  set +f
   if [ "$checks" -eq 0 ]; then
     printf 'egress checks=0: no command of the first list ran\n'
     ran=no
@@ -1298,10 +1348,12 @@ check() {
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || fail setup
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail setup
-  mkdir -p "$work/out" "$work/discover" || fail setup
+  mkdir -p "$work/discover" || fail setup
   listener=
   asking_listener=
   trap stopped INT TERM HUP
+  R6_EGRESS_CHECK_PID=$$
+  export R6_EGRESS_CHECK_PID
   platform_of
   job_of
   root_abs=$(absolute_dir .) || fail setup
@@ -1319,7 +1371,6 @@ check() {
   count_entries
   calls=0
   changed=no
-  git cat-file blob "$tree:$list" >"$work/list-blob.txt" 2>/dev/null || fail setup
   not_observed
 
   closed_graph
@@ -1360,16 +1411,13 @@ check() {
   refused_mode=no
   read_graph
   read_candidates
+  state_before_calls
   control
   discover
   compare_lists
   run_checks
 
-  tree_changes "$work/after.txt" || fail setup
-  if [ -s "$work/after.txt" ]; then
-    report_changes after "$work/after.txt"
-    changed=yes
-  fi
+  tree_after end
 
   printf 'egress checks=%s denied=%s entries=%s\n' "$checks" "$denied" "$entries"
   if [ "$ran" = yes ] && [ "$denied" -eq 0 ]; then
@@ -1671,6 +1719,20 @@ case $STUB_CHECK in
     ;;
 esac
 case $STUB_CHECK:${2:-} in
+  rewrite-record:generate | cut-run-list:generate)
+    out=
+    for arg in "$@"; do
+      [ "$prev" != --out ] || out=$arg
+      prev=$arg
+    done
+    parent=${out%/*}
+    parent=${parent%/*}
+    if [ "$STUB_CHECK" = rewrite-record ]; then
+      printf 'generate\n' >"$parent/commands.txt"
+    else
+      : >"$parent/run-list.txt"
+    fi
+    ;;
   widen:generate) printf '127.0.0.1:47391\n' >>scripts/r6/egress/gate.txt ;;
   widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
   change-copy:generate) printf '127.0.0.1:47391\n' >>"$list" ;;
@@ -1712,7 +1774,7 @@ mkdir -p "target/egress/$n"
 lines=$denied
 [ "$STUB_CHECK" != short-log ] || lines=$((denied + 1))
 [ "$STUB_CHECK:$1 $2" != "noline-control:sh scripts/egress/probe.sh" ] || exit 1
-[ "$STUB_CHECK:$1 $2" != "signal:sh scripts/egress/probe.sh" ] || kill -TERM "$PPID"
+[ "$STUB_CHECK:$1 $2" != "signal:sh scripts/egress/probe.sh" ] || kill -TERM "$R6_EGRESS_CHECK_PID"
 {
   i=0
   while [ "$i" -lt "$lines" ]; do
@@ -1733,7 +1795,7 @@ case $STUB_CHECK:$1:$2 in
   reuse-log:*) n=1 ;;
   reuse-log-run:sh:*) ;;
   reuse-log-run:*) n=1 ;;
-  reuse-log-asking:sh:*asker.sh) n=1 ;;
+  reuse-log-asking:sh:-c) n=1 ;;
   reuse-previous:sh:*) ;;
   reuse-previous:*) n=$((n - 1)) ;;
 esac
@@ -1852,6 +1914,8 @@ control control-let-through
 new-log log-of-the-run-before
 log-link log-that-is-a-link
 list-in-force run-widens-the-list-and-a-later-run-restores-it
+state-in-memory-record run-rewrites-the-record-of-found-commands
+state-in-memory-run-list run-cuts-the-run-list
 wrapped-verdict command-exits-1
 run-arguments entry-with-no-arguments
 tree-check tracked-file-changed-by-a-run
@@ -1889,6 +1953,8 @@ control-let-through
 log-of-the-run-before
 log-that-is-a-link
 run-widens-the-list-and-a-later-run-restores-it
+run-rewrites-the-record-of-found-commands
+run-cuts-the-run-list
 command-exits-1
 entry-with-no-arguments
 tracked-file-changed-by-a-run
@@ -2718,6 +2784,10 @@ EOF
   case_run canary-list-entry-refers-to-nothing FAIL check 'egress canary: the forbid run let the canary through'
   STUB_CHECK=reuse-log-run
   case_run log-of-another-run-of-the-gate-tool FAIL check 'egress run=generate log=not-new-or-not-its-own'
+  STUB_CHECK=rewrite-record
+  case_run run-rewrites-the-record-of-found-commands PASS - 'egress checks=6 denied=0 entries=0'
+  STUB_CHECK=cut-run-list
+  case_run run-cuts-the-run-list PASS - 'egress checks=6 denied=0 entries=0'
   STUB_CHECK=widen
   case_run run-widens-the-list-and-a-later-run-restores-it FAIL check 'egress run=generate: a wrapped run changed the list'
   STUB_CHECK=change-copy
