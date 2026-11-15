@@ -427,12 +427,16 @@ impl Supervisor {
             .map(|a| a.run.clone())
             .collect();
         self.reap_step(ReapStep::Answered);
-        remove_profiles(data_dir, |run| {
-            alive.contains(run)
-                || lock(&self.inner.runs)
-                    .get(run)
-                    .is_some_and(|slot| !slot.ended())
-        });
+        remove_profiles(
+            data_dir,
+            |run| {
+                alive.contains(run)
+                    || lock(&self.inner.runs)
+                        .get(run)
+                        .is_some_and(|slot| !slot.ended())
+            },
+            |step| self.reap_step(step),
+        );
         Ok(answers)
     }
 
@@ -791,34 +795,121 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     inner.parts.marks.end(&slot.spec.run, &end);
 }
 
-/// Removes each directory under `<data_dir>/agents/profiles/` whose name is a run id that `keep` does not hold, by
-/// a path under that folder alone: nothing when `agents` or `profiles` is a link or no directory, and an entry that
-/// is a link, that is no directory or whose name is no run id stays. `fs::remove_dir_all` holds the directory by a
-/// handle that it opened without following a link and removes what it holds through that handle, a link in it as a
-/// link. A directory that cannot be removed stays until the next reap.
-fn remove_profiles(data_dir: &Path, keep: impl Fn(&RunId) -> bool) {
-    let agents = data_dir.join("agents");
-    let profiles = agents.join("profiles");
-    for folder in [data_dir, agents.as_path(), profiles.as_path()] {
-        if !fs::symlink_metadata(folder).is_ok_and(|m| m.file_type().is_dir()) {
-            return;
-        }
-    }
-    let Ok(entries) = fs::read_dir(&profiles) else {
+/// Removes each directory under `<data_dir>/agents/profiles/` whose name is a run id that `keep` does not keep,
+/// asked just before each removal; an entry that is a link, that is no directory or whose name is no run id stays,
+/// and nothing is removed when `agents` or `profiles` is a link or no directory. `step` runs at the seam's points.
+/// On macOS the folder `profiles` is opened once from the data directory, through `agents`, each without following
+/// a link, and every entry is listed and removed relative to that descriptor: a directory below it is opened
+/// without following a link and emptied through its own descriptor, and a link is removed as itself. On Windows
+/// `agents` and then `profiles` are opened as handles that follow no reparse point, refused when either is one or is
+/// no directory, and held for the whole walk with a share mode that leaves out deletion, so that neither can be
+/// renamed, removed or replaced while the walk holds it; each entry is then removed by its path under them with
+/// `fs::remove_dir_all`, which removes a reparse point that it meets as itself and follows none. What the Windows form
+/// rests on is that share mode; an entry below `profiles` that is replaced by a link between the listing and its
+/// removal is removed as a link, and what the link names stays. A directory that cannot be removed stays until the
+/// next reap.
+fn remove_profiles(data_dir: &Path, keep: impl Fn(&RunId) -> bool, step: impl Fn(ReapStep)) {
+    let Some(held) = HeldProfiles::open(data_dir) else {
         return;
     };
-    for entry in entries.flatten() {
-        if !entry.file_type().is_ok_and(|t| t.is_dir()) {
+    step(ReapStep::ProfilesHeld);
+    let Some(entries) = held.entries() else {
+        return;
+    };
+    step(ReapStep::Listed);
+    for (name, is_dir) in entries {
+        if !is_dir {
             continue;
         }
-        let name = entry.file_name();
         let Some(run) = name.to_str().and_then(|n| RunId::parse(n).ok()) else {
             continue;
         };
         if !keep(&run) {
-            let _ = fs::remove_dir_all(profiles.join(run.as_str()));
+            held.remove(&name);
         }
     }
+}
+
+/// The folder `profiles` as `remove_profiles` holds it.
+#[cfg(target_os = "macos")]
+struct HeldProfiles(crate::sys::Dir);
+
+#[cfg(target_os = "macos")]
+impl HeldProfiles {
+    fn open(data_dir: &Path) -> Option<HeldProfiles> {
+        let root = crate::sys::Dir::open(data_dir).ok()?;
+        let agents = root.child("agents".as_ref()).ok()?;
+        agents.child("profiles".as_ref()).ok().map(HeldProfiles)
+    }
+
+    fn entries(&self) -> Option<Vec<(std::ffi::OsString, bool)>> {
+        self.0.entries().ok()
+    }
+
+    fn remove(&self, name: &std::ffi::OsStr) {
+        let _ = self.0.remove_tree(name);
+    }
+}
+
+/// The folder `profiles` as `remove_profiles` holds it: its path, and the handles of `agents` and `profiles`.
+#[cfg(windows)]
+struct HeldProfiles {
+    path: std::path::PathBuf,
+    _held: [fs::File; 2],
+}
+
+#[cfg(windows)]
+impl HeldProfiles {
+    fn open(data_dir: &Path) -> Option<HeldProfiles> {
+        let agents = data_dir.join("agents");
+        let path = agents.join("profiles");
+        let first = hold_folder(&agents)?;
+        let second = hold_folder(&path)?;
+        Some(HeldProfiles {
+            path,
+            _held: [first, second],
+        })
+    }
+
+    fn entries(&self) -> Option<Vec<(std::ffi::OsString, bool)>> {
+        let found = fs::read_dir(&self.path).ok()?;
+        Some(
+            found
+                .flatten()
+                .map(|e| (e.file_name(), e.file_type().is_ok_and(|t| t.is_dir())))
+                .collect(),
+        )
+    }
+
+    fn remove(&self, name: &std::ffi::OsStr) {
+        let _ = fs::remove_dir_all(self.path.join(name));
+    }
+}
+
+/// Opens the folder `path` without following a reparse point, with a share mode that lets others read and write in
+/// it but not delete or rename it; none when it is a reparse point or no directory.
+#[cfg(windows)]
+fn hold_folder(path: &Path) -> Option<fs::File> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+    const FILE_LIST_DIRECTORY: u32 = 0x0001;
+    const FILE_READ_ATTRIBUTES: u32 = 0x0080;
+    const SYNCHRONIZE: u32 = 0x0010_0000;
+    const FILE_SHARE_READ: u32 = 0x0001;
+    const FILE_SHARE_WRITE: u32 = 0x0002;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0010;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+    let file = fs::OpenOptions::new()
+        .access_mode(FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+        .ok()?;
+    let attributes = file.metadata().ok()?.file_attributes();
+    let folder = attributes & FILE_ATTRIBUTE_DIRECTORY != 0
+        && attributes & FILE_ATTRIBUTE_REPARSE_POINT == 0;
+    folder.then_some(file)
 }
 
 fn not_started(exit: Option<RunnerExit>) -> StartError {

@@ -817,3 +817,131 @@ fn a_kill_and_a_start_answer_while_a_reap_of_many_left_trees_runs() {
     );
     rig.sup.kill(&started).unwrap();
 }
+
+fn run_hook_at(rig: &Rig, at: ReapStep, f: impl Fn() + Send + Sync + 'static) {
+    let hook: ReapHook = std::sync::Arc::new(move |step| {
+        if step == at {
+            f();
+        }
+    });
+    rig.sup.set_reap_hook(Some(hook));
+}
+
+#[test]
+fn a_link_swapped_in_for_profiles_agents_or_the_data_directory_while_reap_holds_profiles_takes_nothing_outside(
+) {
+    let rig = Rig::new("reap-swap-folders");
+    let root = profiles(&rig);
+    let left: Vec<RunId> = (0..3).map(|_| common::run_id()).collect();
+    for run in &left {
+        profile_tree(&root.join(run.as_str()));
+    }
+    let outside = rig.dir.join("outside");
+    let named = common::run_id();
+    profile_tree(&outside.join("agents").join("profiles").join(named.as_str()));
+    let data = rig.data();
+    let moved = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    {
+        let data = data.clone();
+        let outside = outside.clone();
+        let moved = moved.clone();
+        run_hook_at(&rig, ReapStep::ProfilesHeld, move || {
+            for (from, to, target) in [
+                (
+                    data.join("agents").join("profiles"),
+                    data.join("agents").join("profiles-moved"),
+                    outside.join("agents").join("profiles"),
+                ),
+                (
+                    data.join("agents"),
+                    data.join("agents-moved"),
+                    outside.join("agents"),
+                ),
+                (
+                    data.clone(),
+                    data.with_file_name("data-moved"),
+                    outside.clone(),
+                ),
+            ] {
+                let renamed = fs::rename(&from, &to).is_ok();
+                if renamed {
+                    link_dir(&target, &from);
+                }
+                moved.lock().unwrap().push(renamed);
+            }
+        });
+    }
+    rig.sup.reap().unwrap();
+    rig.sup.set_reap_hook(None);
+    let moved = moved.lock().unwrap().clone();
+    eprintln!(
+        "u46 swap during the walk: renamed profiles={} agents={} data={}",
+        moved[0], moved[1], moved[2]
+    );
+    let mut real = data.clone();
+    if moved[2] {
+        real = data.with_file_name("data-moved");
+    }
+    real = real.join(if moved[1] { "agents-moved" } else { "agents" });
+    real = real.join(if moved[0] {
+        "profiles-moved"
+    } else {
+        "profiles"
+    });
+    if cfg!(windows) {
+        assert!(
+            !moved[0],
+            "the rename of profiles went through while reap held it"
+        );
+    }
+    assert!(
+        outside
+            .join("agents")
+            .join("profiles")
+            .join(named.as_str())
+            .join("tmp")
+            .join("scratch")
+            .exists(),
+        "reap removed a tree outside the profiles folder that it held"
+    );
+    for run in &left {
+        assert!(
+            !real.join(run.as_str()).exists(),
+            "a left profile of the held folder stays"
+        );
+    }
+}
+
+#[test]
+fn an_entry_swapped_for_a_link_after_the_listing_is_removed_as_a_link_and_what_it_names_stays() {
+    let rig = Rig::new("reap-swap-entry");
+    let root = profiles(&rig);
+    let swapped = common::run_id();
+    profile_tree(&root.join(swapped.as_str()));
+    let outside = rig.dir.join("outside-entry");
+    profile_tree(&outside);
+    {
+        let root = root.clone();
+        let outside = outside.clone();
+        let swapped = swapped.clone();
+        run_hook_at(&rig, ReapStep::Listed, move || {
+            fs::rename(root.join(swapped.as_str()), root.join("moved-aside")).unwrap();
+            link_dir(&outside, &root.join(swapped.as_str()));
+        });
+    }
+    rig.sup.reap().unwrap();
+    rig.sup.set_reap_hook(None);
+    assert!(
+        outside.join("tmp").join("scratch").exists(),
+        "reap followed a link that took the place of a listed entry"
+    );
+    assert!(
+        fs::symlink_metadata(root.join(swapped.as_str())).is_err(),
+        "the link that took the place of the entry stays"
+    );
+    assert!(root
+        .join("moved-aside")
+        .join("tmp")
+        .join("scratch")
+        .exists());
+}

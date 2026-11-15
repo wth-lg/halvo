@@ -346,6 +346,8 @@ pub enum ReapStep {
     Answered,
     /// The folder `profiles` is held and none of its entries is read yet.
     ProfilesHeld,
+    /// The entries of `profiles` are read and none of them is removed yet.
+    Listed,
 }
 
 /// The hook of `ReapStep`.
