@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), unless a loop retries the create_dir and its tested result ends that loop by a return or a break within three lines (a word in a string is no loop word), is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and paths equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), unless a loop retries the create_dir and its own tested success alone ends that loop by a return or a break in that arm within three lines (a word in a string is no loop word), is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and paths equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -125,10 +125,35 @@ function addmod(t, base,   name, prefix) {
   modfile[prefix name ".rs"] = 1
   modfile[prefix name "/mod.rs"] = 1
 }
-function ends(k, n,   j) {
-  if (cc[k] ~ /\.find(_map)?\(/) return 1
-  for (j = k; j <= k + 3 && j <= n; j++)
-    if (word(bb[j], "return") || word(bb[j], "break")) return 1
+function leaves(s) {
+  return word(s, "return") || word(s, "break")
+}
+function arm(k, n,   j, t) {
+  t = bb[k]
+  sub(/[^{]*\{/, "", t)
+  if (leaves(t)) return 1
+  for (j = k + 1; j <= k + 3 && j <= n; j++) {
+    if (bb[j] ~ /^[ \t]*\}/) return 0
+    if (leaves(bb[j])) return 1
+  }
+  return 0
+}
+function okarm(k, n,   j, t) {
+  for (j = k + 1; j <= k + 3 && j <= n; j++) {
+    if (bb[j] !~ /Ok\(/ || bb[j] !~ /=>/) continue
+    t = bb[j]
+    sub(/.*=>/, "", t)
+    if (leaves(t)) return 1
+    return t ~ /\{/ && t !~ /\}/ && j + 1 <= k + 3 && j + 1 <= n && leaves(bb[j + 1])
+  }
+  return 0
+}
+function retried(k, n,   c) {
+  c = bb[k]
+  if (c ~ /\|\||&&/) return 0
+  if (c ~ /\.find(_map)?\(/) return c ~ /is_ok\(\)/
+  if (c ~ /match[ \t]/) return okarm(k, n)
+  if (c ~ /if[ \t]/ && (c ~ /is_ok\(\)/ || c ~ /let[ \t]+Ok\(/)) return arm(k, n)
   return 0
 }
 function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, intest, pending, fnstart, fnname, lo, j, s, f, m, l, d, w, count, r) {
@@ -233,7 +258,7 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
     if (acc[k]) kind = 2
     else if (ref[k] || (d && !w && cc[k] ~ /\.create\(/)) kind = 1
     else continue
-    if (kind == 1 && l && cc[k] ~ /is_ok\(\)|match |Ok\(/ && ends(k, n)) continue
+    if (kind == 1 && l && retried(k, n)) continue
     if (m || (s && f)) {
       count++
       print path ":" k > placelist
@@ -381,9 +406,11 @@ Calls that make a directory:
   DirBuilder create, create_dir, and each of them under another name by use ... as.
 
 A create_dir that is no place:
-  one that a loop (loop, for, while, .find) retries, whose result the same line tests
-  (is_ok(), match, Ok() and whose success ends the loop by a return or a break within
-  three lines, or by .find on the same line. A line whose only folder call is
+  one that a loop (loop, for, while, .find) retries and whose own success, and nothing
+  else, ends that loop: an if on its is_ok() alone or an if let Ok( on it, with a return
+  or a break in that arm within three lines and before the arm closes; a match on it
+  whose Ok( arm returns or breaks within three lines; or a .find whose closure is its
+  is_ok() alone. A || or an && on its line ends nothing. A line whose only folder call is
   create_dir_all is never such a create_dir, whatever else it holds.
 
 Reads of the process id or the clock:
@@ -639,6 +666,22 @@ self_test() {
   repo loop-word-in-a-string
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    assert!(fs::create_dir(&d).is_ok() || d.is_dir(), "{note}");\n    d\n}\n'
   case_of loop-word-in-a-string FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo unconditional-break
+  put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut dir = PathBuf::new();\n    loop {\n        dir = base.join(format!("{name}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("made {}", dir.display());\n        }\n        break;\n    }\n    dir\n}\n'
+  case_of unconditional-break FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo break-on-exists
+  put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut dir = PathBuf::new();\n    for n in 0..3 {\n        dir = base.join(format!("{name}-{}-{n}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() || dir.exists() {\n            break;\n        }\n    }\n    dir\n}\n'
+  case_of break-on-exists FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo find-or-exists
+  put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    (0..3)\n        .map(|n| base.join(format!("{name}-{}-{n}", std::process::id())))\n        .find(|d| fs::create_dir(d).is_ok() || d.exists())\n        .expect("a folder")\n}\n'
+  case_of find-or-exists FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo tested-result-joined-by-and
+  put crates/a/tests/t.rs 'fn scratch(name: &str, keep: bool) -> PathBuf {\n    loop {\n        let dir = base.join(format!("{name}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() && keep {\n            return dir;\n        }\n    }\n}\n'
+  case_of tested-result-joined-by-and FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo loop-word-in-a-string-beside-a-return
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    if fs::create_dir(&d).is_ok() {\n        return d;\n    }\n    panic!("{note}")\n}\n'
