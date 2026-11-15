@@ -521,9 +521,16 @@ GITSTUB
   repository release-commit-without-its-tag "$typed"
   git -C "$repo" checkout -q -B main
   git -C "$repo" commit -q --allow-empty -m 'Release 1.2.3'
-  refused_before_cargo_release release-commit-without-its-tag 'git reset --hard HEAD~1' --dry-run
+  release_case release-commit-without-its-tag-is-released 0 yes 'next version: 1.2.4' --dry-run
   git -C "$repo" tag v1.2.3
   release_case release-commit-with-its-tag 0 yes 'next version: 1.2.4' --dry-run
+  repository release-commit-whose-tag-was-deleted ''
+  git -C "$repo" commit -q --allow-empty -m 'Release 1.2.3'
+  git -C "$repo" tag v1.2.3
+  git -C "$repo" tag -d v1.2.3 >/dev/null
+  got=FAIL
+  (PATH="$work/bin:$PATH" STUB_LOG=$work/argv-release-commit-whose-tag-was-deleted CARGO_HOME=$work/no-cargo-home release_commit_refusal "$repo") >"$work/out-release-commit-whose-tag-was-deleted" 2>&1 && got=PASS
+  verdict release-commit-whose-tag-was-deleted-passes-check-60 PASS "$got"
   repository heading-in-a-shallow-clone "$typed
 ## [1.2.4] - 2020-01-01
 

@@ -184,13 +184,6 @@ if ! lint=$(sh scripts/check-changelog.sh 2>&1); then
   printf '%s\n' "$lint" >&2
   fail "CHANGELOG.md breaks a rule of scripts/check-changelog.sh, so nothing was released"
 fi
-present=$(cargo metadata --no-deps --format-version 1 2>/dev/null | tr -d '\n' | grep -o -E '\{"name":"halvo","version":"[^"]*"' | sed 's/.*"version":"\([^"]*\)"/\1/' | head -n 1) || present=
-subject=$(git log -1 --format=%s)
-if [ -n "$present" ] && [ "$subject" = "Release $present" ]; then
-  tagged=$(git tag --points-at HEAD | grep -F -e "$present") || tagged=
-  [ -n "$tagged" ] ||
-    fail "HEAD is a release commit of $present and no tag of $present points at it: an earlier run of --execute stopped after its commit. Undo that commit with git reset --hard HEAD~1, then run this again"
-fi
 entries=$(unreleased_entries)
 [ "$entries" -gt 0 ] || fail "## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release"
 
