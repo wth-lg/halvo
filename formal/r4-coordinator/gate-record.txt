@@ -1,6 +1,6 @@
 gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record
-stamp=94216b325cf5f4d1e9696085f04f696dd072754897b085630f32765030c53da5
-script=8316a8ac7d12c5bd43126538227cb41614452491c07220bb41bf381cab055b90
+stamp=8f010831a9486fa7f1e163629142368299f4cc53c9c801b72a62607792fcddd3
+script=5a2a3204fcb0a96dccd12b63381d0d10b7c936f9ababec589100493affd3782e
 selftest fixture=good mode=good as-expected=yes
 selftest fixture=not-compared mode=reads-input as-expected=yes
 selftest rule=scratch held=yes
