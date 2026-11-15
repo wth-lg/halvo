@@ -229,5 +229,26 @@ export async function waitFor(holds, what, { ms = 2000, detail = () => "" } = {}
 /** Waits for at most 2,000 ms until `client` (with `got()`) holds a whole answer. */
 export const answerIn = (client, what = "the answer") => waitFor(() => holdsAnswer(client.got()), what, { detail: () => `the client had read ${client.got().length} bytes` });
 
+/**
+ * Waits for at most 2,000 ms until the stop of `stub` has begun, seen from outside: its control port, which the stop
+ * closes at its begin, refuses a request or closes it with no byte read.
+ */
+export function stopBegun(stub) {
+  let last = "";
+  const probe = () =>
+    exchange(portOf(stub.control), request("GET", "/probe")).then(
+      (bytes) => bytes.length,
+      (error) => error.code,
+    );
+  return waitFor(
+    async () => {
+      last = await probe();
+      return last === 0 || last === "ECONNREFUSED" || last === "ECONNRESET";
+    },
+    "the begin of the stop",
+    { detail: () => `the control port's last answer: ${last}` },
+  );
+}
+
 /** Resolves to the exit code of a child once it has exited. */
 export const exited = (child) => new Promise((resolve) => (child.exitCode !== null ? resolve(child.exitCode) : child.on("exit", (code) => resolve(code))));

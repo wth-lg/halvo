@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
-import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, answerIn, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
+import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, answerIn, waitFor, stopBegun, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
 import { BODY_CAP } from "../src/stub.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
@@ -99,12 +99,18 @@ test("a request still open when the stub stops gets one line incomplete, and a c
     const stub = await startStub({ record: dir, idleMs: 1500 });
     const port = portOf(stub.app);
     const clients = [];
-    for (const bytes of [`GET /v1/done HTTP/1.1\r\nhost: a\r\n`, `PUT /v1/cap HTTP/1.1\r\nhost: a\r\ncontent-length: 36\r\n\r\n{"cap"`, "GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n", ""]) {
+    const sent = [`GET /v1/done HTTP/1.1\r\nhost: a\r\n`, `PUT /v1/cap HTTP/1.1\r\nhost: a\r\ncontent-length: 36\r\n\r\n{"cap"`, "GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n", ""];
+    for (const bytes of sent) {
       const client = await halfOpen(port);
       client.socket.write(bytes);
       clients.push(client);
     }
-    await pause(200);
+    await answerIn(clients[2], `${how}: the answer to the third client`);
+    const raw = (connection) => {
+      const file = join(dir, `connection-00000${connection}.raw`);
+      return existsSync(file) ? readFileSync(file, "latin1") : null;
+    };
+    await waitFor(() => raw(1) === sent[0] && raw(2) === sent[1], `${how}: the bytes of the first two clients in their raw files`, { detail: () => `the raw files hold ${JSON.stringify([raw(1), raw(2)])}` });
     if (how === "close") await stub.close();
     else await exchange(portOf(stub.control), request("POST", "/stop"));
     await stub.stopped;
@@ -395,12 +401,13 @@ test("after the peer ends its side behind an answer, no idle-close line follows"
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
-  await pause(100);
+  await answerIn(client);
   client.socket.end();
   await pause(600);
   client.socket.destroy();
-  assert.equal(parse(client.got()).status, 200);
-  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+  const seen = `the record holds ${JSON.stringify(lines(dir))}; the client had read ${client.got().length} bytes`;
+  assert.equal(parse(client.got()).status, 200, seen);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200], seen);
 });
 
 test("after a 400, no idle-close line follows and bytes sent after it leave no line", async () => {
@@ -408,12 +415,13 @@ test("after a 400, no idle-close line follows and bytes sent after it leave no l
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write("GET /v1/done HTTP/1.1\r\nbad header\r\n\r\n");
-  await pause(100);
+  await answerIn(client, "the 400");
   client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
   await pause(600);
   client.socket.destroy();
-  assert.equal(parse(client.got()).status, 400);
-  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), ["field-line"]);
+  const seen = `the record holds ${JSON.stringify(lines(dir))}; the client had read ${client.got().length} bytes`;
+  assert.equal(parse(client.got()).status, 400, seen);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), ["field-line"], seen);
 });
 
 test("after an answer that closes, no idle-close line follows", async () => {
@@ -421,10 +429,12 @@ test("after an answer that closes, no idle-close line follows", async () => {
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write(request("GET", "/v1/done"));
+  await answerIn(client);
   await pause(600);
   client.socket.destroy();
-  assert.equal(parse(client.got()).status, 200);
-  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+  const seen = `the record holds ${JSON.stringify(lines(dir))}; the client had read ${client.got().length} bytes`;
+  assert.equal(parse(client.got()).status, 200, seen);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200], seen);
 });
 
 test("after the peer resets the connection behind an answer, no idle-close line follows", async () => {
@@ -618,7 +628,7 @@ for (const how of ["close", "stop"]) {
     await plateau(dir);
     if (how === "close") stub.close();
     else exchange(portOf(stub.control), request("POST", "/stop"));
-    await pause(100);
+    await stopBegun(stub);
     peer.socket.resume();
     assert.equal(await settled(peer.ended, 5000), true, "the stub's end arrived after its answers");
     const ending = performance.now();
@@ -673,7 +683,7 @@ test("D3 at the stop, a keep-alive answer that the client has not read yet still
   const peer = await openPeer(portOf(stub.app));
   peer.socket.pause();
   peer.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
-  await pause(200);
+  await waitFor(() => lines(dir).length === 1, "the line of the request, which the stand-in writes before its answer", { detail: () => `the record holds ${JSON.stringify(lines(dir))}` });
   stub.close();
   await pause(200);
   peer.socket.write("x");

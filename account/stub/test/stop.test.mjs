@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
-import { exchange, request, portOf, spawnStub, exited, fresh, startStub, openPeer, answersIn, appHeaders } from "./support.mjs";
+import { exchange, request, portOf, spawnStub, exited, fresh, startStub, openPeer, answersIn, appHeaders, stopBegun } from "./support.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
 const json = [["content-type", "application/json"]];
@@ -206,7 +206,7 @@ test("L5 from the begin of the stop the stand-in writes no 100 Continue: held he
   peer.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\nexpect: 100-continue\r\ncontent-length: 1\r\n\r\nx".repeat(12000));
   await plateau(dir);
   stub.close();
-  await pause(100);
+  await stopBegun(stub);
   peer.socket.resume();
   assert.equal(await settled(peer.ended, 8000), true, "the stand-in's end arrived");
   peer.socket.end();
