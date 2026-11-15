@@ -47,6 +47,7 @@ wrap-nonce-from-a-hashed-counter-per-process
 wrap-nonce-from-a-fixed-seed
 root-file-made-of-the-root-id
 partial-root-file-shared-by-two-writers
+root-partial-name-shared-by-every-writer
 tap-not-reenabled-on-disable
 keydown-not-in-mask
 macos-foreground-stamp-sequence-zero
