@@ -89,6 +89,9 @@ name, from 1. No name below the argument is printed, because a file's name may b
 - The detail of the `tier-manifest` refusal of `leak` and of `input-copy` is the TIER argument
   as given. Where listed files do not hash to their entries, ` mismatched=<n>` follows it, n
   being the number of such files. It never holds a path that the manifest lists.
+- The detail of the `tier-files` refusal of `input-copy` is the TIER argument alone, and the
+  detail of the `output` refusal of `input-copy` and of `build` is the DIR or `--out` argument
+  alone, never a stream directory or a file below it.
 - The `site-data` refusal of `compose`, of the fixture server and of
   tools/fixture-server/check-sites.mjs names a site file as `SITE_DATA <n>`: n is the file's
   number in byte order of the paths given, from 1, and equal paths keep the order given. The

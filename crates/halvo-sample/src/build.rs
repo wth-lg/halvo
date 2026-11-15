@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use halvo_schema::{AppId, Category, Domain, Instant, SeedCategory, Text};
 use halvo_seam::record::{
@@ -309,14 +309,14 @@ pub fn build(args: &BuildArgs) -> Result<Vec<String>, Refusal> {
     };
     create_out_dir(&args.out)?;
     let out = &args.out;
-    let fault = |p: &Path| Refusal::new("output", p.display().to_string());
+    let fault = |_| Refusal::new("output", out.display().to_string());
     let mut files: Vec<(String, String)> = Vec::new();
     let mut write = |rel: String, bytes: &[u8]| -> Result<(), Refusal> {
         let path = out.join(&rel);
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|_| fault(&path))?;
+            fs::create_dir_all(parent).map_err(fault)?;
         }
-        write_new(&path, bytes).map_err(|_| fault(&path))?;
+        write_new(&path, bytes).map_err(fault)?;
         files.push((rel, sha256_hex(bytes)));
         Ok(())
     };
@@ -383,7 +383,7 @@ pub fn build(args: &BuildArgs) -> Result<Vec<String>, Refusal> {
         };
         let text = manifest.write();
         let path = out.join("manifest.toml");
-        write_new(&path, text.as_bytes()).map_err(|_| fault(&path))?;
+        write_new(&path, text.as_bytes()).map_err(fault)?;
         manifest_hash = file_sha256(&path).ok();
     }
     let tasks: BTreeSet<&str> = script

@@ -116,12 +116,8 @@ pub fn input_copy(args: &InputCopyArgs) -> Result<Vec<String>, Refusal> {
         let steps = read_steps(&args.tier, &manifest)?;
         for (id, days) in &streams {
             let files: Vec<PathBuf> = days.iter().map(|(_, p)| args.tier.join(p)).collect();
-            let records = read_through(&files, None).map_err(|_| {
-                Refusal::new(
-                    "tier-files",
-                    args.tier.join("streams").join(id).display().to_string(),
-                )
-            })?;
+            let records = read_through(&files, None)
+                .map_err(|_| Refusal::new("tier-files", args.tier.display().to_string()))?;
             let ranges = read_ranges(&args.tier, id)?;
             for (_, r) in records {
                 let Payload::WindowTitle(t) = r.payload() else {
@@ -155,14 +151,10 @@ pub fn input_copy(args: &InputCopyArgs) -> Result<Vec<String>, Refusal> {
     }
     let mut copies: Vec<(String, Vec<u8>)> = Vec::new();
     let (mut read_n, mut written, mut day_files) = (0u64, 0u64, 0u64);
-    for (id, days) in &streams {
+    for days in streams.values() {
         let files: Vec<PathBuf> = days.iter().map(|(_, p)| args.tier.join(p)).collect();
-        let records = read_through(&files, Some(&args.input_set)).map_err(|_| {
-            Refusal::new(
-                "tier-files",
-                args.tier.join("streams").join(id).display().to_string(),
-            )
-        })?;
+        let records = read_through(&files, Some(&args.input_set))
+            .map_err(|_| Refusal::new("tier-files", args.tier.display().to_string()))?;
         let mut per_seg: Vec<Vec<u8>> = vec![Vec::new(); days.len()];
         for (seg, r) in records {
             per_seg[(seg - 1) as usize].extend(r.to_line());
@@ -175,13 +167,13 @@ pub fn input_copy(args: &InputCopyArgs) -> Result<Vec<String>, Refusal> {
         }
     }
     create_out_dir(&args.out)?;
-    let fault = |p: &Path| Refusal::new("output", p.display().to_string());
+    let fault = |_| Refusal::new("output", args.out.display().to_string());
     let put = |rel: &str, bytes: &[u8]| -> Result<(), Refusal> {
         let p = args.out.join(rel);
         if let Some(parent) = p.parent() {
-            fs::create_dir_all(parent).map_err(|_| fault(&p))?;
+            fs::create_dir_all(parent).map_err(fault)?;
         }
-        write_new(&p, bytes).map_err(|_| fault(&p))
+        write_new(&p, bytes).map_err(fault)
     };
     put("manifest.sha256", format!("{hash}\n").as_bytes())?;
     for (rel, bytes) in &copies {
@@ -236,18 +228,14 @@ fn checked(tier: &Path, m: &TierManifest, rel: &str) -> Result<Vec<u8>, Refusal>
 
 fn read_steps(tier: &Path, m: &TierManifest) -> Result<Vec<StepLine>, Refusal> {
     let bytes = checked(tier, m, "script-manifest.jsonl")?;
-    parse_script_manifest(&bytes).ok_or_else(|| {
-        Refusal::new(
-            "tier-files",
-            tier.join("script-manifest.jsonl").display().to_string(),
-        )
-    })
+    parse_script_manifest(&bytes)
+        .ok_or_else(|| Refusal::new("tier-files", tier.display().to_string()))
 }
 
 fn read_ranges(tier: &Path, stream: &str) -> Result<Vec<(i64, i64, String)>, Refusal> {
     let rel = format!("streams/{stream}/labels.jsonl");
     let p = tier.join(&rel);
-    let fault = || Refusal::new("tier-files", p.display().to_string());
+    let fault = || Refusal::new("tier-files", tier.display().to_string());
     let bytes = fs::read(&p).map_err(|_| fault())?;
     let lines = crate::form::text_lines(&bytes).ok_or_else(fault)?;
     let mut out = Vec::new();

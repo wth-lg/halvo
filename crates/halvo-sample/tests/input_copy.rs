@@ -304,6 +304,119 @@ fn an_input_copy_keeps_every_run_mark_of_its_tier() {
     }
 }
 
+fn rehash(tier: &Path, rel: &str, text: &str) {
+    fs::write(tier.join(rel), text).expect("w");
+    let mp = tier.join("manifest.toml");
+    let mut m = TierManifest::parse(&fs::read(&mp).expect("m")).expect("parse");
+    let entry = m.files.iter_mut().find(|f| f.0 == rel).expect("listed");
+    entry.1 = sha256_hex(text.as_bytes());
+    fs::write(&mp, m.write()).expect("w");
+}
+
+#[test]
+fn the_tier_files_refusal_of_input_copy_names_the_tier_argument_alone() {
+    let dir = scratch("tier-files-detail");
+    let t = tier(&dir, true);
+    let layer_set = dir.join("set.toml");
+    write(&layer_set, "envelope = [\"app\"]\nlayers = [\"accessibility_text\"]\n[kinds]\nforeground_app = []\nwindow_title = [\"text\"]\n");
+    let stream = files_under(&t)
+        .into_iter()
+        .find(|f| f.ends_with("/labels.jsonl"))
+        .expect("a label file");
+    let day = files_under(&t)
+        .into_iter()
+        .find(|f| f.starts_with("streams/") && f.contains("/day-"))
+        .expect("a day file");
+    let bad_day = fs::read_to_string(t.join(&day))
+        .expect("day")
+        .replacen("\"v\":1", "\"v\":3", 1);
+    let cases: [(&str, &str, String, &Path); 4] = [
+        (
+            "labels",
+            stream.as_str(),
+            "{\"no\":\"row\"}\n".to_owned(),
+            &layer_set,
+        ),
+        (
+            "steps",
+            "script-manifest.jsonl",
+            "{\"no\":\"step\"}\n".to_owned(),
+            &layer_set,
+        ),
+        ("day", day.as_str(), bad_day.clone(), Path::new("")),
+        ("day-layers", day.as_str(), bad_day, &layer_set),
+    ];
+    for (name, rel, text, set) in cases {
+        let c = dir.join(name);
+        copy_dir(&t, &c);
+        rehash(&c, rel, &text);
+        let set = if set.as_os_str().is_empty() {
+            app_title()
+        } else {
+            s(set)
+        };
+        let o = run(&[
+            "input-copy",
+            "--input-set",
+            &set,
+            &s(&c),
+            &s(&dir.join("o")),
+        ]);
+        refused(&o, "tier-files");
+        assert_eq!(
+            o.stderr,
+            format!("REFUSED tier-files: {}\n", s(&c)),
+            "{name}"
+        );
+    }
+    assert!(!dir.join("o").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn the_output_refusal_of_input_copy_and_build_names_the_dir_argument_alone() {
+    let dir = scratch("output-detail");
+    let t = tier(&dir, false);
+    let umask = |args: &[String]| -> common::Out {
+        let o = std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg("umask 0277 && exec \"$0\" \"$@\"")
+            .arg(env!("CARGO_BIN_EXE_halvo-sample"))
+            .args(args)
+            .output()
+            .expect("sh runs");
+        common::Out {
+            code: o.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+        }
+    };
+    let copy = dir.join("copy");
+    let o = umask(&[
+        "input-copy".to_owned(),
+        "--input-set".to_owned(),
+        app_title(),
+        s(&t),
+        s(&copy),
+    ]);
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&copy)));
+    let built = dir.join("built");
+    let o = umask(&[
+        "build".to_owned(),
+        "--tier".to_owned(),
+        "gen-dev".to_owned(),
+        "--seed".to_owned(),
+        "4".to_owned(),
+        "--out".to_owned(),
+        s(&built),
+        s(&dir.join("script.jsonl")),
+        s(&dir.join("marked.jsonl")),
+    ]);
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&built)));
+}
+
 fn without_entry(tier: &Path, rel: &str) {
     let mp = tier.join("manifest.toml");
     let mut m = TierManifest::parse(&fs::read(&mp).expect("m")).expect("parse");
