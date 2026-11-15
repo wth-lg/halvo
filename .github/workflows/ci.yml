@@ -104,10 +104,16 @@ jobs:
             echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
             exit 1
           fi
-          changed=$(git status --porcelain)
-          if [ -n "$changed" ]; then
-            echo "$changed"
-            echo "A step or a check changed these files of the checkout, or left them untracked and not ignored. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
+          changed=$(git -c core.fileMode=true status --porcelain --untracked-files=no --ignore-submodules=none)
+          untracked=$(git ls-files --others --exclude-per-directory=.gitignore)
+          flagged=$(git ls-files -v | awk '!/^H /')
+          hidden=$(git status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
+            source=$(git check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
+            git ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
+          done)
+          if [ -n "$changed$untracked$flagged$hidden" ]; then
+            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
+            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
             exit 1
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -188,10 +194,16 @@ jobs:
             echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
             exit 1
           fi
-          changed=$(git status --porcelain)
-          if [ -n "$changed" ]; then
-            echo "$changed"
-            echo "A step or a check changed these files of the checkout, or left them untracked and not ignored. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
+          changed=$(git status --porcelain --untracked-files=no --ignore-submodules=none)
+          untracked=$(git ls-files --others --exclude-per-directory=.gitignore)
+          flagged=$(git ls-files -v | awk '!/^H /')
+          hidden=$(git status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
+            source=$(git check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
+            git ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
+          done)
+          if [ -n "$changed$untracked$flagged$hidden" ]; then
+            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
+            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
             exit 1
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
