@@ -21,7 +21,10 @@ the pull request into one commit whose message it checks first, so that no
 attribution line reaches the default branch.
 
   sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]
-      Read pull request <number> with gh and refuse unless all of these hold:
+      First run git fetch origin main, and stop with exit 1 when this file or
+      scripts/check-commit-messages.sh beside it differs from the copy that
+      origin/main holds, so that no checkout merges by an older rule. Then
+      read pull request <number> with gh and refuse unless all of these hold:
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
         - its head is the commit given with --head, the one that was reviewed
         - for each of the events push and pull_request, the newest workflow
@@ -113,6 +116,19 @@ usage() {
     printf 'Usage: sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]\n       sh scripts/merge-pr.sh --help\n'
   } >&2 || :
   exit 64
+}
+
+check_own_copy() {
+  git fetch -q origin main || die 'git fetch origin main failed, so this run cannot compare its own copy with the one on main. This run merged nothing.'
+  for file in merge-pr.sh check-commit-messages.sh; do
+    on_main=$(git rev-parse --verify --quiet "refs/remotes/origin/main:scripts/$file") ||
+      die "origin/main holds no scripts/$file after git fetch origin main. This run merged nothing."
+    here=$(git hash-object --no-filters "$script_directory/$file") || die "git hash-object could not read $script_directory/$file"
+    if [ "$here" != "$on_main" ]; then
+      printf 'merge-pr: REFUSED: scripts/%s in this checkout differs from the copy on origin/main, so this run could merge by another rule than main holds. Run the script from a checkout of origin/main: git fetch origin main && git switch --detach origin/main. This run merged nothing.\n' "$file" >&2
+      exit 1
+    fi
+  done
 }
 
 refuse() {
@@ -429,6 +445,7 @@ run() {
   body=$(cat <"$body_file") || die "cannot read the file of --body-file: $body_file"
   command -v gh >/dev/null 2>&1 || die 'gh is not on PATH. Install the GitHub CLI and run: gh auth login'
   git rev-parse --git-dir >/dev/null 2>&1 || die 'not inside a git repository'
+  check_own_copy
 
   read_facts
   print_facts
@@ -451,7 +468,8 @@ self_test() {
     die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
-  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails" "$work/git-that-signals-the-script"
+  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails" "$work/git-that-signals-the-script" \
+    "$work/git-whose-every-fetch-fails" "$work/git-whose-fetch-brings-another-main"
 
   cat >"$work/bin/gh" <<'EOF'
 #!/bin/sh
@@ -513,13 +531,34 @@ EOF
 #!/bin/sh
 case " $* " in
   *' fetch '*)
+    if [ -e "$MERGE_PR_STUB_STATE/merge-arguments" ]; then
+      echo 'stub git: the fetch failed' >&2
+      exit 1
+    fi
+    ;;
+esac
+exec "$MERGE_PR_STUB_REAL_GIT" "$@"
+EOF
+  chmod +x "$work/git-whose-fetch-fails/git"
+  cat >"$work/git-whose-every-fetch-fails/git" <<'EOF'
+#!/bin/sh
+case " $* " in
+  *' fetch '*)
     echo 'stub git: the fetch failed' >&2
     exit 1
     ;;
 esac
 exec "$MERGE_PR_STUB_REAL_GIT" "$@"
 EOF
-  chmod +x "$work/git-whose-fetch-fails/git"
+  chmod +x "$work/git-whose-every-fetch-fails/git"
+  cat >"$work/git-whose-fetch-brings-another-main/git" <<'EOF'
+#!/bin/sh
+case " $* " in
+  *' fetch '*) exec "$MERGE_PR_STUB_REAL_GIT" fetch -q origin "+$MERGE_PR_STUB_OTHER_MAIN:refs/remotes/origin/main" ;;
+esac
+exec "$MERGE_PR_STUB_REAL_GIT" "$@"
+EOF
+  chmod +x "$work/git-whose-fetch-brings-another-main/git"
   cat >"$work/git-that-signals-the-script/git" <<'EOF'
 #!/bin/sh
 case " $* " in
@@ -533,11 +572,17 @@ EOF
   stub_path=$work/bin
 
   git init -q --bare "$work/github.git"
+  git -C "$work/github.git" symbolic-ref HEAD refs/heads/main
   git -C "$work/github.git" fetch -q "$root" HEAD:refs/heads/main
   git clone -q --no-local "$work/github.git" "$work/clone"
   commit() {
     git -C "$work/clone" -c commit.gpgsign=false commit -q --allow-empty --no-verify --cleanup=verbatim -m "$1"
   }
+  cp "$script_directory/merge-pr.sh" "$script_directory/check-commit-messages.sh" "$work/clone/scripts/"
+  git -C "$work/clone" add scripts/merge-pr.sh scripts/check-commit-messages.sh
+  commit 'Hold the scripts under test'
+  git -C "$work/clone" push -q --no-verify origin HEAD:refs/heads/main
+  held_main=$(git -C "$work/clone" rev-parse HEAD)
   commit 'Add the feature'
   reviewed_head=$(git -C "$work/clone" rev-parse HEAD)
   git -C "$work/clone" checkout -q --detach origin/main
@@ -547,6 +592,13 @@ EOF
   commit "Add the feature (#7)${nl}${nl}What changed and why.${nl}${nl}Co-authored-by: Someone Else <someone@example.invalid>"
   squash_with_a_trailer=$(git -C "$work/clone" rev-parse HEAD)
   git -C "$work/clone" push -q --no-verify origin "$clean_squash:refs/prepared/clean" "$squash_with_a_trailer:refs/prepared/trailer"
+  for script in merge-pr check-commit-messages; do
+    git -C "$work/clone" checkout -q --detach origin/main
+    printf '\n' >>"$work/clone/scripts/$script.sh"
+    git -C "$work/clone" add "scripts/$script.sh"
+    commit "Change scripts/$script.sh on main"
+    git -C "$work/clone" push -q --no-verify origin "HEAD:refs/prepared/other-$script"
+  done
   git -C "$work/clone" checkout -q main
 
   subject='Add the feature (#7)'
@@ -641,6 +693,20 @@ EOF
 
   state_of dry-run-with-every-gate-open
   expect dry-run-with-every-gate-open 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
+
+  stub_path=$work/git-whose-fetch-brings-another-main:$work/bin
+  for script in merge-pr check-commit-messages; do
+    MERGE_PR_STUB_OTHER_MAIN=refs/prepared/other-$script
+    export MERGE_PR_STUB_OTHER_MAIN
+    state_of "$script-differs-from-main"
+    refused "$script-differs-from-main" "scripts/$script.sh in this checkout differs from the copy on origin/main"
+    state_of "dry-run-with-a-$script-that-differs-from-main"
+    expect "dry-run-with-a-$script-that-differs-from-main" 1 not-called "scripts/$script.sh in this checkout differs from the copy on origin/main" --body-file "$work/body.txt" --dry-run
+  done
+  stub_path=$work/git-whose-every-fetch-fails:$work/bin
+  state_of fetch-of-main-fails
+  expect fetch-of-main-fails 2 not-called 'git fetch origin main failed, so this run cannot compare' --body-file "$work/body.txt"
+  stub_path=$work/bin
 
   state_of merged-pull-request
   fields merged-pull-request MERGED false UNKNOWN "$reviewed_head" false "$clean_squash"
@@ -1076,9 +1142,16 @@ EOF
 
   cp "$script_directory/merge-pr.sh" "$work/check-that-cannot-run/merge-pr.sh"
   printf '#!/bin/sh\necho "check-commit-messages: error: this copy cannot run" >&2\nexit 2\n' >"$work/check-that-cannot-run/check-commit-messages.sh"
+  git -C "$work/clone" checkout -q --detach "$held_main"
+  cp "$work/check-that-cannot-run/check-commit-messages.sh" "$work/clone/scripts/check-commit-messages.sh"
+  git -C "$work/clone" add scripts/check-commit-messages.sh
+  commit 'Hold the check that cannot run'
+  git -C "$work/clone" push -q --no-verify origin HEAD:refs/prepared/check-that-cannot-run
+  git -C "$work/clone" checkout -q main
   state_of check-script-that-cannot-run
   status=0
-  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/check-script-that-cannot-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
+  (cd "$work/clone" && PATH="$work/git-whose-fetch-brings-another-main:$work/bin:$PATH" MERGE_PR_STUB_OTHER_MAIN=refs/prepared/check-that-cannot-run \
+    MERGE_PR_STUB_STATE="$work/state/check-script-that-cannot-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
     sh "$work/check-that-cannot-run/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/check-script-that-cannot-run.txt" 2>&1 || status=$?
   judge check-script-that-cannot-run "$status" 2 not-called 'exited 2 for the squash message'
 
