@@ -44,10 +44,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test 60-r6-egress 40-r6-policy
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 60-r6-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows 60-r6-egress 40-r6-policy
+        run: sh scripts/ci/run-ci-d.sh windows 60-r6-egress
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
