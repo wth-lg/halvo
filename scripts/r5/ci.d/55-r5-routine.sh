@@ -86,20 +86,27 @@ run_gate() {
 }
 
 # build_gate: removes the built learn-gate at both names under the build directory, builds it, checks the tree, and
-# sets gate to the one of the two names that then exists; ends the check with build when the build fails or when none
-# or both exist.
+# sets gate to the one of the two names that the build directory then lists; ends the check with build when the build
+# fails or when it lists none or both.
 build_gate() {
   built=${CARGO_TARGET_DIR:-target}/debug/learn-gate
   rm -f -- "$built" "$built.exe" || finish build
   cargo build --locked -p halvo-learn-gate --bin learn-gate >"$art/build.txt" 2>&1 </dev/null || finish build
   tree_same build
-  if [ -f "$built" ] && [ ! -f "$built.exe" ]; then
-    gate=$built
-  elif [ -f "$built.exe" ] && [ ! -f "$built" ]; then
-    gate=$built.exe
-  else
-    finish build
-  fi
+  listed=$(ls -1a -- "${built%/*}") || finish build
+  plain=no
+  exe=no
+  case "$nl$listed$nl" in
+    *"${nl}learn-gate$nl"*) plain=yes ;;
+  esac
+  case "$nl$listed$nl" in
+    *"${nl}learn-gate.exe$nl"*) exe=yes ;;
+  esac
+  case $plain-$exe in
+    yes-no) gate=$built ;;
+    no-yes) gate=$built.exe ;;
+    *) finish build ;;
+  esac
 }
 
 # play DIR: runs learn-gate routine and learn-gate routine --store derived with their output under DIR, and sets
