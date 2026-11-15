@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), unless a loop retries the create_dir and its own tested success alone ends that loop by a return or a break in that arm within three lines (a word in a string is no loop word), is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), also inside a loop that retries it, is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -31,11 +31,24 @@ crates/halvo-checkpoint/tests/identity.rs 1 agent-setup run, U2.4
 crates/halvo-coord/tests/fixtures_same.rs 1 interface run
 crates/halvo-derived/src/tests.rs 1 workflow run
 crates/halvo-derived/tests/common/mod.rs 1 workflow run
+crates/halvo-learn-gate/src/privacy.rs 1 learning run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-learn-gate/tests/privacy_cli.rs 1 learning run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/cli_commands.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/import_golden.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/import_rules.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/import_write.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/out_file.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/product_cli.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/product_recorded_cli.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-gate/tests/sequences_same.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
+crates/halvo-route-wire/tests/gateway_check.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-runner/tests/support/mod.rs 1 agent-setup run, U4.1
+crates/halvo-sample/tests/common/mod.rs 1 workflow run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-sheet/tests/common/mod.rs 1 agent-setup run, U2.4
 crates/halvo-web/src/child.rs 1 agent-setup run, U2.6
 crates/halvo-web/src/guard.rs 2 agent-setup run, U2.6
 src-tauri/src/tests.rs 1 capture run, app-3a
+src-tauri/tests/page_guard.rs 1 capture run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 tools/r3-trials/profile/src/bin/profile-trial.rs 1 agent-setup run, P0 trials
 tools/r3-trials/profile/src/lib.rs 4 agent-setup run, P0 trials
 tools/r3-trials/sheet/tests/reader.rs 1 agent-setup run, P0 trials
@@ -50,17 +63,13 @@ tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=33
-pinned_places=46
-pinned_paths=2322449105
+pinned_rows=46
+pinned_places=59
+pinned_paths=2013472951
 
 program='
 function code(s) {
   sub(/\/\/.*/, "", s)
-  return s
-}
-function bare(s) {
-  gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
   return s
 }
 function word(s, w) {
@@ -125,38 +134,7 @@ function addmod(t, base,   name, prefix) {
   modfile[prefix name ".rs"] = 1
   modfile[prefix name "/mod.rs"] = 1
 }
-function leaves(s) {
-  return word(s, "return") || word(s, "break")
-}
-function arm(k, n,   j, t) {
-  t = bb[k]
-  sub(/[^{]*\{/, "", t)
-  if (leaves(t)) return 1
-  for (j = k + 1; j <= k + 3 && j <= n; j++) {
-    if (bb[j] ~ /^[ \t]*\}/) return 0
-    if (leaves(bb[j])) return 1
-  }
-  return 0
-}
-function okarm(k, n,   j, t) {
-  for (j = k + 1; j <= n && j <= k + 3; j++) {
-    if (bb[j] !~ /Ok\(/ || bb[j] !~ /=>/) continue
-    t = bb[j]
-    sub(/.*=>/, "", t)
-    if (leaves(t)) return 1
-    return t ~ /\{/ && t !~ /\}/ && j + 1 <= k + 3 && j + 1 <= n && leaves(bb[j + 1])
-  }
-  return 0
-}
-function retried(k, n,   c) {
-  c = bb[k]
-  if (c ~ /\|\||&&/) return 0
-  if (c ~ /\.find(_map)?\(/) return c ~ /is_ok\(\)/
-  if (c ~ /match[ \t]/) return okarm(k, n)
-  if (c ~ /if[ \t]/ && (c ~ /is_ok\(\)/ || c ~ /let[ \t]+Ok\(/)) return arm(k, n)
-  return 0
-}
-function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, intest, pending, fnstart, fnname, lo, j, s, f, m, l, d, w, count, r) {
+function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, intest, pending, fnstart, fnname, lo, j, s, f, m, d, w, count, r) {
   file = root "/" path
   leaf = path
   sub(/.*\//, "", leaf)
@@ -213,13 +191,11 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
       continue
     }
     cc[n] = c
-    bb[n] = bare(c)
     it[n] = intest
     fs[n] = fnstart
     src[n] = source(c)
     fmt[n] = (c ~ /(format|write)!\(/)
     nam[n] = (src[n] && c ~ /\.join\(|to_string\(\)|push_str\(|\.push\(/)
-    lp[n] = ((" " bb[n] " ") ~ /[^A-Za-z0-9_](loop|for|while)[^A-Za-z0-9_]/ || bb[n] ~ /\.find(_map)?\(/)
     db[n] = (c ~ /DirBuilder/)
     rc[n] = (c ~ /\.recursive\(/ && c !~ /\.recursive\(false\)/)
     acc[n] = accepts(c)
@@ -244,21 +220,16 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
     s = 0
     f = 0
     m = 0
-    l = 0
     d = 0
     w = 0
     for (j = lo; j <= k; j++) {
       s += src[j]
       f += fmt[j]
       m += nam[j]
-      l += lp[j]
       d += db[j]
       w += rc[j]
     }
-    if (acc[k]) kind = 2
-    else if (ref[k] || (d && !w && cc[k] ~ /\.create\(/)) kind = 1
-    else continue
-    if (kind == 1 && l && retried(k, n)) continue
+    if (!acc[k] && !ref[k] && !(d && !w && cc[k] ~ /\.create\(/)) continue
     if (m || (s && f)) {
       count++
       print path ":" k > placelist
@@ -404,14 +375,7 @@ Test code that it reads:
 Calls that make a directory:
   create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain
   DirBuilder create, create_dir, and each of them under another name by use ... as.
-
-A create_dir that is no place:
-  one that a loop (loop, for, while, .find) retries and whose own success, and nothing
-  else, ends that loop: an if on its is_ok() alone or an if let Ok( on it, with a return
-  or a break in that arm within three lines and before the arm closes; a match on it
-  whose Ok( arm returns or breaks within three lines; or a .find whose closure is its
-  is_ok() alone. A || or an && on its line ends nothing. A line whose only folder call is
-  create_dir_all is never such a create_dir, whatever else it holds.
+  A loop that retries a create_dir changes nothing: the check does not read loops.
 
 Reads of the process id or the clock:
   process::id(), id(), getpid(), GetCurrentProcessId, SystemTime, UNIX_EPOCH,
@@ -430,15 +394,15 @@ Forms that it does not read (each can share a folder and pass):
   a read more than 16 lines above the call in its function; a variable bound from
   another variable, a struct field or a closure; a SystemTime or an Instant under
   another name by use ... as; a macro other than format! and write!; a module that
-  #[path = ...] or cfg_attr places; a retry whose result is tested more than three lines
-  below the create_dir (read as a place); a retry that takes the same name again. After an inline test module opens, the rest of its file is read as test
-  code.
+  #[path = ...] or cfg_attr places. After an inline test module opens, the rest of its
+  file is read as test code.
 
 The known list, known() in this script, holds each file of another unit with its count of
 places. A file's count must equal its row: a new place takes halvo_test_dir::make.
 Beside it, pinned_rows, pinned_places and pinned_paths (a cksum of the sorted pairs of
 path and count) pin the list: it may shrink with its pins and may not grow, and a count
-may not move from one row to another without a ruling.
+may not move from one row to another without a ruling. The known list is closed: it
+shrinks only, and new code takes its folder from halvo-test-dir.
 EOF
 }
 
@@ -558,7 +522,7 @@ self_test() {
 
   repo maker-loop
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}-{}", std::process::id(), NEXT.fetch_add(1, SeqCst)));\n        if std::fs::create_dir(&dir).is_ok() {\n            return dir;\n        }\n    }\n}\n'
-  case_of maker-loop PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of maker-loop FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo base-and-dir-on-one-line
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if fs::create_dir_all(base).is_ok() && fs::create_dir(&dir).is_ok() {\n            return dir;\n        }\n    }\n}\n'
@@ -649,7 +613,7 @@ self_test() {
 
   repo maker-match-in-a-loop
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Ok(()) => return dir,\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) => panic!("{e}"),\n        }\n    }\n    unreachable!()\n}\n'
-  case_of maker-match-in-a-loop PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of maker-match-in-a-loop FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo create-dir-tested-without-a-loop
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    if fs::create_dir(&dir).is_ok() {\n        return dir;\n    }\n    panic!("taken")\n}\n'
@@ -661,7 +625,7 @@ self_test() {
 
   repo maker-find
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    (0..1_000)\n        .map(|n| base.join(format!("x-{}-{n}", std::process::id())))\n        .find(|dir| std::fs::create_dir(dir).is_ok())\n        .expect("a new directory")\n}\n'
-  case_of maker-find PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of maker-find FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo tested-create-dir-in-an-unrelated-loop
   put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut last = PathBuf::new();\n    for case in ["one", "two"] {\n        let dir = base.join(format!("{name}-{case}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("made");\n        }\n        last = dir;\n    }\n    last\n}\n'
@@ -670,22 +634,6 @@ self_test() {
   repo loop-word-in-a-string
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    assert!(fs::create_dir(&d).is_ok() || d.is_dir(), "{note}");\n    d\n}\n'
   case_of loop-word-in-a-string FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
-
-  repo return-on-the-third-line-below
-  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            let _ = 1;\n            let _ = 2;\n            return dir;\n        }\n    }\n}\n'
-  case_of return-on-the-third-line-below PASS 'test-dirs files=1 places=0 known=0 faults=0'
-
-  repo return-on-the-fourth-line-below
-  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            let _ = 1;\n            let _ = 2;\n            let _ = 3;\n            return dir;\n        }\n    }\n}\n'
-  case_of return-on-the-fourth-line-below FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
-
-  repo ok-arm-on-the-third-line-below
-  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) if e.kind() == ErrorKind::Interrupted => {}\n            Ok(()) => return dir,\n            Err(e) => panic!("{e}"),\n        }\n    }\n}\n'
-  case_of ok-arm-on-the-third-line-below PASS 'test-dirs files=1 places=0 known=0 faults=0'
-
-  repo ok-arm-on-the-fourth-line-below
-  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) if e.kind() == ErrorKind::Interrupted => {}\n            Err(e) if e.kind() == ErrorKind::WouldBlock => {}\n            Ok(()) => return dir,\n            Err(e) => panic!("{e}"),\n        }\n    }\n}\n'
-  case_of ok-arm-on-the-fourth-line-below FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo create-dir-all-and-create-dir-in-a-match
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir_all(&dir).and(fs::create_dir(dir.join("in"))) {\n            Ok(()) => return dir,\n            Err(_) => {}\n        }\n    }\n}\n'
@@ -697,11 +645,11 @@ self_test() {
 
   repo return-on-the-line-of-the-test
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() { return dir; }\n    }\n}\n'
-  case_of return-on-the-line-of-the-test PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of return-on-the-line-of-the-test FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo ok-arm-with-a-block
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Ok(()) => {\n                return dir;\n            }\n            Err(_) => {}\n        }\n    }\n}\n'
-  case_of ok-arm-with-a-block PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of ok-arm-with-a-block FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo unconditional-break
   put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut dir = PathBuf::new();\n    loop {\n        dir = base.join(format!("{name}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("made {}", dir.display());\n        }\n        break;\n    }\n    dir\n}\n'
@@ -737,7 +685,7 @@ self_test() {
 
   repo maker-loop-break
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let mut n = 0u32;\n    loop {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            break dir;\n        }\n        n += 1;\n    }\n}\n'
-  case_of maker-loop-break PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of maker-loop-break FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo unknown-line-names-the-fix
   put crates/a/tests/t.rs "$place"
@@ -876,7 +824,7 @@ self_test() {
 
   repo maker-if-let-ok
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if let Ok(()) = fs::create_dir(&dir) {\n            return dir;\n        }\n    }\n    unreachable!()\n}\n'
-  case_of maker-if-let-ok PASS 'test-dirs files=1 places=0 known=0 faults=0'
+  case_of maker-if-let-ok FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo maker-if-let-control
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    for n in 0u32.. {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if let Okay(()) = fs::create_dir(&dir) {\n            return dir;\n        }\n    }\n    unreachable!()\n}\n'
