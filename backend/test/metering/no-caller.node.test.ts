@@ -10,6 +10,9 @@ const MINUTE = 60_000;
 const DELETE_AT = START + 10 * MINUTE;
 
 type Failing =
+  | "ledger.expire"
+  | "metering.seal"
+  | "accounts.forget"
   | "ledger.nextDue"
   | "accounts.nextDue"
   | "metering.nextSend"
@@ -123,6 +126,12 @@ function holdsTheRule(ending: Ending): void {
 describe("90 days with no caller after the delete: the owed cancel is made by the object, no period begins after its answer, and the storage goes by the bound (P7-110 L1 to L3)", () => {
   for (const failing of ["ledger.nextDue", "accounts.nextDue", "metering.nextSend", "metering.oldestUnsealed", "ledger.intervalTotals", "ledger.openHolds"] as const) {
     test(`a due-time read, ${failing}, throws on every call from the delete on; the person's second delete answers`, async () => {
+      holdsTheRule(await ninetyDays(failing, "answered"));
+    });
+  }
+
+  for (const failing of ["ledger.expire", "metering.seal", "accounts.forget"] as const) {
+    test(`a call of the alarm's first step, ${failing}, throws on every call from the delete on; the person's second delete answers`, async () => {
       holdsTheRule(await ninetyDays(failing, "answered"));
     });
   }
