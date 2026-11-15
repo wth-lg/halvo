@@ -1,0 +1,21 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K6, on F3 of P7-69 by P7-76 G3",
+  "about": "a 400 whose body was cut in the same place on a request that did not end in the kill: no kill excuses it, and the cut body is no answer that the contract allows",
+  "source": "by hand, after the verifier's finding 5",
+  "request": {
+    "status": 400,
+    "body": "{\"result\":\"rej",
+    "headersAt": 4039,
+    "endedAt": 4041
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

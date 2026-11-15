@@ -1,0 +1,21 @@
+{
+  "kind": "judge",
+  "ruling": "F3 of P7-69 by P7-76 G3; reports/verifier-21.md, issue sentence 2 (a record of each status whose body a reading parses, cut by the kill)",
+  "about": "a 413, whose JSON the default branch reads, cut in the same place on a request that did not end in the kill: no kill excuses it, and the cut body is no answer that the contract allows",
+  "source": "by hand",
+  "request": {
+    "status": 413,
+    "body": "{\"result\":\"rej",
+    "headersAt": 4039,
+    "endedAt": 4041
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}
