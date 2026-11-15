@@ -137,6 +137,18 @@ esac
 mkdir -p target
 settings=target/release-commit-message.toml
 printf 'pre-release-commit-message = "Release %s"\n' "$next" >"$settings"
+config=$(cargo release config --config "$settings" 2>/dev/null) || fail "cargo release config failed, so the commit message and the tag cannot be read"
+rendered() {
+  printf '%s\n' "$config" | sed -n "s/^$1 = \"\(.*\)\"\$/\1/p" | head -n 1 | sed "s/{{version}}/$next/g"
+}
+message=$(rendered pre-release-commit-message)
+tag=$(rendered tag-name)
+tag_message=$(rendered tag-message)
+for pair in "commit message:$message" "tag name:$tag" "tag message:$tag_message"; do
+  case "${pair#*:}" in
+    ''|*'{{'*) fail "the ${pair%%:*} would hold a template or nothing ('${pair#*:}'), so nothing was released" ;;
+  esac
+done
 
 if [ "$mode" = --execute ]; then
   set -- "$level" --config "$settings" --execute --no-confirm --allow-branch main
@@ -149,14 +161,8 @@ printf '%s\n' "$out"
 if [ "$status" -ne 0 ]; then
   cargo_failed cargo-release "$out"
 fi
-case "$out" in
-  *Unrendered*) fail "cargo-release left a template unrendered (the line Unrendered above), so a commit message or a tag would hold it" ;;
-esac
-
-tag=$(cargo release config 2>/dev/null | sed -n 's/^tag-name = "\(.*\)"$/\1/p' | head -1 | sed "s/{{version}}/$next/g")
-case "$tag" in
-  ''|*'{{'*) fail "could not resolve tag-name from cargo release config: '$tag'" ;;
-esac
 echo
 echo "next version: $next"
+echo "commit message: $message"
 echo "tag: $tag"
+echo "tag message: $tag_message"

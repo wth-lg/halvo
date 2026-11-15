@@ -83,7 +83,8 @@ measure() {
     ''|*[!0-9.]*) fail "the dry run printed no line next version: <version>" ;;
   esac
   grep -q -x "tag: v$next" "$work/dry-run.txt" || fail "the dry run printed no line tag: v<next version>"
-  ! grep -q Unrendered "$work/dry-run.txt" || fail "the dry run output holds Unrendered"
+  grep -q -x "commit message: Release $next" "$work/dry-run.txt" || fail "the dry run printed no line commit message: Release <next version>"
+  ! grep -E '^(next version|commit message|tag|tag message): ' "$work/dry-run.txt" | grep -q '{{' || fail "a line of the dry run's commit message or tag holds a template"
   cmp -s "$work/before-dry-run" "$work/after-dry-run" || fail "the dry run changed the status, HEAD, a tag or a ref of the clone"
   printf 'dry run on a named branch: exit 0, next version and tag lines: true, clone unchanged: true\n'
 
@@ -141,7 +142,14 @@ self_test() {
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$1 $2" in
   'release version') printf '   Upgrading halvo from 1.2.3 to 1.2.4\n' ;;
-  'release config') printf 'tag-name = "v{{version}}"\n' ;;
+  'release config')
+    if [ -n "${STUB_CONFIG:-}" ]; then
+      printf '%s\n' "$STUB_CONFIG"
+    else
+      printf 'tag-name = "v{{version}}"\ntag-message = "Release {{version}}"\n'
+      if [ "${3:-}" = --config ]; then cat "$4"; else printf 'pre-release-commit-message = "Release {{version}}"\n'; fi
+    fi
+    ;;
   'release '*) printf '%s\n' "${STUB_TEXT:-   Upgrading halvo from 1.2.3 to 1.2.4}"; exit "${STUB_STATUS:-0}" ;;
   *) exit 97 ;;
 esac
@@ -190,7 +198,26 @@ All notable changes are recorded in this file.
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-execute-has-the-branch-guard" && got=PASS || got=FAIL
   verdict execute-passes-allow-branch-main PASS "$got"
   STUB_STATUS=1 STUB_TEXT='error: io: failed to lookup address information' release_case no-network 1 yes index.crates.io --dry-run
-  STUB_TEXT='[WARN ] Unrendered {{version}} present in template "Release {{version}}"' release_case unrendered-template 1 yes Unrendered --dry-run
+  STUB_TEXT='- Fixed: Refuse a commit message whose template stayed Unrendered' release_case entry-that-holds-the-word-unrendered 0 yes 'commit message: Release 1.2.4' --dry-run
+  template_case() {
+    case_name=$1
+    shift
+    log=$work/argv-$case_name
+    status=0
+    (cd "$repo" && PATH="$work/bin:$PATH" STUB_LOG=$log CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    got=PASS
+    if [ "$status" = 1 ] && grep -q 'would hold a template' "$work/out-$case_name" && ! grep -q -E '^release (patch|minor|major) --config' "$log"; then got=FAIL; fi
+    verdict "$case_name" FAIL "$got"
+  }
+  STUB_CONFIG='tag-name = "v{{crate_version}}"
+tag-message = "Release {{version}}"
+pre-release-commit-message = "Release 1.2.4"' template_case template-left-in-the-tag-name --dry-run
+  STUB_CONFIG='tag-name = "v{{version}}"
+tag-message = "Release {{version}}"
+pre-release-commit-message = "Release {{version}} of {{crate_name}}"' template_case template-left-in-the-commit-message --execute
+  STUB_CONFIG='tag-name = "v{{version}}"
+tag-message = "Release {{date}}"
+pre-release-commit-message = "Release 1.2.4"' template_case template-left-in-the-tag-message --execute
   STUB_STATUS=1 STUB_TEXT='error: the pre-release hook exited 1' release_case other-failure-prints-its-error-line 1 yes 'error: the pre-release hook exited 1' --dry-run
   grep -q index.crates.io "$work/out-other-failure-prints-its-error-line" && got=FAIL || got=PASS
   verdict other-failure-names-no-network PASS "$got"
