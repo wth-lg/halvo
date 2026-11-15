@@ -1141,3 +1141,36 @@ describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => 
     expect([await w.holds(), events()]).toEqual([false, ["alarm-error"]]);
   });
 });
+
+describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
+  const underTheMark = async (o: { clock?: () => Ms } = {}) => {
+    const w = world({ clock: o.clock ?? (() => 8000) });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.reset();
+    return w;
+  };
+  const stepsOf = (w: ReturnType<typeof world>) => {
+    const starts: { calls: number; alarms: number }[] = [];
+    const inner = w.host.step;
+    w.host.step = ((run: Parameters<typeof inner>[0]) => {
+      starts.push({ calls: w.calls.length, alarms: w.alarms.length });
+      return inner(run);
+    }) as typeof inner;
+    return () =>
+      starts.map((start, index) => {
+        const next = starts[index + 1] ?? { calls: w.calls.length, alarms: w.alarms.length };
+        return { calls: w.calls.slice(start.calls, next.calls).map((call) => call[0]), alarms: next.alarms - start.alarms };
+      });
+  };
+
+  test("L1 (a): under the mark the alarm's first step reads the mark, calls no module and arms nothing, before the step that ends due holds", async () => {
+    const w = await underTheMark();
+    const segments = stepsOf(w);
+    await w.entries.alarm();
+    const [first, second] = segments();
+    expect(first).toEqual({ calls: [], alarms: 0 });
+    expect(second?.calls).toContain("ledger.expire");
+  });
+});

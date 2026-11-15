@@ -88,6 +88,10 @@ type Fourth =
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
 
+interface AlarmRun {
+  mark: Mark | null | "unknown";
+}
+
 interface Open {
   sql: Sql;
   begin(): Ms;
@@ -326,7 +330,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return "done";
   }
 
-  async function alarmBody(): Promise<void> {
+  async function alarmBody(run: AlarmRun): Promise<void> {
+    const head = host.step((sql) => (holds(sql) ? markOf(sql) : null));
+    if (head === null) return;
+    run.mark = head;
+    const marked = head.since !== null;
     const first = step((open) => {
       if (!holds(open.sql)) return null;
       const now = open.begin();
@@ -334,7 +342,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       ledger.expire(open.sql, now);
       if (isMetered(open.sql)) sealLoop(open.sql, now);
       accounts.forget(open.sql, now);
-      return { failures, wake: accounts.wake(open.sql, now), metered: isMetered(open.sql), marked: destroyingSince(open.sql) !== null };
+      return { failures, wake: accounts.wake(open.sql, now), metered: isMetered(open.sql), marked };
     });
     if (first === null) return;
     let metered = first.metered;
@@ -778,8 +786,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     },
 
     async alarm() {
+      const run: AlarmRun = { mark: "unknown" };
       try {
-        await alarmBody();
+        await alarmBody(run);
       } catch (error) {
         countFailure(error);
       }
@@ -807,8 +816,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const due = host.step((sql) => (holds(sql) ? dueOf(sql) : null));
         if (due === null || due > at || (runs > 0 && due === before)) break;
         before = due;
+        const run: AlarmRun = { mark: "unknown" };
         try {
-          await alarmBody();
+          await alarmBody(run);
         } catch (error) {
           countFailure(error);
           break;
