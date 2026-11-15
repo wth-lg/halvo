@@ -538,6 +538,8 @@ pub mod seam {
         pub at: Option<u32>,
         pub began: u32,
         pub element: Option<String>,
+        /// The process id of the window in front when the mark was noted.
+        pub front_pid: u32,
     }
 
     static MARKS: Mutex<std::collections::VecDeque<MarkSeen>> =
@@ -551,6 +553,15 @@ pub mod seam {
         began: u32,
         element: Option<String>,
     ) {
+        let mut front_pid = 0;
+        // SAFETY: GetForegroundWindow takes no argument, and
+        // GetWindowThreadProcessId writes the process id into a live u32.
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetForegroundWindow, GetWindowThreadProcessId,
+            };
+            let _ = GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut front_pid));
+        }
         let mut marks = MARKS.lock().unwrap_or_else(PoisonError::into_inner);
         if marks.len() == KEPT {
             marks.pop_front();
@@ -562,6 +573,7 @@ pub mod seam {
             at,
             began,
             element,
+            front_pid,
         });
     }
 
@@ -643,6 +655,12 @@ pub mod seam {
     /// What the seam holds of the password detector now.
     pub fn detector() -> DetectorSeen {
         detector_now().clone()
+    }
+
+    /// The file name of a process's image, for a test's prints.
+    pub fn process_file_of(pid: u32) -> Option<String> {
+        crate::windows::foreground::process_path(pid)
+            .and_then(|path| path.rsplit(['/', '\\']).next().map(str::to_string))
     }
 }
 
