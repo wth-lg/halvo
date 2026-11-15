@@ -1,11 +1,17 @@
 mod bounds;
 mod coordinator;
 mod edges;
+mod ends;
 mod finish;
 mod host;
+mod kinds;
+mod lines;
+mod mark;
 mod pass;
 mod pins;
 mod propose;
+mod refinements;
 mod ruled;
 mod rules;
 mod serve;
+mod starts;
