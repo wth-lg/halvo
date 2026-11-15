@@ -878,10 +878,12 @@ sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
 mkdir -p "$answers/discover" || exit 2
 cd "$answers/discover" || exit 2
 (
-  trap 'kill "$nap" 2>/dev/null; exit 0' TERM
-  sleep "$seconds" &
-  nap=$!
-  wait "$nap"
+  waited=0
+  while [ "$waited" -lt "$seconds" ]; do
+    sleep 1
+    kill -0 "$$" 2>/dev/null || exit 0
+    waited=$((waited + 1))
+  done
   : >"$answers/timeout"
   if read -r child <"$answers/child"; then
     kill "$child" 2>/dev/null
@@ -1618,6 +1620,15 @@ if [ "$#" -eq 1 ] && [ "$1" = hangword ] && [ -n "$STUB_HANG" ]; then
   printf '%s\n' "$$" >"$STUB_HANG"
   exec sleep 30
 fi
+if [ "$1" = forger ] && [ -n "$STUB_FORGER" ]; then
+  {
+    printf 'asked %s\n' "$STUB_FORGER"
+    for found in $STUB_COMMANDS; do
+      printf 'found %s\n' "$found"
+    done
+  } >../record.forged && mv ../record.forged ../record.out
+  exit 0
+fi
 if [ "$1" = eraser ] && [ "$STUB_ERASER" = killer ]; then
   kill -9 "$PPID"
   exit 0
@@ -1689,7 +1700,7 @@ fn main() {
     let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
     let adjacent = words! {"see help","adjword"};
     let odd = ["stdoutword", "exitword", "textword"];
-    let wrapped = ["reachword", "hangword", "argword", "eraser"];
+    let wrapped = ["reachword", "hangword", "argword", "eraser", "forger"];
     let q = '"'; let w = "quoteword";
 }
 EOF
@@ -1776,6 +1787,7 @@ code=$?
 [ "$empty" = no ] || code=9
 count_lines "$STUB_PROBE_LOG"
 probes=$((counted - probed))
+[ "$STUB_CHECK" != drop-probe ] || [ "$probes" -eq 0 ] || probes=$((probes - 1))
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
 count_lines "$STUB_REACH"
 denied=$((counted - reached))
@@ -1887,6 +1899,7 @@ case_reset() {
   STUB_RUN_EXIT=0
   STUB_REACH=
   STUB_MARKER=
+  STUB_FORGER=
   STUB_ERASER=
   STUB_PROBE=
   STUB_HANG=
@@ -1995,6 +2008,9 @@ EOF
 
 macos_cases() {
   cat <<'EOF'
+found-command-that-forges-the-record
+asker-that-skips-a-word
+egress-check-that-drops-a-probe-report
 sentence
 commands
 third-party
@@ -2135,7 +2151,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_MARKER=$STUB_MARKER STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_MARKER=$STUB_MARKER STUB_FORGER=$STUB_FORGER STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2443,6 +2459,8 @@ self_test() {
   awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+ / { next } { print }' "$self" \
     >"$work/norun.sh" || self_failed "setup at line $LINENO"
   awk '/^spend-sim --seed 1$/ { print "spend-sim"; next } { print }' "$self" >"$work/bare.sh" || self_failed "setup at line $LINENO"
+  awk '{ print } $0 == "  [ -n \"$word\" ] || continue" { print "  [ \"$word\" != quoteword ] || continue" }' "$self" >"$work/skip-word.sh" ||
+    self_failed "setup at line $LINENO"
   awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
     self_failed "setup at line $LINENO"
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
@@ -2577,7 +2595,7 @@ EOF
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=24 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=7 asked=25 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid profile=dev findings=0 exit=0'
   case_run asking-wrapped PASS - 'egress asking denied=0 probes=2 tries=1 command=0 exit=1'
@@ -2616,7 +2634,13 @@ EOF
   STUB_ERASER=erase
   case_run found-command-that-erases-its-record FAIL check 'egress on-neither-list=eraser'
   STUB_ERASER=killer
-  case_run asked-command-that-kills-the-asker FAIL check 'egress asking asked=- of 24 words'
+  case_run asked-command-that-kills-the-asker FAIL check 'egress asking asked=- of 25 words'
+  STUB_FORGER=25
+  case_run found-command-that-forges-the-record FAIL check 'egress on-neither-list=forger'
+  case_self=$work/skip-word.sh
+  case_run asker-that-skips-a-word FAIL check 'egress asking asked=24 of 25 words'
+  STUB_CHECK=drop-probe
+  case_run egress-check-that-drops-a-probe-report FAIL check "egress asking: the asking's report was lost in 4 tries"
   STUB_PROBE=lost
   case_run asking-report-lost-four-times FAIL check "egress asking: the asking's report was lost in 4 tries"
   STUB_PROBE=lost-once
@@ -2830,7 +2854,7 @@ EOF
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=24'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=25'
   STUB_CHECK=denied
   all_denied=6
   [ "$host_job" != macos ] || all_denied=7
