@@ -158,7 +158,7 @@ All notable changes are recorded in this file.
     mkdir -p "$repo/scripts" || exit 2
     cp "$root/scripts/release.sh" "$root/scripts/check-changelog.sh" "$repo/scripts/" || exit 2
     printf '%s\n%s\n' "$intro" "$2" >"$repo/CHANGELOG.md"
-    git init -q "$repo" && git -C "$repo" add -A && git -C "$repo" commit -q --no-verify -m fixture || exit 2
+    git init -q "$repo" && git -C "$repo" add -A && git -C "$repo" commit -q -m fixture || exit 2
   }
   release_case() {
     case_name=$1 want_status=$2 want_cargo=$3 want_text=$4
@@ -205,8 +205,22 @@ All notable changes are recorded in this file.
   git -C "$repo" tag v1.2.3
   release_case released-sections-as-at-the-tag 0 yes 'next version: 1.2.4' --dry-run
   printf '%s\n' '- Added: Slip a line into a released section' >>"$repo/CHANGELOG.md"
-  git -C "$repo" commit -q --no-verify -a -m 'Add a line below a release'
+  git -C "$repo" commit -q -a -m 'Add a line below a release'
   release_case line-below-a-released-section 1 no 'differ from those at v1.2.3' --dry-run
+  repository shallow-source "$typed"
+  git -C "$repo" commit -q --allow-empty -m 'A second commit'
+  git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2
+  repo=$work/repo-shallow
+  shallow_state() {
+    git -C "$repo" for-each-ref --format='%(refname) %(objectname)'
+    git -C "$repo" tag --list
+    cat "$repo/.git/shallow"
+  }
+  shallow_state >"$work/shallow-before"
+  release_case dry-run-in-a-shallow-clone 1 no 'git fetch --unshallow --tags origin' --dry-run
+  shallow_state >"$work/shallow-after"
+  cmp -s "$work/shallow-before" "$work/shallow-after" && got=PASS || got=FAIL
+  verdict dry-run-in-a-shallow-clone-changes-nothing PASS "$got"
 
   group_case() {
     case_name=$1 want=$2 dry=$3 version=$4 before=$5 expected=$6

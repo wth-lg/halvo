@@ -104,6 +104,8 @@ entries=$(unreleased_entries)
 [ "$entries" -gt 0 ] || fail "## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release"
 shallow=$(git rev-parse --is-shallow-repository)
 if [ "$shallow" = true ]; then
+  [ "$mode" = --execute ] ||
+    fail "this clone is shallow, so the released sections of CHANGELOG.md cannot be compared with the last tag; a dry run changes nothing, so run git fetch --unshallow --tags origin and then the dry run again"
   git fetch --quiet --unshallow --tags origin ||
     fail "this clone is shallow and git fetch --unshallow --tags origin failed, so the released sections of CHANGELOG.md cannot be compared with the last tag"
 fi
