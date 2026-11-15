@@ -112,7 +112,7 @@ checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
-| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `crypto_shred_all` (its branch for a handle that delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
+| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `crypto_shred_all` (its branch for a handle that delete-all sealed) | `formal-shredded-key-survives`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
 | 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `require_write_ahead_log` (the journal mode that it sets and the one that it requires), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint), `open_database` (the mode that it sets on `store.db` before the connection opens) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row`, `formal-store-db-keeps-a-wider-mode` |
 | 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | the macOS root store: `seal`, which `wrap` calls, and `unwrap` (the `aead_seal` and `aead_open` calls under the root), and `make_root` (the random fill of a new root), which `create_root` and `existing_or_new_root` call | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
 | 1 | `crates/halvo-capture/src/store/durable.rs` | `Dir::create_new`, which `OsFs::create_new` calls (the mode of a new file), `Dir::create_dir` (the mode of `segments` and of a shard) | `formal-store-files-take-the-umask`, `formal-store-directories-take-the-umask` |
@@ -507,9 +507,7 @@ row cannot go stale unseen.
 | Row | What it breaks | Test | Message |
 |---|---|---|---|
 | `formal-shredded-key-survives` | `destroy_segment_keys` writes each key back to itself and sets none to NULL | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
-| `formal-key-row-deleted` | `destroy_segment_keys` deletes the key row, where it must set the key to NULL in place | the one-pass scaled case | "the wrapped key of shredded segment ... is still in the store files", in a page of `store.db` |
-| `formal-key-row-deleted-oldest-first` | the same | the oldest-first scaled case | "after pass 17 of 50", then the same |
-| `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | the same, in a frame of `store.db-wal` |
+| `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | "the wrapped key of shredded segment ... is still in the store files", in a frame of `store.db-wal` |
 | `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-journal-mode-not-wal` | `require_write_ahead_log` sets `journal_mode = DELETE` and requires `delete` of the mode that it reads back | the random test of check 1 | the same, in a record of `store.db-journal` |
 | `formal-secure-delete-off` | `Db::open_file` switches `secure_delete` off and does not read it back | the one-pass scaled case | the same, in a page of `store.db` |
@@ -873,6 +871,27 @@ it in the plan before weakening an assertion.
   same user and revives the key of its store.
 - A part of a wrapped key that is shorter than its middle 32 bytes. The
   file scan looks for the whole key and for that middle.
+- A shred that deletes the key row where it must set the key to NULL in
+  place. Under the build of ADR 0013 such a shred leaves neither the whole
+  wrapped key nor its middle 32 bytes in the files that the file scan
+  reads, on the inputs of these tests: hosted run 43654678132 applied that
+  substitution under three names, and the hardening test of T-11, the
+  one-pass scaled case and the oldest-first scaled case each passed on it.
+  So no row of check 1 stands on it, and the two rows of check 1 that
+  stood on it are gone. What removes the bytes of the deleted row is the
+  build's zeroing of the gap of a page built again or edited in place. The
+  rows `rebuilt-page-gap-not-zeroed` and `edited-page-gap-not-zeroed` of
+  `crates/halvo-sqlcipher/mutants.rows` judge that zeroing on that crate's
+  own tables. No row of a store file can take it out, because a row
+  mutates files under the directory of its rows file alone. The checks of
+  this file do not show the zeroing either: on main, before the build of
+  ADR 0013, the store's `UPDATE` passed them. A deleted key row still breaks
+  ADR 0005's rule that a shred keeps the key row of its segment (RD-21),
+  and a later segment can then take the key id of the shredded one, since
+  the id of a key row has no `AUTOINCREMENT`. The row `key-row-deleted`
+  holds that rule, judged by the hardening test
+  `a_shred_keeps_the_key_row_with_a_null_key_and_a_later_segment_takes_another_key_id`.
+  No row is judged by the hardening test of T-11 since that change.
 - What the event rows of a shredded segment leave in the store files. The
   file scan looks for wrapped keys only; check 1 counts the event rows
   through SQL.
