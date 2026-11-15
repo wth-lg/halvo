@@ -522,6 +522,9 @@ mod tests {
         assert_eq!(QUEUE_CAP, 4_096);
         assert_eq!(LATE_BOUND, Duration::from_millis(250));
         assert_eq!(LAG_BOUND, Duration::from_millis(30));
+        assert_eq!(PAIR_WIDTH, Duration::from_micros(100));
+        assert_eq!(PAIR_TRIES, 3);
+        assert_eq!(WAKE_MARGIN, Duration::from_millis(1));
         assert_eq!(
             Bounds::PRODUCT,
             Bounds {
@@ -791,6 +794,46 @@ mod tests {
             let _ = hold.reading(Reading::Off, both(at(20 + step * 10)));
         }
         assert!(hold.is_empty(), "every key is released or dropped");
+    }
+
+    #[test]
+    fn a_reading_releases_the_oldest_key_when_it_is_due_and_a_newer_key_is_not() {
+        let mut hold = held(&[0]);
+        for ms in (10..=500).step_by(10) {
+            assert_eq!(
+                hold.reading(Reading::Off, both(at(ms))),
+                Step::Waiting,
+                "{ms}"
+            );
+        }
+        assert_eq!(
+            hold.admit(Reading::Off, IN_TIME, at(500), 500),
+            Admission::Held
+        );
+        for ms in (510..1_000).step_by(10) {
+            assert_eq!(
+                hold.reading(Reading::Off, both(at(ms))),
+                Step::Waiting,
+                "{ms}"
+            );
+        }
+        assert_eq!(
+            hold.reading(Reading::Off, both(at(1_000))),
+            Step::Released(0),
+            "the key that arrived at 0 ms is as old as the bound at 1,000 ms; the key of 500 ms is not"
+        );
+        for ms in (1_010..1_500).step_by(10) {
+            assert_eq!(
+                hold.reading(Reading::Off, both(at(ms))),
+                Step::Waiting,
+                "{ms}"
+            );
+        }
+        assert_eq!(
+            hold.reading(Reading::Off, both(at(1_500))),
+            Step::Released(500)
+        );
+        assert!(hold.is_empty());
     }
 
     #[test]
