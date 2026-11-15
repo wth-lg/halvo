@@ -669,9 +669,24 @@ st_interrupt() {
     [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
     kill -s TERM "$st_p" 2>/dev/null
   done
-  st_sp=
-  [ ! -s "$tmp/nested.pid" ] || read -r st_sp <"$tmp/nested.pid"
-  [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+  if [ "$mode" = self-test ]; then
+    st_i=0
+    while [ "$st_i" -lt "$st_n" ]; do
+      eval "st_k=\$st_kind_$st_i st_d=\${st_dir_$st_i-}"
+      st_sp=
+      [ "$st_k" != script ] || [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
+      case " $st_groups " in
+        *" $st_sp "*) ;;
+        *) [ -z "$st_sp" ] || st_groups="$st_groups $st_sp" ;;
+      esac
+      st_i=$((st_i + 1))
+    done
+  fi
+  for st_f in "$tmp/nested.pid" "$tmp/witness.pid"; do
+    st_sp=
+    [ ! -s "$st_f" ] || read -r st_sp <"$st_f"
+    [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+  done
   for st_g in $st_groups; do
     st_group TERM "$st_g"
   done
@@ -720,6 +735,16 @@ st_stop() {
   if [ -n "$st_sp" ]; then
     st_end_group 0 "$st_sp"
   else
+    eval "st_k=\$st_kind_$1"
+    if [ "$st_k" = own ]; then
+      st_own_groups=
+      for st_f in "$tmp/nested.pid" "$tmp/witness.pid"; do
+        st_sp=
+        [ ! -s "$st_f" ] || read -r st_sp <"$st_f"
+        [ -z "$st_sp" ] || st_own_groups="$st_own_groups $st_sp"
+      done
+      [ -z "$st_own_groups" ] || st_end_group 0 "$st_own_groups"
+    fi
     kill -TERM "$st_p" 2>/dev/null
     st_grace=0
     while [ ! -e "$st_d/done" ] && kill -0 "$st_p" 2>/dev/null && [ "$st_grace" -lt 50 ]; do
@@ -921,6 +946,7 @@ own_run() {
   if [ -n "$case_witness" ]; then
     "$perl_bin" -e 'setpgrp(0, 0); sleep 120' </dev/null >/dev/null 2>&1 &
     witness=$!
+    printf '%s\n' "$witness" >"$tmp/witness.pid"
   fi
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
@@ -962,6 +988,7 @@ ${case_nested:-yes}
 EOF
     case_pid=$!
     printf '%s\n' "$case_pid" >"$tmp/nested.pid"
+    [ "$nested_word" != hold ] || printf '%s\n%s\n' "$case_pid" "$witness" >>"$repo/pids"
     if [ -n "$case_signal" ]; then
       n=0
       for case_marker in $case_wait; do
@@ -1000,6 +1027,7 @@ EOF
   witness_left=no
   if [ -n "$witness" ]; then
     ! kill -0 "$witness" 2>/dev/null || witness_left=yes
+    : >"$tmp/witness.pid"
     kill "$witness" 2>/dev/null
     wait "$witness" 2>/dev/null
   fi
@@ -1144,7 +1172,10 @@ own_self_test() {
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
   perl_line='FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)'
 
-  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
+  first_b=$pass_b
+  [ "$nested_word" != hold ] || first_b='sleep 8; printf "PASS 20-b\n"'
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$first_b"
+  [ "$nested_word" != hold ] || case_witness=yes
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   if [ -n "$nested_word" ]; then
     [ "$nested_word" != fail ] || wrong="$wrong nested-run-asked-to-fail"
@@ -1793,6 +1824,21 @@ own_self_test() {
   case_max_s=30
   case_witness=yes
   own_case own-cases-past-the-limit 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=hold
+  case_limit=3
+  case_max_s=40
+  case_witness=yes
+  own_case own-cases-past-the-limit-end-the-running-case 1 'FAIL self-test:run-ci-d (time limit 3 s)' macos --self-test run-ci-d
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; sleep 60 >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; w pid.10-a || exit 1; read -r p <\"\$CI_D_REPO/pid.10-a\"; n=0; while kill -0 \"\$p\" 2>/dev/null && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.20-b\"; wait; $passes"
+  case_jobs=2
+  case_signal=TERM
+  case_wait=started.20-b
+  case_max_s=30
+  case_signal_min=3
+  case_witness=yes
+  own_case interrupt-of-the-self-test-step-ends-the-groups-of-ended-self-tests 143 'FAIL run-ci-d (the step was interrupted by TERM; every self-test that it started is ended)' macos --self-test 10-a 20-b
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
