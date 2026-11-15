@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help and no report taken at a press, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE and GUARD_HOSTED_TALLY unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
 set -u
 name=46-r4-dialog-ran
 off='hosted alone: not run on this machine'
@@ -53,6 +53,8 @@ $want
 EOF
   few=$(grep -c '^guard_hosted case .* FAIL: .*too few runs kept the schedule' "$log")
   [ "$few" = 0 ] || broke "too few runs kept the schedule: in $few cases of guard_hosted the schedule slipped in each of the runs that the target makes"
+  looped=$(grep -c '^guard_hosted case .* SLIPPED: ' "$log")
+  [ "$looped" = 0 ] || broke "guard_hosted printed $looped lines of the loop mode (a case SLIPPED) in this check's own run, which runs each case once and again after a slip; GUARD_HOSTED_SCHEDULE reached the run"
 }
 
 tracked() {
@@ -80,7 +82,7 @@ measure() {
   [ -d "$CI_D_ARTIFACTS" ] || mkdir -p "$CI_D_ARTIFACTS" || fail "the artifacts directory cannot be made"
   tracked before
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
-  cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
+  env -u GUARD_HOSTED_SCHEDULE -u GUARD_HOSTED_TALLY cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
   code=$?
   tracked after
   tr -d '\r' <"$work/out" >"$CI_D_ARTIFACTS/dialog-targets.txt" || fail "the output of the run cannot be written to the artifacts directory"
@@ -225,6 +227,12 @@ EOF
   output kept-and-failed "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it FAIL: macos allow_click_at_300ms_and_250ms_after_it: the answer was reject, not allow' 'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 0, helped 0, moments at a press 0, retries 0'
   STUB_EXIT=101
   check macos-a-run-that-kept-the-schedule-and-failed FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 0' macos
+  output loop-mode "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it SLIPPED: the schedule slipped: the press ran 541 ms after the press before it, and arm_ms is 500; not a pass and not a miss' 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 1, helped 0, moments at a press 0, retries 0'
+  check macos-a-line-of-the-loop-mode-in-the-checks-own-run FAIL 'guard_hosted printed 1 lines of the loop mode (a case SLIPPED)' macos
+  output win-loop-mode "$win_dialog" 'guard_hosted case windows click_100_at_300ms_and_250ms_after_it SLIPPED: the schedule slipped: the press ran 512 ms after the press before it, and arm_ms is 500; not a pass and not a miss' 'guard_hosted end: cases ran 8 of 8, failed 0, schedule slipped 1, helped 0, moments at a press 0, retries 0'
+  check windows-a-line-of-the-loop-mode-in-the-checks-own-run FAIL 'guard_hosted printed 1 lines of the loop mode (a case SLIPPED)' windows
+  output loop-mode-inside-a-line "$mac_dialog" 'x guard_hosted case macos allow_click_at_300ms_and_250ms_after_it SLIPPED: is no line of the target' "$mac_guard"
+  check macos-the-loop-mode-text-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   output no-counts "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0'
   check macos-a-guard-line-with-no-counts FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0", not' macos
   output no-guard "$mac_dialog"

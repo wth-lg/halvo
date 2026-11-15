@@ -99,6 +99,13 @@ fn count(line: &str, key: &str) -> Option<u64> {
     digits.parse().ok()
 }
 
+/// The number right after `key` in `line`.
+fn digits_after(line: &str, key: &str) -> Option<u64> {
+    let rest = &line[line.find(key)? + key.len()..];
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().ok()
+}
+
 /// One run of a loop from its target's lines: the kind of run by the end line
 /// (`guard_hosted end: cases ran A of B, failed F, schedule slipped S, helped H, moments at a
 /// press M, retries R`), and the gap of each case line that says its schedule slipped.
@@ -140,7 +147,29 @@ pub fn run_of(text: &str) -> (Run, Vec<u64>) {
     (kind, gaps)
 }
 
-/// The runs of a loop, numbered from 1, by their kind.
+/// The schedule case's first two presses in one run, from the first schedule line that it
+/// printed (`guard_hosted schedule <case>: the press before ran at +A ms, this one at +B ms, gap G
+/// ms`): A, B and G.
+pub fn times_of(text: &str) -> Option<(u64, u64, u64)> {
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("guard_hosted schedule "))?;
+    let first = digits_after(line, "the press before ran at +")?;
+    let second = digits_after(line, "this one at +")?;
+    let gap = count(line, "gap")?;
+    Some((first, second, gap))
+}
+
+/// The retries of an answering press that one run's end line counts, 0 with no end line.
+pub fn retries_of(text: &str) -> u64 {
+    text.lines()
+        .find(|line| line.starts_with("guard_hosted end: "))
+        .and_then(|end| count(end, "retries"))
+        .unwrap_or(0)
+}
+
+/// The runs of a loop, numbered from 1, by their kind, with each run's press times and the runs
+/// that retried their answering press.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Tally {
     pub runs: usize,
@@ -148,6 +177,8 @@ pub struct Tally {
     pub kept_failed: Vec<usize>,
     pub slipped: Vec<(usize, Vec<u64>)>,
     pub missed: Vec<usize>,
+    pub retried: Vec<usize>,
+    pub lines: Vec<String>,
 }
 
 /// The tally of a loop's runs, each the text of one run of the target.
@@ -158,6 +189,22 @@ pub fn tally(texts: &[String]) -> Tally {
     };
     for (n, text) in texts.iter().enumerate() {
         let (kind, gaps) = run_of(text);
+        if retries_of(text) > 0 {
+            tally.retried.push(n + 1);
+        }
+        let word = match kind {
+            Run::Kept => "kept the schedule and passed",
+            Run::KeptFailed => "kept the schedule and failed",
+            Run::Slipped => "schedule slipped",
+            Run::Missed => "missed",
+        };
+        tally.lines.push(match times_of(text) {
+            Some((first, second, gap)) => format!(
+                "guard_hosted loop run {}: the first press at +{first} ms, the second at +{second} ms, gap {gap} ms; {word}",
+                n + 1
+            ),
+            None => format!("guard_hosted loop run {}: no schedule line; {word}", n + 1),
+        });
         match kind {
             Run::Kept => tally.kept += 1,
             Run::KeptFailed => tally.kept_failed.push(n + 1),
@@ -220,9 +267,10 @@ pub fn line(tally: &Tally, (runs, floor): (usize, usize)) -> String {
         })
         .collect();
     format!(
-        "guard_hosted loop: runs {} of {runs}, kept the schedule {} (the floor is {floor}), of them failed {}, schedule slipped {}{}, missed {}",
+        "guard_hosted loop: runs {} of {runs}; kept the schedule {} (the floor is {floor}): passed {}, failed {}; schedule slipped {}{}; missed {}; retried an answering press {}{}",
         tally.runs,
         tally.kept + tally.kept_failed.len(),
+        tally.kept,
         tally.kept_failed.len(),
         tally.slipped.len(),
         if gaps.is_empty() {
@@ -230,6 +278,12 @@ pub fn line(tally: &Tally, (runs, floor): (usize, usize)) -> String {
         } else {
             format!(" ({})", gaps.join("; "))
         },
-        tally.missed.len()
+        tally.missed.len(),
+        tally.retried.len(),
+        if tally.retried.is_empty() {
+            String::new()
+        } else {
+            format!(" (run {})", numbers(&tally.retried))
+        }
     )
 }

@@ -3,8 +3,8 @@ mod schedule;
 
 use halvo_coord::types::Limits;
 use schedule::{
-    due, line, next, run_of, slipped, tally, verdict, From, Mode, Next, Run, ATTEMPTS, FLOOR_MACOS,
-    FLOOR_WINDOWS, TOO_FEW,
+    due, line, next, retries_of, run_of, slipped, tally, times_of, verdict, From, Mode, Next, Run,
+    ATTEMPTS, FLOOR_MACOS, FLOOR_WINDOWS, TOO_FEW,
 };
 use std::time::{Duration, Instant};
 
@@ -253,6 +253,73 @@ fn schedule_the_loop_line_gives_the_counts_and_each_gap() {
     let t = tally(&runs(2, 1, 1));
     assert_eq!(
         line(&t, (4, 3)),
-        "guard_hosted loop: runs 4 of 4, kept the schedule 3 (the floor is 3), of them failed 1, schedule slipped 1 (run 3 gap 500 ms), missed 0"
+        "guard_hosted loop: runs 4 of 4; kept the schedule 3 (the floor is 3): passed 2, failed 1; schedule slipped 1 (run 3 gap 500 ms); missed 0; retried an answering press 0"
     );
+}
+
+/// The lines of a run of the schedule case with its first two presses at `first` and `second`
+/// ms, `retries` retries of its answering press, and the end line of `failed` and `slips`.
+fn timed_run(first: u64, second: u64, retries: u64, failed: u64, slips: u64) -> String {
+    format!(
+        "guard_hosted schedule macos allow_click_at_300ms_and_250ms_after_it: the press before ran at +{first} ms, this one at +{second} ms, gap {} ms\n\
+         guard_hosted schedule macos allow_click_at_300ms_and_250ms_after_it: the press before ran at +{second} ms, this one at +{} ms, gap 750 ms\n\
+         guard_hosted end: cases ran 7 of 7, failed {failed}, schedule slipped {slips}, helped 0, moments at a press 0, retries {retries}",
+        second - first,
+        second + 750
+    )
+}
+
+#[test]
+fn schedule_each_run_of_a_loop_gives_its_first_two_press_times_and_their_gap_with_its_kind() {
+    assert_eq!(
+        times_of(&timed_run(1_317, 1_655, 0, 0, 0)),
+        Some((1_317, 1_655, 338))
+    );
+    assert_eq!(times_of(&end(0, 0)), None);
+    let texts = [
+        timed_run(1_317, 1_655, 0, 0, 0),
+        timed_run(1_300, 1_841, 0, 0, 1),
+        timed_run(1_300, 1_560, 0, 1, 0),
+        end(0, 0),
+    ];
+    let t = tally(&texts);
+    assert_eq!(
+        t.lines,
+        [
+            "guard_hosted loop run 1: the first press at +1317 ms, the second at +1655 ms, gap 338 ms; kept the schedule and passed",
+            "guard_hosted loop run 2: the first press at +1300 ms, the second at +1841 ms, gap 541 ms; schedule slipped",
+            "guard_hosted loop run 3: the first press at +1300 ms, the second at +1560 ms, gap 260 ms; kept the schedule and failed",
+            "guard_hosted loop run 4: no schedule line; kept the schedule and passed",
+        ]
+    );
+}
+
+#[test]
+fn schedule_a_run_that_retried_its_answering_press_is_counted_apart_and_still_passes() {
+    assert_eq!(retries_of(&timed_run(1, 300, 2, 0, 0)), 2);
+    assert_eq!(retries_of("no end line"), 0);
+    let mut texts = runs(58, 0, 0);
+    texts.push(timed_run(1, 300, 1, 0, 0));
+    texts.push(timed_run(1, 300, 3, 0, 0));
+    let t = tally(&texts);
+    assert_eq!((t.kept, t.retried.clone()), (60, vec![59, 60]));
+    assert_eq!(verdict(&t, FLOOR_MACOS), Vec::<String>::new());
+    assert!(
+        line(&t, FLOOR_MACOS).ends_with("; retried an answering press 2 (run 59, 60)"),
+        "{}",
+        line(&t, FLOOR_MACOS)
+    );
+}
+
+#[test]
+fn schedule_the_loop_line_says_passed_of_runs_that_kept_the_schedule_alone() {
+    let t = tally(&runs(54, 6, 0));
+    let text = line(&t, FLOOR_MACOS);
+    assert!(
+        text.contains(
+            "kept the schedule 54 (the floor is 45): passed 54, failed 0; schedule slipped 6"
+        ),
+        "{text}"
+    );
+    assert!(!text.contains("passed 60"), "{text}");
 }

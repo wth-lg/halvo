@@ -527,6 +527,9 @@ fn tally(directory: &str) -> ! {
         schedule::FLOOR_MACOS
     };
     let counted = schedule::tally(&texts);
+    for line in &counted.lines {
+        println!("{line}");
+    }
     for (n, gaps) in &counted.slipped {
         let gaps: Vec<String> = gaps.iter().map(u64::to_string).collect();
         println!(
@@ -1201,14 +1204,78 @@ mod cases {
     use super::{arm, case, end, now_in_show, on_screen, print, Press, Show, Ui};
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
+    use std::cell::RefCell;
     use std::time::Instant;
     use windows::core::{HSTRING, PCWSTR};
-    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::System::Threading::GetCurrentThreadId;
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, IsWindowVisible, PostMessageW, SendMessageW, SetForegroundWindow, WA_ACTIVE,
-        WM_ACTIVATE, WM_CLOSE, WM_USER,
+        CallNextHookEx, FindWindowW, IsWindowVisible, PostMessageW, SendMessageW,
+        SetForegroundWindow, SetWindowsHookExW, CWPRETSTRUCT, CWPSTRUCT, WA_ACTIVE, WH_CALLWNDPROC,
+        WH_CALLWNDPROCRET, WM_ACTIVATE, WM_CLOSE, WM_USER,
     };
+
+    thread_local! {
+        /// The messages sent to a window of this thread whose handling has not returned, the
+        /// innermost last: the window and the message.
+        static SENT: RefCell<Vec<(usize, u32)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    unsafe extern "system" fn sent(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if code >= 0 {
+            // SAFETY: for WH_CALLWNDPROC with a code of 0 or more, `lparam` is the address of the
+            // CWPSTRUCT of the message, which lives for this call.
+            let message = unsafe { &*(lparam.0 as *const CWPSTRUCT) };
+            SENT.with(|sent| {
+                sent.borrow_mut()
+                    .push((message.hwnd.0 as usize, message.message))
+            });
+        }
+        // SAFETY: the hook's own arguments, handed on to the next hook as the system asks.
+        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    }
+
+    unsafe extern "system" fn returned(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if code >= 0 {
+            // SAFETY: for WH_CALLWNDPROCRET with a code of 0 or more, `lparam` is the address of
+            // the CWPRETSTRUCT of the message, which lives for this call.
+            let message = unsafe { &*(lparam.0 as *const CWPRETSTRUCT) };
+            let key = (message.hwnd.0 as usize, message.message);
+            SENT.with(|sent| {
+                let mut sent = sent.borrow_mut();
+                if let Some(at) = sent.iter().rposition(|entry| *entry == key) {
+                    sent.truncate(at);
+                }
+            });
+        }
+        // SAFETY: as in `sent`.
+        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    }
+
+    /// Watches the messages sent to the windows of this thread, the dialog's, for the whole run.
+    fn hook() -> bool {
+        // SAFETY: two hooks of this thread alone, whose procedures live for the process and read
+        // only their own arguments.
+        unsafe {
+            let thread = GetCurrentThreadId();
+            SetWindowsHookExW(WH_CALLWNDPROC, Some(sent), None, thread).is_ok()
+                && SetWindowsHookExW(WH_CALLWNDPROCRET, Some(returned), None, thread).is_ok()
+        }
+    }
+
+    /// The message in whose handling the report came: WM_ACTIVATE of the dialog's subclass, or
+    /// else the callback's TDN_CREATED, with the innermost message sent on this thread.
+    fn made_at(hooked: bool) -> String {
+        if !hooked {
+            return "a message that this run cannot tell (the hooks were not set)".into();
+        }
+        match SENT.with(|sent| sent.borrow().last().copied()) {
+            Some((_, WM_ACTIVATE)) => "WM_ACTIVATE".into(),
+            Some((_, message)) => format!("TDN_CREATED (inside the message 0x{message:04x})"),
+            None => "TDN_CREATED (inside no sent message)".into(),
+        }
+    }
 
     const TDM_CLICK_BUTTON: u32 = WM_USER + 102;
 
@@ -1397,12 +1464,25 @@ mod cases {
         let ui = Win {
             title: HSTRING::from(card.title()),
         };
+        let hooked = hook();
+        println!("guard_hosted messages of the dialog's thread watched: {hooked}");
         let mut verdicts = Vec::new();
         for (name, shows) in CASES {
             let verdict = case(&ui, name, shows, &|| {
                 dialog.show(&card, arm(), &|| {
+                    let at = made_at(hooked);
                     // SAFETY: a read of the active window of this thread, the dialog's.
-                    on_screen(!unsafe { GetActiveWindow() }.is_invalid())
+                    let active = unsafe { GetActiveWindow() };
+                    let window = ui.window();
+                    // SAFETY: as in `press`; a window that has gone reads as not visible.
+                    let visible =
+                        window.is_some_and(|window| unsafe { IsWindowVisible(window) }.as_bool());
+                    let (label, ms) = now_in_show();
+                    println!(
+                        "guard_hosted report {label} +{ms} ms: made at {at}; visible={visible} active_window_is_the_dialog={}",
+                        window == Some(active)
+                    );
+                    on_screen(!active.is_invalid())
                 })
             });
             print(&verdict);
