@@ -53,3 +53,5 @@ crates/halvo-agent-client/src/link/** U9.2
 scripts/r3-gate/** U10.1
 scripts/r3/ci.d/90-r3-gate.sh U10.1
 docs/r3/gate.md U10.1
+crates/halvo-test-dir/** U2.5
+scripts/r3/ci.d/15-r3-test-dirs.sh U2.5

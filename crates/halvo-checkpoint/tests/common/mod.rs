@@ -2,10 +2,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 pub const RUN: &str = "0123456789abcdef0123456789abcdef";
 
@@ -13,16 +9,19 @@ pub struct Scratch {
     pub dir: PathBuf,
 }
 
+#[test]
+fn two_scratches_of_one_name_are_two_directories_and_the_second_is_empty() {
+    let first = Scratch::new("one-name");
+    fs::write(first.path("mine"), b"first").expect("write into the first");
+    let second = Scratch::new("one-name");
+    assert_ne!(first.dir, second.dir);
+    assert_eq!(fs::read_dir(&second.dir).expect("list").count(), 0);
+}
+
 impl Scratch {
     pub fn new(name: &str) -> Scratch {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let n = NEXT.fetch_add(1, Ordering::SeqCst);
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join("halvo-checkpoint")
-            .join(format!("{name}-{}-{nanos}-{n}", std::process::id()));
-        fs::create_dir_all(&dir).expect("make the scratch directory");
+        let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-checkpoint");
+        let dir = halvo_test_dir::make(&base, name).expect("make the scratch directory");
         let dir = dir.canonicalize().expect("the canonical scratch directory");
         Scratch { dir }
     }
