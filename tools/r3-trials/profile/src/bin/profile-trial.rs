@@ -10,7 +10,7 @@ use r3_profile::product::{self, Outer, RunLine, Start, EGRESS_LIST, EGRESS_PORT}
 use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
     bound_bytes, browser_did_not_start, encode, entry_names, landing, marker_needles, new_entries,
-    outside_roots, profile_gone, search, search_with, LEAVE_OUT_ALL,
+    outside_roots, profile_gone, search, search_with, start_cause, LEAVE_OUT_ALL,
 };
 use r3_web::cdp::{Executor, Fault, Locator, Res, SessionState, StartOptions, Stopped};
 use r3_web::fixture::{fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
@@ -511,11 +511,16 @@ struct Session {
     marker_cookies: Vec<String>,
 }
 
-async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
+struct Missed(Fault, bool);
+
+async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Result<Session, Missed> {
     let pid = std::process::id();
     let a_dir = ctx.scratch.join(format!("{pid}-profile-a"));
     let b_dir = ctx.scratch.join(format!("{pid}-profile-b"));
-    let mut a = ctx.start_browser(a_dir.clone()).await?;
+    let mut a = ctx
+        .start_browser(a_dir.clone())
+        .await
+        .map_err(|f| Missed(f, true))?;
     watch.add_browser(a.pid());
     let signed = ctx.stop.or(sign_in_with_second_factor(&mut a, ctx)).await;
     let exported = match signed {
@@ -523,7 +528,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
         Err(f) => Err(f),
     };
     let stopped_a = a.stop_and_remove().await;
-    let exported = exported?;
+    let exported = exported.map_err(|f| Missed(f, false))?;
     let names: Vec<&str> = exported.cookies.iter().map(|c| c.name.as_str()).collect();
     out(&format!(
         "state {} cookies={} names={} storage_items={} bytes={}",
@@ -554,7 +559,10 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
             state.cookies.len()
         ));
     }
-    let mut b = ctx.start_browser(b_dir).await?;
+    let mut b = ctx
+        .start_browser(b_dir)
+        .await
+        .map_err(|f| Missed(f, true))?;
     watch.add_browser(b.pid());
     let landed = ctx
         .stop
@@ -566,7 +574,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
         })
         .await;
     let stopped_b = b.stop_and_remove().await;
-    let (landing, b_was_empty) = landed?;
+    let (landing, b_was_empty) = landed.map_err(|f| Missed(f, false))?;
     Ok(Session {
         landing,
         stopped_a,
@@ -668,13 +676,11 @@ async fn run_items12(
     let watch = watcher.finish(&ctx.stop).await;
     let s = match outcome {
         Ok(s) => s,
-        Err(f) => {
-            let cause = match f.0 {
-                "signal" => "signal",
-                "start" | "browser_start" => "browser_start",
+        Err(Missed(f, start_failed)) => {
+            let cause = start_cause(f.0, start_failed).unwrap_or(match f.0 {
                 "signin" => "signin",
                 _ => "session",
-            };
+            });
             eprintln!("session cause={} detail={}", f.0, f.1.len());
             out(&format!("notrun item={} {cell} cause={cause}", args.item));
             return ExitCode::from(1);
@@ -1020,7 +1026,7 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
             relay_port: relay.port,
         },
     };
-    let (done, removed, _) = task(&ctx, profile.clone()).await;
+    let (done, removed, start_returned) = task(&ctx, profile.clone()).await;
     relay.stop();
     server.stop();
     match done {
@@ -1033,11 +1039,10 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
             ExitCode::from(1)
         }
         Err(f) => {
-            let cause = match f.0 {
-                "start" | "browser_start" => "browser_start",
-                other => other,
-            };
-            report("miss", cause);
+            report(
+                "miss",
+                start_cause(f.0, start_returned == Some(false)).unwrap_or(f.0),
+            );
             ExitCode::from(1)
         }
     }
@@ -1185,20 +1190,9 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
         .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("log=")))
     {
         let text = std::fs::read_to_string(args.repo.join(log)).unwrap_or_default();
-        let mut kinds: std::collections::BTreeMap<String, u64> = Default::default();
-        for l in text.lines() {
-            let k = l.split_whitespace().next().unwrap_or("-").to_string();
-            *kinds.entry(k).or_default() += 1;
+        for line in product::denial_lines(&cell, set, &text) {
+            out(&line);
         }
-        let parts: Vec<String> = kinds.iter().map(|(k, n)| format!("{k}:{n}")).collect();
-        eprintln!(
-            "egress_denied {cell} set={set} by_first_word={}",
-            if parts.is_empty() {
-                "-".into()
-            } else {
-                parts.join(",")
-            }
-        );
     }
     ExitCode::from(item3_end(
         args,
@@ -1255,6 +1249,13 @@ async fn egress_run(args: &Args, kind: &'static str) -> ExitCode {
     }
 }
 
+fn sandbox(mut opts: StartOptions, off: bool) -> StartOptions {
+    if off {
+        opts.flags.push("--no-sandbox".into());
+    }
+    opts
+}
+
 async fn egress_run_line(args: &Args, kind: &'static str) -> RunLine {
     let Ok(stop) = watch_signals() else {
         return product::run_line(None, Err("runtime"));
@@ -1287,13 +1288,8 @@ async fn egress_run_line(args: &Args, kind: &'static str) -> RunLine {
     let dir = args
         .scratch
         .join(format!("{}-profile-egress", std::process::id()));
-    let (done, _, start_returned) = if args.sandbox_off {
-        let mut opts = ctx.options(dir);
-        opts.flags.push("--no-sandbox".into());
-        task_with(&ctx, opts).await
-    } else {
-        task(&ctx, dir).await
-    };
+    let opts = sandbox(ctx.options(dir), args.sandbox_off);
+    let (done, _, start_returned) = task_with(&ctx, opts).await;
     server.stop();
     product::run_line(start_returned, done.map_err(|f| f.0))
 }
@@ -1312,13 +1308,17 @@ mod item3_end_tests {
     const CHECK: &str = "egress mode=sandbox denied=0 log=none\n";
 
     fn printed(inner: &str, sandbox_off: bool) -> (Vec<String>, u8) {
+        printed_of(Some(inner), sandbox_off)
+    }
+
+    fn printed_of(inner: Option<&str>, sandbox_off: bool) -> (Vec<String>, u8) {
         let args = Args {
             machine: "mac".into(),
             sandbox_off,
             ..Args::default()
         };
         let mut lines = Vec::new();
-        let code = item3_end(&args, CELL, "final", Some(inner), CHECK, &mut |l| {
+        let code = item3_end(&args, CELL, "final", inner, CHECK, &mut |l| {
             lines.push(l.to_string())
         });
         (lines, code)
@@ -1326,6 +1326,24 @@ mod item3_end_tests {
 
     fn inner(rest: &str) -> String {
         format!("egress_run {CELL} {rest}")
+    }
+
+    #[test]
+    fn the_control_alone_starts_the_browser_with_its_own_sandbox_off() {
+        let opts = || {
+            product::options(
+                PathBuf::from("chrome"),
+                PathBuf::from("profile"),
+                EGRESS_PORT,
+                &Start::ProductDirect,
+            )
+        };
+        let off = sandbox(opts(), true).flags;
+        let on = sandbox(opts(), false).flags;
+        assert_eq!(off.iter().filter(|f| *f == "--no-sandbox").count(), 1);
+        assert_eq!(off.last().map(String::as_str), Some("--no-sandbox"));
+        assert_eq!(on, opts().flags);
+        assert!(!on.iter().any(|f| f == "--no-sandbox"));
     }
 
     #[test]
@@ -1364,6 +1382,20 @@ mod item3_end_tests {
                     "egress_control {CELL} set=final sandbox=off mode=sandbox browser_started=yes denied=0"
                 )],
                 0
+            )
+        );
+        assert_eq!(
+            printed(
+                &inner("browser_started=yes task=notrun cause=signal"),
+                false
+            ),
+            (vec![format!("notrun item=3 {CELL} cause=signal")], 1)
+        );
+        assert_eq!(
+            printed_of(None, false),
+            (
+                vec![format!("notrun item=3 {CELL} set=final cause=egress_check")],
+                1
             )
         );
     }

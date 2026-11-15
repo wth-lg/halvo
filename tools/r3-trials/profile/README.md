@@ -65,7 +65,10 @@ anything of them is left.
   bound of a call is 8 MiB times ceil(5 times the larger median / 33554432). A `notrun` line of item 4
   says `cause=browser_start` when a line of a run ends so (the program of the nine steps prints
   `notrun candidate=... cause=browser_start` for a browser that does not start) and `cause=runs`
-  otherwise. A task run whose stop leaves its profile is a miss. On every path the `task` line's
+  otherwise. The task shape's `task` line and the `notrun` line of items 1 and 2 say
+  `cause=browser_start` for every fault that the executor's start itself returned, `no_channel`
+  among them, and `cause=signal` for a signal (`r3_profile::start_cause`, A13.1). A task run whose
+  stop leaves its profile is a miss. On every path the `task` line's
   `removed=yes` says that neither its profile nor `<profile>-tmp` exists when the line is printed,
   read without following a link, and `removed=no` that one of them exists or could not be read.
 - A SIGTERM or SIGINT stops the browsers with their trees, removes their profiles and temporary
@@ -256,7 +259,10 @@ program with `--item egress`. That program starts the fixture on 127.0.0.1:18090
 entry, and one Chrome that signs in with the second factor, opens `/bill` and `/pay` and holds that
 page for 20 s, as the task shape of item 4 does. The outer program prints the inner program's
 `egress_run` line, then `egress machine=<m> mode=<mode> browser_started=<yes|no> denied=<n>` from the
-check's last line, and on standard error the count of the denial log's lines by their first word.
+check's last line. Before that line it prints, for each line of the check's denial log, one line
+`egress_denial <cell> set=<set> proto=<tcp|udp|icmp|dns|-> port=<n|-> loopback=<yes|no|unknown>`
+(`product::denial_lines`); the address is never printed, because job logs are public, and
+`loopback=unknown` stands for a log line that gives no address, such as the sandbox mode's `-:443`.
 Readings fixed before the runs:
 
 - The browser runs without the relay. The relay is the executor's, and the check's list holds the
@@ -318,9 +324,12 @@ flags that close a way out (`--disable-quic`, the WebRTC policy) and the agent's
 adds no flag to U0.7c's set, and the cells of A13.2 and A13.7, which U0.7c ran with that set, stand.
 The kinds of run 43566221064's denials, and of the controls at c9eafc41 and in that run, come from
 the round's step script, which is not in the tree (`.u03r4/item3-extra.sh` of the scratch head
-cf5bb96a); item 3's program prints the count alone today. From the next run of item 3 on, the
-program prints one line for each denial with its protocol, port and loopback host alone; that change
-is the planner's to place.
+cf5bb96a). Since U0.3c (7fcf6f1c) item 3's program prints one `egress_denial` line for each denial
+with its protocol, port and loopback host alone. Its first runs on `hosted-win`, of the program at
+dd779e3c and at 4fd75d5a (which change no line that item 3 prints): run 43745539991, first set
+`denied=2`, 2 times `proto=udp port=5353 loopback=no`; run 43751185416, first set `denied=4`, 4 times
+the same kind; the final set `denied=0` in both, as the block's line for `hosted-win` reads. No new
+kind: the first set showed only the kind that run 43566221064's step script had shown.
 
 What `browser_started=no` covers on `mac` and `hosted-mac`: every call of either set ended with
 `cause=start`, which the executor gives when the browser answered its first call on the pipe
@@ -384,3 +393,15 @@ the kinds of files they change; none changes a value that a cell computes:
 - 56919992 (after item 3 ran): the end of item 3, from the inner line to the printed lines, is
   `item3_end`; for six inner lines the program prints the same bytes and exit code as at ba71401c.
 - ffc38432, 796e12f5: tests of `item3_end` and of the inner line that item 3 keeps.
+- U0.3c, after every recorded line: 9f458777 and 85ce4104 (tests of the whole program for item 3
+  and of `item3_end`); 7fcf6f1c (one `egress_denial` line for each denial, in place of the count of
+  the log's lines by their first word; no recorded line holds either); ec32881d (the cause word of
+  a start that returned `no_channel` or another fault of the start itself, which no recorded line
+  holds); 8f7cef2e (run.sh's argument reader); e5413f05 (the result file's sentence on these
+  commits); 31ed8294 and cbc4f88d (the collector's cases and the hosted harness, which compute no
+  cell of this trial).
+- U0.3c, after its review and hosted runs: 91bf5c2b (texts), f4d7bab0 (clippy's findings, no
+  printed line changes), 39e932bc, 91b449ed, b740a734, dd779e3c and 4fd75d5a (tests and self-test
+  cases), ebe4fcde (tests, and the control's `--no-sandbox` moved into `sandbox()`, which gives the
+  same flags), a44c9396 (the hosted harness's licence check of pypdf), 0274f892 and the commit of
+  this line (texts).
