@@ -1572,7 +1572,7 @@ own_self_test() {
   own_case driver-removes-its-temporary-directory 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" 'mkdir "$TMPDIR/left"; chmod 555 "$TMPDIR/.."; printf "PASS 10-a\n"'
   mkdir "$tmp/read-only" && chmod 555 "$tmp/read-only"
-  if { : >"$tmp/read-only/probe"; } 2>/dev/null; then
+  if { true >"$tmp/read-only/probe"; } 2>/dev/null; then
     own_case tmpdir-whose-parent-the-script-made-read-only-is-removed 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   else
     case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
@@ -1581,7 +1581,7 @@ own_self_test() {
   fi
   new_repo && add_script r1 10-a.sh "$good" 'chmod 555 "$TMPDIR/.."; printf "PASS 10-a\n"' && add_script r1 20-b.sh "$good" "$pass_b"
   case_witness=yes
-  if { : >"$tmp/read-only/probe"; } 2>/dev/null; then
+  if { true >"$tmp/read-only/probe"; } 2>/dev/null; then
     own_case parent-of-a-tmpdir-closed-by-its-script-leaves-the-next-script 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   else
     case_first="FAIL 10-a (its TMPDIR cannot be removed)${nl}PASS 20-b"
