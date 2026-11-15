@@ -21,6 +21,7 @@ import type { Ledger } from "../../src/ledger/index.ts";
 import type { Metering, Next, UsageCall } from "../../src/metering/index.ts";
 import type { Cap, Ms, Sql } from "../../src/types.ts";
 import { PROVIDER_CALL_TIMEOUT_MS } from "../../src/billing/stripe/timeout.ts";
+import { SYNC_RETRY_MS } from "../../src/metering/index.ts";
 
 const ACCOUNT = "0f8e2d4c-6b1a-4c3e-8d2f-1a2b3c4d5e6f";
 const HASH = "a".repeat(64);
@@ -2504,5 +2505,89 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     w.answers.throwIn = null;
     w.modules.accounts.subscription = subscription;
     expect(w.alarmAt()).toBe(68_000);
+  });
+
+  test("T1 (b): testSetClock stops an alarm that stands from before the test time, and no step under the test time arms one", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.accountsNextDue = 50_000;
+    await w.entries.rearm();
+    expect(w.alarmAt()).toBe(50_000);
+    now = 9000;
+    expect(await w.entries.testSetClock(20_000)).toEqual({ result: "clock-set" });
+    w.answers.accountsNextDue = null;
+    expect(w.alarmAt()).toBeNull();
+  });
+
+  test("T1 (e): a run that passes drops the kept count: after three failing runs and one passing run under the mark, the next failing run pauses ALARM_RETRY_MS", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    const gaps: Ms[] = [];
+    for (const fails of [true, true, true, false, true]) {
+      w.answers.throwIn = fails ? "accounts.forget" : null;
+      now = Math.max(now, w.alarmAt() ?? now);
+      const at = now;
+      await w.entries.alarm();
+      gaps.push(((w.alarmAt() ?? at) - at) / 1000);
+    }
+    w.answers.throwIn = null;
+    expect(gaps[4]).toBe(30);
+    expect(gaps.slice(0, 3)).toEqual([30, 60, 120]);
+  });
+
+  const idUnreadableInTheCountStep = (w: ReturnType<typeof world>) => {
+    const subscription = w.modules.accounts.subscription;
+    w.modules.accounts.subscription = (...a) => {
+      if (String(new Error().stack).includes("countFailure")) throw new RangeError("the id's read throws in the count step");
+      return subscription(...a);
+    };
+  };
+
+  test("T4: past the bound, with the removal rejected every time and the id unreadable in the count step, each run comes no later than SYNC_RETRY_MS after the last and never at the same instant", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.host.deleteAll = async () => {
+      throw new RangeError("the removal is rejected");
+    };
+    idUnreadableInTheCountStep(w);
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    const runs: Ms[] = [];
+    for (let run = 0; run < 4; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      runs.push(now - 8000 - DELETE_REMOVAL_BOUND_MS);
+      await w.entries.alarm();
+    }
+    expect(runs).toEqual([0, ALARM_RETRY_MS, ALARM_RETRY_MS + SYNC_RETRY_MS, ALARM_RETRY_MS + 2 * SYNC_RETRY_MS]);
+  });
+
+  test("T4: four failing runs, then a decision stored before the bound, the removal rejected and the id unreadable in the count step: the next run comes SYNC_RETRY_MS after the decision, not at the 480 s pause or the answer's 24 hours", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = "accounts.forget";
+    for (let run = 0; run < 4; run += 1) {
+      now += 1000;
+      await w.entries.alarm();
+    }
+    w.answers.throwIn = null;
+    w.answers.settled = true;
+    w.host.deleteAll = async () => {
+      throw new RangeError("the removal is rejected");
+    };
+    idUnreadableInTheCountStep(w);
+    now += 1000;
+    const decidedAt = now;
+    await w.entries.alarm();
+    expect(skeleton(w)?.removal_decided_at).toBe(decidedAt);
+    expect(w.alarmAt()).toBe(decidedAt + SYNC_RETRY_MS);
   });
 });

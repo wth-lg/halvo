@@ -17,6 +17,7 @@ interface Faults {
   nextDueThrowsInTheDueTime?: boolean;
   countWriteThrowsOnce?: boolean;
   exitReadThrows?: boolean;
+  exitAfterSeconds?: number;
 }
 
 interface Exit {
@@ -157,7 +158,7 @@ async function exitWithTheDeleteInTheRun(f: Faults): Promise<Exit> {
     (e: Error) => `threw ${e.name}`,
   );
   const armedByTheDelete = await w.host.getAlarm();
-  const exitAt = t0 + 5 * SECOND;
+  const exitAt = t0 + (f.exitAfterSeconds ?? 5) * SECOND;
   w.at(exitAt);
   release();
   await run;
@@ -203,6 +204,10 @@ describe("an alarm run that began before the delete exits after the mark is set:
 
   test("the verifier's form: metering.record throws once after the delete began, and the count's write throws once", async () => {
     holdsTheRule(await exitWithTheDeleteInTheRun({ heldCall: "send", recordThrowsOnce: true, countWriteThrowsOnce: true }));
+  });
+
+  test("the verifier's form with the exit 15 s after the delete, so that the floor of now plus ALARM_RETRY_MS lies after the delete's own arm: ledger.expire throws, and the count's write throws once", async () => {
+    holdsTheRule(await exitWithTheDeleteInTheRun({ heldCall: "send", expireThrows: true, countWriteThrowsOnce: true, exitAfterSeconds: 15 }));
   });
 
   test("the exit by a send that throws, the count's write throwing once", async () => {
