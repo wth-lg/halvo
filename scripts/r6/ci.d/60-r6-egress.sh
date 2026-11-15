@@ -53,7 +53,8 @@ no forbid run has in common with a build; the word clippy, the identifier with n
 after it, is refused; an attribute's path may not be a macro variable followed by an opening
 parenthesis, an equals sign or a path separator; and before its first cargo command the check
 refuses a flags variable of the compiler (plain, encoded, build or per-target) or the clippy
-arguments variable that holds an allow flag, a cap on lints or a cfg flag, and a compiler or wrapper
+arguments variable that holds an allow flag, a cap on lints, a cfg flag or a word that starts with @
+(an argument file, which the rule cannot read), and a compiler or wrapper
 variable that is set.
 The asking: the asking asks each one-word string literal with no space, quote or backslash of the
 tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command
@@ -361,7 +362,7 @@ env_rules() {
     if tr '\037' ' ' <"$work/env-value.txt" | awk '
       {
         for (i = 1; i <= NF; i++) {
-          if ($i ~ /^-A/ || $i ~ /^--allow/ || $i ~ /cap[-_]lints/ || $i ~ /^--cfg/) bad = 1
+          if ($i ~ /^-A/ || $i ~ /^--allow/ || $i ~ /cap[-_]lints/ || $i ~ /^--cfg/ || $i ~ /^@/) bad = 1
         }
       }
       END { exit bad ? 0 : 1 }
@@ -2220,6 +2221,8 @@ EOF
   case_run env-plain-wrapper-set FAIL check "rule env ${w_rustc}_WRAPPER is set"
   case_env="$v_build=-Aunsafe_code"
   case_run env-build-flags-allow FAIL check "rule env $v_build holds"
+  case_env="$v_flags=@args.txt"
+  case_run env-flags-argument-file FAIL check "rule env $v_flags holds"
   case_env="$v_flags=--allow=unsafe_code"
   case_run env-long-allow-flag FAIL check "rule env $v_flags holds"
   case_repo=$work/repo-cfg
