@@ -144,6 +144,25 @@ fn a_card_that_breaks_the_composed_form_is_shown_never_and_answers_nothing() {
     }
 }
 
+#[cfg(windows)]
+#[test]
+fn a_card_with_an_access_key_mark_in_a_control_text_is_shown_never_on_windows() {
+    for (reject, allow) in [("Don't &pay", "Pay"), ("Don't pay", "&Pay")] {
+        let card = Card::of("Pay this?", &["Pay to: City Power"], reject, allow);
+        let (fake, seen) = Fake::new(&[Ok(())]);
+        let shows = Shows::new(&[(true, ALLOW)]);
+        let read: Box<Read> = Box::new(move |_: &ItemId| Ok(card.clone()));
+        serve(&fake, &*read, &shows, arm());
+        assert_eq!(shows.count(), 0, "{reject} / {allow}");
+        let seen = seen.lock().unwrap();
+        assert_eq!(
+            (seen.on_screen, seen.answers.len()),
+            (0, 0),
+            "{reject} / {allow}"
+        );
+    }
+}
+
 #[test]
 fn the_press_on_allow_reaches_the_item_as_allow_after_the_report_on_screen() {
     let (fake, seen) = Fake::new(&[Ok(())]);
