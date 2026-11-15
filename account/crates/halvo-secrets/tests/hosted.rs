@@ -252,6 +252,170 @@ mod by_reference {
             seen.join(" ")
         );
     }
+
+    #[cfg(feature = "keychain")]
+    #[test]
+    fn a_stale_reference_between_two_processes_keeps_the_later_item() {
+        const STALE_CHILD: &str = "HALVO_SECRETS_STALE_REFERENCE_CHILD";
+        const STALE_ROUNDS: &str = "HALVO_SECRETS_STALE_REFERENCE_ROUNDS";
+        on_a_hosted_runner();
+        let later = held_one_byte_off(0);
+        if let Ok(account) = std::env::var(STALE_CHILD) {
+            search(&account)
+                .delete()
+                .expect("the child deletes the item");
+            SecKeychain::default()
+                .expect("the default keychain")
+                .add_generic_password(SERVICE, &account, &later)
+                .expect("the child adds a later item");
+            return;
+        }
+        let rounds: usize = std::env::var(STALE_ROUNDS)
+            .ok()
+            .and_then(|rounds| rounds.parse().ok())
+            .unwrap_or(200);
+        let (mut kept, mut gone, mut not_run) = (0, 0, 0);
+        for round in 0..rounds {
+            let account = name(&format!("stale-{round}"));
+            let account = account.as_str();
+            SecKeychain::default()
+                .expect("the default keychain")
+                .add_generic_password(SERVICE, account, HELD)
+                .expect("an item is added");
+            let (_, item) =
+                find_generic_password(None, SERVICE, account).expect("the item is found");
+            let status = std::process::Command::new(
+                std::env::current_exe().expect("the test binary"),
+            )
+            .args([
+                "--exact",
+                "by_reference::a_stale_reference_between_two_processes_keeps_the_later_item",
+                "--test-threads=1",
+            ])
+            .env(STALE_CHILD, account)
+            .output()
+            .expect("the child")
+            .status;
+            let added = datas(account) == [later.clone()];
+            item.delete();
+            let left = datas(account);
+            let shown = if left == [later.clone()] {
+                "later"
+            } else if left.is_empty() {
+                "none"
+            } else {
+                "other"
+            };
+            println!(
+                "stale-reference round {round} child={status} child_added={added} parent=deleted-by-reference stands={shown}"
+            );
+            if !added {
+                not_run += 1;
+            } else if shown == "later" {
+                kept += 1;
+            } else {
+                gone += 1;
+            }
+            let _ = search(account).delete();
+        }
+        println!(
+            "\nstale-reference rounds={rounds} later_kept={kept} later_gone={gone} not_run={not_run}"
+        );
+        assert_eq!(
+            gone, 0,
+            "a removal by a stale reference removed the later item"
+        );
+        assert!(kept > 0, "no round ran");
+    }
+
+    const TWO_BINARIES_ACCOUNT: &str = "hosted-two-binaries";
+
+    fn two_binaries_note() -> PathBuf {
+        Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-secrets-two-binaries.note")
+    }
+
+    #[cfg(feature = "keychain")]
+    #[test]
+    fn two_binaries_the_keychain_build_adds_the_item_and_leaves_a_move_s_claim() {
+        on_a_hosted_runner();
+        let _ = search(TWO_BINARIES_ACCOUNT).delete();
+        let place = dir("two-binaries");
+        let account = Name::new(TWO_BINARIES_ACCOUNT).expect("a name");
+        let store = Store::new(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            account.clone(),
+        );
+        assert_eq!(store.write(&secret(HELD)), Write::Stored);
+        let file = Store::in_directory(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            account,
+        );
+        assert_eq!(file.write(&secret(HELD)), Write::Stored);
+        std::fs::rename(
+            place.join(TWO_BINARIES_ACCOUNT),
+            place.join(format!(
+                ".{TWO_BINARIES_ACCOUNT}.{}.0.claim",
+                std::process::id()
+            )),
+        )
+        .expect("the claim of a killed move");
+        std::fs::write(two_binaries_note(), place.to_string_lossy().as_bytes()).expect("the note");
+        println!("\ntwo-binaries keychain build: item added, claim left, note written");
+    }
+
+    #[cfg(not(feature = "keychain"))]
+    #[test]
+    fn two_binaries_the_file_build_removes_the_keychain_item_beside_the_claim() {
+        on_a_hosted_runner();
+        let note = std::fs::read_to_string(two_binaries_note())
+            .expect("the note of the keychain build's test, which runs first");
+        let place = PathBuf::from(note);
+        let data = {
+            let _quiet = SecKeychain::disable_user_interaction().expect("the switch");
+            find_generic_password(None, SERVICE, TWO_BINARIES_ACCOUNT).map(|_| ())
+        };
+        let refused = data.as_ref().err().map(|error| error.code());
+        let store = Store::new(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            Name::new(TWO_BINARIES_ACCOUNT).expect("a name"),
+        );
+        let removal = store.remove(StoreKind::Keychain).expect("a store of a Mac");
+        let mut names: Vec<String> = std::fs::read_dir(&place)
+            .expect("the store directory")
+            .map(|entry| {
+                entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        let items = {
+            let mut count = search(TWO_BINARIES_ACCOUNT);
+            count.load_attributes(true).limit(Limit::All);
+            count.search().map(|found| found.len()).unwrap_or(0)
+        };
+        println!(
+            "\ntwo-binaries file build: data_read_refused={refused:?} removed={:?} then={:?} names={names:?} keychain_items={items}",
+            removal.removed, removal.then
+        );
+        let file_holds = names.iter().any(|name| name == TWO_BINARIES_ACCOUNT);
+        match &removal.then {
+            Read::Found(held) => assert!(file_holds && held.expose() == HELD, "then says Found"),
+            Read::NotStored => assert!(!file_holds && items == 0, "then says NotStored"),
+            then => panic!("then answered {then:?}"),
+        }
+        let _ = Store::in_directory(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            Name::new(TWO_BINARIES_ACCOUNT).expect("a name"),
+        )
+        .remove(StoreKind::File);
+        let _ = search(TWO_BINARIES_ACCOUNT).delete();
+        std::fs::remove_file(two_binaries_note()).expect("the note is removed");
+    }
 }
 
 #[cfg(target_os = "macos")]
