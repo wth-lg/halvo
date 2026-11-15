@@ -306,7 +306,8 @@ impl<S: Subject> Conn<S> {
             Ok(None) => return Err("the server ended the stream before its reply".to_owned()),
             Err(FrameError::Length(n)) => {
                 return Err(format!(
-                    "a reply frame of {n} payload bytes, outside 1 to 262,144"
+                    "a reply frame to {} of {n} payload bytes, outside 1 to 262,144",
+                    message_name(payload)
                 ))
             }
             Err(e) => return Err(format!("the reply could not be read: {e:?}")),
@@ -327,6 +328,13 @@ impl<S: Subject> Conn<S> {
             _ => Err(format!("{what} got another reply than an error")),
         }
     }
+}
+
+fn message_name(payload: &str) -> &str {
+    payload
+        .strip_prefix(r#"{"msg":""#)
+        .and_then(|rest| rest.split('"').next())
+        .unwrap_or("a message")
 }
 
 fn show(p: Position) -> String {
@@ -392,7 +400,14 @@ fn check(
     }
     let mut prev = last;
     for e in &b.records {
-        if e.pos < cursor || prev.is_some_and(|p| e.pos <= p) {
+        if e.pos < cursor {
+            return Err(format!(
+                "the position {} is below the cursor's position {}",
+                show(e.pos),
+                show(cursor)
+            ));
+        }
+        if prev.is_some_and(|p| e.pos <= p) {
             return Err(format!("the position {} does not rise", show(e.pos)));
         }
         if e.pos >= b.next {
@@ -406,10 +421,21 @@ fn check(
     let mut segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
     segs.dedup();
     let named: Vec<u64> = b.expiry.iter().map(|e| e.seg).collect();
-    if named != segs {
-        return Err(
-            "expiry does not name exactly the segments of the records, in rising order".to_owned(),
-        );
+    if let Some(w) = named.windows(2).find(|w| w[0] >= w[1]) {
+        return Err(format!(
+            "expiry names segment {} after segment {}, out of rising order",
+            w[1], w[0]
+        ));
+    }
+    if let Some(s) = named.iter().find(|s| !segs.contains(s)) {
+        return Err(format!(
+            "expiry names segment {s}, which holds no record of the Batch"
+        ));
+    }
+    if let Some(s) = segs.iter().find(|s| !named.contains(s)) {
+        return Err(format!(
+            "expiry names no instant for segment {s} of the records"
+        ));
     }
     for x in &b.expiry {
         if b.records
@@ -449,7 +475,11 @@ fn open<S: Subject>(
         _ => return Err("open_cursor got a reply other than batch or error".to_owned()),
     };
     if !opened.records.is_empty() || !opened.expiry.is_empty() {
-        return Err("the reply to open_cursor holds records or expiry entries".to_owned());
+        return Err(format!(
+            "the reply to open_cursor holds {} records and {} expiry entries; want none",
+            opened.records.len(),
+            opened.expiry.len()
+        ));
     }
     if opened.next != position {
         return Err(format!(

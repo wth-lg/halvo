@@ -925,7 +925,7 @@ fn everywhere(text: &'static str) -> [Want; 4] {
 fn control_a_reply_frame_over_the_server_limit() {
     check(
         OversizeBatch,
-        everywhere("a reply frame of 262145 payload bytes, outside 1 to 262,144"),
+        everywhere("a reply frame to read_batch of 262145 payload bytes, outside 1 to 262,144"),
     );
 }
 
@@ -976,9 +976,9 @@ fn control_an_entry_below_the_cursor_position() {
     check(
         ServesBelowTheCursor,
         [
-            Fail("the position {seg 1, idx 10} does not rise"),
-            Fail("the position {seg 1, idx 10} does not rise"),
-            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 2, idx 9} does not rise"),
+            Fail("the position {seg 1, idx 10} is below the cursor's position {seg 1, idx 11}"),
+            Fail("the position {seg 1, idx 10} is below the cursor's position {seg 1, idx 11}"),
+            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 2, idx 9} is below the cursor's position {seg 2, idx 10}"),
             Pass,
         ],
     );
@@ -996,7 +996,7 @@ fn control_an_entry_at_next() {
 fn control_an_expiry_that_misses_a_segment_of_its_records() {
     check(
         ExpiryDropped,
-        everywhere("expiry does not name exactly the segments of the records, in rising order"),
+        everywhere("expiry names no instant for segment 1 of the records"),
     );
 }
 
@@ -1004,7 +1004,7 @@ fn control_an_expiry_that_misses_a_segment_of_its_records() {
 fn control_an_expiry_that_names_a_segment_with_no_record() {
     check(
         ExpiryNamesAnotherSegment,
-        everywhere("expiry does not name exactly the segments of the records, in rising order"),
+        everywhere("expiry names segment 5, which holds no record of the Batch"),
     );
 }
 
@@ -1012,7 +1012,7 @@ fn control_an_expiry_that_names_a_segment_with_no_record() {
 fn control_an_expiry_out_of_rising_order() {
     check(
         ExpiryOutOfOrder,
-        everywhere("expiry does not name exactly the segments of the records, in rising order"),
+        everywhere("expiry names segment 3 after segment 4, out of rising order"),
     );
 }
 
@@ -1044,7 +1044,7 @@ fn control_an_empty_batch_whose_next_does_not_rise() {
 fn control_an_open_reply_frame_over_the_server_limit() {
     check(
         OversizeOpenReply,
-        everywhere("a reply frame of 262145 payload bytes, outside 1 to 262,144"),
+        everywhere("a reply frame to open_cursor of 262145 payload bytes, outside 1 to 262,144"),
     );
 }
 
@@ -1052,7 +1052,7 @@ fn control_an_open_reply_frame_over_the_server_limit() {
 fn control_an_open_reply_with_a_record() {
     check(
         OpenHoldsARecord,
-        everywhere("the reply to open_cursor holds records or expiry entries"),
+        everywhere("the reply to open_cursor holds 1 records and 0 expiry entries; want none"),
     );
 }
 
@@ -1060,7 +1060,7 @@ fn control_an_open_reply_with_a_record() {
 fn control_an_open_reply_with_an_expiry_entry() {
     check(
         OpenHoldsExpiry,
-        everywhere("the reply to open_cursor holds records or expiry entries"),
+        everywhere("the reply to open_cursor holds 0 records and 1 expiry entries; want none"),
     );
 }
 
@@ -1184,7 +1184,7 @@ fn control_replies_of_the_wrong_message() {
     );
     check(
         ReadGetsClosed,
-        everywhere("read_batch got a reply other than batch or error"),
+        everywhere("the reference read: read_batch got a reply other than batch or error"),
     );
     check(
         CloseGetsBadRequest,
@@ -1239,7 +1239,7 @@ fn control_a_server_that_ignores_the_byte_bound() {
             Pass,
             Pass,
             Pass,
-            Fail("the read of set C: a reply frame of 521617 payload bytes, outside 1 to 262,144"),
+            Fail("the read of set C: a reply frame to read_batch of 521617 payload bytes, outside 1 to 262,144"),
         ],
     );
 }
@@ -1308,8 +1308,8 @@ fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_
         [
             Pass,
             Pass,
-            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} does not rise"),
-            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} does not rise"),
+            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} is below the cursor's position {seg 2, idx 10}"),
+            Fail("check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} is below the cursor's position {seg 2, idx 139}"),
         ],
     );
 }
