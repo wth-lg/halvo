@@ -56,6 +56,7 @@ export type Scenario = {
   readonly commands: readonly Command[];
   readonly faultsByProviderCall: readonly Fault[];
   readonly repeatAnswer?: "duplicate" | "failed";
+  readonly lateSubscriptionId?: readonly number[];
 };
 
 export type Options = { readonly downtimeBudgetSeconds: number; readonly onFailedCheck: "stop" | "list" };
@@ -118,6 +119,7 @@ type Account = {
   cancelsAfterAReactivation: number;
   closedNotBillable: Set<string>;
   providerEnded: boolean;
+  idLate: boolean;
   endedByTheDeleteAt: number | null;
   deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
 };
@@ -311,6 +313,7 @@ class World {
       cancelsAfterAReactivation: 0,
       closedNotBillable: new Set(),
       providerEnded: false,
+      idLate: this.scenario.lateSubscriptionId?.includes(index) ?? false,
       endedByTheDeleteAt: null,
       deleteBound: new Map(),
     } satisfies Omit<Account, "index" | "id">);
@@ -356,7 +359,7 @@ class World {
   private async announcePeriod(account: Account): Promise<void> {
     const start = account.subscribedAt + account.periodsAnnounced * BILLING_PERIOD;
     account.periodsAnnounced += 1;
-    if (account.ended !== null) return;
+    if (account.ended !== null || account.idLate) return;
     this.count("period.announced");
     this.countAnOpenIntervalAcross(account, start, start + BILLING_PERIOD);
     await account.entries.webhookEvent(
@@ -384,6 +387,16 @@ class World {
       openManagePage: async () => failed,
       cancelSubscription: async (subscriptionId) => {
         this.count("call.cancel");
+        if (account.idLate && subscriptionId === null) {
+          account.idLate = false;
+          this.count("cancel.id-arrived-during-the-null-call");
+          const providerTime = Math.max(this.now * 1000, account.lastProviderTime + 1000);
+          const start = account.subscribedAt;
+          await account.entries.webhookEvent(
+            this.subscriptionEvent(account, { providerTime, period: { start: start * 1000, end: (start + BILLING_PERIOD) * 1000 } }),
+          );
+          return { kind: "nothing-to-cancel" };
+        }
         if (this.cancelAnswerStored(account, subscriptionId)) this.fail("a cancel call though an answer is stored", `${account.id}: ${subscriptionId}`);
         if (account.providerEnded) {
           this.count("call.cancel-of-an-ended-subscription");
@@ -972,6 +985,7 @@ class World {
       const view = this.tables(account);
       if (account.ended === "delete") {
         if (view !== null) this.fail("storage after account delete", `${account.id} still holds storage`);
+        if (!account.providerEnded) this.fail("a deleted account whose plan the provider still bills", account.id);
       } else if (view === null) {
         this.fail("storage", `${account.id} lost its storage without an account delete`);
       }
