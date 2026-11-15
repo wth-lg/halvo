@@ -1,12 +1,15 @@
 [package]
 name = "halvo-sqlcipher"
 version.workspace = true
-description = "SQLCipher built from the pinned source for every Halvo crate that opens an encrypted database"
+description = "SQLCipher built from the pinned source with two statements of Halvo's own, which zero the gap of a page that the database builds again or edits in place, for every Halvo crate that opens an encrypted database"
 edition = "2021"
 publish = false
 
 [dependencies]
 rusqlite = { version = "0.41", features = ["sqlcipher"] }
+
+[dev-dependencies]
+memchr = "2"
 
 [build-dependencies]
 cc = { version = "1", features = ["parallel"] }
