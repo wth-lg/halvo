@@ -7,8 +7,23 @@ use halvo_schema::Instant;
 
 const DAY_NANOS: i64 = 86_400 * 1_000_000_000;
 
+#[cfg(test)]
+thread_local! {
+    static WALL: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
+}
+
+/// Makes `now` on this thread answer `at`, or the system's clock again for `None`.
+#[cfg(test)]
+pub(crate) fn hold_wall(at: Option<Instant>) {
+    WALL.with(|wall| wall.set(at));
+}
+
 /// The instant now, in nanoseconds since 1970-01-01T00:00:00Z.
 pub(crate) fn now() -> Instant {
+    #[cfg(test)]
+    if let Some(at) = WALL.with(std::cell::Cell::get) {
+        return at;
+    }
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_nanos()).unwrap_or(i64::MAX));

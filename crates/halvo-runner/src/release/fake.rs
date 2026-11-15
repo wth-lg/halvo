@@ -12,9 +12,11 @@ use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{
     ActionClass, Bound, BoundField, Cause, EffectState, FromRunner, Outcome, RunnerCall, WebOrigin,
 };
-use halvo_schema::Category;
+use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+use halvo_schema::{Category, Instant};
 
 use super::suite::{run_many_path, run_path, Plan, Record};
+use crate::clock::hold_wall;
 use super::{Left, MakerFacts, Paused, Replied};
 
 #[derive(Default)]
@@ -346,6 +348,46 @@ fn reject_once_lets_no_request_of_its_effect_leave() {
     assert_eq!(released, 0);
     assert_eq!(record.states(), [EffectState::Held, EffectState::Rejected]);
     assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-204 D3 and D7: at a wall instant held at 12:00 UTC, where an offset of 14 hours either way gives another
+/// day than UTC, each row of an effect, each log line and the finish carry day_of(at, the run's offset).
+#[test]
+fn every_row_takes_the_day_of_its_instant_at_the_runs_offset_either_way() {
+    const DAY: i64 = 86_400 * 1_000_000_000;
+    let noon = Instant(20_404 * DAY + DAY / 2);
+    let mut wrong = Vec::new();
+    for offset in [UTC_OFFSET_S_MAX, -UTC_OFFSET_S_MAX] {
+        let plan = Plan {
+            answer: Answer::RejectOnce,
+            utc_offset_s: offset,
+            ..Plan::plain()
+        };
+        hold_wall(Some(noon));
+        let (record, _) = run(vec![delete("a", Source::Extract)], plan);
+        hold_wall(None);
+        let day = day_of(noon, offset);
+        assert_ne!(day, day_of(noon, 0), "{offset}");
+        let effects = record.effects();
+        let logs = record.logs();
+        assert_eq!(effects.len(), 2, "{offset}");
+        assert!(!logs.is_empty(), "{offset}");
+        for (what, row, at) in effects
+            .iter()
+            .map(|e| ("effect", e.day, e.at))
+            .chain(logs.iter().map(|l| ("log", l.day, l.at)))
+        {
+            assert_eq!(at, noon, "{offset}: {what}: the held instant");
+            if row != day {
+                wrong.push(format!("{offset}: {what} day {row}, not {day}"));
+            }
+        }
+        let finish = record.finish().expect("the finish").day;
+        if finish != day {
+            wrong.push(format!("{offset}: finish day {finish}, not {day}"));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
 }
 
 /// A9.3: a first read that `admit` refuses makes no `propose`; the run ends `failed` with `provenance`.

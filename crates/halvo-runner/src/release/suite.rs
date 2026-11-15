@@ -370,6 +370,8 @@ pub(crate) struct Plan {
     pub(crate) cancel_before: Option<CancelBefore>,
     pub(crate) wall_s: Option<u32>,
     pub(crate) clock: Arc<AtomicU64>,
+    /// The run's `--utc-offset`.
+    pub(crate) utc_offset_s: i32,
 }
 
 impl Plan {
@@ -392,6 +394,7 @@ impl Plan {
             cancel_before: None,
             wall_s: None,
             clock: Arc::default(),
+            utc_offset_s: 0,
         }
     }
 }
@@ -601,6 +604,7 @@ pub(crate) fn run_many_path(
     let workflow = WorkflowId::from_random([0x53; 16]);
     let config = preset(category, workflow.clone(), agent.clone()).expect("a preset");
     let data = data_dir().to_string_lossy().into_owned();
+    let offset = plan.utc_offset_s.to_string();
     let words = [
         "--run",
         run.as_str(),
@@ -615,7 +619,7 @@ pub(crate) fn run_many_path(
         "--data-dir",
         &data,
         "--utc-offset",
-        "0",
+        &offset,
     ];
     let words: Vec<OsString> = words.iter().map(OsString::from).collect();
     let args = crate::args::parse(&words).expect("the arguments");
