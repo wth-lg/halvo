@@ -221,6 +221,19 @@ fn a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_no
 
 static FAIL_READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+fn system_temp() -> Option<std::ffi::OsString> {
+    static TEMP: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+    TEMP.get_or_init(|| {
+        let out = std::process::Command::new("/usr/bin/getconf")
+            .arg("DARWIN_USER_TEMP_DIR")
+            .output()
+            .ok()?;
+        let text = String::from_utf8(out.stdout).ok()?;
+        Some(text.trim().into())
+    })
+    .clone()
+}
+
 fn read_until_told(value: halvo_agent_client::SystemValue) -> Option<std::ffi::OsString> {
     use halvo_agent_client::SystemValue;
     if FAIL_READ.load(std::sync::atomic::Ordering::SeqCst) {
@@ -228,7 +241,8 @@ fn read_until_told(value: halvo_agent_client::SystemValue) -> Option<std::ffi::O
     }
     match value {
         SystemValue::SystemRoot => std::env::var_os("SystemRoot"),
-        SystemValue::TmpDir | SystemValue::Temp => Some(std::env::temp_dir().into_os_string()),
+        SystemValue::TmpDir => system_temp(),
+        SystemValue::Temp => Some(std::env::temp_dir().into_os_string()),
     }
 }
 
@@ -239,7 +253,15 @@ fn a_start_of_a_running_run_id_whose_value_read_fails_on_that_call_answers_start
     let script = rig.script(&["hello", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    rig.sup.start(spec.clone()).unwrap();
+    let at = std::time::Instant::now();
+    let first = rig.sup.start(spec.clone());
+    assert_eq!(
+        first,
+        Ok(()),
+        "the first start after {:?}: {}",
+        at.elapsed(),
+        script.log()
+    );
     FAIL_READ.store(true, std::sync::atomic::Ordering::SeqCst);
     let again = rig.sup.start(spec);
     FAIL_READ.store(false, std::sync::atomic::Ordering::SeqCst);
