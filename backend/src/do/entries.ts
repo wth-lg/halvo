@@ -16,10 +16,10 @@ import type { Cap, Micro, Ms, Sql, Step, Tier } from "../types.ts";
 
 export const ALARM_RETRY_MS = 30_000;
 /**
- * Outside the mark, five failing runs of the alarm in a row end with alarm-stopped and no alarm when the exit's read of the
- * mark shows no mark; one throw of the count's own write with no mark stops at once (contract 3.4 line 556). An exit whose
- * read of the mark throws counts as under the mark (P7-110 L3 (a)), so an account with no mark whose exit read throws in
- * every run runs at the pause with no stop.
+ * Outside the mark, five alarm runs in a row that catch an error of the due time end with alarm-stopped and no alarm when
+ * the exit's read of the mark shows no mark, while the entries still answer; one throw of the count's own write with no
+ * mark stops at once (contract 3.4 line 556). When the run's read of the mark at its end fails as well, the alarm does not
+ * stop and runs on at the pause: such an exit counts as under the mark (P7-110 L3 (a)).
  */
 export const ALARM_RETRY_LIMIT = 5;
 export const ALARM_CALL_LIMIT = 3;
@@ -28,12 +28,15 @@ export const CLOCK_RUN_LIMIT = 100;
 export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
 /**
  * The cap of the pause after a failing run of the alarm under the mark. The pause starts at ALARM_RETRY_MS and doubles with
- * each failing run in a row, so a begun delete costs at most one run per ALARM_RETRY_MS, settling to one run per
- * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes. The count of failing runs is written by a
- * statement of its own and also kept in the instance's memory as a floor. While that one statement fails and the object
- * is new at each run, the pause stays at ALARM_RETRY_MS: 2,881 runs a day. No retry of the write is built, because a
- * statement that fails in every run fails in its retry. Such a run makes a cancel call only at the stored next try of a
- * failed answer; a cancel call that throws stores no next try, so then each run makes one.
+ * each failing run in a row counted under the current mark, so a begun delete costs at most one run per ALARM_RETRY_MS,
+ * settling to one run per ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes. The count restarts at
+ * a delete: the statement of destroy that first writes the mark writes it to 0. The count of failing runs is written by a
+ * statement of its own and also kept in the instance's memory as a floor, under the mark's time. While the count of
+ * failing runs cannot be stored, because its one statement fails or every read of the skeleton fails, and the object is
+ * new at each run, the pause stays at ALARM_RETRY_MS: at most 2,881 runs a day, fewer when a cancel try is owed later. No
+ * retry of the write is built, because a statement that fails in every run fails in its retry. Such a run makes a cancel
+ * call only at the stored next try of a failed answer; a cancel call that throws stores no next try, so then each run
+ * makes one.
  */
 export const ALARM_PAUSE_CAP_MS = 3_600_000;
 /**
