@@ -1178,8 +1178,8 @@ self_failed() {
 }
 
 write_stubs() {
-  real_git=$(command -v git) || self_failed setup
-  cat >"$work/bin/git" <<EOF || self_failed setup
+  real_git=$(command -v git) || self_failed "setup at line $LINENO"
+  cat >"$work/bin/git" <<EOF || self_failed "setup at line $LINENO"
 #!/bin/sh
 if [ "\$*" = 'rev-parse --verify --quiet HEAD^{tree}' ]; then
   [ -n "\${STUB_TREE:-}" ] || exit 1
@@ -1188,7 +1188,7 @@ if [ "\$*" = 'rev-parse --verify --quiet HEAD^{tree}' ]; then
 fi
 exec '$real_git' "\$@"
 EOF
-  cat >"$work/bin/cargo" <<'EOF' || self_failed setup
+  cat >"$work/bin/cargo" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 paths() {
   for crate in halvo-route-gate halvo-route halvo-route-wire; do
@@ -1274,7 +1274,7 @@ esac
 printf 'stub cargo: %s\n' "$*" >&2
 exit 97
 EOF
-  cat >"$work/route-gate" <<'EOF' || self_failed setup
+  cat >"$work/route-gate" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 if [ "$#" -eq 1 ] && [ "$1" = reachword ] && [ -n "$STUB_REACH" ]; then
   printf 'reach\n' >>"$STUB_REACH"
@@ -1320,15 +1320,15 @@ done
 printf 'REFUSED usage: unknown command\n' >&2
 exit 2
 EOF
-  chmod +x "$work/bin/git" "$work/bin/cargo" "$work/route-gate" || self_failed setup
+  chmod +x "$work/bin/git" "$work/bin/cargo" "$work/route-gate" || self_failed "setup at line $LINENO"
 }
 
 write_repo() {
   dir=$1
   mkdir -p "$dir/scripts/r6/egress" "$dir/scripts/egress" "$dir/docs/r2/trials" "$dir/crates/halvo-route-gate/src" \
-    "$dir/crates/halvo-route-gate/tests" || self_failed setup
-  printf '%s\n' '[fixed]' "$2" '[agent]' | awk 'NF' >"$dir/scripts/r6/egress/gate.txt" || self_failed setup
-  cat >"$dir/docs/r2/trials/egress.md" <<'EOF' || self_failed setup
+    "$dir/crates/halvo-route-gate/tests" || self_failed "setup at line $LINENO"
+  printf '%s\n' '[fixed]' "$2" '[agent]' | awk 'NF' >"$dir/scripts/r6/egress/gate.txt" || self_failed "setup at line $LINENO"
+  cat >"$dir/docs/r2/trials/egress.md" <<'EOF' || self_failed "setup at line $LINENO"
 cells: this-mac.sandbox
 not-observable this-mac sandbox path-1-this-mac: one
 not-observed this-mac sandbox path-2-this-mac: two
@@ -1337,7 +1337,7 @@ not-observed macos-15 sandbox path-2-macos-15: two
 not-observable windows-2025 wfp path-1-windows-2025: one
 not-observed windows-2025 wfp path-2-windows-2025: two
 EOF
-  cat >"$dir/crates/halvo-route-gate/src/main.rs" <<'EOF' || self_failed setup
+  cat >"$dir/crates/halvo-route-gate/src/main.rs" <<'EOF' || self_failed "setup at line $LINENO"
 fn main() {
     let words = ["generate", "import", "derive", "score", "self-test", "spend-sim", "probe"];
     let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
@@ -1348,13 +1348,13 @@ fn main() {
 }
 EOF
   printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
-    >"$dir/crates/halvo-route-gate/src/nul.rs" || self_failed setup
-  printf 'pub const W: &str = "plainword";\n' >"$dir/crates/halvo-route-gate/src/upl\303\251.txt" || self_failed setup
-  printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed setup
-  cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed setup
-  printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed setup
-  printf '[package]\nname = "halvo-route-gate"\n%s' "${4:-}" >"$dir/crates/halvo-route-gate/Cargo.toml" || self_failed setup
-  cat >"$dir/crates/halvo-route-gate/src/allowed.rs" <<'EOF' || self_failed setup
+    >"$dir/crates/halvo-route-gate/src/nul.rs" || self_failed "setup at line $LINENO"
+  printf 'pub const W: &str = "plainword";\n' >"$dir/crates/halvo-route-gate/src/upl\303\251.txt" || self_failed "setup at line $LINENO"
+  printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed "setup at line $LINENO"
+  cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed "setup at line $LINENO"
+  printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed "setup at line $LINENO"
+  printf '[package]\nname = "halvo-route-gate"\n%s' "${4:-}" >"$dir/crates/halvo-route-gate/Cargo.toml" || self_failed "setup at line $LINENO"
+  cat >"$dir/crates/halvo-route-gate/src/allowed.rs" <<'EOF' || self_failed "setup at line $LINENO"
 #[cfg(all(unix, not(test)))]
 pub fn a() {}
 #[cfg_attr(not(test), allow(unused_variables))]
@@ -1369,10 +1369,10 @@ macro_rules! named {
 }
 EOF
   if [ -n "${5:-}" ]; then
-    mkdir -p "$dir/${5%/*}" || self_failed setup
-    printf '%s\n' "$6" >"$dir/$5" || self_failed setup
+    mkdir -p "$dir/${5%/*}" || self_failed "setup at line $LINENO"
+    printf '%s\n' "$6" >"$dir/$5" || self_failed "setup at line $LINENO"
   fi
-  cat >"$dir/scripts/egress/check.sh" <<'EOF' || self_failed setup
+  cat >"$dir/scripts/egress/check.sh" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 list=$1
 shift 2
@@ -1426,7 +1426,7 @@ printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/%s/de
 [ "$STUB_CHECK" != denied0 ] || exit 0
 [ "$code" = 0 ] && [ "$denied" = 0 ]
 EOF
-  cat >"$dir/scripts/egress/probe.sh" <<'EOF' || self_failed setup
+  cat >"$dir/scripts/egress/probe.sh" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 case $1 in
   none)
@@ -1455,9 +1455,9 @@ SPAWN
 esac
 exit 2
 EOF
-  git init -q "$dir" >/dev/null 2>&1 || self_failed setup
-  git -C "$dir" add -A >/dev/null 2>&1 || self_failed setup
-  git -C "$dir" write-tree 2>/dev/null || self_failed setup
+  git init -q "$dir" >/dev/null 2>&1 || self_failed "setup at line $LINENO"
+  git -C "$dir" add -A >/dev/null 2>&1 || self_failed "setup at line $LINENO"
+  git -C "$dir" write-tree 2>/dev/null || self_failed "setup at line $LINENO"
 }
 
 case_reset() {
@@ -1544,12 +1544,12 @@ finding_json() {
 write_forms() {
   dir=$1
   start=$2
-  mkdir -p "$dir/tests" "$dir/examples" || self_failed setup
+  mkdir -p "$dir/tests" "$dir/examples" || self_failed "setup at line $LINENO"
   printf '[package]\nname = "forms"\nversion = "0.0.0"\nedition = "2021"\npublish = false\nautotests = false\nautoexamples = false\n\n[lib]\npath = "tests/lib.rs"\n\n[[bin]]\nname = "forms-bin"\npath = "examples/bin.rs"\n\n[workspace]\n' \
-    >"$dir/Cargo.toml" || self_failed setup
+    >"$dir/Cargo.toml" || self_failed "setup at line $LINENO"
   printf '# This file is automatically @generated by Cargo.\n# It is not intended for manual editing.\nversion = 4\n\n[[package]]\nname = "forms"\nversion = "0.0.0"\n' \
-    >"$dir/Cargo.lock" || self_failed setup
-  cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed setup
+    >"$dir/Cargo.lock" || self_failed "setup at line $LINENO"
+  cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed "setup at line $LINENO"
   if [ "$3" = forms ]; then
     debug='#[cfg(not(debug_assertions))]'
     feature='#[cfg(not(feature = "x"))]'
@@ -1565,7 +1565,7 @@ write_forms() {
     extern2='pub fn e2() {}'
     extern3='pub fn e3() {}'
   fi
-  cat >"$dir/tests/lib.rs" <<EOF || self_failed setup
+  cat >"$dir/tests/lib.rs" <<EOF || self_failed "setup at line $LINENO"
 pub mod shout;
 #[cfg(test)] const A: u8 = 1; pub fn one_line() -> bool { $start }
 include! {"inc.txt"}
@@ -1596,16 +1596,16 @@ $linux
 pub fn linux_only() -> bool { $start }
 EOF
   for file in shout.RS inc.txt cfgpath.txt spaced.txt hidden.rs shell.rs plain.txt nottest.rs; do
-    printf 'pub fn f() -> bool { %s }\n' "$start" >"$dir/tests/$file" || self_failed setup
+    printf 'pub fn f() -> bool { %s }\n' "$start" >"$dir/tests/$file" || self_failed "setup at line $LINENO"
   done
-  printf 'fn main() { let _ = %s; }\n' "$start" >"$dir/examples/bin.rs" || self_failed setup
-  mkdir -p "$dir-bin/examples" || self_failed setup
+  printf 'fn main() { let _ = %s; }\n' "$start" >"$dir/examples/bin.rs" || self_failed "setup at line $LINENO"
+  mkdir -p "$dir-bin/examples" || self_failed "setup at line $LINENO"
   printf '[package]\nname = "forms-bin"\nversion = "0.0.0"\nedition = "2021"\npublish = false\nautobins = false\nautoexamples = false\n\n[[bin]]\nname = "forms-bin"\npath = "examples/bin.rs"\n\n[workspace]\n' \
-    >"$dir-bin/Cargo.toml" || self_failed setup
+    >"$dir-bin/Cargo.toml" || self_failed "setup at line $LINENO"
   printf '# This file is automatically @generated by Cargo.\n# It is not intended for manual editing.\nversion = 4\n\n[[package]]\nname = "forms-bin"\nversion = "0.0.0"\n' \
-    >"$dir-bin/Cargo.lock" || self_failed setup
-  cp "$work/rust-toolchain.toml" "$dir-bin/rust-toolchain.toml" || self_failed setup
-  cp "$dir/examples/bin.rs" "$dir-bin/examples/bin.rs" || self_failed setup
+    >"$dir-bin/Cargo.lock" || self_failed "setup at line $LINENO"
+  cp "$work/rust-toolchain.toml" "$dir-bin/rust-toolchain.toml" || self_failed "setup at line $LINENO"
+  cp "$dir/examples/bin.rs" "$dir-bin/examples/bin.rs" || self_failed "setup at line $LINENO"
 }
 
 forms_table() {
@@ -1630,7 +1630,7 @@ EOF
 
 lint_forms() {
   dir=$1
-  dir_abs=$(absolute_dir "$dir") || self_failed setup
+  dir_abs=$(absolute_dir "$dir") || self_failed "setup at line $LINENO"
   case $2 in
     *bin) targets=--bins ;;
     *) targets='--lib --bins' ;;
@@ -1639,21 +1639,21 @@ lint_forms() {
   (cd "$dir" && forbid "$work/forms-$2" --manifest-path Cargo.toml $targets)
   printf '%s\n' "$?" >"$work/forms-$2.exit"
   root_abs=$dir_abs
-  read_forbid "$work/forms-$2.json" | tr '[:upper:]' '[:lower:]' >"$work/forms-$2-found.txt" || self_failed setup
-  (cd "$dir" && find . -type f ! -path './target/*' | sed 's|^\./||' | sort >"$work/forms-$2-files.txt") || self_failed setup
-  (cd "$dir" && text_rules "$work/forms-$2-files.txt") >"$work/forms-$2-rules.txt" || self_failed setup
+  read_forbid "$work/forms-$2.json" | tr '[:upper:]' '[:lower:]' >"$work/forms-$2-found.txt" || self_failed "setup at line $LINENO"
+  (cd "$dir" && find . -type f ! -path './target/*' | sed 's|^\./||' | sort >"$work/forms-$2-files.txt") || self_failed "setup at line $LINENO"
+  (cd "$dir" && text_rules "$work/forms-$2-files.txt") >"$work/forms-$2-rules.txt" || self_failed "setup at line $LINENO"
 }
 
 check_forms() {
   artifacts=$work/forms-artifacts
-  mkdir -p "$artifacts" || self_failed setup
+  mkdir -p "$artifacts" || self_failed "setup at line $LINENO"
   case $system in
     Darwin) job_system=unix ;;
     *) job_system=windows ;;
   esac
-  forbid_table >"$work/forbid-table.txt" || self_failed setup
+  forbid_table >"$work/forbid-table.txt" || self_failed "setup at line $LINENO"
   write_forbid_list
-  forms_table >"$work/forms-table.txt" || self_failed setup
+  forms_table >"$work/forms-table.txt" || self_failed "setup at line $LINENO"
   write_forms "$work/forms" 'std::process::Command::new("true").status().is_ok()' forms
   write_forms "$work/forms-control" 'std::path::Path::new("true").exists()' control
   lint_forms "$work/forms" forms
@@ -1686,60 +1686,60 @@ check_forms() {
 }
 
 odd_repo() {
-  write_repo "$1" '' >/dev/null || self_failed setup
+  write_repo "$1" '' >/dev/null || self_failed "setup at line $LINENO"
   case $2 in
     link)
-      blob=$(printf 'gate.txt' | git -C "$1" hash-object -w --stdin) || self_failed setup
+      blob=$(printf 'gate.txt' | git -C "$1" hash-object -w --stdin) || self_failed "setup at line $LINENO"
       if ! ln -s gate.txt "$1/scripts/r6/egress/link" 2>/dev/null || [ ! -h "$1/scripts/r6/egress/link" ]; then
-        printf 'gate.txt' >"$1/scripts/r6/egress/link" || self_failed setup
+        printf 'gate.txt' >"$1/scripts/r6/egress/link" || self_failed "setup at line $LINENO"
       fi
-      git -C "$1" update-index --add --cacheinfo "120000,$blob,scripts/r6/egress/link" || self_failed setup
+      git -C "$1" update-index --add --cacheinfo "120000,$blob,scripts/r6/egress/link" || self_failed "setup at line $LINENO"
       ;;
     gitlink)
-      mkdir -p "$1/scripts/r6/egress/sub" || self_failed setup
+      mkdir -p "$1/scripts/r6/egress/sub" || self_failed "setup at line $LINENO"
       git -C "$1" update-index --add --cacheinfo "160000,1111111111111111111111111111111111111111,scripts/r6/egress/sub" ||
-        self_failed setup
+        self_failed "setup at line $LINENO"
       ;;
   esac
   git -C "$1" update-index -q --refresh >/dev/null 2>&1
-  git -C "$1" write-tree 2>/dev/null || self_failed setup
+  git -C "$1" write-tree 2>/dev/null || self_failed "setup at line $LINENO"
 }
 
 self_test() {
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_failed setup
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_failed "setup at line $LINENO"
   case $work in
     /*) ;;
     *) work=$(pwd)/$work ;;
   esac
-  mkdir -p "$work/bin" "$work/artifacts" "$work/tmp" || self_failed setup
+  mkdir -p "$work/bin" "$work/artifacts" "$work/tmp" || self_failed "setup at line $LINENO"
   real_cargo=$(command -v cargo) || self_failed "no cargo"
-  own_repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || self_failed setup
-  git -C "$own_repo" show HEAD:rust-toolchain.toml >"$work/rust-toolchain.toml" || self_failed setup
+  own_repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || self_failed "setup at line $LINENO"
+  git -C "$own_repo" show HEAD:rust-toolchain.toml >"$work/rust-toolchain.toml" || self_failed "setup at line $LINENO"
   write_stubs
-  good_tree=$(write_repo "$work/repo" '') || self_failed setup
-  entry_tree=$(write_repo "$work/repo-entry" '127.0.0.1:443') || self_failed setup
-  patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed setup
-  features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed setup
-  link_tree=$(odd_repo "$work/repo-link" link) || self_failed setup
-  gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed setup
+  good_tree=$(write_repo "$work/repo" '') || self_failed "setup at line $LINENO"
+  entry_tree=$(write_repo "$work/repo-entry" '127.0.0.1:443') || self_failed "setup at line $LINENO"
+  patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed "setup at line $LINENO"
+  features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed "setup at line $LINENO"
+  link_tree=$(odd_repo "$work/repo-link" link) || self_failed "setup at line $LINENO"
+  gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
   awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
-    self_failed setup
+    self_failed "setup at line $LINENO"
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
-    '#[cfg(target_os = "linux")]') || self_failed setup
+    '#[cfg(target_os = "linux")]') || self_failed "setup at line $LINENO"
   nested_tree=$(write_repo "$work/repo-nested" '' '' '' crates/halvo-route-gate/src/net.rs \
-    '#[cfg_attr(test, cfg(debug_assertions))]') || self_failed setup
+    '#[cfg_attr(test, cfg(debug_assertions))]') || self_failed "setup at line $LINENO"
   # shellcheck disable=SC2016
   attr_tree=$(write_repo "$work/repo-attr" '' '' '' crates/halvo-route-gate/src/net.rs \
-    'macro_rules! m { ($a:ident) => { #[ $a ( x ) ] fn f() {} }; }') || self_failed setup
-  outside_tree=$(write_repo "$work/repo-outside" '' '' '' docs/outside.rs '#[cfg(feature = "x")]') || self_failed setup
-  mkdir -p "$work/deps" || self_failed setup
+    'macro_rules! m { ($a:ident) => { #[ $a ( x ) ] fn f() {} }; }') || self_failed "setup at line $LINENO"
+  outside_tree=$(write_repo "$work/repo-outside" '' '' '' docs/outside.rs '#[cfg(feature = "x")]') || self_failed "setup at line $LINENO"
+  mkdir -p "$work/deps" || self_failed "setup at line $LINENO"
   printf '%s/deps/gate-1.d: crates/halvo-route-gate/src/main.rs docs/outside.rs\n' "$work" >"$work/deps/gate-1.d" ||
-    self_failed setup
+    self_failed "setup at line $LINENO"
   printf '{"reason":"compiler-artifact","package_id":"path+file:///x#0.0.0","filenames":["%s/deps/libgate-1.rmeta"],"fresh":true}\n' \
-    "$work" >"$work/clippy-dep-info.json" || self_failed setup
+    "$work" >"$work/clippy-dep-info.json" || self_failed "setup at line $LINENO"
   printf '{"reason":"compiler-artifact","package_id":"path+file:///x#0.0.0","filenames":["%s/deps/libgone-1.rmeta"],"fresh":true}\n' \
-    "$work" >"$work/clippy-dep-info-gone.json" || self_failed setup
-  system=$(uname -s) || self_failed setup
+    "$work" >"$work/clippy-dep-info-gone.json" || self_failed "setup at line $LINENO"
+  system=$(uname -s) || self_failed "setup at line $LINENO"
   case $system in
     Darwin)
       p=this-mac
@@ -1755,15 +1755,15 @@ self_test() {
     Darwin) own_job=macos ;;
     *) own_job=windows ;;
   esac
-  : >"$work/clippy-clean.json" || self_failed setup
-  finding_json "$work/clippy-finding.json" clippy::disallowed_methods 'crates\\halvo-route-gate\\src\\net.txt' 2 || self_failed setup
-  finding_json "$work/clippy-unsafe.json" unsafe_code 'crates/halvo-route/src/x.rs' 7 || self_failed setup
+  : >"$work/clippy-clean.json" || self_failed "setup at line $LINENO"
+  finding_json "$work/clippy-finding.json" clippy::disallowed_methods 'crates\\halvo-route-gate\\src\\net.txt' 2 || self_failed "setup at line $LINENO"
+  finding_json "$work/clippy-unsafe.json" unsafe_code 'crates/halvo-route/src/x.rs' 7 || self_failed "setup at line $LINENO"
   # shellcheck disable=SC2016
   printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: `std::nope` does not refer to a reachable type\n","$message_type":"diagnostic","children":[],"code":null,"level":"warning","message":"x","spans":[]}}' \
-    >"$work/clippy-refer.json" || self_failed setup
+    >"$work/clippy-refer.json" || self_failed "setup at line $LINENO"
   # shellcheck disable=SC2016
   printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: x\n  --> crates/halvo-route/src/x.rs:3:1\n","$message_type":"diagnostic","children":[{"children":[],"code":{"code":"unsafe_code","explanation":null},"level":"note","message":"n","rendered":null,"spans":[]}],"code":null,"level":"warning","message":"m","spans":[]}}' \
-    >"$work/clippy-child-code.json" || self_failed setup
+    >"$work/clippy-child-code.json" || self_failed "setup at line $LINENO"
   wrong=
   rejected=0
   case_reset
@@ -1935,7 +1935,7 @@ self_test() {
   STUB_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run tracked-file-changed-by-a-run FAIL check 'tree changed=after M docs/r2/trials/egress.md'
   case_run tracked-file-changed-before FAIL setup 'tree changed=before M docs/r2/trials/egress.md'
-  git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed setup
+  git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
   case_tree=
   case_run no-tree FAIL setup 'FAIL'
   case_arg=--bogus
@@ -1949,7 +1949,7 @@ self_test() {
 
 help_sentences() {
   sh "$self" --help >"$work/help.txt" 2>&1 || wrong="$wrong help-exit"
-  tr '\n' ' ' <"$work/help.txt" | tr -s ' ' >"$work/help-line.txt" || self_failed setup
+  tr '\n' ' ' <"$work/help.txt" | tr -s ' ' >"$work/help-line.txt" || self_failed "setup at line $LINENO"
   for sentence in \
     'a socket or a process start inside a third-party crate, also when code of the three crates calls it' \
     'code under a combination of unix and windows that neither job compiles' \
