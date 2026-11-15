@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every command that the route-gate binary built at the commit answers to stands on one of two lists of this script, and each command of the first list, run with its arguments under scripts/egress/check.sh with scripts/r6/egress/gate.txt, exits 0 with denied=0 while every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; a pass says no more than the sentence of the egress check's item 5 that it prints, and it does not hold a process start, which the test probe::tests::the_probe_names_no_process holds by a read of text, nor the three limits that --help names.
+# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that the job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run whose list the script writes and whose canary proves it in the run, over a closed graph of packages, with no cfg predicate but test, unix, windows, any, all and not, no attribute path from a macro variable and no flags or wrapper variable that lifts a lint; and every command of the first list, run with its arguments under scripts/egress/check.sh with scripts/r6/egress/gate.txt behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
 set -u
 name=60-r6-egress
 list=scripts/r6/egress/gate.txt
@@ -24,26 +24,56 @@ esac
 help() {
   cat <<'EOF'
 sh scripts/r6/ci.d/60-r6-egress.sh [--self-test | --help]
-Builds route-gate at the commit, asks the binary which words it answers to as commands, and holds
-each such command on one of two lists of this script: the commands that it runs under
-scripts/egress/check.sh with scripts/r6/egress/gate.txt, each with its arguments, and the commands
-that it cannot run on files of the repository alone, each with its reason. A command of the binary
-on neither list fails the check, and so does a list entry that is no command of the binary.
+The forbid run: cargo clippy with --locked over the lib and bin targets of halvo-route,
+halvo-route-gate and halvo-route-wire, in the dev profile, in the macos job and in the windows job,
+with clippy::disallowed_types, clippy::disallowed_methods and unsafe_code held by -F, so that no
+allow in the source lifts them. The list of types and methods of a process start or a socket is
+written by this script for the job under its artifacts directory, and an entry of the other system
+carries allow-invalid. A finding of the three codes at any level, a non-zero exit and an entry that
+refers to nothing fail the check; each finding prints "forbid <path>:<line> <code>".
+The canary: a crate of one file under the artifacts directory names each entry of the list once and
+goes through the same cargo call before any finding of the three crates counts; one finding per
+entry of the job's system is required, else "the forbid run let the canary through". It holds an
+untracked cargo configuration, a cap on lints and a wrapper, which silence the canary too.
+The closed graph: the path packages of cargo tree -e normal,build are the three crates, the linked
+third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, the build-time ones are
+proc-macro2, quote, serde_derive, syn and unicode-ident, and the three crates have no build script, no
+proc-macro target and no features, and the root manifest no [patch] table; another name fails.
+The rules for what no compiler pass reads, over every tracked file of the three crate directories and
+every file that the forbid run's dep-info names: a cfg or cfg_attr predicate may name test, unix,
+windows, any, all and not alone; an attribute's path may not be a macro variable followed by an
+opening parenthesis, an equals sign or a path separator; and before its first cargo command the check
+refuses a flags variable of the compiler (plain, encoded, build or per-target) or the clippy
+arguments variable that holds an allow flag, a cap on lints or a cfg flag, and a compiler or wrapper
+variable that is set.
+The asking: the asking asks each one-word string literal with no space, quote or backslash of the
+tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command
+that it does not find, by any form, runs under no egress check, and the forbid run alone holds it, in
+code of the three crates. A word is a command when the binary does not answer "REFUSED usage: unknown
+command", with exit 2 and nothing on standard output, to it alone or to it with one argument that no
+command takes. In the macos job the whole asking runs in one call of scripts/egress/check.sh with
+the list, under one deadline (240 s, or R6_EGRESS_ASKING_SECONDS from 1 to 240), and prints "egress
+asking denied=<n>", which adds to denied. The windows job does not ask: there the egress check's rule
+names the wrapped program, so a reach by a child of a wrapped shell is logged and failed, not
+stopped; the forbid run holds the code that the windows job compiles, and every command of the first
+list runs.
+The two lists: the commands that the check runs under the egress check, each with its arguments,
+and the commands that it cannot run on files of the repository alone, each with its reason. A found
+command on neither list fails the check, and so does a list entry that is no command.
+The control: before the first wrapped run, a listener on 127.0.0.1:47201 and one wrapped run of the
+egress run's loopback probe; a status of 0 with denied=0 is "the egress check let the control
+through". The control holds against an egress check that wraps nothing; an egress check changed in
+the same commit can pass it, and scripts/egress/ is held by its own run's checks and by the landing's
+readers. Every wrapped run must name a new log directory whose denied.log holds as many lines as its
+denied.
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of commands of the first list.
-A word is a command when the binary does not answer "REFUSED usage: unknown command" to it alone
-or to it with one argument that no command takes; the words asked are the string literals with no
-space, quote or backslash of the tracked Rust files outside tests/ of the crates that the binary
-links, read from the commit, and they are asked outside the egress check.
-The check holds the runs it makes and no more: a command that the binary answers to only with other
-arguments, a branch of a command that only other arguments than those of the first list reach, and
-a command whose name is no such string literal are not run under the egress check.
-The named limits (contracts.md T6.1, SG-44 (4)), which no run of this check holds:
-1. a process start inside a third-party crate that the binary links; the check prints their names
-   from the lock at the commit on its line "egress limit third-party crates=";
-2. a start by a name that is built at run time;
-3. a command of the second list, which the read of text alone holds until its files exist.
-A process start is held by no run: the test probe::tests::the_probe_names_no_process reads every
-tracked source file of the crates that the binary links, and that read is the hold.
+The limits that stay:
+1. a socket or a process start inside a third-party crate, also when code of the three crates calls
+   it; the check prints their names from the lock on its line "egress limit third-party crates=".
+2. code under a combination of unix and windows that neither job compiles.
+3. what the system does with a path that it opens over a network.
+4. what a process did after the command ended, in the egress check's own words.
+5. the egress check's writes under target/egress/.
 EOF
 }
 
@@ -1820,11 +1850,17 @@ self_test() {
   case_run usage FAIL usage 'FAIL'
 
   sh "$self" --help >"$work/help.txt" 2>&1 || wrong="$wrong help-exit"
-  for limit in 'a process start inside a third-party crate that the binary links' \
-    'a start by a name that is built at run time' \
-    'a command of the second list, which the read of text alone holds until its files exist'; do
-    if ! grep -q -F -e "$limit" "$work/help.txt"; then
-      printf 'case %s/help want=PASS got=without-a-limit\n' "$name"
+  tr '\n' ' ' <"$work/help.txt" | tr -s ' ' >"$work/help-line.txt" || self_failed setup
+  for sentence in \
+    'a socket or a process start inside a third-party crate, also when code of the three crates calls it' \
+    'code under a combination of unix and windows that neither job compiles' \
+    'what the system does with a path that it opens over a network' \
+    'what a process did after the command ended, in the egress check' \
+    'the egress check'"'"'s writes under target/egress/' \
+    'the asking asks each one-word string literal with no space, quote or backslash of the tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command that it does not find, by any form, runs under no egress check, and the forbid run alone holds it, in code of the three crates' \
+    'the control holds against an egress check that wraps nothing; an egress check changed in the same commit can pass it, and scripts/egress/ is held by its own run'"'"'s checks and by the landing'"'"'s readers'; do
+    if ! grep -q -i -F -e "$sentence" "$work/help-line.txt"; then
+      printf 'case %s/help want=PASS got=without-a-sentence\n' "$name"
       wrong="$wrong help"
     fi
   done
