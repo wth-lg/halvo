@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone: in test code (a tests/ directory, tests.rs, testing.rs, a module under a cfg with test), a line that makes a directory by create_dir_all, a recursive DirBuilder, or create_dir unless a loop retries it and its tested result ends that loop by a return or a break within three lines (a word in a string is no loop word), with a process id or clock read (also through a test function that returns one) beside a path or string build on one line, or with such a read and a format! or write! in the lines above it in its function (16 at most), is a place, and each file's count of places equals its count in the known list of this script, which names the places of other units and runs until they take halvo-test-dir (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), unless a loop retries the create_dir and its tested result ends that loop by a return or a break within three lines (a word in a string is no loop word), is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known() (U2.5).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -65,7 +65,7 @@ function call(s, w) {
   return index(s, w "(") && s ~ ("(^|[^A-Za-z0-9_])" w "\\(")
 }
 function cfgtest(s) {
-  return s ~ /#\[cfg\(/ && s ~ /[(, ]test[),]/ && s !~ /not\([^)]*test/
+  return s ~ /#!?\[cfg\(/ && s ~ /[(, ]test[),]/ && s !~ /not\([^)]*test/
 }
 function read(s,   i) {
   if (s ~ /process::id\(|(^|[^A-Za-z0-9_.:])id\(\)|getpid\(|GetCurrentProcessId|SystemTime|UNIX_EPOCH|Instant::now|(nanos|micros|millis)\(\)|Utc::now|Local::now/) return 1
@@ -83,7 +83,7 @@ function source(s,   i) {
 }
 function accepts(s,   i) {
   if (s ~ /create_dir_all\(/) return 1
-  if (s ~ /recursive\(true\)/) return 1
+  if (s ~ /\.recursive\(/ && s !~ /\.recursive\(false\)/) return 1
   for (i = 1; i <= naa; i++)
     if (call(s, aal[i])) return 1
   return 0
@@ -150,6 +150,8 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
   while ((r = (getline line < file)) > 0) {
     n++
     c = code(line)
+    if (c ~ /(^|[ \t])use[ \t]/ && c ~ /[ \t]as[ \t]/) uses(c)
+    if (c ~ /#!\[cfg\(/ && cfgtest(c)) intest = 1
     if (pending && c ~ /[^ \t\r]/ && c !~ /^[ \t]*#/) {
       if (c ~ /^[ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*\{/) intest = 1
       else if (mode == 1 && c ~ /^[ \t]*(pub(\([a-z]+\))? )?mod [A-Za-z_0-9]+[ \t]*;/) addmod(c, base)
@@ -192,6 +194,11 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
     rc[n] = (c ~ /\.recursive\(/ && c !~ /\.recursive\(false\)/)
     acc[n] = accepts(c)
     ref[n] = refuses(c)
+    if (read(c) && c !~ /\.join\(|(format|write)!\(/ && match(c, /let[ \t]+(mut[ \t]+)?[A-Za-z_][A-Za-z_0-9]*/)) {
+      v = substr(c, RSTART, RLENGTH)
+      sub(/let[ \t]+(mut[ \t]+)?/, "", v)
+      var[++nvar] = v
+    }
   }
   if (r < 0) {
     printf "test-dirs unread=%s\n", path
@@ -218,7 +225,7 @@ function scan(path, mode,   file, dir, leaf, base, line, c, t, v, n, k, kind, in
       d += db[j]
       w += rc[j]
     }
-    if (ref[k]) kind = 1
+    if (ref[k] || (d && !w && cc[k] ~ /\.create\(/)) kind = 1
     else if (acc[k]) kind = 2
     else continue
     if (kind == 1 && l && cc[k] ~ /is_ok\(\)|match |Ok\(/ && ends(k, n)) continue
@@ -320,6 +327,56 @@ main() {
   artifacts=${CI_D_ARTIFACTS:-$scratch}
   known >"$scratch/known" || fail setup
   measure "$repo" "$scratch/known" "$artifacts"
+}
+
+help() {
+  cat <<'EOF'
+usage: sh scripts/r3/ci.d/15-r3-test-dirs.sh [--self-test | --help]
+
+The check is lexical: it reads lines of tracked .rs files, not Rust's syntax.
+
+Test code that it reads:
+  a file under a directory named tests, a file named tests.rs or testing.rs, a module
+  whose cfg names test (#[cfg(test)], #[cfg(any(unix, test))], #[cfg(all(test, unix))])
+  inline or as a file (mod x; on the next line or the same line), and a file that opens
+  with #![cfg(test)]. A cfg with not(test) opens no test code.
+
+Calls that make a directory:
+  create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain
+  DirBuilder create, create_dir, and each of them under another name by use ... as.
+
+A create_dir that is no place:
+  one that a loop (loop, for, while, .find) retries, whose result the same line tests
+  (is_ok(), match, Ok() and whose success ends the loop by a return or a break within
+  three lines, or by .find on the same line. A line whose only folder call is
+  create_dir_all is never such a create_dir.
+
+Reads of the process id or the clock:
+  process::id(), id(), getpid(), GetCurrentProcessId, SystemTime, UNIX_EPOCH,
+  Instant::now, nanos(), micros(), millis(), Utc::now, Local::now; each of the first
+  three under another name by use ... as; a variable that a let binds from such a read
+  in the same function; and a test function that returns a String, an OsString or an
+  integer and holds such a read within 16 lines of its first line.
+
+A place: a call that makes a directory, in test code, when a read stands on one line with
+.join(, to_string(), push_str( or .push(, or when a read and a format! or write! stand in
+the lines above it in its function, at most 16 lines up.
+
+Forms that it does not read (each can share a folder and pass):
+  a name built in another function that returns a PathBuf, a Path or a &str, and a
+  caller that makes the folder; a name handed to a child process that makes the folder;
+  a read more than 16 lines above the call in its function; a variable bound from
+  another variable, a struct field or a closure; a SystemTime or an Instant under
+  another name by use ... as; a macro other than format! and write!; a module that
+  #[path = ...] or cfg_attr places; a retry whose result is tested more than three lines
+  below the create_dir (read as a place); a create_dir_all of the name on the line of a
+  retried create_dir (the line counts as the create_dir); a retry that takes the same
+  name again. After an inline test module opens, the rest of its file is read as test
+  code.
+
+The known list, known() in this script, holds each file of another unit with its count of
+places. A file's count must equal its row: a new place takes halvo_test_dir::make.
+EOF
 }
 
 broken() {
@@ -539,6 +596,40 @@ self_test() {
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let mut n = 0u32;\n    loop {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            break dir;\n        }\n        n += 1;\n    }\n}\n'
   case_of maker-loop-break PASS 'test-dirs files=1 places=0 known=0 faults=0'
 
+  repo pid-under-another-name
+  put crates/a/tests/t.rs 'use std::process::id as pid;\n\nfn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", pid()));\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of pid-under-another-name FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo pid-in-a-variable-joined
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let pid = std::process::id();\n    let dir = base.join(pid.to_string());\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of pid-in-a-variable-joined FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo number-in-a-variable-joined
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let pid = 7u32;\n    let dir = base.join(pid.to_string());\n    fs::create_dir_all(&dir).unwrap();\n    dir\n}\n'
+  case_of number-in-a-variable-joined PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo dir-builder-not-recursive
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    DirBuilder::new().create(&dir).ok();\n    dir\n}\n'
+  case_of dir-builder-not-recursive FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo inner-cfg-test-file
+  put crates/a/src/lib.rs 'mod support;\n'
+  put crates/a/src/support.rs "#![cfg(test)]\n\n$place"
+  case_of inner-cfg-test-file FAIL 'test-dirs unknown=crates/a/src/support.rs places=1'
+
+  repo inner-cfg-not-test-file
+  put crates/a/src/lib.rs 'mod support;\n'
+  put crates/a/src/support.rs "#![cfg(not(test))]\n\n$place"
+  case_of inner-cfg-not-test-file PASS 'test-dirs files=2 places=0 known=0 faults=0'
+
+  repo create-dir-all-under-another-name
+  put crates/a/tests/t.rs 'use std::fs::create_dir_all as mk;\n\nfn scratch() -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    mk(&dir).unwrap();\n    dir\n}\n'
+  case_of create-dir-all-under-another-name FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo recursive-from-a-variable
+  put crates/a/tests/t.rs 'fn scratch(rec: bool) -> PathBuf {\n    let dir = base.join(format!("x-{}", std::process::id()));\n    DirBuilder::new().recursive(rec).create(&dir).unwrap();\n    dir\n}\n'
+  case_of recursive-from-a-variable FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
   repo tests-rs-declared-with-no-cfg
   put crates/a/src/lib.rs 'mod tests;\n'
   put crates/a/src/tests.rs "$place"
@@ -684,5 +775,6 @@ self_test() {
 case $#:${1:-} in
   0:) main ;;
   1:--self-test) self_test ;;
+  1:--help) help ;;
   *) fail usage ;;
 esac
