@@ -26,10 +26,22 @@ export const DELETE_REMOVAL_BOUND_MS = 86_400_000;
  * ALARM_PAUSE_CAP_MS while an error repeats or no answer of the cancel comes.
  */
 export const ALARM_PAUSE_CAP_MS = 3_600_000;
+/**
+ * The life of a stored record of a cancel call in flight, from the call's begin in the step's now: at least the provider
+ * call's own timeout plus ALARM_RETRY_MS. A record at or after its begin plus this time is void for every reader.
+ */
 export const CALL_IN_FLIGHT_MS = PROVIDER_CALL_TIMEOUT_MS + ALARM_RETRY_MS;
+/**
+ * The bound of the await of a cancel call, on the host's timer: at least the provider call's own timeout and strictly
+ * shorter than CALL_IN_FLIGHT_MS. At the bound the run goes on as for a failed call, and the call's record stands to its
+ * expiry.
+ */
+export const CANCEL_CALL_BOUND_MS = PROVIDER_CALL_TIMEOUT_MS + ALARM_RETRY_MS / 2;
 export interface Host {
   step: Step;
   clock(): Ms;
+  /** A pause on the host's timer, never on a stored test time; the platform's timer when the host gives none. */
+  pause?(ms: Ms): Promise<void>;
   setAlarm(at: Ms | null): void;
   getAlarm(): Promise<Ms | null>;
   deleteAll(): Promise<void>;
@@ -675,10 +687,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
       const id = made.subscriptionId;
       const began = next.kind === "cancel" ? next.began : null;
-      let cancelled: Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
-      try {
-        cancelled = await host.port.cancelSubscription(id);
-      } catch (error) {
+      const clear = () => {
         try {
           step((open) => {
             if (!holds(open.sql)) return;
@@ -688,13 +697,27 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         } catch (clearing) {
           log({ event: "alarm-error", error: errorName(clearing) });
         }
-        throw error;
-      }
+      };
+      const settled = (async () => host.port.cancelSubscription(id))().then(
+        (answer) => ({ answer }),
+        (error: unknown) => ({ error }),
+      );
+      const pause = host.pause ?? ((ms: Ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+      const first = await Promise.race([settled, pause(CANCEL_CALL_BOUND_MS).then(() => null)]);
+      let cancelled: Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
+      if (first === null) {
+        log({ event: "cancel-call-unsettled" });
+        void settled.then(clear);
+        cancelled = { kind: "failed" };
+      } else if ("error" in first) {
+        clear();
+        throw first.error;
+      } else cancelled = first.answer;
       if (cancelled.kind === "failed") {
         const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
           if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
           const now = open.begin();
-          clearCallRecord(open.sql, id, began);
+          if (first !== null) clearCallRecord(open.sql, id, began);
           const current = markOf(open.sql);
           if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, capped: false };
           const delay = current.delay ?? SYNC_RETRY_MS;

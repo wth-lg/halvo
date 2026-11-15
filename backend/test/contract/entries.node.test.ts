@@ -9,6 +9,7 @@ import {
   ALARM_PAUSE_CAP_MS,
   ALARM_RETRY_MS,
   CALL_IN_FLIGHT_MS,
+  CANCEL_CALL_BOUND_MS,
   CLOCK_RUN_LIMIT,
   DELETE_REMOVAL_BOUND_MS,
   type Entries,
@@ -19,6 +20,7 @@ import {
 import type { Ledger } from "../../src/ledger/index.ts";
 import type { Metering, Next, UsageCall } from "../../src/metering/index.ts";
 import type { Cap, Ms, Sql } from "../../src/types.ts";
+import { PROVIDER_CALL_TIMEOUT_MS } from "../../src/billing/stripe/timeout.ts";
 
 const ACCOUNT = "0f8e2d4c-6b1a-4c3e-8d2f-1a2b3c4d5e6f";
 const HASH = "a".repeat(64);
@@ -218,7 +220,7 @@ function world(o: { clock?: () => Ms; config?: Partial<Host["config"]>; port?: P
     expect((await entries.testSeed({ accountId: ACCOUNT, hash: HASH, subscription: "active", ...seed })).result).toBe("seeded");
     reset();
   };
-  return { calls, answers, entries, host: test.host, alarms, portCalls, names, reset, holds, seeded, alarmAt: test.alarmAt, modules };
+  return { calls, answers, entries, host: test.host, alarms, portCalls, names, reset, holds, seeded, alarmAt: test.alarmAt, modules, pauses: test.pauses, endPauses: test.endPauses };
 }
 
 const events = () => lines.map((line) => line.event);
@@ -1734,5 +1736,98 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
     release({ kind: "cancelled" });
     await first;
+  });
+
+  test("M3 (c): the await of the cancel call is bounded on the host's timer, at least the provider call's timeout and strictly shorter than the record's expiry, which is at least the timeout plus ALARM_RETRY_MS", () => {
+    expect(CALL_IN_FLIGHT_MS).toBeGreaterThanOrEqual(PROVIDER_CALL_TIMEOUT_MS + ALARM_RETRY_MS);
+    expect(CANCEL_CALL_BOUND_MS).toBeGreaterThanOrEqual(PROVIDER_CALL_TIMEOUT_MS);
+    expect(CANCEL_CALL_BOUND_MS).toBeLessThan(CALL_IN_FLIGHT_MS);
+  });
+
+  test("M3 (c): a call that settles 1 ms after the provider call's timeout still holds a second call back, and its answer is stored", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    let release: (answer: { kind: "cancelled" }) => void = () => {};
+    let cancels = 0;
+    w.host.port.cancelSubscription = async () => {
+      cancels += 1;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    };
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.pauses()).toEqual([CANCEL_CALL_BOUND_MS]);
+    now = 8000 + PROVIDER_CALL_TIMEOUT_MS + 1;
+    expect(await makeEntries(w.host, w.modules).destroy(HASH)).toEqual({ result: "not-finished" });
+    await w.entries.alarm();
+    expect(cancels).toBe(1);
+    release({ kind: "cancelled" });
+    expect(await first).toEqual({ result: "not-finished" });
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+    expect(record(w)).toEqual([]);
+  });
+
+  test("M3 (c): a call that never settles: at the bound one line and the run goes on as for a failed call; one run at the record's expiry, the cancel made after it, and the next run no earlier than one pause later", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    let cancels = 0;
+    w.host.port.cancelSubscription = async () => {
+      cancels += 1;
+      if (cancels === 1) return new Promise(() => {});
+      return { kind: "cancelled" };
+    };
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    now = 8000 + CANCEL_CALL_BOUND_MS;
+    w.endPauses();
+    expect(await first).toEqual({ result: "not-finished" });
+    expect(events()).toContain("cancel-call-unsettled");
+    expect(skeleton(w)?.cancel_next_at).toBe(8000 + CANCEL_CALL_BOUND_MS + 60_000);
+    expect(record(w)).toEqual([{ subscription_id: "sub_one", began_at: 8000 }]);
+    expect(w.alarmAt()).toBe(8000 + CALL_IN_FLIGHT_MS);
+    const runs: Ms[] = [];
+    for (let run = 0; run < 3 && skeleton(w)?.cancel_answered_for !== "sub_one"; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      runs.push(now);
+      await w.entries.alarm();
+    }
+    expect(runs).toEqual([8000 + CALL_IN_FLIGHT_MS, 8000 + CANCEL_CALL_BOUND_MS + 60_000]);
+    expect((runs[1] as Ms) - (runs[0] as Ms)).toBeGreaterThanOrEqual(ALARM_RETRY_MS);
+    expect(cancels).toBe(2);
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+  });
+
+  test("M3 (c): a call that settles after its bound clears only its own record: the newer call's record stands, and the late answer is not stored", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    const releases: ((answer: { kind: "cancelled" }) => void)[] = [];
+    w.host.port.cancelSubscription = async () =>
+      new Promise((resolve) => {
+        releases.push(resolve);
+      });
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    now = 8000 + CANCEL_CALL_BOUND_MS;
+    w.endPauses();
+    await first;
+    now = Math.max(now, skeleton(w)?.cancel_next_at as Ms);
+    const second = w.entries.alarm();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(releases).toHaveLength(2);
+    expect(record(w)).toEqual([{ subscription_id: "sub_one", began_at: now }]);
+    releases[0]?.({ kind: "cancelled" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(record(w)).toEqual([{ subscription_id: "sub_one", began_at: now }]);
+    expect(skeleton(w)?.cancel_answered_at).toBeNull();
+    releases[1]?.({ kind: "cancelled" });
+    await second;
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
   });
 });
