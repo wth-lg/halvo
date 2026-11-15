@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
+# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list is run, and a run that is missing fails the check; each, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
 set -u
 name=60-r6-egress
 list=scripts/r6/egress/gate.txt
@@ -35,11 +35,18 @@ exit and an entry that refers to nothing fail the check; each finding prints
 module declaration resolved by another letter case prints by the name that the compiler built).
 The canary: a crate of one file under the artifacts directory names each entry of the list once and
 goes through the same cargo call, in each profile, before any finding of the three crates counts; one finding per
-entry of the job's system is required, else "the forbid run let the canary through". It holds an
-untracked cargo configuration, a cap on lints and a wrapper, which silence the canary too. The
-environment rule reads no cargo configuration file: the compiler flags keys of its build and target
-tables and its wrapper keys reach the forbid runs and the build alike, and the canary fails a cap and
-a wrapper set there.
+entry of the job's system is required, else "the forbid run let the canary through". It holds a cap
+on lints and a wrapper that silence the canary as they silence the crates. The environment rule reads
+no cargo configuration file: the compiler flags keys of its build and target tables and its wrapper
+keys reach the forbid runs and the build alike.
+From the first wrapped call on, the check decides nothing from a file that a wrapped program can
+write: the run list with its arguments, the words to ask and their count, the list's blob id, the
+hashes of the tracked files and git's configuration are read into the shell before the control; the
+egress check's last line comes through a pipe; the found commands are held in the shell; and a
+command's --out directory is one of its own. Every command of the first list is run, and a run that is
+missing fails the check: checks must equal the number of entries of the first list that the asking
+found (every entry in the windows job), and each command whose run was not made and read is named by
+"egress run-missing=<word>".
 The closed graph: the path packages of cargo tree -e normal,build are the three crates, each at
 crates/<name> of the repository where the check runs, the linked
 third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, the build-time ones are
@@ -119,6 +126,9 @@ The limits that stay:
 3. what the system does with a path that it opens over a network.
 4. what a process did after the command ended, in the egress check's own words.
 5. the egress check's writes under target/egress/.
+6. an untracked cargo configuration, in the checkout, above it or in cargo's home, whose wrapper tells
+   the canary from the crates passes this check; a hosted job has none, a tracked one is
+   40-r6-policy's refusal, and on a person's own machine nothing holds it.
 With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
 a list that names no case fails the self-test. On a Windows host the self-test runs the cases of its
 Windows list alone: one case for each rule of the generic code, by the table rule_cases, and every
