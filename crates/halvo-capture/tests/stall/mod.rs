@@ -67,7 +67,7 @@ const CONTROL_LETTERS: u32 = 5;
 const FORM_ENV: &str = "HALVO_WF_FORM";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Form {
+pub(super) enum Form {
     Short,
     Long,
 }
@@ -81,7 +81,7 @@ impl Form {
     }
 }
 
-fn form() -> Form {
+pub(super) fn form() -> Form {
     match std::env::var(FORM_ENV).as_deref() {
         Ok("short") => Form::Short,
         Ok("long") => Form::Long,
@@ -89,11 +89,23 @@ fn form() -> Form {
     }
 }
 
+pub(super) fn short_form() -> bool {
+    form() == Form::Short
+}
+
+pub(super) fn rounds_for(short: u32, long: u32) -> u32 {
+    if short_form() {
+        short
+    } else {
+        long
+    }
+}
+
 fn rounds_at(form: Form, stall_ms: u64) -> u32 {
     match (form, stall_ms) {
-        (_, 2_000..) => 5,
-        (Form::Short, 150) | (Form::Long, _) => 20,
-        (Form::Short, _) => 5,
+        (Form::Short, _) => 1,
+        (Form::Long, 2_000..) => 5,
+        (Form::Long, _) => 20,
     }
 }
 
@@ -1480,7 +1492,7 @@ fn stall_test(phase: Phase) {
     let test = phase.test;
     with_deadline(test, Duration::from_secs(300), move || {
         let form = form();
-        let wanted = phase.rounds;
+        let wanted = rounds_for(1, phase.rounds);
         let totals = stall_phase(phase);
         say(
             test,
@@ -1512,6 +1524,10 @@ fn stall_test(phase: Phase) {
 }
 
 fn stall_phase(phase: Phase) -> Totals {
+    let phase = Phase {
+        rounds: rounds_for(1, phase.rounds),
+        ..phase
+    };
     let test = phase.test;
     source_built_by_test(test, "keyboard");
     let mut fixture = Fixture::open(test, false);
@@ -1530,7 +1546,7 @@ fn stall_phase(phase: Phase) -> Totals {
     if phase.lead == Lead::Click {
         let unstalled = Phase {
             stall_ms: 0,
-            rounds: CLICK_ROUNDS_WITHOUT_WAIT,
+            rounds: rounds_for(1, CLICK_ROUNDS_WITHOUT_WAIT),
             name: "click_with_no_wait",
             ..phase
         };
@@ -1594,7 +1610,7 @@ impl FieldWindow {
             format!("phase=E password_edit_masked_at_the_start={}", flag(masked)),
         );
         let phase = Phase {
-            rounds: 20,
+            rounds: rounds_for(1, 20),
             letters_through_the_wait: false,
             ..phase("fixture-native", "E", Lead::Tab, Wait::Sleeps, 0)
         };
@@ -1644,6 +1660,12 @@ fn the_round_count_of_the_stall_tests() {
             }
         }
         println!("left_out the loops by exact name, which the long form runs");
+        println!(
+            "left_out the rounds of every other stall phase but one, of phase E but one, of each browser stall and swap phase but one, of the fixtures' phases E and F but one, of the letter and Tab out of a swapped field but one, and of each held page of the self-move but one; each phase and each wait still runs once"
+        );
+        println!(
+            "left_out the known defects held swaps (Chrome, Edge) and the stall self-focus, which run in the long form alone and print their ledger id"
+        );
     }
 }
 
@@ -2073,7 +2095,8 @@ fn native_phase(
         let before = control(test, "before", &mut fixture, &events);
         let mut counted = 0;
         let mut recorded = 0;
-        for round in 0..5 {
+        let rounds = rounds_for(1, 5);
+        for round in 0..rounds {
             let (c, r) = native_round(
                 (test, phase),
                 round,
@@ -2098,8 +2121,8 @@ fn native_phase(
             "a control recorded fewer than {CONTROL_LETTERS} letters of the plain field: the source did not record"
         );
         assert!(
-            counted >= 4,
-            "INCONCLUSIVE: {phase} counted {counted} rounds of 5"
+            counted >= rounds.saturating_sub(1).max(1),
+            "INCONCLUSIVE: {phase} counted {counted} rounds of {rounds}"
         );
         assert_eq!(
             recorded, 0,

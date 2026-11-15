@@ -4746,7 +4746,7 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         });
         let _ = seam::take();
         let (e, _, e_page, _) = browser_phase(test, run, &keyboard, &events, 'E', || {
-            for _ in 0..20 {
+            for _ in 0..stall::rounds_for(1, 20) {
                 tab_then_letter();
                 std::thread::sleep(Duration::from_millis(500));
                 send(&[key_input(
@@ -4799,7 +4799,7 @@ fn browser_fixture(test: &'static str, browser: &'static Browser) {
         );
         let mut f = 0;
         let mut f_password = 0;
-        for _ in 0..10 {
+        for _ in 0..stall::rounds_for(1, 10) {
             let (keys, _, page, _) =
                 browser_phase(test, run, &keyboard, &events, 'F', || letters(1));
             f += keys;

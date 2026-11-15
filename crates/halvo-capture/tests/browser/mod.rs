@@ -1241,7 +1241,7 @@ fn assert_stall(test: &str, phase: &str, rounds: &[Round], wanted: usize) -> usi
     say(
         test,
         format!(
-            "phase={phase} rounds={} counted={counted} failing_rounds={failing}",
+            "phase={phase} rounds={} counted={counted} counted_rounds={counted} failing_rounds={failing}",
             rounds.len()
         ),
     );
@@ -1301,7 +1301,14 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
         let mut all = Vec::new();
         for kind in [StallKind::Tab, StallKind::Click] {
             for hold in [150, 300] {
-                let rounds = stall_rounds(test, &mut browser, &keyboard, kind, hold, 5);
+                let rounds = stall_rounds(
+                    test,
+                    &mut browser,
+                    &keyboard,
+                    kind,
+                    hold,
+                    super::stall::rounds_for(1, 5),
+                );
                 all.push((format!("{kind:?}-{hold}"), rounds));
             }
         }
@@ -1317,7 +1324,7 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
             "a control recorded fewer than 5 letters of the text input: control_before={before} control_after={after}"
         );
         for (phase, rounds) in &all {
-            assert_stall(test, phase, rounds, 3);
+            assert_stall(test, phase, rounds, super::stall::rounds_for(1, 3) as usize);
         }
     });
 }
@@ -1339,7 +1346,14 @@ pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
         let mut another_way = 0;
         let mut sink_differs = 0;
         for hold in [150, 300] {
-            for r in stall_rounds(test, &mut browser, &keyboard, StallKind::SelfMove, hold, 5) {
+            for r in stall_rounds(
+                test,
+                &mut browser,
+                &keyboard,
+                StallKind::SelfMove,
+                hold,
+                super::stall::rounds_for(1, 5),
+            ) {
                 counted += usize::from(r.counted);
                 let held = r.password_letters_recorded_while_the_page_was_held();
                 if r.counted {
@@ -1362,7 +1376,7 @@ pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
-            counted >= 5,
+            counted >= super::stall::rounds_for(1, 5) as usize,
             "INCONCLUSIVE: the self-move phase counted {counted} rounds"
         );
         assert_eq!(
@@ -1481,7 +1495,8 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
                 continue;
             };
             let mut counted = 0;
-            for round in 0..3 {
+            let rounds = super::stall::rounds_for(1, 3);
+            for round in 0..rounds {
                 let (r, shown) = swap_round(test, name, &keyboard, hwnd, phase, round);
                 counted += u32::from(r.counted);
                 let failed = r.sink_differs()
@@ -1496,7 +1511,11 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
                     failures.push(format!("{phase}#{round}"));
                 }
             }
-            if counted < 2 {
+            say(
+                test,
+                format!("browser={name} phase={phase} rounds={rounds} counted_rounds={counted}"),
+            );
+            if counted < rounds.min(2) {
                 thin.push(phase);
             }
         }
@@ -1774,7 +1793,8 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
             .expect("INCONCLUSIVE: no page window");
         let mut counted = 0;
         let mut sink_differs = 0;
-        for round in 0..5 {
+        let rounds = super::stall::rounds_for(1, 5);
+        for round in 0..rounds {
             let _ = seam::take_marks();
             let start = reset(&keyboard, hwnd).unwrap_or_default();
             let front = foreground_window() == hwnd;
@@ -1829,7 +1849,7 @@ fn letter_and_tab_out_of_a_swapped_field(test: &'static str, name: &'static str)
         );
         out.store(recorded, Ordering::SeqCst);
         assert!(
-            counted >= 3,
+            counted >= rounds.min(3),
             "INCONCLUSIVE: the phase counted {counted} rounds"
         );
         assert_eq!(
