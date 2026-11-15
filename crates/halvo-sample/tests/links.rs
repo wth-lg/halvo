@@ -160,6 +160,50 @@ fn a_path_argument_through_a_link_and_dot_dot_is_refused_where_it_names_a_link()
 }
 
 #[test]
+fn a_tier_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
+    let dir = scratch("link-tier");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "nothing here\n");
+    let real = s(&dir.join("real"));
+    let o = run(&["leak", &s(&t), &real]);
+    assert_eq!(o.code, 0, "{}{}", o.stdout, o.stderr);
+    link_dir(&t, &dir.join("linked"));
+    let sep = std::path::MAIN_SEPARATOR;
+    let linked = s(&dir.join("linked"));
+    let refused_as_given = |o: &common::Out, form: &str| {
+        refused(o, "tier-manifest");
+        assert_eq!(o.stderr, format!("REFUSED tier-manifest: {form}\n"));
+    };
+    for form in [
+        linked.clone(),
+        format!("{linked}{sep}"),
+        format!("{linked}{sep}{sep}"),
+        format!("{linked}{sep}."),
+        format!("{linked}{sep}.{sep}"),
+        format!("{linked}{sep}streams{sep}.."),
+        format!("{linked}{sep}streams{sep}..{sep}"),
+    ] {
+        refused_as_given(&run(&["leak", &form, &real]), &form);
+    }
+    fs::create_dir_all(dir.join("below")).expect("a directory beside the link");
+    let form = format!("..{sep}linked{sep}");
+    refused_as_given(
+        &common::run_in(&dir.join("below"), &["leak", &form, &real]),
+        &form,
+    );
+    fs::create_dir_all(dir.join("phys/a/b")).expect("the physical target");
+    link_dir(&t, &dir.join("phys/a/x"));
+    fs::create_dir_all(dir.join("work")).expect("the working directory");
+    link_dir(&dir.join("phys/a/b"), &dir.join("work/lnk"));
+    assert!(!dir.join("work/x").exists());
+    let form = format!("lnk{sep}..{sep}x");
+    refused_as_given(
+        &common::run_in(&dir.join("work"), &["leak", &form, &real]),
+        &form,
+    );
+}
+
+#[test]
 fn a_link_inside_a_walk_is_not_followed() {
     let dir = scratch("link-inside");
     let t = tier(&dir);

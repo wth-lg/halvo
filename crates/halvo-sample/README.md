@@ -69,7 +69,9 @@ row of each overlapping pair gets its `FAIL row` line.
 
 `leak` refuses a PATH argument that is a symbolic link with `path`, also when separators, `.`
 or a name and `..` follow its name; a link among the other components of an argument is
-followed. Inside a walk it follows no link. A stream directory, `streams` directory, manifest,
+followed. It refuses a TIER argument that is a symbolic link in the same forms with
+`tier-manifest`, whose detail is the argument as given. `input-copy` follows a TIER argument
+that is a link. Inside a walk `leak` follows no link. A stream directory, `streams` directory, manifest,
 day file or label file that is a link, in the tier or in a development body, is refused with
 `tier-files` or `body`, and the detail of these two refusals is the TIER argument or the PATH
 argument alone. A `HIT` line names a file as the PATH argument followed by `#<n>`: n is the

@@ -154,8 +154,7 @@ fn names_in<'a>(hay: &[u8], names: &[&'a str]) -> BTreeSet<&'a str> {
     found
 }
 
-fn names_a_link(arg: &str) -> bool {
-    let raw = Path::new(arg);
+fn names_a_link(raw: &Path) -> bool {
     if is_link(raw) {
         return true;
     }
@@ -229,6 +228,9 @@ fn walk(arg: &str, path: &Path, skip: &Path, out: &mut Walk) -> Result<(), Refus
 
 /// Runs `leak` and returns the lines it prints and whether the four shared counts are 0.
 pub fn leak(tier: &Path, paths: &[String]) -> Result<(Vec<String>, bool), Refusal> {
+    if names_a_link(tier) {
+        return Err(tier_fault(tier, 0));
+    }
     let (manifest, hash) = read_tier(tier)?;
     let body = read_body(tier, "tier-files")
         .map_err(|r| Refusal::new(r.cause, tier.display().to_string()))?;
@@ -239,7 +241,7 @@ pub fn leak(tier: &Path, paths: &[String]) -> Result<(Vec<String>, bool), Refusa
         numbered: 0,
     };
     for p in paths {
-        if names_a_link(p) {
+        if names_a_link(Path::new(p)) {
             return Err(Refusal::new("path", p.clone()));
         }
         w.numbered = 0;
