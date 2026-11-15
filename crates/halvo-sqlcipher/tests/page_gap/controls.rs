@@ -455,3 +455,92 @@ fn plants_refuses_a_log_of_the_connections_file_that_holds_frames() {
         "plants() on a connection whose log holds frames does not answer with the log's line alone: {answer:?}"
     );
 }
+
+/// S-94 P1: on an image shaped like halvo-derived's, rows of about 5 KB among
+/// small rows, the plant under 32 reserved bytes gives a cell with an overflow
+/// chain a larger local size, and when that cell is the last of a leaf's
+/// content area its overflow pointer lies past the usable size. The check
+/// names that read as a line of its page, never a panic, and plants() still
+/// finds each of its plants on the image. A page size of 0 and a file cut
+/// inside its header are lines too.
+#[test]
+fn a_cell_read_past_the_usable_size_is_a_line_and_plants_name_every_plant_on_an_image_shaped_like_derived(
+) {
+    crate::initialize().unwrap();
+    let scratch = store_shaped_like_derived();
+    let conn = connect(&scratch.db(), Mode::Plain);
+    let db = std::fs::read(scratch.db()).unwrap();
+    assert_eq!(rules::check(&conn, &db).problems, Vec::<String>::new());
+    let misses = rules::plants(&conn, &db);
+    assert!(
+        misses.is_empty(),
+        "plants() on an image shaped like derived's: {}",
+        misses.join("\n")
+    );
+    let mut reserved = db.clone();
+    reserved[20] = 32;
+    let found = rules::check(&conn, &reserved).problems;
+    assert!(
+        found
+            .iter()
+            .any(|line| line.contains("the cell at byte") && line.contains("runs past byte 4064")),
+        "under 32 reserved bytes no line names a cell that runs past the usable size: {found:?}"
+    );
+    let mut no_size = db.clone();
+    no_size[16..18].copy_from_slice(&[0, 0]);
+    let found = rules::check(&conn, &no_size).problems;
+    assert!(
+        found
+            .iter()
+            .any(|line| line.contains("page 1: page size 0 is no power of two from 512 up")),
+        "a page size of 0: {found:?}"
+    );
+    let found = rules::check(&conn, &db[..37]).problems;
+    assert!(
+        found
+            .iter()
+            .any(|line| line.contains("page 1: the file header at byte 0 runs past byte 37")),
+        "a file of 37 bytes: {found:?}"
+    );
+}
+
+/// The draw of small_store with rows of 4,600 to 5,400 bytes in place of its
+/// rows of 8,180, as halvo-derived's evidence rows are: one of them is the
+/// last cell of a leaf's content area, and its local size grows with a smaller
+/// usable size.
+fn store_shaped_like_derived() -> Scratch {
+    let scratch = Scratch::new(94, Mode::Plain);
+    let conn = connect(&scratch.db(), Mode::Plain);
+    conn.execute_batch(
+        "CREATE TABLE t(id INTEGER PRIMARY KEY, body TEXT NOT NULL);
+         CREATE INDEX t_body ON t(body);",
+    )
+    .unwrap();
+    let mut rng = super::Rng::new(94);
+    for round in 0..4 {
+        conn.execute_batch("BEGIN").unwrap();
+        for at in 0..200 {
+            let len = if at % 50 == 0 {
+                4600 + rng.below(800) as usize
+            } else {
+                8 + rng.below(300) as usize
+            };
+            let body: String = (0..len)
+                .map(|_| char::from(b'b' + rng.below(5) as u8))
+                .collect();
+            conn.execute(
+                "INSERT INTO t(id, body) VALUES (?1, ?2)",
+                params![round * 1000 + at, body],
+            )
+            .unwrap();
+        }
+        conn.execute_batch("COMMIT").unwrap();
+        conn.execute(
+            "DELETE FROM t WHERE id % 3 = ?1",
+            [i64::try_from(rng.below(3)).unwrap()],
+        )
+        .unwrap();
+        checkpoint(&conn);
+    }
+    scratch
+}
