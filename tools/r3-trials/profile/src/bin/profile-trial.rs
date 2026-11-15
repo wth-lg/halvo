@@ -1312,13 +1312,17 @@ mod item3_end_tests {
     const CHECK: &str = "egress mode=sandbox denied=0 log=none\n";
 
     fn printed(inner: &str, sandbox_off: bool) -> (Vec<String>, u8) {
+        printed_of(Some(inner), sandbox_off)
+    }
+
+    fn printed_of(inner: Option<&str>, sandbox_off: bool) -> (Vec<String>, u8) {
         let args = Args {
             machine: "mac".into(),
             sandbox_off,
             ..Args::default()
         };
         let mut lines = Vec::new();
-        let code = item3_end(&args, CELL, "final", Some(inner), CHECK, &mut |l| {
+        let code = item3_end(&args, CELL, "final", inner, CHECK, &mut |l| {
             lines.push(l.to_string())
         });
         (lines, code)
@@ -1364,6 +1368,20 @@ mod item3_end_tests {
                     "egress_control {CELL} set=final sandbox=off mode=sandbox browser_started=yes denied=0"
                 )],
                 0
+            )
+        );
+        assert_eq!(
+            printed(
+                &inner("browser_started=yes task=notrun cause=signal"),
+                false
+            ),
+            (vec![format!("notrun item=3 {CELL} cause=signal")], 1)
+        );
+        assert_eq!(
+            printed_of(None, false),
+            (
+                vec![format!("notrun item=3 {CELL} set=final cause=egress_check")],
+                1
             )
         );
     }
