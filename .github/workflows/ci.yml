@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -49,6 +38,24 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Prerequisites again, expected to stop at the pnpm step
+        shell: bash
+        run: |
+          set +e
+          out="$RUNNER_TEMP/prerequisites-again.txt"
+          sh scripts/prerequisites.sh >"$out" 2>&1
+          code=$?
+          refused=$(grep -c '^prerequisites: error: this is a hosted runner of GitHub Actions (GITHUB_ACTIONS=true, RUNNER_ENVIRONMENT=github-hosted), and the path finds pnpm ' "$out")
+          errors=$(grep -c '^prerequisites: error:' "$out")
+          installs=$(grep -c '^prerequisites: installing the packages of ' "$out")
+          present=$(grep -c '^prerequisites: pnpm [0-9.]* present$' "$out")
+          printf 'again: exit=%s refused=%s errors=%s installs=%s present=%s\n' "$code" "$refused" "$errors" "$installs" "$present"
+          if [ "$code" = 1 ] && [ "$refused" = 1 ] && [ "$errors" = 1 ] && [ "$installs" = 0 ] && [ "$present" = 0 ]; then
+            echo 'again: PASS the second run refused the pnpm that the first run installed, before any package was installed'
+          else
+            echo 'again: FAIL'
+            exit 1
+          fi
       - name: Changelog
         shell: bash
         run: |
@@ -92,25 +99,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 26-r7-pnpm-step 24-r7-wall 16-shell-lint
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 26-r7-pnpm-step 24-r7-wall 16-shell-lint
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -134,6 +130,24 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Prerequisites again, expected to stop at the pnpm step
+        shell: bash
+        run: |
+          set +e
+          out="$RUNNER_TEMP/prerequisites-again.txt"
+          sh scripts/prerequisites.sh >"$out" 2>&1
+          code=$?
+          refused=$(grep -c '^prerequisites: error: this is a hosted runner of GitHub Actions (GITHUB_ACTIONS=true, RUNNER_ENVIRONMENT=github-hosted), and the path finds pnpm ' "$out")
+          errors=$(grep -c '^prerequisites: error:' "$out")
+          installs=$(grep -c '^prerequisites: installing the packages of ' "$out")
+          present=$(grep -c '^prerequisites: pnpm [0-9.]* present$' "$out")
+          printf 'again: exit=%s refused=%s errors=%s installs=%s present=%s\n' "$code" "$refused" "$errors" "$installs" "$present"
+          if [ "$code" = 1 ] && [ "$refused" = 1 ] && [ "$errors" = 1 ] && [ "$installs" = 0 ] && [ "$present" = 0 ]; then
+            echo 'again: PASS the second run refused the pnpm that the first run installed, before any package was installed'
+          else
+            echo 'again: FAIL'
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
@@ -148,25 +162,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 26-r7-pnpm-step 24-r7-wall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 26-r7-pnpm-step 24-r7-wall
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
