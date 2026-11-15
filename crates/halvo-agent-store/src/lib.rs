@@ -6,6 +6,7 @@
 
 mod bind;
 mod bindings;
+mod checkpoint;
 mod coordinator;
 mod day;
 mod effect;

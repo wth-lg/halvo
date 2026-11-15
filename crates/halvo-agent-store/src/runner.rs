@@ -16,7 +16,7 @@ use halvo_schema::{AgentId, ErrorName};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, day, effect, end};
+use crate::{bind, checkpoint, day, effect, end};
 
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
@@ -57,6 +57,10 @@ use crate::{bind, day, effect, end};
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
 ///   the row's state. A `releasing` or `committed` row holds the approval of the effect's last `approved` row, or
 ///   none where the effect has no `approved` row, else `effect` (CP-132 (a)).
+/// - `checkpoint`: a row equal to the checkpoint's newest row (its run and workbook) in every key but `day` and
+///   `at` is answered as the first and stores nothing; else `effect` unless the row is a `planned` first row of the
+///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy. The store's
+///   crate reads the row with the schema's strict reader and stores the text of its writer.
 /// - Every row that a body stores is held to the day rule (CP-122): a row that holds `at` (`effect`, `log`) is
 ///   refused with `day` unless its `day` is `Host::day` of its `at`, and every row of a bounded kind, the record of
 ///   `finish` among them, is refused with `day` when its day is after the day of the request's instant or already
@@ -80,7 +84,7 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::Effect(b) => effect::put(host, now, &b),
         RunnerCall::Log(b) => put_log(host, now, &b),
         RunnerCall::Finish(b) => end::finish(host, now, &b),
-        RunnerCall::Checkpoint(_) => Err(ErrorName::Malformed),
+        RunnerCall::Checkpoint(b) => checkpoint::put(host, now, &b),
         RunnerCall::ReplyRow(_) | RunnerCall::LoadReplies(_) => Err(ErrorName::Malformed),
     }
 }

@@ -12,7 +12,7 @@ use halvo_schema::{Category, ErrorName, TypedRecord, Workflow, WorkflowState};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, bindings, day, end};
+use crate::{bind, bindings, checkpoint, day, end};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
@@ -40,6 +40,18 @@ use crate::{bind, bindings, day, end};
 ///   the origins stay. It answers the revision stored.
 /// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
 ///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
+/// - `list_checkpoints`: over every agent, the newest row of each checkpoint (one run and one workbook path) whose
+///   newest row is `planned` or `made`, of the runs after `after`, in ascending order of run id and then of path:
+///   `ended` says whether the run's `agent_run` record is stored; `effect` is the state of the run's `local_edit`
+///   effect whose kept `file` is the path, by its last row, the first of `unknown`, `releasing`, `committed`,
+///   `approved`, `held`, `cleared`, `rejected`, `refused` where two such effects stand, or none; `superseded` says
+///   whether a checkpoint of the same agent and path in another run, whose first row is later, has such an effect
+///   `committed`. A page holds whole runs while the writer takes it, and `next` names its last run where runs are
+///   left.
+/// - `mark_checkpoint`: `no_workflow`; `binding` where a row of the checkpoint names another workflow or agent.
+///   Where the checkpoint's newest row is `planned` or `made` it stores the next row, `gone` or `left` with the
+///   reason, with the digest and length of that row and the request's instant and day, and answers 1; else it
+///   stores nothing and answers 0.
 /// - `end_run`: `no_workflow`; `binding`; `binding` for a run of which a stored effect row, log line or
 ///   `agent_run` record names another agent. It needs no start row. Where the run's `agent_run` record is stored it
 ///   changes nothing.
@@ -58,9 +70,8 @@ pub fn coordinator(
         CoordinatorCall::StartRun(b) => start_run(host, now, &b),
         CoordinatorCall::EndRun(b) => end::end_run(host, now, &b),
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
-        CoordinatorCall::ListCheckpoints(_) | CoordinatorCall::MarkCheckpoint(_) => {
-            Err(ErrorName::Malformed)
-        }
+        CoordinatorCall::ListCheckpoints(b) => checkpoint::list(&*host, &b),
+        CoordinatorCall::MarkCheckpoint(b) => checkpoint::mark(host, now, &b),
     }
 }
 
