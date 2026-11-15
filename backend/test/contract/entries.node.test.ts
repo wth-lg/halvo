@@ -2325,4 +2325,33 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     expect(armed).toBeLessThanOrEqual(Math.max(armedByTheDelete, now + ALARM_RETRY_MS));
     expect(events()).not.toContain("alarm-stopped");
   });
+
+  test("T1 (e): after a removal and a remake in the same instance, the new account's first failing run under its own delete pauses ALARM_RETRY_MS, not the old account's kept count", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.openHolds = 1;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "accounts.forget";
+    for (let run = 0; run < 4; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      await w.entries.alarm();
+    }
+    w.answers.throwIn = null;
+    w.answers.openHolds = 0;
+    now = Math.max(now, w.alarmAt() ?? now);
+    await w.entries.alarm();
+    expect(await w.holds()).toBe(false);
+    now += 60_000;
+    expect((await w.entries.testSeed({ accountId: ACCOUNT, hash: HASH, subscription: "active", customerId: "cus_one" })).result).toBe("seeded");
+    const sentAt = now;
+    w.answers.sendInFlight = (at) => (at < sentAt + CALL_IN_FLIGHT_MS ? sentAt + CALL_IN_FLIGHT_MS : null);
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = "accounts.forget";
+    now += 1000;
+    const runAt = now;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.alarmAt()).toBe(Math.max(runAt + ALARM_RETRY_MS, sentAt + CALL_IN_FLIGHT_MS));
+  });
 });

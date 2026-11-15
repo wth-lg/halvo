@@ -201,7 +201,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const removalRejections = new WeakSet<object>();
   let dueErrorsOfTheRun: unknown[] | null = null;
   let removalLogged: Ms | null = null;
-  let failuresKept = 0;
+  let failuresKept: { since: Ms | null; count: number } | null = null;
   const sendsEndedHere = new Map<string, Ms>();
   const sendKey = (interval: Ms, sentAt: Ms) => `${interval}:${sentAt}`;
   const sendEnds = (sql: Sql, now: Ms): Ms | null => {
@@ -600,7 +600,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (thrown !== null) throw thrown.error;
     if (caught.length > 0) throw new LoggedAlarmError(caught[0]);
     if (dueErrors.length > 0) throw new LoggedAlarmError(dueErrors[0]);
-    failuresKept = 0;
+    failuresKept = null;
     if (head === "unknown" || head.failures > 0) {
       step((open) => {
         if (!holds(open.sql)) return;
@@ -623,6 +623,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
     if (exit === null) return;
     let marked = run.mark === "unknown" || (run.mark !== null && run.mark.since !== null) || exit === "unknown" || (exit !== null && exit.mark.since !== null);
+    const since = exit === "unknown" ? null : exit.mark.since;
+    const kept = failuresKept !== null && (exit === "unknown" || failuresKept.since === since) ? failuresKept.count : 0;
     let count = ALARM_RETRY_LIMIT;
     let tested: TestTime | null = null;
     let waits: Ms | null = null;
@@ -635,7 +637,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         const mark = markOf(sql);
         const markedNow = marked || mark.since !== null;
         const prior = Number(skeletonRow(sql).alarm_failures);
-        const failures = markedNow ? Math.max(prior, failuresKept) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
+        const failures = markedNow ? Math.max(prior, kept) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET alarm_failures = ?", failures);
         return { failures, tested: testTimeOf(testTime(sql)), marked: markedNow, nextAt: mark.nextAt };
       });
@@ -645,9 +647,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       nextAt = counted.nextAt;
     } catch (counting) {
       log({ event: "alarm-error", error: errorName(counting) });
-      count = marked ? failuresKept + 1 : ALARM_RETRY_LIMIT;
+      count = marked ? kept + 1 : ALARM_RETRY_LIMIT;
     }
-    if (marked) failuresKept = count;
+    if (marked) failuresKept = { since: exit === "unknown" ? (failuresKept?.since ?? null) : since, count };
     try {
       host.step((sql) => {
         sql.exec("UPDATE skeleton SET last_now = ?", Math.max(time(sql), lastNow(sql)));
