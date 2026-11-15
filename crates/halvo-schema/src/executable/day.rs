@@ -67,6 +67,11 @@ mod tests {
         assert_eq!(day_of(Instant(i64::MIN), MAX), 0);
         assert_eq!(day_of(Instant(-HOUR), MAX), 0);
         assert_eq!(day_of(Instant(DAY - HOUR), MAX), 1);
+        assert_eq!(
+            day_of(Instant(-1), 86_400),
+            0,
+            "the seconds of an instant are rounded down, not toward 0"
+        );
     }
 
     #[test]
