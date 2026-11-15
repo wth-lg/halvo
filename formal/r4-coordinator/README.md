@@ -61,7 +61,9 @@ java -Xmx2g -XX:+UseParallelGC -cp PATH tlc2.TLC -workers 1 -metadir "$d/meta" -
 Each run must print `Model checking completed. No error has been found.` `Confirm4` runs
 with `-deadlock`, because a state after the app ended has no next state on purpose.
 
-A model has two kinds of configuration. The full one is the model's own bound. Whoever
+A model has two kinds of configuration. Its own bound is the configuration named `full`
+for `Schedule` and the one named `bound` for `Confirm4`, whose `full` is a configuration
+that CI runs (ruling RD-106 (1)). Whoever
 changes a file of this directory runs it, through the machine's helper for timed runs, the
 verifier runs it at the gate of the phase in which the change lands, and this table
 records its states and the commit. CI runs the small ones alone: `30-r4-formal.sh` runs
@@ -128,7 +130,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `days` | 1 to 8, 18 to 21, 28, 29, 31 to 34 and 38 | the 28 properties that `Schedule` had before the store's view: all of the first list below but `ReachQueueTwo`, `ReachQueueOrder` and `ReachQueueIdle`, which need a queue of two; and `ReachUnknownAgent` |
 | `queue` | 17 and 30: of the three, only `queue` holds `a5`, the agent with no schedule that needs no person. It holds no stop, so row 38 is no run of it | `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueIdle` |
 | `store` | 46 to 50 and 53 to 55: of the three, only `store` holds the time between the end of a runner, or a failed start, and the store's record of the run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds`, `ReachFailedOwed`, `ReachFailedSentAgain` |
-| `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move | none of its own |
+| `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move; and 65, the start that goes on after the read that brought a lost `hold_set` (C4). Rows 66 to 68 break no property in any configuration | `ReachOffRead` |
 | `left`, `reap` | none of their own: each holds the moves of one directed trace | none of their own |
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 75 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
@@ -690,6 +692,84 @@ a record of another state than `approved` and `releasing` breaks no property eit
 history holds the records of those two states alone. The walks hold such records, each
 answered `ok`, and the replay holds the code to them.
 
+What two requests prove, and what they do not (ruling RD-106 (2), (3)). The CI
+configuration `full` proves L1 to L11 over every interleaving of the model's moves for a run
+that asks at most twice. For the consent of a second step that covers the property it rests
+on: a press is looked up by its item and the answer goes to the run, so `allow` reaches the
+right step only while a run holds at most one step that is not closed; a request while a
+step or an item is held ends the run, and two steps one after the other (BB) exercise it.
+The limits of "every interleaving": no confirmation and second step are ever open together
+(the attempt ends the run); the kill is offered only while no confirmation is open, and no
+move follows it; in a mixed run of two requests the confirmation is always the one of the
+native presenter. Two requests do not prove a fault whose shortest witness needs three: a
+second step between two confirmations or after two, a confirmation between two second steps
+or after two (the confirmation of the page presenter beside a second step among them), and
+the kill and the recovery over three requests' rows. The own bound `bound` holds those
+orders, and the confirm walks are drawn from it.
+
+The model's own bound (ruling RD-106 (4), (5)). Confirm4 was first given a bound of three
+requests in all, at most two second steps (`Requests` 3, `Binds` 2): TLC ended on it on
+2026-11-15 with no error, 430,868 distinct states, 68,173,207 generated, depth 29, in
+766.66 s with four workers. The product of two and two (`Requests` 4) was then tried once
+with a limit of 7,200 s of TLC and ended within it on the same day: no error, 2,691,076
+distinct states, 475,507,727 generated, depth 33, in 3,309.62 s with four workers, both on
+the lane for timed runs with the model of commit 383563cc8. So the product is the own bound
+in place of three, `Confirm4-bound.cfg` holds it, and the row `bound` of the table above
+gives its counts. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs it, and
+so does the verifier at the gate of the phase in which the change lands; no CI job runs
+it. A violation of an invariant there is a fault of the model or of the code (ruling
+RD-106 (8)).
+
+Proved at no bound of this model, each with what holds it (ruling RD-106 (7)):
+- the third value of the guard table's release number, which needs three confirmations
+  while `NRequests` is a definition of 2: I found no test of `halvo-coord` that releases
+  three decisions of one effect;
+- `items_per_run`: the tests `a_bind_raises_a_new_sign_in_item_that_items_per_run_counts`
+  (tests/items_bind.rs) and `a_request_after_items_per_run_items_ends_its_run_with_budget`
+  (tests/coordinator_moves.rs);
+- a lost acknowledgement of a step's raise row or lapse row: the lapse row by
+  `a_quit_whose_lapse_got_no_acknowledgement_leaves_the_rows_of_a_kill`
+  (tests/coordinator_moves.rs); the raise row by no test;
+- a press whose store is refused with nothing stored: `refusal_bind_stored`
+  (tests/items_bind.rs), whose owner refuses the row without storing it;
+- a second run of the same agent after a kill:
+  `a_kill_after_a_lost_or_taken_allow_binds_nothing_lapses_nothing_and_a_new_bind_raises_a_new_item`
+  (tests/coordinator_moves.rs).
+
+Moves that the model lacks (rulings RD-106, RD-109 point 6): a press whose store is refused
+with nothing stored (`store` draws `ack` and `lost` alone; to the coordinator it is the lost
+reply, and only the record differs); a lost acknowledgement of a step's `item_raised` or
+`item_lapsed`; the page's lost reply after an accepted Allow (RD-46 (8), inherent); a product
+port that hands `allow` over and then answers an error (RD-46 (2) g is assumed, since no code
+can show it yet); the answer `done` of an account link (RD-54, RD-61); "another error" of
+`Runs::answer_bind` other than `busy`; a separate end event after the answer `ended`, folded
+into the press's line; a move after the kill; a lost `hold_set` beside a live run in
+`Schedule` (RD-52 (b) rule 3, for unit U2.4b).
+
+Held by the replay and the code's tests and by no property (ruling RD-109 point 6):
+- RD-46 (2) d, after a stored `allow` that the run did not take a press of Don't allow is
+  stored and sent, and after a stored `decline` a press of Allow is refused (row 58 breaks
+  no property): `a_stored_allow_that_the_run_did_not_take_then_dont_allow_stores_and_sends_decline`
+  and `a_stored_decline_that_the_run_did_not_take_refuses_allow_and_sends_decline_again`
+  (tests/coordinator_moves.rs);
+- RD-46 (2) g, the step closes after a success or `ended` and after nothing else (row 64
+  breaks no property): `the_memory_answer_bind_answers_as_the_library_does`
+  (tests/items_bind.rs);
+- RD-46 (3), after a kill the next life lapses no step that has an answer row:
+  `a_kill_after_a_lost_or_taken_allow_binds_nothing_lapses_nothing_and_a_new_bind_raises_a_new_item`
+  (tests/coordinator_moves.rs), and the kill lines of the confirm traces through
+  `recover_step`.
+A branch that no state reaches: the refusal of a press for a stopped run (`Press` answers
+`state` when `run` is `stopped`), since a run is stopped only with no step held; the code's
+check is held by `a_stopped_run_gets_no_second_step_and_no_answer` (tests/items_bind.rs).
+
+For later units: a new move of the model must feed the history that L11 reads (`waits`,
+`newest`, `bound`); one that does not leaves L11 true with nothing read, and nothing in CI
+notices it, since the check reads the invariant lines and the counts alone. The `Reach`
+properties of the second step, run by hand as the section on reachability says
+(`ReachBindAllow`, `ReachBindLostAllow` and the others), show such a gap: each must still
+be reported violated.
+
 How `confirm_joint` reads a confirm trace (I5.13, ruling XA-5). The test follows each
 line with `halvo_policy::effect_step`. At a `release` line whose `sent` holds
 `allow_once` for an effect: when an earlier `release` line of the trace sent `allow_once`
@@ -824,7 +904,7 @@ replay of that design gives another answer, event, call or state at some move.
 | 64 | a step closes when `Runs::answer_bind` answers `busy` | none: the runner waits and gets nothing | 160 of 215 |
 | 65 | a start goes on with the verdict that it computed before the read that brought a lost `hold_set` | C4 | 15 of 213 |
 | 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 213 |
-| 67 | the start by the person under the hold `failures` keeps the verdict that it computed before its store of `hold_cleared` | none: the start reads again at its `run_started` and answers `hold`, and `set_state` `active` goes before `paused` | 0 of 213 |
+| 67 | the start by the person under the hold `failures` keeps the verdict that it computed before its store of `hold_cleared` | none, a named limit (ruling RD-109 point 5): the wrong design changes neither the model's state nor its history, only the order of a `set_state` among the calls; the start reads the hold itself at its `run_started` and answers `hold` (C4, reported in `holds` by row 65), so no run starts; a person meets something only when the `set_state` `paused` after it is lost as well, and then the agent store holds `active` for an agent under a hold. The code's own read is held by the test `a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms` of tests/coordinator_moves.rs; no walk and no directed trace holds the case, which goes to unit U2.4b | 0 of 213 |
 | 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 6 of 213 |
 | 69 | a press of Allow calls `Runs::answer_bind` before its row is written, in the same move | L11 | 0 of 215 |
 | 70 | a press of Don't allow after a stored `allow` stores its row, loses the reply, reports no row and keeps the step at `allow`, so that the next press of Allow sends it | L11 | 35 of 215 |
