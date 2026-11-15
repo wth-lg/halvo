@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
 
 use halvo_schema::executable::body::LoadReply;
@@ -8,12 +8,12 @@ use halvo_schema::executable::{ExecutableStep, OwnText};
 use halvo_schema::learning::record::EditId;
 use halvo_schema::{AgentId, SeedCategory, WorkflowId};
 
-/// A run whose `learn_run` rev 1 this value stored at its `start_run`: its agent, its mode and the order in which
-/// the value made it, by which the first made goes first at the bound `RUNS_HELD_MAX`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Start {
+    pub(crate) workflow: WorkflowId,
     pub(crate) agent: AgentId,
     pub(crate) mode: Mode,
+    pub(crate) row: bool,
     pub(crate) made: u64,
 }
 
@@ -47,6 +47,7 @@ pub(crate) struct RunFacts {
     pub(crate) loaded: Option<NonZeroU32>,
     pub(crate) slots: Vec<String>,
     pub(crate) served: BTreeMap<NonZeroU32, Served>,
+    pub(crate) marked: BTreeSet<NonZeroU32>,
     pub(crate) candidates: BTreeMap<NonZeroU32, Candidate>,
     pub(crate) lines: Vec<(NonZeroU32, Line)>,
 }
@@ -73,6 +74,7 @@ impl RunFacts {
             loaded: reply.playbook.as_ref().map(|p| p.number),
             slots: slot_values(reply, mode),
             served: BTreeMap::new(),
+            marked: BTreeSet::new(),
             candidates: BTreeMap::new(),
             lines: Vec::new(),
         }

@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: Every file under docs/adr is NNNN-name.md with a number that no other file has, its line 1 is a heading, its line 3 is a decision line with a UTC timestamp, and every entry under its Amendments heading starts with a date.
+# lane: free
 set -u
 name=31-adr-headers
 
