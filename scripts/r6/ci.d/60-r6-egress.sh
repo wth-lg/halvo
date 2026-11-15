@@ -1260,6 +1260,8 @@ compare_lists() {
 run_checks() {
   i=0
   checks=0
+  expected=0
+  made=
   saved_ifs=$IFS
   set -f
   IFS=$nl
@@ -1274,6 +1276,7 @@ run_checks() {
         continue
         ;;
     esac
+    expected=$((expected + 1))
     # shellcheck disable=SC2086
     set -- $entry
     shift
@@ -1303,6 +1306,7 @@ run_checks() {
         ;;
     esac
     checks=$((checks + 1))
+    made=$made$word$nl
     denied=$((denied + count))
     printf 'egress run=%s mode=%s command=%s denied=%s exit=%s\n' "$word" "$run_mode" "$status" "$count" "$code"
     wrapped_holds "$code" || ran=no
@@ -1317,6 +1321,19 @@ run_checks() {
   if [ "$checks" -eq 0 ]; then
     printf 'egress checks=0: no command of the first list ran\n'
     ran=no
+  fi
+  if [ "$checks" -ne "$expected" ]; then
+    ran=no
+    for word in $run_words; do
+      case $nl$found_commands$nl in
+        *"$nl$word$nl"*) ;;
+        *) continue ;;
+      esac
+      case $nl$made in
+        *"$nl$word$nl"*) ;;
+        *) printf 'egress run-missing=%s (no run of it was made and read)\n' "$word" ;;
+      esac
+    done
   fi
 }
 
@@ -1419,8 +1436,10 @@ check() {
 
   tree_after end
 
-  printf 'egress checks=%s denied=%s entries=%s\n' "$checks" "$denied" "$entries"
-  if [ "$ran" = yes ] && [ "$denied" -eq 0 ]; then
+  if [ "$checks" -gt 0 ] && [ "$checks" -eq "$expected" ]; then
+    printf 'egress checks=%s denied=%s entries=%s\n' "$checks" "$denied" "$entries"
+  fi
+  if [ "$ran" = yes ] && [ "$denied" -eq 0 ] && [ "$checks" -eq "$expected" ]; then
     printf 'denied=0 proves that no process of the wrapped tree opened a connection, sent a datagram of any IP protocol or resolved a name outside the list while the command ran on %s; not verified: %s%swhat a process did after the command ended.\n' \
       "$platform" "$paths" "${paths:+, and }"
     printf '%s\n' 'A connection that the mode stops is stopped whether or not its report arrives; denied=0 says that no report of a denial arrived, and 1 report in 494 runs of one denied probe was lost (reports/verifier-13.md, claim 3).'
@@ -1718,6 +1737,10 @@ case $STUB_CHECK in
     exit
     ;;
 esac
+if [ "$STUB_CHECK:${2:-}" = noline-derive:derive ]; then
+  "$@"
+  exit
+fi
 case $STUB_CHECK:${2:-} in
   rewrite-record:generate | cut-run-list:generate)
     out=
@@ -1916,6 +1939,7 @@ log-link log-that-is-a-link
 list-in-force run-widens-the-list-and-a-later-run-restores-it
 state-in-memory-record run-rewrites-the-record-of-found-commands
 state-in-memory-run-list run-cuts-the-run-list
+checks-equal-found run-without-its-line-names-the-missing-run
 wrapped-verdict command-exits-1
 run-arguments entry-with-no-arguments
 tree-check tracked-file-changed-by-a-run
@@ -1955,6 +1979,7 @@ log-that-is-a-link
 run-widens-the-list-and-a-later-run-restores-it
 run-rewrites-the-record-of-found-commands
 run-cuts-the-run-list
+run-without-its-line-names-the-missing-run
 command-exits-1
 entry-with-no-arguments
 tracked-file-changed-by-a-run
@@ -2843,6 +2868,8 @@ EOF
       fi
     done <"$work/spawn.pids"
   fi
+  STUB_CHECK=noline-derive
+  case_run run-without-its-line-names-the-missing-run FAIL check "egress run-missing=derive" 'egress checks='
   STUB_CHECK=noline-control
   case_run control-without-an-egress-line FAIL check 'egress control line=missing exit=1'
   if [ "$own_job" = macos ] && [ "$host_job" = macos ]; then
