@@ -724,3 +724,35 @@ fn a_link_to_a_named_pipe_at_the_checkpoints_name_fails_the_step_at_once() {
         "the run ended within 20 s: {took:?}"
     );
 }
+
+/// A7.1, CP-207 K2: a fill run whose `planned` row the store answers `{"stored":0}` ends `failed` before `prepare`:
+/// the planned row alone is sent, no file is added beside the workbook and no effect row is sent.
+#[test]
+fn a_planned_row_answered_stored_0_ends_the_run_before_prepare() {
+    let files = FillFiles::new("checkpoint-planned-stored-0", 1);
+    let original = files.workbook_bytes();
+    let names_before = files.names();
+    let sup = fill(185, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_checkpoint(frame, CheckpointState::Planned) {
+                return Act::With(stored(frame, 0));
+            }
+            Act::Answer
+        },
+        LONG,
+    );
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1)],
+        "the planned row alone"
+    );
+    assert!(seen.states().is_empty(), "no effect row");
+    assert_eq!(files.names(), names_before, "no file added");
+    assert_eq!(files.workbook_bytes(), original);
+}
