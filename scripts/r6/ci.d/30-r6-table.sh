@@ -434,6 +434,7 @@ check() {
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
     export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR STUB_FORGE_ARTIFACT STUB_FORGE_FROM STUB_UNLISTED STUB_NO_COMMIT_DIRECTORY
+    export STUB_MARKER
     if [ -n "$STUB_QUIET" ]; then
       CARGO_TERM_QUIET=$STUB_QUIET
       export CARGO_TERM_QUIET
@@ -494,6 +495,7 @@ check() {
   STUB_FORGE_FROM=
   STUB_UNLISTED=
   STUB_NO_COMMIT_DIRECTORY=
+  STUB_MARKER=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -590,6 +592,7 @@ make_stub() {
   STUB_FORGE_FROM=
   STUB_UNLISTED=
   STUB_NO_COMMIT_DIRECTORY=
+  STUB_MARKER=
 }
 
 tree_cases() {
@@ -834,6 +837,9 @@ required_cases() {
   head -n 1 "$work/pristine/$required" >>"$work/repo/$required"
   check list-with-a-line-twice FAIL 'required list=bad'
   restore_repo
+  awk 'NR == 2 { held = $0 } { print } NR == 4 { print held }' "$work/pristine/$required" >"$work/repo/$required" || exit 2
+  check list-with-a-line-twice-in-the-middle FAIL 'required list=bad'
+  restore_repo
 
   stub_case carriage-returns
   awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -849,6 +855,12 @@ required_cases() {
   stub_case whole-run-prints-the-readers-marker
   awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "== r6 table reader ==" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
   check whole-run-prints-the-readers-marker PASS "$want_required"
+  STUB_MARKER=list
+  check listing-prints-the-readers-marker PASS "$want_required"
+  STUB_MARKER=ignored
+  check ignored-listing-prints-the-readers-marker PASS "$want_required"
+  STUB_MARKER=exact
+  check run-alone-prints-the-readers-marker PASS "$want_required"
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -1067,13 +1079,29 @@ fi
 if [ "$kind" = exact ] && [ -n "${STUB_FORGE_ARTIFACT:-}" ]; then
   cp "$STUB_FORGE_FROM" "$CI_D_ARTIFACTS/$STUB_FORGE_ARTIFACT" || exit 98
 fi
+emit() {
+  awk -v cr="$1" -v marker="$2" '
+    /^ *(Running|Doc-tests) / {
+      printf "%s%s\n", $0, cr >"/dev/stderr"
+      fflush()
+      if (marker != "" && !shown++) {
+        printf "%s\n", marker
+        fflush()
+      }
+      next
+    }
+    {
+      printf "%s%s\n", $0, cr
+      fflush()
+    }'
+}
 if [ "${CARGO_TERM_QUIET:-false}" = true ] || [ "${CARGO_TERM_COLOR:-auto}" = always ]; then
   printf '\033[1mcargo setting\033[0m quiet=%s color=%s\n' "${CARGO_TERM_QUIET:-}" "${CARGO_TERM_COLOR:-}"
   exit 0
 fi
 case $kind in
   tests)
-    cat "$STUB_DIR/test.out"
+    emit '' '' <"$STUB_DIR/test.out"
     exit "$STUB_TEST_EXIT"
     ;;
   list | ignored | exact)
@@ -1108,6 +1136,10 @@ case $kind in
     case " ${STUB_CR:-} " in
       *" $kind "*) cr=$(printf '\r') ;;
     esac
+    marker=
+    case " ${STUB_MARKER:-} " in
+      *" $kind "*) marker='== r6 table reader ==' ;;
+    esac
     awk -v kind="$kind" -v dir="$STUB_DIR" -v stems="$stems" -v names="$*" -v not_run=" $STUB_NOT_RUN " \
       -v no_summary=" $STUB_NO_SUMMARY " -v drop=" $STUB_DROP " -v unlisted="${STUB_UNLISTED:-}" '
       BEGIN {
@@ -1137,7 +1169,7 @@ case $kind in
           close(file)
           if (!index(no_summary, " " s " ")) printf "\ntest result: ok. %d passed; 0 failed\n", count
         }
-      }' | awk -v cr="$cr" '{ printf "%s%s\n", $0, cr }'
+      }' | emit "$cr" "$marker"
     [ "$kind" = exact ] && exit "${STUB_RUN_EXIT:-0}"
     exit 0
     ;;
