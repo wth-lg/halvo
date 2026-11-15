@@ -49,6 +49,10 @@ cargo_failed() {
   fail "$cause"
 }
 
+has_a_remote_named_origin() {
+  git remote get-url origin >/dev/null 2>&1
+}
+
 unreleased_entries() {
   awk '{ sub(/[ \t\r]+$/, "") } $0 == "## [Unreleased]" { on = 1; next } /^## / { on = 0 } on && /^- / { n++ } END { print n + 0 }' CHANGELOG.md
 }
@@ -159,7 +163,7 @@ case "$next" in
 esac
 headings=$(awk -v version="$next" '{ sub(/[ \t\r]+$/, "") } index($0, "## [" version "] ") == 1 || $0 == "## [" version "]" { n++ } END { print n + 0 }' CHANGELOG.md)
 [ "$headings" = 0 ] || fail "CHANGELOG.md already holds a heading of $next, so the release would add a second one; nothing was released"
-if [ "$mode" = --execute ] && git remote get-url origin >/dev/null 2>&1; then
+if [ "$mode" = --execute ] && has_a_remote_named_origin; then
   newest=$(git ls-remote origin refs/heads/main) || fail "git ls-remote origin refs/heads/main failed, so main's newest commit cannot be read; nothing was released"
   newest=$(printf '%s\n' "$newest" | cut -f 1)
   [ -n "$newest" ] || fail "origin has no branch main, so main's newest commit cannot be read; nothing was released"

@@ -302,6 +302,42 @@ pre-release-commit-message = "Release 1.2.4"' template_case template-left-in-the
   refused_before_cargo_release main-one-commit-behind-origin 'is not the newest commit of main on origin' --execute
   git -C "$repo" checkout -q -B main origin/main
   release_case main-at-the-newest-commit-of-origin 0 yes 'next version: 1.2.4' --execute
+  mkdir -p "$work/gitbin"
+  STUB_REAL_GIT=$(command -v git)
+  export STUB_REAL_GIT
+  cat >"$work/gitbin/git" <<'GITSTUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$STUB_GIT_LOG"
+exec "$STUB_REAL_GIT" "$@"
+GITSTUB
+  chmod +x "$work/gitbin/git"
+  logged_case() {
+    case_name=$1
+    shift
+    status=0
+    (cd "$repo" && PATH="$work/gitbin:$work/bin:$PATH" STUB_LOG=$work/argv-$case_name STUB_GIT_LOG=$work/git-$case_name CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$work/argv-$case_name"
+    : >>"$work/git-$case_name"
+  }
+  repository no-remote "$typed"
+  git -C "$repo" checkout -q -B main
+  logged_case no-remote-makes-no-ls-remote --execute
+  got=FAIL
+  [ "$status" = 0 ] && ! grep -q -w ls-remote "$work/git-no-remote-makes-no-ls-remote" && got=PASS
+  verdict no-remote-makes-no-ls-remote PASS "$got"
+  logged_case no-level-gives-patch --dry-run
+  got=FAIL
+  [ "$status" = 0 ] && grep -q -x 'release version patch' "$work/argv-no-level-gives-patch" && grep -q '^release patch --config' "$work/argv-no-level-gives-patch" && got=PASS
+  verdict no-level-gives-patch PASS "$got"
+  repository pushes-nothing "$typed"
+  git -C "$repo" checkout -q -B main
+  git clone -q --bare "$repo" "$work/origin-of-pushes-nothing.git" || exit 2
+  git -C "$repo" remote add origin "$work/origin-of-pushes-nothing.git"
+  git -C "$repo" fetch -q origin
+  logged_case no-call-pushes --execute
+  got=FAIL
+  [ "$status" = 0 ] && grep -q -w ls-remote "$work/git-no-call-pushes" && ! grep -q -w push "$work/git-no-call-pushes" "$work/argv-no-call-pushes" && got=PASS
+  verdict no-call-pushes PASS "$got"
   repository shallow-source "$typed"
   git -C "$repo" commit -q --allow-empty -m 'A second commit'
   git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2
