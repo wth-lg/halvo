@@ -1990,13 +1990,19 @@ pub(crate) mod tests {
             row(pid("check.pid")),
             row(pid("log.pid")),
         );
-        let started: Vec<&crate::procs::Proc> =
-            [&browser, &shell, &log].into_iter().flatten().collect();
-        let _rows = crate::procs::fence::admit(crate::procs::fence::Admits {
-            pairs: started.iter().map(|p| (p.pid, p.started_us)).collect(),
+        let own_check = check.to_string_lossy().into_owned();
+        let shell_is_own = shell.as_ref().is_some_and(|s| {
+            crate::checks::command_args(s.pid).is_some_and(|a| a.contains(&own_check))
+        });
+        let _shell = crate::procs::fence::admit(crate::procs::fence::Admits {
+            pairs: shell
+                .iter()
+                .filter(|_| shell_is_own)
+                .map(|p| (p.pid, p.started_us))
+                .collect(),
             dirs: Vec::new(),
         });
-        for p in started {
+        for p in [&browser, &log, &shell].into_iter().flatten() {
             crate::procs::kill(p);
         }
         assert!(

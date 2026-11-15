@@ -56,9 +56,14 @@ fn a_hang_with_no_policy_is_no_ok_org_run() {
         .env_remove("R3_ORG_VALUE_READ")
         .env_remove("R3_ORG_VALUE_WANT")
         .env_remove("R3_ORG_PAGE_NAMED")
+        .env(
+            r3_web::procs::fence::VAR,
+            std::fs::canonicalize(&dir).unwrap(),
+        )
         .stdin(std::process::Stdio::null())
         .start_output()
         .unwrap();
+    assert_no_refusal(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
     let run = stdout
         .lines()
@@ -112,6 +117,10 @@ fn org_lines(tag: &str, facts: &[(&str, &str)]) -> String {
             "--step",
             "org_debugging",
         ])
+        .env(
+            r3_web::procs::fence::VAR,
+            std::fs::canonicalize(&dir).unwrap(),
+        )
         .stdin(std::process::Stdio::null());
     for k in [
         "R3_ORG_CONTROL_BEFORE",
@@ -126,7 +135,21 @@ fn org_lines(tag: &str, facts: &[(&str, &str)]) -> String {
         cmd.env(k, v);
     }
     let out = cmd.start_output().unwrap();
+    assert_no_refusal(&out.stderr);
     String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+/// The program runs with its fence on the test's own directory (`R3_WEB_FENCE_BELOW`, CP-161 (3)):
+/// a `fence_refused` line on its standard error fails the test.
+fn assert_no_refusal(stderr: &[u8]) {
+    let refused = String::from_utf8_lossy(stderr)
+        .lines()
+        .filter(|l| l.starts_with("fence_refused "))
+        .count();
+    assert_eq!(
+        refused, 0,
+        "the program's fence refused an end outside the test's directory"
+    );
 }
 
 /// CP-137 (1): a page that the job read and that does not name the setting shows no policy in
