@@ -217,6 +217,16 @@ All notable changes are recorded in this file.
     [ "$status" = "$want_status" ] && [ "$called" = "$want_cargo" ] && grep -q -F -e "$want_text" "$work/out-$case_name" && got=PASS
     if [ "$want_status" = 0 ]; then verdict "$case_name" PASS "$got"; elif [ "$got" = PASS ]; then verdict "$case_name" FAIL FAIL; else verdict "$case_name" FAIL PASS; fi
   }
+  refused_before_cargo_release() {
+    case_name=$1 want_text=$2
+    shift 2
+    log=$work/argv-$case_name
+    status=0
+    (cd "$repo" && PATH="$work/bin:$PATH" STUB_LOG=$log CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    got=PASS
+    if [ "$status" = 1 ] && grep -q -F -e "$want_text" "$work/out-$case_name" && ! grep -q -E '^release (patch|minor|major) --config' "$log"; then got=FAIL; fi
+    verdict "$case_name" FAIL "$got"
+  }
   typed='- Fixed: Mend the first fault
 - Added: Add the feature
 - Fixed: Mend the second fault'
@@ -315,7 +325,7 @@ error: release of halvo aborted by non-zero return of prerelease hook."
   release_case released-sections-as-at-the-tag 0 yes 'next version: 1.2.4' --dry-run
   printf '%s\n' '- Added: Slip a line into a released section' >>"$repo/CHANGELOG.md"
   git -C "$repo" commit -q -a -m 'Add a line below a release'
-  release_case line-below-a-released-section 1 no 'differ from those at v1.2.3' --dry-run
+  refused_before_cargo_release line-below-a-released-section 'differ from those at v1.2.3' --dry-run
   repository crlf-after-a-release "$typed
 ## [1.2.3] - 2026-11-01
 
@@ -324,21 +334,11 @@ error: release of halvo aborted by non-zero return of prerelease hook."
   sed 's/$/\r/' "$repo/CHANGELOG.md" >"$repo/CHANGELOG.crlf" && mv "$repo/CHANGELOG.crlf" "$repo/CHANGELOG.md"
   git -C "$repo" commit -q -a -m 'Check out the changelog with CRLF'
   release_case second-release-in-a-crlf-tree 0 yes 'next version: 1.2.4' --dry-run
-  refused_before_cargo_release() {
-    case_name=$1 want_text=$2
-    shift 2
-    log=$work/argv-$case_name
-    status=0
-    (cd "$repo" && PATH="$work/bin:$PATH" STUB_LOG=$log CARGO_HOME=$work/no-cargo-home sh scripts/release.sh "$@") >"$work/out-$case_name" 2>&1 || status=$?
-    got=PASS
-    if [ "$status" = 1 ] && grep -q -F -e "$want_text" "$work/out-$case_name" && ! grep -q -E '^release (patch|minor|major) --config' "$log"; then got=FAIL; fi
-    verdict "$case_name" FAIL "$got"
-  }
   repository heading-of-the-next-version "$typed
 ## [1.2.4] - 2020-01-01
 
 - Added: Add the store"
-  refused_before_cargo_release heading-of-the-next-version-exists 'already holds a heading of 1.2.4' --dry-run
+  refused_before_cargo_release heading-of-the-next-version-exists 'remove the heading ## [1.2.4]' --dry-run
   repository behind-origin "$typed"
   git -C "$repo" checkout -q -B main
   git clone -q --bare "$repo" "$work/origin-of-behind.git" || exit 2
@@ -346,7 +346,18 @@ error: release of halvo aborted by non-zero return of prerelease hook."
   git -C "$repo" commit -q --allow-empty -m 'A commit that origin gets'
   git -C "$repo" push -q origin main
   git -C "$repo" checkout -q -B main HEAD~1
-  refused_before_cargo_release main-one-commit-behind-origin 'is not the newest commit of main on origin' --execute
+  refused_before_cargo_release main-one-commit-behind-origin 'run git pull --ff-only origin main, then run this again' --execute
+  git -C "$repo" checkout -q -B main origin/main
+  git -C "$repo" commit -q --allow-empty -m 'A commit that origin lacks'
+  refused_before_cargo_release main-one-commit-ahead-of-origin 'main here holds 1 commits that origin' --execute
+  git -C "$repo" checkout -q -B main HEAD~1
+  git clone -q "$work/origin-of-behind.git" "$work/second-clone-of-behind" || exit 2
+  git -C "$work/second-clone-of-behind" commit -q --allow-empty -m 'A commit that this clone lacks'
+  git -C "$work/second-clone-of-behind" push -q origin HEAD:main
+  refused_before_cargo_release newest-commit-of-origin-absent-here 'run git fetch origin main and compare' --execute
+  git -C "$repo" fetch -q origin
+  git -C "$repo" commit -q --allow-empty -m 'A commit beside the newest of origin'
+  refused_before_cargo_release main-diverged-from-origin 'have diverged' --execute
   git -C "$repo" checkout -q -B main origin/main
   STUB_ACTION=commit-tag
   export STUB_ACTION
@@ -442,6 +453,19 @@ GITSTUB
   refused_before_cargo_release release-commit-without-its-tag 'git reset --hard HEAD~1' --dry-run
   git -C "$repo" tag v1.2.3
   release_case release-commit-with-its-tag 0 yes 'next version: 1.2.4' --dry-run
+  repository heading-in-a-shallow-clone "$typed
+## [1.2.4] - 2020-01-01
+
+- Added: Add the store"
+  git -C "$repo" checkout -q -B main
+  git -C "$repo" commit -q --allow-empty -m 'A second commit'
+  git clone -q --depth 1 "file://$repo" "$work/shallow-with-a-heading" || exit 2
+  repo=$work/shallow-with-a-heading
+  { git -C "$repo" for-each-ref; git -C "$repo" tag --list; cat "$repo/.git/shallow"; } >"$work/heading-shallow-before"
+  refused_before_cargo_release heading-refuses-a-shallow-execute-before-any-fetch 'remove the heading ## [1.2.4]' --execute
+  { git -C "$repo" for-each-ref; git -C "$repo" tag --list; cat "$repo/.git/shallow"; } >"$work/heading-shallow-after"
+  cmp -s "$work/heading-shallow-before" "$work/heading-shallow-after" && got=PASS || got=FAIL
+  verdict heading-refusal-made-no-fetch PASS "$got"
   repository shallow-source "$typed"
   git -C "$repo" commit -q --allow-empty -m 'A second commit'
   git clone -q --depth 1 "file://$repo" "$work/repo-shallow" || exit 2
@@ -452,7 +476,7 @@ GITSTUB
     cat "$repo/.git/shallow"
   }
   shallow_state >"$work/shallow-before"
-  release_case dry-run-in-a-shallow-clone 1 no 'git fetch --unshallow --tags origin' --dry-run
+  refused_before_cargo_release dry-run-in-a-shallow-clone 'git fetch --unshallow --tags origin' --dry-run
   shallow_state >"$work/shallow-after"
   cmp -s "$work/shallow-before" "$work/shallow-after" && got=PASS || got=FAIL
   verdict dry-run-in-a-shallow-clone-changes-nothing PASS "$got"

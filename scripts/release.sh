@@ -26,6 +26,9 @@ Releases Halvo with cargo-release, one version for every package of the workspac
       reads main's newest commit there with git ls-remote and refuses unless
       HEAD is that commit; a clone with no remote named origin is the one case
       without that read.
+      In a shallow clone it fetches the whole history and the tags from origin
+      first (git fetch --unshallow --tags origin), after the checks that read no
+      history; a dry run refuses a shallow clone and names that command.
   sh scripts/release.sh --help
       Prints this text.
 
@@ -187,20 +190,6 @@ if [ -n "$present" ] && [ "$subject" = "Release $present" ]; then
 fi
 entries=$(unreleased_entries)
 [ "$entries" -gt 0 ] || fail "## [Unreleased] in CHANGELOG.md holds no entry, so there is nothing to release"
-shallow=$(git rev-parse --is-shallow-repository)
-if [ "$shallow" = true ]; then
-  [ "$mode" = --execute ] ||
-    fail "this clone is shallow, so the released sections of CHANGELOG.md cannot be compared with the last tag; a dry run changes nothing, so run git fetch --unshallow --tags origin and then the dry run again"
-  git fetch --quiet --unshallow --tags origin ||
-    fail "this clone is shallow and git fetch --unshallow --tags origin failed, so the released sections of CHANGELOG.md cannot be compared with the last tag"
-fi
-last_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null) || last_tag=
-if [ -n "$last_tag" ]; then
-  at_tag=$(git show "$last_tag:CHANGELOG.md" | released_sections)
-  now=$(released_sections <CHANGELOG.md)
-  [ "$now" = "$at_tag" ] ||
-    fail "the released sections of CHANGELOG.md differ from those at $last_tag; a change of a released entry is a new entry under ## [Unreleased]"
-fi
 
 plan=$(cargo release version "$level" 2>&1) || {
   printf '%s\n' "$plan" >&2
@@ -211,14 +200,8 @@ case "$next" in
   ''|*[!0-9.]*) printf '%s\n' "$plan" >&2; fail "cargo release version $level names no single next version of the package halvo" ;;
 esac
 headings=$(awk -v version="$next" '{ sub(/[ \t\r]+$/, "") } index($0, "## [" version "] ") == 1 || $0 == "## [" version "]" { n++ } END { print n + 0 }' CHANGELOG.md)
-[ "$headings" = 0 ] || fail "CHANGELOG.md already holds a heading of $next, so the release would add a second one; nothing was released"
-if [ "$mode" = --execute ] && has_a_remote_named_origin; then
-  newest=$(git ls-remote origin refs/heads/main) || fail "git ls-remote origin refs/heads/main failed, so main's newest commit cannot be read; nothing was released"
-  newest=$(printf '%s\n' "$newest" | cut -f 1)
-  [ -n "$newest" ] || fail "origin has no branch main, so main's newest commit cannot be read; nothing was released"
-  here=$(git rev-parse HEAD)
-  [ "$here" = "$newest" ] || fail "HEAD is not the newest commit of main on origin ($newest); update main to it first; nothing was released"
-fi
+[ "$headings" = 0 ] ||
+  fail "CHANGELOG.md already holds a heading of $next, so the release would add a second one: remove the heading ## [$next] and move its entries to the end of the list under ## [Unreleased], or release a higher level; nothing was released"
 mkdir -p target
 settings=target/release-commit-message.toml
 printf 'pre-release-commit-message = "Release %s"\n' "$next" >"$settings"
@@ -234,6 +217,38 @@ for pair in "commit message:$message" "tag name:$tag" "tag message:$tag_message"
     ''|*'{{'*) fail "the ${pair%%:*} would hold a template or nothing ('${pair#*:}'), so nothing was released" ;;
   esac
 done
+
+shallow=$(git rev-parse --is-shallow-repository)
+if [ "$shallow" = true ]; then
+  [ "$mode" = --execute ] ||
+    fail "this clone is shallow, so the released sections of CHANGELOG.md cannot be compared with the last tag; a dry run changes nothing, so run git fetch --unshallow --tags origin and then the dry run again"
+  git fetch --quiet --unshallow --tags origin ||
+    fail "this clone is shallow and git fetch --unshallow --tags origin failed, so the released sections of CHANGELOG.md cannot be compared with the last tag"
+fi
+last_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null) || last_tag=
+if [ -n "$last_tag" ]; then
+  at_tag=$(git show "$last_tag:CHANGELOG.md" | released_sections)
+  now=$(released_sections <CHANGELOG.md)
+  [ "$now" = "$at_tag" ] ||
+    fail "the released sections of CHANGELOG.md differ from those at $last_tag; a change of a released entry is a new entry under ## [Unreleased]"
+fi
+
+if [ "$mode" = --execute ] && has_a_remote_named_origin; then
+  newest=$(git ls-remote origin refs/heads/main) || fail "git ls-remote origin refs/heads/main failed, so main's newest commit cannot be read; nothing was released"
+  newest=$(printf '%s\n' "$newest" | cut -f 1)
+  [ -n "$newest" ] || fail "origin has no branch main, so main's newest commit cannot be read; nothing was released"
+  here=$(git rev-parse HEAD)
+  if [ "$here" != "$newest" ]; then
+    if git merge-base --is-ancestor "$here" "$newest" 2>/dev/null; then
+      fail "main here is behind origin's main ($newest): run git pull --ff-only origin main, then run this again; nothing was released"
+    elif git merge-base --is-ancestor "$newest" "$here" 2>/dev/null; then
+      ahead=$(git rev-list --count "$newest..$here")
+      fail "main here holds $ahead commits that origin's main does not have (git log origin/main..main lists them); a release starts from origin's newest main: get those commits merged by a pull request first, or release from a fresh clone; nothing was released"
+    else
+      fail "HEAD and origin's main have diverged, or this clone lacks origin's newest commit ($newest): run git fetch origin main and compare; nothing was released"
+    fi
+  fi
+fi
 
 if [ "$mode" = --execute ]; then
   tracked=$(git status --porcelain --untracked-files=no)
