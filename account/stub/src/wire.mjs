@@ -11,20 +11,6 @@ const VALUE_BAD = /[\r\n\x00]/;
 const BLANK = (code) => code === 0x20 || code === 0x09;
 const CHUNK_SIZE = /^([0-9A-Fa-f]{1,13})(?:[ \t]*;[^\r\n\x00]*)?$/;
 const CRLF = Buffer.from("\r\n");
-const LF = 0x0a;
-const CR = 0x0d;
-
-function headEnd(buffer) {
-  for (let from = 0; ; ) {
-    const lf = buffer.indexOf(LF, from);
-    if (lf < 0) return null;
-    if (buffer[lf + 1] === LF) return { end: lf, next: lf + 2 };
-    if (buffer[lf + 1] === CR && buffer[lf + 2] === LF) return { end: lf, next: lf + 3 };
-    from = lf + 1;
-  }
-}
-
-const unCR = (line) => (line.endsWith("\r") ? line.slice(0, -1) : line);
 
 function field(line) {
   const colon = line.indexOf(":");
@@ -52,19 +38,16 @@ function fields(lines) {
 const values = (list, name) => list.filter(([key]) => key.toLowerCase() === name).map(([, value]) => value);
 
 /**
- * Makes a reader of HTTP/1.1 requests from the bytes of one connection, in order. A line of a head ends in LF, with
- * one CR before it dropped (RFC 9112 section 2.2); the lines of a chunked body end in CRLF. `feed(chunk)` takes the next bytes
+ * Makes a reader of HTTP/1.1 requests from the bytes of one connection, in order. `feed(chunk)` takes the next bytes
  * and `end()` says that the peer sent no more. For each whole request it calls `request(message)` with
  * `{method, target, version, headers, trailers, body}`, the fields as [name, value] pairs in the order received, each
  * byte as one character, and the first BODY_CAP bytes of the body; `request` returns true to read the next request
  * and false to stop. For bytes that are no request it calls `malformed(cause)` once and reads nothing more; the cause
  * is one of `head-too-large`, `request-line`, `field-line`, `framing`, `content-length`, `transfer-encoding`,
  * `chunk`, `incomplete`, `idle`. `idle()` says that the peer sent nothing for the idle limit: inside a request it
- * calls `malformed("idle")` and returns true, and with no byte of a request read it returns false. Before it reads
- * the head of each request it asks `full()`; while that is true it holds the bytes and reads on at `resume()`. When
- * an HTTP/1.1 head expects `100-continue` and a body is to follow, it calls `interim()` before it reads the body.
+ * calls `malformed("idle")` and returns true, and with no byte of a request read it returns false.
  */
-export function makeReader({ request, malformed, full = () => false, interim = () => {} }) {
+export function makeReader({ request, malformed }) {
   let buffer = Buffer.alloc(0);
   let state = "head";
   let message = null;
@@ -100,24 +83,15 @@ export function makeReader({ request, malformed, full = () => false, interim = (
     return part;
   };
 
-  function awaitBody() {
-    const expectations = values(message.headers, "expect").flatMap((value) => value.split(","));
-    if (message.version === "1.1" && expectations.some((token) => token.trim().toLowerCase() === "100-continue")) interim();
-  }
-
   function head() {
-    for (;;) {
-      if (buffer[0] === LF) take(1);
-      else if (buffer[0] === CR && buffer[1] === LF) take(2);
-      else break;
-    }
-    const found = headEnd(buffer);
-    if (found === null) {
+    while (buffer.subarray(0, 2).equals(CRLF)) take(2);
+    const end = buffer.indexOf("\r\n\r\n");
+    if (end < 0) {
       if (buffer.length > HEAD_MAX + 3) fail("head-too-large");
       return false;
     }
-    if (found.end - (buffer[found.end - 1] === CR ? 1 : 0) > HEAD_MAX) return stop("head-too-large");
-    const [first, ...rest] = take(found.next).subarray(0, found.end).toString("latin1").split("\n").map(unCR);
+    if (end > HEAD_MAX) return stop("head-too-large");
+    const [first, ...rest] = take(end + 4).subarray(0, end).toString("latin1").split("\r\n");
     const line = REQUEST_LINE.exec(first);
     if (line === null) return stop("request-line");
     const headers = fields(rest);
@@ -129,17 +103,12 @@ export function makeReader({ request, malformed, full = () => false, interim = (
     if (encodings.length > 0) {
       if (encodings.join(",").trim().toLowerCase() !== "chunked") return stop("transfer-encoding");
       state = "size";
-      awaitBody();
       return true;
     }
     if (lengths.some((value) => !/^[0-9]{1,15}$/.test(value) || value !== lengths[0])) return stop("content-length");
     remaining = lengths.length > 0 ? Number(lengths[0]) : 0;
-    if (remaining === 0) {
-      finish();
-    } else {
-      state = "length";
-      awaitBody();
-    }
+    if (remaining === 0) finish();
+    else state = "length";
     return true;
   }
 
@@ -155,7 +124,7 @@ export function makeReader({ request, malformed, full = () => false, interim = (
   function step() {
     for (;;) {
       if (state === "head") {
-        if (full() || !head()) return;
+        if (!head()) return;
       } else if (state === "length" || state === "data") {
         if (buffer.length === 0) return;
         const part = take(remaining);
@@ -199,9 +168,6 @@ export function makeReader({ request, malformed, full = () => false, interim = (
       if (state === "done") return;
       buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk]);
       step();
-    },
-    resume() {
-      if (state !== "done") step();
     },
     idle() {
       if (state === "done") return false;

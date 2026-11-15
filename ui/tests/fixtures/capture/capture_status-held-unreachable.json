@@ -1,0 +1,26 @@
+{
+  "capture": null,
+  "capture_reason": null,
+  "desired": null,
+  "drain": null,
+  "expiry": null,
+  "ext": null,
+  "last_exit": null,
+  "lease": null,
+  "loss": null,
+  "lost_grants": null,
+  "password_guard": null,
+  "platform": "macos",
+  "screen_filter_excludes_app": null,
+  "service": "held_unreachable",
+  "sources": null,
+  "store": null,
+  "store_bytes": null,
+  "store_cap_bytes": null,
+  "store_logical_bytes": null,
+  "texts": null,
+  "window": {
+    "first_report_day": 7,
+    "rolling_days": 14
+  }
+}
