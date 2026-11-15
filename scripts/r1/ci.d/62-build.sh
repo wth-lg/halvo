@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration at the root of the checkout or one directory below it and no tracked one that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
 set -u
 name=62-build
 shipped_packages='halvo halvo-capture'
@@ -87,7 +87,7 @@ cargo_config_defect() {
   shift
   if [ -n "$untracked" ]; then
     first=$(printf '%s\n' "$untracked" | head -n 1)
-    printf 'the cargo configuration %s is no tracked file\n' "$first"
+    printf 'the cargo configuration %s is no tracked file; check 62 refuses an untracked .cargo/config or .cargo/config.toml at any depth of the checkout\n' "$first"
     return 1
   fi
   for file in "$@"; do

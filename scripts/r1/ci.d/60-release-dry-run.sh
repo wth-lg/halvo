@@ -274,7 +274,7 @@ All notable changes are recorded in this file.
   help_status=0
   (cd "$repo" && sh scripts/release.sh --help) >"$work/help.txt" 2>&1 || help_status=$?
   missing=
-  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'defaults to patch' "owner's own steps"; do
+  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps"; do
     grep -q -F -e "$fact" "$work/help.txt" || missing="$missing [$fact]"
   done
   got=FAIL

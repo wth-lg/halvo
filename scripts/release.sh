@@ -27,9 +27,15 @@ Releases Halvo with cargo-release, one version for every package of the workspac
       reads main's newest commit there with git ls-remote and refuses unless
       HEAD is that commit; a clone with no remote named origin is the one case
       without that read.
+      Before that read, and before any fetch, it refuses a tracked file that
+      differs from HEAD, a tracked file that carries an index flag in
+      git ls-files -v (assume-unchanged or skip-worktree), and a clone where git
+      can name no committer.
       In a shallow clone it fetches the whole history and the tags from origin
       first (git fetch --unshallow --tags origin), after the checks that read no
       history; a dry run refuses a shallow clone and names that command.
+      When cargo-release fails, the script puts the clone back to the commit it
+      started from and deletes the tags that the run made, and says so.
   sh scripts/release.sh --help
       Prints this text.
 
