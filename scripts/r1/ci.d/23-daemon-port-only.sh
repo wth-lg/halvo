@@ -247,7 +247,8 @@ to build for a path, a glob, a re-export and a macro that name them, the four
 forms below among them. What the crate exports stays nameable from a daemon
 file and is refused by this check and by review: EncryptedStore, the trait
 SegmentStore, the store's error and shred types, and rusqlite through the
-crate halvo-sqlcipher. These forms pass this check, and the build refuses each:
+crate halvo-sqlcipher. These forms pass this check, and the build refuses each
+for the store-private items of the examples:
 - a use line with the name store right behind the brace:
   use {store as backing, sink};
 - self::store after the one allowed use super::*; in daemon/mod.rs, where the

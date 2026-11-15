@@ -707,12 +707,18 @@ boundary (ruling DM-7): the store's database type cannot be named outside
 crate::store, and 30-core-boundary-proofs fails when the lib's test build
 reads a file of the daemon that its product build does not read and that is
 no test support, whatever spelling declares it. This check refuses the
-listed forms of a module of the daemon alone; this form, for one, passes it:
+listed forms of a module of the daemon alone; these forms, among others,
+pass it:
 - a line mod state; inside a block comment of daemon/mod.rs, which the check
   counts as the plain mod line that names daemon/state.rs. With it, a macro
   defined in lib.rs that declares the module under cfg(test), called in
   daemon/mod.rs with no argument, builds the module in the test build alone,
   and 30-core-boundary-proofs refuses it.
+- a macro that writes the allowance from its argument, as
+  macro_rules! quiet { ($lint:ident, $($item:item)*) => { $(#[allow($lint)] $item)* } }
+  called with dead_code in a daemon file; rustc applies the allowance.
+- an allowance split over two lines by a line comment, #[allow( // on one
+  line and dead_code)] on the next; rustc reads it as allow(dead_code).
 A flag that a person sets in the shell of their own machine, a cargo config
 file above the repository, and a flag that a script builds from parts are
 outside what it reads.
