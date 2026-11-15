@@ -305,17 +305,20 @@ BEGIN {
   for (i = 1; i <= ns; i++) {
     p = seen[i]
     if (!(p in want)) {
-      printf "test-dirs unknown=%s places=%d\n", p, got[p]
+      printf "test-dirs unknown=%s places=%d: take halvo_test_dir::make there; the known list in scripts/r3/ci.d/15-r3-test-dirs.sh may not grow\n", p, got[p]
       faults++
-    } else if (got[p] != want[p]) {
-      printf "test-dirs count=%s places=%d known=%d\n", p, got[p], want[p]
+    } else if (got[p] > want[p]) {
+      printf "test-dirs count=%s places=%d known=%d: take halvo_test_dir::make at the new place; the known list in scripts/r3/ci.d/15-r3-test-dirs.sh may not grow\n", p, got[p], want[p]
+      faults++
+    } else if (got[p] < want[p]) {
+      printf "test-dirs count=%s places=%d known=%d: set its row in known() to %d and lower pinned_places beside it in scripts/r3/ci.d/15-r3-test-dirs.sh\n", p, got[p], want[p], got[p]
       faults++
     }
   }
   for (i = 1; i <= nk; i++) {
     p = order[i]
     if (!(p in got)) {
-      printf "test-dirs gone=%s known=%d\n", p, want[p]
+      printf "test-dirs gone=%s known=%d: take its row out of known() and lower pinned_rows, pinned_places and pinned_paths beside it in scripts/r3/ci.d/15-r3-test-dirs.sh\n", p, want[p]
       faults++
     }
   }
@@ -645,6 +648,25 @@ self_test() {
   repo maker-loop-break
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let mut n = 0u32;\n    loop {\n        let dir = base.join(format!("x-{}-{n}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            break dir;\n        }\n        n += 1;\n    }\n}\n'
   case_of maker-loop-break PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo unknown-line-names-the-fix
+  put crates/a/tests/t.rs "$place"
+  case_of unknown-line-names-the-fix FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1: take halvo_test_dir::make there; the known list in scripts/r3/ci.d/15-r3-test-dirs.sh may not grow'
+
+  repo count-up-line-names-the-fix
+  put crates/a/tests/t.rs "$place\n$place"
+  printf 'crates/a/tests/t.rs 1 a run\n' >"$work/count-up-line-names-the-fix.known" || broken known
+  case_of count-up-line-names-the-fix FAIL 'test-dirs count=crates/a/tests/t.rs places=2 known=1: take halvo_test_dir::make at the new place; the known list in scripts/r3/ci.d/15-r3-test-dirs.sh may not grow'
+
+  repo count-down-line-names-the-fix
+  put crates/a/tests/t.rs "$place"
+  printf 'crates/a/tests/t.rs 2 a run\n' >"$work/count-down-line-names-the-fix.known" || broken known
+  case_of count-down-line-names-the-fix FAIL 'test-dirs count=crates/a/tests/t.rs places=1 known=2: set its row in known() to 1 and lower pinned_places beside it in scripts/r3/ci.d/15-r3-test-dirs.sh'
+
+  repo gone-line-names-the-fix
+  put crates/a/tests/t.rs 'fn f() {}\n'
+  printf 'crates/a/tests/t.rs 1 a run\n' >"$work/gone-line-names-the-fix.known" || broken known
+  case_of gone-line-names-the-fix FAIL 'test-dirs gone=crates/a/tests/t.rs known=1: take its row out of known() and lower pinned_rows, pinned_places and pinned_paths beside it in scripts/r3/ci.d/15-r3-test-dirs.sh'
 
   repo row-added-with-its-place
   put crates/a/tests/t.rs "$place"

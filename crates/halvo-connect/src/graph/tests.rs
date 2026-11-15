@@ -330,8 +330,12 @@ fn a_panic_while_the_ports_are_held_leaves_them_usable() {
     })
     .join();
     assert!(panicked.is_err());
-    let (_ports, port) = closed_port();
-    assert_ne!(port, 0);
+    assert!(
+        PORTS.is_poisoned(),
+        "the panic left the ports lock poisoned"
+    );
+    let (held, _port) = closed_port();
+    drop(held);
 }
 
 #[test]
