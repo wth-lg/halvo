@@ -202,6 +202,52 @@ fn moment_the_pair_turns_true_with_no_notice_and_no_reading_and_a_press_takes_th
 }
 
 #[test]
+fn moment_a_press_that_reads_both_for_the_first_time_outside_the_modal_window_takes_the_moment() {
+    let mut show = Show::new();
+    assert_eq!(
+        show.press(TRUE, false, 300),
+        Decision::Refused { moment: Some(true) },
+        "the moment is taken before the modal fact is read, and the press is refused"
+    );
+    assert_eq!(show.reports, 1, "the press made the report");
+}
+
+#[test]
+fn moment_after_a_moment_taken_outside_the_modal_window_a_press_arm_ms_after_the_return_answers() {
+    // The report returns only after a report was made, as the alert's waiting thread calls it.
+    let mut show = Show::new();
+    show.press(TRUE, false, 300);
+    if show.reports == 1 {
+        show.returned(400);
+    }
+    assert_eq!(
+        show.press(TRUE, true, 899),
+        Decision::Refused { moment: None },
+        "arm_ms minus 1 after the return"
+    );
+    assert_eq!(
+        show.press(TRUE, true, 1_398),
+        Decision::Refused { moment: None },
+        "arm_ms minus 1 after the press that the hold refused"
+    );
+    assert_eq!(
+        show.press(TRUE, true, 1_898),
+        Decision::Answer,
+        "arm_ms after the last refused press, in the modal window"
+    );
+    let mut show = Show::new();
+    show.press(TRUE, false, 300);
+    if show.reports == 1 {
+        show.returned(400);
+    }
+    assert_eq!(
+        show.press(TRUE, true, 900),
+        Decision::Answer,
+        "arm_ms after the return, in the modal window"
+    );
+}
+
+#[test]
 fn moment_readings_of_true_after_true_leave_the_hold_where_it_was() {
     let mut show = Show::reported();
     assert_eq!(show.reading(TRUE, 300), Decision::Nothing);
