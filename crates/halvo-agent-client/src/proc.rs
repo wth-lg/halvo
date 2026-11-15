@@ -15,6 +15,8 @@ use crate::sys;
 
 const GONE_WAIT: Duration = Duration::from_secs(5);
 const POLL: Duration = Duration::from_millis(20);
+#[cfg(windows)]
+const SETTLE: Duration = Duration::from_secs(1);
 
 /// The runner that this life made: its child, which stays unreaped until the library has done with its group, the
 /// facts of its mark's lines, and on Windows the job that holds it.
@@ -550,9 +552,24 @@ impl RunProc {
         #[cfg(target_os = "macos")]
         let living = browser;
         #[cfg(windows)]
-        let living = browser || self.job.active_processes().is_some_and(|n| n > 0);
+        let living = browser || self.job_left();
         self.end_browser_or_job();
         self.note(living.then_some(browser));
+    }
+
+    /// Whether a process is left in the run's job once the runner has exited. The job's count can still hold the
+    /// exited runner, or the console host that the system started for it, for a moment after the runner's exit, so
+    /// the count is read again until it is 0 or `SETTLE` has passed; a process that is still there then is left.
+    #[cfg(windows)]
+    fn job_left(&self) -> bool {
+        let deadline = Instant::now() + SETTLE;
+        loop {
+            match self.job.active_processes() {
+                Some(0) => return false,
+                _ if Instant::now() >= deadline => return true,
+                _ => thread::sleep(POLL),
+            }
+        }
     }
 
     fn end_browser_or_job(&mut self) {
