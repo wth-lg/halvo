@@ -1975,18 +1975,21 @@ own_self_test() {
   case_max_s=30
   case_witness=yes
   own_case own-cases-past-the-limit 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
+  new_repo
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=hold
   case_limit=3
   case_max_s=40
   case_witness=yes
   own_case own-cases-past-the-limit-end-the-running-case 1 'FAIL self-test:run-ci-d (time limit 3 s)' macos --self-test run-ci-d
+  new_repo
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=late
   case_limit=2
   case_max_s=60
   case_witness=yes
   own_case own-cases-stopped-while-the-running-case-starts-its-driver 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
+  new_repo
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=gap
   case_limit=2
