@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: learn-gate privacy --data-dir DIR, run with TMPDIR, TMP and TEMP set to an empty directory of the check's own, prints the six lines of contracts.md L11.4 in their order, learn_deleted and learn_outside result=ok on the memory store and learn_listed, learn_scrub, learn_delete_all and learn_expired result=not-run, alone on standard output with exit 0; learn-gate delete --what workflow --data-dir DIR --store memory prints delete what=workflow store=memory rows_left=0 other_rows=<n above 0> other_served=yes result=ok with exit 0, and learn-gate delete --what all --data-dir DIR --store memory prints delete what=all store=memory exit=- files_left=- result=not-run with exit 0; each command gets a data directory of its own, and one that ends with status 0 or 1 writes nothing on standard error; before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree.
+# rule: learn-gate privacy --data-dir DIR, run with TMPDIR, TMP and TEMP set to an empty directory of the check's own, prints the six lines of contracts.md L11.4 in their order, learn_deleted and learn_outside result=ok on the memory store and learn_listed, learn_scrub, learn_delete_all and learn_expired result=not-run, alone on standard output with exit 0; learn-gate delete --what workflow --data-dir DIR --store memory prints delete what=workflow store=memory rows_left=0 other_rows=<n above 0> other_served=yes result=ok with exit 0, and learn-gate delete --what all --data-dir DIR --store memory prints delete what=all store=memory exit=- files_left=- result=not-run with exit 0; each command gets a data directory of its own, and one that ends with status 0 or 1 writes nothing on standard error, else the check fails with the cause stderr ahead of the causes of the lines; before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -148,11 +148,13 @@ judge() {
   workflow_lines=$(awk 'END { print NR }' "$1/workflow.out") || workflow_lines=0
   if [ "$privacy_exit" -eq 2 ] || [ "$workflow_exit" -eq 2 ] || [ "$all_exit" -eq 2 ]; then
     cause=refused
-  elif [ "$privacy_exit" -ne 0 ] || ! cmp -s "$1/privacy.want" "$1/privacy.out" || ! quiet "$1/privacy.err" "$privacy_exit"; then
+  elif ! quiet "$1/privacy.err" "$privacy_exit" || ! quiet "$1/workflow.err" "$workflow_exit" || ! quiet "$1/all.err" "$all_exit"; then
+    cause=stderr
+  elif [ "$privacy_exit" -ne 0 ] || ! cmp -s "$1/privacy.want" "$1/privacy.out"; then
     cause=privacy
-  elif [ "$workflow_exit" -ne 0 ] || [ "$workflow_lines" -ne 1 ] || ! grep -Eq "$want_workflow" "$1/workflow.out" || ! quiet "$1/workflow.err" "$workflow_exit"; then
+  elif [ "$workflow_exit" -ne 0 ] || [ "$workflow_lines" -ne 1 ] || ! grep -Eq "$want_workflow" "$1/workflow.out"; then
     cause=delete
-  elif [ "$all_exit" -ne 0 ] || ! cmp -s "$1/all.want" "$1/all.out" || ! quiet "$1/all.err" "$all_exit"; then
+  elif [ "$all_exit" -ne 0 ] || ! cmp -s "$1/all.want" "$1/all.out"; then
     cause=all
   fi
 }
@@ -534,7 +536,7 @@ delete --what workflow --data-dir workflow-data --store memory
 delete --what all --data-dir all-data --store memory"
   log_line='^(privacy check=learn_[a-z_]+ result=(ok|miss|not-run)|delete what=workflow store=[a-z]+ rows_left=[0-9]+ other_rows=[0-9]+ other_served=(yes|no) result=(ok|miss)|delete what=all store=[a-z]+ exit=([0-9]+|-) files_left=([0-9]+|-) result=(ok|miss|not-run)|(privacy|workflow|all)=unreadable)$'
   pl=privacy
-  failing_fixtures=31
+  failing_fixtures=32
   passing_fixtures=2
   wrong=
   rejected=0
@@ -565,7 +567,7 @@ delete --what all --data-dir all-data --store memory"
   self_case a-line-twice privacy "$p$pl check=learn_outside result=ok$nl" "" 0 "$wf" "" 0 "$all" "" 0
   self_case last-line-unended privacy "$want_privacy" "" 0 "$wf" "" 0 "$all" "" 0
   self_case ok-with-exit-1 privacy "$p" "" 1 "$wf" "" 0 "$all" "" 0
-  self_case privacy-standard-error privacy "$p" "a warning$nl" 0 "$wf" "" 0 "$all" "" 0
+  self_case privacy-standard-error stderr "$p" "a warning$nl" 0 "$wf" "" 0 "$all" "" 0
   self_case privacy-line-with-a-marker privacy "$marked$nl" "" 0 "$wf" "" 0 "$all" "" 0
   self_case privacy-refused refused "" "REFUSED store: the seed$nl" 2 "$wf" "" 0 "$all" "" 0
   self_case workflow-refused refused "$p" "" 0 "" "REFUSED usage: x$nl" 2 "$all" "" 0
@@ -578,9 +580,10 @@ delete --what all --data-dir all-data --store memory"
   self_case workflow-ok-with-exit-1 delete "$p" "" 0 "$wf" "" 1 "$all" "" 0
   self_case workflow-two-lines delete "$p" "" 0 "$wf$wf" "" 0 "$all" "" 0
   self_case all-ok all "$p" "" 0 "$wf" "" 0 "delete what=all store=memory exit=0 files_left=0 result=ok$nl" "" 0
-  self_case all-standard-error all "$p" "" 0 "$wf" "" 0 "$all" "a warning$nl" 0
+  self_case all-standard-error stderr "$p" "" 0 "$wf" "" 0 "$all" "a warning$nl" 0
   self_case all-exit-1 all "$p" "" 0 "$wf" "" 0 "$all" "" 1
-  self_case workflow-standard-error-at-0 delete "$p" "" 0 "$wf" "a warning$nl" 0 "$all" "" 0
+  self_case workflow-standard-error-at-0 stderr "$p" "" 0 "$wf" "a warning$nl" 0 "$all" "" 0
+  self_case workflow-standard-error-at-1 stderr "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=miss$nl" "a warning$nl" 1 "$all" "" 0
   self_case workflow-text-after delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok extra$nl" "" 0 "$all" "" 0
   self_case workflow-text-before delete "$p" "" 0 "x delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0
   tree_cases
