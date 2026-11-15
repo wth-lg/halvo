@@ -21,7 +21,13 @@ the pull request into one commit whose message it checks first, so that no
 attribution line reaches the default branch.
 
   sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]
-      Read pull request <number> with gh and refuse unless all of these hold:
+      Before its other checks the script reads with gh api the copies that the
+      default branch of the repository that gh merges into holds of the file
+      that runs, of scripts/check-commit-messages.sh and of each file that
+      these source (scripts/commit-range.sh), and stops with exit 1 when one
+      differs from the copy that this run uses, and with exit 2 when a read
+      fails.
+      Then read pull request <number> with gh and refuse unless all of these hold:
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
         - its head is the commit given with --head, the one that was reviewed
         - for each of the events push and pull_request, the newest workflow
@@ -113,6 +119,37 @@ usage() {
     printf 'Usage: sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]\n       sh scripts/merge-pr.sh --help\n'
   } >&2 || :
   exit 64
+}
+
+own_copy_list_defect() {
+  directory=$1
+  shift
+  for listed in "$@"; do
+    referenced=$(grep -o -E '[$](script_directory|own_directory)/[A-Za-z0-9_.-]+[.]sh' "$directory/$listed" | sed 's|.*/||' | sort -u)
+    for name in $referenced; do
+      case " $* " in
+        *" $name "*) ;;
+        *) printf '%s runs or sources %s, which the list of compared files lacks\n' "$listed" "$name"; return 1 ;;
+      esac
+    done
+  done
+}
+
+check_own_copy() {
+  branch=$(gh api 'repos/{owner}/{repo}' --jq .default_branch) && [ -n "$branch" ] ||
+    die 'gh api could not read the default branch of the repository that gh merges into, so this run cannot compare its own copy with it. This run merged nothing.'
+  running=$script_directory/$(basename "$0")
+  for pair in "merge-pr.sh $running" "check-commit-messages.sh $script_directory/check-commit-messages.sh" "commit-range.sh $script_directory/commit-range.sh"; do
+    name=${pair%% *}
+    local_copy=${pair#* }
+    on_branch=$(gh api "repos/{owner}/{repo}/contents/scripts/$name?ref=$branch" --jq .sha) && [ -n "$on_branch" ] ||
+      die "gh api could not read scripts/$name on the default branch $branch of the repository that gh merges into. This run merged nothing."
+    here=$(git hash-object --no-filters "$local_copy") || die "git hash-object could not read $local_copy. This run merged nothing."
+    if [ "$here" != "$on_branch" ]; then
+      printf 'merge-pr: REFUSED: the copy of scripts/%s that this run uses (%s) differs from the copy that the default branch %s of the repository that gh merges into holds, so this run could merge by another rule. Run the script from a checkout of %s at its newest commit. This run merged nothing.\n' "$name" "$local_copy" "$branch" "$branch" >&2
+      exit 1
+    fi
+  done
 }
 
 refuse() {
@@ -429,6 +466,7 @@ run() {
   body=$(cat <"$body_file") || die "cannot read the file of --body-file: $body_file"
   command -v gh >/dev/null 2>&1 || die 'gh is not on PATH. Install the GitHub CLI and run: gh auth login'
   git rev-parse --git-dir >/dev/null 2>&1 || die 'not inside a git repository'
+  check_own_copy
 
   read_facts
   print_facts
@@ -451,7 +489,8 @@ self_test() {
     die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
-  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails" "$work/git-that-signals-the-script"
+  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails" "$work/git-that-signals-the-script" \
+    "$work/rangeless" "$work/othername"
 
   cat >"$work/bin/gh" <<'EOF'
 #!/bin/sh
@@ -474,6 +513,23 @@ case "$1 $2" in
     esac
     ;;
   'api graphql') cat "$state/threads" ;;
+  'api repos/{owner}/{repo}')
+    if [ -e "$state/repository-read-fails" ]; then
+      echo 'stub gh: the repository read failed' >&2
+      exit 1
+    fi
+    echo main
+    ;;
+  'api repos/{owner}/{repo}/contents/'*)
+    if [ -e "$state/contents-read-fails" ]; then
+      echo 'stub gh: the contents read failed' >&2
+      exit 1
+    fi
+    path=${2#'repos/{owner}/{repo}/contents/'}
+    ref=${path#*'?ref='}
+    path=${path%%'?'*}
+    git --git-dir="$MERGE_PR_STUB_GITHUB" rev-parse "refs/heads/$ref:$path"
+    ;;
   'api repos/{owner}/{repo}/actions/runs?head_sha='*) cat "$state/runs" ;;
   'api repos/{owner}/{repo}/actions/runs/'*)
     run=${2#*/actions/runs/}
@@ -513,8 +569,10 @@ EOF
 #!/bin/sh
 case " $* " in
   *' fetch '*)
-    echo 'stub git: the fetch failed' >&2
-    exit 1
+    if [ -e "$MERGE_PR_STUB_STATE/merge-arguments" ]; then
+      echo 'stub git: the fetch failed' >&2
+      exit 1
+    fi
     ;;
 esac
 exec "$MERGE_PR_STUB_REAL_GIT" "$@"
@@ -533,11 +591,17 @@ EOF
   stub_path=$work/bin
 
   git init -q --bare "$work/github.git"
+  git -C "$work/github.git" symbolic-ref HEAD refs/heads/main
   git -C "$work/github.git" fetch -q "$root" HEAD:refs/heads/main
   git clone -q --no-local "$work/github.git" "$work/clone"
   commit() {
     git -C "$work/clone" -c commit.gpgsign=false commit -q --allow-empty --no-verify --cleanup=verbatim -m "$1"
   }
+  cp "$script_directory/merge-pr.sh" "$script_directory/check-commit-messages.sh" "$script_directory/commit-range.sh" "$work/clone/scripts/"
+  git -C "$work/clone" add scripts/merge-pr.sh scripts/check-commit-messages.sh scripts/commit-range.sh
+  commit 'Hold the scripts under test'
+  git -C "$work/clone" push -q origin HEAD:refs/heads/main
+  held_main=$(git -C "$work/clone" rev-parse HEAD)
   commit 'Add the feature'
   reviewed_head=$(git -C "$work/clone" rev-parse HEAD)
   git -C "$work/clone" checkout -q --detach origin/main
@@ -547,6 +611,16 @@ EOF
   commit "Add the feature (#7)${nl}${nl}What changed and why.${nl}${nl}Co-authored-by: Someone Else <someone@example.invalid>"
   squash_with_a_trailer=$(git -C "$work/clone" rev-parse HEAD)
   git -C "$work/clone" push -q --no-verify origin "$clean_squash:refs/prepared/clean" "$squash_with_a_trailer:refs/prepared/trailer"
+  for script in merge-pr check-commit-messages commit-range; do
+    git -C "$work/clone" checkout -q --detach origin/main
+    printf '\n' >>"$work/clone/scripts/$script.sh"
+    git -C "$work/clone" add "scripts/$script.sh"
+    commit "Change scripts/$script.sh on main"
+    git -C "$work/clone" push -q origin "HEAD:refs/prepared/other-$script"
+  done
+  git clone -q --bare --no-local "$work/github.git" "$work/bare.git"
+  git -C "$work/bare.git" update-ref refs/remotes/origin/main "$held_main"
+  git clone -q --bare --no-local "$work/github.git" "$work/mirror.git"
   git -C "$work/clone" checkout -q main
 
   subject='Add the feature (#7)'
@@ -641,6 +715,72 @@ EOF
 
   state_of dry-run-with-every-gate-open
   expect dry-run-with-every-gate-open 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
+
+  main_holds() {
+    git --git-dir="$work/github.git" update-ref refs/heads/main "$(git --git-dir="$work/github.git" rev-parse "$1^{commit}")"
+  }
+  for script in merge-pr check-commit-messages commit-range; do
+    main_holds "refs/prepared/other-$script"
+    state_of "$script-differs-from-the-default-branch"
+    refused "$script-differs-from-the-default-branch" "the copy of scripts/$script.sh that this run uses"
+    state_of "dry-run-with-a-$script-that-differs"
+    expect "dry-run-with-a-$script-that-differs" 1 not-called "the copy of scripts/$script.sh that this run uses" --body-file "$work/body.txt" --dry-run
+    main_holds "$held_main"
+  done
+  main_holds refs/prepared/other-merge-pr
+  git -C "$work/clone" remote set-branches origin feature
+  state_of narrowed-refspec
+  refused narrowed-refspec 'the copy of scripts/merge-pr.sh that this run uses'
+  git -C "$work/clone" remote set-branches origin '*'
+  GIT_DIR=$work/bare.git
+  export GIT_DIR
+  state_of bare-git-dir
+  refused bare-git-dir 'the copy of scripts/merge-pr.sh that this run uses'
+  unset GIT_DIR
+  git -C "$work/clone" remote set-url origin "$work/bare.git"
+  state_of origin-a-lagging-clone
+  refused origin-a-lagging-clone 'the copy of scripts/merge-pr.sh that this run uses'
+  git -C "$work/clone" remote set-url origin "$work/mirror.git"
+  git -C "$work/clone" remote add upstream "$work/github.git"
+  state_of origin-a-mirror-beside-another-remote
+  refused origin-a-mirror-beside-another-remote 'the copy of scripts/merge-pr.sh that this run uses'
+  git -C "$work/clone" remote remove upstream
+  git -C "$work/clone" remote set-url origin "$work/github.git"
+  main_holds "$held_main"
+  cp "$script_directory/merge-pr.sh" "$script_directory/check-commit-messages.sh" "$script_directory/commit-range.sh" "$work/rangeless/"
+  printf 'commit_range() { :; }\n' >>"$work/rangeless/commit-range.sh"
+  state_of changed-commit-range-beside-the-script
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/changed-commit-range-beside-the-script" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$work/rangeless/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/changed-commit-range-beside-the-script.txt" 2>&1 || status=$?
+  judge changed-commit-range-beside-the-script "$status" 1 not-called 'the copy of scripts/commit-range.sh that this run uses'
+  cp "$script_directory/merge-pr.sh" "$script_directory/check-commit-messages.sh" "$script_directory/commit-range.sh" "$work/othername/"
+  { cat "$script_directory/merge-pr.sh"; printf '\n'; } >"$work/othername/merge-pr-saved.sh"
+  state_of old-copy-under-another-name
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/old-copy-under-another-name" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$work/othername/merge-pr-saved.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/old-copy-under-another-name.txt" 2>&1 || status=$?
+  judge old-copy-under-another-name "$status" 1 not-called 'the copy of scripts/merge-pr.sh that this run uses'
+  state_of contents-read-fails
+  : >"$work/state/contents-read-fails/contents-read-fails"
+  expect contents-read-fails 2 not-called 'gh api could not read' --body-file "$work/body.txt"
+  state_of repository-read-fails
+  : >"$work/state/repository-read-fails/repository-read-fails"
+  expect repository-read-fails 2 not-called 'gh api could not read' --body-file "$work/body.txt"
+  cases=$((cases + 1))
+  if missing=$(own_copy_list_defect "$script_directory" merge-pr.sh check-commit-messages.sh commit-range.sh); then
+    printf 'PASS own-copy-list-holds-every-file-that-the-listed-files-run-or-source\n'
+  else
+    printf 'FAIL own-copy-list-holds-every-file-that-the-listed-files-run-or-source (%s)\n' "$missing"
+    failures=$((failures + 1))
+  fi
+  cases=$((cases + 1))
+  if own_copy_list_defect "$script_directory" merge-pr.sh check-commit-messages.sh >/dev/null; then
+    printf 'FAIL own-copy-list-without-commit-range-is-refused (the list without scripts/commit-range.sh passed)\n'
+    failures=$((failures + 1))
+  else
+    printf 'PASS own-copy-list-without-commit-range-is-refused\n'
+  fi
 
   state_of merged-pull-request
   fields merged-pull-request MERGED false UNKNOWN "$reviewed_head" false "$clean_squash"
@@ -1074,13 +1214,22 @@ EOF
   } | true
   judge reader-of-the-output-left-before-the-facts "$(cat "$work/out/reader-of-the-output-left-before-the-facts.status")" 2 not-called 'cannot write to standard output'
 
-  cp "$script_directory/merge-pr.sh" "$work/check-that-cannot-run/merge-pr.sh"
+  cp "$script_directory/merge-pr.sh" "$script_directory/commit-range.sh" "$work/check-that-cannot-run/"
   printf '#!/bin/sh\necho "check-commit-messages: error: this copy cannot run" >&2\nexit 2\n' >"$work/check-that-cannot-run/check-commit-messages.sh"
+  git -C "$work/clone" checkout -q --detach "$held_main"
+  cp "$work/check-that-cannot-run/check-commit-messages.sh" "$work/clone/scripts/check-commit-messages.sh"
+  git -C "$work/clone" add scripts/check-commit-messages.sh
+  commit 'Hold the check that cannot run'
+  git -C "$work/clone" push -q origin HEAD:refs/prepared/check-that-cannot-run
+  git -C "$work/clone" checkout -q main
+  main_before_the_case=$(git --git-dir="$work/github.git" rev-parse refs/heads/main)
+  main_holds refs/prepared/check-that-cannot-run
   state_of check-script-that-cannot-run
   status=0
   (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/check-script-that-cannot-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
     sh "$work/check-that-cannot-run/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/check-script-that-cannot-run.txt" 2>&1 || status=$?
   judge check-script-that-cannot-run "$status" 2 not-called 'exited 2 for the squash message'
+  main_holds "$main_before_the_case"
 
   git --git-dir="$work/github.git" update-ref refs/heads/main "$(git -C "$work/clone" rev-parse "$clean_squash^")"
   state_of reader-of-the-output-leaves-before-the-merge

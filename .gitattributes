@@ -6,3 +6,4 @@ mutants.rows text eol=lf
 mutants.expected text eol=lf
 crates/halvo-capture/src/store/testdata/segment-v1.golden -text
 /scripts/r3/egress/fixtures.txt text eol=lf
+src-tauri/windows-tests.manifest text eol=lf
