@@ -58,11 +58,7 @@ pub fn tree_of_with(
         .map(procs::bundle_root)
         .into_iter()
         .collect();
-    let profile = command_args(root.pid).and_then(|args| {
-        args.iter()
-            .find_map(|a| a.strip_prefix("--user-data-dir=").map(str::to_string))
-    });
-    let Some(profile) = profile.filter(|p| !p.is_empty()) else {
+    let Some(profile) = command_args(root.pid).and_then(|args| profile_of(&args)) else {
         return tree;
     };
     let adopted = procs::adopted(table, &tree, root.started_us, &roots);
@@ -86,6 +82,27 @@ pub fn tree_of_with(
 /// by the system's rule (`split_command_line`).
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
+}
+
+/// The profile that the browser's first process names: the value of its first argument
+/// `--user-data-dir=`, none when it is empty or absent; on Windows the one command line is split
+/// as the mark splits it, so that `tree_of` reads the same arguments as `bears_profile`.
+pub fn profile_of(args: &[String]) -> Option<String> {
+    profile_of_on(args, cfg!(windows))
+}
+
+/// `profile_of` with the system's rule given.
+pub fn profile_of_on(args: &[String], windows: bool) -> Option<String> {
+    let split: Vec<String> = if windows {
+        args.iter().flat_map(|a| split_command_line(a)).collect()
+    } else {
+        args.to_vec()
+    };
+    split
+        .iter()
+        .find_map(|a| a.strip_prefix("--user-data-dir="))
+        .filter(|p| !p.is_empty())
+        .map(str::to_string)
 }
 
 /// `bears_profile` with the system's rules given: `windows` splits each argument as a command line
@@ -141,7 +158,8 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 /// the quote opens or closes a quoted part, 2n+1 give n backslashes and a quote; backslashes before
 /// any other character stand as they are; in a run of quotes each third one counted from the
 /// opening quote gives a quote, and a count that ends at two leaves the part closed. The mark
-/// alone calls it (`bears_profile`); `command_args` and `command_line` stay as they are for the six
+/// alone calls it (`bears_profile`, and `profile_of` for `tree_of`); `command_args` and
+/// `command_line` stay as they are for the six
 /// rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
     let c: Vec<char> = line.chars().collect();
@@ -1149,6 +1167,31 @@ pub(crate) mod tests {
             unsafe { LocalFree(argv.cast()) };
             assert_eq!(split_command_line(line), system, "{line}");
         }
+    }
+
+    /// Hosted run 43741794346 (windows): `tree_of` read the first process's profile from the one
+    /// Windows command line by its prefix and so never found it there. `profile_of_on` reads it
+    /// from the arguments as the mark splits them.
+    #[test]
+    fn the_first_process_s_profile_is_read_from_the_split_arguments() {
+        let win = |line: &str| profile_of_on(&strings(&[line]), true);
+        assert_eq!(
+            win(r"b.exe --user-data-dir=C:\t\p --type=x").as_deref(),
+            Some(r"C:\t\p")
+        );
+        assert_eq!(
+            win(r#""C:\P F\b.exe" "--user-data-dir=C:\t\p 2""#).as_deref(),
+            Some(r"C:\t\p 2")
+        );
+        assert_eq!(win(r"b.exe --user-data-dir= --x"), None);
+        assert_eq!(win(r#"b.exe "x --user-data-dir=C:\t\p""#), None);
+        let mac = |args: &[&str]| profile_of_on(&strings(args), false);
+        assert_eq!(mac(&["b", "--user-data-dir=/t/p"]).as_deref(), Some("/t/p"));
+        assert_eq!(
+            mac(&["b", "--user-data-dir=/t/p", "--user-data-dir=/q"]).as_deref(),
+            Some("/t/p")
+        );
+        assert_eq!(mac(&["b --user-data-dir=/t/p"]), None);
     }
 
     /// The review of U0.7d: a Windows share (`\\srv\share\p`) is not the path below the root of a
