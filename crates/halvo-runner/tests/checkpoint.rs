@@ -8,8 +8,8 @@ use halvo_schema::Category;
 use halvo_sheet::Sha256;
 
 use support::{
-    is_op, person_changes, serve_loads, set_slot, store_error, Act, FillFiles, Seen, Supervisor,
-    LONG,
+    is_op, person_changes, serve_loads, set_slot, store_error, stored, Act, FillFiles, Seen,
+    Supervisor, LONG,
 };
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
@@ -236,6 +236,37 @@ fn a_made_row_that_the_store_refuses_ends_the_run_before_the_propose() {
         std::fs::read(files.dir.join(checkpoint_name(&sup))).expect("the checkpoint stays"),
         original
     );
+    assert_eq!(
+        prepared_copies(&files),
+        0,
+        "no prepared copy: {:?}",
+        files.names()
+    );
+}
+
+/// A7.1: the store takes a `checkpoint` body with `{"stored":1}`; a `made` row answered `{"stored":0}` was not
+/// stored, and the run ends `failed` before the `propose`, with the prepared copy gone.
+#[test]
+fn a_made_row_answered_stored_0_ends_the_run_before_the_propose() {
+    let files = FillFiles::new("checkpoint-made-stored-0", 1);
+    let original = files.workbook_bytes();
+    let sup = fill(178, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_checkpoint(frame, CheckpointState::Made) {
+                return Act::With(stored(frame, 0));
+            }
+            Act::Answer
+        },
+        LONG,
+    );
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert!(seen.states().is_empty(), "no effect row");
+    assert_eq!(files.workbook_bytes(), original);
     assert_eq!(
         prepared_copies(&files),
         0,

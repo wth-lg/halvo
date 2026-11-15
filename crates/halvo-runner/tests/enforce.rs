@@ -955,10 +955,11 @@ fn a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepar
         "the write step fails with workbook and the run ends with it"
     );
     assert!(seen.states().is_empty(), "no effect row");
-    assert!(
-        !seen.ops().contains(&"checkpoint"),
-        "no checkpoint row: {:?}",
-        seen.ops()
+    assert_eq!(
+        seen.ops(),
+        ["load", "load_steps", "log", "log", "log", "finish"],
+        "the run's load and its steps, the read's line, the write's failed line and the stopped line: no load of the \
+         edit and no checkpoint row"
     );
     assert_eq!(
         files.workbook_bytes(),
