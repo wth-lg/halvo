@@ -9,7 +9,7 @@ export const UNIQUENESS_WINDOW_MS = 86_400_000;
 
 type Row = Record<string, string | number | null>;
 type Outcome = "acknowledged" | "no-call" | "written-off" | "not-billable";
-type Closing = UsageRefusal | "send_limit";
+type Closing = UsageRefusal | "send_limit" | "delete-bound";
 type CutKind = "cancel" | "delete";
 
 const OUTCOMES: readonly Outcome[] = ["acknowledged", "no-call", "written-off", "not-billable"];
@@ -201,6 +201,9 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
   if (!Number.isSafeInteger(length) || length < 1000) throw new RangeError("the sync interval is a whole number of seconds, 1 or more");
   if (!Number.isSafeInteger(margin) || margin <= PROVIDER_CALL_TIMEOUT_MS || margin >= UNIQUENESS_WINDOW_MS) {
     throw new RangeError("the sync margin is a whole number of seconds above the provider call's timeout and under the uniqueness window");
+  }
+  if (margin < UNIQUENESS_WINDOW_MS - LATE_READ_SPAN_MS) {
+    throw new RangeError("the sync margin is at least the uniqueness window less LATE_READ_SPAN_MS, so that no late point falls before the first window's end");
   }
   const lateReadSpan = Math.min(LATE_READ_SPAN_MS, UNIQUENESS_WINDOW_MS - margin);
 
@@ -443,6 +446,37 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
 
     nextSend(sql) {
       return oldestPending(sql)?.nextAttempt ?? null;
+    },
+
+    closeOpen(sql, now) {
+      const a = account(sql);
+      for (let open = oldestUnsealedRow(sql); open !== null; open = oldestUnsealedRow(sql)) {
+        sql.exec(
+          "UPDATE metering_interval SET sealed_at = ?, amount = ?, identifier = ?, timestamp = ?, next_attempt = ? WHERE start = ?",
+          now,
+          0,
+          `${a.accountId}:${seconds(open.start)}`,
+          Math.max(seconds(open.start), seconds(open.end - 1)),
+          null,
+          open.start,
+        );
+      }
+      let closed = 0;
+      for (let pending = oldestPending(sql); pending !== null; pending = oldestPending(sql)) {
+        close(sql, pending, "not-billable", "delete-bound", now);
+        closed += 1;
+      }
+      return closed;
+    },
+
+    closedAtBound(sql) {
+      const row = sql.exec("SELECT COUNT(*) AS n FROM metering_interval WHERE outcome = ? AND refusal = ?", "not-billable", "delete-bound")[0] ?? broken("the count of intervals closed at the bound");
+      return whole(row, "n");
+    },
+
+    unacknowledged(sql) {
+      const row = sql.exec("SELECT COUNT(*) AS n FROM metering_interval WHERE sealed_at IS NULL OR outcome IS NULL")[0] ?? broken("the count of open intervals");
+      return whole(row, "n");
     },
 
     settled(sql) {

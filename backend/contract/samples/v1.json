@@ -43,6 +43,9 @@
       "cancelled": {
         "result": "cancelled"
       },
+      "closing": {
+        "result": "closing"
+      },
       "no-such-account": {
         "result": "no-such-account"
       },
