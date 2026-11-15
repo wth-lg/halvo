@@ -24,7 +24,8 @@ use crate::{bind, checkpoint, day, effect, end};
 /// agent is its workflow's, and a body whose record names another workflow is refused with `binding`. A run belongs
 /// to the agent whose start row `start_run` stored (CP-135 (5)): every body is refused with `binding` for a run of
 /// which a stored effect row, log line or `agent_run` record names another agent, and for a run of which no start
-/// row of the body's agent stands within the bound of `agent_log` at the request's day. Once the run's `agent_run` record is
+/// row of the body's agent stands, from 93 days back to two days ahead of the request's day, the rows that an expiry
+/// at that day leaves (CP-122 (g)). Once the run's `agent_run` record is
 /// stored, by `finish` or `end_run`, every body that names the run is refused with `effect`, but for the repeat
 /// of the run's own `finish` and an `effect` row equal to the effect's last row, which are answered as the first.
 /// Then:

@@ -61,3 +61,10 @@ pub(crate) fn within(today: u32, days: u16, day: u32) -> bool {
     let age = i64::from(today) - i64::from(day);
     (0..i64::from(days)).contains(&age)
 }
+
+const AHEAD_DAYS: i64 = 2;
+
+pub(crate) fn stands(today: u32, days: u16, day: u32) -> bool {
+    let age = i64::from(today) - i64::from(day);
+    age < i64::from(days) && age >= -AHEAD_DAYS
+}

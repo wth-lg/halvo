@@ -31,7 +31,8 @@ use crate::{bind, bindings, checkpoint, day, end};
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
 ///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
 ///   names another agent; `effect` for a run whose `agent_run` record is stored. Where the run's start row of the
-///   agent stands within the bound of `agent_log` it stores nothing; else it stores the start row, one `agent_log`
+///   agent stands, from 93 days back to two days ahead of the request's day, it stores nothing; else it stores the
+///   start row, one `agent_log`
 ///   row with the event `start_accepted`, `seq` 1, no step, cause, model or figure, and the request's instant and
 ///   day. It answers `{"ok":"yes"}` (CP-135 (5)).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the

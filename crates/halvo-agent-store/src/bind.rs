@@ -72,7 +72,7 @@ pub(crate) fn start_row(
         l.event == LogEvent::StartAccepted
             && &l.run == run
             && &l.agent == agent
-            && bound.is_none_or(|days| day::within(today, days, l.day))
+            && bound.is_none_or(|days| day::stands(today, days, l.day))
     }))
 }
 

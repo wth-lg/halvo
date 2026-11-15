@@ -748,3 +748,98 @@ fn newest_playbook_of_an_agent_with_no_compile_number_is_none() {
         Err(declared("binding"))
     );
 }
+
+fn back(days: i64) -> halvo_agent_store::Now {
+    at(NOW.at.0 - days * NANOS_PER_DAY)
+}
+
+fn start_rows_of(store: &MemoryStore, r: u32) -> usize {
+    rows(store, "agent_log")
+        .iter()
+        .map(|row| AgentLog::parse(row.as_bytes()).expect("a log row"))
+        .filter(|l| l.event == LogEvent::StartAccepted && l.run.as_str() == run(r))
+        .count()
+}
+
+#[test]
+fn a_runner_body_after_a_clock_set_back_one_day_across_midnight_is_served() {
+    let mut store = store_with("utility_bill_payment");
+    let line = dated(log_line(2), TODAY - 1, back(1).at.0);
+    let body = json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line]});
+    assert_eq!(runner_at(&mut store, back(1), body), Ok(stored(1)));
+    let load = json!({"op": "load", "agent": agent(1), "run": run(1)});
+    assert!(runner_at(&mut store, back(1), load).is_ok());
+    let ahead = dated(log_line(3), TODAY, NOW.at.0);
+    let body = json!({"op": "log", "agent": agent(1), "run": run(1), "records": [ahead]});
+    assert_eq!(
+        runner_at(&mut store, back(1), body),
+        Err(declared("day")),
+        "a row dated the day after the request's clock is refused"
+    );
+}
+
+#[test]
+fn a_start_row_two_days_ahead_of_the_request_counts_and_one_three_days_ahead_does_not() {
+    let mut store = store_with("utility_bill_payment");
+    let load = json!({"op": "load", "agent": agent(1), "run": run(1)});
+    assert!(runner_at(&mut store, back(2), load.clone()).is_ok());
+    assert_eq!(
+        runner_at(&mut store, back(3), load).map(|_| ()),
+        Err(declared("binding"))
+    );
+}
+
+#[test]
+fn a_start_run_repeated_after_a_clock_set_back_one_day_stores_nothing() {
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(start_rows_of(&store, 1), 1);
+    assert_eq!(start_at(&mut store, back(1), 1, 1, 1), Ok(accepted()));
+    assert_eq!(start_rows_of(&store, 1), 1);
+}
+
+#[test]
+fn after_a_clock_set_back_one_day_a_repeat_of_an_effect_a_checkpoint_and_a_finish_is_answered_as_the_first(
+) {
+    let mut store = store_with("spreadsheet_fill");
+    let edit = row(1, 1, 1, "cleared", "local_edit", 1, None, None);
+    assert_eq!(put_at(&mut store, NOW, edit.clone()), Ok(stored(1)));
+    let planned = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 1, "day": ROW_DAY,
+        "at": ROW_AT, "folder": ["/data/books"], "workbook": ["/data/books/book.xlsx"],
+        "copy": ["book.halvo-checkpoint.xlsx"], "sha256": null, "bytes": null, "state": "planned",
+        "left": null,
+    });
+    let checkpoint =
+        json!({"op": "checkpoint", "agent": agent(1), "run": run(1), "record": planned});
+    assert_eq!(
+        runner_at(&mut store, NOW, checkpoint.clone()),
+        Ok(stored(1))
+    );
+    let before = (
+        effects(&store).len(),
+        rows(&store, "agent_checkpoint").len(),
+    );
+    assert_eq!(put_at(&mut store, back(1), edit), Ok(stored(1)));
+    assert_eq!(runner_at(&mut store, back(1), checkpoint), Ok(stored(1)));
+    assert_eq!(
+        (
+            effects(&store).len(),
+            rows(&store, "agent_checkpoint").len()
+        ),
+        before
+    );
+    let record = run_record(1, Some("replay"), "failed");
+    let finish = json!({"op": "finish", "agent": agent(1), "run": run(1), "record": record});
+    assert_eq!(runner_at(&mut store, NOW, finish.clone()), Ok(stored(1)));
+    let ended = (effects(&store).len(), rows(&store, "agent_run").len());
+    assert_eq!(runner_at(&mut store, back(1), finish), Ok(stored(1)));
+    let new_effect = row(1, 2, 1, "cleared", "local_edit", 1, None, None);
+    assert_eq!(
+        put_at(&mut store, back(1), new_effect),
+        Err(declared("effect"))
+    );
+    assert_eq!(
+        (effects(&store).len(), rows(&store, "agent_run").len()),
+        ended
+    );
+}
