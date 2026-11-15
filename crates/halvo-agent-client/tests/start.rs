@@ -152,7 +152,55 @@ fn a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_ex
     );
     assert!(script.wait_log("exit", SHORT), "{}", script.log());
     assert_runner_gone(&script);
-    assert!(rig.rec.wait_end(&run, SHORT).is_some());
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    assert_eq!(
+        end.forced, None,
+        "a runner that left by itself was ended by force"
+    );
+}
+
+#[test]
+fn a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended()
+{
+    let rig = Rig::new("start-refused-child");
+    let script = rig.script(&["child-brief 200", "exit 2"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let asked = std::time::Instant::now();
+    let answer = rig.sup.start(spec);
+    let waited = asked.elapsed();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    eprintln!(
+        "u46 refused start with a brief child: start answered after {} ms, end reported after {} ms",
+        waited.as_millis(),
+        asked.elapsed().as_millis()
+    );
+    assert_eq!(
+        answer,
+        Err(StartError::NotStarted(NotStarted::Runner {
+            exit: Some(RunnerExit::Status(2))
+        }))
+    );
+    let children = script.logged("child");
+    assert_eq!(children.len(), 1, "{}", script.log());
+    if cfg!(windows) {
+        assert_eq!(
+            end.forced, None,
+            "the job's child ended by itself within the settle and was recorded as ended by force"
+        );
+    } else {
+        assert_eq!(
+            end.forced,
+            Some(halvo_agent_client::Forced {
+                path: halvo_agent_client::ForcedPath::LinkEnd,
+                browser: false
+            }),
+            "a child in the runner's group is ended with the group at the runner's exit"
+        );
+    }
+    assert!(wait_until(SHORT, || children
+        .iter()
+        .all(|(pid, created)| gone(*pid, *created))));
 }
 
 #[test]

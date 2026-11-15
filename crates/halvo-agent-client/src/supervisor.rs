@@ -411,6 +411,14 @@ pub(crate) struct Ending {
     pub(crate) finish: Option<AgentRun>,
 }
 
+/// How a start's wait for the runner's `hello` ended.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Handshake {
+    Hello,
+    Eof,
+    Failed,
+}
+
 pub(crate) enum Flow {
     Go,
     Lost,
@@ -433,7 +441,15 @@ fn drive(
         ending: Ending::default(),
         acts: Acts::default(),
     };
-    if !run.handshake(&rx, inner.config.start_wait) {
+    let shaken = run.handshake(&rx, inner.config.start_wait);
+    if shaken != Handshake::Hello {
+        #[cfg(windows)]
+        if shaken == Handshake::Eof {
+            let deadline = Instant::now() + proc::SETTLE;
+            while !slot.with_proc(RunProc::exited).unwrap_or(true) && Instant::now() < deadline {
+                thread::sleep(proc::POLL);
+            }
+        }
         let (gone, exit) = slot
             .with_proc(|p| {
                 p.end_all();
@@ -508,7 +524,7 @@ pub(crate) struct Running<'a> {
 impl Running<'_> {
     /// Waits for the runner's `hello` for its run and agent, answering a `browser` frame that comes first so that
     /// the mark names the browser before anything can end the start.
-    fn handshake(&mut self, rx: &Receiver<Event>, wait: Duration) -> bool {
+    fn handshake(&mut self, rx: &Receiver<Event>, wait: Duration) -> Handshake {
         let deadline = Instant::now() + wait;
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
@@ -518,18 +534,23 @@ impl Running<'_> {
                     let _ = reply.send(Err(CallError::Ended));
                     continue;
                 }
-                _ => return false,
+                Ok(Event::Eof) => return Handshake::Eof,
+                _ => return Handshake::Failed,
             };
             match *frame {
                 FromRunner::Hello(h) => {
-                    return h.run == self.slot.spec.run && h.agent == self.slot.spec.agent;
+                    return if h.run == self.slot.spec.run && h.agent == self.slot.spec.agent {
+                        Handshake::Hello
+                    } else {
+                        Handshake::Failed
+                    };
                 }
                 FromRunner::Browser(b) => {
                     if let Flow::Lost = self.browser(&b) {
-                        return false;
+                        return Handshake::Failed;
                     }
                 }
-                _ => return false,
+                _ => return Handshake::Failed,
             }
         }
     }

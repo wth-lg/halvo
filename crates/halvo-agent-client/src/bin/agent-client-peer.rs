@@ -1,6 +1,7 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
 //! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
-//! it plays a browser that sleeps, as `child` a process that sleeps, and as `stderr-child MARKER` a process that
+//! it plays a browser that sleeps, as `child` a process that sleeps, as `child-brief MS` a process that sleeps MS
+//! milliseconds and exits with the status 0, and as `stderr-child MARKER` a process that
 //! prints MARKER on standard error and exits. On macOS `holder-parent LOG [SECONDS]` starts `holder [SECONDS]`, a
 //! process of a group of its own that sleeps with the standard input and output it was given and then exits with
 //! the status 0, logs it to LOG and exits, or ends it and exits with 1 when it cannot read its creation time or
@@ -627,6 +628,27 @@ impl Peer {
                 }
                 Err(_) => self.log.line("child-failed"),
             },
+            "child-brief" => {
+                let made = std::env::current_exe().and_then(|exe| {
+                    Command::new(exe)
+                        .arg("child-brief")
+                        .arg(rest)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                });
+                match made {
+                    Ok(c) => {
+                        let created = process::creation_time(c.id())
+                            .map(|t| t.to_string())
+                            .unwrap_or_default();
+                        self.log
+                            .line(&format!("child pid={} created={created}", c.id()));
+                    }
+                    Err(_) => self.log.line("child-failed"),
+                }
+            }
             "breakaway" => self.breakaway(),
             "writer-child" => {
                 let mut parts = rest.splitn(3, ' ');
@@ -1094,6 +1116,11 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        Some("child-brief") => {
+            let ms = args.get(1).and_then(|m| m.parse().ok()).unwrap_or(0);
+            thread::sleep(Duration::from_millis(ms));
+            std::process::exit(0);
+        }
         Some("console-report") => {
             let pid = |i: usize| args.get(i).and_then(|v| v.parse().ok()).unwrap_or(0);
             let line = format!("console-child {}\n", console_line(pid(1), pid(2)));

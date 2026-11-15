@@ -14,9 +14,11 @@ use crate::marks::{Group, Mark, ProcLine};
 use crate::sys;
 
 const GONE_WAIT: Duration = Duration::from_secs(5);
-const POLL: Duration = Duration::from_millis(20);
+pub(crate) const POLL: Duration = Duration::from_millis(20);
+/// How long the library reads again whether a runner that ended its output has exited, and whether a Windows job
+/// whose runner has exited still holds a process, before it takes what it reads (Windows).
 #[cfg(windows)]
-const SETTLE: Duration = Duration::from_secs(1);
+pub(crate) const SETTLE: Duration = Duration::from_secs(1);
 
 /// The runner that this life made: its child, which stays unreaped until the library has done with its group, the
 /// facts of its mark's lines, and on Windows the job that holds it.
@@ -498,7 +500,10 @@ impl RunProc {
     /// ignores SIGCHLD, still signals the group whose number the runner holds. The end is a kill by number
     /// (`Child::kill`) after that read: under a parent that ignores SIGCHLD a runner read as running during its exit
     /// may be reaped by the system before that call, and the number then names another process only if the system's
-    /// counter passed every number in between, a named limit.
+    /// counter passed every number in between, a named limit. On Windows it first reads the runner's own exit: a
+    /// runner that has exited is not killed, and what is left is read with the settle of `end_leftovers`; a runner
+    /// whose exit the system has not yet signalled at that read counts as living, a named limit, and the record then
+    /// keeps the run's path (`kill`, `link_end` or `after_finish`). `browser` is read without a settle and errs to yes.
     pub(crate) fn end_all(&mut self) {
         let browser = self.browser_lives();
         #[cfg(target_os = "macos")]
@@ -528,7 +533,18 @@ impl RunProc {
             }
         }
         #[cfg(windows)]
-        let living = browser || self.job.active_processes().is_some_and(|n| n > 0);
+        if !self.reaped {
+            if let Some(code) = self.child.try_wait() {
+                self.exit = runner_exit(code);
+                self.reaped = true;
+            }
+        }
+        #[cfg(windows)]
+        let living = if self.reaped {
+            browser || self.job_left()
+        } else {
+            browser || self.job.active_processes().is_some_and(|n| n > 0)
+        };
         self.end_browser_or_job();
         if !self.reaped {
             let _ = self.child.kill();
