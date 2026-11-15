@@ -1350,7 +1350,6 @@ fn main() {
 EOF
   printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
     >"$dir/crates/halvo-route-gate/src/nul.rs" || self_failed "setup at line $LINENO"
-  printf 'pub const W: &str = "plainword";\n' >"$dir/crates/halvo-route-gate/src/upl\303\251.txt" || self_failed "setup at line $LINENO"
   printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed "setup at line $LINENO"
   cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed "setup at line $LINENO"
   printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed "setup at line $LINENO"
@@ -1686,6 +1685,16 @@ check_forms() {
   [ "$got" = PASS ] || wrong="$wrong forms-control"
 }
 
+non_ascii_repo() {
+  write_repo "$1" '' >/dev/null || self_failed "setup at line $LINENO"
+  plain=$(printf 'pub const W: &str = "plainword";\n' | git -C "$1" hash-object -w --stdin) || self_failed "setup at line $LINENO"
+  printf '100644 %s\tcrates/halvo-route-gate/src/upl\303\251.txt\n' "$plain" | git -C "$1" update-index --index-info ||
+    self_failed "setup at line $LINENO"
+  printf 'crates/halvo-route-gate/src/upl\303\251.txt\n' | git -C "$1" update-index --skip-worktree --stdin ||
+    self_failed "setup at line $LINENO"
+  git -C "$1" write-tree 2>/dev/null || self_failed "setup at line $LINENO"
+}
+
 odd_repo() {
   write_repo "$1" '' >/dev/null || self_failed "setup at line $LINENO"
   case $2 in
@@ -1722,6 +1731,7 @@ self_test() {
   patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed "setup at line $LINENO"
   features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed "setup at line $LINENO"
   link_tree=$(odd_repo "$work/repo-link" link) || self_failed "setup at line $LINENO"
+  non_ascii_tree=$(non_ascii_repo "$work/repo-non-ascii") || self_failed "setup at line $LINENO"
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
   awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
     self_failed "setup at line $LINENO"
@@ -1773,7 +1783,7 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=24 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=7 asked=23 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
   case_run asking-wrapped PASS - 'egress asking denied=0 command=0 exit=0'
@@ -1881,6 +1891,8 @@ self_test() {
   STUB_COMMANDS="$STUB_COMMANDS adjword"
   case_run command-behind-adjacent-literals FAIL check 'egress on-neither-list=adjword'
   STUB_COMMANDS="$STUB_COMMANDS plainword"
+  case_repo=$work/repo-non-ascii
+  case_tree=$non_ascii_tree
   case_run command-in-a-non-rs-file-with-a-non-ascii-name FAIL check 'egress on-neither-list=plainword'
   STUB_COMMANDS="$STUB_COMMANDS quoteword"
   case_run command-after-a-quote-character FAIL check 'egress on-neither-list=quoteword'
@@ -1915,7 +1927,7 @@ self_test() {
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=24'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=23'
   STUB_CHECK=denied
   case_run denied-in-each-run FAIL denied 'egress checks=6 denied=7 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
