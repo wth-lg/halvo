@@ -1,10 +1,9 @@
+# scratch: the macos job alone with the long form of 51-macos-stall and the rows of MA-25 by name (join after land-45, JB-26 (c)); the windows job is kept for its text and switched off; never merged
 name: ci
 
 on:
   push:
   pull_request:
-  schedule:
-    - cron: '17 3 * * 0'
 
 permissions:
   contents: read
@@ -16,7 +15,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -92,25 +91,32 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 51-macos-stall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        env:
+          HALVO_STALL_FORM: long
+        run: sh scripts/ci/run-ci-d.sh macos 51-macos-stall
+      - name: The rows of MA-25 by name (scratch copy alone)
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        env:
+          CARGO_BUILD_JOBS: 4
+        run: |
+          set +e
+          rows="ma25-pair-width-widened ma25-pair-tries-raised ma25-wake-margin-widened ma25-oldest-read-from-the-newest-key"
+          set --
+          for row in $rows; do set -- "$@" --only "$row"; done
+          sh scripts/r1-gate/mutation-test.sh "$@" >"$RUNNER_TEMP/ma25-rows.log" 2>&1
+          code=$?
+          grep -E '^(PASS|FAIL|OPEN|NOT-RUN) mutation:|^mutation rows:' "$RUNNER_TEMP/ma25-rows.log"
+          caught=$(grep -c '^PASS mutation:' "$RUNNER_TEMP/ma25-rows.log")
+          echo "rows of MA-25: runner exit=$code caught=$caught of 4"
+          [ "$code" -eq 0 ] && [ "$caught" -eq 4 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -121,6 +127,7 @@ jobs:
           path: target/ci-artifacts/
 
   windows:
+    if: ${{ false }}
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
