@@ -756,3 +756,48 @@ fn a_planned_row_answered_stored_0_ends_the_run_before_prepare() {
     assert_eq!(files.names(), names_before, "no file added");
     assert_eq!(files.workbook_bytes(), original);
 }
+
+/// A7.1, A7.5, CP-207 K3: a store that has the run's end refuses every runner body of the run with `effect`
+/// (CP-105 (b)). A `planned` row answered so ends the run `failed` with the cause `effect` before `prepare`, with
+/// nothing added beside the workbook; a `made` row answered so ends it with `effect` before the `propose`, with the
+/// prepared copy gone and the checkpoint that the stored planned row names left as `prepare` made it.
+#[test]
+fn a_checkpoint_row_answered_effect_ends_the_run_with_the_cause_effect() {
+    for state in [CheckpointState::Planned, CheckpointState::Made] {
+        let files = FillFiles::new("checkpoint-row-effect", 1);
+        let original = files.workbook_bytes();
+        let names_before = files.names();
+        let sup = fill(186, &files);
+        let seen = sup.serve(
+            |frame, _| {
+                if is_checkpoint(frame, state) {
+                    return Act::With(store_error(frame, "effect"));
+                }
+                Act::Answer
+            },
+            LONG,
+        );
+        assert_eq!(
+            seen.done(),
+            Some(Outcome::Failed),
+            "{state:?}: {}",
+            seen.stderr
+        );
+        assert_eq!(
+            stopped(&seen),
+            Some((LogEvent::Stopped, Some(Cause::Effect))),
+            "{state:?}"
+        );
+        assert!(seen.states().is_empty(), "{state:?}: no effect row");
+        assert_eq!(files.workbook_bytes(), original, "{state:?}");
+        assert_eq!(prepared_copies(&files), 0, "{state:?}: {:?}", files.names());
+        if state == CheckpointState::Planned {
+            assert_eq!(files.names(), names_before, "nothing beside the workbook");
+        } else {
+            assert_eq!(
+                std::fs::read(files.dir.join(checkpoint_name(&sup))).expect("the checkpoint stays"),
+                original
+            );
+        }
+    }
+}
