@@ -75,7 +75,8 @@ command", with exit 2 and nothing on standard output, to it alone or to it with 
 command takes. In the macos job the whole asking runs in one call of scripts/egress/check.sh with
 the list, under one deadline (240 s, or R6_EGRESS_ASKING_SECONDS from 1 to 240). The asker asks the
 egress run's own loopback probe first and last, with a listener of its own on 127.0.0.1:47202, and the
-check counts those two reports apart from the words' reports; an asking that ends with fewer than two
+check counts at most two reports of that destination as the asking's own and every further one as a
+denial of an asked word; an asking that ends with fewer than two
 of them is a lost report, asked again up to three times, and then fails by the words "the asking's
 report was lost". It prints "egress asking denied=<n> probes=<n> tries=<n>", and its denied adds to
 denied. In the words of E-16: denied counts the reports that arrived, and a reach by an asked word is
@@ -1173,6 +1174,7 @@ discover() {
     if [ -f "$log" ] && [ ! -h "$log" ]; then
       probes=$(grep -c 'dest=127\.0\.0\.1:47202 ' "$log") || probes=0
     fi
+    [ "$probes" -le 2 ] || probes=2
     [ "$status" = 0 ] && [ "$probes" -lt 2 ] || break
   done
   : >"$work/asking-stop"
@@ -1788,6 +1790,7 @@ code=$?
 count_lines "$STUB_PROBE_LOG"
 probes=$((counted - probed))
 [ "$STUB_CHECK" != drop-probe ] || [ "$probes" -eq 0 ] || probes=$((probes - 1))
+[ "$STUB_CHECK" != extra-probe ] || [ "$probes" -eq 0 ] || probes=$((probes + 1))
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
 count_lines "$STUB_REACH"
 denied=$((counted - reached))
@@ -2011,6 +2014,7 @@ macos_cases() {
 found-command-that-forges-the-record
 asker-that-skips-a-word
 egress-check-that-drops-a-probe-report
+third-report-at-the-probe-is-a-denial
 sentence
 commands
 third-party
@@ -2639,6 +2643,8 @@ EOF
   case_run found-command-that-forges-the-record FAIL check 'egress on-neither-list=forger'
   case_self=$work/skip-word.sh
   case_run asker-that-skips-a-word FAIL check 'egress asking asked=24 of 25 words'
+  STUB_CHECK=extra-probe
+  case_run third-report-at-the-probe-is-a-denial FAIL denied 'egress asking denied=1 probes=2 tries=1'
   STUB_CHECK=drop-probe
   case_run egress-check-that-drops-a-probe-report FAIL check "egress asking: the asking's report was lost in 4 tries"
   STUB_PROBE=lost
