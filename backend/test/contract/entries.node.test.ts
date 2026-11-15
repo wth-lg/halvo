@@ -1032,7 +1032,7 @@ describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => 
     expect([w.portCalls, await w.holds()]).toEqual([[["cancelSubscription", null]], false]);
   });
 
-  test("a cancel call that throws stores nothing; the due time is then the mark, and the next run of the alarm calls again", async () => {
+  test("a cancel call that throws stores nothing, and destroy answers not-finished with a destroy-error line (P7-110 L1 (f)); the due time is then the mark, and the next run of the alarm calls again", async () => {
     let now = 8000;
     const w = world({ clock: () => now });
     await w.seeded({ customerId: "cus_one" });
@@ -1040,7 +1040,8 @@ describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => 
     w.host.port.cancelSubscription = async () => {
       throw new Error("stopped");
     };
-    await expect(w.entries.destroy(HASH)).rejects.toThrow("stopped");
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    expect(lines).toEqual([{ event: "destroy-error", error: "Error" }]);
     expect(await skeletonOf(w)).toEqual({ row: expect.objectContaining({ destroying_since: 8000, cancel_answered_at: null, cancel_next_at: null }), due: 8000 });
     let made = 0;
     w.host.port.cancelSubscription = async () => {
@@ -1053,11 +1054,12 @@ describe("destroy and the alarm under the mark (unit 5.6, ruling P7-82)", () => 
     expect((await skeletonOf(w))?.row).toEqual(expect.objectContaining({ cancel_answered_at: 9000, cancel_answered_for: "sub_one" }));
   });
 
-  test("an error in step 3 of destroy: the cancel call is made and its answer stored before the error leaves", async () => {
+  test("an error in step 3 of destroy: the cancel call is made and its answer stored, and destroy answers what its steps reached with a destroy-error line (P7-110 L1 (f))", async () => {
     const w = world({ clock: () => 8000 });
     await w.seeded({ customerId: "cus_one" });
     w.answers.throwIn = "metering.send";
-    await expect(w.entries.destroy(HASH)).rejects.toThrow("scripted");
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    expect(lines).toEqual([{ event: "destroy-error", error: "Error" }]);
     w.answers.throwIn = null;
     expect(w.portCalls).toEqual([["cancelSubscription", "sub_one"]]);
     expect(await w.holds()).toBe(false);
@@ -1169,9 +1171,9 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     const w = await underTheMark();
     const segments = stepsOf(w);
     await w.entries.alarm();
-    const [first, second] = segments();
+    const [first, ...later] = segments();
     expect(first).toEqual({ calls: [], alarms: 0 });
-    expect(second?.calls).toContain("ledger.expire");
+    expect(later.some((segment) => segment.calls.includes("ledger.expire"))).toBe(true);
   });
 
   for (const failing of ["ledger.expire", "metering.seal", "accounts.forget", "the wake branch"] as const) {
@@ -1263,5 +1265,49 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
       { event: "alarm-error", error: "Error" },
       { event: "usage-not-billable", error: "Error" },
     ]);
+  });
+
+  test("L1 (f): metering.cut throwing at the delete: the mark is stored in a step of its own, the error is logged as destroy-error, the cancel is made and its answer stored, and destroy answers", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.answers.throwIn = "metering.cut";
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = null;
+    const snapshot = await w.entries.testInspect();
+    expect(snapshot.result === "snapshot" && snapshot.tables.skeleton?.[0]).toEqual(expect.objectContaining({ destroying_since: 8000, cancel_answered_at: 8000 }));
+    expect(w.portCalls).toEqual([["cancelSubscription", "sub_one"]]);
+    expect(lines).toEqual([{ event: "destroy-error", error: "Error" }]);
+  });
+
+  test("L1 (f): after a cut that threw at the delete, the alarm under the mark makes the cut at the mark's time", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.answers.throwIn = "metering.cut";
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = null;
+    w.reset();
+    now = 9000;
+    await w.entries.alarm();
+    expect(w.calls).toContainEqual(["metering.cut", "delete", 8000, 9000]);
+  });
+
+  test("L1 (f): a platform stop (ObjectStoppedError) and the removal's own rejection still leave destroy", async () => {
+    const stopped = world({ clock: () => 8000 });
+    await stopped.seeded({ customerId: "cus_one" });
+    stopped.host.port.cancelSubscription = async () => {
+      const error = new Error("the object stopped");
+      error.name = "ObjectStoppedError";
+      throw error;
+    };
+    await expect(stopped.entries.destroy(HASH)).rejects.toThrow("the object stopped");
+    const rejected = world({ clock: () => 8000 });
+    await rejected.seeded({ customerId: "cus_one" });
+    rejected.host.deleteAll = async () => {
+      throw new RangeError("the alarm call was refused");
+    };
+    await expect(rejected.entries.destroy(HASH)).rejects.toThrow("the alarm call was refused");
   });
 });

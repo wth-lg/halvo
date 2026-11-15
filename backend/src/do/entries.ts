@@ -147,6 +147,9 @@ export function ownTables(sql: Sql): string[] {
 
 export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: Ledger; metering: Metering }): Entries {
   const { accounts, ledger, metering } = modules;
+  const removalRejections = new WeakSet<object>();
+  const leavesDestroy = (error: unknown) =>
+    errorName(error) === "ObjectStoppedError" || (typeof error === "object" && error !== null && removalRejections.has(error));
 
   const tableExists = (sql: Sql, name: string) =>
     sql.exec("SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "table", name).length > 0;
@@ -367,6 +370,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         return undefined;
       }
     }
+    const since = head.mark.since;
+    if (since !== null) await part(() => cutAtTheMark(since));
     const first = await part(() =>
       step((open) => {
         if (!holds(open.sql)) return null;
@@ -486,16 +491,25 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return { result: "cap", cap: read.cap, spend: { spent: read.spent, held: read.held, period_end: read.periodEnd } };
   }
 
-  async function destroyStepThree(metered: boolean): Promise<"gone" | "done"> {
+  async function destroyStepThree(): Promise<"gone" | "done"> {
     const sealed = step((open) => {
-      if (!holds(open.sql)) return false;
+      if (!holds(open.sql)) return null;
       const now = open.begin();
       ledger.expire(open.sql, now);
+      const metered = isMetered(open.sql);
       if (metered) sealLoop(open.sql, now);
-      return true;
+      return { metered };
     });
-    if (!sealed) return "gone";
-    return metered ? sendAndRecord() : "done";
+    if (sealed === null) return "gone";
+    return sealed.metered ? sendAndRecord() : "done";
+  }
+
+  function cutAtTheMark(mark: Ms): void {
+    step((open) => {
+      if (!holds(open.sql)) return;
+      const now = open.begin();
+      if (isMetered(open.sql)) metering.cut(open.sql, "delete", mark, now);
+    });
   }
 
   function holder(sql: Sql, hash: string | null): DeleteAnswer | null {
@@ -534,7 +548,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let next = fourth(hash, false);
     if (next.kind === "again") {
       try {
-        if ((await destroyStepThree(true)) === "gone") return { answer: { result: "deleted" }, thrown };
+        if ((await destroyStepThree()) === "gone") return { answer: { result: "deleted" }, thrown };
       } catch (error) {
         thrown = { error };
       }
@@ -606,7 +620,12 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       return { closed };
     });
     if ("result" in last) return last;
-    await host.deleteAll();
+    try {
+      await host.deleteAll();
+    } catch (error) {
+      if (typeof error === "object" && error !== null) removalRejections.add(error);
+      throw error;
+    }
     if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
     else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
     return { result: "deleted" };
@@ -787,30 +806,45 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         mismatch: { result: "credential-mismatch" as const },
         pending: { result: "pending" as const },
       };
-      const first = guarded<DeleteAnswer | { metered: boolean }>(hash, answers, (open, now) => {
-        const metered = isMetered(open.sql);
-        if (destroyingSince(open.sql) === null) {
-          open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
-          if (metered) metering.cut(open.sql, "delete", now, now);
-        }
-        return { metered };
+      const first = guarded<DeleteAnswer | { cut: Ms | null }>(hash, answers, (open, now) => {
+        if (destroyingSince(open.sql) !== null) return { cut: null };
+        open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
+        return { cut: now };
       });
       if ("result" in first) return first;
-      let thrown: { error: unknown } | null = null;
+      let failed = false;
+      let leave: { error: unknown } | null = null;
+      const caught = (error: unknown) => {
+        if (leavesDestroy(error)) {
+          leave = leave ?? { error };
+          return;
+        }
+        failed = true;
+        log({ event: "destroy-error", error: errorName(error) });
+      };
+      const mark = first.cut;
+      if (mark !== null) {
+        try {
+          cutAtTheMark(mark);
+        } catch (error) {
+          caught(error);
+        }
+      }
       try {
-        if ((await destroyStepThree(first.metered)) === "gone") return { result: "deleted" };
+        if ((await destroyStepThree()) === "gone") return { result: "deleted" };
       } catch (error) {
-        thrown = { error };
+        caught(error);
       }
       let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
       try {
         finished = await finishDelete(hash);
       } catch (error) {
-        if (thrown === null) throw error;
+        caught(error);
       }
-      thrown = thrown ?? finished.thrown;
-      if (thrown !== null) throw thrown.error;
-      return finished.answer;
+      if (finished.thrown !== null) caught(finished.thrown.error);
+      if (leave !== null) throw (leave as { error: unknown }).error;
+      if (!failed) return finished.answer;
+      return host.step((sql) => holds(sql)) ? finished.answer : { result: "deleted" };
     },
 
     async reserve(hash, req) {
