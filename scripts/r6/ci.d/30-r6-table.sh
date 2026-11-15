@@ -932,6 +932,10 @@ pin_cases() {
   check tuple-after-the-pinned-list PASS 'pins tool=' ' files=5 same=5'
   restore_repo
 
+  awk '{ print } END { print "const PINNED_OLD: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check constant-whose-name-starts-with-pinned FAIL 'pins unreadable=PINNED'
+  restore_repo
+
   mv "$work/repo/$pin_file" "$work/repo/$pin_file.away" || exit 2
   check no-pin-test-file FAIL 'pins unreadable=PINNED'
   restore_repo
