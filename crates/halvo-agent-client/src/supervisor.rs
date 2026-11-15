@@ -1070,6 +1070,7 @@ mod tests {
                 browser: root.join("script"),
                 model: None,
                 headed: false,
+                utc_offset_s: 0,
             };
             let answer = sup.start(spec);
             assert!(

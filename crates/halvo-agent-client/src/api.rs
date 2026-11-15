@@ -117,7 +117,7 @@ impl SystemValue {
 }
 
 /// What a start gives the runner: its arguments `--run`, `--agent`, `--workflow`, `--mode`, `--browser` as the
-/// caller gave it, `--model` and `--headed`.
+/// caller gave it, `--utc-offset`, `--model` and `--headed`.
 #[derive(Clone, Debug)]
 pub struct RunSpec {
     pub run: RunId,
@@ -127,6 +127,11 @@ pub struct RunSpec {
     pub browser: PathBuf,
     pub model: Option<PathBuf>,
     pub headed: bool,
+    /// The offset of the person's clock from UTC at the start, in whole seconds east of UTC, which the runner takes
+    /// as `--utc-offset` and by which it stamps the day of every row of the run (the coordinator's ruling CP-204).
+    /// The runner refuses a value outside -50,400 to 50,400, and the start then answers `not_started` with the
+    /// runner's exit.
+    pub utc_offset_s: i32,
 }
 
 /// The failure of one request on the owner link: the link returns it for the request in flight and does not
@@ -396,6 +401,7 @@ mod tests {
             browser,
             model,
             headed: false,
+            utc_offset_s: 0,
         }
     }
 

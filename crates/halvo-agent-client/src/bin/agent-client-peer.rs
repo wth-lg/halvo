@@ -1,5 +1,7 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
-//! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
+//! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`, the value of
+//! `--utc-offset` among it (`none` without the argument); as the runner does, it exits with the status 2 before any
+//! frame when that value is no whole number from -50,400 to 50,400 in the form that `i32` writes; started as `browser`
 //! it plays a browser that sleeps, as `child` a process that sleeps, as `child-brief MS` a process that sleeps MS
 //! milliseconds and exits with the status 0, and as `stderr-child MARKER` a process that
 //! prints MARKER on standard error and exits. On macOS `holder-parent LOG [SECONDS]` starts `holder [SECONDS]`, a
@@ -23,6 +25,7 @@ use std::time::Duration;
 
 use halvo_agent_client::process;
 use halvo_agent_client::wire::{read_frame, write_frame};
+use halvo_schema::executable::day::UTC_OFFSET_S_MAX;
 
 #[path = "agent-client-peer/host.rs"]
 mod host;
@@ -1016,6 +1019,14 @@ fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
     }
 }
 
+/// Whether `value` is an offset that the runner takes: a whole number from -50,400 to 50,400 in the form that `i32`
+/// writes.
+fn offset_in_range(value: &str) -> bool {
+    value
+        .parse::<i32>()
+        .is_ok_and(|n| (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(&n) && n.to_string() == value)
+}
+
 fn runner(args: &[String]) {
     let first_descriptors = own_descriptors();
     let script = PathBuf::from(arg_after(args, "--browser"));
@@ -1026,11 +1037,23 @@ fn runner(args: &[String]) {
     };
     let log = Arc::new(Log(Mutex::new(file)));
     log.line(&format!("args {}", args.len()));
+    let offset = args
+        .iter()
+        .position(|a| a == "--utc-offset")
+        .and_then(|i| args.get(i + 1));
+    log.line(&format!(
+        "utc-offset {}",
+        offset.map_or("none", String::as_str)
+    ));
     let me = std::process::id();
     let created = process::creation_time(me)
         .map(|t| t.to_string())
         .unwrap_or_default();
     log.line(&format!("runner pid={me} created={created}"));
+    if offset.is_some_and(|value| !offset_in_range(value)) {
+        log.line("refused utc-offset");
+        std::process::exit(2);
+    }
     let (tx, rx) = mpsc::channel();
     let on_eof = Arc::new(Mutex::new(OnEof::End));
     let browsers: Arc<Mutex<Vec<Child>>> = Arc::new(Mutex::new(Vec::new()));
