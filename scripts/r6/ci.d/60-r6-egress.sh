@@ -1174,6 +1174,7 @@ check() {
 
 self_failed() {
   printf 'FAIL self-test:%s (%s)\n' "$name" "$1"
+  printf 'FAIL self-test:%s (%s)\n' "$name" "$1" >&2
   exit 1
 }
 
