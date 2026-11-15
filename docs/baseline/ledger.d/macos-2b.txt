@@ -1,13 +1,14 @@
 ledger process=daemon name=held_keys bytes=4718592 kind=by-construction source=macos::input::tests::the_held_keys_at_their_cap_stay_under_the_bytes_of_the_ledger
 measured earlier run=43573022064 note=the_last_macos_alone_scratch_run_before_ruling_MA-22_L1
 measured earlier run=43604085133 note=the_measured_lines_of_scratch_push_10_before_ruling_MA-23
-measured run=43627916230 form=long result=pass gap_ms=190 mended_rounds_held=122 commit=7e79ea8dddbabcbc4bff8716b48d4231826a44c9 scratch=14018285d1240f8ecf8203ecaf8ca96dc0c7c748 figures=ms_total=15,pass=13,known_fault=2,fail=0,notdriven=1,notkept=1;seconds_51=1747;form_a_2000ms:rounds=124,counted=124,recorded_rounds=2,cases=A:2;form_a_150ms:rounds=40,counted=40,recorded_rounds=0;whole_burst_2ms:rounds=5,counted=4,recorded_rounds=0;whole_pace_26ms:rounds=5,counted=5,recorded_rounds=0;mended_click_loop:62_counted,passed;sleep_drops=0_in_313_drop_lines;on_outside=0;notices=0;measure:readings=616,spacing_p50_us=18057,spacing_max_us=91769,load1=10.73
-measured blob path=crates/halvo-capture/src/macos/input.rs id=8ccd185a60b7eb5f921d7780d2c442c626b6b5ea
+measured earlier run=43627916230 note=the_long_form_of_scratch_push_12_before_ruling_MA-24
+measured run=43655810029 form=long result=pass gap_ms=190 mended_rounds_held=122 commit=c59232ee16390370d719d32cfce15f467e77d40e scratch=4f675598e381050e37911809c28304c27895e623 figures=ms_total=15,pass=13,known_fault=2,fail=0,notdriven=1,notkept=1;seconds_51=1737;form_a_2000ms:rounds=124,counted=124,recorded_rounds=2,cases=A;form_a_150ms:rounds=40,counted=40,recorded_rounds=0;whole_burst_2ms:rounds=5,counted=4,recorded_rounds=0;whole_pace_26ms:rounds=5,counted=5,recorded_rounds=0;mended_click_loop:62_counted,passed;sleep_drops=0_in_313_drop_lines;unclocked=0_in_314;on_outside=0;notices=0;rows_of_MA-24_by_name:12_caught;measure:spacing_max_us=92351,load1=7.89
+measured blob path=crates/halvo-capture/src/macos/input.rs id=cc5c788e9061f2610e743157cbc67f5e78de2e78
 measured blob path=crates/halvo-capture/src/secure_input_macos.rs id=2473ae42068dc8cf91ab690fd3783babce0e8d03
-measured blob path=crates/halvo-capture/src/secure_input_macos_hold.rs id=85d2788e9b3fed52c6bdc7733d5bd286a503a4cb
+measured blob path=crates/halvo-capture/src/secure_input_macos_hold.rs id=ee9bde727bc0752f237c370332a96834aef6983c
 measured blob path=crates/halvo-capture/tests/macos_stall_fixture.rs id=143df704e381e089b2c0a9dd1309cb1c60c9a169
 measured blob path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m id=943559e1831e0b037fe1af8d550b148521f6f0e2
 measured blob path=crates/halvo-capture/src/macos/secure_input_byte.rs id=be4d2964d7cad71ce578c70eeb0cbcb6230ff8ce
 measured blob path=crates/halvo-capture/src/macos/run_loop.rs id=4d7121e40423a676e4f783cbcd93d12474c629b4
 measured blob path=crates/halvo-capture/Cargo.toml id=74ae30407b1d3b70d3b61580c9b9282896df0101
-measured blob path=scripts/r1/ci.d/51-macos-stall.sh id=eb9c2da6a8ec1a108219ebe18b2bcd2c8241b93b
+measured blob path=scripts/r1/ci.d/51-macos-stall.sh id=ac733f9cdb080cba29336e7c14c2a87bd604784a
