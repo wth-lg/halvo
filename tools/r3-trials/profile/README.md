@@ -324,9 +324,12 @@ flags that close a way out (`--disable-quic`, the WebRTC policy) and the agent's
 adds no flag to U0.7c's set, and the cells of A13.2 and A13.7, which U0.7c ran with that set, stand.
 The kinds of run 43566221064's denials, and of the controls at c9eafc41 and in that run, come from
 the round's step script, which is not in the tree (`.u03r4/item3-extra.sh` of the scratch head
-cf5bb96a); item 3's program prints the count alone today. From the next run of item 3 on, the
-program prints one line for each denial with its protocol, port and loopback host alone; that change
-is the planner's to place.
+cf5bb96a). Since U0.3c (7fcf6f1c) item 3's program prints one `egress_denial` line for each denial
+with its protocol, port and loopback host alone. Its first runs on `hosted-win`, of the program at
+dd779e3c and at 4fd75d5a (which change no line that item 3 prints): run 43745539991, first set
+`denied=2`, 2 times `proto=udp port=5353 loopback=no`; run 43751185416, first set `denied=4`, 4 times
+the same kind; the final set `denied=0` in both, as the block's line for `hosted-win` reads. No new
+kind: the first set showed only the kind that run 43566221064's step script had shown.
 
 What `browser_started=no` covers on `mac` and `hosted-mac`: every call of either set ended with
 `cause=start`, which the executor gives when the browser answered its first call on the pipe
