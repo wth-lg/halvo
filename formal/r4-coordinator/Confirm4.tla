@@ -303,40 +303,37 @@ HBefore(g, mv) ==
       [] mv.m = "lapse" -> [g EXCEPT !.moves[mv.item] = Append(@, HMade("lapse", mv.cause))]
       [] OTHER -> g
 
-HAsks(g, mv) == IF mv.m = "bind" THEN [g EXCEPT !.waits = g.nb + 1] ELSE g
+HAsks(g, mv) ==
+    IF mv.m = "bind" /\ g.waits = 0 /\ g.nb < Binds THEN [g EXCEPT !.nb = @ + 1, !.waits = g.nb + 1] ELSE g
 
-HAcked(mv) == mv.m = "press" => mv.store = "ack"
-HTaken(g, mv) == g.waits # 0 /\ (mv.m = "press" => mv.runs = "ok")
+HAcked(mv) == mv.m = "press" /\ mv.store = "ack"
+HTaken(mv) == ~(mv.m = "press" /\ mv.runs \in {"busy", "ended"})
 HInPress(g, mv) ==
     /\ mv.m = "press"
     /\ mv.choice = "allow"
     /\ mv.item = g.waits
     /\ g.newest[g.waits] = [answer |-> "allow", acked |-> TRUE]
 
-HTries(g, mv, res) ==
+HTries(g, mv) ==
     /\ mv.m = "press"
-    /\ res.r \notin {"stale", "state"}
+    /\ mv.item = g.waits
     /\ ~(g.newest[mv.item] = [answer |-> mv.choice, acked |-> TRUE] /\ mv.item \in g.unsent)
 
-HRowIn(out) == \E i \in 1..Len(out) : out[i].k = "bind_row"
 HRowFor(out, j) == \E i \in 1..Len(out) : out[i].k = "bind_row" /\ out[i].item = j
 
 HPress(g, mv, res) ==
-    IF HTries(g, mv, res) /\ ~HRowFor(res.out, mv.item)
-    THEN [g EXCEPT !.newest[mv.item] = [answer |-> mv.choice, acked |-> mv.store = "ack" /\ ~HRowIn(res.out)],
-                   !.rows = @ \cup {mv.item},
-                   !.lost = IF mv.store = "ack" THEN @ ELSE @ \cup {mv.item}]
+    IF HTries(g, mv) /\ ~HRowFor(res.out, mv.item)
+    THEN [g EXCEPT !.newest[mv.item] = [answer |-> mv.choice, acked |-> FALSE]]
     ELSE g
 
 HBind(g, e, mv) ==
-    CASE e.k = "bind_raised" -> [g EXCEPT !.nb = @ + 1]
-      [] e.k = "bind_row" ->
+    CASE e.k = "bind_row" ->
             LET j == e.item
             IN [g EXCEPT !.newest[j] = [answer |-> e.answer, acked |-> HAcked(mv)],
                          !.rows = @ \cup {j},
                          !.lost = IF HAcked(mv) THEN @ ELSE @ \cup {j}]
       [] e.k = "answer_bind" ->
-            IF HTaken(g, mv)
+            IF HTaken(mv)
             THEN [g EXCEPT !.bound = @ \cup {[item |-> g.waits, answer |-> e.answer, ok |-> HInPress(g, mv),
                                                again |-> g.waits \in g.unsent]},
                            !.waits = 0,
@@ -374,7 +371,7 @@ HEvent(g, e, mv) ==
                                                /\ p.digest = mv.digest
                                                /\ p.approval = mv.approval,
                   stopped |-> g.stopped]}]
-      [] e.k \in {"bind_raised", "bind_row", "answer_bind", "bind_lapsed"} -> HBind(g, e, mv)
+      [] e.k \in {"bind_row", "answer_bind", "bind_lapsed"} -> HBind(g, e, mv)
       [] OTHER -> g
 
 RECURSIVE HFold(_, _, _, _)
@@ -383,11 +380,19 @@ HFold(g, out, i, mv) == IF i > Len(out) THEN g ELSE HFold(HEvent(g, out[i], mv),
 HAfter(g, mv) ==
     CASE mv.m = "lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"}]
       [] mv.m = "stop" -> [g EXCEPT !.stopped = TRUE]
-      [] mv.m = "bind_lapse" ->
-            [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"},
-                      !.waits = IF mv.cause \in {"run_ended", "app_ended"} THEN 0 ELSE @]
-      [] mv.m = "kill" -> [g EXCEPT !.killed = TRUE, !.waits = 0]
+      [] mv.m = "bind_lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"}]
       [] OTHER -> g
+
+HEnds(g, mv) ==
+    CASE mv.m = "kill" -> [g EXCEPT !.killed = TRUE, !.waits = 0]
+      [] mv.m = "bind_lapse" /\ mv.cause \in {"run_ended", "app_ended"} /\ mv.item = g.waits -> [g EXCEPT !.waits = 0]
+      [] OTHER -> g
+
+RECURSIVE HFoldBind(_, _, _, _)
+HFoldBind(g, out, i, mv) ==
+    IF i > Len(out) THEN g
+    ELSE HFoldBind(IF out[i].k \in {"bind_row", "answer_bind", "bind_lapsed"} THEN HBind(g, out[i], mv) ELSE g,
+                   out, i + 1, mv)
 
 HPassedOn(out) == \E i \in 1..Len(out) : out[i].k = "pass"
 HRepeat(g, mv) ==
@@ -401,13 +406,13 @@ HRepeat(g, mv) ==
 HGuard(g, mv, res) ==
     IF HPassedOn(res.out) THEN HFold(g, res.out, 1, mv)
     ELSE IF HRepeat(g, mv)
-    THEN [g EXCEPT !.refused = @ \cup {[effect |-> mv.effect, digest |-> mv.digest, approval |-> mv.approval]}]
-    ELSE g
+    THEN [HFoldBind(g, res.out, 1, mv) EXCEPT !.refused = @ \cup {[effect |-> mv.effect, digest |-> mv.digest, approval |-> mv.approval]}]
+    ELSE HFoldBind(g, res.out, 1, mv)
 
 Hist(g, mv, res) ==
     IF mv.m = "guard" THEN HGuard(g, mv, res)
-    ELSE IF res.r = "ok" THEN HAfter(HFold(HPress(HAsks(HBefore(g, mv), mv), mv, res), res.out, 1, mv), mv)
-    ELSE HFold(HPress(HAsks(g, mv), mv, res), res.out, 1, mv)
+    ELSE IF res.r = "ok" THEN HAfter(HEnds(HFold(HPress(HAsks(HBefore(g, mv), mv), mv, res), res.out, 1, mv), mv), mv)
+    ELSE HEnds(HFold(HPress(HAsks(g, mv), mv, res), res.out, 1, mv), mv)
 
 GotAllow(g, i, e) == \E d \in g.got : /\ d.via = "release"
                                       /\ d.item = i
