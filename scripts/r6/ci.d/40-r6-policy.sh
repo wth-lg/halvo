@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build or a variable whose name starts with CARGO_TARGET_ and ends with _RUNNER, except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob.
+# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build or the plain name of a variable that starts with CARGO_TARGET_ and ends with _RUNNER, or that name in the escapes that the scan decodes (a name built from parts or escaped another way, and a file that the scan does not read, pass it), except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob.
 set -u
 LC_ALL=C
 export LC_ALL
