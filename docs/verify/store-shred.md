@@ -879,8 +879,10 @@ it in the plan before weakening an assertion.
   hardening test `a_shredded_wrapped_key_is_gone_from_the_raw_database_pages`,
   the one-pass scaled case and the oldest-first scaled case each passed on it.
   So no row of check 1 stands on it, and the two rows of check 1 that
-  stood on it are gone. What removes the bytes of the deleted row is the
-  build's zeroing of the gap of a page built again or edited in place. The
+  stood on it are gone. What removes the copies of the deleted row's cell
+  that a balance left in the gap of a page built again or edited in place is
+  the build's zeroing of that gap; the cell itself is zeroed by secure
+  delete under either build. The
   rows `rebuilt-page-gap-not-zeroed` and `edited-page-gap-not-zeroed` of
   `crates/halvo-sqlcipher/mutants.rows` judge that zeroing on that crate's
   own tables. No row of a store file can take it out, because a row
