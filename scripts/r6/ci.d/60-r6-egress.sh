@@ -1206,11 +1206,13 @@ run_checks() {
       words="$words$arg$nl"
     done
     set --
-    while IFS= read -r arg; do
-      set -- "$@" "$arg"
-    done <<EOF
+    if [ -n "$words" ]; then
+      while IFS= read -r arg; do
+        set -- "$@" "$arg"
+      done <<EOF
 ${words%"$nl"}
 EOF
+    fi
     egress_numbers "$work/before-run-$i.txt"
     list_copy
     sh scripts/egress/check.sh "$list_given" -- "$exe" "$word" "$@" \
@@ -1610,6 +1612,10 @@ EOF
 #!/bin/sh
 list=$1
 shift 2
+empty=no
+for arg in "$@"; do
+  [ -n "$arg" ] || empty=yes
+done
 case $STUB_CHECK in
   mode)
     printf 'REFUSED mode: stub\n' >&2
@@ -1631,6 +1637,7 @@ probed=0
 [ ! -f "$STUB_PROBE_LOG" ] || probed=$(awk 'END { print NR }' "$STUB_PROBE_LOG")
 "$@"
 code=$?
+[ "$empty" = no ] || code=9
 probes=0
 [ ! -f "$STUB_PROBE_LOG" ] || probes=$(($(awk 'END { print NR }' "$STUB_PROBE_LOG") - probed))
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
@@ -2041,6 +2048,7 @@ self_test() {
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
   awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+ / { next } { print }' "$self" \
     >"$work/norun.sh" || self_failed "setup at line $LINENO"
+  awk '/^spend-sim --seed 1$/ { print "spend-sim"; next } { print }' "$self" >"$work/bare.sh" || self_failed "setup at line $LINENO"
   awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
     self_failed "setup at line $LINENO"
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
@@ -2358,6 +2366,8 @@ EOF
   case_run command-after-a-quote-character FAIL check 'egress on-neither-list=quoteword'
   STUB_ARGONLY=1
   case_run command-only-with-an-argument FAIL check 'egress on-neither-list=argword'
+  case_self=$work/bare.sh
+  case_run entry-with-no-arguments PASS - 'egress run=spend-sim mode=sandbox command=0 denied=0 exit=0'
   case_self=$work/twice.sh
   case_run word-on-both-lists FAIL check 'egress listed-twice=probe'
   case_repo=$work/no-such-repository
