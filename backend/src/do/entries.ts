@@ -361,11 +361,18 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   }
 
   async function alarmBody(run: AlarmRun): Promise<void> {
-    const head = host.step((sql) => (holds(sql) ? { mark: markOf(sql), failures: Number(skeletonRow(sql).alarm_failures) } : null));
-    if (head === null) return;
-    run.mark = head.mark;
-    const marked = head.mark.since !== null;
     const caught: unknown[] = [];
+    let head: { mark: Mark; failures: number } | null | "unknown";
+    try {
+      head = host.step((sql) => (holds(sql) ? { mark: markOf(sql), failures: Number(skeletonRow(sql).alarm_failures) } : null));
+    } catch (error) {
+      caught.push(error);
+      log({ event: "alarm-error", error: errorName(error) });
+      head = "unknown";
+    }
+    if (head === null) return;
+    run.mark = head === "unknown" ? "unknown" : head.mark;
+    const marked = head === "unknown" || head.mark.since !== null;
     async function part<T>(work: () => Promise<T> | T): Promise<T | undefined> {
       if (!marked) return work();
       try {
@@ -376,7 +383,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         return undefined;
       }
     }
-    const since = head.mark.since;
+    const since = head === "unknown" ? null : head.mark.since;
     if (since !== null) await part(() => cutAtTheMark(since));
     const first = await part(() =>
       step((open) => {
@@ -444,7 +451,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }
     if (thrown !== null) throw thrown.error;
     if (caught.length > 0) throw new LoggedAlarmError(caught[0]);
-    if (head.failures > 0) {
+    if (head === "unknown" || head.failures > 0) {
       step((open) => {
         if (!holds(open.sql)) return;
         open.begin();
