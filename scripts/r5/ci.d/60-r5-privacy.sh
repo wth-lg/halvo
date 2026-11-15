@@ -8,6 +8,7 @@ name=60-r5-privacy
 script_path=scripts/r5/ci.d/60-r5-privacy.sh
 lfx=$(printf '\nx')
 nl=${lfx%x}
+start_path=$PATH
 want_privacy="privacy check=learn_listed result=not-run
 privacy check=learn_deleted result=ok
 privacy check=learn_scrub result=not-run
@@ -191,7 +192,7 @@ fixture_gate() {
 case $1 in
   privacy)
     if [ -d "$3" ] && [ -d "$TMPDIR" ] && [ "$TMP" = "$TMPDIR" ] && [ "$TEMP" = "$TMPDIR" ] && [ -z "$(ls -A "$TMPDIR")" ]; then
-      printf 'privacy --data-dir DIR tmp=own\n' >>"$FIXTURE_DIR/calls"
+      printf 'privacy --data-dir %s tmp=own\n' "${3##*/}" >>"$FIXTURE_DIR/calls"
     else
       printf 'privacy %s\n' "$*" >>"$FIXTURE_DIR/calls"
     fi
@@ -199,7 +200,7 @@ case $1 in
     ;;
   *)
     if [ -d "$5" ]; then
-      printf '%s %s %s %s DIR %s %s\n' "$1" "$2" "$3" "$4" "$6" "$7" >>"$FIXTURE_DIR/calls"
+      printf '%s %s %s %s %s %s %s\n' "$1" "$2" "$3" "$4" "${5##*/}" "$6" "$7" >>"$FIXTURE_DIR/calls"
     else
       printf 'delete %s\n' "$*" >>"$FIXTURE_DIR/calls"
     fi
@@ -259,28 +260,27 @@ self_case() {
   fi
 }
 
-# tree_git ARGS: the stand-in for git in the tree cases: the two reads of the tree, from the case's status file.
+# tree_git ARGS: the stand-in for git in the tree cases: the two reads of the tree, the status from the case's status
+# file (failing when the case holds the file status-fails) and the index list from the case's files file.
 tree_git() {
   case $* in
     '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all')
+      [ ! -e "$TREE_DIR/status-fails" ] || return 128
       cat "$TREE_DIR/status"
       ;;
     'ls-files -v')
-      printf 'H %s\nH crates/halvo-learn-gate/src/privacy.rs\n' "$script_path"
-      if [ "$label" = flagged-before ]; then
-        printf 'S crates/halvo-learn-gate/src/main.rs\n'
-      fi
+      cat "$TREE_DIR/files"
       ;;
     *) return 97 ;;
   esac
 }
 
-# tree_cargo ARGS: the stand-in for cargo in the tree cases: records the call, changes the tree when the case asks it
-# to at the build, and fails when the case's build fails.
+# tree_cargo ARGS: the stand-in for cargo in the tree cases: records the call, adds the case's line to its status or
+# files file when the case asks it to at the build, and fails when the case's build fails.
 tree_cargo() {
   printf '%s\n' "$*" >>"$TREE_DIR/cargo.calls"
   if [ "$TREE_CHANGE_AT" = build ]; then
-    printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/status"
+    printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/$TREE_CHANGE_FILE"
   fi
   [ "$TREE_BUILD" = ok ] || return 101
 }
@@ -290,7 +290,7 @@ tree_gate() {
 #!/bin/sh
 printf '%s\n' "$1" >>"$TREE_DIR/gate.calls"
 if [ "$TREE_CHANGE_AT" = gate ]; then
-  printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/status"
+  printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/$TREE_CHANGE_FILE"
 fi
 case $1:$3 in
   privacy:*) printf '%s\n' "$WANT_PRIVACY" ;;
@@ -303,7 +303,9 @@ EOF
 # tree_case LABEL WANT TEXT LINE_BEFORE CHANGE_AT CHANGE_LINE BUILD CARGO [HIDDEN]: runs measure, the function that the
 # check runs, in a subshell with the stand-ins for git and for cargo (or no cargo when CARGO is no) and with the stand-in
 # gate where the lookup finds the built binary, and records whether the last line, the text and the calls are the
-# wanted; with HIDDEN, also that the output does not hold that word and the artifacts' tree-before.txt does.
+# wanted; with HIDDEN, also that the output does not hold that word and the artifacts' tree-before.txt does. The index
+# list is case_files, the file that a change at CHANGE_AT adds CHANGE_LINE to is case_change_file (status or files),
+# and the status read fails when case_status_fails is not empty; the three go back to their defaults after the case.
 tree_case() {
   label=$1
   want=$2
@@ -312,14 +314,22 @@ tree_case() {
   TREE_DIR=$work/tree-$label
   TREE_CHANGE_AT=$5
   TREE_CHANGE_LINE=$6
+  TREE_CHANGE_FILE=$case_change_file
   TREE_BUILD=$7
   WANT_PRIVACY=$want_privacy
-  export TREE_DIR TREE_CHANGE_AT TREE_CHANGE_LINE TREE_BUILD WANT_PRIVACY
+  export TREE_DIR TREE_CHANGE_AT TREE_CHANGE_LINE TREE_CHANGE_FILE TREE_BUILD WANT_PRIVACY
   mkdir -p "$TREE_DIR/repo/target/debug" "$TREE_DIR/art" "$TREE_DIR/tmp" "$work/no-cargo" || broken
   printf '# branch.oid 1111111111111111111111111111111111111111\n# branch.head r5\n' >"$TREE_DIR/status" || broken
   if [ -n "$4" ]; then
     printf '%s\n' "$4" >>"$TREE_DIR/status" || broken
   fi
+  printf '%s\n' "$case_files" >"$TREE_DIR/files" || broken
+  if [ -n "$case_status_fails" ]; then
+    : >"$TREE_DIR/status-fails" || broken
+  fi
+  case_files=$default_files
+  case_change_file=status
+  case_status_fails=
   tree_gate >"$TREE_DIR/repo/target/debug/learn-gate" || broken
   chmod +x "$TREE_DIR/repo/target/debug/learn-gate" || broken
   out=$(
@@ -361,7 +371,7 @@ tree_case() {
     grep -q "$hidden" "$TREE_DIR/art/tree-before.txt" 2>/dev/null || got=$got-without-the-artifact
   fi
   case $label in
-    changed-before | staged-before | name-not-shown | heldout-name-not-shown | flagged-before)
+    changed-before | staged-before | name-not-shown | heldout-name-not-shown | flagged-before | flagged-lowercase | renamed-before | unmerged-before | status-unreadable | own-untracked)
       [ ! -e "$TREE_DIR/cargo.calls" ] || got=$got-after-a-cargo-call
       ;;
     build-fails)
@@ -386,13 +396,30 @@ tree_cases() {
   word="1 .M N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/marrowbillet.rs"
   heldout="1 M. N... 100644 100644 100644 $oid $oid fixtures/r5/cases/heldout/quintelfern-moss.jsonl"
   own="1 .M N... 100644 100644 100644 $oid $oid $script_path"
+  renamed="2 R. N... 100644 100644 100644 $oid $oid R100 crates/halvo-learn-gate/src/main.rs	crates/halvo-learn-gate/src/old.rs"
+  unmerged="u UU N... 100644 100644 100644 100644 $oid $oid $oid crates/halvo-learn-gate/src/main.rs"
+  default_files="H $script_path${nl}H crates/halvo-learn-gate/src/privacy.rs"
+  case_files=$default_files
+  case_change_file=status
+  case_status_fails=
   tree_passed=0
   tree_rejected=0
   tree_case changed-before FAIL-tree 'tree changed=before files=1' "$changed" "" "" ok yes
   tree_case staged-before FAIL-tree 'tree changed=before files=1' "$staged" "" "" ok yes
   tree_case name-not-shown FAIL-tree 'tree changed=before files=1' "$word" "" "" ok yes marrowbillet
   tree_case heldout-name-not-shown FAIL-tree 'tree changed=before files=1' "$heldout" "" "" ok yes quintelfern
+  case_files="$default_files${nl}S crates/halvo-learn-gate/src/main.rs"
   tree_case flagged-before FAIL-tree 'tree flagged=1' "" "" "" ok yes
+  case_files="$default_files${nl}h crates/halvo-learn-gate/src/main.rs"
+  tree_case flagged-lowercase FAIL-tree 'tree flagged=1' "" "" "" ok yes
+  tree_case renamed-before FAIL-tree 'tree changed=before files=1' "$renamed" "" "" ok yes
+  tree_case unmerged-before FAIL-tree 'tree changed=before files=1' "$unmerged" "" "" ok yes
+  case_status_fails=yes
+  tree_case status-unreadable FAIL-tree 'tree head=unreadable' "" "" "" ok yes
+  case_files="H crates/halvo-learn-gate/src/privacy.rs"
+  tree_case own-untracked FAIL-own "FAIL $name (own)" "" "" "" ok yes
+  case_change_file=files
+  tree_case play-flags-a-file FAIL-tree 'tree changed=after-gate' "" gate "h crates/halvo-learn-gate/src/main.rs" ok yes
   tree_case own-changed FAIL-own "FAIL $name (own)" "$own" "" "" ok yes
   tree_case untracked-before PASS "PASS $name" '? notes.txt' "" "" ok yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
@@ -401,20 +428,113 @@ tree_cases() {
   tree_case build-fails FAIL-build "FAIL $name (build)" "" "" "" fails yes
 }
 
+removal_git() {
+  cat <<'EOF'
+#!/bin/sh
+case $* in
+  *' status '*) cat "$TREE_DIR/status" ;;
+  'ls-files -v') cat "$TREE_DIR/files" ;;
+  *) exit 97 ;;
+esac
+EOF
+}
+
+removal_gate() {
+  cat <<'EOF'
+#!/bin/sh
+case $1:$GATE_MODE in
+  privacy:fail)
+    printf '%s\n' "$WANT_PRIVACY" | sed 's/learn_deleted result=ok/learn_deleted result=miss/'
+    exit 1
+    ;;
+  privacy:signal)
+    : >"$TREE_DIR/started"
+    tries=0
+    while [ ! -e "$TREE_DIR/go" ] && [ "$tries" -lt 60 ]; do
+      sleep 1
+      tries=$((tries + 1))
+    done
+    printf '%s\n' "$WANT_PRIVACY"
+    ;;
+  privacy:*) printf '%s\n' "$WANT_PRIVACY" ;;
+  delete:*)
+    case $3 in
+      workflow) printf 'delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok\n' ;;
+      *) printf 'delete what=all store=memory exit=- files_left=- result=not-run\n' ;;
+    esac
+    ;;
+esac
+EOF
+}
+
+# removal_case LABEL MODE WANT: runs this script as a process of its own, with stand-ins for git and cargo first on its
+# PATH, the stand-in gate where the lookup finds the built binary and TMPDIR a directory of the case; the gate passes
+# (pass), fails the check after its temporary directory is made (fail), or waits while the case sends TERM to the
+# script (signal). Records whether the exit, the last line and the case's TMPDIR, which must be empty, read WANT.
+removal_case() {
+  rlabel=$1
+  rmode=$2
+  rwant=$3
+  rdir=$work/removal-$rlabel
+  mkdir -p "$rdir/bin" "$rdir/repo/target/debug" "$rdir/art" "$rdir/tmp" || broken
+  printf '# branch.oid 1111111111111111111111111111111111111111\n# branch.head r5\n' >"$rdir/status" || broken
+  printf '%s\n' "$default_files" >"$rdir/files" || broken
+  removal_git >"$rdir/bin/git" || broken
+  printf '#!/bin/sh\nexit 0\n' >"$rdir/bin/cargo" || broken
+  removal_gate >"$rdir/repo/target/debug/learn-gate" || broken
+  chmod +x "$rdir/bin/git" "$rdir/bin/cargo" "$rdir/repo/target/debug/learn-gate" || broken
+  if [ "$rmode" = signal ]; then
+    env PATH="$rdir/bin:$start_path" TREE_DIR="$rdir" GATE_MODE="$rmode" WANT_PRIVACY="$want_privacy" CI_D_REPO="$rdir/repo" \
+      CI_D_ARTIFACTS="$rdir/art" CARGO_TARGET_DIR="$rdir/repo/target" TMPDIR="$rdir/tmp" sh "$me" >"$rdir/out" 2>&1 </dev/null &
+    pid=$!
+    tries=0
+    while [ ! -e "$rdir/started" ] && [ "$tries" -lt 60 ]; do
+      sleep 1
+      tries=$((tries + 1))
+    done
+    kill -TERM "$pid" 2>/dev/null
+    : >"$rdir/go" || broken
+    wait "$pid"
+    code=$?
+  else
+    env PATH="$rdir/bin:$start_path" TREE_DIR="$rdir" GATE_MODE="$rmode" WANT_PRIVACY="$want_privacy" CI_D_REPO="$rdir/repo" \
+      CI_D_ARTIFACTS="$rdir/art" CARGO_TARGET_DIR="$rdir/repo/target" TMPDIR="$rdir/tmp" sh "$me" >"$rdir/out" 2>&1 </dev/null
+    code=$?
+  fi
+  last=$(awk 'END { print }' "$rdir/out") || last=unreadable
+  left=$(ls -A "$rdir/tmp") || left=unreadable
+  got="$code:$last:${left:-empty}"
+  printf 'case %s want=%s got=%s\n' "$rlabel" "$rwant" "$got" >>"$work/removal-cases.txt"
+  if [ "$got" = "$rwant" ]; then
+    removal_held=$((removal_held + 1))
+  else
+    wrong="$wrong removal-$rlabel:$got"
+  fi
+}
+
+removal_cases() {
+  removal_held=0
+  removal_case pass pass "0:PASS $name:empty"
+  removal_case fail fail "1:FAIL $name (privacy):empty"
+  removal_case signal signal "1:FAIL $name (signal):empty"
+}
+
 self_test() {
   made=$(mktemp -d "${TMPDIR:-/tmp}/60-r5-privacy.XXXXXX") || broken
   work=$made
+  me=$(cd -P -- "$(dirname -- "$0")" && pwd -P) || broken
+  me=$me/${0##*/}
   fixture_gate >"$work/gate.sh" || broken
   gate_script=$work/gate.sh
   p="$want_privacy$nl"
   wf="delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok$nl"
   all="$want_all$nl"
-  want_calls="privacy --data-dir DIR tmp=own
-delete --what workflow --data-dir DIR --store memory
-delete --what all --data-dir DIR --store memory"
+  want_calls="privacy --data-dir privacy-data tmp=own
+delete --what workflow --data-dir workflow-data --store memory
+delete --what all --data-dir all-data --store memory"
   log_line='^(privacy check=learn_[a-z_]+ result=(ok|miss|not-run)|delete what=workflow store=[a-z]+ rows_left=[0-9]+ other_rows=[0-9]+ other_served=(yes|no) result=(ok|miss)|delete what=all store=[a-z]+ exit=([0-9]+|-) files_left=([0-9]+|-) result=(ok|miss|not-run)|(privacy|workflow|all)=unreadable)$'
   pl=privacy
-  failing_fixtures=27
+  failing_fixtures=31
   passing_fixtures=2
   wrong=
   rejected=0
@@ -459,13 +579,22 @@ delete --what all --data-dir DIR --store memory"
   self_case workflow-two-lines delete "$p" "" 0 "$wf$wf" "" 0 "$all" "" 0
   self_case all-ok all "$p" "" 0 "$wf" "" 0 "delete what=all store=memory exit=0 files_left=0 result=ok$nl" "" 0
   self_case all-standard-error all "$p" "" 0 "$wf" "" 0 "$all" "a warning$nl" 0
+  self_case all-exit-1 all "$p" "" 0 "$wf" "" 0 "$all" "" 1
+  self_case workflow-standard-error-at-0 delete "$p" "" 0 "$wf" "a warning$nl" 0 "$all" "" 0
+  self_case workflow-text-after delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok extra$nl" "" 0 "$all" "" 0
+  self_case workflow-text-before delete "$p" "" 0 "x delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0
   tree_cases
+  removal_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 10 ]; then
-    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 10)\n' "$name" "$tree_passed" "$tree_rejected"
+  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 16 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 16)\n' "$name" "$tree_passed" "$tree_rejected"
+    exit 1
+  fi
+  if [ "$removal_held" -ne 3 ]; then
+    printf 'FAIL self-test:%s (removal cases held %s, not 3)\n' "$name" "$removal_held"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
