@@ -18,7 +18,7 @@ import {
 } from "../../src/do/entries.ts";
 import type { Ledger } from "../../src/ledger/index.ts";
 import type { Metering, Next, UsageCall } from "../../src/metering/index.ts";
-import type { Cap, Ms } from "../../src/types.ts";
+import type { Cap, Ms, Sql } from "../../src/types.ts";
 
 const ACCOUNT = "0f8e2d4c-6b1a-4c3e-8d2f-1a2b3c4d5e6f";
 const HASH = "a".repeat(64);
@@ -1503,5 +1503,62 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     await first;
     expect([second, during]).toEqual([{ result: "not-finished" }, { calls: 0, due: 8000 + CALL_IN_FLIGHT_MS }]);
     expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([["cancelSubscription", "sub_one"]]);
+  });
+
+  test("L3 (b): with nothing owed (no answer, no next try), the pause after failing runs under the mark doubles: 30 s, 60 s, 120 s, 240 s", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => {
+      throw new RangeError("the call throws");
+    };
+    await w.entries.destroy(HASH);
+    const arms: (Ms | null)[] = [];
+    for (let run = 0; run < 4; run += 1) {
+      now = w.alarmAt() ?? now;
+      await w.entries.alarm();
+      arms.push(w.alarmAt());
+    }
+    expect(arms).toEqual([8000 + 30_000, 38_000 + 60_000, 98_000 + 120_000, 218_000 + 240_000]);
+  });
+
+  test("L3 (b): a failing run under the mark with the answer stored arms at the removal's bound, not at the pause", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "ledger.expire";
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.alarmAt()).toBe(8000 + DELETE_REMOVAL_BOUND_MS);
+  });
+
+  test("L3 (a): when the count step itself throws under the mark, the alarm arms one ALARM_RETRY_MS later and writes no alarm-stopped", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    w.answers.throwIn = "ledger.expire";
+    const inner = w.host.step;
+    w.host.step = (<T>(run: (sql: Sql) => T): T =>
+      inner((sql) =>
+        run({
+          exec: (query: string, ...bindings: (string | number | null)[]) => {
+            if (query.startsWith("UPDATE skeleton SET last_now = ?, alarm_failures = ?")) throw new RangeError("the count step throws");
+            return sql.exec(query, ...bindings);
+          },
+        } as Sql),
+      )) as typeof inner;
+    w.reset();
+    now = 9000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.alarmAt()).toBe(9000 + ALARM_RETRY_MS);
+    expect(events()).not.toContain("alarm-stopped");
   });
 });
