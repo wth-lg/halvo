@@ -16,7 +16,9 @@ fn scratch_passes_over_a_standing_name() {
     let root = first.parent().expect("the root").to_path_buf();
     let standing: Vec<std::path::PathBuf> = (n + 1..=n + 64)
         .map(|k| {
-            let dir = root.join(format!("runner-{tag}-{}-{k}", std::process::id()));
+            let name = first.file_name().and_then(|n| n.to_str()).expect("a name");
+            let stem = &name[..name.len() - n.to_string().len()];
+            let dir = root.join(format!("{stem}{k}"));
             std::fs::create_dir_all(&dir).expect("a standing directory");
             std::fs::write(dir.join("left"), b"an earlier process").expect("a file in it");
             dir
