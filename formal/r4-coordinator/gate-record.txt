@@ -1,6 +1,6 @@
 gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record
-stamp=6d98aa8ced29669c414660f6bab8243e1b9d8b3fdfe156a61ecc9590dfbd0a55
-script=8292ac6a69505402f3cf07df5e4f03c570af9700783083d8903f5e31e778b6e5
+stamp=f0c33c992b5d3793f1086aa0b354c565361830a2cfa6a96698cae2336af84d0e
+script=541703b1b8ce204a427efc87aa4754240c4496120d0684f380b8941f223ffdd1
 selftest fixture=good mode=good as-expected=yes
 selftest fixture=not-compared mode=reads-input as-expected=yes
 selftest rule=scratch held=yes
@@ -18,6 +18,8 @@ selftest fixture=unnamed-configuration mode=good as-expected=yes
 selftest fixture=days-not-for-ci mode=good as-expected=yes
 selftest fixture=invariant-twice mode=good as-expected=yes
 selftest fixture=replaced-invariant mode=good as-expected=yes
+selftest fixture=replaced-operator mode=good as-expected=yes
+selftest fixture=replaced-outside-ci mode=good as-expected=yes
 selftest fixture=comment-mark mode=good as-expected=yes
 selftest fixture=good mode=violated as-expected=yes
 selftest fixture=good mode=status as-expected=yes
@@ -61,6 +63,7 @@ selftest fixture=renamed-invariant mode=good as-expected=yes
 selftest fixture=extra-invariant mode=good as-expected=yes
 selftest fixture=comment-in-configuration mode=good as-expected=yes
 selftest fixture=full-without-an-invariant mode=good as-expected=yes
+selftest fixture=confirm-without-l11 mode=good as-expected=yes
 selftest fixture=no-schedule-for-ci mode=good as-expected=yes
 selftest fixture=no-confirm-for-ci mode=good as-expected=yes
 selftest fixture=unknown-job mode=good as-expected=yes
@@ -79,4 +82,4 @@ selftest fixture=good mode=signal as-expected=yes
 selftest rule=removed-after-a-signal held=yes
 selftest control=C1 rejected=yes
 selftest control=L5 rejected=yes
-results=78
+results=81

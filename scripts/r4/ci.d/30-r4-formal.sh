@@ -218,7 +218,7 @@ declared() {
     *)
       key=confirm
       letter=L
-      count=10
+      count=11
       ;;
   esac
   result=missing
@@ -236,9 +236,7 @@ declared() {
       for (i = 1; i <= count; i++) if (!((letter i) in have)) { print "invariants"; exit }
       if (comment) { print "comment"; exit }
       if (lines != count) { print "invariants"; exit }
-      if (ci == "yes") {
-        for (i = 1; i <= count; i++) if (flat ~ ("(^| )" letter i " *<-")) { print "replaced"; exit }
-      }
+      if (ci == "yes" && index(flat, "<-") > 0) { print "replaced"; exit }
       print "ok"
     }' "$dir/$2") || result=missing
   [ -n "$result" ] || result=missing
@@ -306,7 +304,7 @@ models() {
   broken_schedule=$(grep -c . "$tmp/violated-schedule.names")
   broken_confirm=$(grep -c . "$tmp/violated-confirm.names")
   printf 'formal schedule states=%s invariants=12 violated=%s\n' "$schedule_states" "$broken_schedule"
-  printf 'formal confirm states=%s invariants=10 violated=%s\n' "$confirm_states" "$broken_confirm"
+  printf 'formal confirm states=%s invariants=11 violated=%s\n' "$confirm_states" "$broken_confirm"
   [ "$bad" -eq 0 ] || fail invariant
   if [ "$ran" -ne "$marked" ]; then
     printf 'formal runs=%s marked=%s\n' "$ran" "$marked"
@@ -316,7 +314,7 @@ models() {
 
 stamp_of() {
   (cd "$1" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg \
-    Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json) >"$2.bin" || return 1
+    Confirm4.tla Confirm4.cfg Confirm4-bound.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json) >"$2.bin" || return 1
   tr -d '\r' <"$2.bin" >"$2.txt" || return 1
   stamp=$(sha256 <"$2.txt") || return 1
   stamp=${stamp%% *}
@@ -361,7 +359,7 @@ stamps() {
     [ -e "$f" ] || continue
     case ${f##*/} in
       Schedule.tla | Schedule.cfg | Confirm4.tla | Confirm4.cfg | ScheduleTrace.tla | Confirm4Trace.tla) ;;
-      TraceText.tla | limits.json | Schedule-holds.cfg | Schedule-left.cfg | Schedule-reap.cfg) ;;
+      TraceText.tla | limits.json | Schedule-holds.cfg | Schedule-left.cfg | Schedule-reap.cfg | Confirm4-bound.cfg) ;;
       *)
         case $named in
           *"
@@ -819,6 +817,16 @@ every_push() {
   fixture replaced-invariant
   printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule-queue.cfg" || fail selftest
   expect replaced-invariant "1:FAIL $name (invariant)" good '' ' result=replaced'
+  fixture replaced-operator
+  edit replaced-operator README.md "$elsewhere"
+  printf 'CONSTANT HInPress <- HTaken\n' >>"$fdir/Confirm4.cfg" || fail selftest
+  restamp replaced-operator
+  expect replaced-operator "1:FAIL $name (invariant)" good '' ' result=replaced'
+  fixture replaced-outside-ci
+  edit replaced-outside-ci README.md "$elsewhere"
+  printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule.cfg" || fail selftest
+  restamp replaced-outside-ci
+  expect replaced-outside-ci "0:PASS $name" good
   fixture comment-mark
   {
     printf '\\* a note\n'
@@ -900,7 +908,7 @@ for_the_record() {
   for mode in silent killed violated violated-status; do
     expect good "1:FAIL $name (invariant)" "$mode"
   done
-  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=10 violated=1'
+  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=11 violated=1'
   for mode in control-other control-status control-one; do
     expect not-compared "1:FAIL $name (control)" "$mode"
   done
@@ -949,6 +957,11 @@ INVARIANT C7/'
   edit full-without-an-invariant Schedule.cfg '/^INVARIANT C12$/d'
   restamp full-without-an-invariant
   expect full-without-an-invariant "1:FAIL $name (invariant)" good
+  fixture confirm-without-l11
+  edit confirm-without-l11 README.md "$elsewhere"
+  edit confirm-without-l11 Confirm4.cfg '/^INVARIANT L11$/d'
+  restamp confirm-without-l11
+  expect confirm-without-l11 "1:FAIL $name (invariant)" good
   fixture no-schedule-for-ci
   edit no-schedule-for-ci README.md 's/\(| .Schedule-[a-z]*\.cfg. |\) yes |/\1 no |/'
   expect no-schedule-for-ci "1:FAIL $name (invariant)" good
