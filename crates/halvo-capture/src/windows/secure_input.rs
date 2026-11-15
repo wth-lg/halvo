@@ -758,6 +758,13 @@ impl PasswordGate {
         marks.forwarded = None;
     }
 
+    pub(crate) fn pointer_did_not_take_the_clicks(&self) {
+        let mut marks = self.shared.lock();
+        marks.pointer_owns = false;
+        marks.pointer_since = None;
+        marks.forwarded = None;
+    }
+
     pub(crate) fn pointer_lets_the_clicks_go(&self, fallback: u32) {
         let from = {
             let mut marks = self.shared.lock();
@@ -1741,11 +1748,12 @@ mod detector {
         #[cfg(not(test))]
         let desktop = set_desktop_hook();
         if desktop.is_invalid() {
+            let error = windows::core::Error::from_thread();
             DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
             let _ = (removals.handler)(&reader.automation, &handler);
             let _ = ready.send(Err(os(
                 "SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH)",
-                &windows::core::Error::from_thread(),
+                &error,
             )));
             return Ok(());
         }
@@ -2383,10 +2391,23 @@ mod detector {
             handler: &IUIAutomationFocusChangedEventHandler,
         ) -> windows::core::Result<()> {
             HANDLERS_REMOVED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            remove_handler(automation, handler)
+            let removed = remove_handler(automation, handler);
+            // SAFETY: SetLastError takes a plain value for the calling thread.
+            unsafe {
+                windows::Win32::Foundation::SetLastError(
+                    windows::Win32::Foundation::ERROR_INVALID_PARAMETER,
+                );
+            }
+            removed
         }
 
         fn no_desktop_hook() -> HWINEVENTHOOK {
+            // SAFETY: SetLastError takes a plain value for the calling thread.
+            unsafe {
+                windows::Win32::Foundation::SetLastError(
+                    windows::Win32::Foundation::ERROR_ACCESS_DENIED,
+                );
+            }
             HWINEVENTHOOK::default()
         }
 
@@ -2430,6 +2451,19 @@ mod detector {
             );
             assert!(!running, "a refused attach keeps a detector");
             assert_eq!(removed, 1, "the focus handler was not removed");
+            assert_eq!(
+                attached,
+                Err(CaptureError::Os {
+                    stage: "SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH)",
+                    domain: "HRESULT",
+                    code: i64::from(
+                        windows::Win32::Foundation::ERROR_ACCESS_DENIED
+                            .to_hresult()
+                            .0
+                    ),
+                }),
+                "the refusal does not carry the code of the call that set the hook"
+            );
         }
 
         static HOLD_FIRST_READ: std::sync::atomic::AtomicBool =
