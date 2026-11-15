@@ -644,6 +644,22 @@ pub(crate) mod tests {
         (own, row)
     }
 
+    /// CP-190 (5), `ask_end` on Windows: a windowless process cannot be asked to end there, so the
+    /// ask sends nothing and returns false, and the guard's end by force follows after its wait
+    /// (CP-148 (5)).
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_the_ask_sends_nothing_and_says_so() {
+        let (mut own, row) = own_child();
+        let _admitted = fence::admit_process(&row);
+        assert!(!ask_end(&row), "the ask said that it sent");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(
+            matches!(own.0.try_wait(), Ok(None)),
+            "the ask ended the child"
+        );
+    }
+
     /// CP-161 (3), failing first: in the crate's test build an end of a process that the test did
     /// not admit sends nothing and fails at the call, also for the test's own child, by number and
     /// start time read again at the call.
