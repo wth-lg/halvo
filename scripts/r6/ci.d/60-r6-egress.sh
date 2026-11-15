@@ -2018,6 +2018,39 @@ case_run() {
   case_reset
 }
 
+part_seconds() {
+  case_wanted part-seconds || return 0
+  reps=10
+  for part in stand-in-start forbid-stub wrapped-call list-checks import-listing; do
+    started=$(date +%s) || started=0
+    i=0
+    while [ "$i" -lt "$reps" ]; do
+      case $part in
+        stand-in-start)
+          (cd "$work/repo" && PATH=$work/bin:$PATH CI_D_REPO=$work/repo STUB_GRAPH=good \
+            sh "$work/bin/cargo" metadata --locked --format-version 1 --no-deps >/dev/null 2>&1) ;;
+        forbid-stub)
+          (cd "$work/repo" && PATH=$work/bin:$PATH CI_D_REPO=$work/repo CI_D_ARTIFACTS=$work/artifacts CI_D_JOB=$host_job \
+            CLIPPY_CONF_DIR=$work/artifacts/forbid-list STUB_CLIPPY_JSON=$work/clippy-clean.json STUB_CLIPPY_EXIT=0 \
+            sh "$work/bin/cargo" clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins \
+            --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code >/dev/null 2>&1) ;;
+        wrapped-call)
+          (cd "$work/repo" && STUB_COMMANDS=probe STUB_PROBE_LOG=$work/part-probe.log \
+            sh scripts/egress/check.sh scripts/r6/egress/gate.txt -- "$work/route-gate" probe --rounds 1 >/dev/null 2>&1) ;;
+        list-checks)
+          (cd "$work/repo" && cp scripts/r6/egress/gate.txt "$work/part-list.txt" && cmp -s "$work/part-list.txt" scripts/r6/egress/gate.txt &&
+            cmp -s scripts/r6/egress/gate.txt "$work/part-list.txt" &&
+            git -c core.fsmonitor=false diff --no-renames --name-status "$good_tree" -- >/dev/null 2>&1) ;;
+        import-listing)
+          (PATH=$work/bin:$PATH rustc --print sysroot >/dev/null 2>&1) ;;
+      esac
+      i=$((i + 1))
+    done
+    ended=$(date +%s) || ended=$started
+    printf 'part-seconds %s %s for %s calls\n' "$part" "$((ended - started))" "$reps"
+  done
+}
+
 marker_absent() {
   case_wanted "$1" || return 0
   if [ -s "$2" ]; then
@@ -2377,6 +2410,7 @@ EOF
   fi
 
   case_run pass PASS - "egress checks=6 denied=0 entries=0${nl}denied=0 proves that no process"
+  part_seconds
   case_run import-listing-printed PASS - 'egress imports binary=dev reader=' 
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
