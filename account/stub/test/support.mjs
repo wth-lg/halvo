@@ -204,5 +204,30 @@ export function keepsPromise(dir, read) {
   return forced;
 }
 
+/** True when `bytes` hold the head of an HTTP/1.1 answer and as many body bytes as its content-length names. */
+export function holdsAnswer(bytes) {
+  const end = bytes.indexOf("\r\n\r\n");
+  if (end < 0) return false;
+  const length = Number(parse(bytes.subarray(0, end + 4)).headers.get("content-length") ?? 0);
+  return bytes.length >= end + 4 + length;
+}
+
+/**
+ * Waits until `holds()` (which may return a promise) is true, looking every 10 ms for at most `ms`, and resolves to the
+ * ms waited; when it never holds, fails with the sentence that `what` did not arrive, the ms waited and `detail()`.
+ */
+export async function waitFor(holds, what, { ms = 2000, detail = () => "" } = {}) {
+  const started = performance.now();
+  for (;;) {
+    const waited = Math.round(performance.now() - started);
+    if (await holds()) return waited;
+    if (waited >= ms) assert.fail(`${what} did not arrive within ${waited} ms${detail() === "" ? "" : `; ${detail()}`}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** Waits for at most 2,000 ms until `client` (with `got()`) holds a whole answer. */
+export const answerIn = (client, what = "the answer") => waitFor(() => holdsAnswer(client.got()), what, { detail: () => `the client had read ${client.got().length} bytes` });
+
 /** Resolves to the exit code of a child once it has exited. */
 export const exited = (child) => new Promise((resolve) => (child.exitCode !== null ? resolve(child.exitCode) : child.on("exit", (code) => resolve(code))));

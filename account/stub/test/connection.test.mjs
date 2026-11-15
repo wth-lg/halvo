@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
-import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
+import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, answerIn, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
 import { BODY_CAP } from "../src/stub.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
@@ -432,11 +432,12 @@ test("after the peer resets the connection behind an answer, no idle-close line 
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
-  await pause(100);
+  await answerIn(client);
   client.socket.resetAndDestroy();
   await pause(600);
-  assert.equal(parse(client.got()).status, 200);
-  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+  const seen = `the record holds ${JSON.stringify(lines(dir))}; the client had read ${client.got().length} bytes`;
+  assert.equal(parse(client.got()).status, 200, seen);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200], seen);
 });
 
 test("for a client that pipelines and reads nothing, the stub stops reading at the bound and serves the rest once the client reads", async () => {
