@@ -565,7 +565,7 @@ describe("the fourth closed list of P7-115 (unit 5.6 part 1): tests for the copi
     expect(run.armed).toBe(Math.max(run.at + ALARM_RETRY_MS, run.next ?? 0));
   });
 
-  test("A1: a later destroy call, which finds the mark set, resets nothing: after three failing runs under the mark (the cancel throws, nothing owed) and a second destroy call, the fourth failing run pauses 240 s", async () => {
+  test("A1: a later destroy call, which finds the mark set, resets nothing: after three failing runs under the mark (the cancel throws, nothing owed) and a second destroy call, the fourth failing run, in an instance new after the restart of the object, pauses 240 s", async () => {
     const w = await world({ testClock: false });
     let due = false;
     w.host.port.cancelSubscription = async () => {
@@ -579,7 +579,7 @@ describe("the fourth closed list of P7-115 (unit 5.6 part 1): tests for the copi
     for (let i = 0; i < 3; i += 1) await runAt(w, a);
     w.at(w.now() + 1000);
     await quiet(w.lines, () => a.destroy(HASH)).catch(() => undefined);
-    const run = await runAt(w, a);
+    const run = await runAt(w, own(w, { "ledger.nextDue": () => due }));
     w.close();
     expect(run.failures).toBe(4);
     expect((run.armed as Ms) - run.at).toBe(8 * ALARM_RETRY_MS);
