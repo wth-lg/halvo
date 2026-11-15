@@ -4,7 +4,8 @@
 mod evidence;
 
 use evidence::{
-    cold_evidence, newest_mark_of, second_control_allowed, Letter, Mark, Reading, Seen,
+    after_start_state_met, cold_evidence, newest_mark_of, second_control_allowed, AfterStart,
+    Letter, Mark, Reading, Seen, Typed,
 };
 
 fn seen(what: &'static str, password: bool, element: Option<&str>, at: u32) -> Seen {
@@ -312,4 +313,111 @@ fn drawn_short_controls_take_a_second_control_only_while_all_four_conditions_hol
             "case {case}: a condition taken away was allowed"
         );
     }
+}
+
+fn after_start_marks() -> Vec<Mark> {
+    vec![
+        mark("start", Reading::Unknown, 1_495_765, 1_495_765),
+        mark("event", Reading::Unknown, 1_495_796, 1_495_796),
+        mark("read", Reading::Unknown, 1_495_796, 1_495_796),
+        mark("event", Reading::Unknown, 1_496_390, 1_496_390),
+        mark("read", Reading::Unknown, 1_496_390, 1_496_390),
+    ]
+}
+
+fn withheld_letters() -> Vec<Typed> {
+    vec![
+        Typed {
+            recorded: false,
+            state_at_the_key: true,
+        };
+        5
+    ]
+}
+
+fn met<'a>(letters: &'a [Typed], marks: &'a [Mark]) -> AfterStart<'a> {
+    AfterStart {
+        letters,
+        marks,
+        gate_unknown_before: true,
+        open_latches_before: 0,
+        front_tick: 1_497_000,
+        handler_counts_unchanged: true,
+        page_moved_its_focus: true,
+    }
+}
+
+#[test]
+fn the_marks_of_run_43662069989_with_a_front_tick_after_them_meet_the_state_after_the_start() {
+    let letters = withheld_letters();
+    let marks = after_start_marks();
+    assert_eq!(after_start_state_met(&met(&letters, &marks)), Ok(()));
+}
+
+#[test]
+fn each_condition_of_the_state_after_the_start_taken_away_refuses_the_reopened_page() {
+    let letters = withheld_letters();
+    let marks = after_start_marks();
+    let mut recorded = letters.clone();
+    recorded[3].recorded = true;
+    let mut other_rule = letters.clone();
+    other_rule[1].state_at_the_key = false;
+    let mut latch = marks.clone();
+    latch.push(Mark {
+        what: "latch-other",
+        reading: None,
+        another_element: false,
+        began: 1_496_000,
+        at: None,
+    });
+    let mut event_after_the_front = marks.clone();
+    event_after_the_front.push(mark("event", Reading::Clear, 1_497_100, 1_497_100));
+    let mut read_after_the_front = marks.clone();
+    read_after_the_front.push(mark("read", Reading::Unknown, 1_497_050, 1_497_200));
+    let cases: [(&str, AfterStart); 9] = [
+        ("no letter", met(&[], &marks)),
+        ("a letter recorded", met(&recorded, &marks)),
+        ("a letter by another rule", met(&other_rule, &marks)),
+        ("a latch mark since the start", met(&letters, &latch)),
+        (
+            "an event since the front",
+            met(&letters, &event_after_the_front),
+        ),
+        (
+            "an own read since the front",
+            met(&letters, &read_after_the_front),
+        ),
+        (
+            "the gate not Unknown",
+            AfterStart {
+                gate_unknown_before: false,
+                ..met(&letters, &marks)
+            },
+        ),
+        (
+            "a latch open before",
+            AfterStart {
+                open_latches_before: 1,
+                ..met(&letters, &marks)
+            },
+        ),
+        (
+            "the handler counts moved",
+            AfterStart {
+                handler_counts_unchanged: false,
+                ..met(&letters, &marks)
+            },
+        ),
+    ];
+    for (name, seen) in cases {
+        assert!(after_start_state_met(&seen).is_err(), "{name}");
+    }
+    assert!(
+        after_start_state_met(&AfterStart {
+            page_moved_its_focus: false,
+            ..met(&letters, &marks)
+        })
+        .is_err(),
+        "no record of the page's own move"
+    );
 }

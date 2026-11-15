@@ -31,6 +31,8 @@ browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome
 browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge
 browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing
 browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing
+browser::after_a_start_behind_another_window_in_chrome
+browser::after_a_start_behind_another_window_in_edge
 browser::cold_and_warm_orders_in_chrome
 browser::cold_and_warm_orders_in_edge
 browser::stall_phases_of_the_page_in_chrome
@@ -499,7 +501,16 @@ measure() {
     in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )control_state=schedule_slipped( |$)")
     slipped=$((slipped + in_log))
   done
-  line="WF short controls$short second_controls_taken=$seconds_taken slipped_controls=$slipped"
+  met=0
+  runs_after_start=0
+  for log in "$work"/test-*.log; do
+    [ -f "$log" ] || continue
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )after_start_state=met( |$)")
+    met=$((met + in_log))
+    in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )after_start_state=(met|not_met)( |$)")
+    runs_after_start=$((runs_after_start + in_log))
+  done
+  line="WF short controls$short second_controls_taken=$seconds_taken slipped_controls=$slipped after_start_unknown=$met/$runs_after_start"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
 
@@ -759,6 +770,14 @@ case $kind in
     printf 'test %s ... FAILED\n\nfailures:\n    %s\n\n%s\n\n' "$test" "$test" "$failed"
     exit 101
     ;;
+  after-start-met)
+    printf 'TF %s browser=edge after_start_state=met\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
+  after-start-not-met)
+    printf 'TF %s browser=chrome after_start_state=not_met reason=a_letter_was_not_withheld_by_the_state_at_the_key\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
   second-control)
     printf 'TF %s browser=edge control=before control_state=late_read_no_latch pump_largest_lag_ms=3\n' "$test"
     printf 'TF %s browser=edge control=before second_control=taken first_control_keystroke_events=0\n' "$test"
@@ -884,7 +903,7 @@ self_test() {
 fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
@@ -969,11 +988,13 @@ fixtures() {
   check a-regular-test-passes-with-a-panic-on-another-thread FAIL "c1_raw_input|pass-with-panic${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
   check a-short-control-is-summed-by-its-state FAIL "c1_raw_input|short-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0 slipped_controls=0${nl}" "FAIL $name (1 tests failed)"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" "FAIL $name (1 tests failed)"
+  check the-runs-after-a-start-are-counted PASS "c1_raw_input|after-start-met${nl}helper_child_window|after-start-not-met${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=1/2${nl}" "${nl}PASS $name"
   check one-second-control-is-taken PASS "c1_raw_input|second-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1 slipped_controls=0${nl}" "${nl}PASS $name"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1 slipped_controls=0 after_start_unknown=0/0${nl}" "${nl}PASS $name"
   check two-second-controls-in-one-run FAIL "c1_raw_input|second-control${nl}helper_child_window|second-control${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2 slipped_controls=0${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2 slipped_controls=0 after_start_unknown=0/0${nl}" \
     "FAIL $name (2 second controls were taken in this run, and more than one fails the run (ruling W3-18 (13)))"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"

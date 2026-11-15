@@ -186,3 +186,52 @@ pub(crate) fn second_control_allowed(
     }
     Ok(())
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Typed {
+    pub(crate) recorded: bool,
+    pub(crate) state_at_the_key: bool,
+}
+
+pub(crate) struct AfterStart<'a> {
+    pub(crate) letters: &'a [Typed],
+    pub(crate) marks: &'a [Mark],
+    pub(crate) gate_unknown_before: bool,
+    pub(crate) open_latches_before: usize,
+    pub(crate) front_tick: u32,
+    pub(crate) handler_counts_unchanged: bool,
+    pub(crate) page_moved_its_focus: bool,
+}
+
+pub(crate) fn after_start_state_met(seen: &AfterStart) -> Result<(), &'static str> {
+    if seen.letters.is_empty() {
+        return Err("no_letter_was_decided");
+    }
+    if !seen.gate_unknown_before {
+        return Err("the_gate_did_not_read_unknown_before_the_letters");
+    }
+    if !seen
+        .letters
+        .iter()
+        .all(|letter| !letter.recorded && letter.state_at_the_key)
+    {
+        return Err("a_letter_was_not_withheld_by_the_state_at_the_key");
+    }
+    if seen.open_latches_before > 0 || seen.marks.iter().any(|mark| mark.what.starts_with("latch"))
+    {
+        return Err("a_latch_was_open_or_set_since_the_start");
+    }
+    if seen.marks.iter().any(|mark| {
+        matches!(mark.what, "read" | "event")
+            && rel(mark.at.unwrap_or(mark.began), seen.front_tick) >= 0
+    }) {
+        return Err("an_event_or_own_read_came_since_the_page_came_to_the_front");
+    }
+    if !seen.handler_counts_unchanged {
+        return Err("the_handler_counts_moved_across_the_pages_own_moves");
+    }
+    if !seen.page_moved_its_focus {
+        return Err("the_page_has_no_record_that_it_moved_its_focus");
+    }
+    Ok(())
+}

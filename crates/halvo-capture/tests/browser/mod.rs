@@ -86,6 +86,12 @@ function reset() {
   // The burst's page moves its own focus there and back, so that the gate's
   // newest mark is a focus event of this page and not a stale event of the
   // window that lost the front (W3-10 T5; run w39-2).
+  else if (phase === 'after-start') {
+    later(2500, () => {
+      button.focus();
+      later(150, () => { plain.focus(); c.mv = Date.now() - c.base; });
+    });
+  }
   else if (phase === 'burst' || phase === 'control') {
     button.focus();
     later(150, () => { plain.focus(); c.mv = Date.now() - c.base; });
@@ -311,6 +317,8 @@ struct PhaseBrowser {
     profile: tempfile::TempDir,
     page: String,
     runs: u32,
+    front_tick: u32,
+    front_method: u8,
 }
 
 impl PhaseBrowser {
@@ -343,6 +351,8 @@ impl PhaseBrowser {
             profile,
             page,
             runs: 0,
+            front_tick: 0,
+            front_method: 0,
         })
     }
 
@@ -397,12 +407,15 @@ impl PhaseBrowser {
             if let Some((hwnd, _)) = window_titled(&prefix) {
                 std::thread::sleep(Duration::from_millis(800));
                 let (front, method) = bring_to_front(hwnd, click);
+                // SAFETY: GetTickCount takes no argument and reads a counter.
+                self.front_tick = unsafe { GetTickCount() };
+                self.front_method = method;
                 std::thread::sleep(Duration::from_millis(700));
                 say(
                     test,
                     format!(
-                        "browser={} phase={phase} hold={hold} opened=1 foreground={front} method={method}",
-                        self.name
+                        "browser={} phase={phase} hold={hold} opened=1 foreground={front} method={method} front_tick={}",
+                        self.name, self.front_tick
                     ),
                 );
                 return Some(hwnd);
@@ -689,12 +702,158 @@ impl Round {
     }
 }
 
+struct EventCounter {
+    stop: Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<std::thread::JoinHandle<Vec<(u32, u32, u32)>>>,
+}
+
+thread_local! {
+    static COUNTED: std::cell::RefCell<std::collections::HashMap<(u32, u32), u32>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+unsafe extern "system" fn count_event(
+    _hook: windows::Win32::UI::Accessibility::HWINEVENTHOOK,
+    event: u32,
+    hwnd: HWND,
+    _object: i32,
+    _child: i32,
+    _thread: u32,
+    _time: u32,
+) {
+    let mut pid = 0;
+    // SAFETY: GetWindowThreadProcessId writes the process id into a live u32;
+    // a null or gone window leaves it 0.
+    unsafe {
+        let _ =
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    }
+    COUNTED.with(|counted| *counted.borrow_mut().entry((event, pid)).or_insert(0) += 1);
+}
+
+impl EventCounter {
+    fn start() -> EventCounter {
+        use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            DispatchMessageW, PeekMessageW, TranslateMessage, EVENT_OBJECT_FOCUS,
+            EVENT_SYSTEM_FOREGROUND, MSG, PM_REMOVE, WINEVENT_OUTOFCONTEXT,
+        };
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let thread_stop = Arc::clone(&stop);
+        let thread = std::thread::spawn(move || {
+            // SAFETY: out-of-context hooks of the test's own with a callback of
+            // the WINEVENTPROC signature, served by this thread's pump and
+            // removed by it before it ends.
+            let hooks = unsafe {
+                [
+                    SetWinEventHook(
+                        EVENT_SYSTEM_FOREGROUND,
+                        EVENT_SYSTEM_FOREGROUND,
+                        None,
+                        Some(count_event),
+                        0,
+                        0,
+                        WINEVENT_OUTOFCONTEXT,
+                    ),
+                    SetWinEventHook(
+                        EVENT_OBJECT_FOCUS,
+                        EVENT_OBJECT_FOCUS,
+                        None,
+                        Some(count_event),
+                        0,
+                        0,
+                        WINEVENT_OUTOFCONTEXT,
+                    ),
+                ]
+            };
+            let mut msg = MSG::default();
+            while !thread_stop.load(Ordering::SeqCst) {
+                // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the
+                // same value goes to TranslateMessage and DispatchMessageW.
+                unsafe {
+                    while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                        let _ = TranslateMessage(&msg);
+                        DispatchMessageW(&msg);
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            for hook in hooks {
+                if !hook.is_invalid() {
+                    // SAFETY: the hook was set by this thread above.
+                    let _ = unsafe { UnhookWinEvent(hook) };
+                }
+            }
+            COUNTED.with(|counted| {
+                counted
+                    .borrow()
+                    .iter()
+                    .map(|((event, pid), count)| (*event, *pid, *count))
+                    .collect()
+            })
+        });
+        EventCounter {
+            stop,
+            thread: Some(thread),
+        }
+    }
+
+    fn stop(mut self) -> String {
+        self.stop.store(true, Ordering::SeqCst);
+        let counted = self
+            .thread
+            .take()
+            .and_then(|thread| thread.join().ok())
+            .unwrap_or_default();
+        let mut by_process: std::collections::BTreeMap<String, (u32, u32)> =
+            std::collections::BTreeMap::new();
+        for (event, pid, count) in counted {
+            let file = seam::process_file_of(pid).unwrap_or_else(|| format!("pid{pid}"));
+            let entry = by_process.entry(file).or_insert((0, 0));
+            if event == windows::Win32::UI::WindowsAndMessaging::EVENT_SYSTEM_FOREGROUND {
+                entry.0 += count;
+            } else {
+                entry.1 += count;
+            }
+        }
+        by_process
+            .iter()
+            .map(|(file, (foreground, focus))| {
+                format!("{file}:foreground={foreground}:focus={focus}")
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+}
+
+impl Drop for EventCounter {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn handler_counts() -> String {
+    let seen = seam::detector();
+    format!("{}/{}", seen.handler_entered, seen.handler_ended)
+}
+
 fn not_in_front(front: bool) -> Option<&'static str> {
     (!front).then_some("own_window_not_in_front")
 }
 
-fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, which: &str) -> usize {
-    let Some(hwnd) = browser.open(test, "control", 0) else {
+fn page_control(
+    test: &str,
+    browser: &mut PhaseBrowser,
+    keyboard: &Keyboard,
+    which: &str,
+    counter: Option<EventCounter>,
+    opened: Option<HWND>,
+) -> usize {
+    let opened = opened.or_else(|| browser.open(test, "control", 0));
+    let Some(hwnd) = opened else {
         say(
             test,
             format!("browser={} control={which} page=none", browser.name),
@@ -702,6 +861,20 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         return 0;
     };
     let name = browser.name;
+    let first = counter.is_some();
+    if first {
+        say(
+            test,
+            format!(
+                "browser={name} control={which} first_control page_front_tick={} way_to_the_front={} \
+                 handler_counts_after_the_front={}",
+                browser.front_tick,
+                browser.front_method,
+                handler_counts()
+            ),
+        );
+    }
+    let mut counter = counter;
     let mut slips = 0;
     let mut typed = |label: &str| loop {
         let attempt = if slips == 0 {
@@ -709,7 +882,27 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         } else {
             format!("{label}-after-slip-{slips}")
         };
-        let (sink, second, slipped) = one_control(test, name, keyboard, hwnd, &attempt);
+        let (sink, second, slipped) = one_control(test, name, keyboard, hwnd, &attempt, first);
+        if let Some(counter) = counter.take() {
+            say(
+                test,
+                format!(
+                    "browser={name} control={attempt} system_events_from_the_browser_start_to_the_last_letter=[{}]",
+                    counter.stop()
+                ),
+            );
+            let before_the_read = handler_counts();
+            let uia = seam::focused_element_properties();
+            let _ = reset(keyboard, hwnd);
+            say(
+                test,
+                format!(
+                    "browser={name} control={attempt} after_the_letters handler_counts_before_the_read={before_the_read} \
+                     uia_of_the_focused_element {uia} handler_counts_after_one_more_reset={}",
+                    handler_counts()
+                ),
+            );
+        }
         if !slipped {
             return (sink, second);
         }
@@ -747,7 +940,9 @@ fn one_control(
     keyboard: &Keyboard,
     hwnd: HWND,
     which: &str,
+    first: bool,
 ) -> (usize, Result<(), &'static str>, bool) {
+    let before_the_reset = handler_counts();
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
     let gate_before = keyboard.source.field_state();
@@ -757,6 +952,7 @@ fn one_control(
     let keys = seam::take();
     let page = page_read(hwnd).unwrap_or_default();
     let marks = seam::take_marks();
+    let after_the_letters = handler_counts();
     let largest_lag = keyboard.source.health().counters.max_lag_ms;
     let r = Round {
         counted: front,
@@ -787,8 +983,18 @@ fn one_control(
             )
         })
         .collect();
+    let mut files: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
+    let mut front_of = |pid: u32| {
+        files
+            .entry(pid)
+            .or_insert_with(|| seam::process_file_of(pid).unwrap_or_else(|| format!("pid{pid}")))
+            .clone()
+    };
     let short_element = |element: Option<&str>| {
         element.map_or("none".to_string(), |element| {
+            if first {
+                return element.replace(' ', "/");
+            }
             element
                 .split(' ')
                 .filter(|part| part.starts_with("kind=") || part.starts_with("is_password="))
@@ -799,8 +1005,13 @@ fn one_control(
     let all_marks: Vec<String> = marks
         .iter()
         .map(|mark| {
+            let front = if first {
+                format!(":front={}", front_of(mark.front_pid))
+            } else {
+                String::new()
+            };
             format!(
-                "{}@{}->{}:{:?}:{:?}:{}",
+                "{}@{}->{}:{:?}:{:?}:{}{front}",
                 mark.what,
                 mark.began,
                 mark.at.map_or("none".to_string(), |at| at.to_string()),
@@ -847,6 +1058,7 @@ fn one_control(
         test,
         format!(
             "browser={name} control={which} control_state={state} page_moved_at_ms={} first_key_at_page_ms={} \
+             handler_counts_before_the_reset={before_the_reset} handler_counts_after_the_letters={after_the_letters} \
              pump_largest_lag_ms={largest_lag} \
              open_latches_before_the_first_letter={latches_before} letters=[{}] \
              marks_since_the_start_kept_by_the_seam={} marks=[{}]",
@@ -1068,10 +1280,19 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
     with_deadline(test, Duration::from_secs(420), move || {
         env_report(test);
         source_built_by_test(test, "keyboard");
+        let mut counter = Some(EventCounter::start());
         let mut browser = open_browser(test, name);
+        let first_page = browser.open(test, "control", 0);
         let keyboard = Keyboard::start();
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
-        let before = page_control(test, &mut browser, &keyboard, "before");
+        let before = page_control(
+            test,
+            &mut browser,
+            &keyboard,
+            "before",
+            counter.take(),
+            first_page,
+        );
         let mut all = Vec::new();
         for kind in [StallKind::Tab, StallKind::Click] {
             for hold in [150, 300] {
@@ -1079,7 +1300,7 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
                 all.push((format!("{kind:?}-{hold}"), rounds));
             }
         }
-        let after = page_control(test, &mut browser, &keyboard, "after");
+        let after = page_control(test, &mut browser, &keyboard, "after", None, None);
         let late = keyboard.source.health().counters.late_events;
         let stopped = keyboard.stop();
         say(
@@ -1219,10 +1440,19 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
     with_deadline(test, Duration::from_secs(420), move || {
         env_report(test);
         source_built_by_test(test, "keyboard");
+        let mut counter = Some(EventCounter::start());
         let mut browser = open_browser(test, name);
+        let first_page = browser.open(test, "control", 0);
         let keyboard = Keyboard::start();
         assert!(keyboard.start.is_ok(), "the keyboard source must start");
-        let before = page_control(test, &mut browser, &keyboard, "before");
+        let before = page_control(
+            test,
+            &mut browser,
+            &keyboard,
+            "before",
+            counter.take(),
+            first_page,
+        );
         let mut failures = Vec::new();
         let mut thin = Vec::new();
         for phase in [
@@ -1257,7 +1487,7 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
                 thin.push(phase);
             }
         }
-        let after = page_control(test, &mut browser, &keyboard, "after");
+        let after = page_control(test, &mut browser, &keyboard, "after", None, None);
         let stopped = keyboard.stop();
         say(
             test,
@@ -1855,6 +2085,212 @@ pub(super) fn renamed_copy_phases(test: &'static str, browser: &'static Browser)
             "a letter typed into the renamed copy was recorded"
         );
     });
+}
+
+fn wait_for_the_pages_own_move(hwnd: HWND) -> PageRead {
+    let began = Instant::now();
+    let mut page = page_read(hwnd).unwrap_or_default();
+    while page.moved_at < 0 && began.elapsed() < Duration::from_secs(8) {
+        std::thread::sleep(Duration::from_millis(50));
+        page = page_read(hwnd).unwrap_or_default();
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    page_read(hwnd).unwrap_or(page)
+}
+
+fn full_marks(marks: &[seam::MarkSeen]) -> String {
+    let mut files: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
+    marks
+        .iter()
+        .map(|mark| {
+            let front = files
+                .entry(mark.front_pid)
+                .or_insert_with(|| {
+                    seam::process_file_of(mark.front_pid)
+                        .unwrap_or_else(|| format!("pid{}", mark.front_pid))
+                })
+                .clone();
+            format!(
+                "{}@{}->{}:{:?}:{:?}:{}:front={front}",
+                mark.what,
+                mark.began,
+                mark.at.map_or("none".to_string(), |at| at.to_string()),
+                mark.state,
+                mark.moved,
+                mark.element.as_deref().unwrap_or("none").replace(' ', "/")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+pub(super) fn after_a_start_behind_another_window(test: &'static str, name: &'static str) {
+    with_deadline(test, Duration::from_secs(240), move || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let counter = EventCounter::start();
+        let mut browser = open_browser(test, name);
+        let keyboard = Keyboard::start();
+        assert!(keyboard.start.is_ok(), "the keyboard source must start");
+        let hwnd = browser
+            .open(test, "after-start", 0)
+            .expect("INCONCLUSIVE: no page window");
+        let front_tick = browser.front_tick;
+        let at_the_front = handler_counts();
+        let moved = wait_for_the_pages_own_move(hwnd);
+        let front = foreground_window() == hwnd;
+        let gate_before = keyboard.source.field_state();
+        let latches_before = keyboard.source.open_latches().unwrap_or_default();
+        let _ = seam::take();
+        let sent = i64::from(type_letters_slowly(5) / 2);
+        let sink = keyboard.keystrokes_for(Duration::from_millis(800));
+        let keys = seam::take();
+        let marks = seam::take_marks();
+        let after_the_letters = handler_counts();
+        let page = page_read(hwnd).unwrap_or_default();
+        let withheld = keyboard.source.health().counters.keys_withheld;
+        let events = counter.stop();
+        let letters: Vec<&seam::Decided> = keys
+            .iter()
+            .filter(|key| key.class == seam::KeyClass::Printable)
+            .collect();
+        let typed: Vec<evidence::Typed> = letters
+            .iter()
+            .map(|key| evidence::Typed {
+                recorded: key.verdict == seam::Verdict::Recorded,
+                state_at_the_key: key.rule == Some(seam::Rule::StateAtTheKey),
+            })
+            .collect();
+        let proof_marks: Vec<evidence::Mark> = marks
+            .iter()
+            .map(|mark| evidence::Mark {
+                what: mark.what,
+                reading: mark.state.map(|state| match state {
+                    FieldState::Clear => evidence::Reading::Clear,
+                    FieldState::Password => evidence::Reading::Password,
+                    FieldState::Unknown => evidence::Reading::Unknown,
+                }),
+                another_element: mark.moved == Some(seam::Moved::Another),
+                began: mark.began,
+                at: mark.at,
+            })
+            .collect();
+        let open_latches = latches_before
+            .strip_prefix("count=")
+            .and_then(|rest| rest.split(' ').next())
+            .and_then(|count| count.parse::<usize>().ok())
+            .unwrap_or(usize::MAX);
+        let verdict = evidence::after_start_state_met(&evidence::AfterStart {
+            letters: &typed,
+            marks: &proof_marks,
+            gate_unknown_before: gate_before == Some(FieldState::Unknown),
+            open_latches_before: open_latches,
+            front_tick,
+            handler_counts_unchanged: at_the_front == after_the_letters,
+            page_moved_its_focus: moved.moved_at >= 0,
+        });
+        let listed: Vec<String> = letters
+            .iter()
+            .map(|key| {
+                format!(
+                    "input@{}:decided@{}:{:?}:{:?}",
+                    key.os_tick, key.decided_tick, key.verdict, key.rule
+                )
+            })
+            .collect();
+        say(
+            test,
+            format!(
+                "browser={name} first_typing foreground={front} page_front_tick={front_tick} way_to_the_front={} \
+                 page_moved_at_ms={} gate_before_the_letters={gate_before:?} \
+                 open_latches_before_the_first_letter={latches_before} letters_sent={sent} landed_text={} \
+                 keystroke_events={sink} keys_withheld={withheld} handler_counts_after_the_front={at_the_front} \
+                 handler_counts_after_the_letters={after_the_letters} letters=[{}] \
+                 system_events_from_the_browser_start_to_the_last_letter=[{events}] marks=[{}]",
+                browser.front_method,
+                moved.moved_at,
+                page.text,
+                listed.join(","),
+                full_marks(&marks)
+            ),
+        );
+        let before_the_read = handler_counts();
+        let uia = seam::focused_element_properties();
+        std::thread::sleep(Duration::from_millis(1_000));
+        say(
+            test,
+            format!(
+                "browser={name} first_typing after_the_letters handler_counts_before_the_read={before_the_read} \
+                 uia_of_the_focused_element {uia} handler_counts_1_s_after_the_read={}",
+                handler_counts()
+            ),
+        );
+        assert!(
+            front && sent == 5 && page.text == 5,
+            "INCONCLUSIVE: the page was not in front or did not take the 5 letters"
+        );
+        match verdict {
+            Err(reason) => {
+                say(
+                    test,
+                    format!("browser={name} after_start_state=not_met reason={reason}"),
+                );
+                assert_eq!(
+                    sink, 5,
+                    "a short first typing that does not meet the state after a start behind another window: {reason}"
+                );
+            }
+            Ok(()) => {
+                say(test, format!("browser={name} after_start_state=met"));
+                assert_eq!(
+                    (sink, withheld),
+                    (0, true),
+                    "the state after the start: a key was recorded, or keys_withheld did not read yes"
+                );
+                let again = browser
+                    .open(test, "control", 0)
+                    .expect("INCONCLUSIVE: no new page window");
+                let reopened = wait_for_the_pages_own_move(again);
+                let _ = seam::take();
+                let sent = i64::from(type_letters_slowly(5) / 2);
+                let sink = keyboard.keystrokes_for(Duration::from_millis(800));
+                let keys = seam::take();
+                let marks = seam::take_marks();
+                let page = page_read(again).unwrap_or_default();
+                say(
+                    test,
+                    format!(
+                        "browser={name} reopened_page foreground={} page_moved_at_ms={} letters_sent={sent} \
+                         landed_text={} keystroke_events={sink} letters_recorded_by_the_seam={} \
+                         handler_counts={} marks=[{}]",
+                        foreground_window() == again,
+                        reopened.moved_at,
+                        page.text,
+                        decisions_of(&keys).letters,
+                        handler_counts(),
+                        full_marks(&marks)
+                    ),
+                );
+                assert_eq!(
+                    sink, 5,
+                    "the reopened page read short: the source recorded nothing there"
+                );
+            }
+        }
+        let _ = keyboard.stop();
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn after_a_start_behind_another_window_in_chrome() {
+    after_a_start_behind_another_window("browser-after-start-chrome", "chrome");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn after_a_start_behind_another_window_in_edge() {
+    after_a_start_behind_another_window("browser-after-start-edge", "edge");
 }
 
 #[test]
