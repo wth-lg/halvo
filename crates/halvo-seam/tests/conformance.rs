@@ -81,6 +81,7 @@ enum Fault {
     RangedKindsReadDropsAnAtBelowTheLastAdmittedLine,
     RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
     RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
+    RangedReadFindsItsEndByABinarySearch,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
@@ -387,7 +388,21 @@ fn cuts(fault: Fault) -> bool {
             | RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
             | RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd
             | RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd
+            | RangedReadFindsItsEndByABinarySearch
     )
+}
+
+fn first_at_or_after(records: &[Entry], at: Instant) -> usize {
+    let (mut lo, mut hi) = (0, records.len());
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        if records[mid].record.at() < at {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
 }
 
 fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
@@ -577,18 +592,13 @@ impl Wrong {
             let records = std::mem::take(&mut b.records);
             let skip = match self.fault {
                 RangedReadFindsItsStartByABinarySearch => {
-                    let (mut lo, mut hi) = (0, records.len());
-                    while lo < hi {
-                        let mid = (lo + hi) / 2;
-                        if records[mid].record.at() < range.start() {
-                            lo = mid + 1;
-                        } else {
-                            hi = mid;
-                        }
-                    }
-                    lo
+                    first_at_or_after(&records, range.start())
                 }
                 _ => 0,
+            };
+            let end = match self.fault {
+                RangedReadFindsItsEndByABinarySearch => first_at_or_after(&records, range.end()),
+                _ => records.len(),
             };
             let mut line_before: Option<(Entry, bool)> = None;
             let mut served_a_step_back = false;
@@ -607,6 +617,7 @@ impl Wrong {
                 let admitted = self.cut_kinds.is_some() && kind;
                 let ends = match self.fault {
                     RangedReadEndsAfterAServedSteppedBackLine => served_a_step_back,
+                    RangedReadFindsItsEndByABinarySearch => i >= end,
                     RangedReadEndsAtTheFirstAtFromItsEnd => at >= range.end(),
                     RangedReadEndsAtTheFirstAtPastItsEnd => at > range.end(),
                     RangedReadEndsWhenABatchStartsFromItsEnd => i == 0 && at >= range.end(),
@@ -1093,7 +1104,7 @@ fn conformance_check_filtered_stops() {
 #[test]
 fn conformance_filters_step_back() {
     let load = "; want 999000000 ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)";
-    let servers: [(Fault, String); 31] = [
+    let servers: [(Fault, String); 32] = [
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
@@ -1181,6 +1192,10 @@ fn conformance_filters_step_back() {
         (
             RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadFindsItsEndByABinarySearch,
+            "the range of set D up to the pointer before its step back from {seg 1, idx 2}: 1 entries served, want 2".to_owned(),
         ),
         (
             LoadRoundsTheStepBackAway,

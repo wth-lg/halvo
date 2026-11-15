@@ -810,8 +810,8 @@ fn at_the_watermark<S: Subject>(
 /// with no restart between, and `open_while_open` again on the second connection. Last, after `load(D)`, a
 /// read of set D from the zero position must serve its records in order, the `at` of the `keystroke` after the
 /// step back must lie exactly 999 ms below that of the pointer before it, as `load` keeps it when it moves every
-/// `at` by a whole number of seconds (C5.13 item 2), and eight reads, each from the zero position and from the
-/// position of that pointer, must each serve every entry of D at or after the start position that passes the
+/// `at` by a whole number of seconds (C5.13 item 2), and eight reads, each from the zero position, from the
+/// position of that pointer and from the position of every other entry of D up to the keystroke's, must each serve every entry of D at or after the start position that passes the
 /// read's filter, at its position: the range from the `at` of the first entry of D to that of the pointer
 /// (C5.13 item 8), the range from the same start to 1 ns after the `at` of the `keystroke`, the range from the
 /// `at` of the `keystroke` to that of the entry after it, the range from 1 ns after the `at` of the `keystroke`
@@ -824,8 +824,8 @@ fn at_the_watermark<S: Subject>(
 /// the filter names whose `at` is at or after the end, or that ends it after it served an entry whose `at` is
 /// below that of the line before it, or that serves such an entry whose `at` equals the end, or that drops an
 /// entry whose `at` is below that of an entry that it served before, or under a kinds filter below that of the
-/// last line of a kind that the filter names, or that finds the first line of a range by a binary search over
-/// `at`, or that checks the start only until the first `at` at or after it.
+/// last line of a kind that the filter names, or that finds the first line of a range, or the end of a read, by
+/// a binary search over `at`, or that checks the start only until the first `at` at or after it.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -1053,7 +1053,14 @@ fn step_back<S: Subject>(subject: &mut S, instants: Instants) -> Result<(), Stri
             Some(pointers_and_keystrokes),
         ),
     ];
-    for start in [ZERO, pointer.pos] {
+    let mut starts = vec![ZERO, pointer.pos];
+    starts.extend(
+        d.entries[..=STEP_BACK]
+            .iter()
+            .map(|e| e.pos)
+            .filter(|p| *p != pointer.pos),
+    );
+    for start in starts {
         for (name, (a, b), kinds) in reads {
             let name = if start == ZERO {
                 format!("the range of set D {name}")
