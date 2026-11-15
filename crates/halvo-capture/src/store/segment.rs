@@ -17,7 +17,7 @@ use crate::custody::wiped_on_drop;
 use crate::event::SegmentKeyId;
 
 use super::durable::{self, Dir, DurableFs, EntryKind, Refused};
-use super::{StoreError, StoreResult};
+use super::{Met, StoreError, StoreName, StoreResult};
 
 pub(crate) const CHUNK: usize = 64 * 1024;
 const TAG: usize = <XChaCha20Poly1305 as AeadCore>::TagSize::USIZE;
@@ -30,10 +30,9 @@ const SEGMENT_KEY_AAD: &[u8] = b"halvo-segment-key";
 const SEGMENT_EXT: &str = "seg";
 const PARTIAL_EXT: &str = "seg.tmp";
 const SEGMENTS: &str = "segments";
-const LINKED_SEGMENTS: &str = "the segments directory of the store is a link";
-const LINKED_SHARD: &str = "a shard of the segments directory of the store is a link";
-const LINKED_SEGMENT_FILE: &str = "a segment file of the store is a link";
-const SEGMENT_FILE_NOT_REGULAR: &str = "a segment file of the store is no regular file";
+const LINKED_SEGMENTS: StoreName = StoreName::Segments;
+const LINKED_SHARD: StoreName = StoreName::Shard;
+const LINKED_SEGMENT_FILE: StoreName = StoreName::SegmentFile;
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub(crate) struct SegmentKey(Box<[u8; 32]>);
@@ -126,16 +125,22 @@ fn is_lower_hex(text: &str, len: usize) -> bool {
     text.len() == len && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-fn refused_or_io(e: io::Error, link: &str) -> StoreError {
+fn refused_or_io(e: io::Error, name: StoreName) -> StoreError {
+    let obstructed = |met| StoreError::Obstructed { name, met };
     match durable::refusal(&e) {
-        Some(Refused::Link) => StoreError::Corrupt(link.to_string()),
-        Some(Refused::NotADirectory) => StoreError::Io(io::ErrorKind::NotADirectory),
-        Some(Refused::NotARegularFile) => StoreError::Corrupt(SEGMENT_FILE_NOT_REGULAR.to_string()),
+        Some(Refused::Link) => obstructed(Met::Link),
+        Some(Refused::NotADirectory | Refused::NotARegularFile) => obstructed(Met::OtherKind),
         #[cfg(windows)]
-        Some(Refused::Moved) => StoreError::Corrupt(link.to_string()),
+        Some(Refused::Moved) => obstructed(Met::DirectoryNotAtItsName),
+        None if e.raw_os_error() == Some(EISDIR) => obstructed(Met::OtherKind),
         None => io_error(e),
     }
 }
+
+#[cfg(unix)]
+const EISDIR: i32 = libc::EISDIR;
+#[cfg(windows)]
+const EISDIR: i32 = -1;
 
 pub(crate) fn remove_segments_tree(store_dir: &Dir) -> StoreResult<()> {
     store_dir
@@ -143,20 +148,66 @@ pub(crate) fn remove_segments_tree(store_dir: &Dir) -> StoreResult<()> {
         .map_err(io_error)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct SegmentsRemoval {
+    pub(crate) entries_left: u64,
+    pub(crate) links_or_others_met: u64,
+}
+
+pub(crate) fn remove_segments_through(store_dir: &Dir) -> SegmentsRemoval {
+    let mut removal = SegmentsRemoval::default();
+    remove_entry_below(store_dir, OsStr::new(SEGMENTS), 0, &mut removal);
+    removal
+}
+
+fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut SegmentsRemoval) {
+    let entry = match parent.entry(name) {
+        Ok(entry) => entry,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return,
+        Err(_) => {
+            removal.entries_left += 1;
+            return;
+        }
+    };
+    let expected = match depth {
+        0 | 1 => EntryKind::Dir,
+        _ => EntryKind::File,
+    };
+    if entry.kind == EntryKind::Link || entry.kind == EntryKind::Other || entry.kind != expected {
+        removal.links_or_others_met += 1;
+    }
+    if entry.kind == EntryKind::Dir {
+        let listed = parent.open_dir(name).and_then(|below| {
+            let children = below.entries()?;
+            for child in children {
+                remove_entry_below(&below, &child.name, depth + 1, removal);
+            }
+            below.sync()
+        });
+        if matches!(&listed, Err(e) if e.kind() != io::ErrorKind::NotFound) {
+            removal.entries_left += 1;
+        }
+    }
+    match parent.remove_entry(name) {
+        Ok(()) => {}
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+        Err(_) => removal.entries_left += 1,
+    }
+    let _ = parent.sync();
+}
+
 pub(crate) fn refuse_a_linked_segments_root(store_dir: &Dir) -> StoreResult<()> {
     match store_dir.entry(OsStr::new(SEGMENTS)) {
-        Ok(entry) if entry.kind == EntryKind::Link => {
-            Err(StoreError::Corrupt(LINKED_SEGMENTS.to_string()))
-        }
+        Ok(entry) if entry.kind == EntryKind::Link => Err(StoreError::Obstructed {
+            name: StoreName::Segments,
+            met: Met::Link,
+        }),
         Ok(_) => Ok(()),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(io_error(e)),
     }
 }
 
-/// What a sweep of the segment files did: the files that it removed, the
-/// entries that it took as no files of the store, and the first removal that
-/// failed, after it tried every other one.
 pub(crate) struct SegmentSweep {
     pub(crate) removed: u64,
     pub(crate) not_store_files: u64,
@@ -390,7 +441,7 @@ fn emit_plaintext(out: &mut dyn Write, opened: Result<Vec<u8>, aead::Error>) -> 
     Ok(plaintext.len() as u64)
 }
 
-fn open_or_make(parent: &Dir, name: &OsStr, link: &str) -> StoreResult<Dir> {
+fn open_or_make(parent: &Dir, name: &OsStr, link: StoreName) -> StoreResult<Dir> {
     parent.create_dir(name).map_err(io_error)?;
     parent.open_dir(name).map_err(|e| refused_or_io(e, link))
 }
@@ -414,12 +465,20 @@ pub(crate) fn write_segment_file(
         |written| {
             match segments.names(&names.shard, &shard) {
                 Ok(true) => {}
-                Ok(false) => return Err(StoreError::Corrupt(LINKED_SHARD.to_string())),
+                Ok(false) => {
+                    return Err(StoreError::Obstructed {
+                        name: StoreName::Shard,
+                        met: Met::DirectoryNotAtItsName,
+                    })
+                }
                 Err(e) => return Err(io_error(e)),
             }
             match shard.names_file(&names.partial, written) {
                 Ok(true) => Ok(()),
-                Ok(false) => Err(StoreError::Corrupt(LINKED_SEGMENT_FILE.to_string())),
+                Ok(false) => Err(StoreError::Obstructed {
+                    name: StoreName::SegmentFile,
+                    met: Met::Link,
+                }),
                 Err(e) => Err(io_error(e)),
             }
         },
@@ -431,9 +490,9 @@ pub(crate) fn write_segment_file(
     )
 }
 
-fn missing_or(segment_id: Uuid, link: &'static str) -> impl Fn(io::Error) -> StoreError {
+fn missing_or(link: StoreName) -> impl Fn(io::Error) -> StoreError {
     move |e| match e.kind() {
-        io::ErrorKind::NotFound => StoreError::SegmentMissing(segment_id),
+        io::ErrorKind::NotFound => StoreError::SegmentMissing,
         _ => refused_or_io(e, link),
     }
 }
@@ -447,12 +506,12 @@ pub(crate) fn read_segment_file(
     let names = SegmentNames::of(segment_id);
     let segments = store_dir
         .open_dir(OsStr::new(SEGMENTS))
-        .map_err(missing_or(segment_id, LINKED_SEGMENTS))?;
+        .map_err(missing_or(LINKED_SEGMENTS))?;
     let shard = segments
         .open_dir(&names.shard)
-        .map_err(missing_or(segment_id, LINKED_SHARD))?;
+        .map_err(missing_or(LINKED_SHARD))?;
     let file = shard.open_file(&names.file).map_err(|e| match e.kind() {
-        io::ErrorKind::NotFound => StoreError::SegmentMissing(segment_id),
+        io::ErrorKind::NotFound => StoreError::SegmentMissing,
         _ => refused_or_io(e, LINKED_SEGMENT_FILE),
     })?;
     let mut reader = io::BufReader::new(file);
@@ -461,9 +520,6 @@ pub(crate) fn read_segment_file(
     decrypt_segment(&mut reader, out, seg_key)
 }
 
-/// Removes the file of a segment that this store wrote, through the handles
-/// of its directories; a name that is gone or that is no directory of the
-/// store leaves nothing to remove.
 pub(crate) fn remove_written_segment(store_dir: &Dir, segment_id: Uuid) -> StoreResult<()> {
     let names = SegmentNames::of(segment_id);
     let shard = store_dir
@@ -531,10 +587,14 @@ pub(crate) mod tests {
             roots_dir.path().to_path_buf(),
             crate::custody::file_root::test_support::TestProtector::new(0x5a).0,
         );
-        let root_id = crate::custody::RootId::fresh();
+        let root_id = crate::custody::RootId::fresh().unwrap();
         roots.replace_root(root_id, &[0x24; 32]).unwrap();
         let store_key_wrap = roots
-            .wrap(root_id, &crate::custody::StoreKey::from_bytes([0x42; 32]))
+            .wrap(
+                root_id,
+                crate::custody::KeyLabel::STORE,
+                &crate::custody::StoreKey::from_bytes([0x42; 32]),
+            )
             .unwrap();
         println!("store-key wrap nonce {}", nonce_hex(&store_key_wrap.0));
     }
