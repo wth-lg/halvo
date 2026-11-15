@@ -1125,6 +1125,36 @@ own_judge() {
   case_reset
 }
 
+own_tree_case() {
+  case_name=$1
+  want_line=$2
+  tree_list=$(own_git -c core.quotePath=false ls-tree -r --name-only HEAD 2>/dev/null | grep -E '(^|/)ci\.d/[^/]+$')
+  got_out=
+  if [ -n "$tree_list" ]; then
+    got_out=$(
+      set -f
+      IFS=$nl
+      # shellcheck disable=SC2086
+      set -- $tree_list
+      for tree_f in "$@"; do
+        [ -f "$tree_f" ] || printf '%s: not in the work tree\n' "$tree_f"
+      done
+      awk 'FNR <= 10 && /^# limit:/ { sub(/\r$/, ""); print FILENAME ": " $0 }' "$@" 2>/dev/null
+    )
+  fi
+  if [ -z "$tree_list" ]; then
+    got=no-ci.d-file-listed
+  elif [ "$got_out" = "$want_line" ]; then
+    got=PASS
+  else
+    got=limit-lines-differ
+    printf '%s\n' "$got_out" | sed "s|^|case run-ci-d/$case_name limit line: |"
+  fi
+  printf 'case run-ci-d/%s want=PASS got=%s\n' "$case_name" "$got"
+  [ "$got" = PASS ] || wrong="$wrong $case_name"
+  case_reset
+}
+
 case_reset() {
   case_ci=
   case_scripts=
@@ -1722,6 +1752,34 @@ own_self_test() {
   case_path=$tmp/late-date
   case_witness=yes
   own_case limit-line-with-a-carriage-return-raises-the-limit 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  pair_a='if [ "${1:-}" = --self-test ]; then v="PASS self-test:10-a (1 failing fixtures rejected)"; else [ $# -eq 0 ] || exit 3; v="PASS 10-a"; fi; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "%s\n" "$v"'
+  pair_b='cp "$CI_D_REPO/offset2" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 20-b\n"'
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1800" "$pair_a" && add_script r1 20-b.sh "$good" "$pair_b" && fixture_commit &&
+    printf '1500\n' >"$fixture/offset" && printf '3000\n' >"$fixture/offset2"
+  case_path=$tmp/late-date
+  case_max_s=15
+  case_witness=yes
+  case_first='PASS 10-a'
+  case_then='FAIL 20-b (time limit 1200 s)'
+  own_case limit-line-of-1800-passes-past-1200-s-where-no-line-fails 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1800" "$pair_a" && add_script r1 20-b.sh "$good" "$pair_b" && fixture_commit &&
+    printf '1500\n' >"$fixture/offset" && printf '3000\n' >"$fixture/offset2"
+  case_path=$tmp/late-date
+  case_jobs=1
+  case_max_s=15
+  case_witness=yes
+  case_first='PASS self-test:10-a (1 failing fixtures rejected)'
+  case_then='FAIL self-test:20-b (time limit 1200 s)'
+  own_case limit-line-of-1800-passes-past-1200-s-where-no-line-fails-in-the-self-test-step 1 'ci.d macos self-test: 1 passed, 1 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1800" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" "$pass_b" && fixture_commit && printf '1800\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_max_s=15
+  case_witness=yes
+  case_first='FAIL 10-a (time limit 1800 s)'
+  case_then='PASS 20-b'
+  own_case limit-line-of-1800-reached-past-1800-s 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  own_tree_case limit-lines-of-the-repository "scripts/r1/ci.d/12-test.sh: # limit: 1800${nl}scripts/r1/ci.d/15-gate-self-test.sh: # limit: 1800"
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
