@@ -17,7 +17,8 @@ Releases Halvo with cargo-release, one version for every package of the workspac
   sh scripts/release.sh --dry-run [patch|minor|major]
       Prints the next version, the commit message, the tag and the CHANGELOG.md
       section that --execute would write, its entries grouped by type. It
-      changes no tracked file; it writes target/release-commit-message.toml alone.
+      changes no tracked file: the script writes target/release-commit-message.toml,
+      and cargo writes its own files under target/.
   sh scripts/release.sh --execute [patch|minor|major]
       Works on the branch main only. It sets every package of the workspace to
       the next version, moves the entries of ## [Unreleased] under a heading of
@@ -112,8 +113,9 @@ group_changelog() {
     exit 64
   }
   grouped=$(LC_ALL=C awk -v version="$NEW_VERSION" '
-    { sub(/[ \t\r]+$/, ""); line[NR] = $0 }
+    { raw[NR] = $0; sub(/[ \t\r]+$/, ""); line[NR] = $0 }
     END {
+      eol = (raw[1] ~ /\r$/) ? "\r" : ""
       for (i = 1; i <= NR; i++) if (index(line[i], "## [" version "] - ") == 1) { start = i; break }
       if (!start) for (i = 1; i <= NR; i++) if (line[i] == "## [Unreleased]") { start = i; break }
       if (!start) { print "error: CHANGELOG.md has no heading ## [" version "] and no ## [Unreleased]" > "/dev/stderr"; exit 1 }
@@ -126,7 +128,7 @@ group_changelog() {
         for (t = 1; t <= 6; t++) {
           prefix = "- " types[t] ": "
           if (index(line[i], prefix) == 1 && length(line[i]) > length(prefix)) {
-            entries[t] = entries[t] "- " substr(line[i], length(prefix) + 1) "\n"
+            entries[t] = entries[t] "- " substr(line[i], length(prefix) + 1) eol "\n"
             typed = 1
             break
           }
@@ -134,11 +136,11 @@ group_changelog() {
         if (!typed) { print "error: CHANGELOG.md:" i ": this line is not a typed entry, - <Type>: <text>, so the release cannot group it" > "/dev/stderr"; bad = 1 }
       }
       if (bad) exit 1
-      for (i = 1; i <= start; i++) print line[i]
-      for (t = 1; t <= 6; t++) if (entries[t] != "") printf "\n### %s\n\n%s", types[t], entries[t]
+      for (i = 1; i <= start; i++) print raw[i]
+      for (t = 1; t <= 6; t++) if (entries[t] != "") printf "%s\n### %s%s\n%s\n%s", eol, types[t], eol, eol, entries[t]
       if (stop <= NR) {
-        print ""
-        for (i = stop; i <= NR; i++) print line[i]
+        print eol
+        for (i = stop; i <= NR; i++) print raw[i]
       }
     }
   ' CHANGELOG.md) || exit 1
@@ -148,6 +150,7 @@ group_changelog() {
   fi
   echo "CHANGELOG.md section $NEW_VERSION that --execute writes, grouped by type:"
   printf '%s\n' "$grouped" | awk -v version="$NEW_VERSION" '
+    { sub(/\r$/, "") }
     !on && (index($0, "## [" version "] - ") == 1 || $0 == "## [Unreleased]") { on = 1; next }
     on && /^## / { exit }
     on'

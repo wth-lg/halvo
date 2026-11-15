@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry with no cargo configuration outside the tracked files and no source replacement, prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration at the root of the checkout or one directory below it and no source replacement in a tracked one (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
 set -u
 name=62-build
 shipped_packages='halvo halvo-capture'

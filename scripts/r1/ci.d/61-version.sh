@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every workspace package reports one version in cargo metadata, no workflow and no ci.d script compares --version output with a literal, on a tag ref the tag is v<that version>, and each binary given to --check exits 0 and prints that version.
+# rule: Every workspace package reports one version in cargo metadata, no workflow and no ci.d script compares --version output with a literal on one line (a compare in either order, or a case over that output whose literal pattern stands on the same line; a literal held in a variable is not seen), on a tag ref the tag is v<that version>, and each binary given to --check exits 0 and prints that version.
 set -u
 name=61-version
 

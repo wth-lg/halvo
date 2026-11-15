@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The documented release command works on every commit: in a throwaway clone with no remote its dry run passes on a named branch and changes nothing, --execute refuses a branch other than main, and on main it makes one commit Release <next> with every package at <next>, one tag v<next> and the changelog entries grouped by type, and leaves the tree clean.
+# rule: The documented release command works on every commit: in a throwaway clone with no remote its dry run passes on a named branch and changes nothing, --execute refuses a branch other than main, and on main it makes one commit Release <next> with every package at <next>, one tag v<next> and the changelog entries grouped by type, and leaves the tree clean; on a release commit (no Unreleased entry, the subject Release <version>) it requires instead that the dry run refuses with its no entry line and changes nothing.
 set -u
 name=60-release-dry-run
 types='Added Changed Deprecated Removed Fixed Security'
@@ -579,33 +579,14 @@ $typed" "# Changelog
   grep -q -x '### Fixed' "$work/group-dry-run-writes-nothing.out" && cmp -s "$work/group-dry-run-writes-nothing.md" "$work/group-dry-run-writes-nothing/CHANGELOG.md" && got=PASS || got=FAIL
   verdict dry-run-prints-the-grouped-section PASS "$got"
   trailing_before=$(printf '%s\n' "# Changelog" "" "## [Unreleased] " "" "$typed")
-  group_case heading-with-a-trailing-space PASS false 1.2.4 "$trailing_before" "# Changelog
-
-## [Unreleased]
-
-### Added
-
-- Add the feature
-
-### Fixed
-
-- Mend the first fault
-- Mend the second fault"
-  crlf_before=$(printf '%s\n' "# Changelog" "" "## [Unreleased]" "" "## [1.2.4] - 2026-11-14" "" "$typed" | sed 's/$/\r/')
-  group_case work-tree-with-crlf PASS false 1.2.4 "$crlf_before" "# Changelog
-
-## [Unreleased]
-
-## [1.2.4] - 2026-11-14
-
-### Added
-
-- Add the feature
-
-### Fixed
-
-- Mend the first fault
-- Mend the second fault"
+  trailing_after=$(printf '%s\n' "# Changelog" "" "## [Unreleased] " "" "### Added" "" "- Add the feature" "" "### Fixed" "" "- Mend the first fault" "- Mend the second fault")
+  group_case heading-with-a-trailing-space PASS false 1.2.4 "$trailing_before" "$trailing_after"
+  crlf_before=$(printf '%s\n' "# Changelog" "" "## [Unreleased]" "" "## [1.2.4] - 2026-11-14" "" "$typed" | awk '{ printf "%s\r\n", $0 }')
+  crlf_after=$(printf '%s\n' "# Changelog" "" "## [Unreleased]" "" "## [1.2.4] - 2026-11-14" "" "### Added" "" "- Add the feature" "" "### Fixed" "" "- Mend the first fault" "- Mend the second fault" | awk '{ printf "%s\r\n", $0 }')
+  group_case work-tree-with-crlf PASS false 1.2.4 "$crlf_before" "$crlf_after"
+  outside_before=$(printf '%s\n' "# Changelog " "" "## [Unreleased]" "" "## [1.2.4] - 2026-11-14" "" "$typed" "" "## [1.2.3] - 2026-11-01" "" "- Added: Add the store ")
+  outside_after=$(printf '%s\n' "# Changelog " "" "## [Unreleased]" "" "## [1.2.4] - 2026-11-14" "" "### Added" "" "- Add the feature" "" "### Fixed" "" "- Mend the first fault" "- Mend the second fault" "" "## [1.2.3] - 2026-11-01" "" "- Added: Add the store ")
+  group_case lines-outside-the-section-are-kept PASS false 1.2.4 "$outside_before" "$outside_after"
   group_case untyped-line-stops-the-hook FAIL false 1.2.4 "# Changelog
 
 ## [Unreleased]
