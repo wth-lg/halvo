@@ -101,9 +101,8 @@ fn a_piece_that_is_no_address_refuses_the_slot() {
         "ann@people.test bob@people.test",
         "ann@people.test; bob@people.test",
         "Ann <ann@people.test>",
-        "\tann@people.test",
-        "ann@people.test\t",
-        "ann@people.test\u{a0}",
+        "ann\t@people.test",
+        "ann@people.test\u{a0}x",
         "ännchen@people.test",
         long.as_str(),
         "bob@people.test, Ann Berg",
@@ -114,34 +113,60 @@ fn a_piece_that_is_no_address_refuses_the_slot() {
     assert_eq!(read(&at_bound), Ok(vec![at_bound.clone()]));
 }
 
+fn white_space() -> Vec<char> {
+    (0..=u32::from(char::MAX))
+        .filter_map(char::from_u32)
+        .filter(|c| c.is_whitespace())
+        .collect()
+}
+
 #[test]
-fn only_the_space_is_trimmed_and_other_ascii_white_space_refuses_the_slot() {
-    let ann = "ann@people.test";
-    for byte in ['\t', '\n', '\u{b}', '\u{c}', '\r'] {
+fn the_white_space_of_char_is_whitespace_is_trimmed_from_the_ends_of_each_piece() {
+    let white = white_space();
+    assert_eq!(white.len(), 25);
+    let (ann, bob) = ("ann@people.test", "bob@people.test");
+    for c in white {
         for piece in [
-            format!("{byte}{ann}"),
-            format!("{ann}{byte}"),
-            format!("{byte}{ann}{byte}"),
-            format!(" {byte}{ann}{byte} "),
+            format!("{c}{ann}"),
+            format!("{ann}{c}"),
+            format!("{c}{ann}{c}"),
+            format!(" {c}{c}{ann}{c} "),
         ] {
-            for slot in [
-                piece.clone(),
-                format!("{piece}, bob@people.test"),
-                format!("bob@people.test, {piece}"),
-            ] {
-                assert_eq!(read(&slot), Err(SendersError::NotAnAddress), "{slot:?}");
+            let rows = [
+                (piece.clone(), list(&[ann])),
+                (format!("{piece}, {bob}"), list(&[ann, bob])),
+                (format!("{bob},{piece}"), list(&[bob, ann])),
+            ];
+            for (slot, senders) in rows {
+                assert_eq!(read(&slot), senders, "{slot:?}");
             }
         }
-        let fits = format!("{}{byte}", of_length(319));
-        assert_eq!(read(&fits), Err(SendersError::NotAnAddress), "{fits:?}");
+        for slot in [format!("{c}"), format!("{ann},{c}"), format!("{c} ,{ann}")] {
+            assert_eq!(read(&slot), Err(SendersError::Empty), "{slot:?}");
+        }
+        let at_bound = of_length(320);
+        assert_eq!(read(&format!("{c}{at_bound}{c}")), Ok(vec![at_bound]));
+        let over = of_length(321);
+        assert_eq!(
+            read(&format!("{c}{over}{c}")),
+            Err(SendersError::NotAnAddress)
+        );
     }
-    let at_bound = of_length(320);
-    assert_eq!(
-        read(&format!("   {at_bound}  , bob@people.test")),
-        Ok(vec![at_bound.clone(), "bob@people.test".to_owned()])
-    );
-    let over = of_length(321);
-    assert_eq!(read(&format!(" {over} ")), Err(SendersError::NotAnAddress));
+}
+
+#[test]
+fn white_space_inside_a_piece_and_other_bytes_at_its_ends_refuse_the_slot() {
+    for c in white_space() {
+        for slot in [format!("ann{c}@people.test"), format!("ann@people{c}.test")] {
+            assert_eq!(read(&slot), Err(SendersError::NotAnAddress), "{slot:?}");
+        }
+    }
+    for c in ['\0', '\u{1f}', '\u{7f}', '\u{200b}', '\u{feff}'] {
+        assert!(!c.is_whitespace());
+        for slot in [format!("{c}ann@people.test"), format!("ann@people.test{c}")] {
+            assert_eq!(read(&slot), Err(SendersError::NotAnAddress), "{slot:?}");
+        }
+    }
 }
 
 #[test]

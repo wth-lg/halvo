@@ -17,8 +17,9 @@ pub fn same_address(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
 }
 
-/// The senders of the slot `reply_senders` (CP-112): the text cut at each comma, each piece without the ASCII
-/// spaces at its ends, in the order of the text. Refuses the whole slot for an empty piece, so also for an empty
+/// The senders of the slot `reply_senders` (CP-112): the text cut at each comma, each piece without the white
+/// space that `char::is_whitespace` names at its ends, in the order of the text; white space inside a piece is
+/// no address. Refuses the whole slot for an empty piece, so also for an empty
 /// text, for a piece that is no address by the adapter's rule for a sender, and for a piece that is one address
 /// with an earlier piece by [`same_address`], with the first fault in the order of the text. The adapter's rule
 /// for a sender takes a piece of at most 320 bytes with one `@`, at least one byte on each side of it, and every
@@ -30,6 +31,10 @@ pub fn same_address(a: &str, b: &str) -> bool {
 ///     reply_senders("ann@people.test, bob@people.test"),
 ///     Ok(vec!["ann@people.test".to_owned(), "bob@people.test".to_owned()])
 /// );
+/// assert_eq!(
+///     reply_senders("\tann@people.test\u{a0}"),
+///     Ok(vec!["ann@people.test".to_owned()])
+/// );
 /// assert_eq!(reply_senders("ann@people.test,"), Err(SendersError::Empty));
 /// assert_eq!(reply_senders("Ann Berg"), Err(SendersError::NotAnAddress));
 /// assert_eq!(
@@ -40,7 +45,7 @@ pub fn same_address(a: &str, b: &str) -> bool {
 pub fn reply_senders(slot: &str) -> Result<Vec<String>, SendersError> {
     let mut senders: Vec<String> = Vec::new();
     for piece in slot.split(',') {
-        let piece = piece.trim_matches(' ');
+        let piece = piece.trim_matches(char::is_whitespace);
         if piece.is_empty() {
             return Err(SendersError::Empty);
         }
@@ -69,7 +74,7 @@ pub fn is_sender(text: &str) -> bool {
 /// Why the reader refused the slot `reply_senders`. No variant holds text of the slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendersError {
-    /// A piece is empty once its ASCII spaces are trimmed.
+    /// A piece is empty once the white space at its ends is trimmed.
     Empty,
     /// A piece is no address by the adapter's rule for a sender, which the doc of [`reply_senders`] states.
     NotAnAddress,
