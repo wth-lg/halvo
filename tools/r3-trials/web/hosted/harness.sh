@@ -315,14 +315,14 @@ CASE
   mkdir -p "$c"
   in_stand_ins "$c" <<'CASE'
 . "$here/win.sh"
-sleep 30 &
+(sleep 3 && echo late >"$RUNNER_TEMP/late") &
 current_call=$!
 undo
-if kill -0 "$current_call" 2>/dev/null; then echo call_alive; else echo call_ended; fi
-kill "$current_call" 2>/dev/null
+sleep 5
+if [ -e "$RUNNER_TEMP/late" ]; then echo call_alive; else echo call_ended; fi
 CASE
   verdict win_ends_the_call_in_progress_when_it_is_ended \
-    "$(holds has "$c/out" call_ended)" "-"
+    "$(holds has "$c/out" call_ended)" "out=$(tr ' \n' '_;' <"$c/out" | cut -c1-120)"
   c="$work/w-port"
   mkdir -p "$c"
   in_stand_ins "$c" <<'CASE'
