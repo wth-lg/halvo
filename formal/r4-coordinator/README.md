@@ -86,13 +86,18 @@ What the check asks of the table and of the files, each with the cause that ends
 - Every configuration file of the table, one that CI does not run among them, holds
   exactly the invariant lines of its model, each as a whole line, and no comment, neither
   `(*` nor a line with `\*`, because TLC reads no line inside a comment (`invariant`).
-- A configuration that the table marks for CI replaces no definition at all: a line with
-  `<-` in it ends the check with `invariant` (ruling RD-109 point 3), since a replaced
-  operator that an invariant reads, such as `CONSTANT HInPress <- HTaken`, can switch the
-  invariant off while every count stays as it was. A configuration that CI does not run may
-  hold a replacement. That a definition which an invariant uses can be changed in the
-  model's own file is outside what a check of this kind can hold; the two control copies and
-  the review of a change are what stand against it.
+- Every configuration file of this directory, CI's and the others, holds only lines of four
+  forms besides empty ones (RD-109 Addition 1, point 3): `CONSTANT` with a constant of the
+  model's own `CONSTANTS` line and a value (a number, `TRUE`, `FALSE`, a string or a set of
+  them), `INIT Init` once, `NEXT Next` once, and `INVARIANT` with a name; a configuration of
+  `Schedule` also holds `CONSTRAINT Bound` and `VIEW View`, as the committed files do. Any
+  other line ends the check with `invariant`: a replacement (`<-`, `result=replaced`), a
+  value given to a defined operator, another `CONSTRAINT` or `VIEW`, a second `NEXT`
+  (`result=lines`). A replaced operator that an invariant reads, such as
+  `CONSTANT HInPress <- HTaken`, switched L11 off while every count stayed as it was. That a
+  definition which an invariant uses can be changed in the model's own file is outside what
+  a check of this kind can hold; the three control copies and the review of a change are
+  what stand against it.
 - This directory holds no module, configuration or limits file (`*.tla`, `*.cfg`,
   `*.json`) that neither the stamp's list nor the table names (`traces`). The stamp's list
   holds every file that the export reads, the own bound `Confirm4-bound.cfg` from which the confirm walks are drawn, the three configurations of the directed traces
@@ -120,7 +125,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 27,904 | 665,764 | 11 |
 | `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,776 | 14 |
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
-| `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 29,692 | 4,266,795 | 25 |
+| `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 35,360 | 4,938,947 | 25 |
 | `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on, and no second step (`Binds` is 0, so L11 holds there with nothing bound) | 4,092 | 530,515 | 21 |
 | `Confirm4` | `bound` | `Confirm4-bound.cfg` | no | the model's own bound (ruling RD-106 (4), (5)): one run with four requests in all, each a confirmation or a second step, at most two of each, two effects; the product of two and two, which ended and stands in place of three; the confirm walks are drawn from it | 2,691,076 | 475,507,727 | 33 |
 
@@ -130,11 +135,11 @@ What the check asks of the table and of the files, each with the cause that ends
 | `days` | 1 to 8, 18 to 21, 28, 29, 31 to 34 and 38 | the 28 properties that `Schedule` had before the store's view: all of the first list below but `ReachQueueTwo`, `ReachQueueOrder` and `ReachQueueIdle`, which need a queue of two; and `ReachUnknownAgent` |
 | `queue` | 17 and 30: of the three, only `queue` holds `a5`, the agent with no schedule that needs no person. It holds no stop, so row 38 is no run of it | `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueIdle` |
 | `store` | 46 to 50 and 53 to 55: of the three, only `store` holds the time between the end of a runner, or a failed start, and the store's record of the run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds`, `ReachFailedOwed`, `ReachFailedSentAgain` |
-| `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move; and 65, the start that goes on after the read that brought a lost `hold_set` (C4). Rows 66 to 68 break no property in any configuration | `ReachOffRead` |
+| `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move; 65, the start that goes on after the read that brought a lost `hold_set` (C4); and 67, the start under the hold `failures` that launches on the verdict from before its store of `hold_cleared` (C4). Rows 66 and 68 break no property in any configuration | `ReachOffRead` |
 | `left`, `reap` | none of their own: each holds the moves of one directed trace | none of their own |
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 75 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
-| `bound` | every row that `full` reports, since `full` is `bound` with two requests fewer; it adds the orders of three and four requests (a second step between two confirmations or after two, a confirmation between two second steps or after two, and two of each), which no row of the table needs | not run in it |
+| `bound` | every row that `full` reports, since `full` is `bound` with two requests fewer; it adds the orders of three and four requests (a second step between two confirmations or after two, a confirmation between two second steps or after two, and two of each); row 77 of the table of wrong designs needs three requests, and only `bound` reports it | not run in it |
 
 The counts are TLC's own lines, each from the run of the next table, with the workers that
 it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
@@ -166,8 +171,8 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 | `Schedule` | `holds` | 68.09 s, two workers, on 2026-11-14 (U1.2c) | 1,180,041,216 bytes | 111.99 | not run yet | not run yet |
 | `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 6 s | 6 s |
 | `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 5 s | 4 s |
-| `Confirm4` | `full` | 69.71 s, two workers, on 2026-11-15 at commit 383563cc8 | 1,211,531,264 bytes | 68.30 | not run yet | not run yet |
-| `Confirm4` | `apart` | 26.20 s, one worker, on 2026-11-14 (U1.2c) | 460,619,776 bytes | 71.70 | not run yet | not run yet |
+| `Confirm4` | `full` | 58.22 s, two workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1) | 1,205,305,344 bytes | 53.26 | not run yet | not run yet |
+| `Confirm4` | `apart` | 9.81 s, one worker, on 2026-11-15 with the model of commit 47a097f9a | 746,471,424 bytes | 82.23 | not run yet | not run yet |
 | `Confirm4` | `bound` | 3309.62 s, four workers, on 2026-11-15 with the model of commit 383563cc8, on the lane for timed runs | 1,856,110,592 bytes | 72.24 | not run | not run |
 
 In that run the check took 203 s and its self-test 25 s in the
@@ -184,11 +189,11 @@ The scripts of this run have a share of each hosted job: 320 s in `macos` and 44
 
 - the check: the small configurations of the table above, the stamp of the traces, the
   export against the committed traces in the jobs that the line `export compared in jobs`
-  names, the two control copies with TLC, and `gate-record.txt` against the tree;
+  names, the three control copies with TLC, and `gate-record.txt` against the tree;
 - its `--self-test`: two fixtures that must pass and one failing fixture for each rule
   below. A fixture is a whole run of the script on a copy of this directory with one
   thing wrong, with a stand-in `java` that answers in place of TLC, so that a fixture
-  ends in seconds. The two control copies run with the real TLC there as well.
+  ends in seconds. The three control copies run with the real TLC there as well.
 
 The further fixtures of each rule are not run at a push. They are the long self-test:
 
@@ -223,7 +228,7 @@ shows in the diff of its pull request.
 | marked lines that are not the names in the script | `invariant` | `days-not-for-ci` | `line-deleted`, `apart-not-for-ci`, `no-schedule-for-ci`, `no-confirm-for-ci` |
 | a configuration without exactly its invariant lines | `invariant` | `invariant-twice` | `renamed-invariant`, `extra-invariant`, `full-without-an-invariant`, `confirm-without-l11` (`Confirm4.cfg` without L11, so that the check holds eleven and not at least ten) |
 | a comment in a configuration | `invariant` | `comment-mark` | `comment-in-configuration` |
-| a replacement in a configuration that CI runs | `invariant` | `replaced-invariant`, and `replaced-operator` (`CONSTANT HInPress <- HTaken` in `Confirm4.cfg`), beside the passing control `replaced-outside-ci` (a replacement in `Schedule.cfg`, which CI does not run) | none |
+| a line of a configuration outside the four forms | `invariant` | `replaced-invariant`, `replaced-operator` (`CONSTANT HInPress <- HTaken` in `Confirm4.cfg`), `replaced-outside-ci` (a replacement in `Schedule.cfg`, which CI does not run), and `line-form-1` to `line-form-6` in `Confirm4.cfg`: the replacement with no space before the arrow, two replacements on one line, `CONSTANT NRequests = 3`, `CONSTRAINT Bound`, `VIEW View` and a second `NEXT Next`; the committed files are the passing control | none |
 | a run in which TLC reports an invariant violated | `invariant` | `violated` | `violated-status`, twice |
 | a run that ends with a status other than 0 | `invariant` | `status` | `killed` |
 | a run that does not say that it finished | `invariant` | `unfinished` | `silent` |
@@ -311,7 +316,7 @@ The histories that this round added, each taken from the environment's move:
 | for which runs `reap` answered `alive` | the key `alive` of the move `restart` | C12 |
 | that the person answered a `check` | the move `check` | C4 |
 | that the owner stored a `hold_set` of the switch-off control whose acknowledgement was lost | the key `port` `lost` of the move `off`, which adds `off` to `h.holds` as an `off` with `ok` does | C4 |
-| which request of the runner waits for an answer, which answer of `Runs::answer_bind` it received, and whether that answer came inside a press of Allow on that step while the newest row that this life tried to store for it is an acknowledged `allow` | every move `bind`, whatever the step answers, the key `runs` of the move `press` (only `ok` hands the answer over), the key `store` of the press for the acknowledgement, and the choice and the item of the press; a lapse that still lives hands its `decline` over | L11 |
+| which request of the runner waits for an answer, which answer of `Runs::answer_bind` it received, and whether that answer came inside a press of Allow on that step while the newest row that this life tried to store for it is an acknowledged `allow` | every move `bind`, whatever the step answers; every `answer_bind` entry of every move, the guard's too, taken by the runner unless the move is a press whose port answered `busy` or `ended`; the key `store` of the press for the acknowledgement; the choice and the item of the press. No line of it reads the coordinator's answer word (RD-109 Addition 1, point 1) | L11 |
 
 ## Schedule
 
@@ -592,8 +597,8 @@ names effect 1 with another digest, so its presenter is `page`.
 | `passed` | every record `approved` or `releasing` that the guard passed, with whether an earlier record had used its approval id, whether an `approved` record of the same effect, digest and approval id had passed before, whether the run was stopped, and, for a record with no approval, the answer of the port `Policy` in that move | L7 to L10 |
 | `refused` | every record `approved` that the guard did not pass on although an `approved` record of the same effect, digest and approval id had passed before and the run was not stopped: a repeat that was refused | L7 |
 | `stopped` | whether the run was stopped, a lapse of a second step with `wait_limit` or `cancelled` among the stops | L6, L9 |
-| `nb`, `waits` | the steps that the coordinator raised, one for each of its `bind_raised` entries, and the request on whose answer the runner waits: set by every move `bind`, whatever the step answers, so that an allow handed in the move of a refused Bind is read (ruling RD-109 point 1), until the runner receives an answer, ends or the app ends | L11 |
-| `newest` | for each second step, the newest `item_answered` row that this life tried to store, with its answer and whether the acknowledgement came, which the key `store` of the press gives. A row entry counts for the item that it names (ruling RD-109 point 2). A press that is not refused, and whose step holds no acknowledged answer of the same choice that the run did not take, counts at the start of the move as a row of the pressed item when its entries hold no row of that item: acknowledged as `store` says when they hold no row at all, and not acknowledged when they hold rows of other items alone. So a coordinator that stores a row and does not report it, or reports it under another item, is still read | L11 |
+| `nb`, `waits` | the run's Bind requests and the step whose answer the runner waits for. At a move `bind`, whatever the step answers, the request is counted when the runner waits on no step and `Binds` is not reached, and the runner then waits on the new step (RD-109 Addition 1, point 1 (a)). The wait ends when the runner takes an answer, when a press is answered `ended`, at a kill, and at a lapse of the waited step by the run's end or the app's end, whatever the step answers (e) | L11 |
+| `newest` | for each second step, the newest `item_answered` row that this life tried to store, keyed by the item that the row itself names and acknowledged only by the key `store` of a press (point 2). A press on the waited step that stores no row naming it and is no repeat counts as a tried row that was not acknowledged (point 1 (d)). So a coordinator that stores a row and does not report it, or reports it under another item, is still read | L11 |
 | `bound` | every answer of a second step that the runner received: the step, the answer, and whether it came inside a press of Allow on that step while `newest` was an acknowledged `allow` | L11 |
 | `rows`, `lost`, `unsent`, `blapsed`, `killed` | the second steps whose answer row the owner holds, those of them whose row lost its acknowledgement, those whose acknowledged answer the run did not take, the lapses of second steps, and whether the app was killed; `rows` is what recovery reads after a kill, and the rest only the `Reach` properties read | `Reach` |
 
@@ -752,8 +757,8 @@ Held by the replay and the code's tests and by no property (ruling RD-109 point 
   no property): `a_stored_allow_that_the_run_did_not_take_then_dont_allow_stores_and_sends_decline`
   and `a_stored_decline_that_the_run_did_not_take_refuses_allow_and_sends_decline_again`
   (tests/coordinator_moves.rs);
-- RD-46 (2) g, the step closes after a success or `ended` and after nothing else (row 64
-  breaks no property): `the_memory_answer_bind_answers_as_the_library_does`
+- RD-46 (2) g, the step closes after a success or `ended` and after nothing else (row 64,
+  which L11 reports since RD-109 Addition 1): `the_memory_answer_bind_answers_as_the_library_does`
   (tests/items_bind.rs);
 - RD-46 (3), after a kill the next life lapses no step that has an answer row:
   `a_kill_after_a_lost_or_taken_allow_binds_nothing_lapses_nothing_and_a_new_bind_raises_a_new_item`
@@ -763,12 +768,21 @@ A branch that no state reaches: the refusal of a press for a stopped run (`Press
 `state` when `run` is `stopped`), since a run is stopped only with no step held; the code's
 check is held by `a_stopped_run_gets_no_second_step_and_no_answer` (tests/items_bind.rs).
 
-For later units: a new move of the model must feed the history that L11 reads (`waits`,
-`newest`, `bound`); one that does not leaves L11 true with nothing read, and nothing in CI
-notices it, since the check reads the invariant lines and the counts alone. The `Reach`
-properties of the second step, run by hand as the section on reachability says
-(`ReachBindAllow`, `ReachBindLostAllow` and the others), show such a gap: each must still
-be reported violated.
+For later units: a new move that hands `allow` outside a press of Allow on the waited step is
+reported by L11, since every `answer_bind` entry of every move is read; a request that the
+history never counts makes L11 report every `allow`, which is loud. The `Reach` properties of
+the second step, run by hand as the section on reachability says, show that the history is
+still fed: each must still be reported violated.
+
+What the replay of the confirm traces does not hold (the verifier's section D of unit
+U1.2c's gates): a `bind` line that `raise_step` refuses or ends calls no drive function, and
+the test sets the answer and the run's state itself; a `kill` line calls the pure
+`recover_step` alone, with no port; `e` and `p` are compared apart, so the order between a
+row and a call of one move is not asserted; `bind_due` is never called, and a wait-limit line
+calls `lapse_bind`; the step is picked by the trace's item name, not by the Coordinator's
+lookup; `s.run` after a lapse of a step is set by the test, not read from the guard's table;
+a trace's `n` and `case` and the first line's `seed` and `count` are read as names or not at
+all.
 
 How `confirm_joint` reads a confirm trace (I5.13, ruling XA-5). The test follows each
 line with `halvo_policy::effect_step`. At a `release` line whose `sent` holds
@@ -818,8 +832,9 @@ answer lapses at the Stop, at the wait limit, at the run's end and at the quit),
 `ReachBindKillOpen` (a kill's recovery lapses a step with no answer row) and
 `ReachBindAndConfirm` (a confirmation and a second step in one run).
 
-The two control copies. Each is the model with one line replaced, and TLC must report the
-named invariant violated.
+The three control copies. Each is the model with one line replaced, and TLC must report the
+named invariant violated; the check prints `formal control violated=3` (RD-109 Addition 1,
+point 3, where I5.13 still says 2).
 
 - `Schedule` without the model's guard in step 4 breaks C1. Replace
   `ModelFree(s, a) == a \notin NeedsModel \/ \A r \in s.runs : r.agent \notin NeedsModel`
@@ -827,6 +842,9 @@ named invariant violated.
 - `Confirm4` without the wait of the move `record` breaks L5. Replace
   `ELSE IF s.items[i].st # "recorded" THEN No(s, "state")` by
   `ELSE IF s.items[i].st \notin {"answered", "recorded"} THEN No(s, "state")`.
+- `Confirm4` with a coordinator that sends `allow` after the row of a press of Allow lost its
+  reply (the verifier's W1) breaks L11 in three states, whatever else switches L11 off.
+  Replace `ELSE IF row /\ store = "lost"` by `ELSE IF row /\ store = "lost" /\ c # "allow"`.
 
 ## Wrong designs and the property that reports each
 
@@ -901,10 +919,10 @@ replay of that design gives another answer, event, call or state at some move.
 | 61 | the next life after a kill sends a stored `allow` to the waiting run | L11 | 1 of 215 |
 | 62 | a press of Don't allow whose row lost its acknowledgement keeps the step at its stored `allow`, so that the next press of Allow sends it with no row of its own | L11 | 1 of 215 |
 | 63 | a lapse of a second step with `wait_limit` or `cancelled` does not stop the run | L9 | 187 of 215 |
-| 64 | a step closes when `Runs::answer_bind` answers `busy` | none: the runner waits and gets nothing | 160 of 215 |
+| 64 | a step closes when `Runs::answer_bind` answers `busy` | L11: the runner still waits on the step that closed, so the `allow` that a press of the next step hands is recorded for the closed one (none before RD-109 Addition 1, whose history counts every Bind) | 160 of 215 |
 | 65 | a start goes on with the verdict that it computed before the read that brought a lost `hold_set` | C4 | 15 of 213 |
 | 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 213 |
-| 67 | the start by the person under the hold `failures` keeps the verdict that it computed before its store of `hold_cleared` | none, a named limit (ruling RD-109 point 5): the wrong design changes neither the model's state nor its history, only the order of a `set_state` among the calls; the start reads the hold itself at its `run_started` and answers `hold` (C4, reported in `holds` by row 65), so no run starts; a person meets something only when the `set_state` `paused` after it is lost as well, and then the agent store holds `active` for an agent under a hold. The code's own read is held by the test `a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms` of tests/coordinator_moves.rs; no walk and no directed trace holds the case, which goes to unit U2.4b | 0 of 213 |
+| 67 | the start by the person under the hold `failures` takes its verdict from the state before its store of `hold_cleared` and launches on the state after the read, with no second decision, which is the code's design with the second decision of schedule/drive.rs line 754 taken out (ruling RD-109 Addition 1, point 5) | C4, in `holds` alone. The test `a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms` (tests/coordinator_moves.rs line 3850) holds the code's second decision: with it taken out the test fails with `Reply left: Ok(()) right: Err(Hold)`. A directed trace of the case goes to unit U2.4b | 0 of 213 |
 | 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 6 of 213 |
 | 69 | a press of Allow calls `Runs::answer_bind` before its row is written, in the same move | L11 | 0 of 215 |
 | 70 | a press of Don't allow after a stored `allow` stores its row, loses the reply, reports no row and keeps the step at `allow`, so that the next press of Allow sends it | L11 | 35 of 215 |
@@ -913,6 +931,8 @@ replay of that design gives another answer, event, call or state at some move.
 | 73 | a Bind beside an open confirmation ends the run with `state` and hands `allow` in that move (B02) | L11 | 2 of 215 |
 | 74 | an accepted raise answers another word than `ok`, beside a press of Allow that sends after its row lost its reply (B20) | L11 | 200 of 215 |
 | 75 | the row of a press on the second step is written under the first step's item, and `allow` goes to the second (B11) | L11 | 19 of 215 |
+| 76 | the guard refuses a press of a closed item with `approval` and hands `allow` to the open step in that move | L11 | 9 of 215 |
+| 77 | a Bind hands `allow` in its own move when the run has asked twice before, so the design needs three requests | L11 in `bound`; `full` holds two requests and finds no error | 24 of 215 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -920,7 +940,7 @@ sends the event of row 34 again after the owner's `no_workflow` is row 34 at a l
 tick: the models hold no answer `no_workflow`, and C10 reports the first sending. Rows 15,
 18, 20 and 24 are the replacements of rows 12, 6, 2 and 11 under the words of an earlier
 round. Rows 40 to 45 are the round of rulings XA-1, XA-2 and XA-5, and rows 46 to 50 the
-round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. The counts of rows 57 to 64 and 69 to 75 are against the confirm walks drawn from `bound` (unit U1.2c's second round), those of the rows before them against the walks of their own rounds. Rows 57 to 64 and 69 to 75 are the second step of a sign-in (ruling RD-48 (g)); rows 72 to 75 are the verifier's cases B01, B02, B20 and B11 at the gates of unit U1.2c, which the history before ruling RD-109 did not report, because it wrote the raise only when the step answered `ok` and keyed a row by the pressed item; rows 69 to 71 are the review's cases that the first history did not report, and row 69 changes no trace line because a line lists `e` and `p` apart, so that the order between a row and a call does not show in it: rows 58 and 64 break no property and change traces alone, row 58 because the person's last press is an acknowledged Allow and row 64 because the runner gets nothing. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a), and only row 65 is reported: rows 66 to 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
+round of ruling XB-4, with rows 53 to 55 for ruling XB-15 and row 56 for rulings FM-9 and XB-24. The counts of rows 57 to 64 and 69 to 77 are against the confirm walks drawn from `bound` (unit U1.2c's second round), those of the rows before them against the walks of their own rounds. Rows 57 to 64 and 69 to 77 are the second step of a sign-in (ruling RD-48 (g)); rows 72 to 75 are the verifier's cases B01, B02, B20 and B11 at the gates of unit U1.2c, which the history before ruling RD-109 did not report, because it wrote the raise only when the step answered `ok` and keyed a row by the pressed item; rows 76 and 77 are the moves outside a press that RD-109 Addition 1 names, a refused guard move and a Bind, and row 77 is the design that needs three requests, which only the own bound reports; rows 69 to 71 are the review's cases that the first history did not report, and row 69 changes no trace line because a line lists `e` and `p` apart, so that the order between a row and a call does not show in it: row 58 breaks no property and changes traces alone, because the person's last press is an acknowledged Allow. Rows 65 to 68 are the lost `hold_set` of ruling RD-52 (a): rows 65 and 67 are reported, and rows 66 and 68 start no run, and their traces show them. Rows 51 and 52 need a second item after a lapse of the first, which
 reading 9 of `Confirm4` takes out of `full`; `apart` holds it. `Confirm4` as it stood before this round is rows 43 and 45 at once,
 and none of its ten invariants reported either: it refused a repeat with `approval`, and
 its run asked again after a `reject_once`. These changes break no property and change traces alone: a tick that skips an agent
@@ -1343,7 +1363,7 @@ The models cover `holds`, `start_step` and `tick_step`, `run_step`, `recover_ste
 `delete_step`, `confirm_step` and `guard_step` of `halvo-coord`. None of them existed at
 the commit that added this file. The check `scripts/r4/ci.d/30-r4-formal.sh` runs the
 small configurations, compares the committed traces with a fresh export and with the
-stamp of the model files, and breaks two control copies; a change of a model file with no
+stamp of the model files, and breaks three control copies; a change of a model file with no
 new export fails it with the cause `traces`, and a change of a model file or of the check
 script with no new `gate-record.txt` fails it with the cause `record`. The crate's test `formal_traces` replays every committed
 line. When TLC reports an invariant violated, read its trace against I4 and I5: a step
