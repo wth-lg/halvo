@@ -1059,7 +1059,7 @@ EOF
 
   name='a link of the prefix that leads to no file fails the step as no file, and the pnpm of the path does not run'
   new_backend_case backend-binary-dangling-link
-  mkdir -p "$case_dir/home/.local/bin"
+  mkdir -p "$case_dir/home/.local/bin" "$case_dir/home/.local/lib/node_modules/pnpm"
   ln -s ../lib/node_modules/pnpm/pnpm "$case_dir/home/.local/bin/pnpm" 2>/dev/null || :
   if [ ! -L "$case_dir/home/.local/bin/pnpm" ]; then
     echo "  this platform makes no symbolic link to a missing file, so the case holds nothing here"
@@ -1080,7 +1080,7 @@ EOF
 
   name='when the path runs another pnpm than the one of the prefix, the step fails, and neither pnpm runs'
   new_backend_case backend-binary-not-the-path
-  : >"$case_dir/probe"
+  printf '#!/bin/sh\n' >"$case_dir/probe"
   chmod 644 "$case_dir/probe"
   if [ -x "$case_dir/probe" ]; then
     echo "  this platform runs a file of mode 644, so the case holds nothing here"
@@ -1127,6 +1127,48 @@ EOF
   run_ensure_backend fails
   [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the file of other bytes ran"
   [ "$(count "prerequisites: error: $prefix_real/node_modules/pnpm/pnpm, which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line named the file that the shim runs"
+  verdict "$name"
+
+  name='where the prefix holds both bin/pnpm and pnpm, the one that the path finds first, bin/pnpm, is the one compared, and the other does not run'
+  new_backend_case backend-binary-both-entries
+  write_unchecked_pnpm "$case_dir/other-pnpm" unchecked-pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/pnpm' '$case_dir/home/.local/bin/pnpm' && cp '$case_dir/other-pnpm' '$case_dir/home/.local/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend ok
+  [ "$(count "prerequisites: $prefix_real/bin/pnpm, which runs when the pnpm of $case_dir/home/.local is called, has the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; bin/pnpm was not the file compared"
+  [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the other pnpm of the prefix ran"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once"
+  verdict "$name"
+
+  name='a shim of npm whose target is not there fails the step as no file, and one line names the shim and its target'
+  new_backend_case backend-binary-shim-target-missing
+  write_npm_shim "$case_dir/shim" node_modules/pnpm/pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local' && cp '$case_dir/shim' '$case_dir/home/.local/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend fails
+  [ "$(count "prerequisites: error: $prefix_real/pnpm, the shim that npm wrote for the pnpm of $case_dir/home/.local, runs $prefix_real/node_modules/pnpm/pnpm, which leads to no file, so no file of the prefix can be compared with package/$case_member of $platform_archive_path; remove what npm installed" "$case_dir/output")" = 1 ] || problems="$problems; no line named the shim and its missing target"
+  [ "$(count 'prerequisites: error:' "$case_dir/output")" = 1 ] || problems="$problems; the step did not stop at its first error line"
+  verdict "$name"
+
+  name='a checked platform package that holds no binary under its name stops the step before the installed pnpm runs, with one line that names the package'
+  new_backend_case backend-binary-not-in-the-package
+  mkdir -p "$case_dir/odd/package"
+  cp "$case_dir/pnpm" "$case_dir/odd/package/not-pnpm"
+  tar -czf "$platform_asset" -C "$case_dir/odd" package
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
+  run_ensure_backend fails
+  [ "$(count "prerequisites: error: $platform_archive_path holds no file package/$case_member that tar can unpack, so nothing can be compared with it; move it away, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the package without its binary"
+  [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
+  [ "$(count 'prerequisites: error:' "$case_dir/output")" = 1 ] || problems="$problems; the step did not stop at its first error line"
+  [ "$(find "$repo_dir/backend/.tools" -name 'pnpm-binary.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the scratch of the compare was left"
   verdict "$name"
 
   expect_shim_refused() {
