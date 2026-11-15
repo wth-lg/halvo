@@ -2264,6 +2264,8 @@ mod real_files {
         Exists,
         RemoveTemp,
         Names,
+        Walk,
+        ReadClaim,
     }
 
     type Hooks = Vec<(At, Box<dyn FnOnce()>)>;
@@ -2271,6 +2273,7 @@ mod real_files {
     struct HookedFs {
         hooks: RefCell<Hooks>,
         opened: RefCell<String>,
+        faults: RefCell<Vec<(At, i32)>>,
     }
 
     impl HookedFs {
@@ -2287,6 +2290,15 @@ mod real_files {
                 hook();
             }
         }
+
+        /// The first fault left for `at`, once: the call fails with that errno.
+        fn fault(&self, at: At) -> std::io::Result<()> {
+            let mut faults = self.faults.borrow_mut();
+            match faults.iter().position(|(when, _)| *when == at) {
+                Some(first) => Err(std::io::Error::from_raw_os_error(faults.remove(first).1)),
+                None => Ok(()),
+            }
+        }
     }
 
     impl Fs for HookedFs {
@@ -2299,6 +2311,7 @@ mod real_files {
         }
 
         fn walk(&self, path: &std::path::Path) -> std::io::Result<Walk<Self::Dir>> {
+            self.fault(At::Walk)?;
             Fs::walk(&UnixFs, path)
         }
 
@@ -2333,6 +2346,9 @@ mod real_files {
         }
 
         fn read_item(&self, item: &mut Self::Item, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.opened.borrow().ends_with(".claim") {
+                self.fault(At::ReadClaim)?;
+            }
             Fs::read_item(&UnixFs, item, buf)
         }
 
@@ -2351,6 +2367,7 @@ mod real_files {
         fn publish(&self, dir: &Self::Dir, from: &str, to: &str) -> std::io::Result<Published> {
             if from.ends_with(".claim") && to == "account" {
                 self.fire(At::RenameBack);
+                self.fault(At::RenameBack)?;
             }
             if from == "account" && to.ends_with(".claim") {
                 self.fire(At::BeforeClaim);
@@ -2379,6 +2396,7 @@ mod real_files {
 
         fn names(&self, dir: &Self::Dir) -> std::io::Result<Vec<String>> {
             self.fire(At::Names);
+            self.fault(At::Names)?;
             Fs::names(&UnixFs, dir)
         }
     }
@@ -2392,10 +2410,19 @@ mod real_files {
     }
 
     fn hooked_at(label: &str, hooks: Hooks) -> Item<HookedFs, Plain> {
+        hooked_and_faulted(label, hooks, Vec::new())
+    }
+
+    fn hooked_and_faulted(
+        label: &str,
+        hooks: Hooks,
+        faults: Vec<(At, i32)>,
+    ) -> Item<HookedFs, Plain> {
         Item {
             fs: HookedFs {
                 hooks: RefCell::new(hooks),
                 opened: RefCell::new(String::new()),
+                faults: RefCell::new(faults),
             },
             codec: Plain,
             rules: Rules::Private,
@@ -3043,5 +3070,90 @@ mod real_files {
         let removed = hooked_item(label, At::OpenName, goes).remove_at_word(Some(k));
         assert_eq!(removed, Delete::Deleted);
         assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+    }
+
+    /// G2: which failures of the file place come from a claim. A claim that cannot be read or
+    /// put back, or one that is still there at the second listing, is the answer; a failed
+    /// walk or listing of the store directory is no claim's, and the Keychain item stands in.
+    #[test]
+    fn a_failure_of_a_claim_is_the_answer_and_a_failure_of_the_place_gives_the_item() {
+        const EIO: i32 = 5;
+        let k: &[u8] = b"the Keychain item's credential..";
+        for (case, fault, claim, want) in [
+            (
+                "read-of-the-claim",
+                At::ReadClaim,
+                true,
+                "Fault(Fault { code: 5 })",
+            ),
+            (
+                "rename-back",
+                At::RenameBack,
+                true,
+                "Fault(Fault { code: 5 })",
+            ),
+            ("listing", At::Names, true, "Found(..)"),
+            ("walk", At::Walk, false, "Found(..)"),
+        ] {
+            let label = format!("failure-of-{case}");
+            put(&label, "keep", b"the store directory");
+            if claim {
+                put(&label, &another_claim(1), Y);
+            }
+            let store = Mac {
+                keeps: Keeps::Keychain,
+                file: hooked_and_faulted(&label, Vec::new(), vec![(fault, EIO)]),
+                keychain: keys(Keys::holding(&[k])),
+            };
+            let read = store.read();
+            println!("failure of the {case}: {read:?}");
+            assert_eq!(format!("{read:?}"), want, "{case}");
+            if let Read::Found(held) = &read {
+                assert_eq!(held.expose(), k, "{case}");
+            }
+            assert_eq!(store.keychain.keychain.items(), [k.to_vec()], "{case}");
+            if claim && want != "Found(..)" {
+                assert_eq!(
+                    bytes_in(&label, &another_claim(1)),
+                    Some(Y.to_vec()),
+                    "{case}"
+                );
+            }
+        }
+
+        let label = "claim-at-the-second-listing";
+        put(label, "keep", b"the store directory");
+        let store_dir = parent(label).join("store");
+        let make = |n: u32| -> Box<dyn FnOnce()> {
+            let path = store_dir.join(another_claim(n));
+            Box::new(move || {
+                use std::io::Write as _;
+                use std::os::unix::fs::OpenOptionsExt;
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(&path)
+                    .and_then(|mut file| file.write_all(b"the Keychain item's credential.."))
+                    .expect("another process's claim");
+            })
+        };
+        let store = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_at(
+                label,
+                vec![
+                    (At::Names, Box::new(|| {})),
+                    (At::Names, make(1)),
+                    (At::Names, Box::new(|| {})),
+                    (At::Names, make(2)),
+                ],
+            ),
+            keychain: keys(Keys::holding(&[k])),
+        };
+        let read = store.read();
+        println!("claim at the second listing: {read:?}");
+        assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
+        assert_eq!(store.keychain.keychain.items(), [k.to_vec()]);
     }
 }

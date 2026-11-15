@@ -1976,3 +1976,50 @@ fn a_removal_at_the_person_s_word_answers_a_temporary_file_that_it_cannot_remove
         assert_eq!(bytes_at(&store.fs, &left), Some(STORED.to_vec()), "{code}");
     }
 }
+
+#[test]
+fn a_delete_if_holds_whose_read_finds_the_file_in_another_process_s_claim_lists_and_looks_again() {
+    let claim = format!("{DIR}/.account.{}.0.claim", std::process::id() + 1);
+    let store = item(Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (claim.as_str(), Entry::file(0o600, STORED)),
+    ]));
+    let answer = store.delete_if_holds(STORED);
+    assert!(matches!(answer, DeleteIfHolds::Deleted), "{answer:?}");
+    assert_eq!(store.fs.paths(), [DIR]);
+}
+
+#[test]
+fn a_file_replaced_between_the_read_and_the_claim_is_named_back_and_given() {
+    let memory = stored().before_call("publish", 1, |entries| {
+        entries.insert(PathBuf::from(PATH), Entry::file(0o600, b"W, a replacement"));
+    });
+    let store = item(memory);
+    assert_eq!(
+        kept_bytes(store.delete_if_holds(STORED)),
+        b"W, a replacement"
+    );
+    assert_eq!(
+        bytes_at(&store.fs, PATH),
+        Some(b"W, a replacement".to_vec())
+    );
+    assert!(claimed_paths(&store.fs).is_empty());
+}
+
+#[test]
+fn a_write_whose_listing_after_the_publish_fails_answers_its_class_and_keeps_the_file() {
+    for code in CODES {
+        let store = item(Memory::new().failing_call("names", 1, code));
+        let answer = store.write(&secret(b"secret"));
+        let want = match class(code) {
+            Ok(locked) => Write::Locked(locked),
+            Err(fault) => Write::Fault(fault),
+        };
+        assert_eq!(answer, want, "{code}");
+        assert_eq!(
+            bytes_at(&store.fs, PATH),
+            Some(b"secret".to_vec()),
+            "{code}"
+        );
+    }
+}
