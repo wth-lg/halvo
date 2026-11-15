@@ -339,6 +339,17 @@ fn a_start_run_after_the_run_s_end_is_refused_with_effect() {
 }
 
 #[test]
+fn a_start_run_of_another_agent_for_a_run_that_end_run_ended_is_refused_with_binding() {
+    let mut store = unstarted("email");
+    assert_eq!(end_run(&mut store, 7), Ok(accepted()));
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    create(&mut store, 2, 2).expect("create_agent of the second agent");
+    let before = rows(&store, "agent_log");
+    assert_eq!(start_at(&mut store, NOW, 2, 2, 7), Err(declared("binding")));
+    assert_eq!(rows(&store, "agent_log"), before);
+}
+
+#[test]
 fn a_dismissed_workflow_has_no_agent() {
     let mut store = MemoryStore::new();
     store.put_workflow(dismissed(&wf(1)));

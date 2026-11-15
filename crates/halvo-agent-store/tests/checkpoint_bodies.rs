@@ -641,3 +641,34 @@ fn a_run_planted_over_one_page_gives_a_page_that_the_writer_refuses_and_never_an
         "the writer refuses the page"
     );
 }
+
+#[test]
+fn a_run_whose_checkpoint_shares_the_first_instant_of_another_run_s_is_not_superseded_by_it() {
+    let mut store = spreadsheet();
+    start(&mut store, 2);
+    assert_eq!(put_checkpoint(&mut store, planned(1, 1)), Ok(stored(1)));
+    assert_eq!(put_checkpoint(&mut store, planned(2, 1)), Ok(stored(1)));
+    committed_edit(&mut store, 2, 2, 1);
+    let listed = list(&mut store, None);
+    let superseded: Vec<(String, YesNo)> = listed
+        .checkpoints
+        .iter()
+        .map(|c| (c.run.as_str().to_owned(), c.superseded))
+        .collect();
+    assert_eq!(superseded, [(run(1), YesNo::No), (run(2), YesNo::No)]);
+}
+
+#[test]
+fn of_a_rejected_and_a_refused_edit_of_one_path_the_list_gives_rejected() {
+    let mut store = spreadsheet();
+    assert_eq!(put_checkpoint(&mut store, planned(1, 1)), Ok(stored(1)));
+    assert_eq!(put(&mut store, edit(1, 1, 1, "cleared", 1)), Ok(stored(1)));
+    assert_eq!(put(&mut store, edit(1, 2, 1, "refused", 1)), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    assert_eq!(last_of(&store, &effect(1)).state, EffectState::Rejected);
+    assert_eq!(last_of(&store, &effect(2)).state, EffectState::Refused);
+    assert_eq!(
+        list(&mut store, None).checkpoints[0].effect,
+        Some(EffectState::Rejected)
+    );
+}
