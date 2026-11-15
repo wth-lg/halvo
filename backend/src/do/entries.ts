@@ -243,13 +243,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   /**
    * The delete term of the due time under the mark, keyed by the subscription id that the account row holds now: with an
-   * answer stored for that id, its removal's bound and the stored decision's retry; else the end of a cancel call in flight
-   * for that id; else the end of a send in flight, the stored next try, and the mark itself while no hold and no send is open.
+   * answer stored for that id, the stored decision's retry, or the removal's bound while no decision is stored; else the end
+   * of a cancel call in flight for that id; else the end of a send in flight, the stored next try, and the mark itself while no hold and no send is open.
    */
   function deleteTerm(sql: Sql, mark: Mark & { since: Ms }, subscriptionId: string | null): Ms | null {
-    if (answeredFor(mark, subscriptionId)) {
-      return earliest([(mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS, mark.decidedAt === null ? null : mark.decidedAt + SYNC_RETRY_MS]);
-    }
+    if (answeredFor(mark, subscriptionId)) return mark.decidedAt === null ? (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS : mark.decidedAt + SYNC_RETRY_MS;
     const now = Math.max(time(sql), lastNow(sql));
     const callEnd = callEnds(sql, subscriptionId, now);
     if (callEnd !== null) return callEnd;
@@ -571,6 +569,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let tested = false;
     let waits: Ms | null = null;
     let nextAt: Ms | null = null;
+    let removal: { overdue: boolean } | null = null;
     try {
       const counted = host.step((sql) => {
         const mark = markOf(sql);
@@ -595,18 +594,29 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     } catch {}
     if (marked) {
       try {
-        waits = host.step((sql) => {
+        const owed = host.step((sql) => {
           const mark = markOf(sql);
           if (mark.since === null) return null;
-          return deleteTerm(sql, { ...mark, since: mark.since }, (accounts.subscription(sql) ?? contractBroken()).subscriptionId);
+          const subscriptionId = (accounts.subscription(sql) ?? contractBroken()).subscriptionId;
+          const answered = answeredFor(mark, subscriptionId);
+          const now = Math.max(time(sql), lastNow(sql));
+          return {
+            term: deleteTerm(sql, { ...mark, since: mark.since }, subscriptionId),
+            removal: answered ? { overdue: now >= (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS } : null,
+          };
         });
+        waits = owed?.term ?? null;
+        removal = owed?.removal ?? null;
       } catch {
         waits = nextAt;
       }
     }
     if (marked) {
       const pause = Math.min(ALARM_RETRY_MS * 2 ** Math.min(count - 1, 30), ALARM_PAUSE_CAP_MS);
-      armAlarm(tested ? null : Math.max(host.clock() + pause, waits ?? 0));
+      let at = Math.max(host.clock() + pause, waits ?? 0);
+      if (removal !== null) at = Math.min(at, Math.max(waits ?? 0, host.clock() + SYNC_RETRY_MS));
+      if (removal?.overdue === true) log({ event: "removal-overdue" });
+      armAlarm(tested ? null : at);
       return;
     }
     if (count < ALARM_RETRY_LIMIT) {

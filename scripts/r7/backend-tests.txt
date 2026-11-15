@@ -8,7 +8,7 @@ test/billing/stripe-adapter.node.test.ts	39
 test/billing/stripe-read-session.node.test.ts	1
 test/contract/billing-stub.node.test.ts	2
 test/contract/constants.node.test.ts	1
-test/contract/entries.node.test.ts	101
+test/contract/entries.node.test.ts	102
 test/contract/env.test.ts	6
 test/contract/log.node.test.ts	3
 test/contract/names.node.test.ts	2
@@ -64,7 +64,7 @@ test/metering/late-read-rows.node.test.ts	3
 test/metering/late-read-runs.node.test.ts	7
 test/metering/late-read.node.test.ts	12
 test/metering/limits.node.test.ts	2
-test/metering/no-caller.node.test.ts	13
+test/metering/no-caller.node.test.ts	14
 test/metering/retry-delay.node.test.ts	5
 test/metering/rev31-period-after-delete.node.test.ts	1
 test/metering/review.node.test.ts	6

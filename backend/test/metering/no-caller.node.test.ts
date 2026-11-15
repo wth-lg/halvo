@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { makeAccounts } from "../../src/accounts/index.ts";
-import { ALARM_PAUSE_CAP_MS, DELETE_REMOVAL_BOUND_MS, makeEntries } from "../../src/do/entries.ts";
+import { DELETE_REMOVAL_BOUND_MS, makeEntries } from "../../src/do/entries.ts";
 import { makeLedger } from "../../src/ledger/index.ts";
-import { makeMetering } from "../../src/metering/index.ts";
+import { makeMetering, SYNC_RETRY_MS } from "../../src/metering/index.ts";
 import type { Ms, Sql, Step } from "../../src/types.ts";
 import { ACCOUNT, DAY, HASH, quiet, START, type World, world } from "./world.ts";
 
@@ -41,7 +41,7 @@ function throwing(on: () => boolean, name: string, real: (...a: never[]) => unkn
   };
 }
 
-async function ninetyDays(failing: Failing, sends: "answered" | "lost"): Promise<Ending> {
+async function ninetyDays(failing: Failing, sends: "answered" | "lost", o: { rejectTheRemovalOnce?: boolean } = {}): Promise<Ending> {
   const cancels: Ms[] = [];
   let w: World;
   let ended = false;
@@ -80,6 +80,17 @@ async function ninetyDays(failing: Failing, sends: "answered" | "lost"): Promise
         } as Sql),
       );
     }) as Step;
+  }
+  if (o.rejectTheRemovalOnce === true) {
+    const deleteAll = w.host.deleteAll;
+    let rejected = false;
+    w.host.deleteAll = async () => {
+      if (!rejected) {
+        rejected = true;
+        throw new RangeError("the removal is rejected");
+      }
+      return deleteAll();
+    };
   }
   w.at(START + 1000);
   await w.use("r0", 10_000);
@@ -120,7 +131,7 @@ function holdsTheRule(ending: Ending): void {
   expect(ending.periodsAfterTheAnswer).toBe(0);
   expect(ending.stopped).toBe(0);
   expect(ending.goneAt).not.toBeNull();
-  expect((ending.goneAt ?? Number.POSITIVE_INFINITY) - (ending.answeredAt ?? 0)).toBeLessThanOrEqual(DELETE_REMOVAL_BOUND_MS + ALARM_PAUSE_CAP_MS);
+  expect((ending.goneAt ?? Number.POSITIVE_INFINITY) - (ending.answeredAt ?? 0)).toBeLessThanOrEqual(DELETE_REMOVAL_BOUND_MS + SYNC_RETRY_MS);
 }
 
 describe("90 days with no caller after the delete: the owed cancel is made by the object, no period begins after its answer, and the storage goes by the bound (P7-110 L1 to L3)", () => {
@@ -146,6 +157,10 @@ describe("90 days with no caller after the delete: the owed cancel is made by th
 
   test("metering.cut throws at the delete and in every run after it", async () => {
     holdsTheRule(await ninetyDays("metering.cut", "answered"));
+  });
+
+  test("accounts.forget throws on every call, every send lost, so the pause is at its cap by the bound, and the removal at the bound is rejected once: the storage goes within SYNC_RETRY_MS after it (P7-111 M5)", async () => {
+    holdsTheRule(await ninetyDays("accounts.forget", "lost", { rejectTheRemovalOnce: true }));
   });
 
   test("the mark's read and the count step throw in every alarm run", async () => {

@@ -1946,4 +1946,24 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     failingWrites(w, (query) => query.startsWith("UPDATE"));
     expect(await gapsOver(w, clock, 4, true)).toEqual([30, 30, 30, 30]);
   });
+
+  test("M5: past the removal's bound a removal that keeps failing is tried again within SYNC_RETRY_MS of each failing run, never after the pause, and each such run writes removal-overdue, which names no account", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.host.deleteAll = async () => {
+      throw new RangeError("the removal is rejected");
+    };
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    const runs: Ms[] = [];
+    for (let run = 0; run < 5; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      runs.push(now - 8000 - DELETE_REMOVAL_BOUND_MS);
+      await w.entries.alarm();
+    }
+    expect(runs).toEqual([0, 60_000, 120_000, 180_000, 240_000]);
+    expect(lines.filter((line) => line.event === "removal-overdue")).toEqual(Array(5).fill({ event: "removal-overdue" }));
+  });
 });
