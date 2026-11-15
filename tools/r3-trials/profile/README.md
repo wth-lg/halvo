@@ -400,3 +400,8 @@ the kinds of files they change; none changes a value that a cell computes:
   holds); 8f7cef2e (run.sh's argument reader); e5413f05 (the result file's sentence on these
   commits); 31ed8294 and cbc4f88d (the collector's cases and the hosted harness, which compute no
   cell of this trial).
+- U0.3c, after its review and hosted runs: 91bf5c2b (texts), f4d7bab0 (clippy's findings, no
+  printed line changes), 39e932bc, 91b449ed, b740a734, dd779e3c and 4fd75d5a (tests and self-test
+  cases), ebe4fcde (tests, and the control's `--no-sandbox` moved into `sandbox()`, which gives the
+  same flags), a44c9396 (the hosted harness's licence check of pypdf), 0274f892 and the commit of
+  this line (texts).
