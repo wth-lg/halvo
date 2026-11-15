@@ -160,27 +160,29 @@ What each configuration costs. The first three columns are from the development 
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
 runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run 43185647436 on 2026-11-12, at a merge of main into commit c372346, the commit before this file's last change, which changed this file alone.
+configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
 | `Schedule` | `full` | 3367.18 s, four workers, on 2026-11-14 with the model of unit U1.2c, on the lane for timed runs | 2,051,145,728 bytes | 53.66 | not run | not run |
-| `Schedule` | `days` | 475.60 s, three workers, on 2026-11-14 (U1.2c) | 1,878,720,512 bytes | 50.98 | not run yet | not run yet |
-| `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 4 s | 3 s |
+| `Schedule` | `days` | 475.60 s, three workers, on 2026-11-14 (U1.2c) | 1,878,720,512 bytes | 50.98 | 130 s | 209 s |
+| `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 3 s | 4 s |
 | `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
-| `Schedule` | `holds` | 68.09 s, two workers, on 2026-11-14 (U1.2c) | 1,180,041,216 bytes | 111.99 | not run yet | not run yet |
-| `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 6 s | 6 s |
-| `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 5 s | 4 s |
-| `Confirm4` | `full` | 58.22 s, two workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1) | 1,205,305,344 bytes | 53.26 | not run yet | not run yet |
-| `Confirm4` | `apart` | 9.81 s, one worker, on 2026-11-15 with the model of commit 47a097f9a | 746,471,424 bytes | 82.23 | not run yet | not run yet |
+| `Schedule` | `holds` | 68.09 s, two workers, on 2026-11-14 (U1.2c) | 1,180,041,216 bytes | 111.99 | 17 s | 22 s |
+| `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 8 s | 7 s |
+| `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 4 s | 4 s |
+| `Confirm4` | `full` | 58.22 s, two workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1) | 1,205,305,344 bytes | 53.26 | 32 s | 30 s |
+| `Confirm4` | `apart` | 9.81 s, one worker, on 2026-11-15 with the model of commit 47a097f9a | 746,471,424 bytes | 82.23 | 5 s | 5 s |
 | `Confirm4` | `bound` | 966.08 s, four workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1), on the lane for timed runs | 1,810,808,832 bytes | 43.16 | not run | not run |
 
-In that run the check took 203 s and its self-test 25 s in the
-`macos` job, and 238 s and 66 s in the `windows` job; the
-export of both trace files is 27 s and 26 s of the check's. With the two other scripts of
-this run, `10-r4-layout.sh` and `45-r4-words.sh`, that is 237 s of the run's 320 s in
-`macos` and 331 s of its 440 s in `windows`. In the run before it, 43161137794, the
-self-test held every fixture and took 70 s and 301 s.
+In that run the check took 242 s and its self-test 35 s in the
+`macos` job, and 320 s and 96 s in the `windows` job; the
+export of both trace files is 29 s and 26 s of the check's. Main's newest push run before
+it, 43666146769 at 5fadd38e, gave this run's four scripts 213 s in `macos` and 513 s in
+`windows`, 30-r4-formal 26 s and 173 s, 108 s and 231 s of them. With the seconds above in
+their place the sums are 291 s and 590 s, against the shares of I12.1 (about 531 s in
+`macos` and 590 s in `windows`). In an earlier round's run, 43161137794, the self-test held
+every fixture and took 70 s and 301 s.
 
 ## What every push runs, and the gate record
 
@@ -712,7 +714,7 @@ or after two (the confirmation of the page presenter beside a second step among 
 the kill and the recovery over three requests' rows. The own bound `bound` holds those
 orders, and the confirm walks are drawn from it.
 
-The model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4). With the history of RD-109 Addition 1 (commit 47a097f9a), three requests in all, at most two second steps (`Requests` 3, `Binds` 2), TLC ended on 2026-11-15 with no error, 591,780 distinct states, 92,316,599 generated, depth 30, in 966.08 s with four workers on the lane for timed runs. `Confirm4-bound.cfg` holds it, the confirm walks are drawn from it, and row 77 of the wrong designs, a Bind that hands `allow` at the third request, is reported there by L11 and in no configuration that CI runs. The product of two and two (`Requests` 4) runs after it once, with a limit of 90 minutes of TLC, off the path of the round; it started at 04:25:42Z on 2026-11-15, after the own bound, and the round's report gives how it ended. Before RD-109 Addition 1, with the model of commit 383563cc8, three requests ended with no error at 430,868 distinct states in 766.66 s and the product at 2,691,076 distinct states in 3,309.62 s, both with four workers; the Addition changed the history that L11 reads, so those runs do not check this model. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs the own bound, and so does the verifier at the gate of the phase in which the change lands; no CI job runs it. A violation of an invariant there is a fault of the model or of the code (ruling RD-106 (8)).
+The model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4). With the history of RD-109 Addition 1 (commit 47a097f9a), three requests in all, at most two second steps (`Requests` 3, `Binds` 2), TLC ended on 2026-11-15 with no error, 591,780 distinct states, 92,316,599 generated, depth 30, in 966.08 s with four workers on the lane for timed runs. `Confirm4-bound.cfg` holds it, the confirm walks are drawn from it, and row 77 of the wrong designs, a Bind that hands `allow` at the third request, is reported there by L11 and in no configuration that CI runs. The product of two and two (`Requests` 4) runs after it once, with a limit of 90 minutes of TLC, off the path of the round; it started at 04:25:42Z on 2026-11-15, after the own bound, and ended within the limit with no error: 4,252,580 distinct states, 734,139,599 generated, depth 35, in 4,724.61 s with four workers, 2,044,723,200 bytes, the same model. It is not the own bound at this commit, because the walks, the export and the record were made from three requests before it ended (RD-109 Addition 1, point 4). Before RD-109 Addition 1, with the model of commit 383563cc8, three requests ended with no error at 430,868 distinct states in 766.66 s and the product at 2,691,076 distinct states in 3,309.62 s, both with four workers; the Addition changed the history that L11 reads, so those runs do not check this model. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs the own bound, and so does the verifier at the gate of the phase in which the change lands; no CI job runs it. A violation of an invariant there is a fault of the model or of the code (ruling RD-106 (8)).
 
 Proved at no bound of this model, each with what holds it (ruling RD-106 (7)):
 - the third value of the guard table's release number, which needs three confirmations
