@@ -289,8 +289,7 @@ struct Gap {
 fn behind_the_key(seq: u64, at: u32, from: LatchFrom, key: &HeldKey) -> bool {
     seq < key.seen
         || (from == LatchFrom::AnotherThread
-            && (0..=i64::from(ms(super::LATE_KEY_MAX) + ms(KEY_HOLD)))
-                .contains(&offset(key.tick, at)))
+            && (0..=i64::from(ms(MARK_AGE_LIMIT))).contains(&offset(key.tick, at)))
 }
 
 fn judge(m: &Marks, key: &HeldKey, now: u32, front: u32, password_edit_now: bool) -> Judgment {
@@ -3597,6 +3596,38 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    fn a_click_forwarded_late_by_the_pointer(click_before: Option<u32>) -> Option<(bool, Rule)> {
+        let k: u32 = 200_000;
+        let gate = PasswordGate::new();
+        gate.read_at(k - 100_000, FieldState::Clear, Moved::NotCompared);
+        gate.pointer_takes_the_clicks(k - 99_000);
+        let letter = gate.hold(k, false, 7);
+        if let Some(before) = click_before {
+            gate.latch_after(k - before);
+        }
+        gate.read_at(k + 125, FieldState::Clear, Moved::Same);
+        gate.read_at(k + 155, FieldState::Clear, Moved::Same);
+        gate.pointer_forwarded(k + 160);
+        gate.decide(&letter, k + 170, 7, false)
+            .map(|(answer, rule)| (answer.is_ok(), rule))
+    }
+
+    #[test]
+    fn a_click_that_the_pointer_forwards_late_holds_a_key_whatever_its_distance_before_it() {
+        assert_eq!(
+            a_click_forwarded_late_by_the_pointer(None),
+            Some((true, Rule::ReadAfterTheHold)),
+            "the control: with no click the forwarded tick past the hold clears the key"
+        );
+        for before in [10, 300, 370, 371, 400, 2_000, 60_000] {
+            assert_ne!(
+                a_click_forwarded_late_by_the_pointer(Some(before)).map(|(cleared, _)| cleared),
+                Some(true),
+                "a key after a click {before} ms before it, which the pointer forwarded late, was cleared"
+            );
         }
     }
 
