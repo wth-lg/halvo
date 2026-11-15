@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,25 +81,51 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r3-policy 20-r6-gateway
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r3-policy 20-r6-gateway
+      - name: Loop of the unit's tests
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        timeout-minutes: 60
+        run: |
+          set +e
+          n=${LOOP_N:-200}
+          fail=0
+          unit_binary() {
+            cargo test --locked -p "$1" --lib --no-run 2>&1 | sed -n 's/^ *Executable unittests src[\\/]lib.rs (\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1
+          }
+          loop() {
+            label=$1
+            expected=$2
+            shift 2
+            runs=0
+            ok=0
+            while [ "$runs" -lt "$n" ]; do
+              runs=$((runs + 1))
+              out=$("$@" 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok\. $expected passed; 0 failed;"; then
+                ok=$((ok + 1))
+              else
+                printf '%s\n' "$out" | grep -E '^test |^test result|panicked' | tail -n 8
+              fi
+            done
+            echo "loop $label: runs=$runs ok=$ok expected_passed=$expected"
+            [ "$ok" -eq "$runs" ] || fail=1
+          }
+          schema=$(unit_binary halvo-schema)
+          connect=$(unit_binary halvo-connect)
+          [ -n "$schema" ] && [ -n "$connect" ] || { echo "loop: a test binary was not found"; exit 1; }
+          loop schema-lib-senders 13 "$schema" executable::senders::
+          loop connect-lib-names 4 "$connect" --exact address::tests::the_names_that_the_crate_gives_on_are_the_items_of_the_schema mail::tests::a_sender_that_holds_a_space_makes_no_rule mail::tests::two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too mail::tests::the_rule_takes_unread_mail_to_the_account_from_a_sender_of_the_slot
+          loop schema-doc-senders 10 cargo test --locked -p halvo-schema --doc senders
+          loop connect-doc-reply-rule 2 cargo test --locked -p halvo-connect --doc ReplyRule
+          exit "$fail"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -148,25 +163,51 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-schema 20-r3-policy 20-r6-gateway
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-schema 20-r3-policy 20-r6-gateway
+      - name: Loop of the unit's tests
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        timeout-minutes: 60
+        run: |
+          set +e
+          n=${LOOP_N:-200}
+          fail=0
+          unit_binary() {
+            cargo test --locked -p "$1" --lib --no-run 2>&1 | sed -n 's/^ *Executable unittests src[\\/]lib.rs (\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1
+          }
+          loop() {
+            label=$1
+            expected=$2
+            shift 2
+            runs=0
+            ok=0
+            while [ "$runs" -lt "$n" ]; do
+              runs=$((runs + 1))
+              out=$("$@" 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok\. $expected passed; 0 failed;"; then
+                ok=$((ok + 1))
+              else
+                printf '%s\n' "$out" | grep -E '^test |^test result|panicked' | tail -n 8
+              fi
+            done
+            echo "loop $label: runs=$runs ok=$ok expected_passed=$expected"
+            [ "$ok" -eq "$runs" ] || fail=1
+          }
+          schema=$(unit_binary halvo-schema)
+          connect=$(unit_binary halvo-connect)
+          [ -n "$schema" ] && [ -n "$connect" ] || { echo "loop: a test binary was not found"; exit 1; }
+          loop schema-lib-senders 13 "$schema" executable::senders::
+          loop connect-lib-names 4 "$connect" --exact address::tests::the_names_that_the_crate_gives_on_are_the_items_of_the_schema mail::tests::a_sender_that_holds_a_space_makes_no_rule mail::tests::two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too mail::tests::the_rule_takes_unread_mail_to_the_account_from_a_sender_of_the_slot
+          loop schema-doc-senders 10 cargo test --locked -p halvo-schema --doc senders
+          loop connect-doc-reply-rule 2 cargo test --locked -p halvo-connect --doc ReplyRule
+          exit "$fail"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
