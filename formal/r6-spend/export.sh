@@ -26,7 +26,8 @@ says so, and the script, which calls no command that removes a file, leaves what
 stands there. 2, a refusal: one line "REFUSED <cause>: <detail>" on standard
 error and no file. The causes: usage, java, fetch, hash, file, cover when the
 traces lack a pair or a cause, and drawn when fewer than 200 of the drawn traces
-differ. COUNT holds the six directed traces, so a COUNT below 206 is refused so.
+differ. COUNT holds the six directed traces, so a COUNT below 206 is always
+refused: with drawn when no earlier check refuses it.
 EOF
 }
 
