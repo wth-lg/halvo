@@ -427,6 +427,25 @@ fn the_keyed_row_read_searches_its_index_by_kind_and_workflow_and_the_whole_read
     );
 }
 
+/// S-67, part 1: the index of the keyed read holds the rows of every family but `workflow`, as `rows_read` does, so no
+/// body of a workflow stands in it: a statement that must use it for rows of the family `workflow` has no plan, and the
+/// same statement for the rows of another family has one.
+#[test]
+fn the_index_of_the_keyed_read_holds_no_row_of_the_family_workflow() {
+    let conn = memory();
+    conn.execute_batch(sql::SCHEMA).unwrap();
+    let forced = |family: &str| {
+        conn.prepare(&format!(
+            "SELECT body FROM rows INDEXED BY rows_read_workflow \
+             WHERE kind = ?1 AND workflow = ?2 AND family {family}"
+        ))
+        .map(drop)
+        .map_err(|e| e.to_string())
+    };
+    assert_eq!(forced("<> 'workflow'"), Ok(()));
+    assert_eq!(forced("= 'workflow'"), Err("no query solution".to_owned()));
+}
+
 /// The steps of the database's own machine that the keyed row read of the workflow `w1`, with its three rows of the
 /// kind `k`, takes on the store's schema in memory when `others` rows of the same kind and family name other
 /// workflows, read to its end.

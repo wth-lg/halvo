@@ -181,6 +181,7 @@ esac
 #= src/lib.rs tests::the_open_s_read_back_refuses_by_name_each_setting_that_reads_otherwise
 #= src/lib.rs tests::no_source_runs_analyze_or_optimize_and_every_removal_stands_under_the_truncating_checkpoint
 #= src/lib.rs tests::a_removal_compiles_under_the_checkpointed_write_alone
+#= src/lib.rs tests::the_index_of_the_keyed_read_holds_no_row_of_the_family_workflow
 #= tests/sync.rs each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag
 #= tests/replaced.rs a_replaced_app_and_a_dropped_support_row_leave_no_marker_on_pages_built_again
 #= tests/replaced.rs single_drops_of_small_support_rows_each_with_its_checkpoint_leave_no_marker
