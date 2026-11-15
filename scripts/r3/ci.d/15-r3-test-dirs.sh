@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), also inside a loop that retries it, is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL
