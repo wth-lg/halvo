@@ -1529,31 +1529,53 @@ fn a_key_typed_on_a_return_to_a_secure_field_is_not_recorded() {
     );
 }
 
-fn judge_three_ways(name: &str, rounds: &[Round]) {
-    let failed = rounds.iter().filter(|r| r.counted && r.ahead > 0).count();
-    let held = rounds.iter().filter(|r| r.counted && r.ahead == 0).count();
+fn three_way_recorded(round: &Round) -> bool {
+    round.ahead > 0 && (round.counted || round.secure > 0)
+        || round.verdict == Some(Verdict::Recorded)
+}
+
+fn three_way_verdict(rounds: &[Round]) -> (&'static str, usize, usize, usize) {
+    let failed = rounds
+        .iter()
+        .filter(|round| three_way_recorded(round))
+        .count();
+    let held = rounds
+        .iter()
+        .filter(|round| round.counted && !three_way_recorded(round))
+        .count();
     let not_driven = rounds.len() - failed - held;
-    for round in rounds.iter().filter(|round| !round.counted) {
+    let verdict = match (rounds.len(), failed, not_driven) {
+        (0, _, _) | (_, 1.., _) => "failed",
+        (_, 0, 0) => "held",
+        (_, 0, _) => "notdriven",
+    };
+    (verdict, held, failed, not_driven)
+}
+
+fn judge_three_ways(name: &str, rounds: &[Round]) {
+    let (verdict, held, failed, not_driven) = three_way_verdict(rounds);
+    for round in rounds
+        .iter()
+        .filter(|round| !round.counted && !three_way_recorded(round))
+    {
         println!(
             "{name} notdriven wait_ms={} why={}",
             round.wait_ms,
             round.why_not.replace(' ', "_")
         );
     }
-    let verdict = match (failed, not_driven) {
-        (0, 0) => "held",
-        (0, _) => "notdriven",
-        _ => "failed",
-    };
     println!("{name} verdict={verdict} held={held} failed={failed} notdriven={not_driven}");
     let inexact: Vec<String> = rounds
         .iter()
         .filter(|round| round.counted && round.markers != MARKERS.len())
         .map(|round| format!("wait {} ms: {}", round.wait_ms, round.markers))
         .collect();
+    assert!(!rounds.is_empty(), "{name}: the phase ran no round");
     assert!(
         failed == 0,
-        "{name}: recorded keys beside the markers in rounds that counted: {failed} rounds"
+        "{name}: a key was recorded in {failed} rounds, counted or not: a key ahead of the markers \
+         in a counted round, a key ahead with a letter landed in the secure field, or a round \
+         judged recorded"
     );
     assert!(
         inexact.is_empty(),
@@ -1757,7 +1779,10 @@ fn product_verdict(rounds: &[Round], controls: &[Control], control_gap_drops: u6
         .iter()
         .all(|round| round.counted && round.markers == MARKERS.len())
         && controls.iter().all(exact);
-    let rounds_not_kept = rounds.iter().filter(|round| !round.counted).all(|round| {
+    let rounds_not_kept = rounds.iter().all(|round| {
+        if round.counted {
+            return round.markers == MARKERS.len();
+        }
         round.why_not == "the markers were not recorded"
             && round.ahead == 0
             && gap_after_first_arrival(&round.entries)
@@ -1765,7 +1790,7 @@ fn product_verdict(rounds: &[Round], controls: &[Control], control_gap_drops: u6
     let controls_not_kept = controls
         .iter()
         .all(|control| exact(control) || control_gap_drops > 0);
-    if failed {
+    if failed || rounds.is_empty() {
         "failed"
     } else if held {
         "held"
@@ -1898,7 +1923,7 @@ fn the_verdict_at_the_products_constants_holds_each_rule_on_a_table() {
             ..stand_in_control(false, 5, 0)
         }]
     };
-    let rows: [ProductRow; 13] = [
+    let rows: [ProductRow; 16] = [
         (
             "counted exact rounds and an exact control",
             vec![stand_in_round(true, 0)],
@@ -2007,14 +2032,131 @@ fn the_verdict_at_the_products_constants_holds_each_rule_on_a_table() {
             0,
             "failed",
         ),
+        (
+            "a phase that ran no round, with an exact control",
+            Vec::new(),
+            control(),
+            0,
+            "failed",
+        ),
+        (
+            "a phase that ran no round and a control that ran no round",
+            Vec::new(),
+            Vec::new(),
+            0,
+            "failed",
+        ),
+        (
+            "a counted round with more records of the markers than markers, beside a round not \
+             kept for a gap",
+            vec![
+                Round {
+                    markers: MARKERS.len() + 1,
+                    ..stand_in_round(true, 0)
+                },
+                not_counted_round(MARKERS_NOT_RECORDED, 0, gap_after()),
+            ],
+            control(),
+            0,
+            "failed",
+        ),
     ];
+    let mut wrong = Vec::new();
     for (what, rounds, controls, control_gap_drops, want) in rows {
-        assert_eq!(
-            product_verdict(&rounds, &controls, control_gap_drops),
-            want,
-            "{what}"
-        );
+        let got = product_verdict(&rounds, &controls, control_gap_drops);
+        println!("product row: {what}: want={want} got={got}");
+        if got != want {
+            wrong.push(what);
+        }
     }
+    assert!(
+        wrong.is_empty(),
+        "rows that gave another verdict: {wrong:?}"
+    );
+}
+
+type ThreeWayRow = (&'static str, Vec<Round>, &'static str);
+
+#[test]
+fn the_three_way_verdict_of_the_return_phase_holds_each_rule_on_a_table() {
+    let landed = |counted: bool, ahead: usize| stand_in_round(counted, ahead);
+    let none_landed = |counted: bool, ahead: usize| Round {
+        secure: 0,
+        ..stand_in_round(counted, ahead)
+    };
+    let judged_recorded = |counted: bool| Round {
+        verdict: Some(Verdict::Recorded),
+        ..stand_in_round(counted, 0)
+    };
+    let rows: [ThreeWayRow; 10] = [
+        (
+            "a counted round with no key ahead",
+            vec![landed(true, 0)],
+            "held",
+        ),
+        (
+            "a round that did not count",
+            vec![landed(false, 0)],
+            "notdriven",
+        ),
+        (
+            "a counted round and a round that did not count",
+            vec![landed(true, 0), landed(false, 0)],
+            "notdriven",
+        ),
+        (
+            "a counted round with a key ahead",
+            vec![landed(true, 1)],
+            "failed",
+        ),
+        (
+            "N2: a round that did not count, with a key ahead and the letters landed in the \
+             secure field",
+            vec![landed(false, 1)],
+            "failed",
+        ),
+        (
+            "that round beside a counted round",
+            vec![landed(true, 0), landed(false, 8)],
+            "failed",
+        ),
+        (
+            "a round that did not count, with a key ahead and no letter landed",
+            vec![none_landed(false, 1)],
+            "notdriven",
+        ),
+        (
+            "N2: a round that did not count, judged recorded",
+            vec![judged_recorded(false)],
+            "failed",
+        ),
+        (
+            "N2: a counted round with no key ahead, judged recorded",
+            vec![judged_recorded(true)],
+            "failed",
+        ),
+        ("a phase that ran no round", Vec::new(), "failed"),
+    ];
+    let mut wrong = Vec::new();
+    for (what, rounds, want) in rows {
+        let (got, held, failed, not_driven) = three_way_verdict(&rounds);
+        println!(
+            "three-way row: {what}: want={want} got={got} held={held} failed={failed} \
+             notdriven={not_driven}"
+        );
+        assert_eq!(
+            held + failed + not_driven,
+            rounds.len(),
+            "{what}: each round counted once"
+        );
+        if got != want {
+            wrong.push(what);
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "rows that gave another verdict: {wrong:?}"
+    );
 }
 
 fn side(fixture: &mut Fixture, gap: Duration, step: Duration) -> (usize, bool, DropCounts) {
