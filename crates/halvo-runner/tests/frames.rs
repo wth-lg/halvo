@@ -120,6 +120,69 @@ fn arguments_outside_the_form_are_refused_with_usage_and_no_frame() {
     }
 }
 
+/// The arguments of `sup` without `--utc-offset` and its value.
+fn without_offset(sup: &Supervisor) -> Vec<String> {
+    let mut args = sup.args();
+    if let Some(at) = args.iter().position(|a| a == "--utc-offset") {
+        args.drain(at..at + 2);
+    }
+    args
+}
+
+/// CP-204 D4: a start without `--utc-offset`, or with a value that is no whole number from -50,400 to 50,400 in
+/// the form that the library writes, exits with the status 2 and one line before any frame; it never defaults to
+/// UTC.
+#[test]
+fn a_start_without_a_utc_offset_or_with_one_out_of_range_is_refused_before_any_frame() {
+    let sup = deferred();
+    let mut cases: Vec<(String, Vec<String>, &str)> = vec![(
+        "none".into(),
+        without_offset(&sup),
+        "REFUSED usage: no --utc-offset",
+    )];
+    for value in [
+        "50401", "-50401", "2147483648", "1.5", "", "x", "+3600", "0x10", "007", "-0", " 1",
+    ] {
+        let mut args = without_offset(&sup);
+        args.extend(["--utc-offset".to_string(), value.to_string()]);
+        cases.push((
+            format!("{value:?}"),
+            args,
+            "REFUSED usage: --utc-offset is out of range",
+        ));
+    }
+    let mut twice = without_offset(&sup);
+    twice.extend(["--utc-offset", "0", "--utc-offset", "0"].map(String::from));
+    cases.push(("twice".into(), twice, "REFUSED usage: --utc-offset twice"));
+    for (what, args, line) in cases {
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let (code, stderr, no_frame) = refused_usage(&args);
+        assert_eq!(code, Some(2), "{what}: status: {stderr}");
+        assert!(no_frame, "{what}: no frame");
+        assert_eq!(stderr, format!("{line}\n"), "{what}");
+    }
+}
+
+/// CP-204 D1: the offsets at the edges of the range and 0 are taken, and the runner says `hello`.
+#[test]
+fn a_utc_offset_from_minus_50400_to_50400_is_taken() {
+    let sup = deferred();
+    for value in ["-50400", "-1", "0", "19800", "50400"] {
+        let mut args = without_offset(&sup);
+        args.extend(["--utc-offset".to_string(), value.to_string()]);
+        let mut runner = Runner::start(&args);
+        let first = runner.recv();
+        runner.close_input();
+        runner.close_output();
+        assert!(runner.wait_within(LONG).is_some(), "{value}: ended");
+        assert!(
+            matches!(first, Some(FromRunner::Hello(_))),
+            "{value}: hello: {}",
+            runner.stderr()
+        );
+    }
+}
+
 #[test]
 fn the_optional_arguments_are_taken() {
     let sup = deferred();
