@@ -103,7 +103,8 @@ The limits that stay:
 3. what the system does with a path that it opens over a network.
 4. what a process did after the command ended, in the egress check's own words.
 5. the egress check's writes under target/egress/.
-With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner.
+With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
+a list that names no case fails the self-test.
 EOF
 }
 
@@ -1762,7 +1763,10 @@ case_reset() {
 case_wanted() {
   [ -z "${R6_EGRESS_CASES:-}" ] && return 0
   case " $R6_EGRESS_CASES " in
-    *" $1 "*) return 0 ;;
+    *" $1 "*)
+      cases_matched=yes
+      return 0
+      ;;
   esac
   return 1
 }
@@ -2423,6 +2427,17 @@ EOF
   case_arg=--bogus
   case_run usage FAIL usage 'FAIL'
 
+  if case_wanted cases-filter-matches-nothing; then
+    R6_EGRESS_CASES=no-such-case sh "$self" --self-test >"$work/no-case.txt" 2>&1 </dev/null
+    code=$?
+    if [ "$code" = 1 ] && grep -q -F -e 'R6_EGRESS_CASES matched no case' "$work/no-case.txt"; then
+      printf 'case %s/cases-filter-matches-nothing want=FAIL got=FAIL\n' "$name"
+      rejected=$((rejected + 1))
+    else
+      printf 'case %s/cases-filter-matches-nothing want=FAIL got=exit-%s\n' "$name" "$code"
+      wrong="$wrong cases-filter-matches-nothing"
+    fi
+  fi
   if case_wanted help; then
     help_sentences
   fi
@@ -2458,6 +2473,9 @@ help_sentences() {
 self_test_end() {
   if case_wanted forms; then
     check_forms
+  fi
+  if [ -n "${R6_EGRESS_CASES:-}" ] && [ "${cases_matched:-no}" != yes ]; then
+    self_failed "R6_EGRESS_CASES matched no case"
   fi
   if [ -n "$wrong" ]; then
     self_failed "wrong:$wrong"
