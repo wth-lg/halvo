@@ -15,19 +15,19 @@ mod standin {
 }
 
 /// The processes of the run: running, begun after `since`, with their program in `bundle` and an
-/// argument that names `scratch` as a whole path (read with the functions that the trial's library
-/// had before CP-126, so that the test runs at both heads).
+/// argument whose value after its first `=` is a path at or below `scratch`, the test's own reading
+/// and not the mark's, so that a process of the run that the mark would not take is found too.
 fn of_the_run(bundle: &Path, scratch: &Path, since: u64) -> Vec<r3_web::procs::Proc> {
-    let s = scratch.to_string_lossy().into_owned();
+    let below = |a: &String| {
+        a.split_once('=')
+            .is_some_and(|(_, v)| Path::new(v).starts_with(scratch))
+    };
     r3_web::procs::table()
         .unwrap_or_default()
         .into_iter()
         .filter(|p| p.started_us >= since && p.pid != std::process::id())
         .filter(|p| p.exe.as_ref().is_some_and(|e| e.starts_with(bundle)))
-        .filter(|p| {
-            r3_web::checks::command_args(p.pid)
-                .is_some_and(|a| a.iter().any(|x| r3_web::checks::names_profile(x, &s)))
-        })
+        .filter(|p| r3_web::checks::command_args(p.pid).is_some_and(|a| a.iter().any(below)))
         .filter(r3_web::procs::running)
         .collect()
 }

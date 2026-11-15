@@ -95,7 +95,7 @@ pub const GUARD_FLAG: &str = "--relay-guard";
 /// reads the process table until no process of the tree of the browser PID with creation time US
 /// runs, and returns; the system then closes its copy of the listener. The tree is what its reads
 /// found: the first process, the processes that `checks::tree_of` adds while the first process runs
-/// (the adopted ones that name the run's profile among them), and each process whose parent was a
+/// (the adopted ones that bear the run's profile among them), and each process whose parent was a
 /// member that still ran at the read that found it. A process that a member starts after the first
 /// process has ended and that loses its parent before the next read, 20 ms later, is not followed,
 /// so the guard can free the port while it runs; and when the guard cannot be started, the
@@ -115,6 +115,7 @@ pub fn guard_main(argv: &[String]) -> i32 {
         Some((epid as u32, estart)),
         GuardIo {
             read: &mut || procs::table().ok(),
+            args: &crate::checks::command_args,
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| {
                 std::thread::sleep(if unread {
@@ -151,12 +152,14 @@ pub const TERM_WAIT: Duration = Duration::from_millis(2_000);
 pub const PORT_MARGIN: Duration = Duration::from_millis(1_000);
 
 /// What the guard needs from the system, given for tests: the process table (`None`: it could not
-/// be read), the clock, the pause (told whether the last read was unread), the end of one process of
-/// the run (`false`: ask it, `true`: by force; each reads the creation time again), and the record
-/// of the guard's own act (milliseconds since the executor was read gone, how many it asked, how
-/// many it ended by force), called once.
+/// be read), the arguments of a process (`checks::command_args`), the clock, the pause (told
+/// whether the last read was unread), the end of one process of the run (`false`: ask it, `true`:
+/// by force; each reads the creation time again), and the record of the guard's own act
+/// (milliseconds since the executor was read gone, how many it asked, how many it ended by force),
+/// called once.
 pub struct GuardIo<'a> {
     pub read: &'a mut dyn FnMut() -> Option<Vec<Proc>>,
+    pub args: &'a dyn Fn(u32) -> Option<Vec<String>>,
     pub now_ms: &'a mut dyn FnMut() -> u128,
     pub pause: &'a mut dyn FnMut(bool),
     pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
@@ -207,6 +210,7 @@ impl GuardAct {
 pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: GuardIo<'_>) -> i32 {
     let GuardIo {
         read,
+        args,
         now_ms,
         pause,
         end,
@@ -244,10 +248,10 @@ pub fn guard_loop(pid: u32, started_us: u64, executor: Option<(u32, u64)>, io: G
         if let Some(root) = &root {
             living.push(root.clone());
         }
-        for p in procs::descendants(&table, &living)
-            .into_iter()
-            .chain(root.iter().flat_map(|r| crate::checks::tree_of(&table, r)))
-        {
+        for p in procs::descendants(&table, &living).into_iter().chain(
+            root.iter()
+                .flat_map(|r| crate::checks::tree_of_with(&table, r, args)),
+        ) {
             if !known.iter().any(|k| procs::same(k, &p)) {
                 known.push(p);
             }
@@ -939,6 +943,7 @@ mod tests {
                     assert!(reads < 1_000_000, "the guard reads on without end");
                     table(clock.get(), &ends.borrow())
                 },
+                args: &|_| None,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + step),
                 end: &mut |p, force| {
@@ -1203,6 +1208,7 @@ mod tests {
                     }
                     Some(v)
                 },
+                args: &|_| None,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + 10),
                 end: &mut |p, force| {
@@ -1221,6 +1227,105 @@ mod tests {
         assert!(refused.borrow().is_empty(), "{:?}", refused.borrow());
         assert_eq!(asked.into_inner(), [(100_001, 7, false, 4_000)]);
         assert_eq!(clock.get(), 5_010);
+    }
+
+    /// The guard on a built table whose first process (100_001, the program /b/x, with the stand-in
+    /// profile) ends when it is asked, beside one adopted process of the same bundle (100_020,
+    /// parent 1, begun after the first) with `adopted_args`, which never ends by itself; the
+    /// executor is gone at 1,000 ms. Each end passes the fence only for a process of `admit`, by
+    /// number and start time, and is recorded; any other call sends nothing and fails the test.
+    fn guard_beside_an_adopted_process(
+        adopted_args: Vec<String>,
+        admit: &[(u32, u64)],
+    ) -> Vec<u32> {
+        let clock = std::cell::Cell::new(0u128);
+        let asked = std::cell::RefCell::new(Vec::<u32>::new());
+        let in_bundle = |pid: u32, ppid: u32, started_us: u64| Proc {
+            pid,
+            ppid,
+            started_us,
+            exe: Some(std::path::PathBuf::from(if pid == 100_001 {
+                "/b/x"
+            } else {
+                "/b/y"
+            })),
+        };
+        let root_args = if cfg!(windows) {
+            vec![r"b.exe --user-data-dir=C:\t\p".to_string()]
+        } else {
+            vec!["--user-data-dir=/t/p".to_string()]
+        };
+        let mut reads = 0u64;
+        let code = guard_loop(
+            100_001,
+            7,
+            Some((100_005, 50)),
+            GuardIo {
+                read: &mut || {
+                    reads += 1;
+                    assert!(reads < 100_000, "the guard reads on without end");
+                    let ended = |pid: u32| asked.borrow().contains(&pid);
+                    let mut v = Vec::new();
+                    if !ended(100_001) {
+                        v.push(in_bundle(100_001, 9, 7));
+                    }
+                    if !ended(100_020) {
+                        v.push(in_bundle(100_020, 1, 20));
+                    }
+                    if clock.get() < 1_000 {
+                        v.push(row(100_005, 50));
+                    }
+                    Some(v)
+                },
+                args: &|pid| match pid {
+                    100_001 => Some(root_args.clone()),
+                    100_020 => Some(adopted_args.clone()),
+                    _ => None,
+                },
+                now_ms: &mut || clock.get(),
+                pause: &mut |_| clock.set(clock.get() + 10),
+                end: &mut |p, _force| {
+                    assert!(
+                        admit.contains(&(p.pid, p.started_us)),
+                        "the guard handed the fence pid={} started_us={} with {adopted_args:?}",
+                        p.pid,
+                        p.started_us
+                    );
+                    asked.borrow_mut().push(p.pid);
+                    true
+                },
+                record: &mut |_| {},
+            },
+        );
+        assert_eq!(code, 0);
+        asked.into_inner()
+    }
+
+    /// CP-189 G1 at the guard, failing first on built tables: an adopted process of the browser's
+    /// bundle whose arguments are near the run's profile and are none of the two exact forms is no
+    /// member, and the guard's calls hold the first process alone; the run's crash handler with
+    /// `--database=<profile>/Crashpad` is a member and is asked too, and a process of another
+    /// profile (P2) is not.
+    #[test]
+    fn g1_the_guard_asks_no_adopted_process_near_the_profile() {
+        for near in crate::checks::tests::near_the_profile() {
+            assert_eq!(
+                guard_beside_an_adopted_process(near.clone(), &[(100_001, 7)]),
+                [100_001],
+                "{near:?}"
+            );
+        }
+        assert_eq!(
+            guard_beside_an_adopted_process(
+                crate::checks::tests::another_profile(),
+                &[(100_001, 7)]
+            ),
+            [100_001]
+        );
+        let crash = crate::checks::tests::the_profile_s_own_forms()[1].clone();
+        let mut asked = guard_beside_an_adopted_process(crash, &[(100_001, 7), (100_020, 20)]);
+        asked.sort_unstable();
+        assert_eq!(asked, [100_001, 100_020]);
     }
 
     /// CP-161 F3 (V2): a member born after the first process ended is followed. The executor is gone
@@ -1411,6 +1516,7 @@ mod tests {
                     let _ = browser.lock().unwrap().try_wait();
                     procs::table().ok()
                 },
+                args: &crate::checks::command_args,
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| {
                     assert!(
