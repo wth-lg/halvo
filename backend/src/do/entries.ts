@@ -639,6 +639,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let nextAt: Ms | null = null;
     let removal: { overdue: boolean } | null = null;
     let dueNow: { due: Ms; now: Ms } | null = null;
+    let removalOfAnyId: Ms | null = null;
     const deleteDuringTheRun = run.mark !== null && run.mark !== "unknown" && run.mark.since === null && exit !== "unknown" && exit.mark.since !== null;
     try {
       const counted = host.step((sql) => {
@@ -690,12 +691,16 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         dueNow = owed?.dueNow ?? null;
       } catch {
         waits = nextAt;
+        if (exit !== "unknown" && exit.mark.answeredAt !== null) {
+          removalOfAnyId = exit.mark.decidedAt === null ? exit.mark.answeredAt + DELETE_REMOVAL_BOUND_MS : exit.mark.decidedAt + SYNC_RETRY_MS;
+        }
       }
     }
     if (marked) {
       const pause = Math.min(ALARM_RETRY_MS * 2 ** Math.min(count - 1, 30), ALARM_PAUSE_CAP_MS);
       let at = Math.max(host.clock() + pause, waits ?? 0);
       if (removal !== null) at = Math.min(at, Math.max(waits ?? 0, host.clock() + SYNC_RETRY_MS));
+      if (removalOfAnyId !== null) at = Math.min(at, Math.max(removalOfAnyId, host.clock() + SYNC_RETRY_MS));
       if (dueNow !== null) at = Math.min(at, Math.max(dueNow.due, dueNow.now + ALARM_RETRY_MS));
       if (removal?.overdue === true) log({ event: "removal-overdue" });
       if (tested !== null) stopAlarm(tested);
