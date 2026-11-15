@@ -65,7 +65,7 @@ test/metering/late-read-runs.node.test.ts	7
 test/metering/late-read.node.test.ts	12
 test/metering/limits.node.test.ts	2
 test/metering/no-caller.node.test.ts	14
-test/metering/p7-115.node.test.ts	8
+test/metering/p7-115.node.test.ts	13
 test/metering/retry-delay.node.test.ts	5
 test/metering/rev31-period-after-delete.node.test.ts	1
 test/metering/review.node.test.ts	6

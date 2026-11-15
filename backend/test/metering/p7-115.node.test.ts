@@ -5,7 +5,7 @@ import { ALARM_RETRY_MS, makeEntries } from "../../src/do/entries.ts";
 import { makeLedger } from "../../src/ledger/index.ts";
 import { makeMetering } from "../../src/metering/index.ts";
 import type { Ms, Sql, Step } from "../../src/types.ts";
-import { HASH, HOUR, quiet, START, subscriptionEvent, type World, world } from "./world.ts";
+import { HASH, HOUR, quiet, START, subscriptionEvent, UNIT, type World, world } from "./world.ts";
 
 type Kind = "cancelled" | "nothing-to-cancel" | "failed";
 
@@ -49,9 +49,9 @@ function cancelPort(w: World, answer: () => Kind) {
   return calls;
 }
 
-/** The count step's exit read of the mark (the first read of the mark in countFailure) throws while `on` is set. */
+/** While `on` is set, the first `upTo` reads of the mark in countFailure throw: 1 is the exit's read, 2 adds the count step's. */
 function exitReadThrows(w: World) {
-  const state = { on: false, readsInTheCount: 0 };
+  const state = { on: false, readsInTheCount: 0, upTo: 1 };
   const inner = w.host.step;
   w.host.step = (<T>(run: (sql: Sql) => T): T =>
     inner((sql) =>
@@ -59,7 +59,7 @@ function exitReadThrows(w: World) {
         exec: (query: string, ...bindings: (string | number | null)[]) => {
           if (state.on && query.startsWith("SELECT destroying_since") && String(new Error().stack).includes("countFailure")) {
             state.readsInTheCount += 1;
-            if (state.readsInTheCount === 1) throw new RangeError("the exit's read of the mark throws");
+            if (state.readsInTheCount <= state.upTo) throw new RangeError("the count step's read of the mark throws");
           }
           return sql.exec(query, ...bindings);
         },
@@ -421,5 +421,167 @@ describe("the fourth closed list of P7-115 (unit 5.6 part 1) A2 and A3: an exit 
     expect(hooked).toBe(true);
     expect(armed).not.toBeNull();
     expect(armed as Ms).toBeLessThanOrEqual(exitAt + ALARM_RETRY_MS);
+  });
+});
+
+const r1 = { requestId: "r1", tier: "low_cost_hosted" as const, amount: 100, price: UNIT };
+
+/** A run at the end of the first interval whose send is held while `during` runs, with the clock at `exitAt` after it. */
+async function heldRun(w: World, a: ReturnType<typeof makeEntries>, during: (runAt: Ms) => Promise<void>, exitAt: (runAt: Ms) => Ms, sendThrows: boolean) {
+  const send = w.host.port.sendUsage.bind(w.host.port);
+  const runAt = START + HOUR + 1000;
+  let hooked = false;
+  w.host.port.sendUsage = async (args) => {
+    if (!hooked) {
+      hooked = true;
+      await during(runAt);
+      w.at(exitAt(runAt));
+      if (sendThrows) throw new RangeError("the held send throws");
+    }
+    return send(args);
+  };
+  w.at(runAt);
+  await quiet(w.lines, () => a.alarm());
+  return { hooked, runAt, armed: await w.host.getAlarm() };
+}
+
+function armsOfTheInstance(w: World) {
+  const arms: Ms[] = [];
+  const state = { on: false };
+  const setAlarm = w.host.setAlarm.bind(w.host);
+  w.host.setAlarm = (at) => {
+    if (state.on && at !== null) arms.push(at);
+    setAlarm(at);
+  };
+  return { arms, state };
+}
+
+describe("the fourth closed list of P7-115 (unit 5.6 part 1): tests for the copies of my own that every test passed", () => {
+  test("A3 at the run's own steps: a passing end under a delete made during the run arms no later than a hold's expiry that a reserve of the same instance armed during the run, the hold settled before the run's end", async () => {
+    const w = await world({ testClock: false });
+    cancelPort(w, () => "failed");
+    const a = own(w);
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    const recorded = armsOfTheInstance(w);
+    const errorsBefore = events(w).filter((e) => e === "alarm-error").length;
+    const run = await heldRun(
+      w,
+      a,
+      async (runAt) => {
+        w.at(runAt + 1000);
+        recorded.state.on = true;
+        await quiet(w.lines, () => a.reserve(HASH, r1));
+        w.at(runAt + 1500);
+        await quiet(w.lines, () => a.settle("r1", { inputTokens: 1000, outputTokens: 0 }));
+        await quiet(w.lines, () => a.destroy(HASH));
+        recorded.state.on = false;
+      },
+      (runAt) => runAt + 2000,
+      false,
+    );
+    const marked = (await skeleton(w))?.destroying_since;
+    w.close();
+    expect(run.hooked).toBe(true);
+    expect(marked).not.toBeNull();
+    expect(events(w).filter((e) => e === "alarm-error").length).toBe(errorsBefore);
+    expect(Math.min(...recorded.arms)).toBe(run.runAt + 4000);
+    expect(run.armed).toBe(run.runAt + 4000);
+  });
+
+  test("A3 at the failing exit outside the mark: a run whose held send throws, with no delete, arms no later than a hold's expiry that a reserve of the same instance armed during the run", async () => {
+    const w = await world({ testClock: false });
+    const a = own(w);
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    const run = await heldRun(
+      w,
+      a,
+      async (runAt) => {
+        w.at(runAt + 1000);
+        await quiet(w.lines, () => a.reserve(HASH, r1));
+      },
+      (runAt) => runAt + 2000,
+      true,
+    );
+    const row = await skeleton(w);
+    w.close();
+    expect(run.hooked).toBe(true);
+    expect([row?.destroying_since, Number(row?.alarm_failures)]).toEqual([null, 1]);
+    expect(run.armed).toBe(run.runAt + 4000);
+  });
+
+  test("T1 (d)'s term in A3's form: instance B reserves a hold and answers a delete during A's held send, which throws; A, which recorded none of B's arms, arms at the hold's expiry, 2 s after its exit, and not at its exit plus ALARM_RETRY_MS", async () => {
+    const w = await world({ testClock: false });
+    cancelPort(w, () => "failed");
+    const a = own(w);
+    const b = own(w);
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    const run = await heldRun(
+      w,
+      a,
+      async (runAt) => {
+        w.at(runAt + 1000);
+        await quiet(w.lines, () => b.reserve(HASH, r1));
+        await quiet(w.lines, () => b.destroy(HASH));
+      },
+      (runAt) => runAt + 2000,
+      true,
+    );
+    const marked = (await skeleton(w))?.destroying_since;
+    w.close();
+    expect(run.hooked).toBe(true);
+    expect(marked).not.toBeNull();
+    expect(run.armed).toBe(run.runAt + 4000);
+  });
+
+  test("A1 in destroy's own entry: six runs whose exit read throws keep a count of 6 in memory with no mark; the same instance's delete drops it, so a failing run whose exit read and count step both throw pauses ALARM_RETRY_MS", async () => {
+    const w = await world({ testClock: false });
+    let nextDue = false;
+    cancelPort(w, () => "failed");
+    const reads = exitReadThrows(w);
+    const a = own(w, { "ledger.nextDue": () => nextDue });
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    nextDue = true;
+    await quiet(w.lines, () => a.rearm());
+    await failingRunsWithNoMark(w, a, 6, () => {
+      reads.on = true;
+      reads.readsInTheCount = 0;
+    });
+    reads.on = false;
+    w.at(w.now() + 1000);
+    await quiet(w.lines, () => a.destroy(HASH));
+    reads.upTo = 2;
+    const run = await runAt(w, a, () => {
+      reads.on = true;
+      reads.readsInTheCount = 0;
+    });
+    w.close();
+    expect(run.armed).toBe(Math.max(run.at + ALARM_RETRY_MS, run.next ?? 0));
+  });
+
+  test("A1: a later destroy call, which finds the mark set, resets nothing: after three failing runs under the mark (the cancel throws, nothing owed) and a second destroy call, the fourth failing run pauses 240 s", async () => {
+    const w = await world({ testClock: false });
+    let due = false;
+    w.host.port.cancelSubscription = async () => {
+      throw new RangeError("the cancel call throws");
+    };
+    const a = own(w, { "ledger.nextDue": () => due });
+    await a.webhookEvent(subscriptionEvent({ eventId: "evt_sub_1", providerTime: START + 500, subscriptionId: "sub_1" }));
+    w.at(START + 1000);
+    due = true;
+    await quiet(w.lines, () => a.destroy(HASH)).catch(() => undefined);
+    for (let i = 0; i < 3; i += 1) await runAt(w, a);
+    w.at(w.now() + 1000);
+    await quiet(w.lines, () => a.destroy(HASH)).catch(() => undefined);
+    const run = await runAt(w, a);
+    w.close();
+    expect(run.failures).toBe(4);
+    expect((run.armed as Ms) - run.at).toBe(8 * ALARM_RETRY_MS);
   });
 });
