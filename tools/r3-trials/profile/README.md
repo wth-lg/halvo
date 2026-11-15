@@ -390,3 +390,10 @@ the kinds of files they change; none changes a value that a cell computes:
 - 56919992 (after item 3 ran): the end of item 3, from the inner line to the printed lines, is
   `item3_end`; for six inner lines the program prints the same bytes and exit code as at ba71401c.
 - ffc38432, 796e12f5: tests of `item3_end` and of the inner line that item 3 keeps.
+- U0.3c, after every recorded line: 9f458777 and 85ce4104 (tests of the whole program for item 3
+  and of `item3_end`); 7fcf6f1c (one `egress_denial` line for each denial, in place of the count of
+  the log's lines by their first word; no recorded line holds either); ec32881d (the cause word of
+  a start that returned `no_channel` or another fault of the start itself, which no recorded line
+  holds); 8f7cef2e (run.sh's argument reader); e5413f05 (the result file's sentence on these
+  commits); 31ed8294 and cbc4f88d (the collector's cases and the hosted harness, which compute no
+  cell of this trial).
