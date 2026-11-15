@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -49,6 +38,47 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Loop of the mended stand-in tests (unit 7.5t, 200 rounds)
+        shell: bash
+        timeout-minutes: 75
+        env:
+          PAT: '^(a request still open when the stub stops|after the peer ends its side behind an answer|after a 400, no idle-close|after an answer that closes, no idle-close|after the peer resets the connection behind an answer|D3 \(i\) a client that reads only once the stop has begun|D3 at the stop, a keep-alive answer|L5 from the begin of the stop)'
+        run: |
+          set +e
+          rounds=${ROUNDS:-200}
+          out="$RUNNER_TEMP/r7-75t-loop"
+          mkdir -p "$out/tmp"
+          start=$(date +%s)
+          lane() {
+            i=$1
+            while [ "$i" -le "$rounds" ]; do
+              TMPDIR="$out/tmp" TEMP="$out/tmp" TMP="$out/tmp" node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit --test-reporter=tap "--test-name-pattern=$PAT" account/stub/test/connection.test.mjs account/stub/test/stop.test.mjs >"$out/round-$i.tap" 2>&1
+              i=$((i + 2))
+            done
+          }
+          lane 1 &
+          lane 2 &
+          wait
+          passed=0
+          failed=0
+          i=1
+          while [ "$i" -le "$rounds" ]; do
+            f="$out/round-$i.tap"
+            oks=$(grep -E '^ok [0-9]+ - ' "$f" | sed 's/^ok [0-9]* - //' | grep -cE "$PAT")
+            bad=$(grep -cE '^not ok [0-9]+ - ' "$f")
+            if [ "$oks" -eq 9 ] && [ "$bad" -eq 0 ]; then
+              passed=$((passed + 1))
+            else
+              failed=$((failed + 1))
+              echo "loop round $i: ok=$oks not-ok=$bad"
+              grep -E '^not ok [0-9]+ - |^ +(the |NaN|[0-9]+ !==|.* did not arrive)' "$f" | head -n 20 | sed "s/^/  round $i: /"
+            fi
+            i=$((i + 1))
+          done
+          low=$(grep -h '^# L5 ' "$out"/round-*.tap | awk '{print $3}' | sort -n | head -n 1)
+          left=$(find "$out/tmp" -maxdepth 1 -name 'halvo-stub-record-*' | wc -l | tr -d ' ')
+          echo "loop records: rounds=$rounds passed=$passed failed=$failed seconds=$(($(date +%s) - start)) smallest-L5-incomplete=$low record-dirs-left=$left"
+          [ "$passed" -eq "$rounds" ]
       - name: Changelog
         shell: bash
         run: |
@@ -92,21 +122,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r7-stub 16-shell-lint 10-r7-layout 24-r7-wall
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r7-stub 16-shell-lint 10-r7-layout 24-r7-wall
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -130,6 +149,47 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Loop of the mended stand-in tests (unit 7.5t, 200 rounds)
+        shell: bash
+        timeout-minutes: 75
+        env:
+          PAT: '^(a request still open when the stub stops|after the peer ends its side behind an answer|after a 400, no idle-close|after an answer that closes, no idle-close|after the peer resets the connection behind an answer|D3 \(i\) a client that reads only once the stop has begun|D3 at the stop, a keep-alive answer|L5 from the begin of the stop)'
+        run: |
+          set +e
+          rounds=${ROUNDS:-200}
+          out="$RUNNER_TEMP/r7-75t-loop"
+          mkdir -p "$out/tmp"
+          start=$(date +%s)
+          lane() {
+            i=$1
+            while [ "$i" -le "$rounds" ]; do
+              TMPDIR="$out/tmp" TEMP="$out/tmp" TMP="$out/tmp" node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit --test-reporter=tap "--test-name-pattern=$PAT" account/stub/test/connection.test.mjs account/stub/test/stop.test.mjs >"$out/round-$i.tap" 2>&1
+              i=$((i + 2))
+            done
+          }
+          lane 1 &
+          lane 2 &
+          wait
+          passed=0
+          failed=0
+          i=1
+          while [ "$i" -le "$rounds" ]; do
+            f="$out/round-$i.tap"
+            oks=$(grep -E '^ok [0-9]+ - ' "$f" | sed 's/^ok [0-9]* - //' | grep -cE "$PAT")
+            bad=$(grep -cE '^not ok [0-9]+ - ' "$f")
+            if [ "$oks" -eq 9 ] && [ "$bad" -eq 0 ]; then
+              passed=$((passed + 1))
+            else
+              failed=$((failed + 1))
+              echo "loop round $i: ok=$oks not-ok=$bad"
+              grep -E '^not ok [0-9]+ - |^ +(the |NaN|[0-9]+ !==|.* did not arrive)' "$f" | head -n 20 | sed "s/^/  round $i: /"
+            fi
+            i=$((i + 1))
+          done
+          low=$(grep -h '^# L5 ' "$out"/round-*.tap | awk '{print $3}' | sort -n | head -n 1)
+          left=$(find "$out/tmp" -maxdepth 1 -name 'halvo-stub-record-*' | wc -l | tr -d ' ')
+          echo "loop records: rounds=$rounds passed=$passed failed=$failed seconds=$(($(date +%s) - start)) smallest-L5-incomplete=$low record-dirs-left=$left"
+          [ "$passed" -eq "$rounds" ]
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
@@ -144,21 +204,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r7-stub 10-r7-layout 24-r7-wall
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r7-stub 10-r7-layout 24-r7-wall
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
