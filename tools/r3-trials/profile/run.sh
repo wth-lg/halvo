@@ -40,11 +40,13 @@ pref lines of that set for the result file.
                   /bill and /pay and holds that page for 20 s. N must be 18090, the list's entry.
                   The browser starts as above without the relay, which is the executor's own and
                   outside the check's tree; the relay's flags that close a way out stay. Prints the
-                  program's egress_run line, egress_set, and one line
+                  program's egress_run line; for each line of the check's denial log one line
+                  egress_denial ... set=<s> proto=<p> port=<n|-> loopback=<yes|no|unknown>, which
+                  never holds the address; egress_set; and one line
                   egress machine=<m> mode=<mode> browser_started=<yes|no> denied=<n>, where denied
-                  is the count of the check's denial log; on standard error the count of the log's
-                  lines by their first word. No --no-sandbox is given: a browser that starts under
-                  the check's mode only with its own sandbox off is browser_started=no.
+                  is the count of the check's denial log. No --no-sandbox is given: a browser
+                  that starts under the check's mode only with its own sandbox off is
+                  browser_started=no.
   --item 4        two shapes under tree-peak: five runs of the nine steps of tools/r3-trials/web
                   (shape=steps), then five runs of one browser that signs in on the utility fixture
                   with the variant second_factor, opens /bill and /pay and holds that page for 20 s

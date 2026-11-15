@@ -1185,20 +1185,9 @@ async fn item3(args: &Args, kind: &'static str) -> ExitCode {
         .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("log=")))
     {
         let text = std::fs::read_to_string(args.repo.join(log)).unwrap_or_default();
-        let mut kinds: std::collections::BTreeMap<String, u64> = Default::default();
-        for l in text.lines() {
-            let k = l.split_whitespace().next().unwrap_or("-").to_string();
-            *kinds.entry(k).or_default() += 1;
+        for line in product::denial_lines(&cell, set, &text) {
+            out(&line);
         }
-        let parts: Vec<String> = kinds.iter().map(|(k, n)| format!("{k}:{n}")).collect();
-        eprintln!(
-            "egress_denied {cell} set={set} by_first_word={}",
-            if parts.is_empty() {
-                "-".into()
-            } else {
-                parts.join(",")
-            }
-        );
     }
     ExitCode::from(item3_end(
         args,

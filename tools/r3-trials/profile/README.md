@@ -256,7 +256,10 @@ program with `--item egress`. That program starts the fixture on 127.0.0.1:18090
 entry, and one Chrome that signs in with the second factor, opens `/bill` and `/pay` and holds that
 page for 20 s, as the task shape of item 4 does. The outer program prints the inner program's
 `egress_run` line, then `egress machine=<m> mode=<mode> browser_started=<yes|no> denied=<n>` from the
-check's last line, and on standard error the count of the denial log's lines by their first word.
+check's last line. Before that line it prints, for each line of the check's denial log, one line
+`egress_denial <cell> set=<set> proto=<tcp|udp|icmp|dns|-> port=<n|-> loopback=<yes|no|unknown>`
+(`product::denial_lines`); the address is never printed, because job logs are public, and
+`loopback=unknown` stands for a log line that gives no address, such as the sandbox mode's `-:443`.
 Readings fixed before the runs:
 
 - The browser runs without the relay. The relay is the executor's, and the check's list holds the

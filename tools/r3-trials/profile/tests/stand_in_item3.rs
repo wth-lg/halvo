@@ -112,28 +112,43 @@ fn cases() -> Vec<Case> {
             0,
         ),
     ];
+    let denial = |s: &str, rest: &str| format!("egress_denial {CELL} set={s} {rest}");
     let mut control = case(
         "the_control",
         &[ok.clone()],
         &[
             ok.clone(),
-            format!("egress_control {CELL} set=final sandbox=off mode=sandbox browser_started=yes denied=0"),
+            denial("final", "proto=udp port=5353 loopback=no"),
+            denial("final", "proto=tcp port=443 loopback=yes"),
+            denial("final", "proto=dns port=- loopback=unknown"),
+            format!("egress_control {CELL} set=final sandbox=off mode=sandbox browser_started=yes denied=3"),
         ],
         0,
     );
     control.sandbox_off = true;
+    control.denied = vec![
+        "denied at=1 proto=udp dest=10.1.0.4:5353 pid=7 image=chrome.exe",
+        "denied at=2 proto=tcp dest=[::1]:443 pid=7 image=chrome.exe",
+        "denied at=3 proto=dns dest=resolver pid=7 image=chrome.exe",
+    ];
     list.push(control);
     let mut first = case(
         "the_first_set",
         &[ok.clone()],
         &[
             ok.clone(),
+            denial("first", "proto=udp port=443 loopback=unknown"),
+            denial("first", "proto=tcp port=9 loopback=yes"),
             set("first"),
-            "egress machine=mac mode=sandbox browser_started=yes denied=0".into(),
+            "egress machine=mac mode=sandbox browser_started=yes denied=2".into(),
         ],
         0,
     );
     first.first = true;
+    first.denied = vec![
+        "denied at=1 proto=udp dest=-:443 pid=5 image=Google_Chrome_Helper",
+        "denied at=2 proto=tcp dest=127.0.0.1:9 pid=5 image=Google_Chrome_Helper",
+    ];
     list.push(first);
     if cfg!(unix) {
         let mut signal = case(
