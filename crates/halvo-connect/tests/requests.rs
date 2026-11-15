@@ -3,7 +3,9 @@ mod common;
 use std::time::Duration;
 
 use common::stub::{Seen, Stub, HOLD};
-use halvo_connect::{AnswerFault, Calendar, CallError, Effect, Mail, ReplyRule, RunDay, Token};
+use halvo_connect::{
+    reply_senders, AnswerFault, Calendar, CallError, Effect, Mail, ReplyRule, RunDay, Token,
+};
 use serde_json::{json, Value};
 
 const INBOX: &str = "/v1.0/me/mailFolders/inbox/messages";
@@ -84,7 +86,7 @@ fn the_reply_task_makes_exactly_its_requests() {
     let graph = stub.graph("mail");
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned(), "bob@people.test".to_owned()],
+        reply_senders("ann@people.test, bob@people.test").expect("two senders"),
     );
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     let drafts = graph
@@ -139,7 +141,7 @@ fn a_paged_inbox_is_refused_after_one_request() {
     let stub = Stub::start(vec![(format!("GET {INBOX}"), 200, inbox.to_string())]);
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
+        reply_senders("ann@people.test").expect("a sender"),
     );
     assert_eq!(
         stub.graph("mail").mail_list(&token(), &rule).err(),
@@ -170,7 +172,7 @@ fn draft_reply_stops_at_the_first_error() {
     let graph = stub.graph("mail");
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
+        reply_senders("ann@people.test").expect("a sender"),
     );
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     assert_eq!(
@@ -320,7 +322,7 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
         let graph = stub.graph("mail");
         let rule = ReplyRule::new(
             "me@home.test".to_owned(),
-            vec!["ann@people.test".to_owned()],
+            reply_senders("ann@people.test").expect("a sender"),
         );
         let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
         assert_eq!(
@@ -396,7 +398,7 @@ fn reply_stub(create: u16, patch: u16, send: u16) -> Stub {
 fn reply_rule() -> ReplyRule {
     ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
+        reply_senders("ann@people.test").expect("a sender"),
     )
 }
 

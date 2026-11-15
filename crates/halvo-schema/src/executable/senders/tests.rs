@@ -3,12 +3,12 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
-use super::{is_sender, reply_senders, SendersError};
+use super::{is_sender, reply_senders, same_address, SendersError};
 
 const ATEXT: &str = "!#$%&'*+-/=?^_`{|}~.";
 
 fn read(slot: &str) -> Result<Vec<String>, SendersError> {
-    reply_senders(slot)
+    reply_senders(slot).map(|senders| senders.iter().map(str::to_owned).collect())
 }
 
 fn list(addresses: &[&str]) -> Result<Vec<String>, SendersError> {
@@ -327,6 +327,40 @@ fn the_part_after_the_at_has_no_dot_at_its_start_none_at_its_end_and_no_two_in_a
         assert!(is_sender(text), "{text}");
         assert_eq!(read(text), list(&[text]), "{text}");
     }
+}
+
+#[test]
+fn the_answer_holds_an_address_by_same_address_and_hands_out_each_sender_as_read() {
+    let senders =
+        reply_senders(" Ann@People.test ,bob@people.test,k@people.test").expect("senders");
+    assert_eq!(
+        senders.iter().collect::<Vec<_>>(),
+        ["Ann@People.test", "bob@people.test", "k@people.test"]
+    );
+    for address in [
+        "ann@people.test",
+        "ANN@PEOPLE.TEST",
+        "Ann@People.test",
+        "BOB@people.test",
+        "K@people.test",
+    ] {
+        assert!(senders.holds(address), "{address}");
+        assert!(senders.iter().any(|sender| same_address(sender, address)));
+    }
+    for address in [
+        "eve@people.test",
+        "ann@people.test ",
+        " ann@people.test",
+        "ann@people.tes",
+        "",
+        "ann berg@people.test",
+        "\u{212a}@people.test",
+    ] {
+        assert!(!senders.holds(address), "{address:?}");
+        assert!(!senders.iter().any(|sender| same_address(sender, address)));
+    }
+    assert_eq!(format!("{senders:?}"), "Senders { count: 3, .. }");
+    assert_eq!(senders.clone().iter().count(), 3);
 }
 
 #[test]
