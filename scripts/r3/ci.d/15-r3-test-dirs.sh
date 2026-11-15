@@ -402,7 +402,8 @@ places. A file's count must equal its row: a new place takes halvo_test_dir::mak
 Beside it, pinned_rows, pinned_places and pinned_paths (a cksum of the sorted pairs of
 path and count) pin the list: it may shrink with its pins and may not grow, and a count
 may not move from one row to another without a ruling. The known list is closed: it
-shrinks only, and new code takes its folder from halvo-test-dir.
+shrinks only, and new code takes its folder from halvo-test-dir. A raised pin passes,
+because the check cannot know a ruling: the review of the diff is the gate.
 EOF
 }
 
@@ -746,6 +747,12 @@ self_test() {
   printf 'crates/a/tests/t.rs 1 a run\n' >"$work/mend-with-the-places-pin-left.known" || broken known
   pin_file mend-with-the-places-pin-left 1 2 crates/a/tests/t.rs 2
   case_of mend-with-the-places-pin-left FAIL 'test-dirs pin=places known=1 pinned=2'
+
+  repo pins-raised-with-the-row-left
+  put crates/a/tests/t.rs "$place\n$place"
+  printf 'crates/a/tests/t.rs 1 a run\n' >"$work/pins-raised-with-the-row-left.known" || broken known
+  pin_file pins-raised-with-the-row-left 1 2 crates/a/tests/t.rs 2
+  case_of pins-raised-with-the-row-left FAIL 'test-dirs count=crates/a/tests/t.rs places=2 known=1'
 
   repo mend-with-the-three-pins-moved
   put crates/a/tests/a.rs "$place"
