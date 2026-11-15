@@ -12,3 +12,6 @@ name = "agent-client-peer"
 path = "src/bin/agent-client-peer.rs"
 test = false
 doctest = false
+
+[dev-dependencies]
+halvo-test-dir = { path = "../halvo-test-dir" }
