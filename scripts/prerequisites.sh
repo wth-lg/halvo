@@ -353,7 +353,9 @@ pnpm_followed() {
 
 pnpm_shim_target() {
   shim_target=$(sed -n "s|^exec \"\\\$basedir/\\([A-Za-z0-9._@+/-]*\\)\"   \"\\\$@\"\$|\\1|p" "$1" 2>/dev/null) || return 1
-  [ -n "$shim_target" ] || return 1
+  case $shim_target in
+    '' | *..*) return 1 ;;
+  esac
   {
     cat <<'EOF'
 #!/bin/sh
@@ -418,7 +420,7 @@ pnpm_binary_checked() {
       exit 1
     fi
     if ! cmp -s "$scratch/package/$member" "$file"; then
-      if target=$(pnpm_shim_target "$file" "$scratch"); then
+      if [ ! -L "$entry" ] && target=$(pnpm_shim_target "$file" "$scratch"); then
         shim=$file
         if ! file=$(pnpm_followed "$(dirname "$shim")/$target"); then
           echo "prerequisites: error: $shim, the shim that npm wrote for the pnpm of $prefix, runs $(dirname "$shim")/$target, which leads to no file, so no file of the prefix can be compared with $binary; $way" >&2
@@ -1171,6 +1173,26 @@ EOF
   [ "$(find "$repo_dir/backend/.tools" -name 'pnpm-binary.*' | wc -l | tr -d ' ')" = 0 ] || problems="$problems; the scratch of the compare was left"
   verdict "$name"
 
+  name='a shim of npm that the pnpm of the prefix reaches through a link is not followed to its target, because the shim runs the file beside the path that called it: the step fails and no pnpm of other bytes runs the install'
+  new_backend_case backend-binary-shim-behind-a-link
+  write_npm_shim "$case_dir/shim" node_modules/pnpm/pnpm
+  write_unchecked_pnpm "$case_dir/other-pnpm" unchecked-pnpm
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/elsewhere/node_modules/pnpm' '$case_dir/home/.local/node_modules/pnpm' &&
+  cp '$case_dir/shim' '$case_dir/elsewhere/pnpm' &&
+  cp '$case_dir/pnpm' '$case_dir/elsewhere/node_modules/pnpm/pnpm' &&
+  cp '$case_dir/other-pnpm' '$case_dir/home/.local/node_modules/pnpm/pnpm' &&
+  ln -s '$case_dir/elsewhere/pnpm' '$case_dir/home/.local/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend fails
+  [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of other bytes beside the link ran"
+  [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
+  [ "$(count "which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the file"
+  verdict "$name"
+
   expect_shim_refused() {
     cat >"$case_dir/stubs/npm" <<EOF
 #!/bin/sh
@@ -1182,6 +1204,12 @@ EOF
     [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
     [ "$(count "prerequisites: error: $prefix_real/pnpm, which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line named the shim"
   }
+
+  name='a shim whose target climbs with .. is compared as it is and refused, although the file that it names has the bytes of the binary'
+  new_backend_case backend-binary-shim-dot-dot-target
+  write_npm_shim "$case_dir/shim" node_modules/../node_modules/pnpm/pnpm
+  expect_shim_refused
+  verdict "$name"
 
   name='a shim with a line more than the shim that npm writes is compared as it is and refused, and nothing that it names runs'
   new_backend_case backend-binary-shim-extra-line
