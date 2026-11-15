@@ -130,6 +130,9 @@ The limits that stay:
 6. an untracked cargo configuration, in the checkout, above it or in cargo's home, whose wrapper tells
    the canary from the crates passes this check; a hosted job has none, a tracked one is
    40-r6-policy's refusal, and on a person's own machine nothing holds it.
+7. the check and the egress check find their own programs through PATH, whose first directory a
+   wrapped program can write; a program planted there runs in the check after the next call; a diff
+   shows it and the landing's readers hold it.
 With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
 a list that names no case fails the self-test. On a Windows host the self-test runs the cases of its
 Windows list alone: one case for each rule of the generic code, by the table rule_cases, and every
