@@ -696,9 +696,20 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
     let gate_before = keyboard.source.field_state();
+    let latches_before = keyboard.source.open_latches().unwrap_or_default();
     let sent = i64::from(type_letters_slowly(5) / 2);
-    let r = end_round(keyboard, hwnd, sent, front);
+    let sink = keyboard.keystrokes_for(Duration::from_millis(800));
+    let keys = seam::take();
+    let page = page_read(hwnd).unwrap_or_default();
     let marks = seam::take_marks();
+    let r = Round {
+        counted: front,
+        sent,
+        page,
+        keys: decisions_of(&keys),
+        sink,
+        why: Vec::new(),
+    };
     say(
         test,
         format!(
@@ -706,6 +717,37 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
             browser.name,
             start.focus,
             r.line()
+        ),
+    );
+    let letters: Vec<String> = keys
+        .iter()
+        .filter(|key| key.class == seam::KeyClass::Printable)
+        .map(|key| {
+            format!(
+                "{}:{:?}:{:?}:decided@{}",
+                key.os_tick, key.verdict, key.rule, key.decided_tick
+            )
+        })
+        .collect();
+    let reads: Vec<String> = marks
+        .iter()
+        .filter(|mark| mark.what == "read")
+        .map(|mark| {
+            format!(
+                "began@{}:arrived@{}",
+                mark.began,
+                mark.at.unwrap_or(mark.began)
+            )
+        })
+        .collect();
+    say(
+        test,
+        format!(
+            "browser={} control={which} open_latches_before_the_first_letter={latches_before} \
+             letters_by_tick=[{}] reads=[{}]",
+            browser.name,
+            letters.join(","),
+            reads.join(",")
         ),
     );
     if r.sink < 5 {

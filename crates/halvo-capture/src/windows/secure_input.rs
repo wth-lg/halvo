@@ -880,6 +880,25 @@ impl PasswordGate {
         self.shared.lock().open.len()
     }
 
+    #[cfg(feature = "test-seam")]
+    pub(crate) fn open_latches_text(&self) -> String {
+        let marks = self.shared.lock();
+        let listed: Vec<String> = marks
+            .open
+            .iter()
+            .map(|latch| {
+                format!(
+                    "seq{}@{}:{:?}:based={}",
+                    latch.seq,
+                    latch.at,
+                    latch.from,
+                    u8::from(latch.based)
+                )
+            })
+            .collect();
+        format!("count={} [{}]", listed.len(), listed.join(","))
+    }
+
     #[cfg(test)]
     pub(crate) fn pointer_since(&self) -> Option<u32> {
         self.shared.lock().pointer_since

@@ -883,6 +883,12 @@ impl RawInputSource {
     pub fn field_state(&self) -> Option<crate::secure_input::windows::FieldState> {
         self.gate.as_ref().map(|gate| gate.field_now())
     }
+
+    /// The latches that the password gate of a keyboard source holds open.
+    #[cfg(feature = "test-seam")]
+    pub fn open_latches(&self) -> Option<String> {
+        self.gate.as_ref().map(|gate| gate.open_latches_text())
+    }
 }
 
 #[cfg(target_os = "windows")]
