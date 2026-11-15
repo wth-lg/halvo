@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
 # lane: alone
 set -u
 name=51-macos-stall
@@ -74,6 +74,7 @@ proof_lines() {
   cat <<'EOF'
 hold_bound_in_a_release_build E0599
 held_key_printed E0277
+tap_event_printed E0277
 seam_in_a_release_build E0599
 EOF
 }
@@ -293,7 +294,7 @@ measure() {
   [ "$status" -eq 0 ] || fail "the twins of the proofs did not build: cargo rustc exited $status"
   proof_build "$proofs" "$work/proofs.txt"
   status=$?
-  [ "$status" -ne 0 ] || fail "the proofs built: a build without debug assertions has with_hold_bound, with_seam or Debug for a held key"
+  [ "$status" -ne 0 ] || fail "the proofs built: a build without debug assertions has with_hold_bound, with_seam, or Debug for a held key or a tap event"
   cut -d ' ' -f 2 "$work/proofs" >"$work/proof-codes" || fail "the list of proofs cannot be read"
   while read -r proof code; do
     wanted=$(grep -c -x -e "$code" "$work/proof-codes")
@@ -496,15 +497,16 @@ write_stubs() {
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 case $* in
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="tap_event_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin"')
     spec twins-fail && exit 101
     exit 0
     ;;
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="seam_in_a_release_build"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="tap_event_printed" --cfg halvo_proof="seam_in_a_release_build"')
     spec proofs-build && exit 0
     spec proof-other-code && { printf 'error[E0308]: mismatched types\nerror[E0277]: no Debug\n'; exit 101; }
+    spec proof-one-e0277 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'; exit 101; }
     spec proof-one-e0599 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\n'; exit 101; }
-    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
+    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
     exit 101
     ;;
   'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build_twin"')
@@ -763,6 +765,7 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   check proofs-build FAIL 'the proofs built' 'proofs-build'
   check proof-fails-with-another-code FAIL 'did not fail with E0599' 'proof-other-code'
   check one-error-for-two-proofs FAIL '(1 errors E0599 for 2 proofs)' 'proof-one-e0599'
+  check one-debug-error-for-two-proofs FAIL '(1 errors E0277 for 2 proofs)' 'proof-one-e0277'
   check seam-twin-fails FAIL 'the twin of the seam proof did not build with the feature stall-seam' 'seam-twin-fails'
   check seam-proof-builds FAIL 'the seam proof built with the feature stall-seam' 'seam-proof-builds'
   check seam-proof-other-code FAIL 'the seam proof with the feature stall-seam did not fail with E0599' 'seam-proof-other-code'

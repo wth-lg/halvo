@@ -501,7 +501,7 @@ const TIMER_CALLS: TimerCalls = TimerCalls {
     invalidate,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct TapEvent {
     etype: CGEventType,
     flags: u64,
@@ -1744,6 +1744,16 @@ mod proofs {
     #[cfg(halvo_proof = "held_key_printed_twin")]
     fn held_key_printed_twin(key: &super::HeldKey) -> String {
         format!("{:?}", key.instant)
+    }
+
+    #[cfg(halvo_proof = "tap_event_printed")]
+    fn tap_event_printed(event: &super::TapEvent) -> String {
+        format!("{event:?}")
+    }
+
+    #[cfg(halvo_proof = "tap_event_printed_twin")]
+    fn tap_event_printed_twin(event: &super::TapEvent) -> String {
+        format!("{:?}", event.os_time)
     }
 
     #[cfg(halvo_proof = "seam_in_a_release_build")]
