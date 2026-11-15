@@ -76,6 +76,11 @@ enum Fault {
     RangedReadDropsTheFirstLineAtItsStart,
     RangedReadMovesASteppedBackEntry,
     RangedReadSwapsASteppedBackRecord,
+    RangedReadEndsAfterAServedSteppedBackLine,
+    RangedReadTakesItsEndForASteppedBackLine,
+    RangedKindsReadDropsAnAtBelowTheLastAdmittedLine,
+    RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
+    RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
@@ -377,6 +382,11 @@ fn cuts(fault: Fault) -> bool {
             | RangedReadDropsTheFirstLineAtItsStart
             | RangedReadMovesASteppedBackEntry
             | RangedReadSwapsASteppedBackRecord
+            | RangedReadEndsAfterAServedSteppedBackLine
+            | RangedReadTakesItsEndForASteppedBackLine
+            | RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
+            | RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd
+            | RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd
     )
 }
 
@@ -581,10 +591,22 @@ impl Wrong {
                 _ => 0,
             };
             let mut line_before: Option<(Entry, bool)> = None;
+            let mut served_a_step_back = false;
+            let mut last_admitted: Option<Instant> = None;
+            let mut done = false;
             for (i, e) in records.into_iter().enumerate() {
                 let at = e.record.at();
                 let from_zero = self.cut_from_zero;
+                let stepped_back = line_before
+                    .as_ref()
+                    .is_some_and(|(before, _)| at < before.record.at());
+                let kind = self
+                    .cut_kinds
+                    .as_ref()
+                    .is_none_or(|k| k.contains(&e.record.kind()));
+                let admitted = self.cut_kinds.is_some() && kind;
                 let ends = match self.fault {
+                    RangedReadEndsAfterAServedSteppedBackLine => served_a_step_back,
                     RangedReadEndsAtTheFirstAtFromItsEnd => at >= range.end(),
                     RangedReadEndsAtTheFirstAtPastItsEnd => at > range.end(),
                     RangedReadEndsWhenABatchStartsFromItsEnd => i == 0 && at >= range.end(),
@@ -606,21 +628,44 @@ impl Wrong {
                     _ => None,
                 }
                 .is_some_and(|k| at < k.record.at());
+                let below_admitted = self.fault == RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
+                    && admitted
+                    && last_admitted.is_some_and(|p| at < p);
+                if admitted {
+                    last_admitted = Some(at);
+                }
                 let in_range = match self.fault {
                     RangedReadChecksItsStartOnce => {
                         self.started = self.started || at >= range.start();
                         self.started && at < range.end()
+                    }
+                    RangedReadTakesItsEndForASteppedBackLine => {
+                        range.contains(at) || (stepped_back && at == range.end())
                     }
                     _ => range.contains(at),
                 };
                 let first_at_start = self.fault == RangedReadDropsTheFirstLineAtItsStart
                     && e.pos == (Position { seg: 1, idx: 0 })
                     && at == range.start();
-                let kind = self
-                    .cut_kinds
-                    .as_ref()
-                    .is_none_or(|k| k.contains(&e.record.kind()));
-                let keep = i >= skip && in_range && kind && !below && !first_at_start;
+                let keep = i >= skip
+                    && in_range
+                    && kind
+                    && !below
+                    && !below_admitted
+                    && !first_at_start
+                    && !done;
+                done = done
+                    || match self.fault {
+                        RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd => {
+                            admitted && at >= range.end()
+                        }
+                        RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd => {
+                            self.cut_kinds.as_ref().is_some_and(|k| k.len() > 1)
+                                && at >= range.end()
+                        }
+                        _ => false,
+                    };
+                served_a_step_back = served_a_step_back || (keep && stepped_back);
                 let line = e.clone();
                 let mut e = e;
                 if let (true, Some((before, false))) = (keep, &line_before) {
@@ -1048,7 +1093,7 @@ fn conformance_check_filtered_stops() {
 #[test]
 fn conformance_filters_step_back() {
     let load = "; want 999000000 ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)";
-    let servers: [(Fault, String); 26] = [
+    let servers: [(Fault, String); 31] = [
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
@@ -1116,6 +1161,26 @@ fn conformance_filters_step_back() {
         (
             RangedReadSwapsASteppedBackRecord,
             "the range of set D up to the pointer before its step back: entry 4 at {seg 1, idx 4} is another record than set D holds there".to_owned(),
+        ),
+        (
+            RangedReadEndsAfterAServedSteppedBackLine,
+            "the range of set D up to its seventh entry: 5 entries served, want 6".to_owned(),
+        ),
+        (
+            RangedReadTakesItsEndForASteppedBackLine,
+            "the range of set D up to the keystroke of its step back: 4 entries served, want 3".to_owned(),
+        ),
+        (
+            RangedKindsReadDropsAnAtBelowTheLastAdmittedLine,
+            "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
+            "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
+            "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
         ),
         (
             LoadRoundsTheStepBackAway,
