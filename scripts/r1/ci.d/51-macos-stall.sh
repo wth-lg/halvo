@@ -59,7 +59,7 @@ notes() {
 measured_a_password_typed_whole_ahead_at_machine_speed in pushes 6 and 7 the keys were held under a reading of off and dropped by a reading that fell into the on-time while the program handled them; the on-time was not printed. D2 stays an open fault (MA-12 D, ruling MA-19)
 short_window_a_the_click_round_as_it_was_at_wait_150_ms measures D2, asserts nothing and holds no promise; the listed stand-in holds D2 (ruling MA-22 L10)
 known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys holds D2 (MA-12 D3) with stand-ins at the product's gap: an on-time shorter than the spacing of two readings that are both in time releases the keys; D2 stays an open fault until a ruling names the unit that closed it (ruling MA-22 L10)
-short_window_a_the_click_round_as_it_was_at_wait_2000_ms D2 stays an open fault. Its mechanism has been seen once on the hosted machine at the test's gap of 200 ms: an on-time shorter than the spacing of two readings that are both in time releases the keys. At the product's gap of 30 ms no hosted round shows it. The cause of push 7's recorded click round is not shown (ruling MA-20 (1), (7))
+short_window_a_the_click_round_as_it_was_at_wait_2000_ms D2 stays an open fault. Its mechanism has been seen on the hosted machine at the test's gap in every long-form run since push 9 (2 or 3 of 124 rounds of the measured line; the ledger names the newest): an on-time shorter than the spacing of two readings that are both in time releases the keys. At the product's gap of 30 ms no hosted round shows it. The cause of push 7's recorded click round is not shown (rulings MA-20 (1), (7) and MA-25 item 2)
 short_window_b_the_leave_asked_after_n_ms names the leave that the fixture was asked to make after n ms; the set on-times were not reached, because the leave ran behind the queued events, so each on-time is as measured, and the sample under 40 ms is thin (8 of 599 rounds in push 8) (ruling MA-20 (6))
 EOF
 }
@@ -552,6 +552,11 @@ case $4 in
 esac
 spec measure-exits && { printf 'test result: FAILED. 0 passed; 1 failed; 0 ignored\n'; exit 101; }
 spec measure-none && ok
+spec measure-no-digits && {
+  printf 'measure dictionary=1 on_console=1 seconds=20.0 readings=701 spacing_max_us=90474\n'
+  printf 'gap_of_the_test gap_ms=x90 source=measured spacing_max_us=90474 load1=1.00\n'
+  ok
+}
 spec measure-gap-alone && { printf 'gap_of_the_test gap_ms=190 source=measured spacing_max_us=90474 load1=1.00\n'; ok; }
 calls=$(cat "$STUB_CALLS" 2>/dev/null || printf 0)
 calls=$((calls + 1))
@@ -588,6 +593,7 @@ fi
 for test; do :; done
 if [ "$test" = the_form_of_the_hosted_phases ]; then
   spec no-form-line && exit 0
+  spec form-exits && exit 101
   case $HALVO_STALL_FORM in
     long) printf 'test the_form_of_the_hosted_phases ... form=long waits_ms_and_bounds_ms=150:1000 rounds_for_each_wait=3 cap_for_each_wait=4\n' ;;
     *)
@@ -698,6 +704,7 @@ MS left out: counted rounds 2 to 3 of each wait of each mended phase
 measure dictionary=1 on_console=1 seconds=20.0 readings=701 spacing_max_us=90474
 MS gap_ms=190 source=measured spacing_max_us=90474 load1=1.00' ''
   check form-line-missing FAIL 'the_form_of_the_hosted_phases printed no line of the form short' 'no-form-line'
+  check form-test-exits FAIL 'the_form_of_the_hosted_phases did not print the form: exited 101' 'form-exits'
   check the-word-alone PASS '| phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE HALVO_STALL_FORM HALVO_STALL_GAP_MS ' ''
   check budget-line PASS 'budget=240 notices=0' ''
   check notice-of-the-measurement PASS 'budget=240 notices=1' 'measure-notice'
@@ -716,6 +723,7 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   check gap-refused FAIL "the gap of the test's own could not be measured: 12 readings, fewer than 300" 'measure-refused'
   check gap-under-30 PASS 'MS gap_ms=30 source=measured spacing_max_us=5000' 'measure-under-30'
   check gap-no-measure-line FAIL "measure_the_readings_of_the_hold printed no gap line" 'measure-none'
+  check gap-line-without-digits FAIL "the gap of the test's own could not be measured: the gap line reads gap_ms=x90 source=measured" 'measure-no-digits'
   check gap-line-without-a-measure-line FAIL "measure_the_readings_of_the_hold printed no measure line" 'measure-gap-alone'
   check limit-of-the-short-form PASS ' limit=150' ''
   check gap-measurement-exits FAIL "the gap of the test's own could not be measured: measure_the_readings_of_the_hold exited 101" 'measure-exits'
@@ -814,6 +822,19 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   git -C "$work/repo" add scripts || exit 2
   check ledger-ninth-file-changed FAIL 'ran on a blob of scripts/r1/ci.d/51-macos-stall.sh other than the head' ''
   write_measured_ledger
+  d2_note=$(
+    unset MS_NOTES_FILE
+    notes | sed -n 's/^short_window_a_the_click_round_as_it_was_at_wait_2000_ms //p'
+  )
+  case $d2_note in
+    *"Its mechanism has been seen on the hosted machine at the test's gap in every long-form run since push 9 (2 or 3 of 124 rounds of the measured line; the ledger names the newest)"*)
+      printf 'case %s/d2-note-sentence want=PASS got=PASS\n' "$name"
+      ;;
+    *)
+      printf 'case %s/d2-note-sentence want=PASS got=another-sentence\n    | %s\n' "$name" "$d2_note"
+      wrong="$wrong d2-note-sentence"
+      ;;
+  esac
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (cases that gave another verdict:%s)\n' "$name" "$wrong"
     exit 1
