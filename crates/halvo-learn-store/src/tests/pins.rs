@@ -18,13 +18,13 @@ fn pay() -> Value {
 fn a_run_that_loads_after_a_restart_is_a_lost_run_and_learns_nothing() {
     let mut w = active_world();
     w.replay(2);
-    w.log(2, &[(1, "step_ok", 1, None)]);
+    w.log(2, &[(2, "step_ok", 1, None)]);
     w.handlers = LearnHandlers::new();
     w.load(2);
     let served = w.load_steps(2, w.loaded, 1);
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
     assert!(w.put(2, w.loaded, vec![proposal]).is_ok());
-    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
+    w.log(2, &[(3, "recovered", 2, None), (4, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert!(w.host.edits().is_empty());
     let revs: Vec<u32> = w

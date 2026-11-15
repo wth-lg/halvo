@@ -411,7 +411,7 @@ impl<'c> Play<'c> {
                 break;
             }
         }
-        let records: Vec<Value> = (1u32..)
+        let records: Vec<Value> = (2u32..)
             .zip(&lines)
             .map(|(seq, (event, step, cause))| {
                 json!({

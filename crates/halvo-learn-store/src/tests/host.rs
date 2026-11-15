@@ -438,21 +438,21 @@ impl World {
         let proposed = with_locators(served[n as usize - 1].clone(), desc, locators);
         let reply = self.put(r, self.loaded, vec![proposed]);
         assert!(reply.is_ok(), "the replay's put_playbook: {reply:?}");
-        self.log(r, &[(1, "recovered", n, None), (2, "step_ok", n, None)]);
+        self.log(r, &[(2, "recovered", n, None), (3, "step_ok", n, None)]);
         let reply = self.finish(r, "replay", "completed");
         assert!(reply.is_ok(), "the replay's finish: {reply:?}");
     }
 
     pub fn clean_use(&mut self, r: u32, n: u32) {
         self.replay(r);
-        self.log(r, &[(1, "step_ok", n, None)]);
+        self.log(r, &[(2, "step_ok", n, None)]);
         let reply = self.finish(r, "replay", "completed");
         assert!(reply.is_ok(), "the replay's finish: {reply:?}");
     }
 
     pub fn failed_use(&mut self, r: u32, n: u32, cause: &str) {
         self.replay(r);
-        self.log(r, &[(1, "step_failed", n, Some(cause))]);
+        self.log(r, &[(2, "step_failed", n, Some(cause))]);
         let reply = self.finish(r, "replay", "failed");
         assert!(reply.is_ok(), "the replay's finish: {reply:?}");
     }

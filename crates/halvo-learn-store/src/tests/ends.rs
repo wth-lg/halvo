@@ -69,8 +69,8 @@ fn served_and_failed() -> World {
     w.log(
         3,
         &[
-            (1, "step_ok", 1, None),
-            (2, "step_failed", 2, Some("step_failed")),
+            (2, "step_ok", 1, None),
+            (3, "step_failed", 2, Some("step_failed")),
         ],
     );
     w
@@ -222,7 +222,7 @@ fn an_end_run_after_step_ok_on_the_step_of_a_provisional_edit_keeps_the_edit_ser
     );
     let served = w.replay(3);
     assert_eq!(names(&served[1]), ["A", "Pay"]);
-    w.log(3, &[(1, "step_ok", 1, None), (2, "step_ok", 2, None)]);
+    w.log(3, &[(2, "step_ok", 1, None), (3, "step_ok", 2, None)]);
     assert!(accepted(&end_run(&mut w, 3, 1)));
     assert_eq!(
         edits(&w).last().expect("an edit").state,
@@ -247,7 +247,7 @@ fn an_end_run_after_a_counted_failure_of_an_active_edit_keeps_the_edit_served() 
     assert_eq!(edits(&w).last().expect("an edit").state, EditState::Active);
     let served = w.replay(5);
     assert_eq!(names(&served[1]), ["A", "Pay"]);
-    w.log(5, &[(1, "step_failed", 2, Some("step_failed"))]);
+    w.log(5, &[(2, "step_failed", 2, Some("step_failed"))]);
     assert!(accepted(&end_run(&mut w, 5, 1)));
     assert_eq!(edits(&w).last().expect("an edit").state, EditState::Active);
     let next = w.replay(6);

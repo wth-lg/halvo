@@ -8,7 +8,8 @@ use super::host::{
     active_world, active_world_with, agent, click, compiled, locator, run, wf, with_locators,
     workflow, World, DAY,
 };
-use crate::{LearnHandlers, LearnHost, RUNS_HELD_MAX};
+use crate::{LearnHandlers, LearnHost, Refused, RUNS_HELD_MAX};
+use halvo_schema::ErrorName;
 
 fn loc(name: &str) -> Value {
     json!({"by": "role", "value": "button", "name": name})
@@ -86,7 +87,7 @@ fn f1_a_body_under_the_next_number_stores_an_edit_whose_base_is_the_loaded_numbe
     let served = w.replay(2);
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
     assert_eq!(w.put(2, 2, vec![proposal]), Ok(stored(1)));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     let edits = w.host.edits();
     assert_eq!(edits.len(), 1);
@@ -199,7 +200,7 @@ fn f2_a_run_that_starts_again_on_a_new_value_before_its_load_is_still_a_lost_run
     let served = w.load_steps(2, 1, 1);
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(0)));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert!(w.host.edits().is_empty());
     assert_eq!(revs(&w, 2), [1]);
@@ -230,7 +231,7 @@ fn f2_a_run_that_one_value_started_and_another_loads_is_served_the_compiled_step
     assert_eq!(served, compiled());
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("B"), pay()]);
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(0)));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert_eq!(w.host.edits().len(), 1);
     assert_eq!(revs(&w, 2), [1]);
@@ -280,7 +281,7 @@ fn f3_a_replay_run_with_no_load_holds_nothing_stores_no_edit_and_keeps_rev_1() {
         vec![loc("A"), pay()],
     );
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(0)));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert!(w.host.edits().is_empty());
     assert_eq!(revs(&w, 2), [1]);
@@ -305,7 +306,7 @@ fn f4_an_end_run_that_the_agent_store_refuses_for_a_deleted_workflow_drops_the_f
 fn f4_a_finish_that_the_agent_store_refuses_for_a_run_that_still_goes_keeps_the_facts() {
     let mut w = active_world();
     w.replay(2);
-    w.log(2, &[(1, "step_ok", 2, None)]);
+    w.log(2, &[(2, "step_ok", 2, None)]);
     let record = |workflow: String| {
         json!({
             "v": 1, "workflow": workflow, "agent": agent(1), "run": run(2), "day": DAY,
@@ -331,7 +332,7 @@ fn f4_a_refused_log_body_of_a_run_whose_workflow_is_gone_drops_its_facts() {
     w.replay(2);
     delete_workflow(&mut w, 1);
     let line = json!({
-        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(2), "seq": 1, "day": DAY,
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(2), "seq": 2, "day": DAY,
         "at": 1_794_500_000_000_000_000_i64, "event": "step_ok", "step": 2, "cause": null,
         "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
     });
@@ -371,7 +372,7 @@ fn f4_at_most_runs_held_max_runs_are_held_and_the_first_made_goes_first() {
     assert!(!holds(&w, 2));
     assert!((3..=last).all(|r| holds(&w, r)));
     let commits = w.host.commits.get();
-    w.log(2, &[(1, "step_ok", 2, None)]);
+    w.log(2, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert_eq!(w.host.commits.get(), commits);
     assert_eq!(revs(&w, 2), [1]);
@@ -499,9 +500,11 @@ fn g4_a_load_under_another_agent_than_the_start_makes_no_facts() {
     let mut w = active_world();
     second_agent(&mut w);
     w.start(2, "replay");
-    assert!(w
-        .runner(json!({"op": "load", "agent": agent(2), "run": run(2)}))
-        .is_ok());
+    let binding = ErrorName::read("binding").expect("a declared name");
+    assert_eq!(
+        w.runner(json!({"op": "load", "agent": agent(2), "run": run(2)})),
+        Err(Refused::Error(binding))
+    );
     assert!(!w.handlers.facts.contains_key(&id(2)));
     assert!(w.handlers.starts.contains_key(&id(2)));
 }
@@ -515,7 +518,12 @@ fn g4_an_end_run_under_another_agent_drops_nothing() {
     let rows = w.host.learn_rows("learn_run");
     let reply = w
         .coordinator(json!({"op": "end_run", "workflow": wf(2), "agent": agent(2), "run": run(2)}));
-    assert!(reply.is_ok(), "end_run: {reply:?}");
+    let binding = ErrorName::read("binding").expect("a declared name");
+    assert_eq!(
+        reply,
+        Err(Refused::Error(binding)),
+        "end_run: the run is the first agent's"
+    );
     assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
     assert_eq!(w.host.learn_rows("learn_run"), rows);
     assert!(w.handlers.facts.contains_key(&id(2)));
