@@ -596,32 +596,43 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn learn_outside_misses_a_link_to_a_marker_a_file_that_cannot_be_read_and_a_directory_that_cannot_be_listed(
-    ) {
-        use std::os::unix::fs::PermissionsExt;
+    fn learn_outside_misses_a_link_whose_target_text_holds_a_marker() {
         let (data, temp) = (scratch("link-data"), scratch("link-temp"));
         std::os::unix::fs::symlink(MARKERS[0], data.join("link")).expect("a link");
         assert_eq!(outside_with(&data, &temp, &mut |_, _| {}), Outcome::Miss);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn learn_outside_misses_a_file_that_cannot_be_read_and_a_directory_that_cannot_be_listed() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |path: &Path, bits: u32| {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).expect("a mode");
+        };
+        let probe = scratch("probe").join("probe");
+        std::fs::write(&probe, "x").expect("a probe file");
+        mode(&probe, 0o000);
+        let refused = std::fs::read(&probe).is_err();
+        mode(&probe, 0o600);
+        assert!(
+            refused,
+            "mode 000 did not refuse a read of a probe file (a user that reads every file, such as root?), so this \
+             test cannot hold its rule here"
+        );
         let (data, temp) = (scratch("closed-data"), scratch("closed-temp"));
         let closed = data.join("closed");
         std::fs::write(&closed, "x").expect("a file");
-        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o000)).expect("a mode");
-        let readable = std::fs::read(&closed).is_ok();
+        mode(&closed, 0o000);
         let got = outside_with(&data, &temp, &mut |_, _| {});
-        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o600)).expect("a mode");
-        if !readable {
-            assert_eq!(got, Outcome::Miss);
-        }
+        mode(&closed, 0o600);
+        assert_eq!(got, Outcome::Miss, "a file that cannot be read");
         let (data, temp) = (scratch("shut-data"), scratch("shut-temp"));
         let shut = data.join("a").join("shut");
         std::fs::create_dir_all(&shut).expect("a nested directory");
-        std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o000)).expect("a mode");
-        let listable = std::fs::read_dir(&shut).is_ok();
+        mode(&shut, 0o000);
         let got = outside_with(&data, &temp, &mut |_, _| {});
-        std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o700)).expect("a mode");
-        if !listable {
-            assert_eq!(got, Outcome::Miss);
-        }
+        mode(&shut, 0o700);
+        assert_eq!(got, Outcome::Miss, "a directory that cannot be listed");
     }
 
     #[test]
