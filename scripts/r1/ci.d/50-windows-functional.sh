@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: windows
 # rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# lane: alone
 set -u
 group=${WF_GROUP:-native}
 case $group in
