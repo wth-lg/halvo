@@ -5,8 +5,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_schema::Instant;
 
-const DAY_NANOS: i64 = 86_400 * 1_000_000_000;
-
 #[cfg(test)]
 thread_local! {
     static WALL: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
@@ -30,11 +28,6 @@ pub(crate) fn now() -> Instant {
     Instant(nanos)
 }
 
-/// The day of an instant, in days since 1970-01-01, in UTC.
-pub(crate) fn day(at: Instant) -> u32 {
-    u32::try_from(at.0.div_euclid(DAY_NANOS)).unwrap_or(0)
-}
-
 static DRAWN: AtomicU64 = AtomicU64::new(0);
 
 /// 16 bytes for an id that the runner mints: two keyed hashes of a count, under keys that the standard library
@@ -50,14 +43,6 @@ pub(crate) fn random16() -> [u8; 16] {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_day_counts_from_the_epoch_in_utc() {
-        assert_eq!(day(Instant(0)), 0);
-        assert_eq!(day(Instant(DAY_NANOS - 1)), 0);
-        assert_eq!(day(Instant(DAY_NANOS)), 1);
-        assert_eq!(day(Instant(20_404 * DAY_NANOS + 5)), 20_404);
-    }
 
     #[test]
     fn two_draws_differ() {
