@@ -542,11 +542,13 @@ EOF
 }
 
 cargo_failed() {
-  perl -ne 'next unless /^(?:error|\s*-->)/; s{(?:^|(?<=[\s(=\x27"]))(?:[A-Za-z]:[\\/]|/)[^\s:"\x27()]+}{<path>}g; print' "$2"
-  if grep -q -e 'needs to be updated but --locked was passed' "$2"; then
-    fail lock
-  fi
-  fail "$1"
+  perl -ne 'if (/^error/) { $k = 1 if /because --locked was passed to prevent this|needs to be updated but --locked was passed/; $u = 1 if /lock file|Cargo\.lock|--locked/i } next unless /^(?:error|\s*-->)/; s{(?:^|(?<=[\s(=\x27"]))(?:[A-Za-z]:[\\/]|/)[^\s:"\x27()]+}{<path>}g; print; END { exit($k ? 3 : $u ? 4 : 0) }' "$2"
+  code=$?
+  case $code in
+    3) fail lock ;;
+    4) fail lock-wording ;;
+    *) fail "$1" ;;
+  esac
 }
 
 blobs() {
@@ -900,10 +902,10 @@ EOF
   STUB_CLIPPY_TEXT='    Checking halvo-coord v0.0.0 (/fixture/abs/crates/halvo-coord)\nerror: use of a disallowed method \0140std::process::Command::new\0140\n --> crates/halvo-coord/src/lib.rs:3:13\nerror: could not compile \0140halvo-coord\0140 (lib) due to 1 previous error\n'
   check macos-job-forbid-run-fails FAIL " --> crates/halvo-coord/src/lib.rs:3:13" run_mac app
   STUB_CLIPPY_EXIT=101
-  STUB_CLIPPY_TEXT='error: the lock file /fixture/abs/Cargo.lock needs to be updated but --locked was passed to prevent this\n'
-  check a-lockfile-mismatch-in-the-macos-job FAIL "FAIL $name (lock)" run_mac app
+  STUB_CLIPPY_TEXT='error: cannot update the lock file /fixture/abs/Cargo.lock because --locked was passed to prevent this\nhelp: to generate the lock file without accessing the network, remove the --locked flag and use --offline instead.\n'
+  check a-lockfile-mismatch-in-the-macos-job-in-the-wording-of-cargo-1-99-1 FAIL "FAIL $name (lock)" run_mac app
   batch=$out
-  seen a-cargo-error-prints-no-absolute-path 'error: the lock file <path> needs to be updated'
+  seen a-cargo-error-prints-no-absolute-path 'error: cannot update the lock file <path> because'
   check a-job-that-is-neither FAIL "FAIL $name (usage)" \
     env CI_D_JOB=linux CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-linux" sh "$here/$name.sh"
   if [ "$job" = macos ]; then
@@ -988,8 +990,11 @@ EOF
   STUB_TAURI_EXIT=101
   check cargo-tree-of-tauri-fails FAIL "FAIL $name (tree)" run_one
   STUB_TAURI_EXIT=101
-  STUB_TREE_TEXT='error: the lock file /fixture/abs/Cargo.lock needs to be updated but --locked was passed to prevent this\n'
-  check a-lockfile-mismatch-in-the-windows-job FAIL "FAIL $name (lock)" run_one
+  STUB_TREE_TEXT='error: the manifest file /fixture/abs/case/Cargo.toml needs to be updated but --locked was passed to prevent this\n'
+  check a-lockfile-mismatch-in-the-windows-job-in-the-wording-of-cargo-0-96 FAIL "FAIL $name (lock)" run_one
+  STUB_TAURI_EXIT=101
+  STUB_TREE_TEXT='error: Cargo.lock is out of date and --locked forbids writing it\n'
+  check a-lockfile-message-in-a-wording-that-the-check-does-not-know FAIL "FAIL $name (lock-wording)" run_one
   STUB_LINKED_EXIT=101
   check cargo-tree-of-the-app-fails FAIL "FAIL $name (tree)" run_one
 
