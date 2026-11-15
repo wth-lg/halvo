@@ -2,7 +2,15 @@
 # jobs: windows
 # rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 set -u
-name=50-windows-functional
+group=${WF_GROUP:-native}
+case $group in
+  native) name=50-windows-functional ;;
+  browser) name=52-windows-browser ;;
+  *)
+    printf 'FAIL 50-windows-functional (WF_GROUP is native or browser, not %s)\n' "$group"
+    exit 1
+    ;;
+esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
 failing_fixtures=47
@@ -23,92 +31,92 @@ fail() {
 
 expected_tests() {
   cat <<'EOF'
-a_dropped_keyboard_source_stops_capturing
-a_timed_out_stop_reads_no_input_posted_after_its_answer
-browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome
-browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge
-browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome
-browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge
-browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing
-browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing
-browser::after_a_start_behind_another_window_in_chrome
-browser::after_a_start_behind_another_window_in_edge
-browser::cold_and_warm_orders_in_chrome
-browser::cold_and_warm_orders_in_edge
-browser::stall_phases_of_the_page_in_chrome
-browser::stall_phases_of_the_page_in_edge
-browser::swap_phases_of_the_page_in_chrome
-browser::swap_phases_of_the_page_in_edge
-c1_raw_input_delivers_keystrokes_and_pointer_events
-c2_screen_source_delivers_a_frame
-c3_foreground_source_reports_an_activated_window
-c4_window_title_source_reports_a_title_change
-c5_installed_software_returns_registry_entries
-c8_display_affinity_exclude_from_capture_is_set_and_read_back
-c8b_window_destroyed_after_the_last_capture_session
-c9_peak_working_set_of_sources_1_to_4_for_60_seconds
-capture_times_follow_the_input_order
-helper_child_window
-helper_limited_listener
-keys_queued_before_a_stop_are_delivered_or_counted
-known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2
-known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2
-known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i
-known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i
-known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
-known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2
-known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask
-known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
-password_field_fixture_chrome
-password_field_fixture_edge
-password_field_fixture_firefox
-password_field_fixture_native_dialog_phases_a_to_f
-pointer_moves_coalesce
-stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing
-stall::a_second_tab_out_of_the_password_field_then_a_letter_records_nothing
-stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask
-stall::click_then_letters_while_the_program_serves_sent_messages_150_ms
-stall::click_then_letters_while_the_program_serves_sent_messages_2000_ms
-stall::click_then_letters_while_the_program_serves_sent_messages_200_ms
-stall::click_then_letters_while_the_program_serves_sent_messages_300_ms
-stall::click_then_letters_while_the_program_serves_sent_messages_600_ms
-stall::click_then_letters_while_the_program_sleeps_150_ms
-stall::click_then_letters_while_the_program_sleeps_2000_ms
-stall::click_then_letters_while_the_program_sleeps_200_ms
-stall::click_then_letters_while_the_program_sleeps_300_ms
-stall::click_then_letters_while_the_program_sleeps_600_ms
-stall::enter_with_no_focus_move_then_five_letters_records_no_letter
-stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded
-stall::helper_stall_fixture
-stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front
-stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab
-stall::tab_then_letters_while_the_program_serves_sent_messages_150_ms
-stall::tab_then_letters_while_the_program_serves_sent_messages_2000_ms
-stall::tab_then_letters_while_the_program_serves_sent_messages_200_ms
-stall::tab_then_letters_while_the_program_serves_sent_messages_300_ms
-stall::tab_then_letters_while_the_program_serves_sent_messages_600_ms
-stall::tab_then_letters_while_the_program_sleeps_150_ms
-stall::tab_then_letters_while_the_program_sleeps_2000_ms
-stall::tab_then_letters_while_the_program_sleeps_200_ms
-stall::tab_then_letters_while_the_program_sleeps_300_ms
-stall::tab_then_letters_while_the_program_sleeps_600_ms
-stall::the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded
-stall::the_round_count_of_the_stall_tests
-stop_with_a_full_sink
-the_fault_line_allocates_nothing
-the_first_own_read_after_a_start_reads_the_focused_password_field
-title_event_on_a_switch_to_a_window_with_a_fixed_title
-x12_screen_source_fifteen_start_stop_cycles
-x13_frames_on_a_static_screen
-x14_foreground_app_of_a_hosted_app
-x15_a_held_key
-x1_keystrokes_typed_into_a_password_field
-x2_window_title_events_for_other_windows_and_controls
-x3_attribution_before_the_first_foreground_change
-x5_screen_source_stop_and_start_again
-x7_capture_border_on_the_screen
-x8_raw_input_across_the_integrity_boundary
-x9_screen_source_across_a_display_mode_change
+a_dropped_keyboard_source_stops_capturing group=native
+a_timed_out_stop_reads_no_input_posted_after_its_answer group=native
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome group=browser
+browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge group=browser
+browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_chrome group=browser
+browser::a_letter_and_a_tab_out_of_a_swapped_field_record_nothing_in_edge group=browser
+browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing group=browser
+browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing group=browser
+browser::after_a_start_behind_another_window_in_chrome group=browser
+browser::after_a_start_behind_another_window_in_edge group=browser
+browser::cold_and_warm_orders_in_chrome group=browser
+browser::cold_and_warm_orders_in_edge group=browser
+browser::stall_phases_of_the_page_in_chrome group=browser
+browser::stall_phases_of_the_page_in_edge group=browser
+browser::swap_phases_of_the_page_in_chrome group=browser
+browser::swap_phases_of_the_page_in_edge group=browser
+c1_raw_input_delivers_keystrokes_and_pointer_events group=native
+c2_screen_source_delivers_a_frame group=native
+c3_foreground_source_reports_an_activated_window group=native
+c4_window_title_source_reports_a_title_change group=native
+c5_installed_software_returns_registry_entries group=native
+c8_display_affinity_exclude_from_capture_is_set_and_read_back group=native
+c8b_window_destroyed_after_the_last_capture_session group=native
+c9_peak_working_set_of_sources_1_to_4_for_60_seconds group=native
+capture_times_follow_the_input_order group=native
+helper_child_window group=native
+helper_limited_listener group=native
+keys_queued_before_a_stop_are_delivered_or_counted group=native
+known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2 group=browser
+known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2 group=browser
+known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i group=browser scope=long-only
+known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i group=browser scope=long-only
+known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12 group=browser
+known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2 group=browser scope=long-only
+known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser
+known_defect::x16_packaged_apps_and_the_inventory RR-windows-12 group=browser
+password_field_fixture_chrome group=browser
+password_field_fixture_edge group=browser
+password_field_fixture_firefox group=browser
+password_field_fixture_native_dialog_phases_a_to_f group=browser
+pointer_moves_coalesce group=native
+stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing group=native
+stall::a_second_tab_out_of_the_password_field_then_a_letter_records_nothing group=native
+stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask group=native
+stall::click_then_letters_while_the_program_serves_sent_messages_150_ms group=native
+stall::click_then_letters_while_the_program_serves_sent_messages_2000_ms group=native
+stall::click_then_letters_while_the_program_serves_sent_messages_200_ms group=native
+stall::click_then_letters_while_the_program_serves_sent_messages_300_ms group=native
+stall::click_then_letters_while_the_program_serves_sent_messages_600_ms group=native
+stall::click_then_letters_while_the_program_sleeps_150_ms group=native
+stall::click_then_letters_while_the_program_sleeps_2000_ms group=native
+stall::click_then_letters_while_the_program_sleeps_200_ms group=native
+stall::click_then_letters_while_the_program_sleeps_300_ms group=native
+stall::click_then_letters_while_the_program_sleeps_600_ms group=native
+stall::enter_with_no_focus_move_then_five_letters_records_no_letter group=native
+stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded group=native
+stall::helper_stall_fixture group=native
+stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front group=native
+stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab group=native
+stall::tab_then_letters_while_the_program_serves_sent_messages_150_ms group=native
+stall::tab_then_letters_while_the_program_serves_sent_messages_2000_ms group=native
+stall::tab_then_letters_while_the_program_serves_sent_messages_200_ms group=native
+stall::tab_then_letters_while_the_program_serves_sent_messages_300_ms group=native
+stall::tab_then_letters_while_the_program_serves_sent_messages_600_ms group=native
+stall::tab_then_letters_while_the_program_sleeps_150_ms group=native
+stall::tab_then_letters_while_the_program_sleeps_2000_ms group=native
+stall::tab_then_letters_while_the_program_sleeps_200_ms group=native
+stall::tab_then_letters_while_the_program_sleeps_300_ms group=native
+stall::tab_then_letters_while_the_program_sleeps_600_ms group=native
+stall::the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded group=native
+stall::the_round_count_of_the_stall_tests group=native
+stop_with_a_full_sink group=native
+the_fault_line_allocates_nothing group=native
+the_first_own_read_after_a_start_reads_the_focused_password_field group=native
+title_event_on_a_switch_to_a_window_with_a_fixed_title group=native
+x12_screen_source_fifteen_start_stop_cycles group=native
+x13_frames_on_a_static_screen group=native
+x14_foreground_app_of_a_hosted_app group=native
+x15_a_held_key group=native
+x1_keystrokes_typed_into_a_password_field group=native
+x2_window_title_events_for_other_windows_and_controls group=native
+x3_attribution_before_the_first_foreground_change group=native
+x5_screen_source_stop_and_start_again group=native
+x7_capture_border_on_the_screen group=native
+x8_raw_input_across_the_integrity_boundary group=native
+x9_screen_source_across_a_display_mode_change group=native
 EOF
 }
 
@@ -170,7 +178,7 @@ ledger_check() {
   [ -f "$ledger" ] || fail "$ledger is missing: $fix"
   tr -d '\r' <"$ledger" >"$work/ledger" || fail "$ledger cannot be read"
   ! grep -q '^measured run=' "$work/ledger" || fail "$ledger holds a line of the form measured run=, which records no attempts: $fix"
-  attempt_form='^measured attempt=[0-9]+ run=[0-9]+ job=[0-9]+ form=long result=(pass|fail) commit=[0-9a-f]{40} wf=[^ ]+ short_controls=[^ ]+ second_controls_taken=[0-9]+ slipped_controls=[0-9]+( |$)'
+  attempt_form='^measured attempt=[0-9]+ run=[0-9]+ job=[0-9]+ form=long result=(pass|fail) commit=[0-9a-f]{40} wf=[^ ]+ wf_native=[^ ]+ wf_browser=[^ ]+ short_controls=[^ ]+ second_controls_taken=[0-9]+ slipped_controls=[0-9]+( |$)'
   grep '^measured attempt' "$work/ledger" >"$work/attempts"
   [ -s "$work/attempts" ] || fail "$ledger records no attempt: $fix"
   ! grep -v -q -E "$attempt_form" "$work/attempts" || fail "$ledger holds an attempt line that is not in the form of the long form: $fix"
@@ -192,6 +200,28 @@ ledger_check() {
   esac
   ! sed '$d' "$work/attempts" | grep -q ' result=pass ' || fail "$ledger records a passed attempt before its newest one: $fix"
   run=$(printf '%s\n' "$newest" | sed -E 's/^measured attempt=[0-9]+ run=([0-9]+) .*/\1/')
+  sums=$(printf '%s\n' "$newest" | awk '
+    function field(line, key,   rest) {
+      if (!match(line, " " key "=[^ ]+")) return ""
+      return substr(line, RSTART + length(key) + 2, RLENGTH - length(key) - 2)
+    }
+    function count(list, key,   n, parts, i, kv) {
+      n = split(list, parts, ",")
+      for (i = 1; i <= n; i++) { split(parts[i], kv, "="); if (kv[1] == key) return kv[2] + 0 }
+      return -1
+    }
+    {
+      whole = field($0, "wf"); native = field($0, "wf_native"); browser = field($0, "wf_browser")
+      bad = ""
+      split("total pass known_defect fail", keys, " ")
+      for (i = 1; i <= 4; i++) {
+        k = keys[i]
+        if (count(native, k) < 0 || count(browser, k) < 0 || count(whole, k) < 0 || count(native, k) + count(browser, k) != count(whole, k)) bad = bad " " k
+      }
+      print bad
+    }')
+  [ -z "$sums" ] ||
+    fail "the newest attempt that $ledger records gives functional lines of the two scripts that do not sum to its whole line in:$sums: $fix"
   sed -n -E 's/^measured (tree|blob) path=([^ ]*) id=[0-9a-f]+$/\2/p' "$work/ledger" | sort >"$work/ledger-paths" ||
     fail "$ledger cannot be read"
   ledger_paths | sort >"$work/listed-paths" || fail "the list of the ledger's paths cannot be read"
@@ -434,7 +464,21 @@ measure() {
   else
     expected_tests >"$work/expected"
   fi
-  cut -d ' ' -f 1 "$work/expected" | sort >"$work/expected-names" || fail "the expected list cannot be read"
+  awk '{
+      id = "-"; grp = ""; scope = "-"
+      for (i = 2; i <= NF; i++) {
+        if ($i ~ /^group=/) grp = substr($i, 7)
+        else if ($i == "scope=long-only") scope = "long-only"
+        else if (id == "-") id = $i
+      }
+      if (grp == "") grp = "native"
+      print $1 "\t" grp "\t" scope "\t" id
+    }' "$work/expected" >"$work/plan" || fail "the expected list cannot be read"
+  stray=$(awk -F '\t' '$2 != "native" && $2 != "browser" { print $1 }' "$work/plan" | tr '\n' ' ')
+  [ -z "$stray" ] || fail "the list puts these tests in neither script (the group is native or browser): ${stray% }"
+  twice=$(cut -f 1 "$work/plan" | sort | uniq -d | tr '\n' ' ')
+  [ -z "$twice" ] || fail "the list names these tests more than once, so a test stands in both scripts or twice in one: ${twice% }"
+  cut -f 1 "$work/plan" | sort >"$work/expected-names" || fail "the expected list cannot be read"
 
   cargo test --locked -p halvo-capture --test windows_functional --no-run --message-format json >"$work/build.json" ||
     fail "the test build failed: cargo test --no-run exited $?"
@@ -467,11 +511,29 @@ measure() {
   known=0
   fixed=0
   failed=0
+  long_only=0
+  ran=0
   index=0
+  ledger_view=
+  [ ! -f "$ledger" ] ||
+    ledger_view=$(tr -d '\r' <"$ledger" | sed -n 's/^measured view path=crates\/halvo-capture without=macos-only id=\([0-9a-f]*\)$/\1/p')
   while IFS= read -r test; do
     index=$((index + 1))
     log=$work/test-$index.log
-    want_id=$(awk -v test="$test" '$1 == test { print $2 }' "$work/expected")
+    test_group=$(awk -F '\t' -v test="$test" '$1 == test { print $2 }' "$work/plan")
+    [ "$test_group" = "$group" ] || continue
+    scope=$(awk -F '\t' -v test="$test" '$1 == test { print $3 }' "$work/plan")
+    if [ "$scope" = long-only ] && [ "$form" = short ]; then
+      [ -n "$ledger_view" ] ||
+        fail "$test runs in the long form alone, and $ledger holds no ledger id of the tree that a long run read for it"
+      long_only=$((long_only + 1))
+      line="WF $test result=long-form-only ledger=$ledger_view"
+      printf '%s\n' "$line"
+      printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+      continue
+    fi
+    ran=$((ran + 1))
+    want_id=$(awk -F '\t' -v test="$test" '$1 == test && $4 != "-" { print $4 }' "$work/plan")
     run_test "$test" "$log"
     code=$?
     judge "$test" "$code" "$log" "$want_id"
@@ -493,6 +555,10 @@ measure() {
   while IFS= read -r test; do
     index=$((index + 1))
     log=$work/test-$index.log
+    [ -f "$log" ] || continue
+    if tr -d '\r' <"$log" | grep -q -E '(^| )counted_rounds=0( |$)'; then
+      fail "$test ran zero rounds of a phase that it names"
+    fi
     if [ "$test" = "$form_test" ]; then
       form_line=$(tr -d '\r' <"$log" | sed -E -n 's/^(.* )?(form=(short|long) )/\2/p' | tail -n 1)
       tr -d '\r' <"$log" | sed -E -n 's/^(.* )?left_out /WF left out: /p' >"$work/left-out"
@@ -501,7 +567,7 @@ measure() {
     same=$(tr -d '\r' <"$log" | grep -c -E "(^| )form=$form ")
     [ "$any" = "$same" ] || fail "$test printed a line of another form than $form"
   done <"$work/names"
-  if grep -q -x -F "$form_test" "$work/names"; then
+  if [ "$group" = native ] && grep -q -x -F "$form_test" "$work/names"; then
     case $form_line in
       "form=$form "*) ;;
       *) fail "$form_test printed no line of the form $form" ;;
@@ -541,7 +607,8 @@ measure() {
     in_log=$(tr -d '\r' <"$log" | grep -c -E "(^| )after_start_state=(met|not_met)( |$)")
     runs_after_start=$((runs_after_start + in_log))
   done
-  line="WF short controls$short second_controls_taken=$seconds_taken slipped_controls=$slipped after_start_unknown=$met/$runs_after_start"
+  line="WF short controls$short second_controls_taken=$seconds_taken slipped_controls=$slipped"
+  [ "$group" != browser ] || line="$line after_start_unknown=$met/$runs_after_start"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
 
@@ -557,11 +624,11 @@ measure() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done
 
-  line="WF total=$total pass=$passed known_defect=$known fail=$((failed + fixed))"
+  line="WF total=$((ran + long_only)) pass=$passed known_defect=$known long_form_only=$long_only fail=$((failed + fixed)) group=$group"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   loop_failed=0
-  [ "$form" = short ] || loops
+  [ "$form" = short ] || [ "$group" != native ] || loops
   [ "$fixed" -eq 0 ] || fail "$fixed listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
   [ "$seconds_taken" -le 1 ] ||
@@ -594,6 +661,8 @@ launch() {
     STUB_TF=$work/bin/tf-stub
     WF_EXPECTED_FILE=$expected_file
     STUB_SHUTDOWN_LINE=$test_file_shutdown_line
+    WF_GROUP=$group_knob
+    export WF_GROUP
     STUB_LIB=$work/bin/lib-stub
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_TF WF_EXPECTED_FILE STUB_EXE STUB_LIST_EXIT
     export STUB_SHUTDOWN_LINE STUB_LIB STUB_LIB_EXE STUB_LIB_FAIL
@@ -679,6 +748,7 @@ reset_knobs() {
   form_word=
   ledger_knob=
   repo_knob=
+  group_knob=$group
   loop_list=
   STUB_LIB_EXE=one
   STUB_LIB_FAIL=
@@ -829,6 +899,10 @@ case $kind in
     printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
     exit 101
     ;;
+  zero-rounds)
+    printf 'TF %s browser=edge phase=swap-timer rounds=1 counted_rounds=0\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
   zero)
     printf '\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s\n\n'
     exit 0
@@ -893,8 +967,8 @@ make_ledger_repo() {
     }
     ledger_at() {
       commit=$(git rev-parse "$1") || exit 2
-      printf 'measured attempt=1 run=6 job=60 form=long result=fail commit=%s wf=total=3,fail=1 short_controls=gate_not_clear=1,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=0\n' "$commit"
-      printf 'measured attempt=2 run=6 job=61 form=long result=pass commit=%s wf=total=3,fail=0 short_controls=gate_not_clear=0,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=1\n' "$commit"
+      printf 'measured attempt=1 run=6 job=60 form=long result=fail commit=%s wf=total=3,pass=2,known_defect=0,fail=1 wf_native=total=2,pass=1,known_defect=0,fail=1 wf_browser=total=1,pass=1,known_defect=0,fail=0 short_controls=gate_not_clear=1,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=0\n' "$commit"
+      printf 'measured attempt=2 run=6 job=61 form=long result=pass commit=%s wf=total=3,pass=2,known_defect=1,fail=0 wf_native=total=2,pass=2,known_defect=0,fail=0 wf_browser=total=1,pass=0,known_defect=1,fail=0 short_controls=gate_not_clear=0,late_read_no_latch=0,other=0 second_controls_taken=0 slipped_controls=1\n' "$commit"
       view=$(crate_view_id "$1") || exit 2
       printf 'measured view path=crates/halvo-capture without=macos-only id=%s\n' "$view"
       ledger_paths | while read -r path; do
@@ -938,6 +1012,8 @@ make_ledger_repo() {
   sed -E 's#^(measured lock path=Cargo.lock crates=windows id=).*#\10000000000000000000000000000000000000000#' \
     "$right_ledger" >"$work/ledger-lock" || exit 2
   grep -v 'path=scripts/r1/ci.d/50-windows-functional.sh ' "$right_ledger" >"$work/ledger-paths" || exit 2
+  sed 's/ wf_browser=total=1,pass=0,known_defect=1,fail=0 / wf_browser=total=1,pass=0,known_defect=0,fail=0 /' "$right_ledger" >"$work/ledger-sums" || exit 2
+  grep -v '^measured view ' "$right_ledger" >"$work/ledger-no-view" || exit 2
 }
 
 self_test() {
@@ -951,13 +1027,19 @@ self_test() {
   wrong=
   small="c1_raw_input${nl}helper_child_window${nl}known_defect::x1_password RR-windows-01"
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
+  if [ "$group" = browser ]; then
+    set_of_fixtures=browser_fixtures
+    failing_fixtures=5
+  else
+    set_of_fixtures=fixtures
+  fi
   reset_knobs
   running=0
   pass=launch
-  fixtures
+  $set_of_fixtures
   wait
   pass=judge
-  fixtures
+  $set_of_fixtures
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
@@ -970,49 +1052,83 @@ self_test() {
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
 }
 
+browser_fixtures() {
+  mixed="c1_raw_input${nl}browser::a_page_test group=browser${nl}known_defect::a_held_swap W3-7-Q2i group=browser scope=long-only"
+  mixed_spec="c1_raw_input|pass${nl}browser::a_page_test|pass${nl}known_defect::a_held_swap|defect|W3-7-Q2i"
+  expected=$mixed
+  check the-browser-script-runs-its-own-tests PASS "$mixed_spec" \
+    "${nl}WF browser::a_page_test result=pass${nl}" \
+    "${nl}WF known_defect::a_held_swap result=long-form-only ledger=" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" \
+    "${nl}WF total=2 pass=1 known_defect=0 long_form_only=1 fail=0 group=browser${nl}" \
+    "${nl}PASS 52-windows-browser" "!${nl}WF c1_raw_input result="
+  expected="browser::after_a group=browser${nl}browser::after_b group=browser"
+  check the-runs-after-a-start-are-counted PASS "browser::after_a|after-start-met${nl}browser::after_b|after-start-not-met" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=1/2${nl}" "${nl}PASS 52-windows-browser"
+  expected=$mixed
+  ledger_knob=$work/ledger-no-view
+  check a-long-form-only-test-with-no-ledger-id FAIL "$mixed_spec" \
+    "FAIL 52-windows-browser (known_defect::a_held_swap runs in the long form alone, and $work/ledger-no-view holds no ledger id"
+  expected="c1_raw_input${nl}browser::a_page_test group=nowhere"
+  check a-test-in-neither-script FAIL "c1_raw_input|pass${nl}browser::a_page_test|pass" \
+    "FAIL 52-windows-browser (the list puts these tests in neither script (the group is native or browser): browser::a_page_test)"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser${nl}browser::a_page_test group=native"
+  check a-test-in-both-scripts FAIL "c1_raw_input|pass${nl}browser::a_page_test|pass" \
+    "FAIL 52-windows-browser (the list names these tests more than once, so a test stands in both scripts or twice in one: browser::a_page_test)"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser"
+  check a-test-that-ran-zero-rounds FAIL "c1_raw_input|pass${nl}browser::a_page_test|zero-rounds" \
+    "FAIL 52-windows-browser (browser::a_page_test ran zero rounds of a phase that it names)"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser"
+  ledger_knob=$work/ledger-sums
+  check the-two-scripts-lines-do-not-sum-to-the-ledgers FAIL "c1_raw_input|pass${nl}browser::a_page_test|pass" \
+    "do not sum to its whole line in: known_defect"
+}
+
 fixtures() {
   check every-test-right PASS "$right" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
+    "${nl}WF total=3 pass=2 known_defect=1 long_form_only=0 fail=0 group=native${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
   real=$(expected_tests | awk -v form="$form_test" '{
-    if (NF == 2) print $1 "|defect|" $2; else if ($1 == form) print $1 "|form"; else print $1 "|pass"
+    id = ""
+    for (i = 2; i <= NF; i++) if ($i !~ /^group=/ && $i !~ /^scope=/ && id == "") id = $i
+    if (id != "") print $1 "|defect|" id; else if ($1 == form) print $1 "|form"; else print $1 "|pass"
   }')
-  real_total=$(expected_tests | grep -c '')
-  real_known=$(expected_tests | awk 'NF == 2' | grep -c '')
+  real_total=$(expected_tests | grep -c ' group=native$')
+  real_known=0
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
-    "${nl}WF known_defect::c5_watch_armed_while_the_per_user_key_is_absent result=known-defect id=RR-windows-12${nl}" \
+    "${nl}WF c1_raw_input_delivers_keystrokes_and_pointer_events result=pass${nl}" "!${nl}WF known_defect::" "!${nl}WF browser::" \
     "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
     "${nl}WF form=short counted_rounds_at_each_wait_ms=150:20,200:5${nl}" \
     "${nl}WF left out: 15 of the 20 counted rounds at the wait of 200 ms${nl}" \
     "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture" \
-    "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}ledger: " "${nl}WF form=short seconds=" \
+    "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known long_form_only=0 fail=0 group=native${nl}ledger: " "${nl}WF form=short seconds=" \
     "${nl}PASS $name"
   check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}shutdown_not_ok source=keyboard count=1${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
+    "${nl}WF total=3 pass=2 known_defect=1 long_form_only=0 fail=0 group=native${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name" \
+    "${nl}WF total=3 pass=2 known_defect=1 long_form_only=0 fail=0 group=native${nl}ledger: the measured run 6 of the long form, attempt 2, " "${nl}WF form=short seconds=" "${nl}PASS $name" \
     "!${nl}WF ghost_test_not_in_the_file" "!${nl}WF total=99" "!${nl}PASS $name${nl}" \
     "!${nl}WF c1_raw_input result=known-defect"
 
   check kd-test-passes FAIL "c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|pass" \
     "${nl}WF known_defect::x1_password result=FIXED-BUT-LISTED${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=0 fail=1${nl}FAIL $name (1 listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect)"
+    "${nl}WF total=3 pass=2 known_defect=0 long_form_only=0 fail=1 group=native${nl}FAIL $name (1 listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect)"
   check kd-test-fails-without-the-marker FAIL "c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|inconclusive" \
     "${nl}$name: known_defect::x1_password: exit 101 without a KNOWN-DEFECT line${nl}WF known_defect::x1_password result=FAIL${nl}" \
-    "${nl}WF total=3 pass=2 known_defect=0 fail=1${nl}FAIL $name (1 tests failed)"
+    "${nl}WF total=3 pass=2 known_defect=0 long_form_only=0 fail=1 group=native${nl}FAIL $name (1 tests failed)"
   check zero-tests-ran FAIL "c1_raw_input|zero${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0, and not one test ran and passed${nl}WF c1_raw_input result=FAIL${nl}" \
-    "${nl}WF total=3 pass=1 known_defect=1 fail=1${nl}FAIL $name (1 tests failed)"
+    "${nl}WF total=3 pass=1 known_defect=1 long_form_only=0 fail=1 group=native${nl}FAIL $name (1 tests failed)"
   check empty-list FAIL '' "FAIL $name (the test list is empty)"
   check control-failed FAIL "c1_raw_input|inconclusive${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 101${nl}WF c1_raw_input result=FAIL${nl}" \
-    "${nl}WF total=3 pass=1 known_defect=1 fail=1${nl}FAIL $name (1 tests failed)"
+    "${nl}WF total=3 pass=1 known_defect=1 long_form_only=0 fail=1 group=native${nl}FAIL $name (1 tests failed)"
   check two-markers FAIL "c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|two-markers|RR-windows-01" \
     "${nl}$name: known_defect::x1_password: exit 101 with more than one KNOWN-DEFECT line${nl}WF known_defect::x1_password result=FAIL${nl}"
   check a-marker-inside-a-longer-line FAIL "c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|marker-mid|RR-windows-01" \
@@ -1058,13 +1174,11 @@ fixtures() {
   check a-regular-test-passes-with-a-panic-on-another-thread FAIL "c1_raw_input|pass-with-panic${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}$name: c1_raw_input: exit 0 with a panic on a thread of the test${nl}"
   check a-short-control-is-summed-by-its-state FAIL "c1_raw_input|short-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=0/0${nl}" "FAIL $name (1 tests failed)"
-  check the-runs-after-a-start-are-counted PASS "c1_raw_input|after-start-met${nl}helper_child_window|after-start-not-met${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0 after_start_unknown=1/2${nl}" "${nl}PASS $name"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=0 slipped_controls=0${nl}" "FAIL $name (1 tests failed)"
   check one-second-control-is-taken PASS "c1_raw_input|second-control${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1 slipped_controls=0 after_start_unknown=0/0${nl}" "${nl}PASS $name"
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=1 other=0 second_controls_taken=1 slipped_controls=0${nl}" "${nl}PASS $name"
   check two-second-controls-in-one-run FAIL "c1_raw_input|second-control${nl}helper_child_window|second-control${nl}known_defect::x1_password|defect|RR-windows-01" \
-    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2 slipped_controls=0 after_start_unknown=0/0${nl}" \
+    "${nl}WF short controls gate_not_clear=0 late_read_no_latch=2 other=0 second_controls_taken=2 slipped_controls=0${nl}" \
     "FAIL $name (2 second controls were taken in this run, and more than one fails the run (ruling W3-18 (13)))"
   tool=no-such-timeout-tool
   check the-time-limit-tool-is-missing FAIL "$right" "FAIL $name (no-such-timeout-tool is not installed, and each test runs under its time limit)"
