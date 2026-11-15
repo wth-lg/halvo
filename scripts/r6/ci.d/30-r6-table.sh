@@ -45,9 +45,13 @@ enter_repo() {
     repo=$(git rev-parse --show-toplevel) || repo=
   fi
   if [ -z "$repo" ] || ! cd "$repo" 2>/dev/null; then
-    printf 'FAIL %s (cannot enter the repository)\n' "$name"
-    exit 2
+    setup_failed
   fi
+}
+
+setup_failed() {
+  printf 'FAIL %s (setup)\n' "$name"
+  exit 1
 }
 
 fail_now() {
@@ -102,7 +106,7 @@ read_commit() {
     }
   ' || fail_now
   committed=$scratch/commit
-  mkdir "$committed" || exit 2
+  mkdir "$committed" 2>/dev/null || setup_failed
   if ! git -c core.autocrlf=false archive --format=tar -o "$scratch/commit.tar" "$commit" -- crates/halvo-route scripts/r6 \
     crates/halvo-route-gate/tests/data || ! tar -xf "$scratch/commit.tar" -C "$committed"; then
     printf 'tree commit=unreadable\n'
@@ -336,8 +340,7 @@ measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   if ! mkdir -p "$artifacts" 2>/dev/null || ! scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX" 2>/dev/null); then
-    printf 'FAIL %s (cannot make a directory)\n' "$name"
-    exit 2
+    setup_failed
   fi
   CARGO_TERM_QUIET=false
   CARGO_TERM_VERBOSE=false
@@ -628,15 +631,15 @@ FAIL $name (specimen)"
 
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
   code=$?
-  outside "$code" "$unentered" 'FAIL 30-r6-table (cannot enter the repository)' cannot-enter-the-repository
+  outside "$code" "$unentered" 'FAIL 30-r6-table (setup)' cannot-enter-the-repository
   : >"$work/a-file" || exit 2
   unmade=$(CI_D_REPO=$work/repo CI_D_ARTIFACTS=$work/a-file/artifacts sh "$self" 2>&1)
   code=$?
-  outside "$code" "$unmade" 'FAIL 30-r6-table (cannot make a directory)' cannot-make-a-directory
+  outside "$code" "$unmade" 'FAIL 30-r6-table (setup)' cannot-make-a-directory
 }
 
 outside() {
-  if [ "$1:$2" = "2:$3" ]; then
+  if [ "$1:$2" = "1:$3" ]; then
     printf 'case %s/%s want=FAIL got=FAIL\n' "$name" "$4"
     rejected=$((rejected + 1))
   else
