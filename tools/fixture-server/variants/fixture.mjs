@@ -15,6 +15,7 @@ export const VARIANTS = [
   'get_effect',
   'no_reply',
   'amount_changes',
+  'slow_charge',
 ];
 
 export const SEEDS = [1, 2, 3];
@@ -34,6 +35,9 @@ export const COOKIES = { session: 'halvo_fx_session', ref: 'halvo_fx_ref', devic
 const BODY_LIMIT = 1024 * 1024;
 const DAY_MS = 86400000;
 const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);
+// With slow_charge the answer to a charge comes this long after the charge is recorded, so the form
+// stays on the page meanwhile: longer than a driver's settle of 2,500 ms (ruling CP-179, H9 (c)).
+export const SLOW_CHARGE_MS = 6000;
 
 export function canonicalVariants(names) {
   return VARIANTS.filter((v) => names.includes(v));
@@ -486,6 +490,10 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
           total: amountOf(t),
           instrument,
         });
+      }
+      if (has('slow_charge')) {
+        setTimeout(() => html(ctx, 200, page.charged(kind, opts())), SLOW_CHARGE_MS);
+        return;
       }
       return html(ctx, 200, page.charged(kind, opts()));
     }

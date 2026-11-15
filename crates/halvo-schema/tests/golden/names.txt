@@ -22,6 +22,7 @@ allow_once
 analysis
 analysis_write
 answer
+answer_lost
 api
 app
 app_context
@@ -91,6 +92,8 @@ day
 decision
 decline
 declined
+defer_launch
+defer_ticks_failed
 delete
 desc
 digest
@@ -322,6 +325,7 @@ shortcut
 show
 sign
 sign_in
+sign_in_refused
 since
 site
 skip

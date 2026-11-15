@@ -1,6 +1,6 @@
 //! Windows DPAPI key custody.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use windows::Win32::Foundation::{LocalFree, HLOCAL};
 use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
@@ -9,7 +9,7 @@ use windows::Win32::Security::Cryptography::{
 use zeroize::Zeroizing;
 
 use super::file_root::{FileRoots, Protector};
-use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
+use super::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId, StoreKey, WrappedKey};
 
 const USER_SCOPE_NO_UI: u32 = CRYPTPROTECT_UI_FORBIDDEN;
 const DATA_DOES_NOT_DECODE: i32 = 0x8007_000D_u32 as i32;
@@ -105,6 +105,7 @@ impl Protector for Dpapi {
     }
 }
 
+#[expect(dead_code, reason = "win-5 removes the per-user roots path")]
 pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
     let local = std::env::var_os("LOCALAPPDATA").ok_or(CustodyError::NoRootDirectory)?;
     Ok(FileRoots::new(
@@ -114,15 +115,20 @@ pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
 }
 
 /// The release Windows custody: the store key wrapped under a per-store root
-/// that DPAPI protects for this user.
+/// that DPAPI protects for this user, in the roots directory that the caller
+/// passes.
 pub struct DpapiCustody {
     root_id: RootId,
+    roots: FileRoots<Dpapi>,
 }
 
 impl DpapiCustody {
-    /// Build a custody bound to a per-store root locator.
-    pub fn new(root_id: RootId) -> Self {
-        Self { root_id }
+    /// A custody bound to a per-store root id and the roots directory in use.
+    pub fn new(root_id: RootId, roots: PathBuf) -> Self {
+        Self {
+            root_id,
+            roots: FileRoots::new(roots, Dpapi),
+        }
     }
 }
 
@@ -135,20 +141,28 @@ impl KeyCustody for DpapiCustody {
         self.root_id
     }
 
-    fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        user_roots()?.wrap(self.root_id, key)
+    fn roots(&self) -> Option<&Path> {
+        Some(self.roots.dir())
+    }
+
+    fn wrap_store_key(&self, key: &StoreKey, label: KeyLabel) -> Result<WrappedKey, CustodyError> {
+        self.roots.wrap(self.root_id, label, key)
     }
 
     fn create_root(&self) -> Result<(), CustodyError> {
-        user_roots()?.create_root(self.root_id)
+        self.roots.create_root(self.root_id)
     }
 
-    fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        user_roots()?.unwrap(self.root_id, wrapped)
+    fn unwrap_store_key(
+        &self,
+        wrapped: &WrappedKey,
+        label: KeyLabel,
+    ) -> Result<StoreKey, CustodyError> {
+        self.roots.unwrap(self.root_id, label, wrapped)
     }
 
     fn destroy_root(&self) -> Result<(), CustodyError> {
-        user_roots()?.destroy_root(self.root_id)
+        self.roots.destroy_root(self.root_id)
     }
 }
 

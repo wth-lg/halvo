@@ -151,6 +151,10 @@ pub(in crate::coordinator) fn object<'a>(
 }
 
 impl<'a> Obj<'a> {
+    pub(in crate::coordinator) fn has(&self, key: &str) -> bool {
+        self.entries.iter().any(|(k, _)| k == key)
+    }
+
     pub(in crate::coordinator) fn exactly(&self, keys: &[&'static str]) -> Result<(), Refusal> {
         for (key, _) in &self.entries {
             if !keys.contains(&key.as_str()) {

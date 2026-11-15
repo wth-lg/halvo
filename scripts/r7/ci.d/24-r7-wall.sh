@@ -1,12 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/, and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 11 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob.
+# rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/, and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 15 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob, name-in-a-variable, case-in-text, quote-before-glob, backend-glob.
 # shellcheck disable=SC2016
 set -u
 name=24-r7-wall
 tab=$(printf '\t')
 contract='backend/contract/schema/v1.json backend/contract/routes/v1.json backend/contract/samples/v1.json backend/gate/prompt-budget.json'
-limits='names-v0 computed-path bare-module file-or-environment nul-byte model-side absolute-path both-sides-path unread-variable bare-operand bracket-glob'
+limits='names-v0 computed-path bare-module file-or-environment nul-byte model-side absolute-path both-sides-path unread-variable bare-operand bracket-glob name-in-a-variable case-in-text quote-before-glob backend-glob'
 r7_files='scripts/r7/ci.d/10-r7-layout.sh scripts/r7/ci.d/20-r7-backend-static.sh scripts/r7/ci.d/21-r7-backend-test.sh scripts/r7/ci.d/22-r7-backend-records.sh scripts/r7/ci.d/23-r7-machine-paths.sh scripts/r7/ci.d/24-r7-wall.sh scripts/r7/ci.d/25-r7-backend-licenses.sh scripts/r7/layout.txt scripts/r7/stamp-gate-records.sh'
 nlimits=$(awk -v l="$limits" 'BEGIN { print split(l, w, " ") }')
 
@@ -400,7 +400,7 @@ judge() {
       if (match(s, arm_re)) return RLENGTH
       return 0
     }
-    function line_of(s,   rest, off, tok, before, pos) {
+    function line_of(s,   rest, off, tok, before, pos, run) {
       chain_mode = 0
       pattern_end = 0
       s = normal(s)
@@ -421,10 +421,29 @@ judge() {
         token(tok, s, pos)
         if (refused[side] + 0 > before) return
       }
+      run = longest_run(s)
+      if (run > max_run) { problem(where, "holds a run of " run " strings joined by a comma, \").join(\" or \"/\", more than the " max_run " that the check reads as one chain; put the strings on several lines, or ask for a ruling"); return }
       before = refused[side] + 0
       chains(s)
       if (refused[side] + 0 > before) return
       from_top(s)
+    }
+    function longest_run(s,   rest, off, n, st, en, run, longest) {
+      rest = s
+      off = 0
+      n = 0
+      run = 0
+      longest = 0
+      while (match(rest, string_re)) {
+        n++
+        st[n] = off + RSTART
+        en[n] = off + RSTART + RLENGTH - 1
+        off += RSTART + RLENGTH - 1
+        rest = substr(rest, RSTART + RLENGTH)
+        run = (n > 1 && substr(s, en[n - 1] + 1, st[n] - en[n - 1] - 1) ~ sep_gap) ? run + 1 : 1
+        if (run > longest) longest = run
+      }
+      return longest
     }
     function top_path(c,   n, sg, i, d, kp, out) {
       n = split(c, sg, "/")
@@ -439,14 +458,31 @@ judge() {
       for (i = 1; i <= d; i++) out = out (i > 1 ? "/" : "") kp[i]
       return out
     }
-    function top_hit(c,   r) {
+    function glob_prefix(r,   n, sg, i, out) {
+      if (r !~ /[*?[]/) return r
+      n = split(r, sg, "/")
+      out = ""
+      for (i = 1; i <= n && sg[i] !~ /[*?[]/; i++) out = out (i > 1 ? "/" : "") sg[i]
+      return out
+    }
+    function top_hit(c,   r, g, what) {
       if (c ~ /^[A-Za-z]:[\/\\]/) return 0
       r = top_path(c)
-      if (!(r in known) || !index(r, "/") || path == "backend/scripts/names-v0.sh") return 0
-      if (side == "backend" && tracked("backend/" r)) return 0
-      if (side == "backend" && !inside(r)) problem(where, "names " r ", a tracked file of the app, read from the top of the repository: " c fix_top)
-      else if (side == "app" && inside(r)) problem(where, "names " r ", a tracked file of backend/ or formal/r7-ledger/, read from the top of the repository: " c fix_top)
-      else return 0
+      if (path == "backend/scripts/names-v0.sh") return 0
+      if (side == "backend") {
+        g = glob_prefix(r)
+        if (g != r) what = ", a glob over " g ", a tracked directory of the app"
+        else if (r in known) what = ", a tracked file of the app"
+        else what = ", a tracked directory of the app"
+        if (!index(r, "/") || !((g in tracked_dir) || (g == r && (r in known)))) return 0
+        if (tracked("backend/" g) || inside(g)) return 0
+        problem(where, "names " r what ", read from the top of the repository: " c ((r in known) ? fix_top : fix_top_dir))
+        return 1
+      }
+      if (!(r in known) || !index(r, "/")) return 0
+      if (index(path, "account/schema/") == 1 && (r in copied)) return 0
+      if (!inside(r)) return 0
+      problem(where, "names " r ", a tracked file of backend/ or formal/r7-ledger/, read from the top of the repository: " c fix_top)
       return 1
     }
     function from_top(s,   rest, off, n, i, j, st, en, sv, c) {
@@ -454,6 +490,12 @@ judge() {
       while (match(rest, token_chars)) {
         if (top_hit(substr(rest, RSTART, RLENGTH))) return
         rest = substr(rest, RSTART + RLENGTH)
+      }
+      rest = s
+      while (match(rest, bracket_token)) {
+        c = substr(rest, RSTART, RLENGTH)
+        rest = substr(rest, RSTART + RLENGTH)
+        if (index(c, "[") && top_hit(c)) return
       }
       n = 0
       rest = s
@@ -506,6 +548,7 @@ judge() {
     BEGIN {
       qs = "[\"" q "`]"
       token_chars = "[^][ \t\"" q "`()<>,;{}|&=]+"
+      bracket_token = "[^ \t\"" q "`()<>,;{}|&=]+"
       quoted_word = qs "[A-Za-z0-9_.-]+" qs
       quotes_at_end = qs "+$"
       sep = qs "[ \t]*(\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*" qs
@@ -531,6 +574,7 @@ judge() {
       arm_re = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[)]"
       arm_cont = "^[ \t]*" arm_word "([ \t]*[|][ \t]*" arm_word ")*[ \t]*[|][ \t]*\\\\[ \t]*\r?$"
       fix_top = "; rename the file, or reword the string so that it spells no path of the other side, or ask for a ruling"
+      fix_top_dir = "; write a pattern with no slash under a cwd joined from a lone name, as globSync(\"*.json\", { cwd: join(here, \"fixtures\") }), or reword the string so that it spells no path of the other side, or ask for a ruling"
       sep_gap = "^[ \t]*(,|\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*$"
       defaults = "\\$\\{[a-z_][a-z0-9_]*:?[-=?+][ \t]*" word "\\}"
       braces = "\\{([^{}]*,)?[ \t]*backend[ \t]*(,[^{}]*)?\\}/"
@@ -542,6 +586,7 @@ judge() {
       fix_four = "; name the four files whole in account/schema/, or ask for a ruling"
       fix_name = "; give it another name, or ask for a ruling"
       fix_ask = "; ask for a ruling"
+      max_run = 64
       split(contract, list, " ")
       for (k in list) copied[list[k]] = 1
       nr7 = split(r7, r7list, " ")
@@ -820,7 +865,9 @@ EOF
   the next function, and a definition on one line are refused.
 - account/schema/, for the four files of the wire contract named whole:
   backend/contract/schema/v1.json, backend/contract/routes/v1.json,
-  backend/contract/samples/v1.json and backend/gate/prompt-budget.json.
+  backend/contract/samples/v1.json and backend/gate/prompt-budget.json. The
+  reading from the top below keeps this exception too, so vendored.txt and
+  vendor.sh there may name the four files (contract 8).
 
 Readings that refuse an honest line, with the form to write in its place:
 - in backend/, a variable that starts a path stands for backend/: write
@@ -833,6 +880,13 @@ Readings that refuse an honest line, with the form to write in its place:
   "$(dirname "$0")/../gate/prompt-budget.json";
 - in the app, a comment that names a path under backend/ is refused: write it
   in a .md file;
+- on either side, a line that the check reads (one that git grep hands on
+  because it holds a climb, an anchor or a name of the other side) and that
+  holds a run of more than 64 strings joined by a comma, ").join(" or "/" is
+  refused, because the chains of a run take
+  time that grows with the square of its strings (400 strings took minutes):
+  put the strings on several lines. A line of many strings in shorter runs
+  is read whole;
 - on either side, the strings of one line are placed each by itself, as the
   chain of a run of strings joined by a comma, ").join(" or "/", and as each
   shorter chain of that run (a shorter chain is refused when it names a
@@ -843,7 +897,16 @@ Readings that refuse an honest line, with the form to write in its place:
   repository, whatever stands before it and whatever the file's own
   directory is, so a text in a file of one side that spells in full, with at
   least one slash, a tracked file of the other side from the top is refused:
-  rename the file or reword the text. This reading has three limits, each
+  rename the file or reword the text. In backend/ this reading also refuses
+  a tracked directory of the app spelled so (crates/halvo-capture, as a
+  listing whose files are then read or as cp -R after cd .. && cd ..), and a
+  glob whose part before its first glob character is a tracked directory of
+  the app (crates/halvo-capture/src/*.rs, crates/**/*.rs, li?.rs, li[b].rs,
+  also a [ inside a directory's name, as crates/halvo-[c]apture/src/lib.rs);
+  a lone name of a top-level directory (join(root, "crates")) is not read
+  so, and a glob whose first part is a glob is not either. To pass, write a
+  pattern with no slash under a cwd joined from a lone name, as
+  globSync("*.json", { cwd: join(here, "fixtures") }). This reading has three limits, each
   held by a passing fixture p785-limit-<kind>: a lone name of a top-level
   file (join(dir, "Cargo.toml")) is not read from the top; a path without its
   extension (crates/x/src/lib) is not read from the top; a path that the
@@ -852,9 +915,17 @@ Readings that refuse an honest line, with the form to write in its place:
   path is not read from the top (the limit absolute-path). As part of the
   limit names-v0, backend/scripts/names-v0.sh is exempt from it;
 - in the app, the word backend assigned to a name, as a label or as an
-  attribute value is refused: give it another name.
+  attribute value is refused: give it another name;
+- in a shell script of the app, a case on one line whose arm has a glob
+  pattern, as case $f in */test/*) return 0 ;; esac, is refused, because a
+  line that opens a block is not read as an arm: write the case over
+  several lines, one arm to a line;
+- in a shell script of the app, an esac in a string or in a trailing
+  comment of an arm closes the block early (the limit case-in-text), so a
+  later arm with a glob pattern is refused: word the string or the comment
+  without esac.
 
-What it does not refuse, the 11 named limits, each held by a passing fixture
+What it does not refuse, the 15 named limits, each held by a passing fixture
 known-limit-<name> of the self-test:
   known limit names-v0: backend/scripts/names-v0.sh reads crates/halvo-capture/src/event.rs of the app's tree through the variable HALVO_APP_REPO, as ruled.
   known limit computed-path: a path that code computes, such as a climb that code repeats ("../".repeat(2)), a dirname of a dirname, pathlib's parents[n], a variable joined on a later line, or a word that code or the shell joins from pieces ("back" + "end", back""end).
@@ -867,6 +938,10 @@ known-limit-<name> of the self-test:
   known limit unread-variable: in backend/, a variable that the file assigns twice or from another form than the five: a climb after it is placed by the index alone, so a path that the index does not track passes.
   known limit bare-operand: the bare word backend as an operand of a command outside the list above, such as stat backend.
   known limit bracket-glob: a bracket glob such as [b]ackend/x.
+  known limit name-in-a-variable: in backend/, a part of a path held in a variable between the strings, as join(root, "crates", crate, "src", "lib.rs") after crate = "halvo-capture": the variable breaks the run of strings, so the reading from the top sees no path of the app.
+  known limit case-in-text: in a shell script, text that is no code moves the tracking of a case block: a string or a here-document that holds case ... in opens a block, a trailing comment that ends in ;; ends an arm, so the next line, a glob command before | and a backslash, is read as a pattern and its glob is not counted; an esac in a string or in a trailing comment closes a block early, so an honest arm after it is refused.
+  known limit quote-before-glob: an unquoted glob right after a closing quote, as "$repo"/*/test/ledger/cases.ts, is taken as quoted, so it is not counted when the path after it is a file of backend/.
+  known limit backend-glob: in backend/, a glob whose first part is a glob, as */halvo-capture/src/lib.rs, which the shell can open as a path of the app, and a glob whose only glob characters are none of *, ? and [, as an extglob crates/halvo-capture/src/@(lib|event).rs or a brace group crates/{halvo-capture,halvo-route}/src/lib.rs.
 A glob without a letter, as */test/x, is counted when it can stand for
 backend and the path after it is a directory of backend/ or, in a word that
 the shell opens (no quote before it), a tracked file of backend/ (P7-89).
@@ -890,7 +965,13 @@ line after a line that ends an arm (;;, ;& or ;;&), and on the line after a
 pattern line that ends in | and a backslash; every other line of the block,
 as a line of an arm's body, is code for every rule. A line in a pattern's
 place that only looks like an arm is read as one, and a case or esac in a
-string or a here-document is counted as one.
+string or a here-document is counted as one (the limit case-in-text).
+
+The newest line of CHANGELOG.md that names this script lists its named
+limits as "the N named limits of --help: a, b, ..." in the order of --help,
+and the self-test reads that line. A stale line of the script that a union
+merge brings back above it is deleted by hand, as AGENTS.md's row on the
+changelog says.
 
 Exit status: 0 PASS, 1 FAIL. --self-test runs its cases on throwaway
 repositories under TMPDIR and removes them when it ends.
@@ -1172,7 +1253,7 @@ texts_case() {
   want=$1
   case_name=$2
   rule=$(sed -n 's/^# rule: //p' "$0") || exit 2
-  changelog=$(grep -F 'scripts/r7/ci.d/24-r7-wall.sh' "${CI_D_REPO:-.}/CHANGELOG.md") || changelog=
+  changelog=$(awk -v s='scripts/r7/ci.d/24-r7-wall.sh' '/^## / { if (found) exit } index($0, s) && index($0, " named limits of --help: ") { line = $0; found = 1 } END { print line }' "${4:-${CI_D_REPO:-.}/CHANGELOG.md}") || changelog=
   usage >"$scratch/help.txt" || exit 2
   sed -n 's/^  known limit \([a-z0-9-]*\): .*/\1/p' "$scratch/help.txt" >"$scratch/help-names.txt" || exit 2
   help_names=$(tr '\n' ' ' <"$scratch/help-names.txt") || exit 2
@@ -1588,10 +1669,10 @@ const text = readFileSync(here + "/../crates/halvo-capture/src/lib.rs", "utf8");
   case_with j1-backend-python-path-pieces backend/scripts/peek_path.py 'TEXT = Path("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_path.py:1: reads crates'
   case_with j2-backend-python-joinpath backend/scripts/peek_joinpath.py 'TEXT = Path(__file__).parent.joinpath("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_joinpath.py:1: reads crates'
 
-  case_with p785-a-backend-joins-the-repository-root-and-app-pieces backend/scripts/root.mjs 'const src = readFileSync(join(execSync("git rev-parse --show-toplevel").toString().trim(), "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root.mjs:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  case_with p785-a-backend-joins-the-repository-root-and-app-pieces backend/scripts/root.mjs 'const src = readFileSync(join(execSync("git rev-parse --show-toplevel").toString().trim(), "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root.mjs:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
   case_with p785-a-backend-joins-a-root-variable-and-app-pieces backend/scripts/root2.mjs 'const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
-const src = readFileSync(join(repoRoot, "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root2.mjs:2: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
-  case_with p785-b-backend-joins-os-pardir-and-app-pieces backend/scripts/pd.py 'text = open(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "crates", "halvo-capture", "src", "lib.rs")).read()' 'backend/scripts/pd.py:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+const src = readFileSync(join(repoRoot, "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root2.mjs:2: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  case_with p785-b-backend-joins-os-pardir-and-app-pieces backend/scripts/pd.py 'text = open(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "crates", "halvo-capture", "src", "lib.rs")).read()' 'backend/scripts/pd.py:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
   case_with p785-c-backend-cds-up-twice-and-reads-a-plain-app-path backend/scripts/cd2.sh 'cd .. && cd .. && cat crates/halvo-capture/src/lib.rs' 'backend/scripts/cd2.sh:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
   case_with p785-a-shell-twin-reads-the-app-after-the-root backend/scripts/top.sh 'TOP=$(git rev-parse --show-toplevel)
 cat "$TOP/crates/halvo-capture/src/lib.rs"' 'backend/scripts/top.sh:2: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
@@ -1690,6 +1771,71 @@ esac' 'read:scripts/k8.sh'
   esac
 }' 'read:scripts/k10.sh'
 
+  fixture f1c-l1-the-record-of-account-schema-names-a-contract-file
+  put backend/contract/schema/v1.json '{}'
+  put account/schema/vendored.txt 'f382 schema.v1.json backend/contract/schema/v1.json'
+  stage
+  expect PASS f1c-l1-the-record-of-account-schema-names-a-contract-file 'read:account/schema/vendored.txt'
+  fixture f1c-l1-the-vendor-script-copies-a-contract-file
+  put backend/contract/schema/v1.json '{}'
+  put account/schema/vendor.sh 'cp backend/contract/schema/v1.json account/schema/schema.v1.json'
+  stage
+  expect PASS f1c-l1-the-vendor-script-copies-a-contract-file 'read:account/schema/vendor.sh'
+  fixture f1c-l1-the-same-line-elsewhere
+  put backend/contract/schema/v1.json '{}'
+  put ui/backend/contract/schema/v1.json '{}'
+  put ui/vendor.sh 'cp ./backend/contract/schema/v1.json schema.v1.json'
+  stage
+  expect FAIL f1c-l1-the-same-line-elsewhere 'ui/vendor.sh:1: names backend/contract/schema/v1.json, a tracked file of backend/ or formal/r7-ledger/, read from the top'
+  fixture f1c-l1-another-backend-file-in-account-schema
+  put account/schema/backend/src/types.ts 'x'
+  put account/schema/vendor.sh 'cp ./backend/src/types.ts types.ts'
+  stage
+  expect FAIL f1c-l1-another-backend-file-in-account-schema 'account/schema/vendor.sh:1: names backend/src/types.ts, a tracked file of backend/ or formal/r7-ledger/, read from the top'
+  fixture f1c-w2-the-same-line-in-account-outside-account-schema
+  put backend/contract/schema/v1.json '{}'
+  put account/stub/backend/contract/schema/v1.json '{}'
+  put account/stub/vendor.sh 'cp ./backend/contract/schema/v1.json x'
+  stage
+  expect FAIL f1c-w2-the-same-line-in-account-outside-account-schema 'account/stub/vendor.sh:1: names backend/contract/schema/v1.json, a tracked file of backend/ or formal/r7-ledger/, read from the top'
+
+  case_with f1c-e57-a-backend-lists-an-app-directory-and-reads-its-files backend/scripts/list.mjs 'const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+for (const f of readdirSync(join(repoRoot, "crates", "halvo-capture", "src"))) console.log(readFileSync(join(repoRoot, "crates", "halvo-capture", "src", f), "utf8"));' 'backend/scripts/list.mjs:2: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  case_with f1c-e57-a-backend-globs-an-app-directory backend/scripts/glob.mjs 'const root = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+const files = globSync("crates/halvo-capture/src/*.rs", { cwd: root });' 'backend/scripts/glob.mjs:2: names crates/halvo-capture/src/*.rs, a glob over crates/halvo-capture/src, a tracked directory of the app, read from the top'
+  case_with f1c-e57-a-backend-globs-an-app-directory-in-the-shell backend/scripts/glob.sh 'cd .. && cd .. && cat crates/halvo-capture/src/*.rs' 'backend/scripts/glob.sh:1: names crates/halvo-capture/src/*.rs, a glob over crates/halvo-capture/src, a tracked directory of the app'
+  case_with f1c-e57-a-backend-globs-under-a-top-level-app-directory backend/scripts/glob2.mjs 'const files = globSync("crates/**/*.rs", { cwd: root });' 'backend/scripts/glob2.mjs:1: names crates/**/*.rs, a glob over crates, a tracked directory of the app'
+  case_with f1c-l2-a-backend-copies-an-app-crate-after-two-cds backend/scripts/cd3.sh 'cd .. && cd .. && cp -R crates/halvo-capture dist/capture' 'backend/scripts/cd3.sh:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  pass_with f1c-l2-a-backend-copies-its-own-directory-after-two-cds backend/scripts/cd4.sh 'cd .. && cd .. && cp -R backend/gate/checks dist/checks' 'read:backend/scripts/cd4.sh'
+  pass_with f1c-e57-a-backend-globs-a-directory-of-its-own-side-too backend/scripts/glob3.mjs 'const all = globSync("scripts/*.sh", { cwd: join(here, "..") });' 'read:backend/scripts/glob3.mjs'
+  pass_with f1c-e57-a-backend-globs-a-directory-that-nobody-tracks backend/scripts/glob4.mjs 'const out = globSync("dist/out/*.js", { cwd: join(here, "..") });' 'read:backend/scripts/glob4.mjs'
+  pass_with f1c-e57-a-lone-top-level-app-directory-is-not-read-from-the-top backend/scripts/lone.mjs 'const all = readdirSync(join(repoRoot, "crates"));' 'read:backend/scripts/lone.mjs'
+  case_with f1c-w1-a-backend-glob-with-a-question-mark backend/scripts/q.sh 'cd .. && cd .. && cat crates/halvo-capture/src/li?.rs' 'backend/scripts/q.sh:1: names crates/halvo-capture/src/li?.rs, a glob over crates/halvo-capture/src, a tracked directory of the app'
+  case_with f1c-w1-a-backend-glob-with-a-bracket-inside-a-part backend/scripts/b.sh 'cd .. && cd .. && cat crates/halvo-capture/src/li[b].rs' 'backend/scripts/b.sh:1: names crates/halvo-capture/src/li[b].rs, a glob over crates/halvo-capture/src, a tracked directory of the app'
+  case_with f1c-w1-a-quoted-backend-glob-with-a-bracket-inside-a-part backend/scripts/b.mjs 'const files = globSync("crates/halvo-capture/src/li[b].rs", { cwd: root });' 'backend/scripts/b.mjs:1: names crates/halvo-capture/src/li[b].rs, a glob over crates/halvo-capture/src, a tracked directory of the app'
+  case_with f1c-w1-a-backend-glob-with-a-bracket-in-a-directory-name backend/scripts/i06.sh 'cat $ROOT/crates/halvo-[c]apture/src/lib.rs' 'backend/scripts/i06.sh:1: names crates/halvo-[c]apture/src/lib.rs, a glob over crates, a tracked directory of the app'
+
+  run400=$(awk 'BEGIN { printf "{\"version\":3,\"sources\":["; for (i = 1; i <= 400; i++) printf "%s\"../../src/m%d.ts\"", (i > 1 ? "," : ""), i; printf "]}" }') || exit 2
+  case_with f1c-l3-a-run-of-400-climbing-strings-is-refused-above-the-bound backend/dist/maps/app.js.map "$run400" 'backend/dist/maps/app.js.map:1: holds a run of 400 strings joined by'
+  run65=$(awk 'BEGIN { for (i = 1; i <= 65; i++) printf "%s\"../m%d\"", (i > 1 ? ", " : "const all = ["), i; printf "];" }') || exit 2
+  case_with f1c-l3-a-run-of-65-strings-is-refused-above-the-bound backend/src/list.ts "$run65" 'backend/src/list.ts:1: holds a run of 65 strings joined by'
+  run64=$(awk 'BEGIN { for (i = 1; i <= 64; i++) printf "%s\"../m%d\"", (i > 1 ? ", " : "const all = ["), i; printf "];" }') || exit 2
+  pass_with f1c-l3-a-run-of-64-strings-is-read backend/src/list.ts "$run64" 'read:backend/src/list.ts'
+  run64app=$(awk 'BEGIN { for (i = 1; i <= 60; i++) printf "%s\"../m%d\"", (i > 1 ? ", " : "const all = ["), i; printf ", \"crates\", \"halvo-capture\", \"src\", \"lib.rs\"];" }') || exit 2
+  case_with f1c-l3-a-run-of-64-strings-that-ends-in-an-app-path-is-read-and-refused backend/src/list.ts "$run64app" 'backend/src/list.ts:1: names crates/halvo-capture, a tracked directory of the app, read from the top'
+  pairs=$(awk 'BEGIN { printf "{"; for (i = 1; i <= 300; i++) printf "%s\"k%d\":\"../v%d\"", (i > 1 ? "," : ""), i, i; printf "}" }') || exit 2
+  pass_with f1c-l3-a-line-of-600-strings-in-short-runs-is-read backend/test/fixtures/pairs.json "$pairs" 'read:backend/test/fixtures/pairs.json'
+  case_with f1c-l3-a-long-run-before-a-short-one-is-refused backend/src/list.ts "$run65 const one = \"../z\";" 'backend/src/list.ts:1: holds a run of 65 strings joined by'
+  run65plain=$(awk 'BEGIN { for (i = 1; i <= 65; i++) printf "%s\"l%d\"", (i > 1 ? ", " : "const all = ["), i; printf "];" }') || exit 2
+  pass_with f1c-l3-a-run-of-65-on-a-line-that-the-search-skips-is-not-read backend/src/labels.ts "$run65plain" 'unread:backend/src/labels.ts'
+  run65slash=$(awk 'BEGIN { for (i = 1; i <= 65; i++) printf "%s\"../m%d\"", (i > 1 ? " / " : "p = "), i; printf "\n" }') || exit 2
+  case_with f1c-w3-a-run-of-65-strings-joined-by-a-slash backend/scripts/slash.py "$run65slash" 'backend/scripts/slash.py:1: holds a run of 65 strings joined by'
+  run65join=$(awk 'BEGIN { printf "let p = root"; for (i = 1; i <= 65; i++) printf ".join(\"../m%d\")", i; printf ";" }') || exit 2
+  case_with f1c-w3-a-run-of-65-strings-joined-by-a-join-call backend/spikes/s3/src/join.rs "$run65join" 'backend/spikes/s3/src/join.rs:1: holds a run of 65 strings joined by'
+  run65app=$(awk 'BEGIN { for (i = 1; i <= 65; i++) printf "%s\"w%d\"", (i > 1 ? ", " : "const words = ["), i; printf "]; // the words of the backend status" }') || exit 2
+  case_with f1c-w3-a-run-of-65-strings-on-the-app-side ui/src/words.ts "$run65app" 'ui/src/words.ts:1: holds a run of 65 strings joined by'
+  pass_with f1c-an-app-line-with-the-word-names-an-app-file-in-full scripts/note.sh 'echo "the backend reads nothing of crates/halvo-capture/src/lib.rs"' 'read:scripts/note.sh'
+
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
 ENUM_PATH=crates/halvo-capture/src/event.rs
@@ -1720,6 +1866,41 @@ OUT=$(dirname "$0")
 cat "$OUT/../started.jsonl"' 'read:backend/scripts/out.sh'
   pass_with known-limit-bare-operand scripts/stat.sh 'stat backend' 'read:scripts/stat.sh'
   pass_with known-limit-bracket-glob scripts/bracket.sh 'cat [b]ackend/contract/routes/v1.json' 'read:scripts/bracket.sh'
+  pass_with known-limit-name-in-a-variable backend/scripts/crate.mjs 'const crate = "halvo-capture";
+const text = readFileSync(join(repoRoot, "crates", crate, "src", "lib.rs"), "utf8");' 'read:backend/scripts/crate.mjs'
+  pass_with known-limit-case-in-text scripts/k4.sh 'echo "see the case table in docs/r7"
+b*/scripts/stack.sh | \
+  tee out.txt' 'read:scripts/k4.sh'
+  pass_with known-limit-quote-before-glob scripts/k11.sh 'cat "$repo"/*/test/ledger/cases.ts' 'read:scripts/k11.sh'
+  pass_with known-limit-backend-glob backend/scripts/e3b.sh 'cd "$ROOT" && cat */halvo-capture/src/lib.rs' 'read:backend/scripts/e3b.sh'
+  pass_with f1c-k5-a-here-document-opens-a-case-block scripts/k5.sh 'cat > "$out/gen.sh" <<'"'"'EOF'"'"'
+case $1 in
+EOF
+run_all # the generated case ends in ;;
+b*/scripts/stack.sh | \
+  tee out.txt' 'read:scripts/k5.sh'
+  pass_with f1c-b9-a-trailing-comment-ends-an-arm scripts/b9.sh 'case $mode in
+  run)
+    make # then ;;
+    b*/scripts/check-machine-paths.sh | \
+      tee out.txt
+    ;;
+esac' 'read:scripts/b9.sh'
+  case_with f1c-n2-an-esac-in-a-string-closes-the-block-early scripts/n2.sh 'kind_of() {
+  case $1 in
+    -h) echo "usage: no esac here" ;;
+    */test/*) return 0 ;;
+  esac
+}' 'scripts/n2.sh:4: reads under backend/ by a glob'
+  case_with f1c-k7-a-one-line-case-with-a-glob-pattern scripts/k7.sh 'kind_of() { case $1 in a) return 1 ;; */test/*) return 0 ;; esac; }' 'scripts/k7.sh:1: reads under backend/ by a glob'
+  case_with f1c-n5-a-one-line-case-with-two-glob-patterns scripts/n5.sh 'case $f in */test/*) return 0 ;; */spec/*) return 1 ;; esac' 'scripts/n5.sh:1: reads under backend/ by a glob'
+  pass_with f1c-backend-glob-an-extglob-or-a-brace-group backend/scripts/ext.sh 'cd .. && cd .. && cat crates/halvo-capture/src/@(lib|event).rs crates/{halvo-capture,halvo-route}/src/lib.rs' 'read:backend/scripts/ext.sh'
+  case_with f1c-an-esac-in-a-trailing-comment-closes-the-block-early scripts/esac-comment.sh 'kind_of() {
+  case $1 in
+    --help) usage ;; # see esac below
+    */test/*) return 0 ;;
+  esac
+}' 'scripts/esac-comment.sh:4: reads under backend/ by a glob'
 
   case_repo=$scratch/no-tracked-file
   case_index=$case_repo/.git/index
@@ -1731,6 +1912,11 @@ cat "$OUT/../started.jsonl"' 'read:backend/scripts/out.sh'
   collect
   texts_case PASS the-three-texts-and-the-fixtures-name-the-same-limits
   texts_case FAIL a-text-that-drops-a-limit-is-refused bracket-glob
+  listed=$(awk -v l="$limits" 'BEGIN { n = split(l, w, " "); for (i = 1; i <= n; i++) out = out (i > 1 ? ", " : "") w[i]; print n " named limits of --help: " out "." }') || exit 2
+  printf '%s\n' '## [Unreleased]' "- Changed: scripts/r7/ci.d/24-r7-wall.sh states the $listed" '- Fixed: scripts/r7/ci.d/24-r7-wall.sh reads one more line.' >"$scratch/changelog-later-line.md" || exit 2
+  texts_case PASS the-changelog-line-with-the-limits-is-read-past-a-later-line-of-the-script '' "$scratch/changelog-later-line.md"
+  printf '%s\n' '## [Unreleased]' "- Changed: scripts/r7/ci.d/24-r7-wall.sh states the $listed" '## [0.1.0]' '- Added: scripts/r7/ci.d/24-r7-wall.sh with the 1 named limits of --help: names-v0.' >"$scratch/changelog-release.md" || exit 2
+  texts_case PASS the-changelog-line-of-the-newest-section-is-read '' "$scratch/changelog-release.md"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

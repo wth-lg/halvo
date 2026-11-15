@@ -339,7 +339,7 @@ fn store_key_file_named_by_its_path() -> &'static str {
 
 #[cfg(halvo_proof = "store_key_file_named_by_its_path_twin")]
 fn store_key_file_named_by_its_path_twin() -> &'static str {
-    std::any::type_name::<crate::store::db::EncryptedStore>()
+    std::any::type_name::<crate::store::ShredReport>()
 }
 
 #[cfg(halvo_proof = "store_segment_files_named_by_their_module")]

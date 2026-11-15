@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every proof line of the content floor, of the daemon's port and of the store's boundary (the store's database type, its key file, its segment files, its modules expiry and verify and DEFAULT_RETENTION cannot be named outside crate::store, by a path, a glob, a re-export or a macro) fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. In the macos job every file under the crate's src/daemon/ that the dep-info of the lib's test build lists is listed by the dep-info of its product build too, or is one of the test-support files model_store.rs, owner_props.rs, scripted.rs and stop_tests.rs.The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their five listed uses; and the macOS entry hands the binary's signal flag to its one call of run_timed; and the binary's usage arm returns what usage_answer gives and its run arm what outcome_answer gives.
+# rule: Every proof line of the content floor, of the daemon's port and of the store's boundary (the store's database type, its key file, its segment files, its modules expiry and verify and DEFAULT_RETENTION cannot be named outside crate::store, by a path, a glob, a re-export or a macro) fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. In the macos job every file under the crate's src/daemon/ that the dep-info of the lib's test build lists is listed by the dep-info of its product build too, or is one of the test-support files model_store.rs, owner_props.rs, scripted.rs and stop_tests.rs.The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, #[path] and the include macros stand only at their listed uses, and no file outside the crate's src/store/ names delete_store_dir or EncryptedStore; and the macOS entry hands the binary's signal flag to its one call of run_timed; and the binary's usage arm returns what usage_answer gives and its run arm what outcome_answer gives.
 set -u
 name=30-core-boundary-proofs
 crate=crates/halvo-capture
@@ -21,7 +21,8 @@ the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon
 the_secure_input_probe_is_implemented_only_in_the_secure_input_tree
 path_attributes_and_include_macros_stand_only_at_the_listed_uses
 the_macos_timed_run_hands_the_signal_flag_to_the_run
-the_binary_returns_what_usage_answer_and_outcome_answer_give'
+the_binary_returns_what_usage_answer_and_outcome_answer_give
+no_code_outside_the_store_calls_the_delete_tail_or_the_stores_delete_all'
 
 # name, the error code that its build must report, the build it belongs to.
 PROOFS='clearance_made_outside_secure_input E0624 debug
@@ -454,7 +455,8 @@ tree_case() {
 # with $3 set, is left out, written to $1.
 source_output() {
   {
-    printf '\nrunning 5 tests\n'
+    source_count=$(printf '%s\n' "$source_tests" | grep -c '')
+    printf '\nrunning %s tests\n' "$source_count"
     failed=0
     passed=0
     for source_test in $source_tests; do

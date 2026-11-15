@@ -21,7 +21,7 @@ test("the recorder refuses a directory that is missing, not a directory, or not 
   mkdirSync(join(base, "full"));
   writeFileSync(join(base, "full", "x"), "");
   assert.throws(() => openRecord(join(base, "full")), RecordError);
-  assert.doesNotThrow(() => openRecord(fresh()));
+  assert.doesNotThrow(() => openRecord(fresh()).close());
 });
 
 test("every request, accepted or rejected, is recorded with its method, target, headers in order, raw body and answer", async () => {
