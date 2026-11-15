@@ -141,3 +141,71 @@ fn term_to_the_program_leaves_no_process_of_its_run() {
 fn int_to_the_program_leaves_no_process_of_its_run() {
     signal_case(libc::SIGINT, "int");
 }
+
+/// A child of the test, ended through its handle and reaped on every way out of the test.
+struct Own(std::process::Child);
+
+impl Drop for Own {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// CP-161 (3): the trial's program with `R3_WEB_FENCE_BELOW` naming a directory that holds no
+/// program of the test refuses every end. Its guard entry is given the test's own `/bin/sleep` as
+/// the browser and an executor that does not run; after its grace it asks the browser to end, and
+/// the fence sends nothing, prints its line and stops the program. The test's bound is 20 s.
+#[test]
+fn the_program_s_fence_refuses_an_end_outside_its_directory() {
+    use start::Start;
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let stderr_path = tmp.join("r3-program-fence-stderr.txt");
+    let browser = Own(std::process::Command::new("/bin/sleep")
+        .arg("20")
+        .start()
+        .unwrap());
+    let row = r3_web::procs::table()
+        .unwrap()
+        .into_iter()
+        .find(|p| p.pid == browser.0.id())
+        .expect("the stand-in browser's row");
+    let program = Own(std::process::Command::new(env!("CARGO_BIN_EXE_web-trial"))
+        .arg(r3_web::relay::GUARD_FLAG)
+        .args([row.pid.to_string(), row.started_us.to_string()])
+        .args(["1", "1"])
+        .env(r3_web::procs::fence::VAR, tmp.join("r3-fence-elsewhere"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::fs::File::create(&stderr_path).unwrap())
+        .start()
+        .unwrap());
+    let mut program = program;
+    let until = Instant::now() + Duration::from_secs(20);
+    let mut status = None;
+    while Instant::now() < until {
+        if let Ok(Some(s)) = program.0.try_wait() {
+            status = Some(s);
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let mut browser = browser;
+    let alive = matches!(browser.0.try_wait(), Ok(None));
+    let line = format!(
+        "fence_refused pid={} started_us={} ",
+        row.pid, row.started_us
+    );
+    let refused = std::fs::read_to_string(&stderr_path)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.starts_with(&line))
+        .count();
+    assert!(alive, "the program's end reached the test's own process");
+    let status = status.expect("the program did not stop within 20 s");
+    assert!(!status.success(), "{status:?}");
+    assert!(
+        refused >= 1,
+        "the program printed no fence_refused line for the browser"
+    );
+}

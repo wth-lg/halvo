@@ -907,6 +907,24 @@ pub(crate) mod tests {
             dirs: vec![PathBuf::new()],
         };
         assert!(!empty_dir.admits(&table[4], &table));
+        let unknown = vec![row(23, 10, 0, "/bin/sleep"), row(22, 23, 300, "/bin/sleep")];
+        let of_unknown = fence::Admits {
+            pairs: vec![(23, 0)],
+            dirs: Vec::new(),
+        };
+        assert!(!of_unknown.admits(&unknown[0], &unknown));
+        assert!(!of_unknown.admits(&unknown[1], &unknown));
+    }
+
+    /// CP-161 (3): the fence never admits this process itself, also when a test admits the
+    /// processes that descend from it.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn the_fence_never_admits_this_process() {
+        let me = own().expect("this process's row");
+        let _admitted = fence::admit_descendants();
+        let _also = fence::admit_process(&me);
+        assert!(std::panic::catch_unwind(|| kill(&me)).is_err());
     }
 
     /// CP-161 (3): an admission holds for the thread that took it while it is held, and for no
