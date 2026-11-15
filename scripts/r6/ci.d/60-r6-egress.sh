@@ -74,7 +74,8 @@ of them is a lost report, asked again up to three times, and then fails by the w
 report was lost". It prints "egress asking denied=<n> probes=<n> tries=<n>", and its denied adds to
 denied. In the words of E-16: denied counts the reports that arrived, and a reach by an asked word is
 stopped by the mode whether or not its report arrives; on this Mac 3 of 20 wrapped askings over all
-words lost the report of a reach and 0 of 20 over one word (SG-64 item 4, round 3 of builder-26). The
+words lost the report of a reach and 0 of 20 over one word, and on the hosted macos-15 runner 1 of 20
+over all words and 0 of 50 over one word (run 43680812402) (SG-64 item 4, round 3 of builder-26). The
 asking holds nothing that the forbid run does not. The asker reads its words before the first ask, keeps
 its record of the found words in its own memory and prints it to standard output, into a file under
 target/egress/ where the egress check lets no wrapped program write; the count of words that it asked
