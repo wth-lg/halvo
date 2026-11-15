@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { join } from "node:path";
-import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, answerIn, waitFor, stopBegun, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
+import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, answersIn, answerIn, waitFor, keepsPromise, openPeer, STUB, ID, CRED } from "./support.mjs";
 import { BODY_CAP } from "../src/stub.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
@@ -105,7 +105,7 @@ test("a request still open when the stub stops gets one line incomplete, and a c
       client.socket.write(bytes);
       clients.push(client);
     }
-    await answerIn(clients[2], `${how}: the answer to the third client`);
+    await answerIn(clients[2], `${how}: the answer to the third client`, () => `the record holds ${JSON.stringify(lines(dir))}`);
     const raw = (connection) => {
       const file = join(dir, `connection-00000${connection}.raw`);
       return existsSync(file) ? readFileSync(file, "latin1") : null;
@@ -401,7 +401,7 @@ test("after the peer ends its side behind an answer, no idle-close line follows"
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
-  await answerIn(client);
+  await answerIn(client, "the answer", () => `the record holds ${JSON.stringify(lines(dir))}`);
   client.socket.end();
   await pause(600);
   client.socket.destroy();
@@ -415,7 +415,7 @@ test("after a 400, no idle-close line follows and bytes sent after it leave no l
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write("GET /v1/done HTTP/1.1\r\nbad header\r\n\r\n");
-  await answerIn(client, "the 400");
+  await answerIn(client, "the 400", () => `the record holds ${JSON.stringify(lines(dir))}`);
   client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
   await pause(600);
   client.socket.destroy();
@@ -429,7 +429,7 @@ test("after an answer that closes, no idle-close line follows", async () => {
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write(request("GET", "/v1/done"));
-  await answerIn(client);
+  await answerIn(client, "the answer", () => `the record holds ${JSON.stringify(lines(dir))}`);
   await pause(600);
   client.socket.destroy();
   const seen = `the record holds ${JSON.stringify(lines(dir))}; the client had read ${client.got().length} bytes`;
@@ -442,7 +442,7 @@ test("after the peer resets the connection behind an answer, no idle-close line 
   const stub = await startStub({ record: dir, idleMs: 200 });
   const client = await halfOpen(portOf(stub.app));
   client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
-  await answerIn(client);
+  await answerIn(client, "the answer", () => `the record holds ${JSON.stringify(lines(dir))}`);
   client.socket.resetAndDestroy();
   await pause(600);
   const seen = `the record holds ${JSON.stringify(lines(dir))}; the client had read ${client.got().length} bytes`;
@@ -627,8 +627,16 @@ for (const how of ["close", "stop"]) {
     peer.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n".repeat(6000));
     await plateau(dir);
     if (how === "close") stub.close();
-    else exchange(portOf(stub.control), request("POST", "/stop"));
-    await stopBegun(stub);
+    else {
+      let answered = false;
+      exchange(portOf(stub.control), request("POST", "/stop")).then(
+        () => {
+          answered = true;
+        },
+        () => {},
+      );
+      await waitFor(() => answered, "the answer to POST /stop, which the stand-in gives as its stop begins");
+    }
     peer.socket.resume();
     assert.equal(await settled(peer.ended, 5000), true, "the stub's end arrived after its answers");
     const ending = performance.now();
