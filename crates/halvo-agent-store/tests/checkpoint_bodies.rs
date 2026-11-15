@@ -528,3 +528,116 @@ fn mark_checkpoint_of_an_agent_that_is_no_longer_the_workflow_s_marks_its_rows()
         Ok(stored_reply(1))
     );
 }
+
+fn long_book(n: u32) -> Value {
+    json!(halvo_schema::executable::OwnValue::new(&format!(
+        "{FOLDER}/{n}-{}.xlsx",
+        "w".repeat(9_000)
+    )))
+}
+
+fn long_planned(r: u32, n: u32) -> Value {
+    let mut row = planned(r, n);
+    row["workbook"] = long_book(n);
+    row
+}
+
+fn long_made(r: u32, n: u32) -> Value {
+    let mut row = made(r, n);
+    row["workbook"] = long_book(n);
+    row
+}
+
+fn pages(store: &mut MemoryStore) -> Vec<CheckpointsReply> {
+    let mut out = Vec::new();
+    let mut after: Option<String> = None;
+    loop {
+        let body =
+            json!({"op": "list_checkpoints", "workflow": null, "agent": null, "after": after});
+        let reply = match coordinator(store, body) {
+            Ok(CoordinatorReply::Checkpoints(reply)) => reply,
+            other => panic!("a list of checkpoints: {other:?}"),
+        };
+        CoordinatorReply::Checkpoints(reply.clone())
+            .to_json()
+            .expect("a page that the writer takes");
+        let next = reply.next.clone();
+        out.push(reply);
+        match next {
+            None => return out,
+            Some(run) => after = Some(run.as_str().to_owned()),
+        }
+    }
+}
+
+#[test]
+fn a_planned_row_that_would_overflow_its_run_s_page_is_refused_with_length_and_a_later_run_is_listed(
+) {
+    let mut store = spreadsheet();
+    let mut fitted = 0;
+    let mut refused = None;
+    for n in 1..=60 {
+        match put_checkpoint(&mut store, long_planned(1, n)) {
+            Ok(reply) => {
+                assert_eq!(reply, stored(1));
+                fitted = n;
+            }
+            Err(e) => {
+                refused = Some((n, e));
+                break;
+            }
+        }
+    }
+    let (n, error) = refused.expect("a planned row past one page is refused");
+    assert_eq!(error, declared("length"));
+    assert!(fitted > 1, "{fitted}");
+    assert_eq!(checkpoints(&store).len(), fitted as usize);
+    assert_eq!(
+        put_checkpoint(&mut store, long_planned(1, n)),
+        Err(declared("length"))
+    );
+    assert_eq!(checkpoints(&store).len(), fitted as usize);
+    assert_eq!(
+        put_checkpoint(&mut store, long_planned(1, 1)),
+        Ok(stored(1)),
+        "a repeat at the limit is answered as the first"
+    );
+    for k in 1..=fitted {
+        assert_eq!(
+            put_checkpoint(&mut store, long_made(1, k)),
+            Ok(stored(1)),
+            "the made row of {k}"
+        );
+    }
+    start(&mut store, 2);
+    assert_eq!(put_checkpoint(&mut store, planned(2, 1)), Ok(stored(1)));
+    let listed: Vec<String> = pages(&mut store)
+        .iter()
+        .flat_map(|p| p.checkpoints.iter().map(|c| c.run.as_str().to_owned()))
+        .collect();
+    assert_eq!(
+        listed.iter().filter(|r| **r == run(1)).count(),
+        fitted as usize
+    );
+    assert!(listed.contains(&run(2)), "the later run is listed");
+}
+
+#[test]
+fn a_run_planted_over_one_page_gives_a_page_that_the_writer_refuses_and_never_an_empty_page() {
+    let mut store = spreadsheet();
+    let rows: Vec<halvo_schema::TypedRecord> = (1..=40)
+        .map(|n| halvo_schema::TypedRecord {
+            kind: "agent_checkpoint",
+            json: long_planned(1, n).to_string(),
+        })
+        .collect();
+    store
+        .typed_commit(rows)
+        .expect("rows planted past the handler");
+    let reply = list(&mut store, None);
+    assert_eq!(reply.checkpoints.len(), 40);
+    assert!(
+        CoordinatorReply::Checkpoints(reply).to_json().is_err(),
+        "the writer refuses the page"
+    );
+}

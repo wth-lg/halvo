@@ -7,9 +7,9 @@ use halvo_schema::executable::names::{
     ActionClass, CheckpointState, EffectState, FieldName, ListedState, MarkState, YesNo,
 };
 use halvo_schema::executable::{
-    AgentCheckpoint, AgentEffect, CoordinatorReply, OwnValue, RunId, RunnerReply,
+    AgentCheckpoint, AgentEffect, CoordinatorReply, Digest, OwnValue, RunId, RunnerReply,
 };
-use halvo_schema::ErrorName;
+use halvo_schema::{ErrorName, Instant};
 
 use crate::errors::Own;
 use crate::host::{Host, Now};
@@ -71,7 +71,7 @@ pub(crate) fn put(
         .and_then(|rows_of| rows_of.last());
     match last {
         Some(last) if repeats(last, row) => return Ok(stored_runner()),
-        None if row.state == CheckpointState::Planned => {}
+        None if row.state == CheckpointState::Planned => fits_one_page(&held, row)?,
         Some(last) if follows(last, row) => {}
         _ => return Err(Own::Effect.into()),
     }
@@ -85,6 +85,44 @@ pub(crate) fn put(
 
 fn stored_runner() -> RunnerReply {
     RunnerReply::Stored(Stored { stored: 1 })
+}
+
+fn widest(row: &AgentCheckpoint) -> Result<ListedCheckpoint, ErrorName> {
+    Ok(ListedCheckpoint {
+        workflow: row.workflow.clone(),
+        agent: row.agent.clone(),
+        run: row.run.clone(),
+        folder: row.folder.clone(),
+        workbook: row.workbook.clone(),
+        copy: row.copy.clone(),
+        state: ListedState::Made,
+        sha256: Some(Digest::parse(&"f".repeat(64)).map_err(|_| ErrorName::Internal)?),
+        bytes: Some(u32::MAX),
+        at: Instant(i64::MIN),
+        ended: YesNo::Yes,
+        effect: Some(EffectState::Committed),
+        superseded: YesNo::Yes,
+    })
+}
+
+fn fits_one_page(
+    held: &BTreeMap<Key, Vec<AgentCheckpoint>>,
+    row: &AgentCheckpoint,
+) -> Result<(), ErrorName> {
+    let mut checkpoints = Vec::new();
+    for ((run, _), rows_of) in held {
+        if run == &row.run {
+            if let Some(first) = rows_of.first() {
+                checkpoints.push(widest(first)?);
+            }
+        }
+    }
+    checkpoints.push(widest(row)?);
+    let page = CheckpointsReply {
+        checkpoints,
+        next: Some(row.run.clone()),
+    };
+    page.to_json().map(|_| ()).map_err(|_| Own::Length.into())
 }
 
 fn file_of(row: &AgentEffect) -> Option<String> {

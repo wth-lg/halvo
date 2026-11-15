@@ -60,7 +60,9 @@ use crate::{bind, checkpoint, day, effect, end};
 ///   none where the effect has no `approved` row, else `effect` (CP-132 (a)).
 /// - `checkpoint`: a row equal to the checkpoint's newest row (its run and workbook) in every key but `day` and
 ///   `at` is answered as the first and stores nothing; else `effect` unless the row is a `planned` first row of the
-///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy. The store's
+///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy; `length` for
+///   the `planned` first row of a new path when the run's checkpoints with it, each in its widest listed form, would
+///   not fit one page of `list_checkpoints`, so that one run's checkpoints always fit a page (CP-205 C2). The store's
 ///   crate reads the row with the schema's strict reader and stores the text of its writer.
 /// - Every row that a body stores is held to the day rule (CP-122): a row that holds `at` (`effect`, `log`) is
 ///   refused with `day` unless its `day` is `Host::day` of its `at`, and every row of a bounded kind, the record of
