@@ -354,7 +354,7 @@ pnpm_followed() {
 pnpm_shim_target() {
   shim_target=$(sed -n "s|^exec \"\\\$basedir/\\([A-Za-z0-9._@+/-]*\\)\"   \"\\\$@\"\$|\\1|p" "$1" 2>/dev/null) || return 1
   case $shim_target in
-    '' | *..*) return 1 ;;
+    *..*) return 1 ;;
   esac
   {
     cat <<'EOF'
@@ -395,7 +395,7 @@ pnpm_binary_checked() {
     fi
     trap 'rm -rf "$scratch"' EXIT
     trap 'exit 1' HUP INT TERM
-    if ! tar -xzf "$platform_archive" -C "$scratch" "package/$member" || [ ! -f "$scratch/package/$member" ]; then
+    if ! tar -xzf "$platform_archive" -C "$scratch" "package/$member"; then
       echo "prerequisites: error: $platform_archive holds no file package/$member that tar can unpack, so nothing can be compared with it; move it away, then run sh scripts/prerequisites.sh again" >&2
       exit 1
     fi
