@@ -60,8 +60,11 @@ fn folder_at(dir: &Path, data_dir: Option<&DataDir>) -> Result<Folder, Failure> 
     Folder::new(dir, locks).map_err(|e| Failure::Step(sheet_cause(&e)))
 }
 
+/// The slot of the one workbook that a write step may change (A9.4, CP-178 (7)).
+const WORKBOOK: &str = "workbook";
+
 /// The workbook of the slot `slot` and its directory, under the permission `user_files` of `loaded`: a write step
-/// names its slot in `target.file`, the one slot that `digest_of` reads too (CP-166 E4 (d)); a read step takes the
+/// names the slot `workbook` in `target.file`, the one slot that `digest_of` reads too; a read step takes the
 /// folder of the slot `workbook` (A9.4).
 fn workbook_of(loaded: &LoadReply, slot: &Name) -> Result<(PathBuf, PathBuf), Failure> {
     if !loaded.config.permissions.contains(&Permission::UserFiles) {
@@ -133,7 +136,7 @@ impl Runner {
             .first()
             .and_then(|a| a.value.as_ref())
             .ok_or(Failure::Step(Cause::StepFailed))?;
-        let slot = Name::parse("workbook").map_err(|_| Failure::Step(Cause::StepFailed))?;
+        let slot = Name::parse(WORKBOOK).map_err(|_| Failure::Step(Cause::StepFailed))?;
         let (_, dir) = workbook_of(loaded, &slot)?;
         let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
         let source = slot_path(loaded, &target.file)?;
@@ -149,7 +152,9 @@ impl Runner {
         Ok(())
     }
 
-    /// A `file` `write`, one file edit (A5.2, A11.3, CP-135 (3)). One load before `prepare` gives `decide`, the
+    /// A `file` `write`, one file edit (A5.2, A11.3, CP-135 (3)). A step whose `file` is not the slot `workbook`
+    /// fails with the cause `workbook` before any load, row or file is written (A9.4, CP-178 (7)), and the run ends
+    /// `failed` with that cause. One load before `prepare` gives `decide`, the
     /// permission `user_files`, the workbook, the sheet, the range, the folder, the origins of `admit` and the
     /// limits, and `prepare`, the bound object and `replace` use that load; another source or folder than the
     /// read step's ends the run `failed` with `changed`. A second load before `begin` gives the configuration and
@@ -178,6 +183,9 @@ impl Runner {
         step: &ExecutableStep,
         target: &FileTarget,
     ) -> Result<(), Failure> {
+        if target.file.as_str() != WORKBOOK {
+            return Err(Failure::Step(Cause::Workbook));
+        }
         let key = step
             .args
             .first()

@@ -987,16 +987,17 @@ fn a_relative_source_at_the_load_before_the_prepare_ends_step_failed() {
     );
 }
 
-/// CP-166 E4 (d), the review's item 4: a stored write step whose `file` names the slot `dest`, while the slot
-/// `workbook` names another file. The edit is prepared, bound and replaced in the file that the step names, at both
-/// loads, and no byte beside the other file is written.
+/// CP-178 (7), A9.4: a stored write step whose `file` names the slot `dest`, while the slot `workbook` names
+/// another file of the same folder. The step is refused before any `prepare`: the run ends `failed` with the cause
+/// `workbook`, with no effect row and no checkpoint row, both files byte for byte and nothing beside either.
 #[test]
-fn a_write_step_whose_file_names_another_slot_edits_that_file_alone() {
+fn a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepare() {
     let files = FillFiles::new("dest-slot", 2);
     let before = files.workbook_bytes();
     let dest = files.dir.join("other.xlsx");
     std::fs::copy(&files.workbook, &dest).expect("a second workbook");
     let dest_before = std::fs::read(&dest).expect("read");
+    let names_before = files.names();
     let mut sup = fill(166, &files);
     sup.config.runtime = Runtime::Web;
     let dest_text = dest.to_string_lossy().into_owned();
@@ -1008,24 +1009,36 @@ fn a_write_step_whose_file_names_another_slot_edits_that_file_alone() {
         ExecutableStep::parse(write.as_bytes()).expect("the write step"),
     ];
     let seen = sup.serve(|_, _| Act::Answer, LONG);
-    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    let logs: Vec<(LogEvent, Option<Cause>)> =
+        seen.logs().iter().map(|l| (l.event, l.cause)).collect();
     assert_eq!(
-        kept(&seen.effects()[0])[0],
-        (FieldName::File, dest_text.clone())
+        logs[logs.len() - 2..],
+        [
+            (LogEvent::StepFailed, Some(Cause::Workbook)),
+            (LogEvent::Stopped, Some(Cause::Workbook))
+        ],
+        "the write step fails with workbook and the run ends with it"
+    );
+    assert!(seen.states().is_empty(), "no effect row");
+    assert!(
+        !seen.ops().contains(&"checkpoint"),
+        "no checkpoint row: {:?}",
+        seen.ops()
     );
     assert_eq!(
         files.workbook_bytes(),
         before,
         "the slot workbook's file is untouched"
     );
-    assert!(
-        !files.names().contains(&checkpoint_of(&sup, "formulas")),
-        "nothing beside the file that the step does not name: {:?}",
-        files.names()
-    );
-    assert_ne!(
+    assert_eq!(
         std::fs::read(&dest).expect("read"),
         dest_before,
-        "the step's file is edited"
+        "the step's file is untouched"
+    );
+    assert_eq!(
+        files.names(),
+        names_before,
+        "nothing beside either file: no checkpoint and no prepared copy"
     );
 }
