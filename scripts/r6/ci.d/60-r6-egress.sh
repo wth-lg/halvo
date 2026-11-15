@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that the job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run whose list the script writes and whose canary proves it in the run, over a closed graph of packages, with no cfg predicate but test, unix, windows, any, all and not, no attribute path from a macro variable and no flags or wrapper variable that lifts a lint; and every command of the first list, run with its arguments under scripts/egress/check.sh with scripts/r6/egress/gate.txt behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
+# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; and every command of the first list, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
 set -u
 name=60-r6-egress
 list=scripts/r6/egress/gate.txt
@@ -24,15 +24,17 @@ esac
 help() {
   cat <<'EOF'
 sh scripts/r6/ci.d/60-r6-egress.sh [--self-test | --help]
-The forbid run: cargo clippy with --locked over the lib and bin targets of halvo-route,
-halvo-route-gate and halvo-route-wire, in the dev profile, in the macos job and in the windows job,
-with clippy::disallowed_types, clippy::disallowed_methods and unsafe_code held by -F, so that no
-allow in the source lifts them. The list of types and methods of a process start or a socket is
-written by this script for the job under its artifacts directory, and an entry of the other system
-carries allow-invalid. A finding of the three codes at any level, a non-zero exit and an entry that
-refers to nothing fail the check; each finding prints "forbid <path>:<line> <code>".
+The forbid runs: cargo clippy with --locked over the lib and bin targets of halvo-route,
+halvo-route-gate and halvo-route-wire, once in the dev and once in the release profile, in the macos
+job and in the windows job, with clippy::disallowed_types, clippy::disallowed_methods and unsafe_code
+held by -F, so that no allow in the source lifts them. The list of types and methods of a process
+start or a socket is written by this script for the job under its artifacts directory, and an entry
+of the other system carries allow-invalid. A finding of the three codes at any level, a non-zero
+exit and an entry that refers to nothing fail the check; each finding prints
+"forbid <dev|release> <path>:<line> <code>", with the path as the compiler names it (a file that a
+module declaration resolved by another letter case prints by the name that the compiler built).
 The canary: a crate of one file under the artifacts directory names each entry of the list once and
-goes through the same cargo call before any finding of the three crates counts; one finding per
+goes through the same cargo call, in each profile, before any finding of the three crates counts; one finding per
 entry of the job's system is required, else "the forbid run let the canary through". It holds an
 untracked cargo configuration, a cap on lints and a wrapper, which silence the canary too.
 The closed graph: the path packages of cargo tree -e normal,build are the three crates, the linked
@@ -40,9 +42,15 @@ third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, t
 proc-macro2, quote, serde_derive, syn and unicode-ident, and the three crates have no build script, no
 proc-macro target and no features, and the root manifest no [patch] table; another name fails.
 The rules for what no compiler pass reads, over every tracked file of the three crate directories and
-every file that the forbid run's dep-info names: a cfg or cfg_attr predicate may name test, unix,
-windows, any, all and not alone; an attribute's path may not be a macro variable followed by an
-opening parenthesis, an equals sign or a path separator; and before its first cargo command the check
+every file that a forbid run's dep-info names: a cfg predicate may name test, unix, windows, any, all
+and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its
+parenthesis, in the tracked files of the three crate directories and in every file that a forbid
+run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro
+variable named like an allowed word or one split by a comment; for those spellings the dev and the
+release forbid runs hold what they compile, and the rule on the word clippy holds the one value that
+no forbid run has in common with a build; the word clippy, the identifier with no path separator
+after it, is refused; an attribute's path may not be a macro variable followed by an opening
+parenthesis, an equals sign or a path separator; and before its first cargo command the check
 refuses a flags variable of the compiler (plain, encoded, build or per-target) or the clippy
 arguments variable that holds an allow flag, a cap on lints or a cfg flag, and a compiler or wrapper
 variable that is set.
@@ -70,7 +78,9 @@ Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of comm
 The limits that stay:
 1. a socket or a process start inside a third-party crate, also when code of the three crates calls
    it; the check prints their names from the lock on its line "egress limit third-party crates=".
-2. code under a combination of unix and windows that neither job compiles.
+2. code under a value that no forbid run has: the processor of an Intel Mac or of Windows on ARM,
+   another target_env, target_abi or target_vendor, a target feature or a flag that a person sets
+   for their own build, and a combination of unix and windows that neither job compiles.
 3. what the system does with a path that it opens over a network.
 4. what a process did after the command ended, in the egress check's own words.
 5. the egress check's writes under target/egress/.
@@ -395,6 +405,19 @@ text_rules() {
         printf "rule attribute %s:%d\n", shown(path), lineof(text, off + RSTART)
         off += RSTART + RLENGTH - 1
         rest = substr(rest, RSTART + RLENGTH)
+      }
+      off = 0
+      rest = text
+      while ((k = index(rest, "clippy")) > 0) {
+        at = off + k
+        before = at > 1 ? substr(text, at - 1, 1) : ""
+        after = substr(text, at + 6)
+        off = at + 5
+        rest = substr(text, off + 1)
+        if (before ~ /[A-Za-z0-9_]/ || after ~ /^[A-Za-z0-9_]/) continue
+        sub(/^[ \t\r\n]*/, "", after)
+        if (substr(after, 1, 2) == "::") continue
+        printf "rule clippy %s:%d\n", shown(path), lineof(text, at)
       }
     }
     {
@@ -1380,6 +1403,8 @@ EOF
 pub fn a() {}
 #[cfg_attr(not(test), allow(unused_variables))]
 pub fn b(x: u8) {}
+#[allow(clippy::needless_return)]
+pub fn d() {}
 #[cfg(any(windows, test))]
 pub fn c() {}
 macro_rules! named {
@@ -1796,6 +1821,14 @@ self_test() {
   # shellcheck disable=SC2016
   attr_tree=$(write_repo "$work/repo-attr" '' '' '' crates/halvo-route-gate/src/net.rs \
     'macro_rules! m { ($a:ident) => { #[ $a ( x ) ] fn f() {} }; }') || self_failed "setup at line $LINENO"
+  # shellcheck disable=SC2016
+  clippy_macro_tree=$(write_repo "$work/repo-clippy-macro" '' '' '' crates/halvo-route-gate/src/net.rs \
+    'macro_rules! gate { ($test:meta) => { #[cfg($test)] pub fn go() { std::process::Command::new("true"); } }; } gate!(not(clippy));') ||
+    self_failed "setup at line $LINENO"
+  clippy_comment_tree=$(write_repo "$work/repo-clippy-comment" '' '' '' crates/halvo-route-gate/src/net.rs \
+    '#[cfg/**/(not(clippy))] pub fn go() { std::process::Command::new("true"); }') || self_failed "setup at line $LINENO"
+  clippy_module_tree=$(write_repo "$work/repo-clippy-module" '' '' '' crates/halvo-route-gate/src/lib.rs \
+    '#[cfg/**/(not(clippy))] pub mod hidden;') || self_failed "setup at line $LINENO"
   outside_tree=$(write_repo "$work/repo-outside" '' '' '' docs/outside.rs '#[cfg(feature = "x")]') || self_failed "setup at line $LINENO"
   mkdir -p "$work/deps" || self_failed "setup at line $LINENO"
   printf '%s/deps/gate-1.d: crates/halvo-route-gate/src/main.rs docs/outside.rs\n' "$work" >"$work/deps/gate-1.d" ||
@@ -1882,6 +1915,15 @@ self_test() {
   case_repo=$work/repo-attr
   case_tree=$attr_tree
   case_run rule-attribute-from-a-macro-variable FAIL check 'rule attribute crates/halvo-route-gate/src/net.rs:1'
+  case_repo=$work/repo-clippy-macro
+  case_tree=$clippy_macro_tree
+  case_run rule-clippy-through-a-macro-variable FAIL check 'rule clippy crates/halvo-route-gate/src/net.rs:1'
+  case_repo=$work/repo-clippy-comment
+  case_tree=$clippy_comment_tree
+  case_run rule-clippy-behind-a-comment FAIL check 'rule clippy crates/halvo-route-gate/src/net.rs:1'
+  case_repo=$work/repo-clippy-module
+  case_tree=$clippy_module_tree
+  case_run rule-clippy-on-a-hidden-module FAIL check 'rule clippy crates/halvo-route-gate/src/lib.rs:1'
   case_repo=$work/repo-outside
   case_tree=$outside_tree
   case_run rule-outside-the-crates-not-named PASS - 'egress rules files='
@@ -2023,9 +2065,17 @@ self_test() {
 help_sentences() {
   sh "$self" --help >"$work/help.txt" 2>&1 || wrong="$wrong help-exit"
   tr '\n' ' ' <"$work/help.txt" | tr -s ' ' >"$work/help-line.txt" || self_failed "setup at line $LINENO"
+  grep '^# rule: ' "$self" >"$work/rule-line.txt" || self_failed "setup at line $LINENO"
+  cfg_sentence="a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build"
+  for place in help-line rule-line; do
+    if ! grep -q -F -e "$cfg_sentence" "$work/$place.txt"; then
+      printf 'case %s/help want=PASS got=without-the-cfg-sentence-in-the-%s\n' "$name" "$place"
+      wrong="$wrong help"
+    fi
+  done
   for sentence in \
     'a socket or a process start inside a third-party crate, also when code of the three crates calls it' \
-    'code under a combination of unix and windows that neither job compiles' \
+    'code under a value that no forbid run has: the processor of an Intel Mac or of Windows on ARM, another target_env, target_abi or target_vendor, a target feature or a flag that a person sets for their own build, and a combination of unix and windows that neither job compiles' \
     'what the system does with a path that it opens over a network' \
     'what a process did after the command ended, in the egress check' \
     'the egress check'"'"'s writes under target/egress/' \
