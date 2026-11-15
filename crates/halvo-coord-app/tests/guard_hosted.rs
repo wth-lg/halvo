@@ -1226,6 +1226,128 @@ mod cases {
         /// The messages sent to a window of this thread whose handling has not returned, the
         /// innermost last: the window and the message.
         static SENT: RefCell<Vec<(usize, u32)>> = const { RefCell::new(Vec::new()) };
+        /// The probe's record: the time, the window, the message, how it came, visible, active,
+        /// and the flags or the wParam.
+        static PROBE: RefCell<Vec<Entry>> =
+            const { RefCell::new(Vec::new()) };
+    }
+
+    /// One entry of the probe's record.
+    type Entry = (Instant, usize, u32, &'static str, bool, bool, usize);
+
+    fn probing() -> bool {
+        std::env::var("GUARD_HOSTED_PROBE").as_deref() == Ok("1")
+    }
+
+    fn record(window: HWND, message: u32, how: &'static str, wparam: usize, lparam: isize) {
+        if !probing() {
+            return;
+        }
+        // SAFETY: reads of a window's state that send no message.
+        let (visible, active) = unsafe {
+            (
+                IsWindowVisible(window).as_bool(),
+                GetActiveWindow() == window,
+            )
+        };
+        let extra = match message {
+            // SAFETY: for these two messages lParam is the address of the WINDOWPOS of the call.
+            0x0046 | 0x0047 if lparam != 0 => unsafe {
+                (*(lparam as *const windows::Win32::UI::WindowsAndMessaging::WINDOWPOS))
+                    .flags
+                    .0 as usize
+            },
+            _ => wparam,
+        };
+        PROBE.with(|probe| {
+            let mut probe = probe.borrow_mut();
+            if probe.len() < 4000 {
+                probe.push((
+                    Instant::now(),
+                    window.0 as usize,
+                    message,
+                    how,
+                    visible,
+                    active,
+                    extra,
+                ));
+            }
+        });
+    }
+
+    unsafe extern "system" fn got(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if code >= 0 {
+            // SAFETY: for WH_GETMESSAGE with a code of 0 or more, `lparam` is the address of the
+            // MSG that was taken, which lives for this call.
+            let message =
+                unsafe { &*(lparam.0 as *const windows::Win32::UI::WindowsAndMessaging::MSG) };
+            record(
+                message.hwnd,
+                message.message,
+                "taken",
+                message.wParam.0,
+                message.lParam.0,
+            );
+        }
+        // SAFETY: as in `sent`.
+        unsafe { CallNextHookEx(None, code, wparam, lparam) }
+    }
+
+    fn name(message: u32) -> &'static str {
+        match message {
+            0x0005 => "WM_SIZE",
+            0x0006 => "WM_ACTIVATE",
+            0x0007 => "WM_SETFOCUS",
+            0x000F => "WM_PAINT",
+            0x0014 => "WM_ERASEBKGND",
+            0x0018 => "WM_SHOWWINDOW",
+            0x001C => "WM_ACTIVATEAPP",
+            0x0046 => "WM_WINDOWPOSCHANGING",
+            0x0047 => "WM_WINDOWPOSCHANGED",
+            0x0085 => "WM_NCPAINT",
+            0x0086 => "WM_NCACTIVATE",
+            0x0110 => "WM_INITDIALOG",
+            0x0111 => "WM_COMMAND",
+            0x0113 => "WM_TIMER",
+            0x0281 => "WM_IME_SETCONTEXT",
+            0x0282 => "WM_IME_NOTIFY",
+            0x0010 => "WM_CLOSE",
+            0x0002 => "WM_DESTROY",
+            0x0082 => "WM_NCDESTROY",
+            0x0001 => "WM_CREATE",
+            0x0081 => "WM_NCCREATE",
+            0x031F => "WM_DWMNCRENDERINGCHANGED",
+            0x0400..=0x7FFF => "WM_USER+",
+            _ => "other",
+        }
+    }
+
+    /// Prints the record of the show `label` for the dialog's window `window`, and clears it.
+    fn print_probe(label: &str, window: Option<HWND>, from: Instant) {
+        let entries = PROBE.with(|probe| std::mem::take(&mut *probe.borrow_mut()));
+        let Some(window) = window else {
+            println!(
+                "guard_hosted probe {label}: no window of the dialog was found; {} entries",
+                entries.len()
+            );
+            return;
+        };
+        let own: Vec<_> = entries
+            .iter()
+            .filter(|e| e.1 == window.0 as usize)
+            .collect();
+        println!(
+            "guard_hosted probe {label}: {} entries of the thread, {} of the dialog's window",
+            entries.len(),
+            own.len()
+        );
+        for (at, _, message, how, visible, active, extra) in own.iter().take(120) {
+            println!(
+                "guard_hosted probe {label} +{} us: {how} 0x{message:04x} {} visible={visible} active={active} extra=0x{extra:x}",
+                at.saturating_duration_since(from).as_micros(),
+                name(*message)
+            );
+        }
     }
 
     unsafe extern "system" fn sent(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -1233,6 +1355,13 @@ mod cases {
             // SAFETY: for WH_CALLWNDPROC with a code of 0 or more, `lparam` is the address of the
             // CWPSTRUCT of the message, which lives for this call.
             let message = unsafe { &*(lparam.0 as *const CWPSTRUCT) };
+            record(
+                message.hwnd,
+                message.message,
+                "sent",
+                message.wParam.0,
+                message.lParam.0,
+            );
             SENT.with(|sent| {
                 sent.borrow_mut()
                     .push((message.hwnd.0 as usize, message.message))
@@ -1267,6 +1396,13 @@ mod cases {
             let thread = GetCurrentThreadId();
             SetWindowsHookExW(WH_CALLWNDPROC, Some(sent), None, thread).is_ok()
                 && SetWindowsHookExW(WH_CALLWNDPROCRET, Some(returned), None, thread).is_ok()
+                && SetWindowsHookExW(
+                    windows::Win32::UI::WindowsAndMessaging::WH_GETMESSAGE,
+                    Some(got),
+                    None,
+                    thread,
+                )
+                .is_ok()
         }
     }
 
@@ -1475,7 +1611,17 @@ mod cases {
         let mut verdicts = Vec::new();
         for (name, shows) in CASES {
             let verdict = case(&ui, name, shows, &|| {
-                dialog.show(&card, arm(), &|| {
+                let from = Instant::now();
+                PROBE.with(|probe| probe.borrow_mut().clear());
+                let found = std::cell::Cell::new(None);
+                let answer = dialog.show(&card, arm(), &|| {
+                    found.set(ui.window());
+                    if probing() {
+                        println!(
+                            "guard_hosted probe report at +{} us",
+                            from.elapsed().as_micros()
+                        );
+                    }
                     let at = made_at(hooked);
                     // SAFETY: a read of the active window of this thread, the dialog's.
                     let active = unsafe { GetActiveWindow() };
@@ -1489,7 +1635,12 @@ mod cases {
                         window == Some(active)
                     );
                     on_screen(!active.is_invalid())
-                })
+                });
+                if probing() {
+                    let (label, _) = now_in_show();
+                    print_probe(&label, found.get(), from);
+                }
+                answer
             });
             print(&verdict);
             verdicts.push(verdict);
