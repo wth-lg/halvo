@@ -1158,8 +1158,13 @@ case $kind in
 esac
 EOF
   chmod +x "$work/bin/cargo"
-  real=$(command -v mkdir) || exit 2
-  printf '#!/bin/sh\ncase ${STUB_NO_COMMIT_DIRECTORY:-}:$* in\n  1:*/commit) exit 1 ;;\nesac\nexec %s "$@"\n' "$real" >"$work/bin/mkdir" || exit 2
+  cat >"$work/bin/mkdir" <<'EOF'
+#!/bin/sh
+case ${STUB_NO_COMMIT_DIRECTORY:-}:$* in
+  1:*/commit) exit 1 ;;
+esac
+exec /bin/mkdir "$@"
+EOF
   chmod +x "$work/bin/mkdir" || exit 2
   make_stub
   want_required=$(required_text) || exit 2
