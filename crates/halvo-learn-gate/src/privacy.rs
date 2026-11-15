@@ -893,4 +893,25 @@ mod tests {
         });
         assert_eq!(got, Outcome::Miss);
     }
+
+    #[test]
+    fn learn_outside_misses_a_marker_in_a_dot_entry_below_the_top_of_the_data_directory() {
+        let (data, temp) = (scratch("dot-data"), scratch("dot-temp"));
+        std::fs::create_dir_all(data.join("a").join(".cache")).expect("a dot directory");
+        std::fs::write(data.join("a").join(".cache").join("log"), MARKERS[0]).expect("a file");
+        assert_eq!(outside_with(&data, &temp, &mut |_, _| {}), Outcome::Miss);
+        let (data, temp) = (scratch("dot-file-data"), scratch("dot-file-temp"));
+        std::fs::create_dir(data.join("b")).expect("a directory");
+        std::fs::write(data.join("b").join(".hidden"), MARKERS[1]).expect("a dot file");
+        assert_eq!(outside_with(&data, &temp, &mut |_, _| {}), Outcome::Miss);
+    }
+
+    #[test]
+    fn learn_outside_misses_a_marker_beyond_the_first_4096_bytes_of_a_file() {
+        let (data, temp) = (scratch("far-data"), scratch("far-temp"));
+        let mut bytes = vec![b'x'; 4096];
+        bytes.extend_from_slice(MARKERS[0].as_bytes());
+        std::fs::write(data.join("far.bin"), &bytes).expect("a file");
+        assert_eq!(outside_with(&data, &temp, &mut |_, _| {}), Outcome::Miss);
+    }
 }
