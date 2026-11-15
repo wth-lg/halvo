@@ -814,7 +814,7 @@ fn an_item_arms_only_arm_ms_after_its_first_report_on_screen() {
 }
 
 #[test]
-fn a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run() {
+fn a_lapse_with_wait_limit_stops_the_run_then_answers_reject_then_stores_the_lapse() {
     let p = ports();
     let (mut l, mut t) = (ledger(), Table::new());
     let first = ask(PAGE);
@@ -849,8 +849,8 @@ fn a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run() {
         .collect();
     assert_eq!(
         tail,
-        ["cancel", "log", "answer_confirm"],
-        "the decision, the lapse, the stop"
+        ["log", "answer_confirm", "cancel"],
+        "the stop, the decision, the lapse"
     );
     assert!(t.is_stopped(&run_id(1)));
     assert!(
@@ -874,7 +874,7 @@ fn a_lapse_of_a_run_that_ended_sends_nothing() {
 }
 
 #[test]
-fn a_lapse_with_cancelled_answers_reject_and_stops_the_run() {
+fn a_lapse_with_cancelled_stops_the_run_then_answers_reject_then_stores_the_lapse() {
     let p = ports();
     let (mut l, mut t) = (ledger(), Table::new());
     let mut held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
@@ -888,7 +888,7 @@ fn a_lapse_with_cancelled_answers_reject_and_stops_the_run() {
     )
     .unwrap();
     let methods: Vec<&str> = p.calls.borrow().iter().map(|c| c.call.method()).collect();
-    assert_eq!(methods, ["log", "answer_confirm", "log", "cancel"]);
+    assert_eq!(methods, ["log", "cancel", "answer_confirm", "log"]);
     assert!(t.is_stopped(&run_id(1)));
 }
 
@@ -1036,9 +1036,10 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
         ),
         Err(Cause::NoService)
     );
+    let calls: Vec<Call> = q.calls.borrow().iter().map(|c| c.call.clone()).collect();
     assert!(
-        q.calls.borrow().is_empty(),
-        "no acknowledgement, no answer to the runner"
+        matches!(&calls[..], [Call::History(..)]),
+        "no acknowledgement, one read and no answer to the runner (ruling RD-52 (c)): {calls:?}"
     );
     let e = ports();
     let mut l = ledger();
@@ -1068,6 +1069,52 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             Choice::Allow
         ),
         Err(Cause::Malformed)
+    );
+}
+
+#[test]
+fn rd61c_a_read_of_another_move_that_brings_the_lost_row_ends_the_doubt_of_its_press() {
+    let p = ports();
+    let mut l = ledger();
+    let item = support::item_id(1);
+    let ask = handback(HandbackReason::StepFailed, None);
+    p.refuse(Method::Log, PortError::NoService);
+    assert_eq!(
+        answer_handback(&p, &mut l, &LIMITS, &item, &ask, Choice::Done),
+        Err(Cause::NoService)
+    );
+    p.clear_refusals();
+    let row: Vec<Event> = p
+        .tried
+        .borrow()
+        .iter()
+        .rev()
+        .find_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .unwrap();
+    p.events.borrow_mut().extend(row);
+    let read: Vec<Event> = p.events.borrow().clone();
+    l.take(&read);
+    let tried = p.tried.borrow().len();
+    assert_eq!(
+        answer_handback(&p, &mut l, &LIMITS, &item, &ask, Choice::Done),
+        Ok(())
+    );
+    let calls: Vec<Call> = p.tried.borrow()[tried..]
+        .iter()
+        .map(|t| t.call.clone())
+        .collect();
+    assert!(
+        matches!(
+            &calls[..],
+            [
+                Call::History(..),
+                Call::AnswerHandback(_, HandbackResult::Done)
+            ]
+        ),
+        "the stored answer goes with no log, after one read: {calls:?}"
     );
 }
 
