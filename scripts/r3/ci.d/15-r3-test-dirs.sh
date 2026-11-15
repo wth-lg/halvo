@@ -139,7 +139,7 @@ function arm(k, n,   j, t) {
   return 0
 }
 function okarm(k, n,   j, t) {
-  for (j = k + 1; j <= k + 3 && j <= n; j++) {
+  for (j = k + 1; j <= n && j <= k + 3; j++) {
     if (bb[j] !~ /Ok\(/ || bb[j] !~ /=>/) continue
     t = bb[j]
     sub(/.*=>/, "", t)
@@ -666,6 +666,22 @@ self_test() {
   repo loop-word-in-a-string
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    assert!(fs::create_dir(&d).is_ok() || d.is_dir(), "{note}");\n    d\n}\n'
   case_of loop-word-in-a-string FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo return-on-the-third-line-below
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            let _ = 1;\n            let _ = 2;\n            return dir;\n        }\n    }\n}\n'
+  case_of return-on-the-third-line-below PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo return-on-the-fourth-line-below
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            let _ = 1;\n            let _ = 2;\n            let _ = 3;\n            return dir;\n        }\n    }\n}\n'
+  case_of return-on-the-fourth-line-below FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo ok-arm-on-the-third-line-below
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) if e.kind() == ErrorKind::Interrupted => {}\n            Ok(()) => return dir,\n            Err(e) => panic!("{e}"),\n        }\n    }\n}\n'
+  case_of ok-arm-on-the-third-line-below PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo ok-arm-on-the-fourth-line-below
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) if e.kind() == ErrorKind::Interrupted => {}\n            Err(e) if e.kind() == ErrorKind::WouldBlock => {}\n            Ok(()) => return dir,\n            Err(e) => panic!("{e}"),\n        }\n    }\n}\n'
+  case_of ok-arm-on-the-fourth-line-below FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
   repo unconditional-break
   put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut dir = PathBuf::new();\n    loop {\n        dir = base.join(format!("{name}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("made {}", dir.display());\n        }\n        break;\n    }\n    dir\n}\n'
