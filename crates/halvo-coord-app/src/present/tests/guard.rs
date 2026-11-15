@@ -168,7 +168,7 @@ fn show_the_first_activation_reports_once_and_the_hold_counts_from_the_return() 
     let report = || reports.set(reports.get() + 1);
     let show = Show::new(ARM, &report);
     assert!(!show.press(clock.at(0)), "before the window became active");
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert_eq!(reports.get(), 1);
     assert!(
         !show.press(clock.at(799)),
@@ -176,7 +176,7 @@ fn show_the_first_activation_reports_once_and_the_hold_counts_from_the_return() 
     );
     let clock = Clock::new(&[0, 300]);
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert!(show.press(clock.at(800)));
 }
 
@@ -186,8 +186,8 @@ fn show_a_later_activation_reports_nothing_and_starts_the_hold_anew() {
     let reports = Cell::new(0);
     let report = || reports.set(reports.get() + 1);
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
+    show.active(true, &|| clock.read());
     assert_eq!(reports.get(), 1);
     assert!(!show.press(clock.at(1_199)));
     assert!(
@@ -204,14 +204,14 @@ fn show_the_hold_starts_at_a_reading_of_the_clock_after_the_report_returned() {
         let _ = clock.read();
     };
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert!(!show.press(clock.at(799)), "the hold counts from 300 ms");
     let clock = Clock::new(&[0, 100, 300]);
     let report = || {
         let _ = clock.read();
     };
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert!(show.press(clock.at(800)));
 }
 
@@ -220,9 +220,93 @@ fn show_a_report_that_panics_still_starts_the_hold_and_the_show_goes_on() {
     let clock = Clock::new(&[0, 100]);
     let report = || panic!("the report panicked");
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert!(!show.press(clock.at(599)));
     assert!(show.press(clock.at(1_099)));
+}
+
+#[test]
+fn show_an_active_window_that_is_not_visible_makes_no_report_and_refuses_every_press() {
+    let clock = Clock::new(&[]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    show.active(false, &|| clock.read());
+    show.shown(false, &|| clock.read());
+    show.active(false, &|| clock.read());
+    assert_eq!(
+        reports.get(),
+        0,
+        "no report while the window cannot be seen"
+    );
+    for at in [0, 100, 499, 500, 600, 10_000] {
+        assert!(!show.press(clock.at(at)), "a press at {at} ms");
+        assert!(
+            !show.click(true, clock.at(at)),
+            "the allowing control at {at} ms"
+        );
+        assert!(
+            !show.click(false, clock.at(at)),
+            "another control at {at} ms"
+        );
+    }
+}
+
+#[test]
+fn show_the_first_reading_of_active_and_visible_makes_the_one_report_and_the_hold_runs_from_its_return(
+) {
+    let clock = Clock::new(&[200, 260, 900]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    show.active(false, &|| clock.read());
+    assert!(!show.press(clock.at(150)), "active and not visible");
+    show.shown(true, &|| clock.read());
+    assert_eq!(reports.get(), 1, "the window became visible while active");
+    assert!(
+        !show.press(clock.at(759)),
+        "arm_ms minus 1 after the return at 260 ms"
+    );
+    show.shown(true, &|| clock.read());
+    assert_eq!(reports.get(), 1, "one report");
+    let clock = Clock::new(&[200, 260]);
+    let show = Show::new(ARM, &report);
+    show.active(false, &|| clock.read());
+    show.shown(true, &|| clock.read());
+    assert!(show.press(clock.at(760)), "arm_ms after the return");
+}
+
+#[test]
+fn show_a_window_shown_while_not_active_reports_at_its_first_activation_while_visible() {
+    let clock = Clock::new(&[300, 320]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    show.shown(false, &|| clock.read());
+    assert_eq!(reports.get(), 0, "visible and not active");
+    show.active(true, &|| clock.read());
+    assert_eq!(reports.get(), 1);
+    assert!(
+        !show.press(clock.at(819)),
+        "arm_ms minus 1 after the return at 320 ms"
+    );
+    let clock = Clock::new(&[300, 320]);
+    let show = Show::new(ARM, &report);
+    show.shown(false, &|| clock.read());
+    show.active(true, &|| clock.read());
+    assert!(show.press(clock.at(820)), "arm_ms after the return");
+}
+
+#[test]
+fn show_an_activation_while_not_visible_after_the_report_starts_the_hold_anew() {
+    let clock = Clock::new(&[0, 0, 700]);
+    let reports = Cell::new(0);
+    let report = || reports.set(reports.get() + 1);
+    let show = Show::new(ARM, &report);
+    show.active(true, &|| clock.read());
+    show.active(false, &|| clock.read());
+    assert_eq!(reports.get(), 1);
+    assert!(!show.press(clock.at(1_199)), "the hold runs from 700 ms");
 }
 
 #[test]
@@ -231,7 +315,7 @@ fn show_a_lost_subclass_lets_no_allow_through_and_closes_on_any_other_control() 
     let reports = Cell::new(0);
     let report = || reports.set(reports.get() + 1);
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert!(
         show.click(true, clock.at(600)),
         "a whole show answers an allow after arm"
@@ -255,7 +339,7 @@ fn show_a_whole_show_holds_every_control_alike() {
     let clock = Clock::new(&[0, 0]);
     let report = || {};
     let show = Show::new(ARM, &report);
-    show.active(&|| clock.read());
+    show.active(true, &|| clock.read());
     assert!(
         !show.click(false, clock.at(100)),
         "the rejecting control inside arm"

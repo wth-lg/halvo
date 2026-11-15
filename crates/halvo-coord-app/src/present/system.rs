@@ -40,8 +40,10 @@ use tauri::{AppHandle, Runtime};
 /// alert holds as its default, and that its window has no close control, the target asserts where
 /// it reads them; where it gives no reading, they rest on the trial's record and on the hand check
 /// of I9.5. On Windows it is the task dialog, whose callback refuses a button's click inside the
-/// hold, and whose window, subclassed at its creation, reports the show at its first activation and
-/// refuses the message WM_CLOSE inside the hold; when that subclass cannot be set, the show
+/// hold, and whose window, subclassed at its creation, reports the show at the first reading at
+/// which it is the active window and visible to the person (ruling RD-112 (b)): at TDN_CREATED or
+/// at an activation while visible, or at the window's own show, the message WM_WINDOWPOSCHANGED
+/// with SWP_SHOWWINDOW, while active; it refuses the message WM_CLOSE inside the hold; when that subclass cannot be set, the show
 /// closes at once through its rejecting control and its allowing control answers nothing. The same target holds that a click of the allowing
 /// id 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the
 /// Escape key and the close control give, of an id that no button has, and the message WM_CLOSE
@@ -427,7 +429,8 @@ pub(super) mod windows {
     use windows::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
     use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
-        PostMessageW, WA_INACTIVE, WM_ACTIVATE, WM_CLOSE,
+        IsWindowVisible, PostMessageW, SWP_SHOWWINDOW, WA_INACTIVE, WINDOWPOS, WM_ACTIVATE,
+        WM_CLOSE, WM_WINDOWPOSCHANGED,
     };
 
     const SUBCLASS: usize = 1;
@@ -510,7 +513,9 @@ pub(super) mod windows {
                     };
                 // SAFETY: a read of the active window of this thread.
                 } else if unsafe { GetActiveWindow() } == window {
-                    show.active(&Instant::now);
+                    // SAFETY: a read of the style of the dialog's own window, which lives for
+                    // this call.
+                    show.active(unsafe { IsWindowVisible(window) }.as_bool(), &Instant::now);
                 }
                 S_OK
             }
@@ -538,7 +543,21 @@ pub(super) mod windows {
         // until the call of `TaskDialogIndirect` returns, after TDN_DESTROYED removed this subclass.
         let show = unsafe { &*(data as *const Show) };
         match msg {
-            WM_ACTIVATE if (wparam.0 & 0xffff) as u32 != WA_INACTIVE => show.active(&Instant::now),
+            WM_ACTIVATE if (wparam.0 & 0xffff) as u32 != WA_INACTIVE => {
+                // SAFETY: as at TDN_CREATED.
+                show.active(unsafe { IsWindowVisible(window) }.as_bool(), &Instant::now)
+            }
+            // SAFETY: for WM_WINDOWPOSCHANGED lParam is the address of the WINDOWPOS of the
+            // change, which lives for this call; a null one is read as no show.
+            WM_WINDOWPOSCHANGED
+                if lparam.0 != 0
+                    && unsafe { (*(lparam.0 as *const WINDOWPOS)).flags }.0 & SWP_SHOWWINDOW.0 != 0
+                    // SAFETY: as at TDN_CREATED.
+                    && unsafe { IsWindowVisible(window) }.as_bool() =>
+            {
+                // SAFETY: a read of the active window of this thread.
+                show.shown(unsafe { GetActiveWindow() } == window, &Instant::now)
+            }
             WM_CLOSE if !show.press(Instant::now()) => return LRESULT(0),
             _ => {}
         }

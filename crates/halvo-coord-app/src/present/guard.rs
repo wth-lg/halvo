@@ -73,11 +73,16 @@ impl Guard {
 }
 
 /// One show of a dialog whose window's messages all come on the thread of the show's call, the
-/// task dialog of Windows: its hold and its report on screen.
+/// task dialog of Windows: its hold and its report on screen, which comes at the first reading at
+/// which the window is the active window and visible to the person (ruling RD-112 (b)); until that
+/// report has returned every press is refused. Its caller, the task dialog in `system.rs`, reads
+/// the window's activity and visibility at TDN_CREATED, at each activation and at the window's own
+/// show.
 #[cfg(any(test, windows))]
 pub struct Show<'a> {
     guard: Cell<Guard>,
     lost: Cell<bool>,
+    reported: Cell<bool>,
     on_screen: &'a dyn Fn(),
 }
 
@@ -89,15 +94,35 @@ impl<'a> Show<'a> {
         Show {
             guard: Cell::new(Guard::new(arm)),
             lost: Cell::new(false),
+            reported: Cell::new(false),
             on_screen,
         }
     }
 
-    /// The show's window became the active window: the hold starts anew at `clock()`, and the
+    /// The show's window became the active window, `visible` as read now (ruling RD-112 (b)):
+    /// once the show has reported, the hold starts anew at `clock()`; before it, the show reports
+    /// itself on screen only when the window is also visible, and an activation of a window that
+    /// the person cannot see moves nothing, so that every press stays refused.
+    pub fn active(&self, visible: bool, clock: &dyn Fn() -> Instant) {
+        if visible || self.reported.get() {
+            self.seen(clock);
+        }
+    }
+
+    /// The show's window became visible, `active` when it is the active window as read now: the
+    /// show's report on screen when it has made none and the window is active; nothing else.
+    pub fn shown(&self, active: bool, clock: &dyn Fn() -> Instant) {
+        if active && !self.reported.get() {
+            self.seen(clock);
+        }
+    }
+
+    /// The window is the active window and visible: the hold starts anew at `clock()`, and the
     /// first time the show reports itself on screen and the hold starts again at the reading of
     /// `clock` after that report returned, also when the report panicked.
-    pub fn active(&self, clock: &dyn Fn() -> Instant) {
+    fn seen(&self, clock: &dyn Fn() -> Instant) {
         if self.with(|guard| guard.active(clock())) {
+            self.reported.set(true);
             let _ = catch_unwind(AssertUnwindSafe(self.on_screen));
             self.with(|guard| guard.reported(clock()));
         }
