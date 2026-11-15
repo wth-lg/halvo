@@ -1173,4 +1173,35 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     expect(first).toEqual({ calls: [], alarms: 0 });
     expect(second?.calls).toContain("ledger.expire");
   });
+
+  for (const failing of ["ledger.expire", "metering.seal", "accounts.forget", "the wake branch"] as const) {
+    test(`L1 (b): under the mark an error of ${failing} is caught and logged by name, and the same run makes the owed cancel call`, async () => {
+      let now = 8000;
+      const w = world({ clock: () => now });
+      await w.seeded({ customerId: "cus_one" });
+      w.answers.settled = false;
+      w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+      expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+      let made = 0;
+      w.host.port.cancelSubscription = async () => {
+        made += 1;
+        return { kind: "cancelled" };
+      };
+      if (failing === "the wake branch") {
+        w.answers.wake = { sessionId: "cs_one" };
+        w.host.port.readSession = async () => {
+          throw new RangeError("the read throws");
+        };
+      } else {
+        w.answers.throwIn = failing;
+        w.answers.oldestUnsealed = () => ({ interval: 0, end: 1000 });
+      }
+      w.reset();
+      now = 68_000;
+      await w.entries.alarm();
+      w.answers.throwIn = null;
+      expect(made).toBe(1);
+      expect(lines.filter((line) => line.event === "alarm-error").length).toBeGreaterThan(0);
+    });
+  }
 });

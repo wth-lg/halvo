@@ -99,6 +99,15 @@ interface Open {
   arm(): void;
 }
 
+class LoggedAlarmError extends Error {
+  readonly first: unknown;
+  constructor(first: unknown) {
+    super("an error of the alarm's run under the mark, already logged");
+    this.name = "LoggedAlarmError";
+    this.first = first;
+  }
+}
+
 function contractBroken(): never {
   const error = new Error("a module answered what contract 3.1 rules out");
   error.name = "ContractBrokenError";
@@ -331,48 +340,65 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   }
 
   async function alarmBody(run: AlarmRun): Promise<void> {
-    const head = host.step((sql) => (holds(sql) ? markOf(sql) : null));
+    const head = host.step((sql) => (holds(sql) ? { mark: markOf(sql), failures: Number(skeletonRow(sql).alarm_failures) } : null));
     if (head === null) return;
-    run.mark = head;
-    const marked = head.since !== null;
-    const first = step((open) => {
-      if (!holds(open.sql)) return null;
-      const now = open.begin();
-      const failures = Number(skeletonRow(open.sql).alarm_failures);
-      ledger.expire(open.sql, now);
-      if (isMetered(open.sql)) sealLoop(open.sql, now);
-      accounts.forget(open.sql, now);
-      return { failures, wake: accounts.wake(open.sql, now), metered: isMetered(open.sql), marked };
-    });
-    if (first === null) return;
-    let metered = first.metered;
-    if (first.wake !== null) {
-      const sessionId = first.wake.sessionId;
-      const answer = await host.port.readSession(sessionId);
-      const after = step((open) => {
+    run.mark = head.mark;
+    const marked = head.mark.since !== null;
+    const caught: unknown[] = [];
+    async function part<T>(work: () => Promise<T> | T): Promise<T | undefined> {
+      if (!marked) return work();
+      try {
+        return await work();
+      } catch (error) {
+        caught.push(error);
+        log({ event: "alarm-error", error: errorName(error) });
+        return undefined;
+      }
+    }
+    const first = await part(() =>
+      step((open) => {
         if (!holds(open.sql)) return null;
         const now = open.begin();
         ledger.expire(open.sql, now);
-        if (answer.kind === "complete") {
-          const made = accounts.complete(open.sql, answer.session);
-          if (made.kind === "account-made") {
-            accountMade(open.sql, made, (accounts.subscription(open.sql) ?? contractBroken()).accountId, now);
+        if (isMetered(open.sql)) sealLoop(open.sql, now);
+        accounts.forget(open.sql, now);
+        return { wake: accounts.wake(open.sql, now), metered: isMetered(open.sql) };
+      }),
+    );
+    if (first === null) return;
+    let metered = first?.metered ?? true;
+    const wake = first?.wake ?? null;
+    if (wake !== null) {
+      const sessionId = wake.sessionId;
+      const after = await part(async () => {
+        const answer = await host.port.readSession(sessionId);
+        return step((open) => {
+          if (!holds(open.sql)) return null;
+          const now = open.begin();
+          ledger.expire(open.sql, now);
+          if (answer.kind === "complete") {
+            const made = accounts.complete(open.sql, answer.session);
+            if (made.kind === "account-made") {
+              accountMade(open.sql, made, (accounts.subscription(open.sql) ?? contractBroken()).accountId, now);
+            }
+            return { removal: null, metered: isMetered(open.sql) };
+          }
+          const recorded = accounts.record(open.sql, sessionId, answer.kind, now);
+          if (isRemoval(recorded)) {
+            open.beginWithoutAlarm();
+            return { removal: recorded, metered: false };
           }
           return { removal: null, metered: isMetered(open.sql) };
-        }
-        const recorded = accounts.record(open.sql, sessionId, answer.kind, now);
-        if (isRemoval(recorded)) {
-          open.beginWithoutAlarm();
-          return { removal: recorded, metered: false };
-        }
-        return { removal: null, metered: isMetered(open.sql) };
+        });
       });
       if (after === null) return;
-      if (after.removal !== null) {
-        await removeAll(after.removal);
-        return;
+      if (after !== undefined) {
+        if (after.removal !== null) {
+          await removeAll(after.removal);
+          return;
+        }
+        metered = after.metered;
       }
-      metered = after.metered;
     }
     let thrown: { error: unknown } | null = null;
     try {
@@ -380,7 +406,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     } catch (error) {
       thrown = { error };
     }
-    if (first.marked) {
+    if (marked) {
       let finished: Awaited<ReturnType<typeof finishDelete>> = { answer: NOT_FINISHED, thrown: null };
       try {
         finished = await finishDelete(null);
@@ -394,7 +420,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
     }
     if (thrown !== null) throw thrown.error;
-    if (first.failures > 0) {
+    if (caught.length > 0) throw new LoggedAlarmError(caught[0]);
+    if (head.failures > 0) {
       step((open) => {
         if (!holds(open.sql)) return;
         open.begin();
@@ -404,8 +431,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   }
 
   function countFailure(error: unknown): void {
-    const name = errorName(error);
-    log({ event: "alarm-error", error: name });
+    const logged = error instanceof LoggedAlarmError;
+    const name = errorName(logged ? error.first : error);
+    if (!logged) log({ event: "alarm-error", error: name });
     let count = ALARM_RETRY_LIMIT;
     let tested = false;
     try {
