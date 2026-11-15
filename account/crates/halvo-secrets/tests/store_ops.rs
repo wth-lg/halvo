@@ -518,20 +518,20 @@ fn write_beside_a_delete_of_other_bytes(tally: &mut Tally, race: &str) {
     );
     tally.child(race, deleting, &["Other(X)"]);
     tally.child(race, writing, &["Occupied"]);
-    assert_eq!(
-        names_in(&dir),
-        ["account"],
-        "{race}: no claim and no second file"
-    );
-    assert_eq!(
-        fs::read(dir.join("account")).expect("the file of X"),
-        HELD,
-        "{race}: X stands byte for byte"
-    );
-    assert!(
-        !tally.counts.contains_key(&format!("{race} write-y Stored")),
-        "{race}: a write stored beside X"
-    );
+    let names = names_in(&dir);
+    if names != ["account"] {
+        tally
+            .wrong
+            .push(format!("{race}: the store directory then held {names:?}"));
+    }
+    if fs::read(dir.join("account")).ok().as_deref() != Some(HELD) {
+        tally
+            .wrong
+            .push(format!("{race}: X did not stand byte for byte"));
+    }
+    if tally.counts.contains_key(&format!("{race} write-y Stored")) {
+        tally.wrong.push(format!("{race}: a write stored beside X"));
+    }
 }
 
 #[test]

@@ -19,19 +19,23 @@ use crate::{Directory, Name, Secret};
 /// gives; `delete_if_holds` removes it only while it holds the bytes that its caller read;
 /// and `remove`, at the person's word, removes the item of one named store.
 ///
-/// The removal by `delete_if_holds` from a file, on both systems: it claims the file by one
-/// rename, which never replaces a name, to the claim's private name in the store
-/// directory, reads what it claimed, and removes it only when it holds the caller's bytes,
-/// byte for byte; another file, or one that cannot be read or removed, is named back. So a
-/// file that another process puts under the name after the claim stays. When the claimed
-/// file is gone before it is read, because another operation put it back, the removal
-/// starts again once and then answers `Fault`. A file that cannot be named back because
-/// the name was taken again stays under its private name and the answer is `Fault`. From
-/// the Keychain it finds the item with its bytes and a reference to it, compares the
+/// The removal by `delete_if_holds` from a file, on both systems: it reads the file under
+/// the store's name and compares before it claims, so other bytes answer `Other` and nothing
+/// is claimed. With the caller's bytes it claims the file by one rename, which never
+/// replaces a name, to the claim's private name in the store directory, reads what it
+/// claimed, and removes it only when it still holds the caller's bytes, byte for byte. A
+/// file that another process put under the name between the read and the claim, or one
+/// that cannot be read or removed, is named back, and the answer is `Other` with its bytes
+/// or that failure; a file that another process puts under the name after the claim stays.
+/// When the claimed file is gone before it is read, because another operation put it back,
+/// the removal starts again once and then answers `Fault`. A file that cannot be named back
+/// because the name was taken again stays under its private name and the answer is `Fault`.
+/// From the Keychain it finds the item with its bytes and a reference to it, compares the
 /// bytes, removes that item by its reference and no other, and then looks again: no item
 /// answers `Deleted`, an item with other bytes answers `Other`, and the same bytes, or a
-/// look that fails, answer `Fault`, because the system gives no code for a removal by
-/// reference.
+/// look that fails, answer `Fault`. The look again is the one check: the system's delete
+/// returns a status, and the library that the crate uses (security-framework 3.7.0) drops
+/// it.
 ///
 /// The place on macOS: every call walks the caller's path as given, from `/`, each step
 /// opened for search alone, relative to the step above and never through a link. A step
@@ -73,21 +77,29 @@ use crate::{Directory, Name, Secret};
 /// removes the file only after a fresh read of the Keychain gives the file's bytes), and a
 /// second such finding answers `Fault` with -1. A listing that shows neither the name nor a
 /// claim lets the answer stand: `NotStored`, and for a move what the Keychain holds. So no
-/// operation answers `NotStored` while the credential lies in another process's claim, and
-/// no write stores a second credential beside one that a claim held. A file whose link
-/// count reads 0 right after its open was removed while open: it is no second name, and it
-/// counts as a file that is not there. While each claim is ended, a claim that is gone at
-/// its open, whose link count reads 0, or that the removal or the rename back finds absent
-/// by the system's own absent code was its owner's at work: it is passed over, and the
-/// operation's own listing answers for what stands. A live claim that stands is put back
-/// under the store's name, and its owner then answers `Fault` with -1.
+/// operation answers `NotStored` while the credential lies in another process's claim. A
+/// write to a file, on both systems, lists the store directory once more after it
+/// publishes: when a name of the claim's form stands there it answers `Fault` with -1 and
+/// keeps the file that it published, and it answers `Stored` only when that listing shows
+/// no claim. Because `delete_if_holds` claims a file only after its read found the caller's
+/// bytes in it, no write stores a second credential beside one that a claim held, but for
+/// the limits named below. A file whose link count reads 0 right after its open was
+/// removed while open: it is no second name, and it counts as a file that is not there.
+/// While each claim is ended, a claim that is gone at its open, whose link count reads 0,
+/// or that the removal or the rename back finds absent by the system's own absent code was
+/// its owner's at work: it is passed over, and the operation's own listing answers for what
+/// stands. A live claim that stands is put back under the store's name. Its owner then
+/// looks once more: a `delete_if_holds` reads, claims and removes the file again and
+/// answers `Deleted` while it holds the caller's bytes, and a move runs its look again. A
+/// second put-back answers `Fault` with -1.
 ///
 /// The answers `Fault` with -1 that contention gives, each after the finding named: an
 /// operation of either store after its second listing that holds the name or a claim; the
 /// claim of `delete_if_holds` whose claimed file is gone twice; a move whose second look
 /// finds the name or a claim again; `delete_if_holds` whose claim was put back by another
-/// operation and that cannot name it back; and a settle that finds a claim beside a taken
-/// name, after one finding (a removal at the person's word ends such a claim instead).
+/// operation and that cannot name it back; a settle that finds a claim beside a taken name,
+/// after one finding (a removal at the person's word ends such a claim instead); and a write
+/// whose listing after its publish finds a claim.
 ///
 /// Absent and missing, on both systems: a read answers `NotStored` only when the store
 /// directory or the item is absent under a parent that exists. A step above the store
@@ -116,9 +128,11 @@ use crate::{Directory, Name, Secret};
 /// answers what the Keychain holds. When the Keychain item and the file stand with equal
 /// bytes, a read removes the file and answers `Found`: it finishes a move that stopped
 /// there. When they stand with other bytes, every read, write and delete of both builds
-/// answers `Locked::OtherStore` and changes nothing; `remove` at the person's word is the
-/// one operation that leaves that state. When the Keychain item stands and the file cannot
-/// be read, a read gives the item.
+/// answers `Locked::OtherStore` and changes nothing; `remove` at the person's word, from a
+/// build that can remove the item of the store that it names, is the one operation that
+/// leaves that state (see `remove`). When the Keychain item stands and the file cannot be
+/// read, a read gives the item, unless a claim in the store directory cannot be settled;
+/// then a read, a write and a delete answer that and change nothing.
 ///
 /// A write of either build first reads as above, the move included. On `NotStored` it makes
 /// the only-create write in the store that the build keeps; on `Found` it answers
@@ -148,10 +162,16 @@ use crate::{Directory, Name, Secret};
 /// `NotStored`, it answers by the table above.
 ///
 /// `remove` at the person's word, after the app has said what it costs: `from` names the
-/// file of the file store or the Keychain item. It removes whatever item that store holds,
-/// with no compare, and the other store's item stays; a removal of either store's item
-/// first ends each claim as the place above says, with the bytes that the Keychain item
-/// holds, so a claim of a killed move of the Keychain item's bytes goes with that item.
+/// file of the file store or the Keychain item. It removes the item of that store, with no
+/// compare, and the other store's item stays. A removal of either store's item first ends
+/// each claim as the place above says, with the bytes of the Keychain item when this build
+/// can read them, so that a claim of a killed move of those bytes goes. A build without
+/// the feature `keychain` that meets the Keychain item which the signed app made cannot
+/// read it (-25293) and cannot remove it (-25244), as seen between two test binaries on the
+/// hosted macOS image of run 43705715845: its `remove(StoreKind::Keychain)` answers that
+/// fault and names a killed move's claim back under the file's name, and its reads then
+/// answer `Locked::OtherStore`. The two ways to remove that item are the signed app and the
+/// system's Keychain Access; no build of Halvo works around the system's refusal.
 /// A removal of the file, of the file store of `Store::new`, of `Store::in_directory` or of
 /// the DPAPI store, also removes each claim of the store's form that cannot be named back
 /// because the name is taken, and each temporary file of a write of the store's form
@@ -160,13 +180,17 @@ use crate::{Directory, Name, Secret};
 /// No other operation removes a temporary file, because a live write of another process may
 /// own it; such a write beside a removal at the person's word answers `Fault` with the
 /// system's absent code (2) at the rename of its temporary file and stores nothing.
-/// Then it reads, the move included, and gives that
-/// read beside the removal's answer, so the caller learns what then stands: in the state
-/// with other bytes in both stores, a build with the feature then reads the item that
-/// stays, moving the file into the Keychain where the Keychain's item was removed, and a
-/// build without it reads the file where the Keychain's item was removed and answers
-/// `Locked::OtherStore` while the Keychain item stays. A kind that the store never looks
-/// at, `Dpapi` on macOS, answers `None`.
+/// After it removed the file under the store's name, or a claim of the store's form that
+/// held other bytes than the Keychain item's, a removal answers `Deleted` or a failure and
+/// never `NotStored`; `NotStored` from a removal means that nothing stood under the store's
+/// name and no claim of other bytes stood. A claim of the Keychain item's bytes is the
+/// leftover of a killed move and no credential of the file store, and a temporary file is
+/// no claim either. Then it reads, the move included, and gives that read beside the
+/// removal's answer, so the caller learns what then stands: in the state with other bytes
+/// in both stores, a build with the feature then reads the item that stays, moving the file
+/// into the Keychain where the Keychain's item was removed, and a build without it answers
+/// `Locked::OtherStore` while a Keychain item stands. A kind that the store never looks at,
+/// `Dpapi` on macOS, answers `None`.
 ///
 /// Two limits stay. A delete or a `delete_if_holds` of a build without the feature, or a
 /// `remove` of the file by either build, whose steps all fall between a move's read of the
@@ -176,6 +200,15 @@ use crate::{Directory, Name, Secret};
 /// builds at one moment can store one each, which leaves both stores with other bytes
 /// until `remove`. No order of steps closes either without one lock over the operations
 /// of both builds.
+///
+/// Two limits of a file stay too. A write that falls between the claim of a file of the
+/// caller's bytes by `delete_if_holds` and its unlink stores a new credential while the old
+/// one is deleted as the caller asked, and may answer `Fault` with -1 although its file
+/// stands; the next read finds it. And when the file is replaced between the read of
+/// `delete_if_holds` and its claim, and a write falls inside that claim, a claim that
+/// cannot be named back stays beside the new file: no write answers `Stored`, the delete
+/// answers `Fault` with -1, every later operation answers `Fault` with -1, and the removal
+/// at the person's word is the way out.
 ///
 /// `Store::in_directory` reads and writes the file alone and never searches the Keychain.
 ///

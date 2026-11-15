@@ -30,7 +30,9 @@ pub(crate) trait Keychain {
     fn delete(&self, service: &str, account: &str) -> Result<(), i32>;
     /// The bytes of the first item of `service` and `account`, with a reference to that item.
     fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32>;
-    /// Removes the item that `item` refers to, and no other item; the system gives no code.
+    /// Removes the item that `item` refers to, and no other item. The system's delete
+    /// returns a status, but the library that the crate uses (security-framework 3.7.0)
+    /// drops it, so no code comes back here and the caller looks again.
     fn delete_item(&self, item: ItemRef);
 }
 
@@ -166,6 +168,12 @@ impl<K: Keychain> KeychainItem<K> {
         }
     }
 
+    /// Removes the item only while it holds `held`: it finds the item with its bytes and a
+    /// reference to it, compares, removes that item by its reference, and looks again, which
+    /// is the one check because no code comes back from the removal. A reference that went
+    /// stale, because another process removed the item and added a later one between the
+    /// find and the removal, kept the later item on the hosted macOS image of run
+    /// 43705715845 in 200 of 200 rounds, in that interleaving, and no more is shown.
     pub(crate) fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
         match self.count() {
             Ok(0) => return DeleteIfHolds::NotStored,
