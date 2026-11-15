@@ -158,10 +158,9 @@ pub fn refusal_causes(check_stderr: &str) -> String {
 pub fn denial_lines(cell: &str, set: &str, log: &str) -> Vec<String> {
     log.lines()
         .map(|line| {
-            let proto = match key(line, "proto") {
-                Some(p @ ("tcp" | "udp" | "icmp" | "dns")) => p,
-                _ => "-",
-            };
+            let proto = key(line, "proto")
+                .filter(|p| ["tcp", "udp", "icmp", "dns"].contains(p))
+                .unwrap_or("-");
             let (host, port) = match key(line, "dest").and_then(|d| d.rsplit_once(':')) {
                 Some((host, port)) => (host, port),
                 None => ("", ""),

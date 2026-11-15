@@ -58,7 +58,7 @@ fn cases() -> Vec<Case> {
     let mut list = vec![
         case(
             "a_failed_start",
-            &[started_no.clone()],
+            std::slice::from_ref(&started_no),
             &[
                 started_no.clone(),
                 set("final"),
@@ -86,7 +86,7 @@ fn cases() -> Vec<Case> {
         ),
         case(
             "a_start_with_its_task_ok",
-            &[ok.clone()],
+            std::slice::from_ref(&ok),
             &[
                 ok.clone(),
                 set("final"),
@@ -115,7 +115,7 @@ fn cases() -> Vec<Case> {
     let denial = |s: &str, rest: &str| format!("egress_denial {CELL} set={s} {rest}");
     let mut control = case(
         "the_control",
-        &[ok.clone()],
+        std::slice::from_ref(&ok),
         &[
             ok.clone(),
             denial("final", "proto=udp port=5353 loopback=no"),
@@ -134,7 +134,7 @@ fn cases() -> Vec<Case> {
     list.push(control);
     let mut first = case(
         "the_first_set",
-        &[ok.clone()],
+        std::slice::from_ref(&ok),
         &[
             ok.clone(),
             denial("first", "proto=udp port=443 loopback=unknown"),
@@ -153,8 +153,8 @@ fn cases() -> Vec<Case> {
     if cfg!(unix) {
         let mut signal = case(
             "a_signal",
-            &[ok.clone()],
-            &[ok, format!("notrun item=3 {CELL} cause=signal")],
+            std::slice::from_ref(&ok),
+            &[ok.clone(), format!("notrun item=3 {CELL} cause=signal")],
             1,
         );
         signal.signal = true;

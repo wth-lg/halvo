@@ -71,6 +71,8 @@ fn run(p: &Places, args: &[&str]) -> (i32, String, bool) {
     (out.status.code().unwrap_or(-1), refused, called)
 }
 
+type Row<'a> = (&'a str, Vec<&'a str>, (i32, &'a str, bool));
+
 fn s(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
@@ -80,7 +82,7 @@ fn the_argument_reader_follows_the_usage_line_of_a13_3() {
     let p = places();
     let (plain, program, missing) = (s(&p.plain), s(&p.program), s(&p.missing));
     let driver = s(&p.bin.join("driver"));
-    let rows: Vec<(&str, Vec<&str>, (i32, &str, bool))> = vec![
+    let rows: Vec<Row> = vec![
         (
             "a_file_named_chrome_that_is_no_program_is_refused_as_a_browser",
             vec!["--item", "1", "--browser", &plain, "--port", "18191"],
