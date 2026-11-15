@@ -641,24 +641,27 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     let dueNow: { due: Ms; now: Ms } | null = null;
     let removalOfAnyId: Ms | null = null;
     const deleteDuringTheRun = run.mark !== null && run.mark !== "unknown" && run.mark.since === null && exit !== "unknown" && exit.mark.since !== null;
+    let keptSince: Ms | null | "unknown" = exit === "unknown" ? "unknown" : since;
     try {
       const counted = host.step((sql) => {
         const mark = markOf(sql);
         const markedNow = marked || mark.since !== null;
         const prior = Number(skeletonRow(sql).alarm_failures);
-        const failures = markedNow ? Math.max(prior, kept) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
+        if (failuresKept !== null && failuresKept.since !== mark.since) failuresKept = null;
+        const failures = markedNow ? Math.max(prior, failuresKept?.count ?? 0) + 1 : Math.min(prior + 1, ALARM_RETRY_LIMIT);
         sql.exec("UPDATE skeleton SET alarm_failures = ?", failures);
-        return { failures, tested: testTimeOf(testTime(sql)), marked: markedNow, nextAt: mark.nextAt };
+        return { failures, tested: testTimeOf(testTime(sql)), marked: markedNow, nextAt: mark.nextAt, since: mark.since };
       });
       count = counted.failures;
       tested = counted.tested;
       marked = counted.marked;
       nextAt = counted.nextAt;
+      keptSince = counted.since;
     } catch (counting) {
       log({ event: "alarm-error", error: errorName(counting) });
       count = marked ? kept + 1 : ALARM_RETRY_LIMIT;
     }
-    if (marked) failuresKept = { since: exit === "unknown" ? (failuresKept?.since ?? null) : since, count };
+    if (marked) failuresKept = { since: keptSince === "unknown" ? (failuresKept?.since ?? null) : keptSince, count };
     try {
       host.step((sql) => {
         sql.exec("UPDATE skeleton SET last_now = ?", Math.max(time(sql), lastNow(sql)));
@@ -1112,12 +1115,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         answers,
         (open, now) => {
           if (destroyingSince(open.sql) !== null) return { cut: null };
-          open.sql.exec("UPDATE skeleton SET destroying_since = ?", now);
+          open.sql.exec("UPDATE skeleton SET destroying_since = ?, alarm_failures = 0", now);
           return { cut: now };
         },
         by,
       );
       if ("result" in first) return first;
+      if (first.cut !== null) failuresKept = null;
       let failed = false;
       let leave: { error: unknown } | null = null;
       const caught = (error: unknown) => {
