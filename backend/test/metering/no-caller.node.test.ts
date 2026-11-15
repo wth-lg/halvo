@@ -18,7 +18,7 @@ type Failing =
   | "metering.nextSend"
   | "metering.oldestUnsealed"
   | "ledger.intervalTotals"
-  | "ledger.openHolds"
+  | "due:accounts.subscription"
   | "metering.settled"
   | "metering.closeOpen"
   | "metering.cut"
@@ -34,9 +34,9 @@ interface Ending {
   runs: number;
 }
 
-function throwing(on: () => boolean, name: string, real: (...a: never[]) => unknown) {
+function throwing(on: () => boolean, name: string, real: (...a: never[]) => unknown, only?: string) {
   return (...a: never[]) => {
-    if (on()) throw new RangeError(`${name} throws`);
+    if (on() && (only === undefined || String(new Error().stack).includes(only))) throw new RangeError(`${name} throws`);
     return real(...a);
   };
 }
@@ -61,9 +61,12 @@ async function ninetyDays(failing: Failing, sends: "answered" | "lost", o: { rej
   const accounts = makeAccounts();
   const ledger = makeLedger({ holdLifeMs: w.host.config.holdLifeMs });
   const metering = makeMetering({ intervalSeconds: w.host.config.intervalSeconds, marginSeconds: w.host.config.marginSeconds });
-  const [module, fn] = failing.split(".") as [string, string];
+  const dueAlone = failing.startsWith("due:");
+  const [module, fn] = failing.replace("due:", "").split(".") as [string, string];
   const wrap = <T extends object>(name: string, target: T): T =>
-    module === name && fn in target ? { ...target, [fn]: throwing(isOn, failing, (target as Record<string, (...a: never[]) => unknown>)[fn] as (...a: never[]) => unknown) } : target;
+    module === name && fn in target
+      ? { ...target, [fn]: throwing(isOn, failing, (target as Record<string, (...a: never[]) => unknown>)[fn] as (...a: never[]) => unknown, dueAlone ? "dueOf" : undefined) }
+      : target;
   const own = makeEntries(w.host, { accounts: wrap("accounts", accounts), ledger: wrap("ledger", ledger), metering: wrap("metering", metering) });
   let inAlarm = false;
   let alarmSteps = 0;
@@ -135,7 +138,7 @@ function holdsTheRule(ending: Ending): void {
 }
 
 describe("90 days with no caller after the delete: the owed cancel is made by the object, no period begins after its answer, and the storage goes by the bound (P7-110 L1 to L3)", () => {
-  for (const failing of ["ledger.nextDue", "accounts.nextDue", "metering.nextSend", "metering.oldestUnsealed", "ledger.intervalTotals", "ledger.openHolds"] as const) {
+  for (const failing of ["ledger.nextDue", "accounts.nextDue", "metering.nextSend", "metering.oldestUnsealed", "ledger.intervalTotals", "due:accounts.subscription"] as const) {
     test(`a due-time read, ${failing}, throws on every call from the delete on; the person's second delete answers`, async () => {
       holdsTheRule(await ninetyDays(failing, "answered"));
     });

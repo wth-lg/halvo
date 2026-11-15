@@ -47,6 +47,7 @@ interface Answers {
   cap: { cap: Cap; spent: number; held: number; periodEnd: Ms } | null;
   ledgerNextDue: () => Ms | null;
   openHolds: number;
+  storedHolds: number | null;
   intervalOpen: number;
   oldestUnsealed: () => { interval: Ms; end: Ms } | null;
   send: Next;
@@ -74,6 +75,7 @@ function defaults(): Answers {
     cap: { cap: CAP, spent: 1, held: 2, periodEnd: 77 },
     ledgerNextDue: () => null,
     openHolds: 0,
+    storedHolds: null,
     intervalOpen: 0,
     oldestUnsealed: () => null,
     send: { call: null, notBillable: 0 },
@@ -134,7 +136,7 @@ function scripted() {
     void: answering("ledger.void", () => ({ outcome: "voided" }) as const),
     expire: answering("ledger.expire", () => 0),
     intervalTotals: answering("ledger.intervalTotals", () => ({ reported: 4, unreported: 0, open: answers.intervalOpen })),
-    openHolds: answering("ledger.openHolds", () => answers.openHolds),
+    openHolds: answering("ledger.openHolds", () => answers.storedHolds ?? answers.openHolds),
     openHoldsAt: answering("ledger.openHoldsAt", () => answers.openHolds),
     nextDue: answering("ledger.nextDue", () => answers.ledgerNextDue()),
   };
@@ -1965,5 +1967,193 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     }
     expect(runs).toEqual([0, 60_000, 120_000, 180_000, 240_000]);
     expect(lines.filter((line) => line.event === "removal-overdue")).toEqual(Array(5).fill({ event: "removal-overdue" }));
+  });
+
+  const cancelCalls = (w: ReturnType<typeof world>) => w.portCalls.filter((call) => call[0] === "cancelSubscription");
+  const stopped = () => {
+    const error = new Error("the object stopped");
+    error.name = "ObjectStoppedError";
+    return error;
+  };
+
+  test("M6 (E22): a send that spans a delete and a remake of the account: when the first instance's send returns, its finish finds no mark on the new account and makes no cancel call", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.send = { call: SEND, notBillable: 0 };
+    let release: (answer: { kind: "recorded" }) => void = () => {};
+    w.host.port.sendUsage = async () =>
+      new Promise((resolve) => {
+        release = resolve;
+      });
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    w.answers.send = { call: null, notBillable: 0 };
+    const second = makeEntries(w.host, w.modules);
+    now = 9000;
+    expect(await second.destroy(HASH)).toEqual({ result: "deleted" });
+    expect((await second.testSeed({ accountId: ACCOUNT, hash: HASH, subscription: "active", customerId: "cus_one", time: 10_000 })).result).toBe("seeded");
+    const before = cancelCalls(w).length;
+    release({ kind: "recorded" });
+    expect(await first).toEqual({ result: "not-finished" });
+    expect(cancelCalls(w).length).toBe(before);
+    expect(skeleton(w)).toEqual(expect.objectContaining({ destroying_since: null, cancel_answered_at: null }));
+  });
+
+  test("M6 (E22): the alarm's read of the mark throws for an account with no mark: the run goes on as under the mark and makes no cancel call for the live plan", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    let first = true;
+    const inner = w.host.step;
+    w.host.step = (<T>(run: (sql: Sql) => T): T => {
+      if (first) {
+        first = false;
+        throw new RangeError("the mark's read throws");
+      }
+      return inner(run);
+    }) as typeof inner;
+    now = 9000;
+    await w.entries.alarm();
+    expect(cancelCalls(w)).toEqual([]);
+    expect(skeleton(w)?.destroying_since).toBeNull();
+  });
+
+  test("M6 (J09): metering.unacknowledged throwing in step 4 rolls nothing back: the cancel is made and its answer stored", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.answers.throwIn = "metering.unacknowledged";
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = null;
+    expect(cancelCalls(w)).toEqual([["cancelSubscription", "sub_one"]]);
+    expect(skeleton(w)?.cancel_answered_for).toBe("sub_one");
+  });
+
+  test("M6 (J11): metering.closedAtBound throwing at the removal keeps nothing: the storage goes, and the count is logged as unknown", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.throwIn = "metering.closedAtBound";
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    w.answers.throwIn = null;
+    expect(await w.holds()).toBe(false);
+    expect(lines).toContainEqual({ event: "usage-not-billable", error: "Error" });
+  });
+
+  test("M6 (J20): the removal counts a hold as open only before its stored expiry: a hold that expire could not end does not keep the storage", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.storedHolds = 1;
+    w.answers.openHolds = 0;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    expect(await w.holds()).toBe(false);
+  });
+
+  test("M6 (J22): a failing run whose owed time is already past arms at now plus the pause, not in the past", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    await w.entries.destroy(HASH);
+    expect(skeleton(w)?.cancel_next_at).toBe(68_000);
+    w.answers.openHolds = 1;
+    w.answers.throwIn = "accounts.forget";
+    now = 100_000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.alarmAt()).toBe(100_000 + ALARM_RETRY_MS);
+  });
+
+  test("M6 (J38): closeOpen throws at the bound, deleteAll fails, then an id arrives: the decision made for no id is void, and the storage waits for the new id's answer and the metering", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.subscription = { ...METERED, subscriptionId: null };
+    w.answers.settled = false;
+    const made: (string | null)[] = [];
+    w.host.port.cancelSubscription = async (id) => {
+      made.push(id);
+      return { kind: id === null ? "nothing-to-cancel" : "cancelled" };
+    };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    const deleteAll = w.host.deleteAll;
+    let rejected = false;
+    w.host.deleteAll = async () => {
+      if (!rejected) {
+        rejected = true;
+        throw new RangeError("the removal is rejected");
+      }
+      return deleteAll();
+    };
+    w.answers.throwIn = "metering.closeOpen";
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(skeleton(w)?.removal_decided_at).toBe(now);
+    w.answers.subscription = METERED;
+    now += 1000;
+    await w.entries.alarm();
+    expect(made).toEqual([null, "sub_one"]);
+    expect(await w.holds()).toBe(true);
+    expect(skeleton(w)).toEqual(expect.objectContaining({ cancel_answered_for: "sub_one", removal_decided_at: null }));
+  });
+
+  test("M6 (J45): a stop after the removal's decision committed and a fresh makeEntries: the next run reads the count back and logs each usage-not-billable line once", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.closeOpen = 2;
+    const inner = w.host.step;
+    let stop = true;
+    w.host.step = (<T>(run: (sql: Sql) => T): T => {
+      let decided = false;
+      const value = inner((sql) =>
+        run({
+          exec: (query: string, ...bindings: (string | number | null)[]) => {
+            if (query.startsWith("UPDATE skeleton SET removal_decided_at = ?")) decided = true;
+            return sql.exec(query, ...bindings);
+          },
+        } as Sql),
+      );
+      if (decided && stop) {
+        stop = false;
+        throw stopped();
+      }
+      return value;
+    }) as typeof inner;
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    await w.entries.alarm();
+    expect(lines.filter((line) => line.event === "usage-not-billable")).toEqual([]);
+    const fresh = makeEntries(w.host, w.modules);
+    now += 1000;
+    await fresh.alarm();
+    expect(await w.holds()).toBe(false);
+    expect(lines.filter((line) => line.event === "usage-not-billable")).toEqual([{ event: "usage-not-billable" }, { event: "usage-not-billable" }]);
+  });
+
+  test("M6 (J49): destroy answers what its steps reached after a caught error: its own call for no id throws after another instance removed the storage, and it answers deleted", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.subscription = { ...METERED, subscriptionId: null };
+    let reject: (error: Error) => void = () => {};
+    let calls = 0;
+    w.host.port.cancelSubscription = async () => {
+      calls += 1;
+      if (calls > 1) return { kind: "nothing-to-cancel" };
+      return new Promise((_, rejecting) => {
+        reject = rejecting;
+      });
+    };
+    const first = w.entries.destroy(HASH);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    now = 9000;
+    expect(await makeEntries(w.host, w.modules).destroy(HASH)).toEqual({ result: "deleted" });
+    reject(new RangeError("the call throws"));
+    expect(await first).toEqual({ result: "deleted" });
+    expect(events()).toContain("destroy-error");
   });
 });
