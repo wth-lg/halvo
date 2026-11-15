@@ -687,6 +687,22 @@ self_test() {
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}\n            Err(e) if e.kind() == ErrorKind::Interrupted => {}\n            Err(e) if e.kind() == ErrorKind::WouldBlock => {}\n            Ok(()) => return dir,\n            Err(e) => panic!("{e}"),\n        }\n    }\n}\n'
   case_of ok-arm-on-the-fourth-line-below FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
+  repo create-dir-all-and-create-dir-in-a-match
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir_all(&dir).and(fs::create_dir(dir.join("in"))) {\n            Ok(()) => return dir,\n            Err(_) => {}\n        }\n    }\n}\n'
+  case_of create-dir-all-and-create-dir-in-a-match FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo find-without-is-ok
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    (0..3)\n        .map(|n| base.join(format!("x-{}-{n}", std::process::id())))\n        .find(|d| fs::create_dir(d).map(|()| true).unwrap_or(true))\n        .expect("a folder")\n}\n'
+  case_of find-without-is-ok FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo return-on-the-line-of-the-test
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() { return dir; }\n    }\n}\n'
+  case_of return-on-the-line-of-the-test PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
+  repo ok-arm-with-a-block
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let dir = base.join(format!("x-{}", std::process::id()));\n        match fs::create_dir(&dir) {\n            Ok(()) => {\n                return dir;\n            }\n            Err(_) => {}\n        }\n    }\n}\n'
+  case_of ok-arm-with-a-block PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
   repo unconditional-break
   put crates/a/tests/t.rs 'fn scratch(name: &str) -> PathBuf {\n    let mut dir = PathBuf::new();\n    loop {\n        dir = base.join(format!("{name}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("made {}", dir.display());\n        }\n        break;\n    }\n    dir\n}\n'
   case_of unconditional-break FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
