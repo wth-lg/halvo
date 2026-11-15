@@ -2354,4 +2354,55 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     w.answers.throwIn = null;
     expect(w.alarmAt()).toBe(Math.max(runAt + ALARM_RETRY_MS, sentAt + CALL_IN_FLIGHT_MS));
   });
+
+  const inTheCountStep = (w: ReturnType<typeof world>, fails: (query: string) => boolean) => {
+    const inner = w.host.step;
+    w.host.step = (<T>(run: (sql: Sql) => T): T =>
+      inner((sql) =>
+        run({
+          exec: (query: string, ...bindings: (string | number | null)[]) => {
+            if (fails(query) && String(new Error().stack).includes("countFailure")) throw new RangeError("the count step's statement throws");
+            return sql.exec(query, ...bindings);
+          },
+        } as Sql),
+      )) as typeof inner;
+  };
+
+  test("T1 (f): an account with no mark whose exit read throws in every failing run runs at the doubling pause with no stop", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.throwIn = "accounts.forget";
+    inTheCountStep(w, (query) => query.startsWith("SELECT destroying_since"));
+    await w.entries.rearm();
+    const gaps: Ms[] = [];
+    for (let run = 0; run < 7; run += 1) {
+      now = Math.max(now, w.alarmAt() ?? now);
+      const at = now;
+      await w.entries.alarm();
+      gaps.push(((w.alarmAt() ?? at) - at) / 1000);
+    }
+    w.answers.throwIn = null;
+    expect(events()).not.toContain("alarm-stopped");
+    expect(gaps).toEqual([30, 60, 120, 240, 480, 960, 1920]);
+  });
+
+  test("T1 (f): one throw of the count's write outside the mark, with the exit's read showing no mark, stops at once, as contract 3.4 line 556 has it", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.throwIn = "accounts.forget";
+    let threw = false;
+    inTheCountStep(w, (query) => {
+      if (threw || !query.startsWith("UPDATE skeleton SET alarm_failures = ?")) return false;
+      threw = true;
+      return true;
+    });
+    await w.entries.rearm();
+    now = Math.max(now, w.alarmAt() ?? now);
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(events().filter((event) => event === "alarm-stopped")).toHaveLength(1);
+    expect(w.alarmAt()).toBeNull();
+  });
 });

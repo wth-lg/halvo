@@ -15,6 +15,12 @@ import { type Metering, type Next, RETRY_DELAY_CAP_MS, SYNC_RETRY_MS, type Usage
 import type { Cap, Micro, Ms, Sql, Step, Tier } from "../types.ts";
 
 export const ALARM_RETRY_MS = 30_000;
+/**
+ * Outside the mark, five failing runs of the alarm in a row end with alarm-stopped and no alarm when the exit's read of the
+ * mark shows no mark; one throw of the count's own write with no mark stops at once (contract 3.4 line 556). An exit whose
+ * read of the mark throws counts as under the mark (P7-110 L3 (a)), so an account with no mark whose exit read throws in
+ * every run runs at the pause with no stop.
+ */
 export const ALARM_RETRY_LIMIT = 5;
 export const ALARM_CALL_LIMIT = 3;
 export const START_RESTARTS = 2;
