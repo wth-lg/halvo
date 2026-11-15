@@ -6,7 +6,6 @@ name=60-r6-egress
 list=scripts/r6/egress/gate.txt
 trial=docs/r2/trials/egress.md
 probe_word=--r6-egress-no-such-argument
-unknown='REFUSED usage: unknown command'
 nl='
 '
 w_rust=RUST
@@ -724,25 +723,140 @@ read_candidates() {
   ' "$work/grep.txt" | sort -u >"$work/candidates.txt" || fail setup
 }
 
+write_asker() {
+  cat >"$work/asker.sh" <<'EOF' || fail setup
+#!/bin/sh
+exe=$1
+words=$2
+answers=$3
+seconds=$4
+probe=$5
+unknown='REFUSED usage: unknown command'
+nl='
+'
+mkdir -p "$answers/discover" || exit 2
+: >"$answers/commands.txt" || exit 2
+(
+  trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+  sleep "$seconds" &
+  nap=$!
+  wait "$nap"
+  : >"$answers/timeout"
+  if read -r child <"$answers/child"; then
+    kill "$child" 2>/dev/null
+  fi
+  kill "$$" 2>/dev/null
+) &
+watchdog=$!
 answers_unknown() {
-  (cd "$work/discover" && "$exe" "$@" >"$work/ask.out" 2>"$work/ask.err" </dev/null)
+  (cd "$answers/discover" && exec "$exe" "$@") >"$answers/ask.out" 2>"$answers/ask.err" </dev/null &
+  printf '%s\n' "$!" >"$answers/child"
+  wait "$!"
   code=$?
   answer=
   while IFS= read -r line || [ -n "$line" ]; do
     answer=$answer$line$nl
-  done <"$work/ask.err"
-  [ "$code" -eq 2 ] && [ ! -s "$work/ask.out" ] && [ "$answer" = "$unknown$nl" ]
+  done <"$answers/ask.err"
+  [ "$code" -eq 2 ] && [ ! -s "$answers/ask.out" ] && [ "$answer" = "$unknown$nl" ]
+}
+asked=0
+while IFS= read -r word || [ -n "$word" ]; do
+  asked=$((asked + 1))
+  printf '%s\n' "$word" >"$answers/asking"
+  if ! answers_unknown "$word" || ! answers_unknown "$word" "$probe"; then
+    printf '%s\n' "$word" >>"$answers/commands.txt"
+  fi
+done <"$words"
+printf '%s\n' "$asked" >"$answers/asked"
+kill "$watchdog" 2>/dev/null
+wait "$watchdog"
+exit 0
+EOF
+}
+
+read_wrapped() {
+  last_line "$1"
+  rest=${last#"egress mode="}
+  run_mode=${rest%% *}
+  rest=${rest#*" list=$list command="}
+  status=${rest%% *}
+  rest=${rest#*" denied="}
+  count=${rest%% *}
+  log=${rest#*" log="}
+  wrapped=line
+  case $last in
+    "REFUSED mode: "*)
+      wrapped=refused
+      return
+      ;;
+    "egress mode=$run_mode list=$list command=$status denied=$count log=$log") ;;
+    *)
+      wrapped=missing
+      return
+      ;;
+  esac
+  case $count in
+    '' | *[!0-9]*) wrapped=missing ;;
+  esac
+}
+
+wrapped_holds() {
+  if [ "$status" != 0 ]; then
+    return 1
+  elif [ "$count" -eq 0 ] && [ "$1" -ne 0 ]; then
+    return 1
+  elif [ "$count" -ne 0 ] && [ "$1" -ne 1 ]; then
+    return 1
+  fi
+  return 0
+}
+
+asking_seconds() {
+  seconds=${R6_EGRESS_ASKING_SECONDS:-240}
+  case $seconds in
+    '' | 0* | *[!0-9]*) fail usage ;;
+  esac
+  [ "$seconds" -le 240 ] || fail usage
 }
 
 discover() {
-  : >"$work/commands.txt"
   asked=0
-  while IFS= read -r word || [ -n "$word" ]; do
-    asked=$((asked + 1))
-    if ! answers_unknown "$word" || ! answers_unknown "$word" "$probe_word"; then
-      printf '%s\n' "$word" >>"$work/commands.txt"
-    fi
-  done <"$work/candidates.txt"
+  if [ "$job" = windows ]; then
+    printf 'egress asking=not-run (in the windows job the egress check names the wrapped program alone, so a reach by a child of a wrapped shell is logged and failed, not stopped; the forbid run holds the code that windows compiles)\n'
+    return
+  fi
+  write_asker
+  asking_seconds
+  mkdir -p "$work/answers" || fail setup
+  sh scripts/egress/check.sh "$list" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$work/answers" "$seconds" \
+    "$probe_word" >"$artifacts/asking.out" 2>"$artifacts/asking.err" </dev/null
+  code=$?
+  read_wrapped "$artifacts/asking.err"
+  if [ -f "$work/answers/timeout" ]; then
+    IFS= read -r word <"$work/answers/asking" || word=-
+    printf 'egress asking timeout=%s word=%s\n' "$seconds" "$word"
+    ran=no
+  fi
+  case $wrapped in
+    refused)
+      refused_mode=yes
+      ran=no
+      printf 'egress asking refused=mode\n'
+      ;;
+    missing)
+      ran=no
+      printf 'egress asking line=missing exit=%s\n' "$code"
+      ;;
+    line)
+      denied=$((denied + count))
+      printf 'egress asking denied=%s command=%s exit=%s\n' "$count" "$status" "$code"
+      wrapped_holds "$code" || ran=no
+      ;;
+  esac
+  if [ -f "$work/answers/asked" ]; then
+    IFS= read -r asked <"$work/answers/asked" || asked=0
+  fi
+  cp "$work/answers/commands.txt" "$work/commands.txt" 2>/dev/null || : >"$work/commands.txt"
 }
 
 compare_lists() {
@@ -758,14 +872,21 @@ compare_lists() {
     matched=no
   done <"$work/twice.txt"
   sort -u "$work/listed.txt" >"$work/listed-once.txt" || fail setup
-  commands=$(awk 'END { print NR }' "$work/commands.txt") || fail setup
+  if [ "$job" = windows ]; then
+    awk '{ print $1 }' "$work/run-list.txt" >"$work/commands.txt" || fail setup
+    commands=-
+  else
+    commands=$(awk 'END { print NR }' "$work/commands.txt") || fail setup
+  fi
   while IFS= read -r word; do
+    [ "$job" != windows ] || continue
     if ! grep -q -x -F -e "$word" "$work/listed-once.txt"; then
       printf 'egress on-neither-list=%s\n' "$word"
       matched=no
     fi
   done <"$work/commands.txt"
   while IFS= read -r word; do
+    [ "$job" != windows ] || continue
     if ! grep -q -x -F -e "$word" "$work/commands.txt"; then
       printf 'egress no-command=%s\n' "$word"
       matched=no
@@ -786,9 +907,6 @@ last_line() {
 }
 
 run_checks() {
-  denied=0
-  ran=yes
-  refused_mode=no
   i=0
   while IFS= read -r entry || [ -n "$entry" ]; do
     i=$((i + 1))
@@ -817,30 +935,15 @@ EOF
     sh scripts/egress/check.sh "$list" -- "$exe" "$word" "$@" \
       >"$artifacts/run-$i.out" 2>"$artifacts/run-$i.err" </dev/null
     code=$?
-    last_line "$artifacts/run-$i.err"
-    rest=${last#"egress mode="}
-    run_mode=${rest%% *}
-    rest=${rest#*" list=$list command="}
-    status=${rest%% *}
-    rest=${rest#*" denied="}
-    count=${rest%% *}
-    log=${rest#*" log="}
-    case $last in
-      "REFUSED mode: "*)
+    read_wrapped "$artifacts/run-$i.err"
+    case $wrapped in
+      refused)
         refused_mode=yes
         ran=no
         printf 'egress run=%s refused=mode\n' "$word"
         continue
         ;;
-      "egress mode=$run_mode list=$list command=$status denied=$count log=$log") ;;
-      *)
-        ran=no
-        printf 'egress run=%s line=missing exit=%s\n' "$word" "$code"
-        continue
-        ;;
-    esac
-    case $count in
-      '' | *[!0-9]*)
+      missing)
         ran=no
         printf 'egress run=%s line=missing exit=%s\n' "$word" "$code"
         continue
@@ -848,13 +951,7 @@ EOF
     esac
     denied=$((denied + count))
     printf 'egress run=%s mode=%s command=%s denied=%s exit=%s\n' "$word" "$run_mode" "$status" "$count" "$code"
-    if [ "$status" != 0 ]; then
-      ran=no
-    elif [ "$count" -eq 0 ] && [ "$code" -ne 0 ]; then
-      ran=no
-    elif [ "$count" -ne 0 ] && [ "$code" -ne 1 ]; then
-      ran=no
-    fi
+    wrapped_holds "$code" || ran=no
   done <"$work/run-list.txt"
 }
 
@@ -911,6 +1008,9 @@ check() {
   esac
   [ -f "$exe" ] || fail setup
 
+  denied=0
+  ran=yes
+  refused_mode=no
   read_graph
   read_candidates
   discover
@@ -1041,6 +1141,12 @@ exit 97
 EOF
   cat >"$work/route-gate" <<'EOF' || self_failed setup
 #!/bin/sh
+if [ "$#" -eq 1 ] && [ "$1" = reachword ] && [ -n "$STUB_REACH" ]; then
+  printf 'reach\n' >>"$STUB_REACH"
+fi
+if [ "$#" -eq 1 ] && [ "$1" = hangword ] && [ -n "$STUB_HANG" ]; then
+  exec sleep 30
+fi
 for odd in $STUB_ODD; do
   [ "$1" = "${odd%%:*}" ] || continue
   case ${odd#*:} in
@@ -1099,6 +1205,7 @@ fn main() {
     let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
     let adjacent = words! {"see help","adjword"};
     let odd = ["stdoutword", "exitword", "textword"];
+    let wrapped = ["reachword", "hangword"];
 }
 EOF
   printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
@@ -1140,10 +1247,15 @@ case $STUB_CHECK in
     exit
     ;;
 esac
+reached=0
+[ -z "$STUB_REACH" ] || [ ! -f "$STUB_REACH" ] || reached=$(awk 'END { print NR }' "$STUB_REACH")
 "$@"
 code=$?
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
 denied=0
+if [ -n "$STUB_REACH" ] && [ -f "$STUB_REACH" ]; then
+  denied=$(($(awk 'END { print NR }' "$STUB_REACH") - reached))
+fi
 [ "$STUB_CHECK" != denied ] || denied=1
 [ "$STUB_CHECK" != denied0 ] || denied=1
 printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/1/denied.log\n' "$list" "$code" "$denied" >&2
@@ -1161,6 +1273,8 @@ case_reset() {
   case_tree=$good_tree
   STUB_COMMANDS='generate import derive score self-test spend-sim probe'
   STUB_RUN_EXIT=0
+  STUB_REACH=
+  STUB_HANG=
   STUB_ODD=
   STUB_BARE=
   STUB_CHECK=pass
@@ -1171,7 +1285,7 @@ case_reset() {
   STUB_CANARY=synth
   STUB_CANARY_DROP=0
   STUB_GRAPH=good
-  case_job=$own_job
+  case_job=macos
   case_actions=
   case_arg=
   case_env=
@@ -1179,7 +1293,7 @@ case_reset() {
 
 case_run() {
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_HANG=$STUB_HANG \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
@@ -1424,9 +1538,17 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=20 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=7 asked=22 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid findings=0 exit=0'
+  case_run asking-wrapped PASS - 'egress asking denied=0 command=0 exit=0'
+  STUB_REACH=$work/reach.log
+  case_run asking-reaches-the-network-when-asked-bare FAIL denied 'egress asking denied=1 command=0 exit=1'
+  STUB_HANG=1
+  case_env=R6_EGRESS_ASKING_SECONDS=2
+  case_run asking-hangs-past-its-deadline FAIL check 'egress asking timeout=2 word=hangword'
+  case_job=windows
+  case_run asking-not-run-in-the-windows-job PASS - 'egress asking=not-run (in the windows job'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
   case_run rules-allowed-forms PASS - 'egress rules files='
   case_env="$v_flags=-Dwarnings"
@@ -1478,6 +1600,7 @@ self_test() {
   case_tree=$patch_tree
   case_run graph-patch-table FAIL check 'egress graph patch=Cargo.toml'
   STUB_CANARY=real
+  case_job=$own_job
   case_run canary-on-the-real-cargo PASS - 'egress canary entries='
   STUB_CANARY_DROP=1
   case_run canary-let-through FAIL check "egress canary missing=clippy::disallowed_types:1${nl}egress canary entries="
@@ -1516,9 +1639,9 @@ self_test() {
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=20'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=22'
   STUB_CHECK=denied
-  case_run denied-in-each-run FAIL denied 'egress checks=6 denied=6 entries=0' 'denied=0 proves'
+  case_run denied-in-each-run FAIL denied 'egress checks=6 denied=7 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
   case_run check-exits-0-with-a-denial FAIL check 'egress run=probe mode=sandbox command=0 denied=1 exit=0'
   STUB_CHECK=denied
