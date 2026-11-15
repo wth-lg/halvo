@@ -2625,10 +2625,11 @@ EOF
   fi
   STUB_CHECK=noline-control
   case_run control-without-an-egress-line FAIL check 'egress control line=missing exit=1'
-  if [ "$own_job" = macos ]; then
+  if [ "$own_job" = macos ] && [ "$host_job" = macos ]; then
     STUB_CHECK=link-log
     case_run log-that-is-a-link FAIL check 'egress control log=not-new-or-not-its-own'
-  else
+  elif case_wanted log-that-is-a-link; then
+    printf '%s\n' log-that-is-a-link >>"$work/other-seen.txt"
     printf 'case %s/log-that-is-a-link not-run: Git for Windows makes a copy for ln -s, so the stub cannot make a link here\n' "$name"
   fi
   STUB_TOUCH=$work/repo/docs/r2/trials/egress.md
