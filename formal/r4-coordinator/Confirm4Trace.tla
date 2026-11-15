@@ -7,7 +7,7 @@ VARIABLE w
 
 RefusePct == 12
 KindSeq == <<"issue", "arm", "answer", "record", "release", "lapse", "stop", "guard", "other",
-            "bind", "press", "bind_lapse", "kill">>
+            "bind", "press", "bind_lapse", "kill", "bind_stopped">>
 RefusalSeq == <<"stale", "presenter", "early", "state", "approval", "no_service", "busy">>
 
 Weight(k) ==
@@ -22,12 +22,14 @@ Weight(k) ==
       [] k = "other" -> 3
       [] k = "bind" -> 30
       [] k = "press" -> 40
-      [] k = "bind_lapse" -> 5
+      [] k = "bind_lapse" -> 12
       [] k = "kill" -> 8
+      [] k = "bind_stopped" -> 2
 
 KindOf(mv) ==
     IF mv.m = "guard" /\ (mv.state = "committed" \/ mv.approval = NoApproval) THEN "other" ELSE mv.m
 Fine(a) == a \in {"ok", "repeat", "no_service", "busy"}
+KindIn(s, mv) == IF mv.m = "bind" /\ s.run = "stopped" THEN "bind_stopped" ELSE KindOf(mv)
 
 RECURSIVE WSum(_)
 WSum(ks) == IF Len(ks) = 0 THEN 0 ELSE Weight(ks[1]) + WSum(Tail(ks))
@@ -145,8 +147,8 @@ AnswersOf(s, cs, i) ==
 Choose(s, x0) ==
     LET cs == Cands(s)
         as == AnswersOf(s, cs, 1)
-        IsGood(i) == Fine(as[i])
-        IsBad(i) == ~Fine(as[i])
+        IsGood(i) == Fine(as[i]) \/ (cs[i].m = "bind" /\ s.run = "stopped")
+        IsBad(i) == ~IsGood(i)
         idx == [i \in 1..Len(cs) |-> i]
         good == SelectSeq(idx, IsGood)
         bad == SelectSeq(idx, IsBad)
@@ -158,13 +160,13 @@ Choose(s, x0) ==
         answers == SelectSeq(RefusalSeq, HasAnswer)
         answer == answers[1 + Draw(x2, Len(answers))]
         WithAnswer(i) == as[i] = answer
-        HasKind(k) == \E j \in 1..Len(good) : KindOf(cs[good[j]]) = k
+        HasKind(k) == \E j \in 1..Len(good) : KindIn(s, cs[good[j]]) = k
         kinds == SelectSeq(KindSeq, HasKind)
         kind == WPick(kinds, Draw(x2, WSum(kinds)))
-        OfKind(i) == KindOf(cs[i]) = kind
+        OfKind(i) == KindIn(s, cs[i]) = kind
         pool == IF refuse THEN SelectSeq(bad, WithAnswer) ELSE SelectSeq(good, OfKind)
     IN [mv |-> cs[pool[1 + Draw(x3, Len(pool))]], x |-> x3,
-        dead |-> \A j \in 1..Len(good) : KindOf(cs[good[j]]) = "other"]
+        dead |-> \A j \in 1..Len(good) : KindIn(s, cs[good[j]]) \in {"other", "bind_stopped"}]
 
 YesNo(b) == IF b THEN Str("yes") ELSE Str("no")
 
@@ -270,7 +272,7 @@ Cases == Len(Directed)
 TraceInit ==
     /\ st = Init0
     /\ h = InitH
-    /\ w = [n |-> IF Config = "full" THEN 1 ELSE Count + 1, k |-> 0, z |-> 0,
+    /\ w = [n |-> IF Config = "bound" THEN 1 ELSE Count + 1, k |-> 0, z |-> 0,
             x |-> 1 + (Seed % 2147483646), acc |-> <<>>]
 
 Play(mv, x, dead) ==

@@ -314,7 +314,7 @@ models() {
 
 stamp_of() {
   (cd "$1" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg \
-    Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json) >"$2.bin" || return 1
+    Confirm4.tla Confirm4.cfg Confirm4-bound.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json) >"$2.bin" || return 1
   tr -d '\r' <"$2.bin" >"$2.txt" || return 1
   stamp=$(sha256 <"$2.txt") || return 1
   stamp=${stamp%% *}
@@ -359,7 +359,7 @@ stamps() {
     [ -e "$f" ] || continue
     case ${f##*/} in
       Schedule.tla | Schedule.cfg | Confirm4.tla | Confirm4.cfg | ScheduleTrace.tla | Confirm4Trace.tla) ;;
-      TraceText.tla | limits.json | Schedule-holds.cfg | Schedule-left.cfg | Schedule-reap.cfg) ;;
+      TraceText.tla | limits.json | Schedule-holds.cfg | Schedule-left.cfg | Schedule-reap.cfg | Confirm4-bound.cfg) ;;
       *)
         case $named in
           *"

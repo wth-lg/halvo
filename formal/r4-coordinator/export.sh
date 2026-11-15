@@ -7,7 +7,9 @@ usage: sh formal/r4-coordinator/export.sh --jar PATH [--out DIR] [--seed N --cou
 
 Writes traces-schedule.jsonl and traces-confirm.jsonl from the models Schedule and
 Confirm4 of this directory: N random walks of each model and, after them, the directed
-traces, 13 of Schedule and 15 of Confirm4. Each directed trace names a configuration, and
+traces, 13 of Schedule and 15 of Confirm4. The walks of Schedule are drawn under
+Schedule.cfg and those of Confirm4 under Confirm4-bound.cfg, each model's own bound. Each
+directed trace names a configuration, and
 the export fails when a move of it is no move of the model under that configuration's
 constants. PATH is tla2tools.jar of the release that README.md names. DIR is an existing
 directory and defaults to this one. Without --seed and --count the export takes both
@@ -136,7 +138,7 @@ done
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/r4-export.XXXXXX") || miss "scratch=miss"
 cp "$here"/*.tla "$here"/*.cfg "$here/limits.json" "$work/" || miss "scratch=miss"
-stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
+stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg Confirm4.tla Confirm4.cfg Confirm4-bound.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
 test "${#stamp}" -eq 64 || miss "stamp=miss"
 
 : >"$work/cases.txt"
@@ -150,7 +152,7 @@ for model in Schedule Confirm4; do
         Confirm4)
             file=traces-confirm.jsonl
             cases=15
-            set -- full
+            set -- bound full
             ;;
     esac
     : >"$work/$model.lines"

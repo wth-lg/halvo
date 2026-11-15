@@ -1,6 +1,6 @@
 gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record
-stamp=f4e76ae6b5cf786bbb7a3a127098397049eba09e8ce17265aab98e8d490050fc
-script=ef5a3844994d4d4d87a7357546d4021bb512d9aca758f068e426ca7ea8dd385a
+stamp=c4e66baffc0163c526365eba63f46c8505ccf9ec056b618d439c232731d67a74
+script=541703b1b8ce204a427efc87aa4754240c4496120d0684f380b8941f223ffdd1
 selftest fixture=good mode=good as-expected=yes
 selftest fixture=not-compared mode=reads-input as-expected=yes
 selftest rule=scratch held=yes
@@ -18,6 +18,8 @@ selftest fixture=unnamed-configuration mode=good as-expected=yes
 selftest fixture=days-not-for-ci mode=good as-expected=yes
 selftest fixture=invariant-twice mode=good as-expected=yes
 selftest fixture=replaced-invariant mode=good as-expected=yes
+selftest fixture=replaced-operator mode=good as-expected=yes
+selftest fixture=replaced-outside-ci mode=good as-expected=yes
 selftest fixture=comment-mark mode=good as-expected=yes
 selftest fixture=good mode=violated as-expected=yes
 selftest fixture=good mode=status as-expected=yes
@@ -80,4 +82,4 @@ selftest fixture=good mode=signal as-expected=yes
 selftest rule=removed-after-a-signal held=yes
 selftest control=C1 rejected=yes
 selftest control=L5 rejected=yes
-results=79
+results=81
