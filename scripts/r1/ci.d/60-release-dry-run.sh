@@ -11,13 +11,14 @@ fail() {
 }
 
 unreleased_texts() {
-  awk '/^## \[Unreleased\]/ { on = 1; next } /^## / { on = 0 } on && /^- [A-Za-z]+: / { sub(/^- [A-Za-z]+: /, ""); print }' "$1" | LC_ALL=C sort
+  awk '{ sub(/[ \t\r]+$/, "") } $0 == "## [Unreleased]" { on = 1; next } /^## / { on = 0 } on && /^- [A-Za-z]+: / { sub(/^- [A-Za-z]+: /, ""); print }' "$1" | LC_ALL=C sort
 }
 
 released_section_defect() {
   problem=$(LC_ALL=C awk -v version="$2" -v types="$types" '
     function say(text) { if (!told) print text; told = 1 }
     BEGIN { n = split(types, order, " "); for (i = 1; i <= n; i++) rank[order[i]] = i }
+    { sub(/[ \t\r]+$/, "") }
     $0 == "## [Unreleased]" { section = "unreleased"; next }
     index($0, "## [" version "] - ") == 1 { section = "release"; found = 1; next }
     /^## / { section = ""; next }
@@ -37,10 +38,26 @@ released_section_defect() {
     END { if (!found) say("CHANGELOG.md has no heading of " version) }
   ' "$1" 2>"$work/grouped-texts")
   [ -z "$problem" ] || { printf '%s\n' "$problem"; return 1; }
-  LC_ALL=C sort "$work/grouped-texts" | cmp -s - "$3" || {
-    printf 'the entry texts of the section of %s differ from those of ## [Unreleased] before the release\n' "$2"
-    return 1
-  }
+  LC_ALL=C sort "$work/grouped-texts" >"$work/grouped-sorted"
+  cmp -s "$work/grouped-sorted" "$3" && return 0
+  only_before=$(LC_ALL=C comm -23 "$3" "$work/grouped-sorted" | head -n 1)
+  if [ -n "$only_before" ]; then
+    printf 'the section of %s differs from ## [Unreleased] before the release: only before the release: %s\n' "$2" "$only_before"
+  else
+    only_after=$(LC_ALL=C comm -13 "$3" "$work/grouped-sorted" | head -n 1)
+    printf 'the section of %s differs from ## [Unreleased] before the release: only after: %s\n' "$2" "$only_after"
+  fi
+  return 1
+}
+
+with_release_line() {
+  said=$(awk 'NF { last = $0 } END { print last }' "$2")
+  printf '%s; release.sh said: %s\n' "$1" "${said:-nothing}"
+}
+
+fail_after() {
+  line=$(with_release_line "$1" "$2")
+  fail "$line"
 }
 
 snapshot() {
@@ -98,22 +115,24 @@ measure() {
   (cd "$clone" && sh scripts/release.sh --dry-run) >"$work/dry-run.txt" 2>&1
   status=$?
   snapshot "$clone" >"$work/after-dry-run"
-  [ "$status" = 0 ] || fail "sh scripts/release.sh --dry-run exited $status on a named branch"
+  cp "$work/dry-run.txt" "${CI_D_ARTIFACTS:-$work}/" 2>/dev/null
+  [ "$status" = 0 ] || fail_after "sh scripts/release.sh --dry-run exited $status on a named branch" "$work/dry-run.txt"
   next=$(sed -n 's/^next version: //p' "$work/dry-run.txt")
   case $next in
-    ''|*[!0-9.]*) fail "the dry run printed no line next version: <version>" ;;
+    ''|*[!0-9.]*) fail_after "the dry run printed no line next version: <version>" "$work/dry-run.txt" ;;
   esac
-  grep -q -x "tag: v$next" "$work/dry-run.txt" || fail "the dry run printed no line tag: v<next version>"
-  grep -q -x "commit message: Release $next" "$work/dry-run.txt" || fail "the dry run printed no line commit message: Release <next version>"
-  ! grep -E '^(next version|commit message|tag|tag message): ' "$work/dry-run.txt" | grep -q '{{' || fail "a line of the dry run's commit message or tag holds a template"
-  cmp -s "$work/before-dry-run" "$work/after-dry-run" || fail "the dry run changed the status, HEAD, a tag or a ref of the clone"
+  grep -q -x "tag: v$next" "$work/dry-run.txt" || fail_after "the dry run printed no line tag: v<next version>" "$work/dry-run.txt"
+  grep -q -x "commit message: Release $next" "$work/dry-run.txt" || fail_after "the dry run printed no line commit message: Release <next version>" "$work/dry-run.txt"
+  ! grep -E '^(next version|commit message|tag|tag message): ' "$work/dry-run.txt" | grep -q '{{' || fail_after "a line of the dry run's commit message or tag holds a template" "$work/dry-run.txt"
+  cmp -s "$work/before-dry-run" "$work/after-dry-run" || fail_after "the dry run changed the status, HEAD, a tag or a ref of the clone" "$work/dry-run.txt"
   printf 'dry run on a named branch: exit 0, next version and tag lines: true, clone unchanged: true\n'
 
   (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$work/execute-off-main.txt" 2>&1
   status=$?
   snapshot "$clone" >"$work/after-execute-off-main"
-  [ "$status" != 0 ] || fail "sh scripts/release.sh --execute exited 0 on a branch other than main"
-  cmp -s "$work/before-dry-run" "$work/after-execute-off-main" || fail "--execute on a branch other than main changed the status, HEAD, a tag or a ref of the clone"
+  cp "$work/execute-off-main.txt" "${CI_D_ARTIFACTS:-$work}/" 2>/dev/null
+  [ "$status" != 0 ] || fail_after "sh scripts/release.sh --execute exited 0 on a branch other than main" "$work/execute-off-main.txt"
+  cmp -s "$work/before-dry-run" "$work/after-execute-off-main" || fail_after "--execute on a branch other than main changed the status, HEAD, a tag or a ref of the clone" "$work/execute-off-main.txt"
   printf 'execute on a branch other than main: refused with exit %s, clone unchanged: true\n' "$status"
 
   git -C "$clone" checkout -q -B main "$head" || fail "git checkout -B main in the clone failed"
@@ -121,17 +140,19 @@ measure() {
   tags_before=$(git -C "$clone" tag --list | grep -c .)
   (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$work/execute-on-main.txt" 2>&1
   status=$?
-  [ "$status" = 0 ] || fail "sh scripts/release.sh --execute exited $status on main"
+  cp "$work/execute-on-main.txt" "${CI_D_ARTIFACTS:-$work}/" 2>/dev/null
+  [ "$status" = 0 ] || fail_after "sh scripts/release.sh --execute exited $status on main" "$work/execute-on-main.txt"
   commits=$(git -C "$clone" rev-list --count "$head..HEAD")
-  [ "$commits" = 1 ] || fail "--execute on main made $commits commits"
+  [ "$commits" = 1 ] || fail_after "--execute on main made $commits commits" "$work/execute-on-main.txt"
   subject=$(git -C "$clone" log -1 --format=%s)
-  [ "$subject" = "Release $next" ] || fail "the release commit's subject is not Release <next version>"
+  [ "$subject" = "Release $next" ] || fail_after "the release commit's subject is not Release <next version>" "$work/execute-on-main.txt"
   tags_after=$(git -C "$clone" tag --list | grep -c .)
-  [ "$tags_after" = $((tags_before + 1)) ] || fail "--execute on main made $((tags_after - tags_before)) tags"
+  [ "$tags_after" = $((tags_before + 1)) ] || fail_after "--execute on main made $((tags_after - tags_before)) tags" "$work/execute-on-main.txt"
   at_head=$(git -C "$clone" tag --points-at HEAD)
-  [ "$at_head" = "v$next" ] || fail "the tag at the release commit is not v<next version>"
+  [ "$at_head" = "v$next" ] || fail_after "the tag at the release commit is not v<next version>" "$work/execute-on-main.txt"
   changed=$(git -C "$clone" status --porcelain --untracked-files=all)
-  [ -z "$changed" ] || fail "the clone is not clean after --execute"
+  first_changed=$(printf '%s\n' "$changed" | head -n 1 | cut -c4-)
+  [ -z "$changed" ] || fail_after "the clone is not clean after --execute (the first changed path is $first_changed)" "$work/execute-on-main.txt"
   printed=$(cd "$clone" && CI_D_REPO=$clone sh scripts/r1/ci.d/61-version.sh --print)
   [ "$printed" = "$next" ] || fail "61-version.sh --print in the clone does not print the next version: $printed"
   readme=$(grep -c -F "which is \`$next\` now" "$clone/README.md")
@@ -141,7 +162,7 @@ measure() {
   (cd "$clone" && sh scripts/check-changelog.sh) >"$work/changelog.txt" 2>&1 || fail "scripts/check-changelog.sh refuses CHANGELOG.md after the release"
   (cd "$clone" && sh scripts/check-changelog.sh --base HEAD~1) >"$work/changelog-base.txt" 2>&1 ||
     fail "scripts/check-changelog.sh --base HEAD~1 refuses the release commit"
-  found=$(released_section_defect "$clone/CHANGELOG.md" "$next" "$work/unreleased-before.txt") || fail "$found"
+  found=$(released_section_defect "$clone/CHANGELOG.md" "$next" "$work/unreleased-before.txt") || fail_after "$found" "$work/execute-on-main.txt"
   headings=$(awk -v version="$next" 'index($0, "## [" version "] - ") == 1 { on = 1; next } /^## / { on = 0 } on && /^### / { n++ } END { print n + 0 }' "$clone/CHANGELOG.md")
   entries=$(grep -c . "$work/unreleased-before.txt")
   found=$(release_commit_refusal "$clone") || fail "on the release commit that the execute case made: $found"
@@ -608,6 +629,40 @@ $typed" "# Changelog
     verdict "$case_name" "$want" "$got"
   }
   section_case grouped-release PASS "$grouped_out"
+  texts_case() {
+    case_name=$1 want=$2
+    printf '%s\n' "$3" >"$work/texts-$case_name.before"
+    printf '%s\n' "$4" >"$work/texts-$case_name.after"
+    unreleased_texts "$work/texts-$case_name.before" >"$work/texts-$case_name.sorted"
+    got=FAIL
+    released_section_defect "$work/texts-$case_name.after" 1.2.4 "$work/texts-$case_name.sorted" >"$work/texts-$case_name.out" && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  grouped_tail='## [Unreleased]
+
+## [1.2.4] - 2026-11-14
+
+### Fixed
+
+- Mend the fault'
+  blank_entry=$(printf '%s\n' '## [Unreleased]' '' '- Fixed: Mend the fault  ')
+  texts_case entry-that-ends-in-two-blanks PASS "$blank_entry" "$grouped_tail"
+  tab_entry=$(printf '%s\n' '## [Unreleased]' ''; printf -- '- Fixed: Mend the fault\t\n')
+  texts_case entry-that-ends-in-a-tab PASS "$tab_entry" "$grouped_tail"
+  crlf_entry=$(printf '%s\n' '## [Unreleased]' '' '- Fixed: Mend the fault' | awk '{ printf "%s\r\n", $0 }')
+  crlf_tail=$(printf '%s\n' "$grouped_tail" | awk '{ printf "%s\r\n", $0 }')
+  texts_case changelog-with-crlf PASS "$crlf_entry" "$crlf_tail"
+  other_tail=$(printf '%s\n' "$grouped_tail" | sed 's/Mend the fault/Mend another fault/')
+  texts_case an-entry-that-differs FAIL "$blank_entry" "$other_tail"
+  grep -q -F -e 'only before the release: Mend the fault' "$work/texts-an-entry-that-differs.out" && got=PASS || got=FAIL
+  verdict the-first-entry-that-differs-is-named PASS "$got"
+  printf '%s\n' '   Upgrading halvo from 1.2.3 to 1.2.4' "release.sh: cargo-release failed: error: for \`which is \` in '../README.md', at least 1 replacements expected, found 0" '' >"$work/release-output.txt"
+  line=$(with_release_line 'sh scripts/release.sh --dry-run exited 1 on a named branch' "$work/release-output.txt")
+  case $line in
+    *"release.sh: cargo-release failed: error: for"*"at least 1 replacements expected"*) got=PASS ;;
+    *) got=FAIL ;;
+  esac
+  verdict fail-line-carries-the-last-line-of-release-sh PASS "$got"
   section_case renamed-heading-alone FAIL "# Changelog
 
 ## [Unreleased]
