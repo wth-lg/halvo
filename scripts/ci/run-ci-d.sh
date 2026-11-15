@@ -178,6 +178,18 @@ case $list_root in
   "$repo") list_root=. ;;
 esac
 list_form
+case $root in
+  /* | [A-Za-z]:[/\\]*) list_cd=$root ;;
+  *) list_cd=./$root ;;
+esac
+list_top=$(pwd -P 2>/dev/null) || list_top=
+list_phys=$(cd -P "$list_cd" 2>/dev/null && pwd -P) || list_phys=
+if [ -n "$list_top" ] && [ -n "$list_phys" ]; then
+  case $list_phys in
+    "$list_top"/*) list_root=${list_phys#"$list_top"/} ;;
+    "$list_top") list_root=. ;;
+  esac
+fi
 tracked=$(own_git -c core.quotePath=false ls-files -- "$list_root" 2>/dev/null) || tracked=
 
 inspect() {
@@ -970,6 +982,7 @@ own_run() {
     unset CI CI_D_SCRIPTS CI_D_SELF_TEST_JOBS CI_D_SCRIPT_LIMIT_S CI_D_CHECK_JOBS
     [ -z "$case_ci" ] || { CI=$case_ci; export CI; }
     [ -z "$case_scripts" ] || { CI_D_SCRIPTS=$case_scripts; export CI_D_SCRIPTS; }
+    [ -z "$case_cdpath" ] || { CDPATH=$case_cdpath; export CDPATH; }
     [ -z "$case_locale" ] || { LC_ALL=$case_locale; export LC_ALL; }
     [ -z "$case_jobs" ] || { CI_D_SELF_TEST_JOBS=$case_jobs; export CI_D_SELF_TEST_JOBS; }
     [ -z "$case_check_jobs" ] || { CI_D_CHECK_JOBS=$case_check_jobs; export CI_D_CHECK_JOBS; }
@@ -1197,6 +1210,7 @@ case_reset() {
   case_witness=
   case_env=
   case_git_home=
+  case_cdpath=
   case_git_count=
   case_git_names=
   case_cargo_home=
@@ -1364,6 +1378,65 @@ own_self_test() {
     case_first='PASS 10-a'
     case_then="FAIL 20-planted ($untracked_refusal)"
     own_case root-that-starts-with-two-slashes 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  fi
+  e1_ok='ci.d macos: 1 passed, 1 failed, 0 skipped'
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
+    printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
+  e1_link=$(mktemp -d "$tmp/root-link.XXXXXX") && ln -s "$fixture" "$e1_link/to" 2>/dev/null
+  if [ -L "$e1_link/to" ]; then
+    case_scripts=$e1_link/to/scripts
+    case_witness=yes
+    case_absent="FAIL 10-a ($untracked_refusal)"
+    case_first='PASS 10-a'
+    case_then="FAIL 20-planted ($untracked_refusal)"
+    own_case tracked-script-runs-and-untracked-script-is-refused-root-through-a-link 1 "$e1_ok" macos
+  fi
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
+    printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
+  e1_real=$fixture
+  e1_link=$(mktemp -d "$tmp/cwd-link.XXXXXX") && ln -s "$e1_real" "$e1_link/to" 2>/dev/null
+  if [ -L "$e1_link/to" ]; then
+    fixture=$e1_link/to
+    case_scripts=$e1_real/scripts
+    case_witness=yes
+    case_absent="FAIL 10-a ($untracked_refusal)"
+    case_first='PASS 10-a'
+    case_then="FAIL 20-planted ($untracked_refusal)"
+    own_case tracked-script-runs-and-untracked-script-is-refused-working-directory-through-a-link 1 "$e1_ok" macos
+    fixture=$e1_real
+  fi
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
+    printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
+  case_scripts=$fixture/scripts/.
+  case_witness=yes
+  case_absent="FAIL 10-a ($untracked_refusal)"
+  case_first='PASS 10-a'
+  case_then="FAIL 20-planted ($untracked_refusal)"
+  own_case tracked-script-runs-and-untracked-script-is-refused-root-that-ends-in-a-dot 1 "$e1_ok" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit &&
+    mkdir -p "$fixture/deep/sub" "$fixture/deep/scripts/r1/ci.d" &&
+    printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/deep/scripts/r1/ci.d/10-a.sh" &&
+    ln -s deep/sub "$fixture/x" 2>/dev/null
+  if [ -L "$fixture/x" ]; then
+    case_scripts=x/../scripts
+    case_witness=yes
+    case_absent='PASS 20-planted'
+    own_case untracked-script-under-a-tracked-name-through-a-link-and-dot-dot-is-refused 1 "FAIL 10-a ($untracked_refusal)" macos
+  fi
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit && mkdir -p "$fixture/alt/scripts"
+  case_cdpath=$fixture/alt
+  case_scripts=scripts
+  case_witness=yes
+  own_case cdpath-of-the-caller-leaves-the-root 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  if command -v cygpath >/dev/null 2>&1; then
+    new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
+      printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
+    case_scripts=$(cygpath -m "$fixture/scripts")
+    case_witness=yes
+    case_absent="FAIL 10-a ($untracked_refusal)"
+    case_first='PASS 10-a'
+    case_then="FAIL 20-planted ($untracked_refusal)"
+    own_case tracked-script-runs-and-untracked-script-is-refused-windows-form-root 1 "$e1_ok" macos
   fi
   : >"$tmp/case-probe"
   if [ -e "$tmp/CASE-PROBE" ]; then
