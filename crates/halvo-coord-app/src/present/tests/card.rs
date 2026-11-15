@@ -255,6 +255,11 @@ fn an_access_key_mark_in_a_control_text_breaks_the_composed_form_where_the_syste
 }
 
 #[test]
+fn the_placeholder_bounds_are_16_lines_and_120_characters() {
+    assert_eq!((LINES, LINE_CHARS), (16, 120));
+}
+
+#[test]
 fn a_card_over_its_bound_in_lines_or_in_characters_breaks_the_composed_form() {
     let line = "Pay to: City Power";
     assert!(Card::of("Pay this?", &vec![line; LINES], "Don't pay", "Pay").whole());
