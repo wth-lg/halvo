@@ -187,7 +187,7 @@ impl Runner {
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),
             seq,
-            day: day_of(at, 0),
+            day: day_of(at, self.args.utc_offset_s),
             at,
             folder: OwnValue::new(&dir.to_string_lossy()),
             workbook: OwnValue::new(&path),
