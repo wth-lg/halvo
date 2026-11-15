@@ -301,8 +301,9 @@ HBefore(g, mv) ==
       [] mv.m \in {"arm", "record", "release"} ->
             [g EXCEPT !.moves[mv.item] = Append(@, HMade(mv.m, "none"))]
       [] mv.m = "lapse" -> [g EXCEPT !.moves[mv.item] = Append(@, HMade("lapse", mv.cause))]
-      [] mv.m = "bind" -> [g EXCEPT !.nb = @ + 1, !.waits = g.nb + 1]
       [] OTHER -> g
+
+HAsks(g, mv) == IF mv.m = "bind" THEN [g EXCEPT !.waits = g.nb + 1] ELSE g
 
 HAcked(mv) == mv.m = "press" => mv.store = "ack"
 HTaken(g, mv) == g.waits # 0 /\ (mv.m = "press" => mv.runs = "ok")
@@ -327,7 +328,8 @@ HPress(g, mv, res) ==
     ELSE g
 
 HBind(g, e, mv) ==
-    CASE e.k = "bind_row" ->
+    CASE e.k = "bind_raised" -> [g EXCEPT !.nb = @ + 1]
+      [] e.k = "bind_row" ->
             LET j == IF mv.m = "press" THEN mv.item ELSE e.item
             IN [g EXCEPT !.newest[j] = [answer |-> e.answer, acked |-> HAcked(mv)],
                          !.rows = @ \cup {j},
@@ -371,7 +373,7 @@ HEvent(g, e, mv) ==
                                                /\ p.digest = mv.digest
                                                /\ p.approval = mv.approval,
                   stopped |-> g.stopped]}]
-      [] e.k \in {"bind_row", "answer_bind", "bind_lapsed"} -> HBind(g, e, mv)
+      [] e.k \in {"bind_raised", "bind_row", "answer_bind", "bind_lapsed"} -> HBind(g, e, mv)
       [] OTHER -> g
 
 RECURSIVE HFold(_, _, _, _)
@@ -403,8 +405,8 @@ HGuard(g, mv, res) ==
 
 Hist(g, mv, res) ==
     IF mv.m = "guard" THEN HGuard(g, mv, res)
-    ELSE IF res.r = "ok" THEN HAfter(HFold(HPress(HBefore(g, mv), mv, res), res.out, 1, mv), mv)
-    ELSE HFold(HPress(g, mv, res), res.out, 1, mv)
+    ELSE IF res.r = "ok" THEN HAfter(HFold(HPress(HAsks(HBefore(g, mv), mv), mv, res), res.out, 1, mv), mv)
+    ELSE HFold(HPress(HAsks(g, mv), mv, res), res.out, 1, mv)
 
 GotAllow(g, i, e) == \E d \in g.got : /\ d.via = "release"
                                       /\ d.item = i
