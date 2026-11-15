@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,25 +81,80 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 31-fixture-server
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 31-fixture-server
+      - name: Loop of the unit's new tests (scratch, U2.2c)
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set -u
+          set +e +o pipefail
+          cargo test --locked -p halvo-sample --no-run >"$RUNNER_TEMP/u22c-no-run.txt" 2>&1 || { tail -n 20 "$RUNNER_TEMP/u22c-no-run.txt"; exit 1; }
+          bin_of() {
+            sed -n "s|^ *Executable $1 (\(.*\))\$|\1|p" "$RUNNER_TEMP/u22c-no-run.txt" | head -n 1 | tr '\134' '/'
+          }
+          bad=0
+          run_loop() {
+            label=$1
+            bin=$(bin_of "$2")
+            shift 2
+            want=$#
+            if [ -z "$bin" ]; then
+              echo "loop $label: no test binary"
+              bad=1
+              return
+            fi
+            pass=0
+            failed=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$("$bin" --exact "$@" --test-threads=1 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok. $want passed; 0 failed"; then
+                pass=$((pass + 1))
+              else
+                failed=$((failed + 1))
+                printf '%s\n' "$out" | tail -n 15
+              fi
+              i=$((i + 1))
+            done
+            echo "loop $label tests=$want runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+            [ "$failed" = 0 ] || bad=1
+          }
+          node_loop() {
+            label=$1
+            file=$2
+            pattern=$3
+            want=$4
+            pass=0
+            failed=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$(node --test --test-reporter=tap --test-name-pattern="$pattern" "tools/fixture-server/$file" 2>&1)
+              if printf '%s\n' "$out" | grep -q '^# fail 0$' && printf '%s\n' "$out" | grep -q "^# pass $want\$" && printf '%s\n' "$out" | grep -q "^# tests $want\$"; then
+                pass=$((pass + 1))
+              else
+                failed=$((failed + 1))
+                printf '%s\n' "$out" | grep -E '^(# |not ok)' | head -n 10
+              fi
+              i=$((i + 1))
+            done
+            echo "loop $label tests=$want runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+            [ "$failed" = 0 ] || bad=1
+          }
+          started=$(date +%s)
+          run_loop input_copy 'tests/input_copy.rs' the_tier_manifest_refusal_names_the_tier_argument_and_a_count_alone the_tier_files_refusal_of_input_copy_names_the_tier_argument_alone the_output_refusal_of_input_copy_and_build_names_the_dir_argument_alone
+          run_loop links 'tests/links.rs' a_tier_argument_that_is_a_link_is_refused_in_each_of_its_forms a_link_reached_through_a_linked_parent_and_a_trailing_separator_is_refused
+          run_loop compose 'tests/compose.rs' the_site_data_refusal_names_a_file_by_its_number_in_byte_order_alone
+          run_loop split 'tests/split.rs' a_side_directory_that_cannot_be_made_is_refused_by_the_out_argument_and_its_side_alone
+          node_loop server server.test.mjs '^server: refusals usage, site-data and port' 1
+          node_loop sites sites.test.mjs '^(checker: a file not of C11\.1|loading: a missing file)' 2
+          echo "loop seconds $(( $(date +%s) - started ))"
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -148,25 +192,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-sample 31-fixture-server
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-sample 31-fixture-server
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
@@ -199,6 +232,71 @@ jobs:
             *"Co-Authored-By: Probe"*) ;;
             *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
           esac
+      - name: Loop of the unit's new tests (scratch, U2.2c)
+        shell: bash
+        run: |
+          set -u
+          set +e +o pipefail
+          cargo test --locked -p halvo-sample --no-run >"$RUNNER_TEMP/u22c-no-run.txt" 2>&1 || { tail -n 20 "$RUNNER_TEMP/u22c-no-run.txt"; exit 1; }
+          bin_of() {
+            sed -n "s|^ *Executable $1 (\(.*\))\$|\1|p" "$RUNNER_TEMP/u22c-no-run.txt" | head -n 1 | tr '\134' '/'
+          }
+          bad=0
+          run_loop() {
+            label=$1
+            bin=$(bin_of "$2")
+            shift 2
+            want=$#
+            if [ -z "$bin" ]; then
+              echo "loop $label: no test binary"
+              bad=1
+              return
+            fi
+            pass=0
+            failed=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$("$bin" --exact "$@" --test-threads=1 2>&1)
+              if printf '%s\n' "$out" | grep -q "^test result: ok. $want passed; 0 failed"; then
+                pass=$((pass + 1))
+              else
+                failed=$((failed + 1))
+                printf '%s\n' "$out" | tail -n 15
+              fi
+              i=$((i + 1))
+            done
+            echo "loop $label tests=$want runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+            [ "$failed" = 0 ] || bad=1
+          }
+          node_loop() {
+            label=$1
+            file=$2
+            pattern=$3
+            want=$4
+            pass=0
+            failed=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$(node --test --test-reporter=tap --test-name-pattern="$pattern" "tools/fixture-server/$file" 2>&1)
+              if printf '%s\n' "$out" | grep -q '^# fail 0$' && printf '%s\n' "$out" | grep -q "^# pass $want\$" && printf '%s\n' "$out" | grep -q "^# tests $want\$"; then
+                pass=$((pass + 1))
+              else
+                failed=$((failed + 1))
+                printf '%s\n' "$out" | grep -E '^(# |not ok)' | head -n 10
+              fi
+              i=$((i + 1))
+            done
+            echo "loop $label tests=$want runs=$i runs_with_all_passed=$pass runs_not_all_passed=$failed"
+            [ "$failed" = 0 ] || bad=1
+          }
+          started=$(date +%s)
+          run_loop input_copy 'tests/input_copy.rs' the_tier_manifest_refusal_names_the_tier_argument_and_a_count_alone the_tier_files_refusal_of_input_copy_names_the_tier_argument_alone
+          run_loop links 'tests/links.rs' a_tier_argument_that_is_a_link_is_refused_in_each_of_its_forms a_link_reached_through_a_linked_parent_and_a_trailing_separator_is_refused
+          run_loop compose 'tests/compose.rs' the_site_data_refusal_names_a_file_by_its_number_in_byte_order_alone
+          node_loop server server.test.mjs '^server: refusals usage, site-data and port' 1
+          node_loop sites sites.test.mjs '^(checker: a file not of C11\.1|loading: a missing file)' 2
+          echo "loop seconds $(( $(date +%s) - started ))"
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
