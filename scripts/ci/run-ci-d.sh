@@ -698,6 +698,7 @@ st_interrupt() {
       st_i=$((st_i + 1))
     done
   fi
+  printf '' >"$tmp/own-stopping"
   for st_f in "$tmp/nested.pid" "$tmp/witness.pid"; do
     st_sp=
     [ ! -s "$st_f" ] || read -r st_sp <"$st_f"
@@ -746,6 +747,7 @@ st_leave() {
 
 st_stop() {
   eval "st_d=\$st_dir_$1 st_p=\$st_pid_$1 st_state_$1=timeout"
+  st_own_stop=
   st_sp=
   [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
   if [ -n "$st_sp" ]; then
@@ -753,6 +755,7 @@ st_stop() {
   else
     eval "st_k=\$st_kind_$1"
     if [ "$st_k" = own ]; then
+      st_own_stop=yes
       printf '' >"$tmp/own-stopping"
       st_own_groups=
       for st_f in "$tmp/nested.pid" "$tmp/witness.pid"; do
@@ -776,6 +779,10 @@ st_stop() {
   done
   [ -e "$st_d/done" ] || kill -KILL "$st_p" 2>/dev/null
   wait "$st_p" 2>/dev/null
+  if [ -n "$st_own_stop" ]; then
+    true >"$tmp/nested.pid"
+    true >"$tmp/witness.pid"
+  fi
 }
 
 st_poll() {
@@ -962,20 +969,14 @@ own_run() {
   [ -z "$case_index_same" ] || cp "$fixture/.git/index" "$tmp/index.before"
   witness=
   if [ -n "$case_witness" ]; then
-    own_term=
-    trap 'own_term=1' TERM
-    "$perl_bin" -e 'setpgrp(0, 0); sleep 120' </dev/null >/dev/null 2>&1 &
+    witness_wait=0
+    [ "$nested_word" != wgap ] || witness_wait=4
+    # shellcheck disable=SC2016
+    "$perl_bin" -e 'setpgrp(0, 0); sleep $ARGV[2] if $ARGV[2]; open(my $h, ">", $ARGV[0]) or exit 1; print $h "$$\n"; close($h) or exit 1; if (-e $ARGV[1]) { truncate($ARGV[0], 0); exit 0 } sleep 120' "$tmp/witness.pid" "$tmp/own-stopping" "$witness_wait" </dev/null >/dev/null 2>&1 &
     witness=$!
     if [ "$nested_word" = wgap ]; then
       printf '%s\n' "$witness" >>"$repo/pids"
       printf '%s witness\n' "$witness" >>"$repo/pid-roles"
-      sleep 4
-    fi
-    printf '%s\n' "$witness" >"$tmp/witness.pid"
-    trap - TERM
-    if [ -n "$own_term" ] || [ -e "$tmp/own-stopping" ]; then
-      kill "$witness" 2>/dev/null
-      [ -z "$own_term" ] || exit 143
     fi
   fi
   got_out=$(
@@ -1021,14 +1022,12 @@ own_run() {
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
     [ "$nested_word" != late ] || sleep 4
-    [ ! -e "$tmp/own-stopping" ] || exit 99
-    printf 'a line on standard input\n' | ${case_switch_set:+env "RUN_CI_D_NESTED=$case_switch"} ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh ${case_worker:+-c "$worker_wrap"} "$self" "$@" 2>&1 9<<EOF &
+    nested_wait=0
+    [ "$nested_word" != gap ] || nested_wait=4
+    printf 'a line on standard input\n' | RUN_CI_D_PID_FILE=$tmp/nested.pid RUN_CI_D_MARK=$tmp/own-stopping RUN_CI_D_WAIT=$nested_wait ${case_switch_set:+env "RUN_CI_D_NESTED=$case_switch"} ${case_procs:+env "$procs_env"} ${case_env:+env "HOME=$tmp/case-home" SECOND_CALLER_VALUE=kept job=from-the-caller} "$perl_bin" -e "$case_perl" sh ${case_worker:+-c "$worker_wrap"} "$self" "$@" 2>&1 9<<EOF &
 ${case_nested:-yes}
 EOF
     case_pid=$!
-    [ "$nested_word" != gap ] || sleep 4
-    printf '%s\n' "$case_pid" >"$tmp/nested.pid"
-    [ ! -e "$tmp/own-stopping" ] || "$perl_bin" -e "kill('TERM', -\$ARGV[0])" "$case_pid"
     if [ "$nested_word" = hold ] || [ "$nested_word" = late ] || [ "$nested_word" = gap ]; then
       printf '%s\n%s\n' "$case_pid" "$witness" >>"$repo/pids"
       printf '%s nested-driver\n%s witness\n' "$case_pid" "$witness" >>"$repo/pid-roles"
@@ -1053,7 +1052,7 @@ EOF
     wait "$case_pid"
   )
   got_exit=$?
-  : >"$tmp/nested.pid"
+  true >"$tmp/nested.pid"
   [ -z "$case_max_s" ] || case_t1=$(date +%s)
   left=0
   if [ -f "$fixture/pids" ]; then
@@ -1079,8 +1078,8 @@ EOF
   witness_left=no
   if [ -n "$witness" ]; then
     ! kill -0 "$witness" 2>/dev/null || witness_left=yes
-    : >"$tmp/witness.pid"
     kill "$witness" 2>/dev/null
+    true >"$tmp/witness.pid"
     wait "$witness" 2>/dev/null
   fi
 }
@@ -1239,7 +1238,7 @@ own_self_test() {
   fixture_added=
   case_reset
   perl_bin=$(command -v perl) || perl_bin=perl
-  case_perl="setpgrp(0, 0); \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
+  case_perl="setpgrp(0, 0); my \$f = delete \$ENV{RUN_CI_D_PID_FILE}; my \$m = delete \$ENV{RUN_CI_D_MARK}; my \$w = delete \$ENV{RUN_CI_D_WAIT}; if (defined \$f) { sleep \$w if \$w; open(my \$h, '>', \$f) or exit 127; print \$h \"\$\$\\n\"; close(\$h) or exit 127; if (defined \$m && -e \$m) { truncate(\$f, 0); exit 143; } } \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
   worker_wrap='RUN_CI_D_WORKER=$$; export RUN_CI_D_WORKER; sh "$0" "$@"; exit "$?"'
   for tool in perl getconf; do
     mkdir -p "$tmp/no-$tool" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-$tool/$tool" && chmod +x "$tmp/no-$tool/$tool"
@@ -1263,6 +1262,7 @@ own_self_test() {
   [ "$nested_word" != hold ] || first_b='sleep 8; printf "PASS 20-b\n"'
   [ "$nested_word" != late ] || first_b='sleep 30; printf "PASS 20-b\n"'
   [ "$nested_word" != gap ] || first_b='sleep 30; printf "PASS 20-b\n"'
+  [ "$nested_word" != wgap ] || first_b='sleep 30; printf "PASS 20-b\n"'
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$first_b"
   case $nested_word in
     hold | late | gap | wgap) case_witness=yes ;;
@@ -2099,6 +2099,17 @@ own_self_test() {
   case_max_s=60
   case_witness=yes
   own_case own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-witness 1 'FAIL self-test:run-ci-d (time limit 2 s)' macos --self-test run-ci-d
+  new_repo
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=gap
+  case_tmpdir=$(mktemp -d "$tmp/interrupt-tmp.XXXXXX")
+  case_empty=yes
+  case_signal=TERM
+  case_wait=pids
+  case_signal_min=2
+  case_max_s=60
+  case_witness=yes
+  own_case interrupt-of-the-own-cases-ends-the-running-case-s-driver-and-witness 143 'FAIL run-ci-d (the step was interrupted by TERM; every self-test that it started is ended)' macos --self-test run-ci-d
   new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; sleep 60 >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; w pid.10-a || exit 1; read -r p <\"\$CI_D_REPO/pid.10-a\"; n=0; while kill -0 \"\$p\" 2>/dev/null && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.20-b\"; wait; $passes"
   case_jobs=2
