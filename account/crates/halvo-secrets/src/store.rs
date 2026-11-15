@@ -165,13 +165,14 @@ use crate::{Directory, Name, Secret};
 /// file of the file store or the Keychain item. It removes the item of that store, with no
 /// compare, and the other store's item stays. A removal of either store's item first ends
 /// each claim as the place above says, with the bytes of the Keychain item when this build
-/// can read them, so that a claim of a killed move of those bytes goes. A build without
-/// the feature `keychain` that meets the Keychain item which the signed app made cannot
-/// read it (-25293) and cannot remove it (-25244), as seen between two test binaries on the
-/// hosted macOS image of run 43705715845: its `remove(StoreKind::Keychain)` answers that
-/// fault and names a killed move's claim back under the file's name, and its reads then
-/// answer `Locked::OtherStore`. The two ways to remove that item are the signed app and the
-/// system's Keychain Access; no build of Halvo works around the system's refusal.
+/// can read them, so that a claim of a killed move of those bytes goes. Between two test
+/// binaries on the hosted macOS image of run 43705715845, a build without the feature
+/// `keychain` could neither read (-25293) nor remove (-25244) the Keychain item that a
+/// build with the feature made: its `remove(StoreKind::Keychain)` answered that fault and
+/// named a killed move's claim back under the file's name, and its read then answered
+/// `Locked::OtherStore`. macOS documents two ways to remove such an item, by the build that
+/// made it or by the person in the system's Keychain Access; neither is tested here. This
+/// build does not try another way.
 /// A removal of the file, of the file store of `Store::new`, of `Store::in_directory` or of
 /// the DPAPI store, also removes each claim of the store's form that cannot be named back
 /// because the name is taken, and each temporary file of a write of the store's form

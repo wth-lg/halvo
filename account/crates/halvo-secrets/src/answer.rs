@@ -169,11 +169,13 @@ pub enum Locked {
     /// build with it found the file of the file store beside its own Keychain item, with
     /// other bytes. The store picks neither. The one operation that leaves the state in
     /// which both stores hold other bytes is `Store::remove`, at the person's word, from a
-    /// build that can remove the item of the store that it names. A build without the
-    /// feature cannot read (-25293) or remove (-25244) the Keychain item that a build with
-    /// it made, as seen on the hosted macOS image of run 43705715845, so from that build
-    /// every read answers `OtherStore` while that item stands; the signed app or the
-    /// system's Keychain Access removes it.
+    /// build that can remove the item of the store that it names. Between two test binaries
+    /// on the hosted macOS image of run 43705715845, a build without the feature could
+    /// neither read (-25293) nor remove (-25244) the Keychain item that a build with the
+    /// feature made, so from that build every read answers `OtherStore` while that item
+    /// stands. macOS documents two ways to remove such an item, by the build that made it or
+    /// by the person in the system's Keychain Access; neither is tested here, and this build
+    /// does not try another way.
     OtherStore,
     /// On macOS, a build with the feature `keychain` found the file of the file store, and
     /// the move of that file into the Keychain did not finish because a step of it failed:
