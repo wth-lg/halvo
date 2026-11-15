@@ -45,9 +45,13 @@ enter_repo() {
     repo=$(git rev-parse --show-toplevel) || repo=
   fi
   if [ -z "$repo" ] || ! cd "$repo" 2>/dev/null; then
-    printf 'FAIL %s (cannot enter the repository)\n' "$name"
-    exit 2
+    setup_failed
   fi
+}
+
+setup_failed() {
+  printf 'FAIL %s (setup)\n' "$name"
+  exit 1
 }
 
 fail_now() {
@@ -102,14 +106,15 @@ read_commit() {
     }
   ' || fail_now
   committed=$scratch/commit
-  mkdir "$committed" || exit 2
+  mkdir "$committed" 2>/dev/null || setup_failed
   if ! git -c core.autocrlf=false archive --format=tar -o "$scratch/commit.tar" "$commit" -- crates/halvo-route scripts/r6 \
     crates/halvo-route-gate/tests/data || ! tar -xf "$scratch/commit.tar" -C "$committed"; then
     printf 'tree commit=unreadable\n'
     fail_now
   fi
   wanted_text=
-  if [ -s "$committed/$required" ] && wanted_text=$(printf '%s\n' "$fixed_tests" && cat "$committed/$required") &&
+  if [ -s "$committed/$required" ] && awk 'seen[$0]++ { twice = 1 } END { exit twice }' "$committed/$required" &&
+    wanted_text=$(printf '%s\n' "$fixed_tests" && cat "$committed/$required") &&
     R6_WANTED=$wanted_text awk '
       BEGIN {
         n = split(ENVIRON["R6_WANTED"], line, "\n")
@@ -137,11 +142,13 @@ run_targets() {
   done <<EOF
 $target_sources
 EOF
-  cargo test --locked -p halvo-route "$@" -- --list >"$artifacts/list.txt" 2>&1 </dev/null
+  list_out=$(cargo test --locked -p halvo-route "$@" -- --list 2>&1 </dev/null)
   list_code=$?
+  printf '%s\n' "$list_out" >"$artifacts/list.txt"
   tree_same after-list
-  cargo test --locked -p halvo-route "$@" -- --list --ignored >"$artifacts/list-ignored.txt" 2>&1 </dev/null
+  ignored_out=$(cargo test --locked -p halvo-route "$@" -- --list --ignored 2>&1 </dev/null)
   ignored_code=$?
+  printf '%s\n' "$ignored_out" >"$artifacts/list-ignored.txt"
   tree_same after-ignored
   set -- "$@" -- --exact
   while read -r test_name; do
@@ -149,8 +156,9 @@ EOF
   done <<EOF
 $target_names
 EOF
-  cargo test --locked -p halvo-route "$@" >"$artifacts/exact-run.txt" 2>&1 </dev/null
+  exact_out=$(cargo test --locked -p halvo-route "$@" 2>&1 </dev/null)
   run_code=$?
+  printf '%s\n' "$exact_out" >"$artifacts/exact-run.txt"
   tree_same after-exact
 }
 
@@ -160,7 +168,16 @@ require_tests() {
     return 1
   fi
   run_targets
-  awk -v list_code="$list_code" -v ignored_code="$ignored_code" -v run_code="$run_code" '
+  marker='== r6 table reader =='
+  while :; do
+    case "$whole_out $list_out $ignored_out $exact_out" in
+      *"$marker"*) marker="$marker=" ;;
+      *) break ;;
+    esac
+  done
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$whole_out" "$marker" "$list_out" "$marker" "$ignored_out" "$marker" \
+    "$exact_out" "$marker" "$wanted_text" |
+    awk -v marker="$marker" -v list_code="$list_code" -v ignored_code="$ignored_code" -v run_code="$run_code" '
     function target_of(line,    paren, bin) {
       sub(/^ *Running /, "", line)
       gsub(/\\/, "/", line)
@@ -172,18 +189,23 @@ require_tests() {
       sub(/-[0-9a-f]+$/, "", bin)
       return bin " " substr(line, 1, paren - 1)
     }
-    FILENAME == ARGV[1] || FILENAME == ARGV[2] || FILENAME == ARGV[3] || FILENAME == ARGV[4] {
-      sub(/\r$/, "")
+    { sub(/\r$/, "") }
+    $0 == marker {
+      section++
+      target = ""
+      next
+    }
+    section < 4 {
       if ($0 ~ /^ *Doc-tests /) {
         target = ""
       } else if ($0 ~ /^ *Running /) {
         target = target_of($0)
       } else {
-        if (FILENAME == ARGV[1] && $0 ~ /^test [^ ]+ \.\.\. ok$/) shared[target " " substr($0, 6, length($0) - 12)] = 1
-        if (FILENAME == ARGV[2] && $0 ~ /: test$/) listed[target " " substr($0, 1, length($0) - 6)] = 1
-        if (FILENAME == ARGV[3] && $0 ~ /: test$/) ignored[target " " substr($0, 1, length($0) - 6)] = 1
-        if (FILENAME == ARGV[4] && $0 ~ /^test [^ ]+ \.\.\. ok$/) passed[target " " substr($0, 6, length($0) - 12)] = 1
-        if (FILENAME == ARGV[4] && $0 ~ /^test result: ok\. /) summary[target] = 1
+        if (section == 0 && $0 ~ /^test [^ ]+ \.\.\. ok$/) shared[target " " substr($0, 6, length($0) - 12)] = 1
+        if (section == 1 && $0 ~ /: test$/) listed[target " " substr($0, 1, length($0) - 6)] = 1
+        if (section == 2 && $0 ~ /: test$/) ignored[target " " substr($0, 1, length($0) - 6)] = 1
+        if (section == 3 && $0 ~ /^test [^ ]+ \.\.\. ok$/) passed[target " " substr($0, 6, length($0) - 12)] = 1
+        if (section == 3 && $0 ~ /^test result: ok\. /) summary[target] = 1
       }
       next
     }
@@ -216,9 +238,7 @@ require_tests() {
       printf "required tests=%d ok=%d listed=%d ignored=%d ran=%d\n", tests, ok, listed_count, tests - clean, ran
       exit (ok != tests || listed_count != tests || clean != tests || ran != tests)
     }
-  ' "$artifacts/cargo-test.txt" "$artifacts/list.txt" "$artifacts/list-ignored.txt" "$artifacts/exact-run.txt" - <<EOF
-$wanted_text
-EOF
+  '
 }
 
 hold_floor() {
@@ -332,12 +352,21 @@ hold_pins() {
   ' "$scratch/hashes.txt" "$pins_source"
 }
 
+sum_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{ print $1 }'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{ print $1 }'
+  else
+    return 1
+  fi
+}
+
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   if ! mkdir -p "$artifacts" 2>/dev/null || ! scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX" 2>/dev/null); then
-    printf 'FAIL %s (cannot make a directory)\n' "$name"
-    exit 2
+    setup_failed
   fi
   CARGO_TERM_QUIET=false
   CARGO_TERM_VERBOSE=false
@@ -348,32 +377,43 @@ measure() {
   read_commit
   hold_floor || cause=tests
   hold_pins || cause=tests
-  if ! cargo test --locked -p halvo-route -p halvo-route-gate >"$artifacts/cargo-test.txt" 2>&1; then
-    cause=tests
-  fi
+  specimen_sum=$(sum_of 2>/dev/null <"$committed/$specimen") || specimen_sum=
+  whole_out=$(cargo test --locked -p halvo-route -p halvo-route-gate 2>&1 </dev/null)
+  whole_code=$?
+  printf '%s\n' "$whole_out" >"$artifacts/cargo-test.txt"
+  [ "$whole_code" -eq 0 ] || cause=tests
   tree_same after-tests
   require_tests || cause=tests
 
-  cargo run -q --locked -p halvo-route-gate --bin route-gate -- self-test --tables 20 --seed 1 \
-    >"$artifacts/selftest.out" 2>"$artifacts/selftest.err"
+  selftest_out=$(
+    cargo run -q --locked -p halvo-route-gate --bin route-gate -- self-test --tables 20 --seed 1 \
+      2>"$artifacts/selftest.err" </dev/null
+    status=$?
+    printf '.'
+    exit "$status"
+  )
   selftest_code=$?
+  selftest_out=${selftest_out%.}
+  printf '%s' "$selftest_out" >"$artifacts/selftest.out"
   tree_same after-selftest
-  grep '^selftest ' "$artifacts/selftest.out"
-  last=$(tail -n 1 "$artifacts/selftest.out")
+  printf '%s' "$selftest_out" | grep '^selftest '
+  last=$(printf '%s' "$selftest_out" | tail -n 1)
   if [ "$selftest_code" -ne 0 ] || { [ "$last" != "$want_line" ] && [ "$last" != "$want_product" ]; }; then
     cause=${cause:-selftest}
   fi
 
   fresh=$scratch/specimen.tsv
   cargo run -q --locked -p halvo-route-gate --bin route-gate -- generate --seed 1 --out "$fresh" \
-    >"$artifacts/generate.out" 2>"$artifacts/generate.err"
+    >"$artifacts/generate.out" 2>"$artifacts/generate.err" </dev/null
+  generate_code=$?
   tree_same after-generate
   rows=0
   same=no
-  if [ -f "$fresh" ]; then
+  if [ "$generate_code" -eq 0 ] && [ -f "$fresh" ]; then
     lines=$(grep -c '' "$fresh")
     [ "$lines" -gt 0 ] && rows=$((lines - 1))
-    cmp -s "$fresh" "$committed/$specimen" && same=yes
+    fresh_sum=$(sum_of <"$fresh") || fresh_sum=
+    [ -n "$specimen_sum" ] && [ "$fresh_sum" = "$specimen_sum" ] && same=yes
   fi
   printf 'specimen rows=%s same=%s\n' "$rows" "$same"
   [ "$same" = yes ] || cause=${cause:-specimen}
@@ -393,6 +433,7 @@ check() {
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
+    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR STUB_FORGE_ARTIFACT STUB_FORGE_FROM STUB_UNLISTED STUB_NO_COMMIT_DIRECTORY
     if [ -n "$STUB_QUIET" ]; then
       CARGO_TERM_QUIET=$STUB_QUIET
       export CARGO_TERM_QUIET
@@ -401,7 +442,7 @@ check() {
       CARGO_TERM_COLOR=$STUB_COLOR
       export CARGO_TERM_COLOR
     fi
-    sh "$self" 2>&1
+    TMPDIR=${STUB_TMPDIR:-${TMPDIR:-/tmp}} sh "$self" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -444,6 +485,15 @@ check() {
   STUB_NO_COMMIT=
   STUB_QUIET=
   STUB_COLOR=
+  STUB_TMPDIR=
+  STUB_PLANT_FROM=
+  STUB_PLANT_TO=
+  STUB_EMPTY_ARTIFACT=
+  STUB_CR=
+  STUB_FORGE_ARTIFACT=
+  STUB_FORGE_FROM=
+  STUB_UNLISTED=
+  STUB_NO_COMMIT_DIRECTORY=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -531,6 +581,15 @@ make_stub() {
   STUB_NO_COMMIT=
   STUB_QUIET=
   STUB_COLOR=
+  STUB_TMPDIR=
+  STUB_PLANT_FROM=
+  STUB_PLANT_TO=
+  STUB_EMPTY_ARTIFACT=
+  STUB_CR=
+  STUB_FORGE_ARTIFACT=
+  STUB_FORGE_FROM=
+  STUB_UNLISTED=
+  STUB_NO_COMMIT_DIRECTORY=
 }
 
 tree_cases() {
@@ -554,6 +613,12 @@ tree_cases() {
   STUB_COMMITTED=$work/committed-short
   check list-of-the-commit-lost-a-line FAIL "required dropped=$t tests/refusal_spend.rs refusal_zero_amount" \
     "FAIL $name (tests)"
+
+  mkdir "$work/committed-twice" || exit 2
+  cp -R "$work/pristine/." "$work/committed-twice/" || exit 2
+  tail -n 1 "$work/pristine/$required" >>"$work/committed-twice/$required"
+  STUB_COMMITTED=$work/committed-twice
+  check list-of-the-commit-holds-a-line-twice FAIL 'required list=bad'
 
   mkdir "$work/committed-longer" || exit 2
   cp -R "$work/pristine/." "$work/committed-longer/" || exit 2
@@ -601,6 +666,48 @@ FAIL $name (specimen)"
   STUB_CHANGE_LINE='1 .M N... 100644 100644 100644 0000 0000 crates/halvo-route/src/admit.rs'
   check un-ignored-at-run-time-with-a-written-line FAIL 'tree changed=after-tests 1 crates/halvo-route/src/admit.rs'
 
+  stub_case run-alone-empties-the-ignored-listing-file
+  printf 'refusal_no_hold: test\n' >"$STUB_DIR/ignored-$t-refusal_spend.txt"
+  STUB_EMPTY_ARTIFACT=list-ignored.txt
+  check run-alone-empties-the-ignored-listing-file FAIL "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
+
+  stub_case run-alone-rewrites-the-whole-run-file
+  awk '$0 != "test admit::tests::refusal_admit_ruling ... ok"' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  STUB_FORGE_ARTIFACT=cargo-test.txt
+  STUB_FORGE_FROM=$work/stub/test.out
+  check run-alone-rewrites-the-whole-run-file FAIL "required not_ok=$t src/lib.rs admit::tests::refusal_admit_ruling"
+
+  for listing in "$work/stub"/list-*.txt; do
+    stem=${listing##*/list-halvo-route-}
+    stem=${stem%.txt}
+    if [ "$stem" = lib ]; then
+      printf '     Running unittests src/lib.rs (target/debug/deps/halvo_route-0123456789abcdef)\n'
+    else
+      printf '     Running tests/%s.rs (target/debug/deps/%s-0123456789abcdef)\n' "$stem" "$stem"
+    fi
+    cat "$listing"
+  done >"$work/forged-list.txt" || exit 2
+  STUB_UNLISTED=refusal_no_hold
+  STUB_FORGE_ARTIFACT=list.txt
+  STUB_FORGE_FROM=$work/forged-list.txt
+  check run-alone-rewrites-the-listing-file FAIL "required not_listed=$t tests/refusal_spend.rs refusal_no_hold"
+
+  mkdir "$work/tmp-committed-specimen" || exit 2
+  STUB_TMPDIR=$work/tmp-committed-specimen
+  STUB_PLANT_FROM=$work/short.tsv
+  STUB_PLANT_TO=commit/$specimen
+  STUB_FRESH=$work/short.tsv
+  check test-rewrites-the-committed-specimen FAIL "specimen rows=539 same=no
+FAIL $name (specimen)"
+
+  mkdir "$work/tmp-fresh-specimen" || exit 2
+  STUB_TMPDIR=$work/tmp-fresh-specimen
+  STUB_PLANT_FROM=$work/fresh.tsv
+  STUB_PLANT_TO=specimen.tsv
+  STUB_FRESH=$work/short.tsv
+  check test-plants-the-fresh-specimen FAIL "specimen rows=0 same=no
+FAIL $name (specimen)"
+
   for kind in list ignored exact selftest generate; do
     STUB_CHANGE_AT=$kind
     STUB_CHANGE_LINE='? .cargo/config.toml'
@@ -626,17 +733,20 @@ FAIL $name (specimen)"
   STUB_COLOR=always
   check job-sets-cargo-colour PASS "$want_required"
 
+  STUB_NO_COMMIT_DIRECTORY=1
+  check commit-directory-cannot-be-made FAIL "FAIL $name (setup)"
+
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
   code=$?
-  outside "$code" "$unentered" 'FAIL 30-r6-table (cannot enter the repository)' cannot-enter-the-repository
+  outside "$code" "$unentered" 'FAIL 30-r6-table (setup)' cannot-enter-the-repository
   : >"$work/a-file" || exit 2
   unmade=$(CI_D_REPO=$work/repo CI_D_ARTIFACTS=$work/a-file/artifacts sh "$self" 2>&1)
   code=$?
-  outside "$code" "$unmade" 'FAIL 30-r6-table (cannot make a directory)' cannot-make-a-directory
+  outside "$code" "$unmade" 'FAIL 30-r6-table (setup)' cannot-make-a-directory
 }
 
 outside() {
-  if [ "$1:$2" = "2:$3" ]; then
+  if [ "$1:$2" = "1:$3" ]; then
     printf 'case %s/%s want=FAIL got=FAIL\n' "$name" "$4"
     rejected=$((rejected + 1))
   else
@@ -721,10 +831,24 @@ required_cases() {
   mv "$work/repo/$required" "$work/repo/$required.away" || exit 2
   check no-list FAIL 'required list=bad'
   restore_repo
+  head -n 1 "$work/pristine/$required" >>"$work/repo/$required"
+  check list-with-a-line-twice FAIL 'required list=bad'
+  restore_repo
 
   stub_case carriage-returns
   awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
   check carriage-returns PASS "$want_required"
+  STUB_CR=list
+  check carriage-returns-in-the-listing PASS "$want_required"
+  stub_case carriage-returns-in-the-ignored-listing
+  printf 'refusal_no_hold: test\n' >"$STUB_DIR/ignored-$t-refusal_spend.txt"
+  STUB_CR=ignored
+  check carriage-returns-in-the-ignored-listing FAIL "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
+  STUB_CR=exact
+  check carriage-returns-in-the-run-alone PASS "$want_required"
+  stub_case whole-run-prints-the-readers-marker
+  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "== r6 table reader ==" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check whole-run-prints-the-readers-marker PASS "$want_required"
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -849,6 +973,16 @@ pin_cases() {
   check tuple-after-the-pinned-list PASS 'pins tool=' ' files=5 same=5'
   restore_repo
 
+  awk '{ print } END { print "const PINNED_OLD: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check constant-whose-name-starts-with-pinned FAIL 'pins unreadable=PINNED'
+  restore_repo
+  awk '{ print } END { print "const PINNEDS: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check constant-whose-name-goes-on-with-a-letter FAIL 'pins unreadable=PINNED'
+  restore_repo
+  awk '{ print } END { print "const PINNED2: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check constant-whose-name-goes-on-with-a-digit FAIL 'pins unreadable=PINNED'
+  restore_repo
+
   mv "$work/repo/$pin_file" "$work/repo/$pin_file.away" || exit 2
   check no-pin-test-file FAIL 'pins unreadable=PINNED'
   restore_repo
@@ -922,6 +1056,17 @@ if [ "$kind" = "${STUB_CHANGE_AT:-none}" ]; then
     printf '%s\n' "$STUB_CHANGE_LINE" >>"$STUB_TREE/${STUB_CHANGE_FILE:-status}"
   fi
 fi
+if [ "$kind" = tests ] && [ -n "${STUB_PLANT_FROM:-}" ]; then
+  for dir in "$TMPDIR"/30-r6-table.*; do
+    cp "$STUB_PLANT_FROM" "$dir/$STUB_PLANT_TO" || exit 98
+  done
+fi
+if [ "$kind" = exact ] && [ -n "${STUB_EMPTY_ARTIFACT:-}" ]; then
+  : >"$CI_D_ARTIFACTS/$STUB_EMPTY_ARTIFACT"
+fi
+if [ "$kind" = exact ] && [ -n "${STUB_FORGE_ARTIFACT:-}" ]; then
+  cp "$STUB_FORGE_FROM" "$CI_D_ARTIFACTS/$STUB_FORGE_ARTIFACT" || exit 98
+fi
 if [ "${CARGO_TERM_QUIET:-false}" = true ] || [ "${CARGO_TERM_COLOR:-auto}" = always ]; then
   printf '\033[1mcargo setting\033[0m quiet=%s color=%s\n' "${CARGO_TERM_QUIET:-}" "${CARGO_TERM_COLOR:-}"
   exit 0
@@ -959,8 +1104,12 @@ case $kind in
       fi
     done
     [ "$kind" = exact ] && shift
+    cr=
+    case " ${STUB_CR:-} " in
+      *" $kind "*) cr=$(printf '\r') ;;
+    esac
     awk -v kind="$kind" -v dir="$STUB_DIR" -v stems="$stems" -v names="$*" -v not_run=" $STUB_NOT_RUN " \
-      -v no_summary=" $STUB_NO_SUMMARY " -v drop=" $STUB_DROP " '
+      -v no_summary=" $STUB_NO_SUMMARY " -v drop=" $STUB_DROP " -v unlisted="${STUB_UNLISTED:-}" '
       BEGIN {
         n = split(stems, stem, " ")
         m = split(names, name, " ")
@@ -971,7 +1120,7 @@ case $kind in
           else printf "     Running tests/%s.rs (target/debug/deps/%s-0123456789abcdef)\n", s, s
           file = dir "/" (kind == "ignored" ? "ignored" : "list") "-halvo-route-" s ".txt"
           if (kind != "exact") {
-            while ((getline line < file) > 0) print line
+            while ((getline line < file) > 0) if (!(kind == "list" && line == unlisted ": test")) print line
             close(file)
             continue
           }
@@ -988,7 +1137,7 @@ case $kind in
           close(file)
           if (!index(no_summary, " " s " ")) printf "\ntest result: ok. %d passed; 0 failed\n", count
         }
-      }'
+      }' | awk -v cr="$cr" '{ printf "%s%s\n", $0, cr }'
     [ "$kind" = exact ] && exit "${STUB_RUN_EXIT:-0}"
     exit 0
     ;;
@@ -999,6 +1148,7 @@ case $kind in
   generate)
     [ -f "$STUB_FRESH" ] || exit 2
     shift 12
+    [ ! -e "$1" ] || exit 2
     cp "$STUB_FRESH" "$1"
     ;;
   *)
@@ -1008,6 +1158,14 @@ case $kind in
 esac
 EOF
   chmod +x "$work/bin/cargo"
+  cat >"$work/bin/mkdir" <<'EOF'
+#!/bin/sh
+case ${STUB_NO_COMMIT_DIRECTORY:-}:$* in
+  1:*/commit) exit 1 ;;
+esac
+exec /bin/mkdir "$@"
+EOF
+  chmod +x "$work/bin/mkdir" || exit 2
   make_stub
   want_required=$(required_text) || exit 2
   restore_repo
@@ -1047,6 +1205,9 @@ FAIL $name (selftest)"
   check line-with-another-key FAIL "FAIL $name (selftest)"
   STUB_SELFTEST=
   check no-line FAIL "FAIL $name (selftest)"
+  STUB_SELFTEST="$want_line
+"
+  check line-then-an-empty-line FAIL "FAIL $name (selftest)"
   STUB_FRESH=$work/short.tsv
   check fresh-output-without-a-row FAIL "specimen rows=539 same=no
 FAIL $name (specimen)"

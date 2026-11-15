@@ -14,9 +14,14 @@ enter_repo() {
   if [ -n "${CI_D_REPO:-}" ]; then
     repo=$CI_D_REPO
   else
-    repo=$(git rev-parse --show-toplevel) || exit 2
+    repo=$(git rev-parse --show-toplevel) || setup_failed
   fi
-  cd "$repo" || exit 2
+  cd "$repo" 2>/dev/null || setup_failed
+}
+
+setup_failed() {
+  printf 'FAIL %s (setup)\n' "$name"
+  exit 1
 }
 
 line_holds() {
@@ -49,7 +54,7 @@ EOF
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
-  mkdir -p "$artifacts" || exit 2
+  mkdir -p "$artifacts" 2>/dev/null || setup_failed
   cause=
 
   if ! cargo test --locked -p halvo-route-wire --features serde_json/arbitrary_precision \
@@ -223,6 +228,22 @@ PASS $name"
     note unknown-argument FAIL FAIL
   else
     note unknown-argument FAIL "exit-$code"
+  fi
+
+  unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
+  code=$?
+  if [ "$code:$unentered" = "1:FAIL $name (setup)" ]; then
+    note cannot-enter-the-repository FAIL FAIL
+  else
+    note cannot-enter-the-repository FAIL "exit-$code"
+  fi
+  : >"$work/a-file" || exit 2
+  unmade=$(CI_D_REPO=$work/repo CI_D_ARTIFACTS=$work/a-file/artifacts sh "$self" 2>&1)
+  code=$?
+  if [ "$code:$unmade" = "1:FAIL $name (setup)" ]; then
+    note cannot-make-a-directory FAIL FAIL
+  else
+    note cannot-make-a-directory FAIL "exit-$code"
   fi
 
   real --dir "$work/gateway"
