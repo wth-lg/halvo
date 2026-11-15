@@ -285,6 +285,7 @@ loops() {
     while [ "$run_index" -lt "$runs" ]; do
       run_index=$((run_index + 1))
       "$timeout_tool" "$test_limit_s" "$@" </dev/null >"$work/loop.log" 2>&1
+      tr -d '\r' <"$work/loop.log" | sed -n "s/^TF pointer-queue /WF loop-print ${test##*::} run=$run_index pointer-queue /p"
       if tr -d '\r' <"$work/loop.log" | grep -q '^test result: ok\. 1 passed; 0 failed;'; then
         passes=$((passes + 1))
       else
