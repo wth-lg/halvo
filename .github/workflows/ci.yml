@@ -100,6 +100,184 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: driver-2 loop, the two cases of the stop's windows, 200 times each
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-driver own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-witness
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          ws="$GITHUB_WORKSPACE"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); ws=$(cygpath -u "$ws"); fi
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          cat >"$tmp/loop-extract.py" <<'PYEOF'
+          import re, sys
+
+          # usage: python loop-extract.py <driver> <copy> <case names...>
+          # Writes a copy of the driver for the hosted loop of round 3 (PL-25). The loop copy of round 2 (loop-copy.py) skipped
+          # the fixture helpers of a block that OWN_ONLY does not name, but it still ran every block inside a loop or an if and
+          # every plain line, about 60 fixture repos and a wait of 10 s in each run; on the windows runner one run of four cases
+          # took 151 s under eight batches (run 43673862484). This copy keeps, in own_self_test, only:
+          #   - each block whose own_case names one of the given cases (a block is the statements after the previous own_case
+          #     statement up to and including the next one; a statement is a line of indent 2 with its deeper lines, and an
+          #     if, for, while, until or case of indent 2 runs to its closing line of indent 2);
+          #   - from every other block, each statement that names no fixture ($fixture) and is no own_case, no fixture helper
+          #     (new_repo, track_file, add_script, fixture_commit) and no one-line setting of a variable that case_reset resets:
+          #     the global settings, the stand-in directories under $tmp and the probes; then case_reset, as the dropped
+          #     own_case would have run it;
+          #   - the statements after the last own_case.
+          # A name in an own_case line with an expansion ($spelling) matches any text there. own_case gets the filter line of
+          # loop-copy.py, so a kept block that holds other cases (a loop over spellings) still reports only the named ones.
+          # A nested run of the copy (nested_word set, as in the cases that stop the own cases of a nested driver) runs the
+          # whole own_self_test, kept as own_self_test_whole. Nothing outside own_self_test changes. Prints what it kept.
+          src, dst = sys.argv[1], sys.argv[2]
+          wanted = sys.argv[3:]
+          if not wanted:
+              sys.exit('no case names')
+          lines = open(src, encoding='utf-8').read().split('\n')
+          start = lines.index('own_self_test() {')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+          body = lines[start + 1:end]
+          if any(l.strip() and not l.startswith('  ') for l in body):
+              sys.exit('a line of own_self_test has an indent below 2')
+
+          openers = re.compile(r'^  (if|for|while|until|case)\b')
+          closers = re.compile(r'^  (fi|done|esac)\b')
+          stmts = []
+          depth = 0
+          for l in body:
+              top = re.match(r'^  \S', l) is not None
+              if top and depth == 0 and not closers.match(l) and not re.match(r'^  (else|elif)\b', l):
+                  stmts.append([l])
+              else:
+                  if not stmts:
+                      stmts.append([])
+                  stmts[-1].append(l)
+              if top:
+                  if openers.match(l) and not re.search(r'\b(fi|done|esac)\s*$', l):
+                      depth += 1
+                  elif closers.match(l):
+                      depth -= 1
+          if depth != 0:
+              sys.exit('unbalanced statements: depth %d' % depth)
+
+          def names(stmt):
+              out = []
+              for l in stmt:
+                  m = re.match(r'^\s*own_case ("[^"]*"|\S+) ', l)
+                  if m:
+                      out.append(m.group(1).strip('"'))
+              return out
+
+          def matches(pattern, name):
+              rx = '^' + ''.join('.*' if part.startswith('$') else re.escape(part)
+                                 for part in re.split(r'(\$\{[^}]*\}|\$[A-Za-z_][A-Za-z_0-9]*)', pattern)) + '$'
+              return re.match(rx, name) is not None
+
+          r0 = lines.index('case_reset() {')
+          r1 = next(i for i in range(r0 + 1, len(lines)) if lines[i] == '}')
+          per_case = set(l[2:-1] for l in lines[r0 + 1:r1] if re.match(r'^  [A-Za-z_][A-Za-z_0-9]*=$', l))
+          if len(per_case) != r1 - r0 - 1:
+              sys.exit('case_reset holds a line that is not a reset')
+          blocks = []
+          cur = []
+          for st in stmts:
+              cur.append(st)
+              if names(st):
+                  blocks.append(cur)
+                  cur = []
+          tail = cur
+          found = set()
+          kept_text = []
+          kept_names = []
+          for b in blocks:
+              ns = [n for st in b for n in names(st)]
+              hit = [w for w in wanted if any(matches(n, w) for n in ns)]
+              if hit:
+                  found.update(hit)
+                  kept_names.append(ns)
+                  for st in b:
+                      kept_text.extend(st)
+              else:
+                  for st in b:
+                      m = re.match(r'^  ([A-Za-z_][A-Za-z_0-9]*)=', st[0])
+                      joined = '\n'.join(st)
+                      if names(st) or re.match(r'^  (new_repo|track_file|add_script|fixture_commit)\b', st[0]):
+                          continue
+                      if len(st) == 1 and m and m.group(1) in per_case:
+                          continue
+                      if '$fixture' in joined or '${fixture' in joined:
+                          continue
+                      kept_text.extend(st)
+                  kept_text.append('  case_reset')
+          for st in tail:
+              kept_text.extend(st)
+          missing = [w for w in wanted if w not in found]
+          if missing:
+              sys.exit('cases not found: %s' % ' '.join(missing))
+          whole = ['own_self_test_whole() {'] + body + ['}', '']
+          text = '\n'.join(lines[:start] + whole + [lines[start], '  [ -z "${nested_word:-}" ] || { own_self_test_whole; return; }'] + kept_text + lines[end:])
+          anchor = 'own_case() {\n  case_name=$1\n'
+          if text.count(anchor) != 1:
+              sys.exit('own_case anchor')
+          text = text.replace(anchor, 'own_case() {\n  if [ -n "${OWN_ONLY:-}" ] && [ -z "${nested_word:-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return ;; esac; fi\n  case_name=$1\n')
+          open(dst, 'w', encoding='utf-8', newline='\n').write(text)
+          print('statements %d, blocks %d, kept blocks %d, body lines %d of %d' % (len(stmts), len(blocks), len(kept_names), len(kept_text), len(body)))
+          for ns in kept_names:
+              print('  kept block:', ' '.join(ns)[:200])
+          PYEOF
+          copy="$tmp/run-ci-d-loop.sh"
+          "$py" "$tmp/loop-extract.py" scripts/ci/run-ci-d.sh "$copy" own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-driver own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-witness || exit 1
+          out="$tmp/loop-runs"
+          mkdir -p "$out"
+          runs=200
+          now=$(date +%s)
+          made=$(perl -e 'my @s = stat($ARGV[0]); print @s ? $s[9] : ""' "$ws/.git/description")
+          if [ -n "$made" ] && [ "$made" -le "$now" ]; then
+            job_start=$((made - 30))
+            echo "the job's start: .git/description written at $made, less 30 s"
+          else
+            job_start=$((now - 5200))
+            echo "the job's start: no .git/description; taken as 5200 s before this step"
+          fi
+          deadline=$((job_start + 6700))
+          echo "this step starts $((now - job_start)) s after the job's start; planned runs: $runs; no run starts after $((deadline - now)) s from now (6700 s after the job's start)"
+          batch() {
+            n=$1
+            while [ "$n" -lt "$runs" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then echo "batch $1: deadline reached before run $n"; break; fi
+              t0=$(date +%s)
+              sh "$copy" macos --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+              echo "run $n: $(( $(date +%s) - t0 )) s: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              n=$((n + 8))
+            done
+          }
+          start=$(date +%s)
+          batch 0 & batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          [ -e "$1" ] || set --
+          echo "runs: $# of $runs, seconds: $((end - start)), ended $((end - job_start)) s after the job's start"
+          bad=0
+          [ "$#" -eq "$runs" ] || bad=1
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt 2>/dev/null | grep -cE "^case run-ci-d/$c want=[A-Z]+ got=[^ ]+\$")
+            pass=$(cat "$out"/run-*.txt 2>/dev/null | grep -E "^case run-ci-d/$c want=[A-Z]+ got=[^ ]+\$" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq "$runs" ] && [ "$total" -eq "$runs" ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            [ -e "$f" ] || continue
+            grep -E "^case run-ci-d/[^ ]+ want=[A-Z]+ got=[^ ]+\$" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          for f in "$out"/run-*.txt; do
+            [ -e "$f" ] || continue
+            grep -E "^case run-ci-d/.* process left: " "$f" | sed "s|^|${f##*/}: |"
+          done
+          exit "$bad"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -156,6 +334,184 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: driver-2 loop, the two cases of the stop's windows, 200 times each
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-driver own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-witness
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          ws="$GITHUB_WORKSPACE"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); ws=$(cygpath -u "$ws"); fi
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          cat >"$tmp/loop-extract.py" <<'PYEOF'
+          import re, sys
+
+          # usage: python loop-extract.py <driver> <copy> <case names...>
+          # Writes a copy of the driver for the hosted loop of round 3 (PL-25). The loop copy of round 2 (loop-copy.py) skipped
+          # the fixture helpers of a block that OWN_ONLY does not name, but it still ran every block inside a loop or an if and
+          # every plain line, about 60 fixture repos and a wait of 10 s in each run; on the windows runner one run of four cases
+          # took 151 s under eight batches (run 43673862484). This copy keeps, in own_self_test, only:
+          #   - each block whose own_case names one of the given cases (a block is the statements after the previous own_case
+          #     statement up to and including the next one; a statement is a line of indent 2 with its deeper lines, and an
+          #     if, for, while, until or case of indent 2 runs to its closing line of indent 2);
+          #   - from every other block, each statement that names no fixture ($fixture) and is no own_case, no fixture helper
+          #     (new_repo, track_file, add_script, fixture_commit) and no one-line setting of a variable that case_reset resets:
+          #     the global settings, the stand-in directories under $tmp and the probes; then case_reset, as the dropped
+          #     own_case would have run it;
+          #   - the statements after the last own_case.
+          # A name in an own_case line with an expansion ($spelling) matches any text there. own_case gets the filter line of
+          # loop-copy.py, so a kept block that holds other cases (a loop over spellings) still reports only the named ones.
+          # A nested run of the copy (nested_word set, as in the cases that stop the own cases of a nested driver) runs the
+          # whole own_self_test, kept as own_self_test_whole. Nothing outside own_self_test changes. Prints what it kept.
+          src, dst = sys.argv[1], sys.argv[2]
+          wanted = sys.argv[3:]
+          if not wanted:
+              sys.exit('no case names')
+          lines = open(src, encoding='utf-8').read().split('\n')
+          start = lines.index('own_self_test() {')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+          body = lines[start + 1:end]
+          if any(l.strip() and not l.startswith('  ') for l in body):
+              sys.exit('a line of own_self_test has an indent below 2')
+
+          openers = re.compile(r'^  (if|for|while|until|case)\b')
+          closers = re.compile(r'^  (fi|done|esac)\b')
+          stmts = []
+          depth = 0
+          for l in body:
+              top = re.match(r'^  \S', l) is not None
+              if top and depth == 0 and not closers.match(l) and not re.match(r'^  (else|elif)\b', l):
+                  stmts.append([l])
+              else:
+                  if not stmts:
+                      stmts.append([])
+                  stmts[-1].append(l)
+              if top:
+                  if openers.match(l) and not re.search(r'\b(fi|done|esac)\s*$', l):
+                      depth += 1
+                  elif closers.match(l):
+                      depth -= 1
+          if depth != 0:
+              sys.exit('unbalanced statements: depth %d' % depth)
+
+          def names(stmt):
+              out = []
+              for l in stmt:
+                  m = re.match(r'^\s*own_case ("[^"]*"|\S+) ', l)
+                  if m:
+                      out.append(m.group(1).strip('"'))
+              return out
+
+          def matches(pattern, name):
+              rx = '^' + ''.join('.*' if part.startswith('$') else re.escape(part)
+                                 for part in re.split(r'(\$\{[^}]*\}|\$[A-Za-z_][A-Za-z_0-9]*)', pattern)) + '$'
+              return re.match(rx, name) is not None
+
+          r0 = lines.index('case_reset() {')
+          r1 = next(i for i in range(r0 + 1, len(lines)) if lines[i] == '}')
+          per_case = set(l[2:-1] for l in lines[r0 + 1:r1] if re.match(r'^  [A-Za-z_][A-Za-z_0-9]*=$', l))
+          if len(per_case) != r1 - r0 - 1:
+              sys.exit('case_reset holds a line that is not a reset')
+          blocks = []
+          cur = []
+          for st in stmts:
+              cur.append(st)
+              if names(st):
+                  blocks.append(cur)
+                  cur = []
+          tail = cur
+          found = set()
+          kept_text = []
+          kept_names = []
+          for b in blocks:
+              ns = [n for st in b for n in names(st)]
+              hit = [w for w in wanted if any(matches(n, w) for n in ns)]
+              if hit:
+                  found.update(hit)
+                  kept_names.append(ns)
+                  for st in b:
+                      kept_text.extend(st)
+              else:
+                  for st in b:
+                      m = re.match(r'^  ([A-Za-z_][A-Za-z_0-9]*)=', st[0])
+                      joined = '\n'.join(st)
+                      if names(st) or re.match(r'^  (new_repo|track_file|add_script|fixture_commit)\b', st[0]):
+                          continue
+                      if len(st) == 1 and m and m.group(1) in per_case:
+                          continue
+                      if '$fixture' in joined or '${fixture' in joined:
+                          continue
+                      kept_text.extend(st)
+                  kept_text.append('  case_reset')
+          for st in tail:
+              kept_text.extend(st)
+          missing = [w for w in wanted if w not in found]
+          if missing:
+              sys.exit('cases not found: %s' % ' '.join(missing))
+          whole = ['own_self_test_whole() {'] + body + ['}', '']
+          text = '\n'.join(lines[:start] + whole + [lines[start], '  [ -z "${nested_word:-}" ] || { own_self_test_whole; return; }'] + kept_text + lines[end:])
+          anchor = 'own_case() {\n  case_name=$1\n'
+          if text.count(anchor) != 1:
+              sys.exit('own_case anchor')
+          text = text.replace(anchor, 'own_case() {\n  if [ -n "${OWN_ONLY:-}" ] && [ -z "${nested_word:-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return ;; esac; fi\n  case_name=$1\n')
+          open(dst, 'w', encoding='utf-8', newline='\n').write(text)
+          print('statements %d, blocks %d, kept blocks %d, body lines %d of %d' % (len(stmts), len(blocks), len(kept_names), len(kept_text), len(body)))
+          for ns in kept_names:
+              print('  kept block:', ' '.join(ns)[:200])
+          PYEOF
+          copy="$tmp/run-ci-d-loop.sh"
+          "$py" "$tmp/loop-extract.py" scripts/ci/run-ci-d.sh "$copy" own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-driver own-cases-stopped-between-the-start-and-the-record-of-the-running-case-s-witness || exit 1
+          out="$tmp/loop-runs"
+          mkdir -p "$out"
+          runs=200
+          now=$(date +%s)
+          made=$(perl -e 'my @s = stat($ARGV[0]); print @s ? $s[9] : ""' "$ws/.git/description")
+          if [ -n "$made" ] && [ "$made" -le "$now" ]; then
+            job_start=$((made - 30))
+            echo "the job's start: .git/description written at $made, less 30 s"
+          else
+            job_start=$((now - 5200))
+            echo "the job's start: no .git/description; taken as 5200 s before this step"
+          fi
+          deadline=$((job_start + 6700))
+          echo "this step starts $((now - job_start)) s after the job's start; planned runs: $runs; no run starts after $((deadline - now)) s from now (6700 s after the job's start)"
+          batch() {
+            n=$1
+            while [ "$n" -lt "$runs" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then echo "batch $1: deadline reached before run $n"; break; fi
+              t0=$(date +%s)
+              sh "$copy" windows --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+              echo "run $n: $(( $(date +%s) - t0 )) s: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              n=$((n + 8))
+            done
+          }
+          start=$(date +%s)
+          batch 0 & batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          [ -e "$1" ] || set --
+          echo "runs: $# of $runs, seconds: $((end - start)), ended $((end - job_start)) s after the job's start"
+          bad=0
+          [ "$#" -eq "$runs" ] || bad=1
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt 2>/dev/null | grep -cE "^case run-ci-d/$c want=[A-Z]+ got=[^ ]+\$")
+            pass=$(cat "$out"/run-*.txt 2>/dev/null | grep -E "^case run-ci-d/$c want=[A-Z]+ got=[^ ]+\$" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq "$runs" ] && [ "$total" -eq "$runs" ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            [ -e "$f" ] || continue
+            grep -E "^case run-ci-d/[^ ]+ want=[A-Z]+ got=[^ ]+\$" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          for f in "$out"/run-*.txt; do
+            [ -e "$f" ] || continue
+            grep -E "^case run-ci-d/.* process left: " "$f" | sed "s|^|${f##*/}: |"
+          done
+          exit "$bad"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
