@@ -100,11 +100,20 @@ fn reap_answers_alive_for_a_runner_that_lives_and_cannot_be_ended_and_keeps_its_
     assert_ne!(process::process_group(pid).map(NonZeroU32::get), Some(pid));
     let run = common::run_id();
     write_mark(&rig, &run, &[("runner", line(pid, created, pid))]);
+    profile_tree(&profiles(&rig).join(run.as_str()));
     let answers = rig.sup.reap().unwrap();
     assert_eq!(answers.len(), 1);
     assert_eq!(answers[0].answer, Reaped::Alive);
     assert!(process::is_running(pid, created));
     assert!(rig.mark(&run).is_some_and(|m| m.is_complete()));
+    assert!(
+        profiles(&rig)
+            .join(run.as_str())
+            .join("tmp")
+            .join("scratch")
+            .exists(),
+        "reap removed the profile of a run that it answered alive"
+    );
 }
 
 #[cfg(windows)]
@@ -115,11 +124,20 @@ fn reap_answers_alive_for_a_runner_that_lives_and_cannot_be_ended_and_keeps_its_
     let created = process::creation_time(system).expect("the System process has a creation time");
     let run = common::run_id();
     write_mark(&rig, &run, &[("runner", line(system, created, system))]);
+    profile_tree(&profiles(&rig).join(run.as_str()));
     let answers = rig.sup.reap().unwrap();
     assert_eq!(answers.len(), 1);
     assert_eq!(answers[0].answer, Reaped::Alive);
     assert!(process::is_running(system, created));
     assert!(rig.mark(&run).is_some_and(|m| m.is_complete()));
+    assert!(
+        profiles(&rig)
+            .join(run.as_str())
+            .join("tmp")
+            .join("scratch")
+            .exists(),
+        "reap removed the profile of a run that it answered alive"
+    );
 }
 
 #[cfg(target_os = "macos")]

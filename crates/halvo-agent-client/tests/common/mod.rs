@@ -160,6 +160,8 @@ pub struct Store {
     pub rev: AtomicU32,
     pub fail_add_origin: AtomicUsize,
     pub garbage_add_origin: AtomicUsize,
+    pub error_add_origin: AtomicUsize,
+    pub hold_add_origin: Mutex<bool>,
     pub fail_all: AtomicUsize,
     pub load_origins: Mutex<Vec<String>>,
     pub check: Mutex<Option<Check>>,
@@ -300,8 +302,14 @@ impl Store {
         let body = CoordinatorCall::parse(raw.body().get().as_bytes()).unwrap();
         match body {
             CoordinatorCall::AddOrigin(_) => {
+                while *self.hold_add_origin.lock().unwrap() {
+                    thread::sleep(Duration::from_millis(10));
+                }
                 if take_one(&self.garbage_add_origin) {
                     return Ok(b"not a reply".to_vec());
+                }
+                if take_one(&self.error_add_origin) {
+                    return Ok(Store::error(&id, "internal"));
                 }
                 if self
                     .fail_add_origin
