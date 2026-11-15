@@ -630,6 +630,40 @@ fn a_session_part_takes_the_local_day_of_the_request() {
     assert_eq!(session_rows(&store)[0].day, ROW_DAY);
 }
 
+#[test]
+fn a_log_line_of_the_run_that_is_no_start_row_starts_nothing() {
+    let mut store = unstarted("utility_bill_payment");
+    let mut line = log_line(2);
+    line["run"] = json!(run(3));
+    store
+        .typed_commit(vec![halvo_schema::TypedRecord {
+            kind: "agent_log",
+            json: line.to_string(),
+        }])
+        .expect("a log line stored before the start row existed");
+    let load = json!({"op": "load", "agent": agent(1), "run": run(3)});
+    assert_eq!(
+        runner(&mut store, load).map(|_| ()),
+        Err(declared("binding"))
+    );
+}
+
+#[test]
+fn a_row_whose_at_is_negative_is_refused_with_day() {
+    let mut store = unstarted("utility_bill_payment");
+    let early = at(10 * NANOS_PER_DAY);
+    assert_eq!(start_at(&mut store, early, 1, 1, 1), Ok(accepted()));
+    let before = rows(&store, "agent_effect");
+    let held = dated(row(1, 1, 1, "held", "payment", 1, None, None), 0, -1);
+    assert_eq!(put_at(&mut store, early, held), Err(declared("day")));
+    let line = dated(log_line(2), 0, -1);
+    let body = json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line]});
+    assert_eq!(runner_at(&mut store, early, body), Err(declared("day")));
+    assert_eq!(rows(&store, "agent_effect"), before);
+    let held = dated(row(1, 1, 1, "held", "payment", 1, None, None), 0, 0);
+    assert_eq!(put_at(&mut store, early, held), Ok(stored(1)));
+}
+
 fn agent_1() -> halvo_schema::AgentId {
     halvo_schema::AgentId::parse(&agent(1)).expect("an agent id")
 }
