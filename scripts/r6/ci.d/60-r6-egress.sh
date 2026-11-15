@@ -363,7 +363,7 @@ run_canary() {
   printf 'egress canary profile=%s entries=%s found=%s exit=%s\n' "$1" "$wanted" "$found" "$canary_exit"
   if [ "$found" -ne "$wanted" ] || [ "$wanted" -eq 0 ] || [ "$refers" -ne 0 ]; then
     printf 'egress canary: the forbid run let the canary through\n'
-    fail check
+    holds=no
   fi
 }
 
@@ -1940,6 +1940,7 @@ graph-tree graph-path-package-moved
 graph-metadata graph-features-in-metadata
 graph-tables graph-patch-table
 refusal-stops-the-runs runs-not-made-after-a-text-rule
+canary-refusal canary-refusal-ends-as-a-hold
 rule-cfg runs-not-made-after-a-text-rule
 rule-attribute rule-attribute-path-from-a-macro-variable
 rule-clippy rule-clippy-behind-a-comment
@@ -1996,6 +1997,7 @@ run-widens-the-list-and-a-later-run-restores-it
 run-rewrites-the-record-of-found-commands
 run-cuts-the-run-list
 run-without-its-line-names-the-missing-run
+canary-refusal-ends-as-a-hold
 command-exits-1
 entry-with-no-arguments
 tracked-file-changed-by-a-run
@@ -2011,6 +2013,7 @@ EOF
 
 macos_cases() {
   cat <<'EOF'
+canary-refusal-in-release-ends-as-a-hold
 found-command-that-forges-the-record
 asker-that-skips-a-word
 egress-check-that-drops-a-probe-report
@@ -2764,6 +2767,11 @@ EOF
   STUB_CANARY_DROP=t01
   STUB_CANARY_DROP_PROFILE=release
   case_run canary-let-through-in-release FAIL check 'egress canary profile=release missing=clippy::disallowed_types:1'
+  STUB_CANARY_DROP=t01
+  case_run canary-refusal-ends-as-a-hold FAIL check "egress runs=not-made (a hold refused)${nl}FAIL 60-r6-egress (check)"
+  STUB_CANARY_DROP=t01
+  STUB_CANARY_DROP_PROFILE=release
+  case_run canary-refusal-in-release-ends-as-a-hold FAIL check "egress runs=not-made (a hold refused)${nl}FAIL 60-r6-egress (check)"
   STUB_CANARY_DROP=u01
   case_run canary-without-its-unsafe-finding FAIL check 'egress canary profile=dev missing=unsafe_code:'
   STUB_CANARY_DROP=t01
