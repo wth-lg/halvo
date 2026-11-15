@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry with no cargo configuration outside the tracked files and no source replacement, prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
 set -u
 name=62-build
 shipped_packages='halvo halvo-capture'
@@ -63,18 +63,27 @@ environment_defect() {
   return 1
 }
 
-patch_defect() {
-  awk '
-    /^[[:space:]]*\[/ {
-      header = $0
-      gsub(/[[:space:]]/, "", header)
-      in_patch = (header ~ /^\[patch[].]/)
-      if (header ~ /^\[patch\.[^]]*\.tauri[^].]*\]$/ || header ~ /^\[patch\.[^]]*\."tauri[^"]*"\]$/) { found = 1 }
-      next
-    }
-    in_patch && /^[[:space:]]*"?tauri[a-z0-9_-]*"?[[:space:]]*=/ { found = 1 }
-    END { exit found ? 1 : 0 }
-  ' "$@" || { printf 'a [patch] section names a tauri crate\n'; return 1; }
+tauri_source_defect() {
+  packages=$(tr -d '\n' <"$1" | grep -o -E '\{"name":"tauri[^"]*","version":"[^"]*","id":"[^"]*"')
+  [ -n "$packages" ] || { printf 'cargo metadata lists no package whose name starts with tauri\n'; return 1; }
+  other=$(printf '%s\n' "$packages" | grep -v '"id":"registry+https://github.com/rust-lang/crates.io-index#' | sed -n 's/^{"name":"\([^"]*\)".*/\1/p' | head -n 1)
+  [ -z "$other" ] || { printf 'cargo resolves the package %s from another source than the crates.io registry\n' "$other"; return 1; }
+}
+
+cargo_config_defect() {
+  untracked=$1
+  shift
+  if [ -n "$untracked" ]; then
+    first=$(printf '%s\n' "$untracked" | head -n 1)
+    printf 'the cargo configuration %s is no tracked file\n' "$first"
+    return 1
+  fi
+  for file in "$@"; do
+    if grep -q -E '^[[:space:]]*\[source' "$file"; then
+      printf '%s holds a source replacement\n' "$file"
+      return 1
+    fi
+  done
 }
 
 marker_defect() {
@@ -143,9 +152,13 @@ EOF
     printf 'SKIP %s (%s)\n' "$name" "$found"
     exit 77
   fi
-  manifests=$(git ls-files -- Cargo.toml '*/Cargo.toml' '.cargo/config' '.cargo/config.toml') || fail "git ls-files failed"
+  configurations='.cargo/config .cargo/config.toml */.cargo/config */.cargo/config.toml'
   # shellcheck disable=SC2086
-  found=$(patch_defect $manifests) || fail "$found"
+  untracked_configurations=$(git ls-files --others -- $configurations) || fail "git ls-files failed"
+  # shellcheck disable=SC2086
+  tracked_configurations=$(git ls-files -- $configurations) || fail "git ls-files failed"
+  # shellcheck disable=SC2086
+  found=$(cargo_config_defect "$untracked_configurations" $tracked_configurations) || fail "$found"
   others=$(git ls-files --others -- src-tauri) || fail "git ls-files failed"
   # shellcheck disable=SC2086
   found=$(untracked_configuration_defect $others) || fail "$found"
@@ -171,6 +184,13 @@ EOF
   [ "$build_root" = cached ] || fresh=true
   printf 'fresh target and cargo home: %s\n' "$fresh"
   target=${CARGO_TARGET_DIR:-target}
+  host=$(rustc -vV | sed -n 's/^host: //p')
+  [ -n "$host" ] || fail "rustc -vV names no host triple"
+  cargo metadata --locked --format-version 1 --filter-platform "$host" >"$work/metadata.json" 2>"$work/metadata.err" || {
+    cause=$(grep -m 1 '^error' "$work/metadata.err")
+    fail "cargo metadata --locked failed: $cause"
+  }
+  found=$(tauri_source_defect "$work/metadata.json") || fail "$found"
   before=$(git status --porcelain --untracked-files=all) || fail "git status failed"
   : >"$CI_D_ARTIFACTS/build.txt"
   while IFS= read -r call; do
@@ -271,26 +291,6 @@ EOF
   (unset TAURI_CONFIG; environment_defect >/dev/null) && got=PASS
   verdict environment-without-those-variables PASS "$got"
 
-  patch_case() {
-    printf '%s\n' "$3" >"$work/$1.toml"
-    got=FAIL
-    patch_defect "$work/$1.toml" >/dev/null && got=PASS
-    verdict "$1" "$2" "$got"
-  }
-  patch_case patch-of-tauri FAIL '[patch.crates-io]
-tauri = { path = "../tauri" }'
-  patch_case patch-of-tauri-build FAIL '[patch.crates-io]
-serde = { path = "../serde" }
-tauri-build = { git = "https://example.invalid/t" }'
-  patch_case patch-table-of-tauri FAIL '[patch.crates-io.tauri]
-path = "../tauri"'
-  patch_case patch-of-another-crate PASS '[patch.crates-io]
-serde = { path = "../serde" }
-[dependencies]
-tauri = "2"'
-  patch_case no-patch PASS '[dependencies]
-tauri = { version = "2" }'
-
   printf 'head\000\001\002%s\000tail' 'halvo-standin-module-present' >"$work/standin.bin"
   printf 'head\000%s\377' 'halvo-capture:test-seam:this-build-has-it!' >"$work/seam.bin"
   printf 'head\000\377halvo-standin-module\000present' >"$work/clean.bin"
@@ -337,6 +337,32 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   got=FAIL
   (APPLE_ID='' signing_defect >/dev/null) && got=PASS
   verdict one-signing-name-empty PASS "$got"
+
+  registry='registry+https://github.com/rust-lang/crates.io-index'
+  source_case() {
+    printf '{"packages":[%s],"workspace_members":[]}\n' "$3" >"$work/$1.json"
+    got=FAIL
+    tauri_source_defect "$work/$1.json" >/dev/null && got=PASS
+    verdict "$1" "$2" "$got"
+  }
+  source_case tauri-from-the-registry PASS "{\"name\":\"tauri\",\"version\":\"2.12.5\",\"id\":\"$registry#tauri@2.12.5\"},{\"name\":\"tauri-build\",\"version\":\"2.7.4\",\"id\":\"$registry#tauri-build@2.7.4\"}"
+  source_case tauri-from-a-path FAIL "{\"name\":\"tauri\",\"version\":\"2.12.5\",\"id\":\"path+file:///w/tauri#2.12.5\"},{\"name\":\"tauri-build\",\"version\":\"2.7.4\",\"id\":\"$registry#tauri-build@2.7.4\"}"
+  source_case tauri-build-from-git FAIL "{\"name\":\"tauri\",\"version\":\"2.12.5\",\"id\":\"$registry#tauri@2.12.5\"},{\"name\":\"tauri-build\",\"version\":\"2.7.4\",\"id\":\"git+https://example.invalid/t#abc\"}"
+  source_case no-tauri-package FAIL "{\"name\":\"serde\",\"version\":\"1.0.0\",\"id\":\"$registry#serde@1.0.0\"}"
+  printf '[build]\njobs = 2\n' >"$work/plain-config.toml"
+  printf '[source.crates-io]\nreplace-with = "vendored"\n' >"$work/replacing-config.toml"
+  got=FAIL
+  cargo_config_defect '' "$work/plain-config.toml" >/dev/null && got=PASS
+  verdict tracked-configuration-without-a-source PASS "$got"
+  got=FAIL
+  cargo_config_defect '' "$work/replacing-config.toml" >/dev/null && got=PASS
+  verdict tracked-configuration-with-a-source-replacement FAIL "$got"
+  got=FAIL
+  cargo_config_defect '.cargo/config.toml' >/dev/null && got=PASS
+  verdict untracked-cargo-configuration-at-the-root FAIL "$got"
+  got=FAIL
+  cargo_config_defect 'src-tauri/.cargo/config' >/dev/null && got=PASS
+  verdict untracked-cargo-configuration-below-the-root FAIL "$got"
 
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
