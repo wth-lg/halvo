@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -85,32 +74,54 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: Loop the unit's new tests 200 times
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          n="${LOOP_N:-200}"
+          b="${CARGO_TARGET_DIR:-target}/loop-build.txt"
+          cargo test -p halvo-runner --locked --test checkpoint --test enforce --test fill --no-run >"$b" 2>&1
+          code=$?
+          cat "$b"
+          if [ "$code" -ne 0 ]; then
+            echo "loop: the build failed with $code"
+            exit 1
+          fi
+          fail=0
+          check() {
+            name=$1
+            want=$2
+            shift 2
+            exe=$(sed -n "s|.*Executable tests[/\\\\]$name\\.rs (\\(.*\\))\$|\\1|p" "$b" | head -n 1 | tr '\\' '/')
+            if [ -z "$exe" ]; then
+              echo "loop $name: no test binary in the build's output"
+              fail=1
+              return
+            fi
+            i=1
+            while [ "$i" -le "$n" ]; do
+              out=$("$exe" "$@" 2>&1)
+              line=$(printf '%s\n' "$out" | grep '^test result: ' | tail -n 1)
+              case "$line" in
+                "test result: ok. $want passed; 0 failed;"*) ;;
+                *)
+                  echo "loop $name run $i: ${line:-no result line}"
+                  printf '%s\n' "$out" | tail -n 60
+                  fail=1
+                  return
+                  ;;
+              esac
+              i=$((i + 1))
+            done
+            echo "loop $name: $n of $n runs printed: test result: ok. $want passed; 0 failed"
+          }
+          check checkpoint 12 --test-threads=4
+          check enforce 1 --exact a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepare
+          check fill 1 --exact the_fill_playbook_replays_on_seeds_1_to_3
+          exit "$fail"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -141,32 +152,54 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: Loop the unit's new tests 200 times
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          n="${LOOP_N:-200}"
+          b="${CARGO_TARGET_DIR:-target}/loop-build.txt"
+          cargo test -p halvo-runner --locked --test checkpoint --test enforce --test fill --no-run >"$b" 2>&1
+          code=$?
+          cat "$b"
+          if [ "$code" -ne 0 ]; then
+            echo "loop: the build failed with $code"
+            exit 1
+          fi
+          fail=0
+          check() {
+            name=$1
+            want=$2
+            shift 2
+            exe=$(sed -n "s|.*Executable tests[/\\\\]$name\\.rs (\\(.*\\))\$|\\1|p" "$b" | head -n 1 | tr '\\' '/')
+            if [ -z "$exe" ]; then
+              echo "loop $name: no test binary in the build's output"
+              fail=1
+              return
+            fi
+            i=1
+            while [ "$i" -le "$n" ]; do
+              out=$("$exe" "$@" 2>&1)
+              line=$(printf '%s\n' "$out" | grep '^test result: ' | tail -n 1)
+              case "$line" in
+                "test result: ok. $want passed; 0 failed;"*) ;;
+                *)
+                  echo "loop $name run $i: ${line:-no result line}"
+                  printf '%s\n' "$out" | tail -n 60
+                  fail=1
+                  return
+                  ;;
+              esac
+              i=$((i + 1))
+            done
+            echo "loop $name: $n of $n runs printed: test result: ok. $want passed; 0 failed"
+          }
+          check checkpoint 12 --test-threads=4
+          check enforce 1 --exact a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepare
+          check fill 1 --exact the_fill_playbook_replays_on_seeds_1_to_3
+          exit "$fail"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
