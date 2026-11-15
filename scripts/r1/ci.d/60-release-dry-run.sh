@@ -50,6 +50,18 @@ snapshot() {
   git -C "$1" for-each-ref --format='%(refname) %(objectname)'
 }
 
+release_commit_refusal() {
+  snapshot "$1" >"$work/before-the-release-commit"
+  (cd "$1" && sh scripts/release.sh --dry-run) >"$work/dry-run-on-the-release-commit.txt" 2>&1
+  refusal=$?
+  snapshot "$1" >"$work/after-the-release-commit"
+  [ "$refusal" = 1 ] || { printf 'the dry run on the release commit exited %s, not 1\n' "$refusal"; return 1; }
+  grep -q 'holds no entry, so there is nothing to release' "$work/dry-run-on-the-release-commit.txt" ||
+    { printf 'the dry run on the release commit did not refuse with its no entry line\n'; return 1; }
+  cmp -s "$work/before-the-release-commit" "$work/after-the-release-commit" ||
+    { printf 'the dry run on the release commit changed the status, HEAD, a tag or a ref of the clone\n'; return 1; }
+}
+
 measure() {
   unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
   cd "$CI_D_REPO" || exit 2
@@ -72,6 +84,15 @@ measure() {
     fail "git has no name and email for the release commit in the throwaway clone"
   remotes=$(git -C "$clone" remote)
   [ -z "$remotes" ] || fail "the throwaway clone has a remote"
+  entries=$(awk '{ sub(/[ \t\r]+$/, "") } $0 == "## [Unreleased]" { on = 1; next } /^## / { on = 0 } on && /^- / { n++ } END { print n + 0 }' "$clone/CHANGELOG.md")
+  subject=$(git -C "$clone" log -1 --format=%s)
+  version=$(cd "$clone" && CI_D_REPO=$clone sh scripts/r1/ci.d/61-version.sh --print)
+  if [ "$entries" = 0 ] && [ "$subject" = "Release $version" ]; then
+    found=$(release_commit_refusal "$clone") || fail "$found"
+    printf 'release commit: the dry run refuses with its no entry line and changes nothing: true\n'
+    printf 'PASS %s\n' "$name"
+    exit 0
+  fi
 
   snapshot "$clone" >"$work/before-dry-run"
   (cd "$clone" && sh scripts/release.sh --dry-run) >"$work/dry-run.txt" 2>&1
@@ -123,6 +144,7 @@ measure() {
   found=$(released_section_defect "$clone/CHANGELOG.md" "$next" "$work/unreleased-before.txt") || fail "$found"
   headings=$(awk -v version="$next" 'index($0, "## [" version "] - ") == 1 { on = 1; next } /^## / { on = 0 } on && /^### / { n++ } END { print n + 0 }' "$clone/CHANGELOG.md")
   entries=$(grep -c . "$work/unreleased-before.txt")
+  found=$(release_commit_refusal "$clone") || fail "on the release commit that the execute case made: $found"
   printf 'execute on main: one commit Release <next>, one tag v<next>, clean tree, one version: true; entries grouped: %s under %s headings\n' "$entries" "$headings"
   printf 'PASS %s\n' "$name"
 }
