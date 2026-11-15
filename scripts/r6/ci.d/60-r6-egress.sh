@@ -1357,6 +1357,7 @@ linked_rest() {
   printf 'serde_json v1.0.154\nitoa v1.0.19\nmemchr v2.8.3\nserde v1.0.229 (*)\n'
   [ "$STUB_GRAPH" = missing ] || printf 'zmij v1.0.23\n'
   [ "$STUB_GRAPH" != extra-third ] || printf 'libc v0.2.180\n'
+  [ "$STUB_GRAPH" != linked-syn ] || printf 'syn v3.0.10\n'
 }
 case $* in
   'build --locked -p halvo-route-gate --bin route-gate') exit 0 ;;
@@ -1375,15 +1376,35 @@ case $* in
     if [ "$STUB_CANARY" = real ]; then
       exec "$REAL_CARGO" "$@"
     fi
-    n=0
-    while IFS=' ' read -r code at; do
-      n=$((n + 1))
-      if [ "$profile" = "${STUB_CANARY_DROP_PROFILE:-dev}" ]; then
-        [ "$n" = "$STUB_CANARY_DROP" ] && continue
-        [ "$STUB_CANARY_DROP:$code" = unsafe:unsafe_code ] && continue
+    sys=unix
+    [ "$CI_D_JOB" != windows ] || sys=windows
+    awk -v sys="$sys" '
+      /^#\[cfg\(/ {
+        c = $0
+        sub(/^#\[cfg\(/, "", c)
+        sub(/\)\]$/, "", c)
+        skip = (c != sys)
+        next
+      }
+      /^pub fn / {
+        entry = $3
+        sub(/\(.*/, "", entry)
+        if (skip) {
+          skip = 0
+          next
+        }
+        code = "unsafe_code"
+        if (entry ~ /^t/) code = "clippy::disallowed_types"
+        if (entry ~ /^m/) code = "clippy::disallowed_methods"
+        print entry, code, NR
+      }
+    ' "$CI_D_ARTIFACTS/canary/src/lib.rs" >"$CI_D_ARTIFACTS/stub-canary-$profile.txt" || exit 96
+    while IFS=' ' read -r entry code at; do
+      if [ "$profile" = "${STUB_CANARY_DROP_PROFILE:-dev}" ] && [ "$entry" = "$STUB_CANARY_DROP" ]; then
+        continue
       fi
       printf '{"reason":"compiler-message","message":{"rendered":"error: x\\n  --> src/lib.rs:%s:1\\n","children":[],"code":{"code":"%s","explanation":null},"level":"error","spans":[]}}\n' "$at" "$code"
-    done <"$CI_D_ARTIFACTS/canary/expected.txt"
+    done <"$CI_D_ARTIFACTS/stub-canary-$profile.txt"
     if [ "$STUB_CANARY" = refer ]; then
       printf '{"reason":"compiler-message","message":{"rendered":"warning: `std::x` does not refer to a reachable type\\n","children":[],"code":null,"level":"warning","spans":[]}}\n'
     fi
@@ -1451,6 +1472,7 @@ if [ "$#" -eq 1 ] && [ "$1" = reachword ] && [ -n "$STUB_REACH" ]; then
   printf 'reach\n' >>"$STUB_REACH"
 fi
 if [ "$#" -eq 1 ] && [ "$1" = hangword ] && [ -n "$STUB_HANG" ]; then
+  printf '%s\n' "$$" >"$STUB_HANG"
   exec sleep 30
 fi
 if [ "$1" = eraser ] && [ "$STUB_ERASER" = killer ]; then
@@ -1603,10 +1625,14 @@ done
 mkdir -p "target/egress/$n"
 lines=$denied
 [ "$STUB_CHECK" != short-log ] || lines=$((denied + 1))
+[ "$STUB_CHECK:$1 $2" != "noline-control:sh scripts/egress/probe.sh" ] || exit 1
 awk -v n="$lines" -v p="$probes" 'BEGIN {
   for (i = 0; i < n; i++) print "denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x"
   for (i = 0; i < p; i++) print "denied at=- proto=tcp dest=127.0.0.1:47202 pid=1 image=egress-probe"
 }' >"target/egress/$n/denied.log"
+if [ "$STUB_CHECK" = link-log ]; then
+  mv "target/egress/$n/denied.log" "target/egress/$n/denied.real" && ln -s denied.real "target/egress/$n/denied.log"
+fi
 denied=$((denied + probes))
 case $STUB_CHECK:$1:$2 in
   reuse-log:*) n=1 ;;
@@ -1995,6 +2021,13 @@ self_test() {
     '#[cfg/**/(not(clippy))] pub fn go() { std::process::Command::new("true"); }') || self_failed "setup at line $LINENO"
   clippy_module_tree=$(write_repo "$work/repo-clippy-module" '' '' '' crates/halvo-route-gate/src/lib.rs \
     '#[cfg/**/(not(clippy))] pub mod hidden;') || self_failed "setup at line $LINENO"
+  cfg_bang_tree=$(write_repo "$work/repo-cfg-bang" '' '' '' crates/halvo-route-gate/src/net.rs \
+    'pub fn f() -> bool { cfg!(target_os = "linux") }') || self_failed "setup at line $LINENO"
+  cfg_spaced_tree=$(write_repo "$work/repo-cfg-spaced" '' '' '' crates/halvo-route-gate/src/net.rs \
+    '#[cfg (feature = "x")] pub fn g() {}') || self_failed "setup at line $LINENO"
+  # shellcheck disable=SC2016
+  attr_path_tree=$(write_repo "$work/repo-attr-path" '' '' '' crates/halvo-route-gate/src/net.rs \
+    'macro_rules! m { ($a:ident) => { #[$a::b] fn f() {} }; }') || self_failed "setup at line $LINENO"
   outside_tree=$(write_repo "$work/repo-outside" '' '' '' docs/outside.rs '#[cfg(feature = "x")]') || self_failed "setup at line $LINENO"
   mkdir -p "$work/deps" || self_failed "setup at line $LINENO"
   printf '%s/deps/gate-1.d: crates/halvo-route-gate/src/main.rs docs/outside.rs\n' "$work" >"$work/deps/gate-1.d" ||
@@ -2022,6 +2055,8 @@ self_test() {
   : >"$work/clippy-clean.json" || self_failed "setup at line $LINENO"
   finding_json "$work/clippy-finding.json" clippy::disallowed_methods 'crates\\halvo-route-gate\\src\\net.txt' 2 || self_failed "setup at line $LINENO"
   finding_json "$work/clippy-unsafe.json" unsafe_code 'crates/halvo-route/src/x.rs' 7 || self_failed "setup at line $LINENO"
+  finding_json "$work/clippy-outside.json" clippy::disallowed_methods '/elsewhere/x.rs' 3 || self_failed "setup at line $LINENO"
+  finding_json "$work/clippy-outside-drive.json" clippy::disallowed_methods 'C:\\elsewhere\\x.rs' 4 || self_failed "setup at line $LINENO"
   # shellcheck disable=SC2016
   printf '%s\n' '{"reason":"compiler-message","message":{"rendered":"warning: `std::nope` does not refer to a reachable type\n","$message_type":"diagnostic","children":[],"code":null,"level":"warning","message":"x","spans":[]}}' \
     >"$work/clippy-refer.json" || self_failed "setup at line $LINENO"
@@ -2031,6 +2066,53 @@ self_test() {
   wrong=
   rejected=0
   case_reset
+  if case_wanted forbid-table-pinned; then
+    forbid_table | sed 's/|.*//' >"$work/table-rows.txt" || self_failed "setup at line $LINENO"
+    cat >"$work/table-pin.txt" <<'EOF' || self_failed "setup at line $LINENO"
+type all std::process::Command
+type all std::process::Child
+type all std::process::Stdio
+type all std::process::ChildStdin
+type all std::process::ChildStdout
+type all std::process::ChildStderr
+type all std::process::Output
+type all std::net::TcpStream
+type all std::net::TcpListener
+type all std::net::UdpSocket
+type unix std::os::unix::net::UnixStream
+type unix std::os::unix::net::UnixListener
+type unix std::os::unix::net::UnixDatagram
+method all std::process::Command::new
+method all std::process::Command::spawn
+method all std::process::Command::output
+method all std::process::Command::status
+method unix std::os::unix::process::CommandExt::exec
+method all std::net::TcpStream::connect
+method all std::net::TcpStream::connect_timeout
+method all std::net::TcpListener::bind
+method all std::net::UdpSocket::bind
+method all std::net::ToSocketAddrs::to_socket_addrs
+method unix std::os::unix::net::UnixStream::connect
+method unix std::os::unix::net::UnixStream::connect_addr
+method unix std::os::unix::net::UnixStream::pair
+method unix std::os::unix::net::UnixListener::bind
+method unix std::os::unix::net::UnixListener::bind_addr
+method unix std::os::unix::net::UnixDatagram::bind
+method unix std::os::unix::net::UnixDatagram::bind_addr
+method unix std::os::unix::net::UnixDatagram::pair
+method unix std::os::unix::net::UnixDatagram::connect
+method unix std::os::unix::net::UnixDatagram::connect_addr
+method unix std::os::fd::FromRawFd::from_raw_fd
+method windows std::os::windows::io::FromRawSocket::from_raw_socket
+method windows std::os::windows::io::FromRawHandle::from_raw_handle
+EOF
+    if cmp -s "$work/table-rows.txt" "$work/table-pin.txt"; then
+      printf 'case %s/forbid-table-pinned want=PASS got=PASS\n' "$name"
+    else
+      printf 'case %s/forbid-table-pinned want=PASS got=rows-differ-from-the-pin\n' "$name"
+      wrong="$wrong forbid-table-pinned"
+    fi
+  fi
 
   case_run pass PASS - "egress checks=6 denied=0 entries=0${nl}denied=0 proves that no process"
   case_run import-listing-printed PASS - 'egress imports binary=dev reader=' 
@@ -2054,9 +2136,25 @@ self_test() {
   case_run log-with-another-count FAIL check 'log=not-new-or-not-its-own'
   STUB_REACH=$work/reach.log
   case_run asking-reaches-the-network-when-asked-bare FAIL denied 'egress asking denied=1 probes=2 tries=1 command=0 exit=1'
-  STUB_HANG=1
+  STUB_HANG=$work/hang.pid
   case_env=R6_EGRESS_ASKING_SECONDS=2
   case_run asking-hangs-past-its-deadline FAIL check 'egress asking timeout=2 word=hangword'
+  if case_wanted asking-hangs-past-its-deadline; then
+    hung=
+    [ ! -s "$work/hang.pid" ] || read -r hung <"$work/hang.pid"
+    if [ -z "$hung" ]; then
+      printf 'case %s/asking-hangs-past-its-deadline want=PASS got=no-hung-child\n' "$name"
+      wrong="$wrong hung-child"
+    elif kill -0 "$hung" 2>/dev/null; then
+      printf 'case %s/asking-hangs-past-its-deadline want=PASS got=hung-child-alive\n' "$name"
+      wrong="$wrong hung-child"
+      kill "$hung" 2>/dev/null
+    fi
+  fi
+  case_env=R6_EGRESS_ASKING_SECONDS=241
+  case_run asking-deadline-above-240 FAIL usage 'FAIL'
+  case_env=R6_EGRESS_ASKING_SECONDS=240
+  case_run asking-deadline-of-240 PASS - 'egress asking denied=0'
   STUB_ERASER=erase
   case_run found-command-that-erases-its-record FAIL check 'egress on-neither-list=eraser'
   STUB_ERASER=killer
@@ -2083,6 +2181,12 @@ self_test() {
   case_run env-clippy-arguments FAIL check "rule env $v_clippy holds"
   case_env="${w_rustc}_WORKSPACE_WRAPPER=/x"
   case_run env-wrapper-set FAIL check "rule env ${w_rustc}_WORKSPACE_WRAPPER is set"
+  case_env="${w_rustc}_WRAPPER=/x"
+  case_run env-plain-wrapper-set FAIL check "rule env ${w_rustc}_WRAPPER is set"
+  case_env="$v_build=-Aunsafe_code"
+  case_run env-build-flags-allow FAIL check "rule env $v_build holds"
+  case_env="$v_flags=--allow=unsafe_code"
+  case_run env-long-allow-flag FAIL check "rule env $v_flags holds"
   case_repo=$work/repo-cfg
   case_tree=$cfg_tree
   case_run rule-cfg-target-os FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 target_os'
@@ -2092,6 +2196,15 @@ self_test() {
   case_repo=$work/repo-attr
   case_tree=$attr_tree
   case_run rule-attribute-from-a-macro-variable FAIL check 'rule attribute crates/halvo-route-gate/src/net.rs:1'
+  case_repo=$work/repo-attr-path
+  case_tree=$attr_path_tree
+  case_run rule-attribute-path-from-a-macro-variable FAIL check 'rule attribute crates/halvo-route-gate/src/net.rs:1'
+  case_repo=$work/repo-cfg-bang
+  case_tree=$cfg_bang_tree
+  case_run rule-cfg-macro FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 target_os'
+  case_repo=$work/repo-cfg-spaced
+  case_tree=$cfg_spaced_tree
+  case_run rule-cfg-spaced FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 feature'
   case_repo=$work/repo-clippy-macro
   case_tree=$clippy_macro_tree
   case_run rule-clippy-through-a-macro-variable FAIL check 'rule clippy crates/halvo-route-gate/src/net.rs:1'
@@ -2114,6 +2227,8 @@ self_test() {
   case_run graph-third-party-package-added FAIL check 'egress graph unknown=libc'
   STUB_GRAPH=extra-build
   case_run graph-build-time-package-added FAIL check 'egress graph unknown=thiserror-impl'
+  STUB_GRAPH=linked-syn
+  case_run graph-build-time-package-linked FAIL check 'egress graph unknown=syn'
   STUB_GRAPH=extra-path
   case_run graph-path-package-added FAIL check 'egress graph unknown=halvo-cap'
   STUB_GRAPH=missing
@@ -2136,18 +2251,32 @@ self_test() {
   STUB_CLIPPY_RELEASE_JSON=$work/clippy-finding.json
   STUB_CLIPPY_RELEASE_EXIT=101
   case_run forbid-finding-in-release FAIL check "forbid release crates/halvo-route-gate/src/net.txt:2 clippy::disallowed_methods${nl}egress forbid profile=release findings=1 exit=101"
-  STUB_CANARY_DROP=1
+  STUB_CANARY_DROP=t01
   STUB_CANARY_DROP_PROFILE=release
   case_run canary-let-through-in-release FAIL check 'egress canary profile=release missing=clippy::disallowed_types:1'
-  STUB_CANARY_DROP=unsafe
+  STUB_CANARY_DROP=u01
   case_run canary-without-its-unsafe-finding FAIL check 'egress canary profile=dev missing=unsafe_code:'
-  STUB_CANARY_DROP=1
+  STUB_CANARY_DROP=t01
   case_run canary-let-through FAIL check "egress canary profile=dev missing=clippy::disallowed_types:1${nl}egress canary profile=dev entries="
+  case_run canary-entries-of-the-macos-job PASS - 'egress canary profile=dev entries=35 found=35 exit=101'
+  STUB_CANARY_DROP=t11
+  case_run canary-requires-a-unix-entry-in-the-macos-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_types:12'
+  case_job=windows
+  case_run canary-entries-of-the-windows-job PASS - 'egress canary profile=dev entries=22 found=22 exit=101'
+  case_job=windows
+  STUB_CANARY_DROP=m22
+  case_run canary-requires-a-windows-entry-in-the-windows-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_methods:51'
   case_job=windows
   case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-finding.json
   STUB_CLIPPY_EXIT=101
   case_run forbid-finding FAIL check "forbid dev crates/halvo-route-gate/src/net.txt:2 clippy::disallowed_methods${nl}egress forbid profile=dev findings=1 exit=101"
+  STUB_CLIPPY_JSON=$work/clippy-outside.json
+  STUB_CLIPPY_EXIT=101
+  case_run forbid-finding-outside-the-repository FAIL check 'forbid dev outside-the-repository:3 clippy::disallowed_methods'
+  STUB_CLIPPY_JSON=$work/clippy-outside-drive.json
+  STUB_CLIPPY_EXIT=101
+  case_run forbid-finding-outside-the-repository-on-a-drive FAIL check 'forbid dev outside-the-repository:4 clippy::disallowed_methods'
   STUB_CLIPPY_JSON=$work/clippy-unsafe.json
   case_run forbid-finding-with-exit-0 FAIL check 'forbid dev crates/halvo-route/src/x.rs:7 unsafe_code'
   STUB_CLIPPY_EXIT=101
@@ -2228,6 +2357,14 @@ self_test() {
   case_run stale-build FAIL setup 'FAIL'
   STUB_CHECK=noline
   case_run no-egress-line FAIL check 'egress run=probe line=missing exit=0'
+  STUB_CHECK=noline-control
+  case_run control-without-an-egress-line FAIL check 'egress control line=missing exit=1'
+  if [ "$own_job" = macos ]; then
+    STUB_CHECK=link-log
+    case_run log-that-is-a-link FAIL check 'egress control log=not-new-or-not-its-own'
+  else
+    printf 'case %s/log-that-is-a-link not-run: Git for Windows makes a copy for ln -s, so the stub cannot make a link here\n' "$name"
+  fi
   STUB_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run tracked-file-changed-by-a-run FAIL check 'tree changed=after M docs/r2/trials/egress.md'
   case_run tracked-file-changed-before FAIL setup 'tree changed=before M docs/r2/trials/egress.md'
