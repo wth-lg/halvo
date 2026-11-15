@@ -8,7 +8,8 @@ use halvo_agent_gate::GateHost;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::Way;
 use halvo_schema::executable::{
-    AgentBindings, AgentRun, CoordinatorCall, RunId, RunnerCall, RunnerReply, WebOrigin,
+    AgentBindings, AgentRun, CoordinatorCall, RunId, RunnerCall, RunnerReply, SendersError,
+    WebOrigin,
 };
 use halvo_schema::{AgentId, ErrorName, SeedCategory};
 use serde_json::{json, Value};
@@ -178,27 +179,44 @@ fn reply_senders_is_one_text_joined_by_a_comma_and_a_space() {
 #[test]
 fn join_senders_refuses_what_a_reader_of_the_slot_refuses() {
     let list = |items: &[&str]| -> Vec<String> { items.iter().map(|s| (*s).to_owned()).collect() };
-    assert_eq!(join_senders(&[]), Err(SendersRefused::Empty));
+    assert_eq!(
+        join_senders(&[]),
+        Err(SendersRefused::Read(SendersError::Empty(at(1))))
+    );
     assert_eq!(
         join_senders(&list(&["a@x.test", "b,c@y.test"])),
         Err(SendersRefused::Comma)
     );
     assert_eq!(
         join_senders(&list(&["a@x.test", ""])),
-        Err(SendersRefused::EmptyAddress)
+        Err(SendersRefused::Read(SendersError::Empty(at(2))))
     );
     assert_eq!(
         join_senders(&list(&["  ", "a@x.test"])),
-        Err(SendersRefused::EmptyAddress)
+        Err(SendersRefused::Read(SendersError::Empty(at(1))))
     );
     assert_eq!(
         join_senders(&list(&["A@X.test", "a@x.TEST"])),
-        Err(SendersRefused::Twice)
+        Err(SendersRefused::Read(SendersError::Twice {
+            earlier: at(1),
+            later: at(2)
+        }))
     );
     assert_eq!(
         join_senders(&list(&["a@x.test", " a@x.test "])),
-        Err(SendersRefused::Twice)
+        Err(SendersRefused::Read(SendersError::Twice {
+            earlier: at(1),
+            later: at(2)
+        }))
     );
+    assert_eq!(
+        join_senders(&list(&[" a@x.test\t", "b@y.test"])),
+        Ok("a@x.test, b@y.test".to_owned())
+    );
+}
+
+fn at(piece: usize) -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(piece).expect("a place counted from 1")
 }
 
 #[test]
@@ -216,7 +234,7 @@ fn seed_binding_refuses_a_seed_that_does_not_bind() {
                 json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": []}]}),
             ),
             SeedTask::Reply,
-            SeedRefused::Senders(SendersRefused::Empty),
+            SeedRefused::Senders(SendersRefused::Read(SendersError::Empty(at(1)))),
         ),
         (
             with_binding(
@@ -561,15 +579,110 @@ fn a_start_slot_with_another_scheme_than_http_is_refused() {
     );
 }
 
+fn senders_list(items: &[&str]) -> Vec<String> {
+    items.iter().map(|s| (*s).to_owned()).collect()
+}
+
+fn refused_as_the_reader_refuses(items: &[&str]) {
+    let list = senders_list(items);
+    let error = halvo_schema::executable::reply_senders(&list.join(", "))
+        .err()
+        .unwrap_or_else(|| panic!("the reader takes {list:?}"));
+    assert_eq!(
+        format!("{:?}", join_senders(&list)),
+        format!("Err(Read({error:?}))"),
+        "{list:?}"
+    );
+}
+
 #[test]
-fn join_senders_trims_ascii_spaces_alone_and_folds_ascii_case_alone() {
-    let list = |items: &[&str]| -> Vec<String> { items.iter().map(|s| (*s).to_owned()).collect() };
+fn join_senders_refuses_an_entry_of_white_space_alone_as_the_reader_does() {
+    for white in ["\t", "\u{a0}", "\u{3000}", "\n"] {
+        refused_as_the_reader_refuses(&[white, "a@x.test"]);
+    }
     assert_eq!(
-        join_senders(&list(&["\ta@x.test", "a@x.test"])),
-        Ok("\ta@x.test, a@x.test".to_owned())
+        format!("{:?}", join_senders(&senders_list(&["\t", "a@x.test"]))),
+        "Err(Read(Empty(1)))"
+    );
+}
+
+#[test]
+fn join_senders_refuses_one_address_twice_after_the_readers_trim() {
+    refused_as_the_reader_refuses(&["\ta@x.test", "a@x.test"]);
+    refused_as_the_reader_refuses(&["a@x.test", "A@X.test\u{a0}"]);
+    assert_eq!(
+        format!(
+            "{:?}",
+            join_senders(&senders_list(&["\ta@x.test", "a@x.test"]))
+        ),
+        "Err(Read(Twice { earlier: 1, later: 2 }))"
+    );
+}
+
+#[test]
+fn join_senders_refuses_a_sender_with_a_letter_outside_ascii_as_the_reader_does() {
+    refused_as_the_reader_refuses(&["\u{e4}@x.test"]);
+    refused_as_the_reader_refuses(&["\u{e4}@x.test", "\u{c4}@x.test"]);
+    assert_eq!(
+        format!("{:?}", join_senders(&senders_list(&["\u{e4}@x.test"]))),
+        "Err(Read(NotAscii(1)))"
+    );
+}
+
+#[test]
+fn seed_binding_binds_no_reply_senders_that_the_reader_refuses() {
+    let seed = with_binding(
+        "reply",
+        json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": ["Ann Berg"]}]}),
     );
     assert_eq!(
-        join_senders(&list(&["\u{e4}@x.test", "\u{c4}@x.test"])),
-        Ok("\u{e4}@x.test, \u{c4}@x.test".to_owned())
+        format!(
+            "{:?}",
+            seed_binding(&seed, SeedTask::Reply, PORT).map(|_| ())
+        ),
+        "Err(Senders(Read(NotAnAddress(1))))"
     );
+}
+
+#[test]
+fn join_senders_takes_a_list_exactly_when_the_reader_takes_its_text() {
+    let rows: &[&[&str]] = &[
+        &[],
+        &["a@x.test"],
+        &["a@x.test", "b@y.test"],
+        &[" a@x.test ", "b@y.test"],
+        &["\u{a0}a@x.test", "b@y.test\t"],
+        &["a@x.test", "a@x.test\u{a0}"],
+        &["\u{3000}"],
+        &["a@x.test", "\n"],
+        &["A@X.test", "a@x.TEST"],
+        &["a@x.test."],
+        &["a@.x.test"],
+        &["a@x..test"],
+        &["a.@x.test"],
+        &["a@x"],
+        &["Ann Berg"],
+        &["ann berg@x.test"],
+        &["\u{e9}lan@x.test"],
+        &["a@x.test", "  "],
+        &["a@x.test", "b@y.test", "B@Y.TEST"],
+        &["a\"b@x.test"],
+    ];
+    for items in rows {
+        let list = senders_list(items);
+        let read = halvo_schema::executable::reply_senders(&list.join(", "));
+        let joined = join_senders(&list);
+        match read {
+            Ok(senders) => assert_eq!(
+                joined,
+                Ok(senders.iter().collect::<Vec<_>>().join(", ")),
+                "{list:?}"
+            ),
+            Err(error) => assert_eq!(
+                format!("{joined:?}"),
+                format!("Err(Read({error:?}))"),
+                "{list:?}"
+            ),
+        }
+    }
 }

@@ -5,7 +5,8 @@ use halvo_schema::executable::body::{AddOrigin, CreateAgent, SetBindings};
 use halvo_schema::executable::names::Way;
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::{
-    CoordinatorCall, CoordinatorReply, Name, OwnValue, RunId, WebOrigin,
+    reply_senders, CoordinatorCall, CoordinatorReply, Name, OwnValue, RunId, SendersError,
+    WebOrigin,
 };
 use halvo_schema::{AgentId, ErrorName, SeedCategory, WorkflowId};
 use serde_json::{Map, Value};
@@ -67,14 +68,12 @@ pub struct Binding {
 /// Why `join_senders` refuses a list of addresses for the slot `reply_senders` (the coordinator's ruling CP-112).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendersRefused {
-    /// The list holds no address.
-    Empty,
-    /// An address is empty or ASCII spaces alone.
-    EmptyAddress,
-    /// An address holds a comma, which separates the addresses of the slot's one text.
+    /// An address holds a comma, which separates the addresses of the slot's one text, so that the joined text
+    /// would read as other addresses than the list holds.
     Comma,
-    /// One address stands twice, without ASCII case and the ASCII spaces around it.
-    Twice,
+    /// The reader of the slot, `halvo_schema::executable::reply_senders`, refuses the joined text with this error;
+    /// its number is the place of the address in the list, counted from 1.
+    Read(SendersError),
 }
 
 /// Why `seed_binding` refuses a seed file.
@@ -137,30 +136,16 @@ pub struct Prepared {
     pub rev: Option<NonZeroU32>,
 }
 
-/// The one text of the slot `reply_senders` from a list of addresses: the addresses as given, joined by a comma and
-/// a space (CP-112). A reader splits it at commas and trims ASCII spaces, so the join refuses what that reader
-/// would refuse and the gate can meet: an empty list, an empty address, an address with a comma, and one address
-/// twice.
+/// The one text of the slot `reply_senders` from a list of addresses (CP-112): the senders that the slot's one
+/// reader, `halvo_schema::executable::reply_senders`, reads from the addresses joined by a comma and a space, joined
+/// again in the same way, so that the text bound is the text that the reader reads back to those senders. It
+/// refuses an address that holds a comma, and then whatever the reader refuses, with the reader's error (CP-203).
 pub fn join_senders(addresses: &[String]) -> Result<String, SendersRefused> {
-    if addresses.is_empty() {
-        return Err(SendersRefused::Empty);
+    if addresses.iter().any(|address| address.contains(',')) {
+        return Err(SendersRefused::Comma);
     }
-    let mut seen: Vec<String> = Vec::with_capacity(addresses.len());
-    for address in addresses {
-        if address.contains(',') {
-            return Err(SendersRefused::Comma);
-        }
-        let trimmed = address.trim_matches(' ');
-        if trimmed.is_empty() {
-            return Err(SendersRefused::EmptyAddress);
-        }
-        let folded = trimmed.to_ascii_lowercase();
-        if seen.contains(&folded) {
-            return Err(SendersRefused::Twice);
-        }
-        seen.push(folded);
-    }
-    Ok(addresses.join(SENDER_SEPARATOR))
+    let senders = reply_senders(&addresses.join(SENDER_SEPARATOR)).map_err(SendersRefused::Read)?;
+    Ok(senders.iter().collect::<Vec<_>>().join(SENDER_SEPARATOR))
 }
 
 /// Reads the binding of `task` from a seed file (docs/r3/fixtures.md) for a fixture that listens on `port`: each
