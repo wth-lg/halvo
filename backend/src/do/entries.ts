@@ -123,6 +123,11 @@ const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
 /**
  * One run of the alarm, from its begin in alarm() or testSetClock until its exit has armed. `kept` is the earliest time at
  * which a step of an entry other than the run armed the alarm since the run began; the run's own steps record nothing.
+ * Named limit (ruling P7-115 A5): two instances over one storage for a moment. A delete answered by the other instance is
+ * not in this instance's memory; the count restarts in storage at the mark, so this instance's failing exit pauses
+ * ALARM_RETRY_MS and arms at most one ALARM_RETRY_MS after its exit, and the delete's own arm may be overwritten by that.
+ * A stored kept time is refused: a write in the arming step could roll that step back (P7-110 L1 (c)), and a read of the
+ * platform's alarm needs an await.
  */
 interface AlarmRun {
   mark: Mark | null | "unknown";
