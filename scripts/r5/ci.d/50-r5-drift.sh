@@ -434,9 +434,9 @@ stand_in_cargo() {
       if [ -e "$FX/change-at-build" ]; then
         cat "$FX/change-at-build" >>"$FX/$(cat "$FX/change-file")"
       fi
-      mkdir -p target/debug || return 101
+      mkdir -p "${CARGO_TARGET_DIR:-target}/debug" || return 101
       while read -r made; do
-        cp "$FX/gate.sh" "target/debug/$made" && chmod +x "target/debug/$made" || return 101
+        cp "$FX/gate.sh" "${CARGO_TARGET_DIR:-target}/debug/$made" && chmod +x "${CARGO_TARGET_DIR:-target}/debug/$made" || return 101
       done <"$FX/built-names"
       ;;
     'run --locked -q -p halvo-learn-gate --bin learn-gate -- '*)
@@ -517,6 +517,10 @@ check() {
       }
     fi
     unset CARGO_TARGET_DIR
+    if [ -e "$FX/target-dir" ]; then
+      CARGO_TARGET_DIR=$(cat "$FX/target-dir") || exit 1
+      export CARGO_TARGET_DIR
+    fi
     export FX
     CI_D_REPO=$fx_repo
     CI_D_ARTIFACTS=$work/$case_name/art
@@ -632,6 +636,17 @@ self_test() {
 
   fixture cargo-warns-beside-a-clean-play
   : >"$FX/cargo-warns"
+  check PASS 'readers same=2 of=2'
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+    "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"
+
+  fixture build-directory-of-its-own
+  printf '%s\n' "$work/$case_name/build" >"$FX/target-dir" || broken
+  mkdir -p "$fx_repo/target/debug" || broken
+  for old in learn-gate learn-gate.exe; do
+    old_gate >"$fx_repo/target/debug/$old" || broken
+    chmod +x "$fx_repo/target/debug/$old" || broken
+  done
   check PASS 'readers same=2 of=2'
   calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
     "gate $dev --store derived --restart-all" "gate $dev --store memory --restart-all"

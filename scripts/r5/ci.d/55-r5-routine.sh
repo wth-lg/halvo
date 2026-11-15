@@ -264,8 +264,9 @@ tree_cargo() {
         none) names= ;;
         *) return 101 ;;
       esac
+      mkdir -p "${CARGO_TARGET_DIR:-target}/debug" || return 101
       for made in $names; do
-        cp "$TREE_DIR/gate.sh" "target/debug/$made" && chmod +x "target/debug/$made" || return 101
+        cp "$TREE_DIR/gate.sh" "${CARGO_TARGET_DIR:-target}/debug/$made" && chmod +x "${CARGO_TARGET_DIR:-target}/debug/$made" || return 101
       done
       ;;
     'run --locked -q -p halvo-learn-gate --bin learn-gate -- '*)
@@ -323,7 +324,7 @@ tree_case() {
   fi
   tree_gate >"$TREE_DIR/gate.sh" || broken
   case $label in
-    old-files) olds='learn-gate learn-gate.exe' ;;
+    old-files | own-build-directory) olds='learn-gate learn-gate.exe' ;;
     old-file-plain) olds=learn-gate ;;
     old-file-exe) olds=learn-gate.exe ;;
     *) olds= ;;
@@ -344,6 +345,10 @@ tree_case() {
       PATH=$work/no-cargo:/usr/bin:/bin
     fi
     unset CARGO_TARGET_DIR
+    if [ "$label" = own-build-directory ]; then
+      CARGO_TARGET_DIR=$TREE_DIR/build
+      export CARGO_TARGET_DIR
+    fi
     CI_D_REPO=$TREE_DIR/repo
     CI_D_ARTIFACTS=$TREE_DIR/art
     measure
@@ -375,7 +380,7 @@ tree_case() {
     build-fails)
       [ ! -e "$TREE_DIR/gate.calls" ] || got=$got-after-a-gate-call
       ;;
-    old-files | old-file-plain | old-file-exe)
+    old-files | old-file-plain | old-file-exe | own-build-directory)
       printf '%s\n' 'build --locked -p halvo-learn-gate --bin learn-gate' >"$TREE_DIR/cargo.wanted" || broken
       cmp -s "$TREE_DIR/cargo.calls" "$TREE_DIR/cargo.wanted" || got=$got-with-other-cargo-calls
       ;;
@@ -411,6 +416,7 @@ tree_cases() {
   tree_case old-file-plain PASS "PASS $name" "" "" "" ok yes
   tree_case old-file-exe PASS "PASS $name" "" "" "" ok yes
   tree_case cargo-warns PASS "PASS $name" "" "" "" warns yes
+  tree_case own-build-directory PASS "PASS $name" "" "" "" ok yes
   tree_case built-none FAIL-build "FAIL $name (build)" "" "" "" none yes
   tree_case built-both FAIL-build "FAIL $name (build)" "" "" "" both yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
@@ -464,8 +470,8 @@ self_test() {
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  if [ "$tree_passed" -ne 5 ] || [ "$tree_rejected" -ne 11 ]; then
-    printf 'FAIL self-test:%s (tree cases passed %s, not 5, and rejected %s, not 11)\n' "$name" "$tree_passed" "$tree_rejected"
+  if [ "$tree_passed" -ne 6 ] || [ "$tree_rejected" -ne 11 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 6, and rejected %s, not 11)\n' "$name" "$tree_passed" "$tree_rejected"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
