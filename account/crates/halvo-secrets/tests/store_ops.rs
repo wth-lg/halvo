@@ -177,3 +177,264 @@ fn a_removal_names_the_store_of_this_place_alone_and_then_reads() {
     assert!(matches!(removal.then, Read::NotStored));
     assert!(names_in(&dir).is_empty(), "{:?}", names_in(&dir));
 }
+
+fn renamed_into(dir: &Path, name: &str) {
+    fs::rename(dir.join("account"), dir.join(name)).expect("the file under the left name");
+}
+
+#[test]
+fn a_removal_at_the_person_s_word_ends_a_claim_that_cannot_be_named_back() {
+    let dir = scratch("stranded-claim");
+    let store = store_in(&dir);
+    let aside = scratch("stranded-claim-aside");
+    assert_eq!(store_in(&aside).write(&secret(HELD)), Write::Stored);
+    assert_eq!(store.write(&secret(&one_byte_off(2))), Write::Stored);
+    fs::copy(
+        aside.join("account"),
+        dir.join(format!(".account.{}.0.claim", std::process::id() + 3)),
+    )
+    .expect("a claim beside a later sign-in");
+    let read = store.read();
+    assert!(
+        matches!(read, Read::Fault(halvo_secrets::Fault { code: -1 })),
+        "{read:?}"
+    );
+    let removal = store
+        .remove(kind_of_this_store())
+        .expect("the store of this place");
+    assert_eq!(removal.removed, Delete::Deleted);
+    assert!(
+        matches!(removal.then, Read::NotStored),
+        "{:?}",
+        removal.then
+    );
+    assert!(names_in(&dir).is_empty(), "{:?}", names_in(&dir));
+}
+
+#[test]
+fn a_removal_at_the_person_s_word_leaves_no_temporary_file_of_a_killed_write() {
+    let dir = scratch("killed-write");
+    let store = store_in(&dir);
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    renamed_into(&dir, &format!(".account.{}.0.tmp", std::process::id() + 5));
+    assert!(matches!(store.read(), Read::NotStored));
+    let removal = store
+        .remove(kind_of_this_store())
+        .expect("the store of this place");
+    assert_eq!(removal.removed, Delete::NotStored);
+    assert!(
+        matches!(removal.then, Read::NotStored),
+        "{:?}",
+        removal.then
+    );
+    assert!(names_in(&dir).is_empty(), "{:?}", names_in(&dir));
+}
+
+const RACE_ROLE: &str = "HALVO_SECRETS_RACE_ROLE";
+const RACE_DIR: &str = "HALVO_SECRETS_RACE_DIR";
+const RACE_ROUNDS: usize = 200;
+
+fn shown_read(read: Read) -> String {
+    match read {
+        Read::Found(held) if held.expose() == HELD => "Found(X)".to_string(),
+        Read::Found(_) => "Found(other)".to_string(),
+        Read::NotStored => "NotStored".to_string(),
+        Read::Locked(locked) => format!("Locked({locked:?})"),
+        Read::Fault(fault) => format!("Fault({})", fault.code),
+    }
+}
+
+fn shown_holds(answer: DeleteIfHolds) -> String {
+    match answer {
+        DeleteIfHolds::Deleted => "Deleted".to_string(),
+        DeleteIfHolds::NotStored => "NotStored".to_string(),
+        DeleteIfHolds::Other(held) if held.expose() == HELD => "Other(X)".to_string(),
+        DeleteIfHolds::Other(_) => "Other(other)".to_string(),
+        DeleteIfHolds::Locked(locked) => format!("Locked({locked:?})"),
+        DeleteIfHolds::Fault(fault) => format!("Fault({})", fault.code),
+    }
+}
+
+fn shown_write(write: Write) -> String {
+    match write {
+        Write::Fault(fault) => format!("Fault({})", fault.code),
+        write => format!("{write:?}"),
+    }
+}
+
+fn shown_delete(delete: Option<Delete>) -> String {
+    match delete {
+        Some(Delete::Fault(fault)) => format!("Fault({})", fault.code),
+        Some(delete) => format!("{delete:?}"),
+        None => "None".to_string(),
+    }
+}
+
+#[test]
+fn child_of_the_two_process_races() {
+    let Ok(role) = std::env::var(RACE_ROLE) else {
+        return;
+    };
+    let dir = PathBuf::from(std::env::var(RACE_DIR).expect("the race's directory"));
+    let store = store_in(&dir);
+    for round in 0..RACE_ROUNDS {
+        let answer = match role.as_str() {
+            "delete-other" => shown_holds(store.delete_if_holds(&secret(&one_byte_off(7)))),
+            "delete-x" => shown_holds(store.delete_if_holds(&secret(HELD))),
+            "read" => shown_read(store.read()),
+            "write-y" => shown_write(store.write(&secret(&one_byte_off(9)))),
+            "remove" => shown_delete(store.remove(kind_of_this_store()).map(|r| r.removed)),
+            role => panic!("no role {role}"),
+        };
+        println!("RACE {role} {round} {answer}");
+    }
+}
+
+fn child(role: &str, dir: &Path) -> std::process::Child {
+    std::process::Command::new(std::env::current_exe().expect("the test binary"))
+        .args([
+            "--exact",
+            "child_of_the_two_process_races",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(RACE_ROLE, role)
+        .env(RACE_DIR, dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("a child of the race")
+}
+
+#[derive(Default)]
+struct Tally {
+    counts: std::collections::BTreeMap<String, usize>,
+    wrong: Vec<String>,
+    windows_forms: Vec<String>,
+}
+
+impl Tally {
+    fn take(&mut self, race: &str, role: &str, round: &str, answer: &str, allowed: &[&str]) {
+        *self
+            .counts
+            .entry(format!("{race} {role} {answer}"))
+            .or_insert(0) += 1;
+        if allowed.contains(&answer) {
+            return;
+        }
+        let line = format!("{race} {role} round {round}: {answer}");
+        let windows_form = cfg!(windows)
+            && matches!(
+                answer,
+                "Fault(2)" | "Fault(3)" | "Fault(32)" | "Locked(Refused { code: 5 })"
+            );
+        if windows_form {
+            self.windows_forms.push(line);
+        } else {
+            self.wrong.push(line);
+        }
+    }
+
+    fn child(&mut self, race: &str, child: std::process::Child, allowed: &[&str]) {
+        let output = child.wait_with_output().expect("the child's output");
+        let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        let mut rounds = 0;
+        for line in text
+            .lines()
+            .filter_map(|line| line.find("RACE ").map(|at| &line[at + 5..]))
+        {
+            let mut words = line.splitn(3, ' ');
+            let (role, round, answer) = (
+                words.next().unwrap_or(""),
+                words.next().unwrap_or(""),
+                words.next().unwrap_or(""),
+            );
+            rounds += 1;
+            self.take(race, role, round, answer, allowed);
+        }
+        if !output.status.success() || rounds != RACE_ROUNDS {
+            self.wrong.push(format!(
+                "{race}: a child ended with {} after {rounds} rounds: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+}
+
+const FAULT_OF_CONTENTION: &str = "Fault(-1)";
+
+fn parent_answers(race: &str) -> &'static [&'static str] {
+    if race == "ii-remove" {
+        &[
+            "Stored",
+            "Occupied",
+            FAULT_OF_CONTENTION,
+            WRITE_BESIDE_A_REMOVAL,
+        ]
+    } else {
+        &["Stored", "Occupied", FAULT_OF_CONTENTION]
+    }
+}
+
+const WRITE_BESIDE_A_REMOVAL: &str = "Fault(2)";
+
+#[test]
+fn two_processes_on_one_store_answer_what_stands_or_a_fault_of_contention() {
+    let mut tally = Tally::default();
+    let started = std::time::Instant::now();
+
+    let dir = scratch("race-x-stands");
+    let store = store_in(&dir);
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    let (deleting, reading) = (child("delete-other", &dir), child("read", &dir));
+    tally.child("i", deleting, &["Other(X)", FAULT_OF_CONTENTION]);
+    tally.child("i", reading, &["Found(X)", FAULT_OF_CONTENTION]);
+    assert_eq!(found(store.read()), HELD, "X stands after race i");
+    let (writing, reading) = (child("write-y", &dir), child("read", &dir));
+    tally.child("i-write", writing, &["Occupied", FAULT_OF_CONTENTION]);
+    tally.child("i-write", reading, &["Found(X)", FAULT_OF_CONTENTION]);
+    assert_eq!(found(store.read()), HELD, "X stands after the writes");
+
+    for (race, second) in [("ii-remove", "remove"), ("ii-delete", "delete-x")] {
+        let dir = scratch(race);
+        let store = store_in(&dir);
+        assert_eq!(store.write(&secret(HELD)), Write::Stored);
+        let mut first = child("delete-x", &dir);
+        let mut other = child(second, &dir);
+        loop {
+            let done = first.try_wait().expect("a child").is_some()
+                && other.try_wait().expect("a child").is_some();
+            let answer = shown_write(store.write(&secret(HELD)));
+            tally.take(race, "parent-write", "-", &answer, parent_answers(race));
+            if done {
+                break;
+            }
+        }
+        tally.child(race, first, &["Deleted", "NotStored", FAULT_OF_CONTENTION]);
+        tally.child(race, other, &["Deleted", "NotStored", FAULT_OF_CONTENTION]);
+        match store.read() {
+            Read::Found(held) => assert_eq!(held.expose(), HELD, "{race}: only X is ever written"),
+            Read::NotStored => {}
+            read => panic!("{race}: the store then read {read:?}"),
+        }
+    }
+
+    for (key, count) in &tally.counts {
+        println!("race answers {key}: {count}");
+    }
+    for line in &tally.windows_forms {
+        println!("race windows form {line}");
+    }
+    println!(
+        "race rounds {} each, seconds {}, windows forms {}",
+        RACE_ROUNDS,
+        started.elapsed().as_secs(),
+        tally.windows_forms.len()
+    );
+    assert!(
+        tally.wrong.is_empty(),
+        "answers outside the rule: {:#?}",
+        tally.wrong
+    );
+}

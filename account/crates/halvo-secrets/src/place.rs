@@ -74,8 +74,12 @@ pub(crate) enum Published {
 pub(crate) enum Claim {
     /// The file held the bytes and is removed.
     Removed,
-    /// No file stood under the name.
+    /// No file stood under the name, and a listing of the store directory then showed
+    /// neither the name nor a claim.
     Absent,
+    /// No file was found where the removal looked, and a listing then showed the name or a
+    /// claim: another operation was at work.
+    Busy,
     /// Another file stood under the name; it was named back and stands as it stood.
     Other,
     /// Another file stood under the name, and the name was taken again before it could be
@@ -397,6 +401,9 @@ impl<F: Fs, C: Codec> Item<F, C> {
             Err(error) => return Err(Stop::of(&error)),
         };
         let meta = self.fs.item_meta(&item).map_err(|error| Stop::of(&error))?;
+        if meta.links == 0 {
+            return Ok(None);
+        }
         match self.rules.item(&meta, self.fs.user(), self.codec.limit()) {
             Some(locked) => Err(Stop::Locked(locked)),
             None => Ok(Some((item, meta))),
@@ -506,24 +513,84 @@ impl<F: Fs, C: Codec> Item<F, C> {
     }
 
     pub(crate) fn delete(&self) -> Delete {
+        self.delete_settling(None)
+    }
+
+    /// Removes the file under the store's name. When it finds none, at the open or at the
+    /// removal, it lists the store directory: with neither the name nor a claim there it
+    /// answers `NotStored`; otherwise it ends each claim with `keychain` as `settle_claimed`
+    /// does and looks once more, and a second such finding answers `Fault` with -1.
+    pub(crate) fn delete_settling(&self, keychain: Option<&[u8]>) -> Delete {
+        for last in [false, true] {
+            let dir = match self.place() {
+                Ok(Reached::Dir(dir)) => dir,
+                Ok(Reached::Absent(_)) => return Delete::NotStored,
+                Err(stop) => return stop.into(),
+            };
+            match self.open(&dir) {
+                Ok(Some(_)) => match self.fs.remove(&dir, self.name.as_str()) {
+                    Ok(()) => {
+                        return match self.fs.sync_dir(&dir) {
+                            Ok(()) => Delete::Deleted,
+                            Err(error) => Delete::Fault(Stop::fault(&error)),
+                        }
+                    }
+                    Err(error) if self.fs.is_absent(&error) => {}
+                    Err(error) => return Stop::of(&error).into(),
+                },
+                Ok(None) => {}
+                Err(stop) => return stop.into(),
+            }
+            match self.claimed_or_named() {
+                Ok(false) => return Delete::NotStored,
+                Ok(true) if last => return Delete::Fault(Fault { code: -1 }),
+                Ok(true) => {
+                    if let Err(stop) = self.settle_claimed(keychain) {
+                        return Stop::from(stop).into();
+                    }
+                }
+                Err(stop) => return Stop::from(stop).into(),
+            }
+        }
+        Delete::Fault(Fault { code: -1 })
+    }
+
+    /// The removal of the file store's item at the person's word: it ends each claim with
+    /// `keychain` as `settle_claimed` does and also removes each claim that cannot be named
+    /// back because the name is taken, removes each temporary file of a write of the store's
+    /// form, and then removes the file under the store's name as `delete_settling` does.
+    pub(crate) fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+        if let Err(stop) = self.settle_with(keychain, Stranded::Removed) {
+            return Stop::from(stop).into();
+        }
         let dir = match self.place() {
             Ok(Reached::Dir(dir)) => dir,
             Ok(Reached::Absent(_)) => return Delete::NotStored,
             Err(stop) => return stop.into(),
         };
-        match self.open(&dir) {
-            Ok(Some(_)) => {}
-            Ok(None) => return Delete::NotStored,
-            Err(stop) => return stop.into(),
-        }
-        match self.fs.remove(&dir, self.name.as_str()) {
-            Ok(()) => {}
-            Err(error) if self.fs.is_absent(&error) => return Delete::NotStored,
+        let names = match self.fs.names(&dir) {
+            Ok(names) => names,
             Err(error) => return Stop::of(&error).into(),
+        };
+        for temp in names
+            .iter()
+            .filter(|entry| self.is_of_form(entry, TEMPORARY))
+        {
+            match self.fs.remove(&dir, temp) {
+                Ok(()) => {}
+                Err(error) if self.fs.is_absent(&error) => {}
+                Err(error) => return Stop::of(&error).into(),
+            }
         }
-        match self.fs.sync_dir(&dir) {
-            Ok(()) => Delete::Deleted,
-            Err(error) => Delete::Fault(Stop::fault(&error)),
+        self.delete_settling(keychain)
+    }
+
+    #[cfg_attr(windows, allow(dead_code))]
+    fn absent_or_busy(&self) -> Claim {
+        match self.claimed_or_named() {
+            Ok(false) => Claim::Absent,
+            Ok(true) => Claim::Busy,
+            Err(stop) => Stop::from(stop).into(),
         }
     }
 
@@ -536,12 +603,12 @@ impl<F: Fs, C: Codec> Item<F, C> {
         };
         match self.open(&dir) {
             Ok(Some(_)) => {}
-            Ok(None) => return Claim::Absent,
+            Ok(None) => return self.absent_or_busy(),
             Err(stop) => return stop.into(),
         }
         let private = match self.claim(&dir) {
             Ok(Some(private)) => private,
-            Ok(None) => return Claim::Absent,
+            Ok(None) => return self.absent_or_busy(),
             Err(stop) => return stop.into(),
         };
         match self.read_at(&dir, &private) {
@@ -550,9 +617,10 @@ impl<F: Fs, C: Codec> Item<F, C> {
                     Ok(()) => Claim::Removed,
                     Err(error) => Claim::Fault(Stop::fault(&error)),
                 },
+                Err(error) if self.fs.is_absent(&error) => self.absent_or_busy(),
                 Err(error) => self.name_back(&dir, &private, Stop::of(&error).into()),
             },
-            Read::NotStored => Claim::Absent,
+            Read::NotStored => self.absent_or_busy(),
             Read::Found(_) => self.name_back(&dir, &private, Claim::Other),
             Read::Locked(locked) => self.name_back(&dir, &private, Claim::Locked(locked)),
             Read::Fault(fault) => self.name_back(&dir, &private, Claim::Fault(fault)),
@@ -691,11 +759,15 @@ impl<F: Fs, C: Codec> Item<F, C> {
 
     #[cfg_attr(windows, allow(dead_code))]
     fn is_claimed(&self, entry: &str) -> bool {
+        self.is_of_form(entry, CLAIMED)
+    }
+
+    fn is_of_form(&self, entry: &str, suffix: &str) -> bool {
         let Some(middle) = entry
             .strip_prefix('.')
             .and_then(|rest| rest.strip_prefix(self.name.as_str()))
             .and_then(|rest| rest.strip_prefix('.'))
-            .and_then(|rest| rest.strip_suffix(CLAIMED))
+            .and_then(|rest| rest.strip_suffix(suffix))
             .and_then(|rest| rest.strip_suffix('.'))
         else {
             return false;
@@ -710,15 +782,25 @@ impl<F: Fs, C: Codec> Item<F, C> {
             })
     }
 
-    /// Ends what a move that was stopped after its claim left: each file of the claim's
-    /// private name in the store directory is removed when it holds `keychain`, the bytes
-    /// of the Keychain item, and is put back under the store's name otherwise. A file that
-    /// cannot be read or removed, or that cannot be put back because the name is taken,
-    /// answers the failure.
+    /// Ends what a move or a `delete_if_holds` that was stopped after its claim left, and
+    /// meets the live claims of other processes: each file of the claim's private name in
+    /// the store directory is removed when it holds `keychain`, the bytes of the Keychain
+    /// item, and is put back under the store's name otherwise. A claim that is gone at its
+    /// open, whose link count reads 0, or that the removal or the rename back finds absent
+    /// was its owner's at work, and it is passed over. A file that cannot be read or
+    /// removed, or that cannot be put back because the name is taken, answers the failure.
     #[cfg_attr(windows, allow(dead_code))]
     pub(crate) fn settle_claimed(
         &self,
         keychain: Option<&[u8]>,
+    ) -> Result<(), Result<Locked, Fault>> {
+        self.settle_with(keychain, Stranded::Kept)
+    }
+
+    fn settle_with(
+        &self,
+        keychain: Option<&[u8]>,
+        stranded: Stranded,
     ) -> Result<(), Result<Locked, Fault>> {
         let dir = match self.place() {
             Ok(Reached::Dir(dir)) => dir,
@@ -729,16 +811,15 @@ impl<F: Fs, C: Codec> Item<F, C> {
         for private in names.iter().filter(|entry| self.is_claimed(entry)) {
             match self.read_at(&dir, private) {
                 Read::Found(held) if keychain == Some(held.expose()) => {
-                    self.fs
-                        .remove(&dir, private)
-                        .map_err(|error| stopped(&error))?;
-                    self.fs
-                        .sync_dir(&dir)
-                        .map_err(|error| Err(Stop::fault(&error)))?;
+                    self.remove_claim(&dir, private)?;
                 }
                 Read::Found(_) => match self.fs.publish(&dir, private, self.name.as_str()) {
                     Ok(Published::Done) => {}
+                    Ok(Published::Exists) if stranded == Stranded::Removed => {
+                        self.remove_claim(&dir, private)?;
+                    }
                     Ok(Published::Exists) => return Err(Err(Fault { code: -1 })),
+                    Err(error) if self.fs.is_absent(&error) => {}
                     Err(error) => return Err(stopped(&error)),
                 },
                 Read::NotStored => {}
@@ -748,9 +829,27 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
         Ok(())
     }
+
+    fn remove_claim(&self, dir: &F::Dir, private: &str) -> Result<(), Result<Locked, Fault>> {
+        match self.fs.remove(dir, private) {
+            Ok(()) => self
+                .fs
+                .sync_dir(dir)
+                .map_err(|error| Err(Stop::fault(&error))),
+            Err(error) if self.fs.is_absent(&error) => Ok(()),
+            Err(error) => Err(stopped(&error)),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stranded {
+    Kept,
+    Removed,
 }
 
 const CLAIMED: &str = "claim";
+const TEMPORARY: &str = "tmp";
 
 impl From<Stop> for Result<Locked, Fault> {
     fn from(stop: Stop) -> Result<Locked, Fault> {

@@ -58,17 +58,36 @@ use crate::{Directory, Name, Secret};
 /// in the directory is touched. A store that keeps its file alone, the one of
 /// `Store::in_directory` and the DPAPI store of Windows, does the same before every
 /// operation and puts each such file back under the store's name, so that a
-/// `delete_if_holds` that was stopped after its claim never hides a credential.
+/// `delete_if_holds` that was stopped after its claim never hides a credential. A claim that
+/// cannot be named back because the name is taken makes every operation answer `Fault`
+/// with -1 until a removal at the person's word, which removes it.
 ///
 /// A claim of another process that is alive while an operation runs. When an operation of
 /// either store, of either system, finds no file under the store's name, as its read, as
-/// its delete or as the open or the claim of `delete_if_holds`, it lists the store
-/// directory once more before it answers `NotStored`. When the listing holds the store's
-/// name or a name of the claim's form, another operation was at work: the operation ends
-/// each claim as above and runs once more, and a second such finding answers `Fault` with
-/// -1. So no operation answers `NotStored` while the credential lies in another process's
-/// claim, and a delete of a build without the feature whose file is claimed after its read
-/// answers `Fault` with -1.
+/// its delete or its removal at the person's word (at the open or at the removal of the
+/// name), as the open or the claim of `delete_if_holds`, or as the claim of a move or its
+/// read of what it claimed, it lists the store directory once more before it answers
+/// `NotStored`. When the listing holds the store's name or a name of the claim's form,
+/// another operation was at work: the operation ends each claim as above and runs its look
+/// once more (a move runs its whole look again from its read of the Keychain, so that it
+/// removes the file only after a fresh read of the Keychain gives the file's bytes), and a
+/// second such finding answers `Fault` with -1. A listing that shows neither the name nor a
+/// claim lets the answer stand: `NotStored`, and for a move what the Keychain holds. So no
+/// operation answers `NotStored` while the credential lies in another process's claim, and
+/// no write stores a second credential beside one that a claim held. A file whose link
+/// count reads 0 right after its open was removed while open: it is no second name, and it
+/// counts as a file that is not there. While each claim is ended, a claim that is gone at
+/// its open, whose link count reads 0, or that the removal or the rename back finds absent
+/// by the system's own absent code was its owner's at work: it is passed over, and the
+/// operation's own listing answers for what stands. A live claim that stands is put back
+/// under the store's name, and its owner then answers `Fault` with -1.
+///
+/// The answers `Fault` with -1 that contention gives, each after the finding named: an
+/// operation of either store after its second listing that holds the name or a claim; the
+/// claim of `delete_if_holds` whose claimed file is gone twice; a move whose second look
+/// finds the name or a claim again; `delete_if_holds` whose claim was put back by another
+/// operation and that cannot name it back; and a settle that finds a claim beside a taken
+/// name, after one finding (a removal at the person's word ends such a claim instead).
 ///
 /// Absent and missing, on both systems: a read answers `NotStored` only when the store
 /// directory or the item is absent under a parent that exists. A step above the store
@@ -133,6 +152,14 @@ use crate::{Directory, Name, Secret};
 /// with no compare, and the other store's item stays; a removal of either store's item
 /// first ends each claim as the place above says, with the bytes that the Keychain item
 /// holds, so a claim of a killed move of the Keychain item's bytes goes with that item.
+/// A removal of the file, of the file store of `Store::new`, of `Store::in_directory` or of
+/// the DPAPI store, also removes each claim of the store's form that cannot be named back
+/// because the name is taken, and each temporary file of a write of the store's form
+/// (`.<name>.<pid>.<n>.tmp`) in the store directory: a write that was killed leaves its
+/// temporary file, which holds a whole credential that no read gives, until such a removal.
+/// No other operation removes a temporary file, because a live write of another process may
+/// own it; such a write beside a removal at the person's word answers `Fault` with the
+/// system's absent code (2) at the rename of its temporary file and stores nothing.
 /// Then it reads, the move included, and gives that
 /// read beside the removal's answer, so the caller learns what then stands: in the state
 /// with other bytes in both stores, a build with the feature then reads the item that
@@ -320,13 +347,11 @@ impl Store {
     pub fn remove(&self, from: StoreKind) -> Option<Removal> {
         let removed = match &self.place {
             #[cfg(target_os = "macos")]
-            Place::File(item) => (from == StoreKind::File).then(|| item.after_claims(Item::delete)),
+            Place::File(item) => (from == StoreKind::File).then(|| item.remove_at_word(None)),
             #[cfg(target_os = "macos")]
             Place::Mac(mac) => mac.remove(from),
             #[cfg(windows)]
-            Place::Dpapi(item) => {
-                (from == StoreKind::Dpapi).then(|| item.after_claims(Item::delete))
-            }
+            Place::Dpapi(item) => (from == StoreKind::Dpapi).then(|| item.remove_at_word(None)),
         }?;
         Some(Removal {
             removed,

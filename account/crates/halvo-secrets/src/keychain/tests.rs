@@ -587,3 +587,13 @@ fn a_delete_if_holds_whose_second_look_fails_answers_a_fault() {
         assert_eq!(faulted(store.delete_if_holds(HELD)), Some(answer), "{code}");
     }
 }
+
+#[test]
+fn a_delete_if_holds_whose_second_look_finds_an_item_it_does_not_give_answers_a_fault() {
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]).replacing_after_find(Some(b"")));
+    assert_eq!(
+        faulted(store.delete_if_holds(HELD)),
+        Some(Fault { code: -1 })
+    );
+    assert_eq!(store.keychain.all().len(), 1);
+}

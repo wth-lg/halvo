@@ -13,6 +13,7 @@ pub(crate) trait FileSide {
     fn read(&self) -> Read;
     fn write(&self, secret: &Secret) -> Write;
     fn delete(&self) -> Delete;
+    fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete;
     fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds;
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim;
     fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>>;
@@ -44,6 +45,10 @@ impl<F: Fs, C: Codec> FileSide for Item<F, C> {
         Item::delete(self)
     }
 
+    fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+        Item::remove_at_word(self, keychain)
+    }
+
     fn delete_if_holds(&self, held: &[u8]) -> DeleteIfHolds {
         Item::delete_if_holds(self, held)
     }
@@ -64,14 +69,14 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     fn read_and_move(&self) -> Read {
-        self.look_and_move(true)
+        self.look_and_move(Again::BOTH)
     }
 
-    fn look_and_move(&self, again: bool) -> Read {
+    fn look_and_move(&self, again: Again) -> Read {
         match self.keychain.read() {
             Read::Found(secret) => match self.settled_file(Some(secret.expose())) {
                 Read::Found(other) if other.expose() == secret.expose() => {
-                    self.remove_the_file(secret)
+                    self.remove_the_file(secret, again)
                 }
                 Read::Found(_) => Read::Locked(Locked::OtherStore),
                 _ => Read::Found(secret),
@@ -85,10 +90,15 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
         }
     }
 
-    fn move_in(&self, secret: Secret, again: bool) -> Read {
+    fn move_in(&self, secret: Secret, again: Again) -> Read {
         match self.keychain.write(&secret) {
             Write::Stored => {}
-            Write::Occupied if again => return self.look_and_move(false),
+            Write::Occupied if again.occupied => {
+                return self.look_and_move(Again {
+                    occupied: false,
+                    ..again
+                })
+            }
             Write::Occupied => return not_moved(None),
             Write::Locked(locked) => return not_moved(Some(Err(locked))),
             Write::Fault(fault) => return not_moved(Some(Ok(fault))),
@@ -99,13 +109,18 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             Read::Locked(locked) => return not_moved(Some(Err(locked))),
             Read::Fault(fault) => return not_moved(Some(Ok(fault))),
         }
-        self.remove_the_file(secret)
+        self.remove_the_file(secret, again)
     }
 
-    fn remove_the_file(&self, secret: Secret) -> Read {
+    fn remove_the_file(&self, secret: Secret, again: Again) -> Read {
         match self.file.remove_if_holds(secret.expose()) {
             Claim::Removed => Read::Found(secret),
             Claim::Absent => self.keychain.read(),
+            Claim::Busy if again.busy => self.look_and_move(Again {
+                busy: false,
+                ..again
+            }),
+            Claim::Busy => Read::Fault(Fault { code: -1 }),
             Claim::Other => not_moved(None),
             Claim::Stranded => Read::Fault(Fault { code: -1 }),
             Claim::Locked(locked) => not_moved(Some(Err(locked))),
@@ -144,18 +159,6 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
         Read::Fault(Fault { code: -1 })
     }
 
-    fn delete_own_file(&self) -> Delete {
-        match self.file.delete() {
-            Delete::NotStored => match self.file.claimed_or_named() {
-                Ok(false) => Delete::NotStored,
-                Ok(true) => Delete::Fault(Fault { code: -1 }),
-                Err(Ok(locked)) => Delete::Locked(locked),
-                Err(Err(fault)) => Delete::Fault(fault),
-            },
-            answer => answer,
-        }
-    }
-
     fn keychain_beside(&self) -> Read {
         match self.keychain.count() {
             Ok(0) => Read::NotStored,
@@ -180,7 +183,7 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     pub(crate) fn delete(&self) -> Delete {
         let own = match self.read() {
             Read::Found(_) => match self.keeps {
-                Keeps::File => self.delete_own_file(),
+                Keeps::File => self.file.delete(),
                 Keeps::Keychain => self.keychain.delete(),
             },
             Read::NotStored => Delete::NotStored,
@@ -217,8 +220,10 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             Read::Found(secret) => Some(secret.expose()),
             _ => None,
         };
+        if from == StoreKind::File {
+            return Some(self.file.remove_at_word(moved));
+        }
         Some(match self.file.settle(moved) {
-            Ok(()) if from == StoreKind::File => self.file.delete(),
             Ok(()) => self.keychain.delete(),
             Err(Ok(locked)) => Delete::Locked(locked),
             Err(Err(fault)) => Delete::Fault(fault),
@@ -260,6 +265,19 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             },
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct Again {
+    occupied: bool,
+    busy: bool,
+}
+
+impl Again {
+    const BOTH: Again = Again {
+        occupied: true,
+        busy: true,
+    };
 }
 
 enum Other {

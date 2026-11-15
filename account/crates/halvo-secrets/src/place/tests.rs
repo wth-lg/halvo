@@ -140,6 +140,7 @@ type Before = (
 struct Handle {
     path: PathBuf,
     offset: usize,
+    opened: Option<Meta>,
 }
 
 impl Memory {
@@ -297,17 +298,21 @@ impl Fs for Memory {
         Ok(match self.entries.borrow().get(&path) {
             None => Opened::Absent,
             Some(entry) if entry.kind == EntryKind::Link => Opened::NotAFile,
-            Some(_) => Opened::Item(Handle { path, offset: 0 }),
+            Some(entry) => Opened::Item(Handle {
+                opened: Some(entry.meta()),
+                path,
+                offset: 0,
+            }),
         })
     }
 
     fn item_meta(&self, item: &Handle) -> io::Result<Meta> {
         self.step("item_meta", &item.path)?;
-        self.entries
-            .borrow()
-            .get(&item.path)
-            .map(Entry::meta)
-            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
+        match (self.entries.borrow().get(&item.path), item.opened) {
+            (Some(entry), _) => Ok(entry.meta()),
+            (None, Some(opened)) => Ok(Meta { links: 0, ..opened }),
+            (None, None) => Err(io::Error::from(io::ErrorKind::NotFound)),
+        }
     }
 
     fn read_item(&self, item: &mut Handle, buf: &mut [u8]) -> io::Result<usize> {
@@ -332,7 +337,11 @@ impl Fs for Memory {
             return Ok(None);
         }
         entries.insert(path.clone(), Entry::file(0o600, b""));
-        Ok(Some(Handle { path, offset: 0 }))
+        Ok(Some(Handle {
+            path,
+            offset: 0,
+            opened: None,
+        }))
     }
 
     fn write_temp(&self, temp: &mut Handle, bytes: &[u8]) -> io::Result<()> {
@@ -359,7 +368,7 @@ impl Fs for Memory {
         }
         let entry = entries
             .remove(&from)
-            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
+            .ok_or_else(|| io::Error::from_raw_os_error(ENOENT))?;
         entries.insert(to, entry);
         Ok(Published::Done)
     }
@@ -793,7 +802,7 @@ fn a_failed_step_of_a_delete_answers_its_class_and_keeps_the_item() {
         for code in CODES {
             let store = item(stored().failing(step, code));
             let want = if step == "remove" && code == ENOENT {
-                Delete::NotStored
+                Delete::Fault(Fault { code: -1 })
             } else {
                 delete_class(code)
             };
@@ -905,10 +914,6 @@ fn an_item_of_a_wider_mode_another_owner_another_kind_or_size_is_refused_and_kep
         (Entry::file(0o600, b"secret").with_acl(), Locked::Acl),
         (
             Entry::file(0o600, b"secret").with_links(2),
-            Locked::HardLink,
-        ),
-        (
-            Entry::file(0o600, b"secret").with_links(0),
             Locked::HardLink,
         ),
         (Entry::of(EntryKind::Directory), Locked::NotAFile),
@@ -1194,7 +1199,7 @@ fn a_delete_whose_removal_fails_with_an_error_that_the_system_does_not_call_abse
     let store = item(stored().failing("remove", FOLDED));
     assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
     let store = item(stored().failing("remove", ENOENT));
-    assert_eq!(store.delete(), Delete::NotStored);
+    assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
 }
 
 #[test]
@@ -1771,4 +1776,129 @@ fn a_claim_whose_rename_finds_nothing_while_the_name_stands_is_made_again_once()
         "{answer:?}"
     );
     assert_eq!(bytes_at(&store.fs, PATH), Some(STORED.to_vec()));
+}
+
+fn other_claim() -> String {
+    format!("{DIR}/.account.99999999.0.claim")
+}
+
+fn beside_a_live_claim() -> Memory {
+    Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (other_claim().as_str(), Entry::file(0o600, STORED)),
+    ])
+}
+
+fn the_owner_removes_its_claim(entries: &mut BTreeMap<PathBuf, Entry>) {
+    entries.remove(&PathBuf::from(other_claim()));
+}
+
+fn the_owner_names_its_claim_back(entries: &mut BTreeMap<PathBuf, Entry>) {
+    let file = entries
+        .remove(&PathBuf::from(other_claim()))
+        .expect("the owner's claim");
+    entries.insert(PathBuf::from(PATH), file);
+}
+
+#[test]
+fn a_settle_beside_another_process_s_claim_that_goes_answers_no_hard_link_and_no_enoent() {
+    type Owner = fn(&mut BTreeMap<PathBuf, Entry>);
+    let cases: [(&str, &str, Owner); 3] = [
+        ("open_item", "gone at the open", the_owner_removes_its_claim),
+        (
+            "item_meta",
+            "gone between the open and the metadata",
+            the_owner_removes_its_claim,
+        ),
+        (
+            "publish",
+            "named back by its owner first",
+            the_owner_names_its_claim_back,
+        ),
+    ];
+    for (step, case, owner) in cases {
+        let store = item(beside_a_live_claim().before_call(step, 1, owner));
+        let read = store.after_claims(Item::read);
+        let stands = bytes_at(&store.fs, PATH) == Some(STORED.to_vec());
+        match read {
+            Read::Found(held) => assert_eq!(held.expose(), STORED, "{case}"),
+            Read::NotStored => assert!(!stands, "{case}: NotStored while the file stands"),
+            Read::Fault(Fault { code: -1 }) => {}
+            read => panic!("{case}: the read answered {read:?}"),
+        }
+    }
+    let store = item(beside_a_live_claim().before_call("remove", 1, the_owner_removes_its_claim));
+    assert_eq!(store.settle_claimed(Some(STORED)), Ok(()));
+    assert!(store.fs.paths().iter().all(|path| path == DIR));
+}
+
+#[test]
+fn a_file_unlinked_between_open_and_fstat_is_not_a_hard_link() {
+    let unlinked = |entries: &mut BTreeMap<PathBuf, Entry>| {
+        entries.remove(&PathBuf::from(PATH));
+    };
+    let store = item(stored().before_call("item_meta", 1, unlinked));
+    let read = store.after_claims(Item::read);
+    assert!(matches!(read, Read::NotStored), "{read:?}");
+
+    let store = item(stored().before_call("item_meta", 1, unlinked));
+    assert_eq!(store.after_claims(Item::delete), Delete::NotStored);
+
+    let store = item(stored().before_call("item_meta", 1, unlinked));
+    assert!(matches!(
+        store.delete_if_holds(STORED),
+        DeleteIfHolds::NotStored
+    ));
+}
+
+#[test]
+fn an_item_whose_link_count_reads_0_is_no_file_and_the_listing_answers_for_it() {
+    let standing = Entry::file(0o600, STORED).with_links(0);
+    let entries = [(DIR, Entry::dir(0o700)), (PATH, standing)];
+    let store = item(Memory::with(&entries));
+    assert!(matches!(store.read(), Read::NotStored));
+    let read = store.after_claims(Item::read);
+    assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
+    assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
+    assert_eq!(bytes_at(&store.fs, PATH), Some(STORED.to_vec()));
+}
+
+#[test]
+fn a_removal_at_the_person_s_word_ends_a_claim_that_cannot_be_named_back_and_a_temporary_file() {
+    let stranded = format!("{DIR}/.account.4241.0.claim");
+    let left = format!("{DIR}/.account.4242.0.tmp");
+    let store = item(Memory::with(&[
+        (DIR, Entry::dir(0o700)),
+        (PATH, Entry::file(0o600, b"a later sign-in")),
+        (stranded.as_str(), Entry::file(0o600, STORED)),
+        (left.as_str(), Entry::file(0o600, STORED)),
+        ("/store/other-name", Entry::file(0o600, b"not of the store")),
+    ]));
+    let read = store.after_claims(Item::read);
+    assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
+    assert_eq!(store.remove_at_word(None), Delete::Deleted);
+    assert_eq!(store.fs.paths(), [DIR, "/store/other-name"]);
+    assert!(matches!(store.after_claims(Item::read), Read::NotStored));
+}
+
+#[test]
+fn a_live_write_beside_a_removal_at_the_person_s_word_answers_the_fault_of_its_rename() {
+    let removal = |entries: &mut BTreeMap<PathBuf, Entry>| {
+        let temps: Vec<PathBuf> = entries
+            .keys()
+            .filter(|path| path.to_string_lossy().ends_with(".tmp"))
+            .cloned()
+            .collect();
+        for temp in temps {
+            entries.remove(&temp);
+        }
+    };
+    let store = item(Memory::with(&[(DIR, Entry::dir(0o700))]).before_call("publish", 1, removal));
+    assert_eq!(
+        store.write(&secret(STORED)),
+        Write::Fault(Fault {
+            code: i64::from(ENOENT)
+        })
+    );
+    assert_eq!(store.fs.paths(), [DIR]);
 }

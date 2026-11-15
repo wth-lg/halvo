@@ -69,6 +69,11 @@ impl FileSide for MovedUnderTheRead {
         Write::Occupied
     }
 
+    fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+        let _ = keychain;
+        self.delete()
+    }
+
     fn delete(&self) -> Delete {
         Delete::NotStored
     }
@@ -207,6 +212,14 @@ impl FileSide for File {
         }
         *bytes = Some(secret.expose().to_vec());
         Write::Stored
+    }
+
+    fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+        match self.settle(keychain) {
+            Ok(()) => self.delete(),
+            Err(Ok(locked)) => Delete::Locked(locked),
+            Err(Err(fault)) => Delete::Fault(fault),
+        }
     }
 
     fn delete(&self) -> Delete {
@@ -1008,6 +1021,11 @@ impl FileSide for MovedUnderTheDelete {
         Write::Occupied
     }
 
+    fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+        let _ = keychain;
+        self.delete()
+    }
+
     fn delete(&self) -> Delete {
         let held = self.bytes.borrow_mut().take();
         if let Some(bytes) = held {
@@ -1654,6 +1672,10 @@ mod real_files {
             self.inner.write(secret)
         }
 
+        fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+            self.inner.remove_at_word(keychain)
+        }
+
         fn delete(&self) -> Delete {
             self.inner.delete()
         }
@@ -1940,6 +1962,10 @@ mod real_files {
             self.inner.write(secret)
         }
 
+        fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+            self.inner.remove_at_word(keychain)
+        }
+
         fn delete(&self) -> Delete {
             self.inner.delete()
         }
@@ -2040,6 +2066,10 @@ mod real_files {
 
         fn write(&self, secret: &Secret) -> Write {
             self.inner.write(secret)
+        }
+
+        fn remove_at_word(&self, keychain: Option<&[u8]>) -> Delete {
+            self.inner.remove_at_word(keychain)
         }
 
         fn delete(&self) -> Delete {
@@ -2171,9 +2201,14 @@ mod real_files {
             },
             keychain: keys(Keys::empty()),
         };
-        assert_eq!(unsigned.delete(), Delete::Fault(Fault { code: -1 }));
+        let answer = unsigned.delete();
         named_back(label, &claim);
-        assert_eq!(found(file_item(label).read()), X);
+        let stands = matches!(file_item(label).read(), Read::Found(held) if held.expose() == X);
+        match answer {
+            Delete::Deleted => assert!(!stands, "Deleted while X stands"),
+            Delete::Fault(Fault { code: -1 }) => assert!(stands, "Fault and X is gone"),
+            answer => panic!("the delete answered {answer:?}"),
+        }
     }
 
     #[test]
@@ -2199,5 +2234,340 @@ mod real_files {
             );
             assert_eq!(found(file_item(&label).read()), X, "{keeps:?}");
         }
+    }
+
+    use crate::place::{Fs, Meta, Opened, Published, Walk};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum At {
+        Claim,
+        OpenName,
+        RemoveName,
+        OpenClaim,
+        MetaOfClaim,
+        RenameBack,
+        RemoveClaim,
+    }
+
+    struct HookedFs {
+        at: At,
+        hook: Hook,
+        opened: RefCell<String>,
+    }
+
+    impl HookedFs {
+        fn fire(&self, at: At) {
+            if self.at == at {
+                let hook = self.hook.borrow_mut().take();
+                if let Some(hook) = hook {
+                    hook();
+                }
+            }
+        }
+    }
+
+    impl Fs for HookedFs {
+        type Dir = <UnixFs as Fs>::Dir;
+        type Item = <UnixFs as Fs>::Item;
+        type Temp = <UnixFs as Fs>::Temp;
+
+        fn user(&self) -> u32 {
+            Fs::user(&UnixFs)
+        }
+
+        fn walk(&self, path: &std::path::Path) -> std::io::Result<Walk<Self::Dir>> {
+            Fs::walk(&UnixFs, path)
+        }
+
+        fn make_dir(&self, parent: &Self::Dir, name: &std::ffi::OsStr) -> std::io::Result<()> {
+            Fs::make_dir(&UnixFs, parent, name)
+        }
+
+        fn is_absent(&self, error: &std::io::Error) -> bool {
+            Fs::is_absent(&UnixFs, error)
+        }
+
+        fn exists(&self, dir: &Self::Dir, name: &str) -> std::io::Result<bool> {
+            Fs::exists(&UnixFs, dir, name)
+        }
+
+        fn open_item(&self, dir: &Self::Dir, name: &str) -> std::io::Result<Opened<Self::Item>> {
+            if name == "account" {
+                self.fire(At::OpenName);
+            } else if name.ends_with(".claim") {
+                self.fire(At::OpenClaim);
+            }
+            *self.opened.borrow_mut() = name.to_string();
+            Fs::open_item(&UnixFs, dir, name)
+        }
+
+        fn item_meta(&self, item: &Self::Item) -> std::io::Result<Meta> {
+            if self.opened.borrow().ends_with(".claim") {
+                self.fire(At::MetaOfClaim);
+            }
+            Fs::item_meta(&UnixFs, item)
+        }
+
+        fn read_item(&self, item: &mut Self::Item, buf: &mut [u8]) -> std::io::Result<usize> {
+            Fs::read_item(&UnixFs, item, buf)
+        }
+
+        fn create_temp(&self, dir: &Self::Dir, name: &str) -> std::io::Result<Option<Self::Temp>> {
+            Fs::create_temp(&UnixFs, dir, name)
+        }
+
+        fn write_temp(&self, temp: &mut Self::Temp, bytes: &[u8]) -> std::io::Result<()> {
+            Fs::write_temp(&UnixFs, temp, bytes)
+        }
+
+        fn sync_temp(&self, temp: &Self::Temp) -> std::io::Result<()> {
+            Fs::sync_temp(&UnixFs, temp)
+        }
+
+        fn publish(&self, dir: &Self::Dir, from: &str, to: &str) -> std::io::Result<Published> {
+            if from.ends_with(".claim") && to == "account" {
+                self.fire(At::RenameBack);
+            }
+            let published = Fs::publish(&UnixFs, dir, from, to)?;
+            if matches!(published, Published::Done) && to.ends_with(".claim") {
+                self.fire(At::Claim);
+            }
+            Ok(published)
+        }
+
+        fn remove(&self, dir: &Self::Dir, name: &str) -> std::io::Result<()> {
+            if name == "account" {
+                self.fire(At::RemoveName);
+            } else if name.ends_with(".claim") {
+                self.fire(At::RemoveClaim);
+            }
+            Fs::remove(&UnixFs, dir, name)
+        }
+
+        fn sync_dir(&self, dir: &Self::Dir) -> std::io::Result<()> {
+            Fs::sync_dir(&UnixFs, dir)
+        }
+
+        fn names(&self, dir: &Self::Dir) -> std::io::Result<Vec<String>> {
+            Fs::names(&UnixFs, dir)
+        }
+    }
+
+    fn hooked_item(label: &str, at: At, hook: Box<dyn FnOnce()>) -> Item<HookedFs, Plain> {
+        Item {
+            fs: HookedFs {
+                at,
+                hook: RefCell::new(Some(hook)),
+                opened: RefCell::new(String::new()),
+            },
+            codec: Plain,
+            rules: Rules::Private,
+            dir: parent(label).join("store"),
+            name: Name::new("account").expect("a name"),
+        }
+    }
+
+    fn signed_delete_if_holds_beside(label: &str, items: &Items) -> Box<dyn FnOnce()> {
+        let other_items = Rc::clone(items);
+        let label = label.to_string();
+        Box::new(move || {
+            let keychain = keys(SharedKeys { items: other_items });
+            assert!(matches!(
+                keychain.delete_if_holds(X),
+                DeleteIfHolds::Deleted
+            ));
+            assert_eq!(file_item(&label).settle_claimed(None), Ok(()));
+        })
+    }
+
+    fn in_keychain(items: &Items) -> Vec<String> {
+        items
+            .borrow()
+            .iter()
+            .map(|held| String::from_utf8_lossy(held).into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn a_write_whose_move_claim_another_process_puts_back_stores_no_second_credential() {
+        let label = "write-beside-a-put-back-claim";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        let this = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_item(
+                label,
+                At::Claim,
+                signed_delete_if_holds_beside(label, &items),
+            ),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        let y: &[u8] = b"credential Y of a second sign-in";
+        let wrote = this.write(&secret(y));
+        let file_x = matches!(file_item(label).read(), Read::Found(held) if held.expose() == X);
+        let keychain_y = items.borrow().iter().any(|held| held.as_slice() == y);
+        println!(
+            "write-beside-a-put-back-claim wrote={wrote:?} file_x={file_x} keychain={:?} names={:?}",
+            in_keychain(&items),
+            names_in(label)
+        );
+        assert!(
+            !(matches!(wrote, Write::Stored) && file_x),
+            "the write stored a second credential while X stands in the file"
+        );
+        assert!(
+            !(file_x && keychain_y),
+            "X in the file and Y in the Keychain"
+        );
+    }
+
+    #[test]
+    fn a_move_whose_claim_another_process_puts_back_never_reads_not_stored_while_the_file_stands() {
+        let label = "read-beside-a-put-back-claim";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        let this = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_item(
+                label,
+                At::Claim,
+                signed_delete_if_holds_beside(label, &items),
+            ),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        let read = this.read();
+        let stands = stands(label, &items, X);
+        println!(
+            "read-beside-a-put-back-claim read={read:?} stands={stands} keychain={:?} names={:?}",
+            in_keychain(&items),
+            names_in(label)
+        );
+        assert!(stands, "X stands after the read");
+        assert!(
+            !matches!(read, Read::NotStored),
+            "the move read NotStored while X stands"
+        );
+    }
+
+    #[test]
+    fn a_removal_of_the_file_during_another_process_claim_never_answers_not_stored() {
+        for (keeps, at) in [
+            (Keeps::File, At::OpenName),
+            (Keeps::Keychain, At::OpenName),
+            (Keeps::File, At::RemoveName),
+            (Keeps::Keychain, At::RemoveName),
+        ] {
+            let label = format!("removal-{keeps:?}-{at:?}-during-a-claim").to_lowercase();
+            assert_eq!(file_item(&label).write(&secret(X)), Write::Stored);
+            let (hook, claim) = claim_of_another_process(&label);
+            let items: Items = Rc::new(RefCell::new(Vec::new()));
+            let this = Mac {
+                keeps,
+                file: hooked_item(&label, at, hook),
+                keychain: keys(SharedKeys {
+                    items: Rc::clone(&items),
+                }),
+            };
+            let removed = this.remove(StoreKind::File);
+            named_back(&label, &claim);
+            let stands = stands(&label, &items, X);
+            println!("removal {keeps:?} {at:?} removed={removed:?} stands={stands}");
+            assert_ne!(
+                removed,
+                Some(Delete::NotStored),
+                "{keeps:?} {at:?}: the removal answered NotStored while X stood in a claim"
+            );
+            assert_eq!(
+                removed == Some(Delete::Deleted),
+                !stands,
+                "{keeps:?} {at:?}: {removed:?}"
+            );
+        }
+    }
+
+    fn vanishing(label: &str, at: At) -> (Box<dyn FnOnce()>, std::path::PathBuf) {
+        let store = parent(label).join("store");
+        let claim = store.join(format!(".account.{}.0.claim", std::process::id() + 1));
+        let gone = claim.clone();
+        let name = store.join("account");
+        let hook: Box<dyn FnOnce()> = Box::new(move || match at {
+            At::RenameBack => std::fs::rename(&gone, &name).expect("the owner names it back"),
+            _ => std::fs::remove_file(&gone).expect("the owner removes its claim"),
+        });
+        (hook, claim)
+    }
+
+    #[test]
+    fn a_read_beside_another_process_s_claim_that_goes_answers_no_hard_link_and_no_enoent() {
+        for (keeps, at, keychain) in [
+            (Keeps::File, At::OpenClaim, false),
+            (Keeps::File, At::MetaOfClaim, false),
+            (Keeps::File, At::RenameBack, false),
+            (Keeps::Keychain, At::OpenClaim, false),
+            (Keeps::Keychain, At::MetaOfClaim, false),
+            (Keeps::Keychain, At::RenameBack, false),
+            (Keeps::Keychain, At::RemoveClaim, true),
+        ] {
+            let label = format!("settle-{keeps:?}-{at:?}-{keychain}").to_lowercase();
+            assert_eq!(file_item(&label).write(&secret(X)), Write::Stored);
+            let store = parent(&label).join("store");
+            std::fs::rename(
+                store.join("account"),
+                store.join(format!(".account.{}.0.claim", std::process::id() + 1)),
+            )
+            .expect("another process's live claim");
+            let items: Items = Rc::new(RefCell::new(Vec::new()));
+            if keychain {
+                items.borrow_mut().push(X.to_vec());
+            }
+            let (hook, _claim) = vanishing(&label, at);
+            let this = Mac {
+                keeps,
+                file: hooked_item(&label, at, hook),
+                keychain: keys(SharedKeys {
+                    items: Rc::clone(&items),
+                }),
+            };
+            let read = this.read();
+            let stands = stands(&label, &items, X);
+            println!("settle {keeps:?} {at:?} read={read:?} stands={stands}");
+            match read {
+                Read::Found(held) => assert_eq!(held.expose(), X, "{keeps:?} {at:?}"),
+                Read::NotStored => assert!(!stands, "{keeps:?} {at:?}: NotStored while X stands"),
+                Read::Fault(Fault { code: -1 }) => {}
+                read => panic!("{keeps:?} {at:?}: the read answered {read:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_move_whose_claim_another_process_removes_after_its_open_reads_found() {
+        let label = "move-claim-removed-after-its-open";
+        assert_eq!(file_item(label).write(&secret(X)), Write::Stored);
+        let store = parent(label).join("store");
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            let claim = std::fs::read_dir(&store)
+                .expect("the store directory")
+                .map(|entry| entry.expect("an entry").path())
+                .find(|path| path.to_string_lossy().ends_with(".claim"))
+                .expect("the move's claim");
+            std::fs::remove_file(claim).expect("another process ends the move");
+        });
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        let this = Mac {
+            keeps: Keeps::Keychain,
+            file: hooked_item(label, At::MetaOfClaim, hook),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        let read = this.read();
+        assert_eq!(found(read), X);
+        assert_eq!(*items.borrow(), [X.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
     }
 }
