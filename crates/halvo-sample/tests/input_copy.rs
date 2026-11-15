@@ -303,3 +303,83 @@ fn an_input_copy_keeps_every_run_mark_of_its_tier() {
         assert_eq!(count(&out, edge), in_tier, "{edge}");
     }
 }
+
+fn without_entry(tier: &Path, rel: &str) {
+    let mp = tier.join("manifest.toml");
+    let mut m = TierManifest::parse(&fs::read(&mp).expect("m")).expect("parse");
+    let before = m.files.len();
+    m.files.retain(|f| f.0 != rel);
+    assert_eq!(m.files.len() + 1, before, "{rel}");
+    fs::write(&mp, m.write()).expect("w");
+}
+
+#[test]
+fn the_tier_manifest_refusal_names_the_tier_argument_and_a_count_alone() {
+    let dir = scratch("tier-detail");
+    let t = tier(&dir, true);
+    let walk = dir.join("walk");
+    write(&walk.join("notes.md"), "nothing here\n");
+    let layer_set = dir.join("set.toml");
+    write(&layer_set, "envelope = [\"app\"]\nlayers = [\"accessibility_text\"]\n[kinds]\nforeground_app = []\nwindow_title = [\"text\"]\n");
+    let expect = |tier: &Path, detail: &str| {
+        let arg = s(tier);
+        let want = format!("REFUSED tier-manifest: {arg}{detail}\n");
+        for o in [
+            run(&[
+                "input-copy",
+                "--input-set",
+                &app_title(),
+                &arg,
+                &s(&dir.join("o")),
+            ]),
+            run(&["leak", &arg, &s(&walk)]),
+        ] {
+            refused(&o, "tier-manifest");
+            assert_eq!(o.stderr, want);
+        }
+    };
+    let listed: Vec<String> = files_under(&t)
+        .into_iter()
+        .filter(|f| f.starts_with("streams/"))
+        .collect();
+    assert!(listed.len() >= 3, "{listed:?}");
+    let changed = dir.join("changed");
+    copy_dir(&t, &changed);
+    for f in &listed[..3] {
+        let p = changed.join(f);
+        let mut bytes = fs::read(&p).expect("listed file");
+        bytes.push(b'\n');
+        fs::write(&p, bytes).expect("w");
+    }
+    expect(&changed, " mismatched=3");
+    let gone = dir.join("gone");
+    copy_dir(&t, &gone);
+    fs::rename(gone.join(&listed[0]), dir.join("moved-day")).expect("move a listed file");
+    expect(&gone, " mismatched=1");
+    let none = dir.join("none");
+    copy_dir(&t, &none);
+    fs::rename(none.join("manifest.toml"), dir.join("moved-manifest")).expect("move");
+    expect(&none, "");
+    let bad = dir.join("bad");
+    copy_dir(&t, &bad);
+    write(&bad.join("manifest.toml"), "tier = \n");
+    expect(&bad, "");
+    for (name, rel) in [
+        ("no-steps", "script-manifest.jsonl"),
+        ("no-layers", "layers/steps.jsonl"),
+    ] {
+        let c = dir.join(name);
+        copy_dir(&t, &c);
+        without_entry(&c, rel);
+        let o = run(&[
+            "input-copy",
+            "--input-set",
+            &s(&layer_set),
+            &s(&c),
+            &s(&dir.join("o")),
+        ]);
+        refused(&o, "tier-manifest");
+        assert_eq!(o.stderr, format!("REFUSED tier-manifest: {}\n", s(&c)));
+    }
+    assert!(!dir.join("o").exists());
+}

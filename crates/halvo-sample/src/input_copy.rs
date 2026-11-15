@@ -47,18 +47,29 @@ pub fn stream_days(m: &TierManifest) -> BTreeMap<String, Vec<(u32, String)>> {
     out
 }
 
+/// The `tier-manifest` refusal of contracts.md C12.8: the TIER argument as given and, where listed files do not
+/// hash to their entries, their number; never a path that the manifest lists.
+pub fn tier_fault(tier: &Path, mismatched: usize) -> Refusal {
+    let arg = tier.display();
+    if mismatched == 0 {
+        Refusal::new("tier-manifest", arg.to_string())
+    } else {
+        Refusal::new("tier-manifest", format!("{arg} mismatched={mismatched}"))
+    }
+}
+
 /// Reads and checks a tier's manifest: the file exists, is of C9.3, and every file it lists hashes to its
-/// entry. The cause is `tier-manifest`.
+/// entry. The cause is `tier-manifest`, with the detail of [`tier_fault`].
 pub fn read_tier(tier: &Path) -> Result<(TierManifest, String), Refusal> {
-    let path = tier.join("manifest.toml");
-    let fault = |p: &Path| Refusal::new("tier-manifest", p.display().to_string());
-    let bytes = fs::read(&path).map_err(|_| fault(&path))?;
-    let m = TierManifest::parse(&bytes).ok_or_else(|| fault(&path))?;
-    for (rel, hash) in &m.files {
-        let p = tier.join(rel);
-        if file_sha256(&p).ok().as_deref() != Some(hash.as_str()) {
-            return Err(fault(&p));
-        }
+    let bytes = fs::read(tier.join("manifest.toml")).map_err(|_| tier_fault(tier, 0))?;
+    let m = TierManifest::parse(&bytes).ok_or_else(|| tier_fault(tier, 0))?;
+    let mismatched = m
+        .files
+        .iter()
+        .filter(|(rel, hash)| file_sha256(&tier.join(rel)).ok().as_deref() != Some(hash.as_str()))
+        .count();
+    if mismatched > 0 {
+        return Err(tier_fault(tier, mismatched));
     }
     Ok((m, crate::form::sha256_hex(&bytes)))
 }
@@ -210,15 +221,15 @@ fn layer_line(stream: &str, at: i64, rec: &LayerRecord, wanted: &[Layer]) -> Str
 }
 
 fn checked(tier: &Path, m: &TierManifest, rel: &str) -> Result<Vec<u8>, Refusal> {
-    let p = tier.join(rel);
     let listed = m
         .files
         .iter()
         .find(|(r, _)| r == rel)
-        .map(|(_, h)| h.clone());
-    let bytes = fs::read(&p).map_err(|_| Refusal::new("tier-manifest", p.display().to_string()))?;
-    if listed.as_deref() != Some(crate::form::sha256_hex(&bytes).as_str()) {
-        return Err(Refusal::new("tier-manifest", p.display().to_string()));
+        .map(|(_, h)| h.clone())
+        .ok_or_else(|| tier_fault(tier, 0))?;
+    let bytes = fs::read(tier.join(rel)).map_err(|_| tier_fault(tier, 1))?;
+    if listed != crate::form::sha256_hex(&bytes) {
+        return Err(tier_fault(tier, 1));
     }
     Ok(bytes)
 }
@@ -259,9 +270,13 @@ fn read_layers(
         None => {
             let p = args.tier.join("layers/steps.jsonl");
             let b = fs::read(&p).map_err(|_| Refusal::new("layers", p.display().to_string()))?;
-            let listed = m.files.iter().find(|(r, _)| r == "layers/steps.jsonl");
-            if listed.map(|(_, h)| h.as_str()) != Some(crate::form::sha256_hex(&b).as_str()) {
-                return Err(Refusal::new("tier-manifest", p.display().to_string()));
+            let listed = m
+                .files
+                .iter()
+                .find(|(r, _)| r == "layers/steps.jsonl")
+                .ok_or_else(|| tier_fault(&args.tier, 0))?;
+            if listed.1 != crate::form::sha256_hex(&b) {
+                return Err(tier_fault(&args.tier, 1));
             }
             (p, b)
         }

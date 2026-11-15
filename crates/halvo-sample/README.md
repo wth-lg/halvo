@@ -84,8 +84,9 @@ name, from 1. No name below the argument is printed, because a file's name may b
   played, as `build` does.
 - `check-labels` follows a DIR argument that is itself a symbolic link; only the entries below
   DIR are held to the rule on links.
-- The `tier-manifest` refusal of `leak` and of `input-copy` prints a path below TIER: TIER
-  joined with the path that the manifest lists.
+- The detail of the `tier-manifest` refusal of `leak` and of `input-copy` is the TIER argument
+  as given. Where listed files do not hash to their entries, ` mismatched=<n>` follows it, n
+  being the number of such files. It never holds a path that the manifest lists.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.
