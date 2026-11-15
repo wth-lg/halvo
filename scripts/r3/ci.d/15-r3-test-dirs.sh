@@ -641,6 +641,18 @@ self_test() {
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    assert!(fs::create_dir(&d).is_ok() || d.is_dir(), "{note}");\n    d\n}\n'
   case_of loop-word-in-a-string FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
 
+  repo loop-word-in-a-string-beside-a-return
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let d = base.join(format!("x-{}", std::process::id()));\n    let note = "made for the test";\n    if fs::create_dir(&d).is_ok() {\n        return d;\n    }\n    panic!("{note}")\n}\n'
+  case_of loop-word-in-a-string-beside-a-return FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo return-word-in-a-string
+  put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    let mut last = PathBuf::new();\n    for case in ["one", "two"] {\n        let dir = base.join(format!("x-{case}-{}", std::process::id()));\n        if fs::create_dir(&dir).is_ok() {\n            println!("return later");\n        }\n        last = dir;\n    }\n    last\n}\n'
+  case_of return-word-in-a-string FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
+
+  repo variable-from-a-variable
+  put crates/a/tests/t.rs 'fn aside() {\n    let first = u64::from(std::process::id()) << 32;\n    let moved = removing_name(first);\n    fs::write(folder.join(&moved), b"mine").unwrap();\n    fs::create_dir_all(scratch.join("data")).unwrap();\n}\n'
+  case_of variable-from-a-variable PASS 'test-dirs files=1 places=0 known=0 faults=0'
+
   repo create-dir-all-retried-in-a-loop
   put crates/a/tests/t.rs 'fn scratch() -> PathBuf {\n    loop {\n        let d = base.join(format!("x-{}", std::process::id()));\n        if fs::create_dir_all(&d).is_ok() {\n            return d;\n        }\n    }\n}\n'
   case_of create-dir-all-retried-in-a-loop FAIL 'test-dirs unknown=crates/a/tests/t.rs places=1'
