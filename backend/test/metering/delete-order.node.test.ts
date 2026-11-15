@@ -584,3 +584,19 @@ describe("a hold counts as open only before its stored expiry (unit 5.6, P7-110 
     w.close();
   });
 });
+
+describe("one cancel call at a time for one id, and the cut interval's send first (unit 5.6, P7-110 L4)", () => {
+  test("L4 (a): the alarm delivered during the cancel call of a destroy from outside makes no second cancel call", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    await w.entries().webhookEvent(subscriptionEvent({ eventId: "evt_sub", providerTime: START }));
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(START + 10 * MINUTE);
+    d.during = () => quiet(w.lines, () => w.entries().alarm());
+    const answer = await destroy(w);
+    expect(answer).toEqual({ result: "deleted" });
+    expect(w.calls.filter((each) => each.kind === "cancel").map((each) => [each.subscriptionId, each.answer])).toEqual([["sub_1", "cancelled"]]);
+    w.close();
+  });
+});

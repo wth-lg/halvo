@@ -155,6 +155,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const { accounts, ledger, metering } = modules;
   const removalRejections = new WeakSet<object>();
   const dueErrors: unknown[] = [];
+  const cancelsInFlight = new Map<string, { since: Ms; call: object }>();
   const leavesDestroy = (error: unknown) =>
     errorName(error) === "ObjectStoppedError" || (typeof error === "object" && error !== null && removalRejections.has(error));
 
@@ -568,6 +569,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
+      if (hash === null && subscriptionId !== null && cancelsInFlight.has(subscriptionId)) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
       return { kind: "cancel", subscriptionId, mark: mark.since };
     });
@@ -593,7 +595,15 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     const mark = next.mark;
     const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId } : null;
     if (made !== null) {
-      const cancelled = await host.port.cancelSubscription(made.subscriptionId);
+      const id = made.subscriptionId;
+      const call = {};
+      if (id !== null) cancelsInFlight.set(id, { since: host.clock(), call });
+      let cancelled: Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
+      try {
+        cancelled = await host.port.cancelSubscription(id);
+      } finally {
+        if (id !== null && cancelsInFlight.get(id)?.call === call) cancelsInFlight.delete(id);
+      }
       if (cancelled.kind === "failed") {
         const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
           if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
