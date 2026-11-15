@@ -68,7 +68,12 @@ report was lost". It prints "egress asking denied=<n> probes=<n> tries=<n>", and
 denied. In the words of E-16: denied counts the reports that arrived, and a reach by an asked word is
 stopped by the mode whether or not its report arrives; on this Mac 3 of 20 wrapped askings over all
 words lost the report of a reach and 0 of 20 over one word (SG-64 item 4, round 3 of builder-26). The
-asking holds nothing that the forbid run does not. The windows job does not ask: there the egress check's rule
+asking holds nothing that the forbid run does not. The asker reads its words before the first ask, keeps
+its record of the found words in its own memory and prints it to standard output, into a file under
+target/egress/ where the egress check lets no wrapped program write; the count of words that it asked
+must equal the count of words that it was given, or the check fails by "egress asking asked=<n> of <n>
+words". A literal on a line whose quotes do not pair, as with a raw string or a comment mark, may be
+missed. The windows job does not ask: there the egress check's rule
 names the wrapped program, so a reach by a child of a wrapped shell is logged and failed, not
 stopped; the forbid run holds the code that the windows job compiles, and every command of the first
 list runs.
@@ -838,9 +843,10 @@ loopback=$6
 unknown='REFUSED usage: unknown command'
 nl='
 '
+all=$(cat "$words") || exit 2
+found=
 sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
 mkdir -p "$answers/discover" || exit 2
-: >"$answers/commands.txt" || exit 2
 cd "$answers/discover" || exit 2
 (
   trap 'kill "$nap" 2>/dev/null; exit 0' TERM
@@ -866,17 +872,25 @@ answers_unknown() {
   [ "$code" -eq 2 ] && [ ! -s "$answers/ask.out" ] && [ "$answer" = "$unknown$nl" ]
 }
 asked=0
-while IFS= read -r word || [ -n "$word" ]; do
+while IFS= read -r word; do
+  [ -n "$word" ] || continue
   asked=$((asked + 1))
   printf '%s\n' "$word" >"$answers/asking"
   if ! answers_unknown "$word" || ! answers_unknown "$word" "$probe"; then
-    printf '%s\n' "$word" >>"$answers/commands.txt"
+    found=$found$word$nl
   fi
-done <"$words"
-printf '%s\n' "$asked" >"$answers/asked"
+done <<WORDS
+$all
+WORDS
 sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
 kill "$watchdog" 2>/dev/null
 wait "$watchdog"
+printf 'asked %s\n' "$asked"
+while IFS= read -r word; do
+  [ -z "$word" ] || printf 'found %s\n' "$word"
+done <<FOUND
+$found
+FOUND
 exit 0
 EOF
 }
@@ -1059,8 +1073,10 @@ discover() {
     mkdir -p "$answers" || fail setup
     egress_numbers "$work/before-asking-$try.txt"
     list_copy
+    record=target/egress/r6-asking-$$-$try.out
+    mkdir -p target/egress || fail setup
     sh scripts/egress/check.sh "$list_given" -- sh "$work/asker.sh" "$exe" "$work/candidates.txt" "$answers" "$seconds" \
-      "$probe_word" "$repo_abs/scripts/egress/probe.sh" >"$artifacts/asking-$try.out" 2>"$artifacts/asking-$try.err" </dev/null
+      "$probe_word" "$repo_abs/scripts/egress/probe.sh" >"$record" 2>"$artifacts/asking-$try.err" </dev/null
     code=$?
     list_after asking
     read_wrapped "$artifacts/asking-$try.err"
@@ -1104,10 +1120,15 @@ discover() {
       fi
       ;;
   esac
-  if [ -f "$answers/asked" ]; then
-    IFS= read -r asked <"$answers/asked" || asked=0
+  cp "$record" "$artifacts/asking-$try.out" || fail setup
+  sed -n 's/^found //p' "$record" >"$work/commands.txt" || fail setup
+  asked=$(sed -n 's/^asked //p' "$record") || fail setup
+  words=$(awk 'NF { n++ } END { print n + 0 }' "$work/candidates.txt") || fail setup
+  if [ "$asked" != "$words" ]; then
+    printf 'egress asking asked=%s of %s words\n' "${asked:--}" "$words"
+    asked=0
+    ran=no
   fi
-  cp "$answers/commands.txt" "$work/commands.txt" 2>/dev/null || : >"$work/commands.txt"
 }
 
 compare_lists() {
@@ -1432,6 +1453,16 @@ fi
 if [ "$#" -eq 1 ] && [ "$1" = hangword ] && [ -n "$STUB_HANG" ]; then
   exec sleep 30
 fi
+if [ "$1" = eraser ] && [ "$STUB_ERASER" = killer ]; then
+  kill -9 "$PPID"
+  exit 0
+fi
+if [ "$1" = eraser ] && [ -n "$STUB_ERASER" ]; then
+  if [ -f ../commands.txt ]; then
+    awk '$0 != "eraser"' ../commands.txt >../commands.kept && mv ../commands.kept ../commands.txt
+  fi
+  exit 0
+fi
 if [ "$1" = argword ] && [ -n "$STUB_ARGONLY" ]; then
   [ "$#" -ge 2 ] && exit 0
 fi
@@ -1493,7 +1524,7 @@ fn main() {
     let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
     let adjacent = words! {"see help","adjword"};
     let odd = ["stdoutword", "exitword", "textword"];
-    let wrapped = ["reachword", "hangword", "argword"];
+    let wrapped = ["reachword", "hangword", "argword", "eraser"];
     let q = '"'; let w = "quoteword";
 }
 EOF
@@ -1648,6 +1679,7 @@ case_reset() {
   STUB_COMMANDS='generate import derive score self-test spend-sim probe'
   STUB_RUN_EXIT=0
   STUB_REACH=
+  STUB_ERASER=
   STUB_PROBE=
   STUB_HANG=
   STUB_CONTROL=
@@ -1686,7 +1718,7 @@ case_run() {
     return
   fi
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2005,7 +2037,7 @@ self_test() {
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=23 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=7 asked=24 run=6 cannot=1 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid profile=dev findings=0 exit=0'
   case_run asking-wrapped PASS - 'egress asking denied=0 probes=2 tries=1 command=0 exit=1'
@@ -2025,6 +2057,10 @@ self_test() {
   STUB_HANG=1
   case_env=R6_EGRESS_ASKING_SECONDS=2
   case_run asking-hangs-past-its-deadline FAIL check 'egress asking timeout=2 word=hangword'
+  STUB_ERASER=erase
+  case_run found-command-that-erases-its-record FAIL check 'egress on-neither-list=eraser'
+  STUB_ERASER=killer
+  case_run asked-command-that-kills-the-asker FAIL check 'egress asking asked=- of 24 words'
   STUB_PROBE=lost
   case_run asking-report-lost-four-times FAIL check "egress asking: the asking's report was lost in 4 tries"
   STUB_PROBE=lost-once
@@ -2174,7 +2210,7 @@ self_test() {
   STUB_COMMANDS='generate import derive score self-test spend-sim'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=23'
+  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=24'
   STUB_CHECK=denied
   case_run denied-in-each-run FAIL denied 'egress checks=6 denied=7 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
