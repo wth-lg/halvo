@@ -250,6 +250,32 @@ pre-release-commit-message = "Release {{version}} of {{crate_name}}"' template_c
   STUB_CONFIG='tag-name = "v{{version}}"
 tag-message = "Release {{date}}"
 pre-release-commit-message = "Release 1.2.4"' template_case template-left-in-the-tag-message --execute
+  upgrading='   Upgrading workspace to version 0.0.1
+   Upgrading halvo-control from 0.0.0 to 0.0.1 (inherited from workspace)
+   Upgrading halvo-connect from 0.0.0 to 0.0.1
+   Upgrading halvo-web from 0.0.0 to 0.0.1'
+  network_case() {
+    case_name=$1 want_index=$2 want_line=$3
+    STUB_STATUS=1 STUB_TEXT=$4 release_case "$case_name" 1 yes "$want_line" --dry-run
+    named=no
+    grep -q index.crates.io "$work/out-$case_name" && named=yes
+    got=FAIL
+    [ "$named" = "$want_index" ] && grep -q -F -e "release.sh: cargo-release failed: $want_line" "$work/out-$case_name" && got=PASS
+    verdict "$case_name-names-the-index-$want_index" PASS "$got"
+  }
+  readme_error="error: for \`which is \`[0-9]+\\.[0-9]+\\.[0-9]+\` now\` in '../README.md', at least 1 replacements expected, found 0"
+  network_case replacement-failure no "$readme_error" "$upgrading
+
+$readme_error"
+  network_case dirty-tree no 'error: uncommitted changes detected, please resolve before release:' "error: uncommitted changes detected, please resolve before release:
+         crates/halvo-connect/Cargo.toml (Status(WT_MODIFIED))
+$upgrading"
+  network_case hook-refusal no 'error: CHANGELOG.md:315: this line is not a typed entry' "$upgrading
+error: CHANGELOG.md:315: this line is not a typed entry, - <Type>: <text>, so the release cannot group it
+error: release of halvo aborted by non-zero return of prerelease hook."
+  network_case connection-refused yes 'error: io: Connection refused (os error 61)' 'error: io: Connection refused (os error 61)'
+  grep -q 'check that this computer is online and run the same command again' "$work/out-connection-refused" && got=PASS || got=FAIL
+  verdict connection-refused-says-what-to-do PASS "$got"
   STUB_STATUS=1 STUB_TEXT='error: the pre-release hook exited 1' release_case other-failure-prints-its-error-line 1 yes 'error: the pre-release hook exited 1' --dry-run
   grep -q index.crates.io "$work/out-other-failure-prints-its-error-line" && got=FAIL || got=PASS
   verdict other-failure-names-no-network PASS "$got"

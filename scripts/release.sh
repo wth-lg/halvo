@@ -40,11 +40,18 @@ fail() {
   exit 1
 }
 
+error_chain() {
+  awk '/^error:/ { print; under = 0; next } /^Caused by:/ { print; under = 1; next } under && /^[ \t]/ { print; next } { under = 0 }'
+}
+
 cargo_failed() {
-  first=$(printf '%s\n' "$2" | grep -i -m 1 'error')
-  cause="$1 failed: ${first:-it printed no error line}"
-  if printf '%s\n' "$2" | grep -q -i -E 'lookup|resolve|connect|network|timed out|dns'; then
-    cause="$cause. Every dry run and every release asks index.crates.io about each package of the workspace and needs the network."
+  first=$(printf '%s\n' "$2" | sed -n '/^error:/{p;q;}')
+  [ -n "$first" ] || first=$(printf '%s\n' "$2" | awk 'NF { last = $0 } END { print last }')
+  cause="$1 failed: ${first:-it printed nothing}"
+  chain=$(printf '%s\n' "$2" | error_chain)
+  if printf '%s\n' "$chain" | grep -q -F -e 'Connection refused' -e 'connection reset' -e 'Could not resolve host' -e "Couldn't resolve host" \
+    -e 'failed to resolve address' -e 'failed to lookup address' -e 'dns error' -e 'timed out' -e 'Network is unreachable' -e 'failed to connect'; then
+    cause="$cause. Every dry run and every release asks index.crates.io about each package of the workspace and needs the network: check that this computer is online and run the same command again."
   fi
   fail "$cause"
 }
