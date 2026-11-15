@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The check builds learn-gate with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, and then runs it only through cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- and never by the path of a file; learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; no cargo command or binary of the check changes the tree; and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr.
+# rule: The check removes the built learn-gate at its two names under the build directory, builds it with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, takes the one of the two names that then exists (none or both is the cause build) and runs that file directly; learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; no cargo command or binary of the check changes the tree; and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -81,7 +81,24 @@ run_gate() {
   if [ -n "$gate_script" ]; then
     sh "$gate_script" "$@"
   else
-    cargo run --locked -q -p halvo-learn-gate --bin learn-gate -- "$@"
+    "$gate" "$@"
+  fi
+}
+
+# build_gate: removes the built learn-gate at both names under the build directory, builds it, checks the tree, and
+# sets gate to the one of the two names that then exists; ends the check with build when the build fails or when none
+# or both exist.
+build_gate() {
+  built=${CARGO_TARGET_DIR:-target}/debug/learn-gate
+  rm -f -- "$built" "$built.exe" || finish build
+  cargo build --locked -p halvo-learn-gate --bin learn-gate >"$art/build.txt" 2>&1 </dev/null || finish build
+  tree_same build
+  if [ -f "$built" ] && [ ! -f "$built.exe" ]; then
+    gate=$built
+  elif [ -f "$built.exe" ] && [ ! -f "$built" ]; then
+    gate=$built.exe
+  else
+    finish build
   fi
 }
 
@@ -161,8 +178,7 @@ measure() {
   cd -P -- "$repo" || finish scratch
   tree_start
   command -v cargo >/dev/null 2>&1 || finish cargo
-  cargo build --locked -p halvo-learn-gate --bin learn-gate >"$art/build.txt" 2>&1 </dev/null || finish build
-  tree_same build
+  build_gate
   gate_script=
   play "$art"
   tree_same gate
@@ -229,16 +245,27 @@ tree_git() {
 }
 
 # tree_cargo ARGS: the stand-in for cargo in the tree cases: records the call; at the build changes the tree when the
-# case asks it to and fails when the case's build fails; at the run of learn-gate plays the stand-in gate, which it
-# built outside the target directory; refuses every other call.
+# case asks it to, fails when the case's build fails, and writes the stand-in gate under target/debug at the names that
+# the case's build gives (learn-gate for ok and warns, none, or both names); with warns it writes a warning on standard
+# error at status 0, at the build and at a run; at a run of learn-gate it plays the stand-in gate; it refuses every
+# other call.
 tree_cargo() {
   printf '%s\n' "$*" >>"$TREE_DIR/cargo.calls"
+  [ "$TREE_BUILD" != warns ] || printf 'warning: unused variable: x\n' >&2
   case $* in
     'build --locked -p halvo-learn-gate --bin learn-gate')
       if [ "$TREE_CHANGE_AT" = build ]; then
         printf '%s\n' "$TREE_CHANGE_LINE" >>"$TREE_DIR/status"
       fi
-      [ "$TREE_BUILD" = ok ] || return 101
+      case $TREE_BUILD in
+        ok | warns) names=learn-gate ;;
+        both) names='learn-gate learn-gate.exe' ;;
+        none) names= ;;
+        *) return 101 ;;
+      esac
+      for made in $names; do
+        cp "$TREE_DIR/gate.sh" "target/debug/$made" && chmod +x "target/debug/$made" || return 101
+      done
       ;;
     'run --locked -q -p halvo-learn-gate --bin learn-gate -- '*)
       shift 8
@@ -315,6 +342,7 @@ tree_case() {
     else
       PATH=$work/no-cargo:/usr/bin:/bin
     fi
+    unset CARGO_TARGET_DIR
     CI_D_REPO=$TREE_DIR/repo
     CI_D_ARTIFACTS=$TREE_DIR/art
     measure
@@ -347,9 +375,7 @@ tree_case() {
       [ ! -e "$TREE_DIR/gate.calls" ] || got=$got-after-a-gate-call
       ;;
     old-files | old-file-plain | old-file-exe)
-      printf '%s\n' 'build --locked -p halvo-learn-gate --bin learn-gate' \
-        'run --locked -q -p halvo-learn-gate --bin learn-gate -- routine' \
-        'run --locked -q -p halvo-learn-gate --bin learn-gate -- routine --store derived' >"$TREE_DIR/cargo.wanted" || broken
+      printf '%s\n' 'build --locked -p halvo-learn-gate --bin learn-gate' >"$TREE_DIR/cargo.wanted" || broken
       cmp -s "$TREE_DIR/cargo.calls" "$TREE_DIR/cargo.wanted" || got=$got-with-other-cargo-calls
       ;;
   esac
@@ -383,6 +409,9 @@ tree_cases() {
   tree_case old-files PASS "PASS $name" "" "" "" ok yes
   tree_case old-file-plain PASS "PASS $name" "" "" "" ok yes
   tree_case old-file-exe PASS "PASS $name" "" "" "" ok yes
+  tree_case cargo-warns PASS "PASS $name" "" "" "" warns yes
+  tree_case built-none FAIL-build "FAIL $name (build)" "" "" "" none yes
+  tree_case built-both FAIL-build "FAIL $name (build)" "" "" "" both yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
   tree_case play-changes FAIL-tree 'tree changed=after-gate' "" gate "$later" ok yes
   tree_case no-cargo FAIL-cargo "FAIL $name (cargo)" "" "" "" ok no
@@ -432,8 +461,8 @@ self_test() {
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  if [ "$tree_passed" -ne 4 ] || [ "$tree_rejected" -ne 9 ]; then
-    printf 'FAIL self-test:%s (tree cases passed %s, not 4, and rejected %s, not 9)\n' "$name" "$tree_passed" "$tree_rejected"
+  if [ "$tree_passed" -ne 5 ] || [ "$tree_rejected" -ne 11 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 5, and rejected %s, not 11)\n' "$name" "$tree_passed" "$tree_rejected"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
