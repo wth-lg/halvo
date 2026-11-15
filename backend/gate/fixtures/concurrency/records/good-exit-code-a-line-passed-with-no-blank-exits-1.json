@@ -1,0 +1,7 @@
+{
+  "kind": "exit-code",
+  "ruling": "the planner's Addition 27, section 1 (5) (plan.md line 239), from reports/builder-54.md lines 102 to 107",
+  "about": "exitCodeOf gives exit 0 only to a line that starts with PASS and a blank: a line PASSED gives exit 1",
+  "source": "by hand",
+  "cases": [{ "line": "PASSED concurrency: runs=1 of 1", "code": 1 }]
+}

@@ -323,8 +323,13 @@ const resetBeforeTheServerAccepted = (record) => record.status === null && LOST_
 export const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
 /** True when the driver sends an attempt again: it was lost on its way in, the traffic is not paused, and fewer than MAX_RESENDS earlier attempts were sent again. */
 export const sendsAgain = (record, paused) => !paused && record.lost.length < MAX_RESENDS && lostOnTheWayIn(record);
-/** The entry that the driver keeps in a request's record for an attempt that it sends again. */
-export const lostAttemptOf = (record) => (resetBeforeTheServerAccepted(record) ? { why: "reset", body: "" } : { why: "500", body: record.body });
+/** The entry that the driver keeps in a request's record for an attempt that it sends again, with the time of that attempt's send. */
+export const lostAttemptOf = (record) =>
+  resetBeforeTheServerAccepted(record) ? { why: "reset", body: "", sentAt: record.sentAt } : { why: "500", body: record.body, sentAt: record.sentAt };
+
+const BODY_KEPT_CHARS = 4097;
+/** The body that the driver keeps of an answer that is not a stream, after one more chunk of its text: its first 4,097 characters. That is one more than the longest body that stress/rule.mjs reads as the dev proxy's text, so a body that this cut shortened is longer than any proxy text and is never read as one. */
+export const keptBodyOf = (kept, text) => (kept + text).slice(0, BODY_KEPT_CHARS);
 
 class Traffic {
   constructor(plan, level, port, chat) {
@@ -483,7 +488,7 @@ class Traffic {
         response.setEncoding("utf8");
         response.on("data", (text) => {
           if (record.status !== 200) {
-            if (record.body.length < 400) record.body += text.slice(0, 400);
+            record.body = keptBodyOf(record.body, text);
             return;
           }
           pending += text;
@@ -686,7 +691,7 @@ async function schedule(tasks, capacity, halted) {
   return Promise.all(running);
 }
 
-const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport", "crossingBuilt", "firstAdmissionMs"];
+const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport", "crossingBuilt", "firstAdmissionMs", "held", "firstEndBeforeTheLastAnswer"];
 const CROSSING_DRAWS_MAX = 5;
 
 async function runCounted(ctx, cell, variant, runNo, withKill) {
@@ -716,9 +721,10 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
     const neverCounted = last && !(result.counted && !result.error);
     const lostTheCrossing = result.facts?.crossed === false && !unbuilt;
     if (ctx.stopAtFirstViolation && (result.violations.length > 0 || neverCounted || lostTheCrossing)) ctx.halted = true;
+    if (result.counted && !result.error) ctx.countedRuns.set(cell.name, (ctx.countedRuns.get(cell.name) ?? 0) + 1);
     if ((result.counted && !result.error) || last || ctx.halted) {
       ctx.progress(result, discarded.length);
-      return rigUnbuilt ? { ...result, discarded, rigUnbuilt } : { ...result, discarded };
+      return rigUnbuilt ? { ...result, discarded, rigUnbuilt, countedAtTheDraw: ctx.countedRuns.get(cell.name) ?? 0 } : { ...result, discarded };
     }
     if (result.error || result.facts?.slow === true || unbuilt) ctx.progress(result, discarded.length);
     discarded.push({
@@ -740,6 +746,7 @@ export async function runCells(ctx, cellList, variant) {
   ctx.registry ??= join(ctx.outDir, "..", "started.jsonl");
   ctx.started ??= new Set();
   ctx.crossingDraws ??= new Map();
+  ctx.countedRuns ??= new Map();
   ctx.mockScript ??= fileURLToPath(new URL("./upstream.mjs", import.meta.url));
   const tasks = [];
   for (const cell of cellList) {

@@ -222,7 +222,7 @@ fn the_pages_allow_for_the_native_item_answers_presenter_while_the_dialog_is_ope
     assert_eq!(rig.present(), Reply::Ok);
     assert_eq!(rig.shown.recv_timeout(WAIT), Ok(1));
     rig.clock(Limits::PRODUCT.arm_ms);
-    let allow = json!({ "item": rig.item, "choice": "allow" });
+    let allow = json!({ "item": rig.item, "step": 0, "choice": "allow" });
     assert_eq!(
         rig.hub.call("agents_answer", Some(&allow)),
         Reply::Error(Cause::Presenter)

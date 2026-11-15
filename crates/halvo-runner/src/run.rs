@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use std::time::{Duration, Instant as Clock};
 
 use halvo_schema::executable::body::{Finish, Load, LoadReply, PutLog, Stored};
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::{
     Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
 };
@@ -18,7 +19,7 @@ use halvo_schema::{RequestId, RunnerRequest, RunnerRole};
 use halvo_sheet::Value;
 
 use crate::args::Args;
-use crate::clock::{day, now, random16};
+use crate::clock::{now, random16};
 use crate::effect::Tracked;
 use crate::file::{ReadUnder, Taken};
 use crate::link::{Broken, Link};
@@ -324,7 +325,7 @@ impl Runner {
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),
             seq: NonZeroU32::new(self.log_seq).unwrap_or(NonZeroU32::MAX),
-            day: day(at),
+            day: day_of(at, self.args.utc_offset_s),
             at,
             event,
             step,
@@ -401,7 +402,7 @@ impl Runner {
             workflow: self.args.workflow.clone(),
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),
-            day: day(now()),
+            day: day_of(now(), self.args.utc_offset_s),
             mode: Some(self.args.mode),
             outcome,
             playbook: self.playbook,
@@ -535,6 +536,8 @@ mod tests {
             "replay",
             "--browser",
             "none",
+            "--utc-offset",
+            "0",
         ];
         let words: Vec<OsString> = words.iter().map(|w| OsString::from(*w)).collect();
         let args = crate::args::parse(&words).expect("the arguments");
@@ -580,7 +583,7 @@ mod tests {
             run: runner.args.run.clone(),
             effect: EffectId::from_random(random16()),
             seq: NonZeroU32::MIN,
-            day: day(at),
+            day: day_of(at, runner.args.utc_offset_s),
             at,
             state,
             class: bound.class(),

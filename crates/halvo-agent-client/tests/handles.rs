@@ -512,6 +512,9 @@ fn host_run(name: &str, lines: &[&str]) -> String {
 }
 
 #[cfg(target_os = "macos")]
+const KQUEUE_ROW: &str = "the row 103:kqueue cannot fail in the runner: the system copies no kqueue into a forked child, so the row holds that the host opened one and nothing of the start's close";
+
+#[cfg(target_os = "macos")]
 #[test]
 fn a_runner_holds_its_three_descriptors_and_no_other_while_the_library_holds_descriptors_of_each_kind_at_low_and_high_numbers(
 ) {
@@ -527,6 +530,7 @@ fn a_runner_holds_its_three_descriptors_and_no_other_while_the_library_holds_des
     );
     let held = logged_value(&log, "held ");
     eprintln!("u49-held: {held}");
+    eprintln!("u49-kqueue: {KQUEUE_ROW}");
     for place in [
         " 3:file",
         " 101:pipe-read",
@@ -656,6 +660,23 @@ fn short_rig(name: &str) -> common::Rig {
     common::Rig::configured(name, |c| c.link_end = SHORT_LINK_END)
 }
 
+fn eof_after(script: &Script, finish: std::time::Instant) -> std::time::Instant {
+    assert!(
+        script.wait_log("\neof", 2 * SHORT_LINK_END),
+        "the library did not close the link: {}",
+        script.log()
+    );
+    let eof = std::time::Instant::now();
+    let after = eof.duration_since(finish);
+    assert!(
+        after >= SHORT_LINK_END - Duration::from_millis(500)
+            && after <= SHORT_LINK_END + Duration::from_secs(1),
+        "the library closed the link {after:?} after the stored finish: {}",
+        script.log()
+    );
+    eof
+}
+
 fn start_held(
     rig: &common::Rig,
     after: &[&str],
@@ -684,17 +705,20 @@ fn a_runner_that_outlives_its_stored_finish_after_closing_its_output_while_a_hel
     );
     assert!(script.wait_log("stdout-closed", SHORT), "{}", script.log());
     let closed = std::time::Instant::now();
-    std::thread::sleep(2 * SHORT_LINK_END - Duration::from_millis(1500));
+    let eof = eof_after(&script, closed);
+    std::thread::sleep(
+        (2 * SHORT_LINK_END - Duration::from_millis(1500)).saturating_sub(closed.elapsed()),
+    );
     assert!(
         alive(&script),
         "the runner was ended before twice link_end less 1.5 s after it closed its output"
     );
-    let bound = 2 * SHORT_LINK_END + Duration::from_secs(3);
+    let bound = SHORT_LINK_END + Duration::from_secs(3);
     assert!(
         rig.rec
-            .wait_end(&run, bound.saturating_sub(closed.elapsed()))
+            .wait_end(&run, bound.saturating_sub(eof.elapsed()))
             .is_some(),
-        "the library reported no end within twice link_end and 3 s after the runner closed its output: {}",
+        "the library reported no end within link_end and 3 s after it closed the link: {}",
         script.log()
     );
     assert!(runner_gone(&script), "the runner is gone: {}", script.log());
@@ -720,17 +744,20 @@ fn a_runner_that_outlives_its_stored_finish_with_its_output_open_is_ended_within
     assert_eq!(rig.sup.start(spec), Ok(()), "the start");
     assert!(script.wait_log("finished", SHORT), "{}", script.log());
     let stored = std::time::Instant::now();
-    std::thread::sleep(2 * SHORT_LINK_END - Duration::from_millis(1500));
+    let eof = eof_after(&script, stored);
+    std::thread::sleep(
+        (2 * SHORT_LINK_END - Duration::from_millis(1500)).saturating_sub(stored.elapsed()),
+    );
     assert!(
         alive(&script),
         "the runner was ended before twice link_end less 1.5 s after its finish was stored"
     );
-    let bound = 2 * SHORT_LINK_END + Duration::from_secs(3);
+    let bound = SHORT_LINK_END + Duration::from_secs(3);
     assert!(
         rig.rec
-            .wait_end(&run, bound.saturating_sub(stored.elapsed()))
+            .wait_end(&run, bound.saturating_sub(eof.elapsed()))
             .is_some(),
-        "the library reported no end within twice link_end and 3 s after the runner's finish was stored: {}",
+        "the library reported no end within link_end and 3 s after it closed the link: {}",
         script.log()
     );
     assert!(runner_gone(&script), "the runner is gone: {}", script.log());

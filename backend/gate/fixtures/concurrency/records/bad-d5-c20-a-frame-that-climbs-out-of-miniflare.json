@@ -1,0 +1,32 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K2, on D5 of P7-83 (7) (c) and B-36",
+  "about": "the verifier's case c20: a frame whose path climbs out of miniflare with .. to the gateway's chat.ts: a violation",
+  "source": "the verifier's case c20 (evidence/verifier-34/model/cases.json)",
+  "request": {
+    "status": 500,
+    "body": "Error: Network connection lost.\n    at x (file:///SCRATCH/node_modules/miniflare/../../backend/src/gateway/chat.ts:1:1)",
+    "headersAt": 1300,
+    "endedAt": 1301,
+    "receipt": null,
+    "lost": [
+      {
+        "why": "500",
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 800
+      }
+    ]
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lostInTransport": 0
+    }
+  }
+}

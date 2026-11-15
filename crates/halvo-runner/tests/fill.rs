@@ -2,6 +2,7 @@ mod support;
 
 use std::time::Duration;
 
+use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{Autonomy, FieldName, HandbackReason, LogEvent};
 use halvo_schema::executable::{
@@ -47,6 +48,59 @@ fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
         !locks.is_empty(),
         "a lock file under the test's data directory"
     );
+}
+
+/// An offset whose local day differs from the UTC day for at least two hours from now: +50,400 s when the UTC
+/// hour is 12 or later, else -50,400 s (the coordinator's ruling CP-204 D7).
+fn offset_of_another_day() -> i32 {
+    if now_nanos().div_euclid(1_000_000_000).rem_euclid(86_400) >= 12 * 3_600 {
+        UTC_OFFSET_S_MAX
+    } else {
+        -UTC_OFFSET_S_MAX
+    }
+}
+
+fn now_nanos() -> i64 {
+    let since = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after 1970");
+    i64::try_from(since.as_nanos()).expect("an instant of i64")
+}
+
+/// CP-204 D3 and D7: every log line and every row of an effect carries day_of(at, the run's offset), which is not
+/// the UTC day of its instant, and the run's finish, which holds no instant, the day of an instant of the run.
+#[test]
+fn every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset() {
+    let files = FillFiles::new("day-of", 1);
+    let mut sup = fill(170, &files);
+    let offset = offset_of_another_day();
+    sup.utc_offset_s = offset;
+    let before = halvo_schema::Instant(now_nanos());
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    let after = halvo_schema::Instant(now_nanos());
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    println!("cp204 offset={offset}");
+    let logs = seen.logs();
+    let effects = seen.effects();
+    assert!(!logs.is_empty() && effects.len() == 3, "{:?}", seen.ops());
+    for (what, day, at) in logs
+        .iter()
+        .map(|l| ("log", l.day, l.at))
+        .chain(effects.iter().map(|e| ("effect", e.day, e.at)))
+    {
+        assert_eq!(day, day_of(at, offset), "{what} at {}", at.0);
+        assert_ne!(day, day_of(at, 0), "{what} at {}: the UTC day", at.0);
+    }
+    let finish = seen.finish().expect("the finish").day;
+    assert!(
+        (day_of(before, offset)..=day_of(after, offset)).contains(&finish),
+        "finish {finish} between {} and {}",
+        day_of(before, offset),
+        day_of(after, offset)
+    );
+    if day_of(before, 0) == day_of(after, 0) {
+        assert_ne!(finish, day_of(before, 0), "finish: the UTC day");
+    }
 }
 
 #[test]

@@ -1,6 +1,9 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
-//! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
-//! it plays a browser that sleeps, as `child` a process that sleeps, and as `stderr-child MARKER` a process that
+//! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`, the value of
+//! `--utc-offset` among it (`none` without the argument); as the runner does, it exits with the status 2 before any
+//! frame when that value is no whole number from -50,400 to 50,400; started as `browser`
+//! it plays a browser that sleeps, as `child` a process that sleeps, as `child-brief MS` a process that sleeps MS
+//! milliseconds and exits with the status 0, and as `stderr-child MARKER` a process that
 //! prints MARKER on standard error and exits. On macOS `holder-parent LOG [SECONDS]` starts `holder [SECONDS]`, a
 //! process of a group of its own that sleeps with the standard input and output it was given and then exits with
 //! the status 0, logs it to LOG and exits, or ends it and exits with 1 when it cannot read its creation time or
@@ -22,6 +25,7 @@ use std::time::Duration;
 
 use halvo_agent_client::process;
 use halvo_agent_client::wire::{read_frame, write_frame};
+use halvo_schema::executable::day::UTC_OFFSET_S_MAX;
 
 #[path = "agent-client-peer/host.rs"]
 mod host;
@@ -346,7 +350,7 @@ fn write_inherited(number: &str, text: &[u8]) -> &'static str {
         return "absent";
     }
     let mut wrote = 0u32;
-    // SAFETY: `handle` is an inheritable handle that this process holds open, as checked above, and the buffer and `wrote` are live for the call.
+    // SAFETY: `handle` is an inheritable handle that this process holds open, as checked above, and the buffer and `wrote` are live for the call. The null OVERLAPPED asks for a synchronous write, which WriteFile takes only for a handle opened without FILE_FLAG_OVERLAPPED: the handles that the tests name are the host's file of SCRIPT.mark, which OpenOptions opens without that flag, and the host's standard output and error, the child's ends of pipes that the standard library makes without it.
     let ok = unsafe {
         WriteFile(
             handle,
@@ -627,6 +631,27 @@ impl Peer {
                 }
                 Err(_) => self.log.line("child-failed"),
             },
+            "child-brief" => {
+                let made = std::env::current_exe().and_then(|exe| {
+                    Command::new(exe)
+                        .arg("child-brief")
+                        .arg(rest)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                });
+                match made {
+                    Ok(c) => {
+                        let created = process::creation_time(c.id())
+                            .map(|t| t.to_string())
+                            .unwrap_or_default();
+                        self.log
+                            .line(&format!("child pid={} created={created}", c.id()));
+                    }
+                    Err(_) => self.log.line("child-failed"),
+                }
+            }
             "breakaway" => self.breakaway(),
             "writer-child" => {
                 let mut parts = rest.splitn(3, ' ');
@@ -994,6 +1019,14 @@ fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
     }
 }
 
+/// Whether `value` is an offset that the runner takes from the library, which writes it as `i32` does: a whole
+/// number from -50,400 to 50,400.
+fn offset_in_range(value: &str) -> bool {
+    value
+        .parse::<i32>()
+        .is_ok_and(|n| (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(&n))
+}
+
 fn runner(args: &[String]) {
     let first_descriptors = own_descriptors();
     let script = PathBuf::from(arg_after(args, "--browser"));
@@ -1004,11 +1037,23 @@ fn runner(args: &[String]) {
     };
     let log = Arc::new(Log(Mutex::new(file)));
     log.line(&format!("args {}", args.len()));
+    let offset = args
+        .iter()
+        .position(|a| a == "--utc-offset")
+        .and_then(|i| args.get(i + 1));
+    log.line(&format!(
+        "utc-offset {}",
+        offset.map_or("none", String::as_str)
+    ));
     let me = std::process::id();
     let created = process::creation_time(me)
         .map(|t| t.to_string())
         .unwrap_or_default();
     log.line(&format!("runner pid={me} created={created}"));
+    if offset.is_some_and(|value| !offset_in_range(value)) {
+        log.line("refused utc-offset");
+        std::process::exit(2);
+    }
     let (tx, rx) = mpsc::channel();
     let on_eof = Arc::new(Mutex::new(OnEof::End));
     let browsers: Arc<Mutex<Vec<Child>>> = Arc::new(Mutex::new(Vec::new()));
@@ -1094,6 +1139,11 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        Some("child-brief") => {
+            let ms = args.get(1).and_then(|m| m.parse().ok()).unwrap_or(0);
+            thread::sleep(Duration::from_millis(ms));
+            std::process::exit(0);
+        }
         Some("console-report") => {
             let pid = |i: usize| args.get(i).and_then(|v| v.parse().ok()).unwrap_or(0);
             let line = format!("console-child {}\n", console_line(pid(1), pid(2)));

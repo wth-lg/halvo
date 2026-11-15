@@ -52,7 +52,6 @@ const CS_DARWIN_USER_TEMP_DIR: i32 = 65537;
 const F_SETFD: i32 = 2;
 const FD_CLOEXEC: i32 = 1;
 const EMFILE: i32 = 24;
-const SZOMB: u32 = 5;
 const SIGKILL: i32 = 9;
 const SIGSTOP: i32 = 17;
 const ESRCH: i32 = 3;
@@ -105,7 +104,7 @@ pub(crate) fn close_beyond_three(cmd: &mut Command) {
     let held = unsafe { proc_pidinfo(own, PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
     let room = usize::try_from(held).unwrap_or(0) / size_of::<ProcFdInfo>() * 2 + 64;
     let mut list = vec![ProcFdInfo::default(); room];
-    // SAFETY: the step runs in the child between fork and exec, where only async-signal-safe calls may be made: it calls getpid, proc_pidinfo and fcntl alone, allocates nothing, since `list` is made here beforehand and moved in, and takes no lock.
+    // SAFETY: the step runs in the child between fork and exec, where only async-signal-safe calls may be made: it calls getpid, proc_pidinfo and fcntl alone, allocates nothing, since `list` is made here beforehand and moved in, and takes no lock. POSIX lists getpid and fcntl as async-signal-safe and does not list proc_pidinfo, a call of macOS alone: it is a system call through libproc that takes no lock of this process and allocates nothing, which is what the step relies on, and no text of the system promises it.
     unsafe {
         cmd.pre_exec(move || close_at_exec_beyond_three(&mut list));
     }
@@ -149,7 +148,6 @@ pub(crate) struct Info {
     pub ppid: u32,
     pub pgid: u32,
     pub started_us: u64,
-    pub zombie: bool,
 }
 
 /// One read of the process table for a pid.
@@ -190,7 +188,6 @@ pub(crate) fn info(pid: u32) -> Read {
             ppid: i.pbi_ppid,
             pgid: i.pbi_pgid,
             started_us,
-            zombie: i.pbi_status == SZOMB,
         }),
         _ => Read::Unknown,
     }
@@ -284,6 +281,147 @@ pub(crate) fn table() -> io::Result<Vec<Info>> {
             _ => None,
         })
         .collect())
+}
+
+const O_RDONLY: i32 = 0;
+const O_NOFOLLOW: i32 = 0x100;
+const O_DIRECTORY: i32 = 0x0010_0000;
+const O_CLOEXEC: i32 = 0x0100_0000;
+const AT_REMOVEDIR: i32 = 0x80;
+const DT_DIR: u8 = 4;
+
+#[repr(C)]
+struct Dirent {
+    d_ino: u64,
+    d_seekoff: u64,
+    d_reclen: u16,
+    d_namlen: u16,
+    d_type: u8,
+    d_name: [u8; 1024],
+}
+
+#[repr(C)]
+struct DirStream {
+    _private: [u8; 0],
+}
+
+extern "C" {
+    fn open(path: *const std::ffi::c_char, flags: i32, ...) -> i32;
+    fn openat(fd: i32, path: *const std::ffi::c_char, flags: i32, ...) -> i32;
+    fn unlinkat(fd: i32, path: *const std::ffi::c_char, flags: i32) -> i32;
+    fn dup(fd: i32) -> i32;
+    #[cfg_attr(target_arch = "x86_64", link_name = "fdopendir$INODE64")]
+    fn fdopendir(fd: i32) -> *mut DirStream;
+    #[cfg_attr(target_arch = "x86_64", link_name = "readdir$INODE64")]
+    fn readdir(dir: *mut DirStream) -> *mut Dirent;
+    fn closedir(dir: *mut DirStream) -> i32;
+}
+
+/// A directory held by a descriptor of its own: what is opened, listed and removed below it is reached through that
+/// descriptor and never again through a path, so a link put in place of a directory above it is never followed.
+pub(crate) struct Dir(std::os::fd::OwnedFd);
+
+fn c_name(name: &std::ffi::OsStr) -> io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::CString::new(name.as_bytes())
+        .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
+}
+
+fn owned(fd: i32) -> io::Result<std::os::fd::OwnedFd> {
+    use std::os::fd::FromRawFd;
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: `fd` is a descriptor that the call just made returned and that nothing else owns.
+    Ok(unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) })
+}
+
+impl Dir {
+    /// Opens the directory `path`, following a link in it as the system does.
+    pub(crate) fn open(path: &std::path::Path) -> io::Result<Dir> {
+        let name = c_name(path.as_os_str())?;
+        // SAFETY: `name` ends in a NUL and lives for the call; open takes no pointer beyond it.
+        owned(unsafe { open(name.as_ptr(), O_RDONLY | O_DIRECTORY | O_CLOEXEC) }).map(Dir)
+    }
+
+    /// Opens the entry `name` of this directory as a directory, never through a link: a link, or an entry that is
+    /// no directory, is an error.
+    pub(crate) fn child(&self, name: &std::ffi::OsStr) -> io::Result<Dir> {
+        use std::os::fd::AsRawFd;
+        let name = c_name(name)?;
+        // SAFETY: the descriptor is held by `self` for the call, and `name` ends in a NUL and lives for the call.
+        owned(unsafe {
+            openat(
+                self.0.as_raw_fd(),
+                name.as_ptr(),
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+            )
+        })
+        .map(Dir)
+    }
+
+    /// The names of the entries of this directory but `.` and `..`, each with whether the listing calls it a
+    /// directory (a link is never one).
+    pub(crate) fn entries(&self) -> io::Result<Vec<(OsString, bool)>> {
+        use std::os::fd::{AsRawFd, IntoRawFd};
+        // SAFETY: the descriptor is held by `self` for the call; dup makes a new one.
+        let copy = owned(unsafe { dup(self.0.as_raw_fd()) })?.into_raw_fd();
+        // SAFETY: `copy` is a descriptor of a directory that nothing else owns; fdopendir takes it over, and closedir
+        // below closes it.
+        let stream = unsafe { fdopendir(copy) };
+        if stream.is_null() {
+            let error = io::Error::last_os_error();
+            drop(owned(copy));
+            return Err(error);
+        }
+        let mut found = Vec::new();
+        loop {
+            // SAFETY: `stream` is the open stream of fdopendir above, used by this thread alone until closedir.
+            let entry = unsafe { readdir(stream) };
+            if entry.is_null() {
+                break;
+            }
+            // SAFETY: readdir returned a pointer to a live entry of the stream, valid until the next readdir.
+            let e = unsafe { &*entry };
+            let len = usize::from(e.d_namlen).min(e.d_name.len());
+            let name = &e.d_name[..len];
+            if name == b"." || name == b".." {
+                continue;
+            }
+            found.push((OsString::from_vec(name.to_vec()), e.d_type == DT_DIR));
+        }
+        // SAFETY: `stream` is open and closed once, here.
+        unsafe { closedir(stream) };
+        Ok(found)
+    }
+
+    /// Removes the entry `name` of this directory with all that it holds: a directory is opened below this one
+    /// without following a link, emptied through its own descriptor and then removed; anything else, a link among
+    /// it, is unlinked as itself.
+    pub(crate) fn remove_tree(&self, name: &std::ffi::OsStr) -> io::Result<()> {
+        use std::os::fd::AsRawFd;
+        let c = c_name(name)?;
+        match self.child(name) {
+            Ok(dir) => {
+                for (entry, _) in dir.entries()? {
+                    dir.remove_tree(&entry)?;
+                }
+                drop(dir);
+                // SAFETY: the descriptor is held by `self` for the call, and `c` ends in a NUL and lives for the call.
+                if unsafe { unlinkat(self.0.as_raw_fd(), c.as_ptr(), AT_REMOVEDIR) } != 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            }
+            Err(_) => {
+                // SAFETY: the descriptor is held by `self` for the call, and `c` ends in a NUL and lives for the call.
+                if unsafe { unlinkat(self.0.as_raw_fd(), c.as_ptr(), 0) } != 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 pub(crate) fn random16() -> io::Result<[u8; 16]> {

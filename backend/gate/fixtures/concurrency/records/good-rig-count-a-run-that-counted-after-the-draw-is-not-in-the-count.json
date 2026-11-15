@@ -1,0 +1,107 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-83 (7) (c), the two word points of the last readings (reports/verifier-21.md, Addition 2, points 1 and 2)",
+  "about": "the first run of the rollover cell counted after three draws, the second needed a sixth draw after two more, and the third counted at its first attempt after that: the driver keeps with the second run that 1 run of the cell had counted when the draw was needed, not the 2 that had counted when the runs were read",
+  "source": "the review of unit 4.10 (evidence/builder-56/90-review-verdicts.txt), finder f3: good-rig-count-the-runs-that-counted-before-the-draw, with a third run that counts after the rig-unbuilt run",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 3
+  },
+  "attemptsByRun": [
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": true,
+        "facts": {
+          "crossed": true,
+          "crossingBuilt": true,
+          "firstAdmissionMs": -30
+        }
+      }
+    ],
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      }
+    ],
+    [
+      {
+        "counted": true,
+        "facts": {
+          "crossed": true,
+          "crossingBuilt": true,
+          "firstAdmissionMs": -30
+        }
+      }
+    ]
+  ],
+  "cfgAttempts": 6,
+  "expect": {
+    "runs": [
+      {
+        "key": "attempt-4",
+        "rigUnbuilt": false,
+        "discarded": 3
+      },
+      {
+        "key": "attempt-3",
+        "rigUnbuilt": true,
+        "discarded": 2,
+        "countedAtTheDraw": 1
+      },
+      {
+        "key": "attempt-1",
+        "rigUnbuilt": false,
+        "discarded": 0
+      }
+    ]
+  }
+}

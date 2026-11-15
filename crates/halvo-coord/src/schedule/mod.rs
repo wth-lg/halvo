@@ -12,11 +12,11 @@ mod start;
 mod tick;
 
 pub use board::{Board, Dying, LiveRun, Member, Owed, Owing, Stop};
-pub use drive::{drive, stop_run, Answer, Ended, Move, Report, Served};
+pub use drive::{drive, drive_with, stop_run, Answer, Ended, Halt, Move, Report, Served};
 pub(crate) use drive::{item_closed, owed_ready, read_back, resync, seq_refusal};
 pub use hold::{holds, Hold};
 pub use queue::{Queue, Waiting};
-pub use slot::{current_slot, finished, next_slot, slot_due, slot_open};
+pub use slot::{clean, current_slot, finished, next_slot, slot_due, slot_open};
 pub use start::{
     active_state, needs_model, needs_person, start_step, Around, Clear, Go, StartStep, Verdict,
 };
