@@ -127,6 +127,7 @@ function scripted() {
     expire: answering("ledger.expire", () => 0),
     intervalTotals: answering("ledger.intervalTotals", () => ({ reported: 4, unreported: 0, open: answers.intervalOpen })),
     openHolds: answering("ledger.openHolds", () => answers.openHolds),
+    openHoldsAt: answering("ledger.openHoldsAt", () => answers.openHolds),
     nextDue: answering("ledger.nextDue", () => answers.ledgerNextDue()),
   };
   const metering: Metering = {
@@ -1309,5 +1310,23 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
       throw new RangeError("the alarm call was refused");
     };
     await expect(rejected.entries.destroy(HASH)).rejects.toThrow("the alarm call was refused");
+  });
+
+  test("L2: ledger.openHolds throwing on every call blocks no cancel: step 4 counts the holds open at its now through ledger.openHoldsAt", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    w.host.port.cancelSubscription = async () => ({ kind: "failed" });
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.host.port.cancelSubscription = async () => ({ kind: "cancelled" });
+    w.answers.throwIn = "ledger.openHolds";
+    w.reset();
+    now = 68_000;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(w.calls).toContainEqual(["ledger.openHoldsAt", 68_000]);
+    const snapshot = await w.entries.testInspect();
+    expect(snapshot.result === "snapshot" && snapshot.tables.skeleton?.[0]?.cancel_answered_at).toBe(68_000);
   });
 });

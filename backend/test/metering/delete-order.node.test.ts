@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { DELETE_REMOVAL_BOUND_MS } from "../../src/do/entries.ts";
+import { DELETE_REMOVAL_BOUND_MS, makeEntries } from "../../src/do/entries.ts";
+import { makeAccounts } from "../../src/accounts/index.ts";
+import { makeLedger } from "../../src/ledger/index.ts";
 import { LATE_READ_SPAN_MS, makeMetering, SYNC_RETRY_MS, UNIQUENESS_WINDOW_MS } from "../../src/metering/index.ts";
 import type { Ms } from "../../src/types.ts";
 import { ACCOUNT, DAY, HASH, HOUR, quiet, START, subscriptionEvent, type World, world } from "./world.ts";
@@ -547,5 +549,38 @@ describe("the margin's bound (unit 5.6, ruling P7-96 point 9)", () => {
 
   test("DELETE_REMOVAL_BOUND_MS is 24 hours, the provider's uniqueness window", () => {
     expect([DELETE_REMOVAL_BOUND_MS, DELETE_REMOVAL_BOUND_MS === UNIQUENESS_WINDOW_MS]).toEqual([DAY, true]);
+  });
+});
+
+describe("a hold counts as open only before its stored expiry (unit 5.6, P7-110 L2)", () => {
+  test("a hold past its stored end, with ledger.expire throwing on every call: the cancel is made once the hold's expiry has passed, and a hold inside its life still delays it", async () => {
+    const d = await deleting({ testClock: false });
+    const w = d.w;
+    let failing = false;
+    const ledger = makeLedger({ holdLifeMs: w.host.config.holdLifeMs });
+    const own = makeEntries(w.host, {
+      accounts: makeAccounts(),
+      ledger: {
+        ...ledger,
+        expire: (...a: Parameters<typeof ledger.expire>) => {
+          if (failing) throw new RangeError("expire throws");
+          return ledger.expire(...a);
+        },
+      },
+      metering: makeMetering({ intervalSeconds: w.host.config.intervalSeconds, marginSeconds: w.host.config.marginSeconds }),
+    });
+    w.at(START + 1000);
+    await w.use("r0", 10_000);
+    w.at(START + MINUTE);
+    await own.reserve(HASH, { requestId: "r1", tier: "low_cost_hosted", amount: 100, price: { input: 1_000_000, output: 1_000_000 } });
+    failing = true;
+    const inside = await quiet(w.lines, () => own.destroy(HASH));
+    const cancelsInside = d.cancelTimes.length;
+    w.at(START + MINUTE + w.host.config.holdLifeMs);
+    const after = await quiet(w.lines, () => own.destroy(HASH));
+    expect([inside, cancelsInside]).toEqual([{ result: "not-finished" }, 0]);
+    expect(after.result === "deleted" || after.result === "not-finished").toBe(true);
+    expect(d.cancelTimes).toEqual([START + MINUTE + w.host.config.holdLifeMs]);
+    w.close();
   });
 });

@@ -194,7 +194,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (mark.since !== null && subscription !== null) {
       if (mark.answeredAt !== null && answeredFor(mark, subscription.subscriptionId)) times.push(mark.answeredAt + DELETE_REMOVAL_BOUND_MS);
       else if (mark.nextAt !== null) times.push(mark.nextAt);
-      else if (ledger.openHolds(sql) === 0) times.push(mark.since);
+      else if (ledger.openHoldsAt(sql, Math.max(time(sql), lastNow(sql))) === 0) times.push(mark.since);
     }
     return earliest(times);
   }
@@ -528,7 +528,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const refused = holder(open.sql, hash);
       if (refused !== null) return { kind: "answer", answer: refused };
       const mark = markOf(open.sql);
-      if (mark.since === null || ledger.openHolds(open.sql) > 0) return { kind: "answer", answer: NOT_FINISHED };
+      if (mark.since === null || ledger.openHoldsAt(open.sql, now) > 0) return { kind: "answer", answer: NOT_FINISHED };
       if (!again) {
         try {
           if (isMetered(open.sql) && metering.oldestUnsealed(open.sql) !== null) return { kind: "again" };
@@ -604,7 +604,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
       if (stored.answeredAt === null || !answeredFor(stored, subscriptionId)) return NOT_FINISHED;
       const metered = isMetered(open.sql);
-      if (ledger.openHolds(open.sql) === 0 && (!metered || metering.settled(open.sql))) {
+      if (ledger.openHoldsAt(open.sql, now) === 0 && (!metered || metering.settled(open.sql))) {
         open.beginWithoutAlarm();
         return { closed: 0 };
       }

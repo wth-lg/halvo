@@ -1,3 +1,4 @@
+import { makeLedger } from "../../src/ledger/index.ts";
 import { makeMetering } from "../../src/metering/index.ts";
 import type { Step } from "../../src/types.ts";
 
@@ -71,3 +72,22 @@ export const DELETE_BOUND_EXPECTED = {
     },
   ],
 };
+
+export const HOLDS_AT_CASE = "openHoldsAt at the cancel's test: a hold counts as open only while its stored expiry is after the step's now";
+
+export function runHoldsAtCase(step: Step): unknown {
+  const ledger = makeLedger({ holdLifeMs: 3000 });
+  return step((sql) => {
+    ledger.init(sql);
+    ledger.setCap(sql, { amount: 5, period: "week" }, T0);
+    const reserved = ledger.reserve(sql, { requestId: "r1", tier: "low_cost_hosted", amount: 100, price: { input: 1, output: 1 } }, T0, { active: true, interval: T0 });
+    return {
+      reserved: reserved.outcome,
+      before: ledger.openHoldsAt(sql, T0 + 2999),
+      atTheExpiry: ledger.openHoldsAt(sql, T0 + 3000),
+      stored: ledger.openHolds(sql),
+    };
+  });
+}
+
+export const HOLDS_AT_EXPECTED = { reserved: "admitted", before: 1, atTheExpiry: 0, stored: 1 };

@@ -46,5 +46,6 @@ export interface Ledger {
   expire(sql: Sql, now: Ms): number;
   intervalTotals(sql: Sql, interval: Ms): { reported: Micro; unreported: Micro; open: number };
   openHolds(sql: Sql): number;
+  openHoldsAt(sql: Sql, now: Ms): number;
   nextDue(sql: Sql): Ms | null;
 }
