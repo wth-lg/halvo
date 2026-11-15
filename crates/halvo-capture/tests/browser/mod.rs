@@ -27,7 +27,7 @@ const run = q.get('run') || '0';
 const plain = document.getElementById('plain');
 const password = document.getElementById('password');
 const button = document.getElementById('show');
-const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0, seq: '', lt: [], base: Date.now(), ev: -1 };
+const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0, seq: '', lt: [], base: Date.now(), ev: -1, mv: -1, kd: -1 };
 let armed = false;
 let timers = [];
 const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end) {} };
@@ -42,7 +42,8 @@ function show() {
     ' focus=' + where() + ' ptype=' + plain.type +
     ' px=' + Math.round(left + r.left + r.width / 2) + ' py=' + Math.round(top + r.top + r.height / 2) +
     ' tx=' + Math.round(left + t.left + t.width / 2) + ' ty=' + Math.round(top + t.top + t.height / 2) +
-    ' seq=' + (c.seq || '-') + ' lt=' + (c.lt.length ? c.lt.join(',') : '-') + ' ev=' + c.ev + ' end';
+    ' seq=' + (c.seq || '-') + ' lt=' + (c.lt.length ? c.lt.join(',') : '-') + ' ev=' + c.ev +
+    ' mv=' + c.mv + ' kd=' + c.kd + ' end';
 }
 const later = (ms, f) => timers.push(setTimeout(() => { f(); show(); }, ms));
 const freed = () => { c.ev = Date.now() - c.base; };
@@ -75,7 +76,7 @@ function reset() {
   plain.type = 'text'; password.type = 'password'; plain.value = ''; password.value = '';
   password.tabIndex = phase === 'tab-after' ? -1 : 0;
   c.text = 0; c.password = 0; c.tp = 0; c.tt = 0; c.downs = 0; c.round++;
-  c.seq = ''; c.lt = []; c.base = Date.now(); c.ev = -1;
+  c.seq = ''; c.lt = []; c.base = Date.now(); c.ev = -1; c.mv = -1; c.kd = -1;
   // The burst's swap is armed 1 s after the reset, so that the control's
   // letters before it go into the text input (W3-10 T5).
   armed = phase !== 'burst';
@@ -85,7 +86,10 @@ function reset() {
   // The burst's page moves its own focus there and back, so that the gate's
   // newest mark is a focus event of this page and not a stale event of the
   // window that lost the front (W3-10 T5; run w39-2).
-  else if (phase === 'burst' || phase === 'control') { button.focus(); later(150, () => plain.focus()); }
+  else if (phase === 'burst' || phase === 'control') {
+    button.focus();
+    later(150, () => { plain.focus(); c.mv = Date.now() - c.base; });
+  }
   else plain.focus();
   if (phase === 'swap-timer' || phase === 'tab-after') later(400, () => { armed = false; swap(); });
   if (phase === 'show-hide') { later(300, () => { password.type = 'text'; }); later(1300, () => { password.type = 'password'; }); }
@@ -99,6 +103,7 @@ function reset() {
 }
 document.addEventListener('focusin', () => show());
 document.addEventListener('keydown', (e) => {
+  if (e.key !== 'F24' && e.key !== 'F22' && c.kd < 0) { c.kd = Date.now() - c.base; show(); }
   if (e.key === 'F24') { e.preventDefault(); reset(); }
   if (e.key === 'F22') { e.preventDefault(); password.focus(); show(); }
 }, true);
@@ -123,6 +128,8 @@ struct PageRead {
     landings: String,
     landed_at: Vec<i64>,
     freed_at: i64,
+    moved_at: i64,
+    first_key_at: i64,
 }
 
 fn page_read(hwnd: HWND) -> Option<PageRead> {
@@ -151,6 +158,8 @@ fn page_read(hwnd: HWND) -> Option<PageRead> {
                 .collect()
         })?,
         freed_at: number("ev")?,
+        moved_at: number("mv")?,
+        first_key_at: number("kd")?,
     })
 }
 
@@ -693,7 +702,24 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
         return 0;
     };
     let name = browser.name;
-    let (sink, second) = one_control(test, name, keyboard, hwnd, which);
+    let mut slips = 0;
+    let mut typed = |label: &str| loop {
+        let attempt = if slips == 0 {
+            label.to_string()
+        } else {
+            format!("{label}-after-slip-{slips}")
+        };
+        let (sink, second, slipped) = one_control(test, name, keyboard, hwnd, &attempt);
+        if !slipped {
+            return (sink, second);
+        }
+        slips += 1;
+        assert!(
+            slips < 3,
+            "the control's schedule slipped three times: the page's own move did not come before its first letter"
+        );
+    };
+    let (sink, second) = typed(which);
     if sink >= 5 {
         return sink;
     }
@@ -710,9 +736,7 @@ fn page_control(test: &str, browser: &mut PhaseBrowser, keyboard: &Keyboard, whi
                 test,
                 format!("browser={name} control={which} second_control=taken first_control_keystroke_events={sink}"),
             );
-            let (second_sink, _) =
-                one_control(test, name, keyboard, hwnd, &format!("{which}-second"));
-            second_sink
+            typed(&format!("{which}-second")).0
         }
     }
 }
@@ -723,7 +747,7 @@ fn one_control(
     keyboard: &Keyboard,
     hwnd: HWND,
     which: &str,
-) -> (usize, Result<(), &'static str>) {
+) -> (usize, Result<(), &'static str>, bool) {
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
     let gate_before = keyboard.source.field_state();
@@ -790,7 +814,11 @@ fn one_control(
         .strip_prefix("count=")
         .and_then(|rest| rest.split(' ').next())
         .and_then(|count| count.parse::<usize>().ok());
-    let state = if r.sink >= 5 {
+    let slipped =
+        r.page.first_key_at >= 0 && (r.page.moved_at < 0 || r.page.moved_at >= r.page.first_key_at);
+    let state = if slipped {
+        "schedule_slipped"
+    } else if r.sink >= 5 {
         "full"
     } else if gate_before != Some(FieldState::Clear) {
         "gate_not_clear"
@@ -818,9 +846,12 @@ fn one_control(
     say(
         test,
         format!(
-            "browser={name} control={which} control_state={state} pump_largest_lag_ms={largest_lag} \
+            "browser={name} control={which} control_state={state} page_moved_at_ms={} first_key_at_page_ms={} \
+             pump_largest_lag_ms={largest_lag} \
              open_latches_before_the_first_letter={latches_before} letters=[{}] \
              marks_since_the_start_kept_by_the_seam={} marks=[{}]",
+            r.page.moved_at,
+            r.page.first_key_at,
             listed.join(","),
             all_marks.len(),
             all_marks.join(",")
@@ -828,6 +859,17 @@ fn one_control(
     );
     if r.sink < 5 {
         super::detector_line(test, "page-control");
+    }
+    if slipped {
+        say(
+            test,
+            format!(
+                "browser={name} control={which} schedule_slipped page_moved_at_ms={} first_key_at_page_ms={} \
+                 what it recorded is not read",
+                r.page.moved_at, r.page.first_key_at
+            ),
+        );
+        return (r.sink, Err("schedule_slipped"), true);
     }
     assert!(
         front && start.focus == "plain" && sent == 5 && r.page.text == 5,
@@ -870,7 +912,7 @@ fn one_control(
     } else {
         Err("the_control_is_full")
     };
-    (r.sink, second)
+    (r.sink, second, false)
 }
 
 fn end_round(keyboard: &Keyboard, hwnd: HWND, sent: i64, counted_before: bool) -> Round {
