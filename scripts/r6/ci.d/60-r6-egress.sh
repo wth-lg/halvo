@@ -609,7 +609,7 @@ import_listing() {
 }
 
 tree_changes() {
-  git -c core.fsmonitor=false diff --no-renames --name-status "$tree" -- >"$1" 2>&1
+  git -c core.fsmonitor=false -c core.safecrlf=false diff --no-renames --name-status "$tree" -- >"$1" 2>"$1.err"
 }
 
 report_changes() {
