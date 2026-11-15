@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: The tests that tools/fixture-server/tests.txt lists at HEAD for the job pass under node --test, which gets the listed test files by name, and the site data checker accepts every file of tools/fixture-server/sites/ that HEAD lists and counts at least 4 services for each seed category and 6 of the category other; the check fails when a listed test is renamed, removed, skipped or failing, when a test file of the list is not in HEAD, when a test file at HEAD under tools/fixture-server/ but variants/ is not in the list, when a test passes that the list does not hold, when a line of the list stands twice, when a line of the list or of the removal record tools/fixture-server/tests-removed.txt of the first parent stands in neither of them at HEAD or a line stands in both at HEAD, or when a tracked file differs from HEAD after node --test or after the checker, but it does not hold against code that runs in the job before its reads and writes what it reads (a test file, the list, node on the PATH), a test that keeps its name with another body, a test that leaves the list into the removal record (a landing's diff shows it by name), an untracked file, or the job's environment (ruling S-53).
+# lane: alone
 set -u
 name=31-fixture-server
 list_path=tools/fixture-server/tests.txt
