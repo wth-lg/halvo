@@ -1,7 +1,7 @@
 {
   "kind": "judge",
   "ruling": "P7-107 K3, on the planner's Addition 27",
-  "about": "a judge record whose expect holds the key violations twice, a violation and then none: JSON.parse keeps the last, so the record would pin a pass where its text shows a violation; records.mjs refuses it",
+  "about": "a judge record whose expect holds the key violations twice, a violation and then none, the second written with an escape (violation\\u0073) that JSON.parse reads as the same key: JSON.parse keeps the last, so the record would pin a pass where its text shows a violation; records.mjs refuses it",
   "source": "by hand, after the review's B3 and the verifier's finding 4",
   "request": {
     "status": 500,
@@ -25,7 +25,7 @@
         "id": "r"
       }
     ],
-    "violations": [],
+    "violation\u0073": [],
     "facts": {
       "lostInTransport": 1
     }
