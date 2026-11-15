@@ -433,7 +433,7 @@ check() {
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
-    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR
+    export STUB_PLANT_FROM STUB_PLANT_TO STUB_EMPTY_ARTIFACT STUB_CR STUB_FORGE_ARTIFACT STUB_FORGE_FROM STUB_UNLISTED
     if [ -n "$STUB_QUIET" ]; then
       CARGO_TERM_QUIET=$STUB_QUIET
       export CARGO_TERM_QUIET
@@ -490,6 +490,9 @@ check() {
   STUB_PLANT_TO=
   STUB_EMPTY_ARTIFACT=
   STUB_CR=
+  STUB_FORGE_ARTIFACT=
+  STUB_FORGE_FROM=
+  STUB_UNLISTED=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -582,6 +585,9 @@ make_stub() {
   STUB_PLANT_TO=
   STUB_EMPTY_ARTIFACT=
   STUB_CR=
+  STUB_FORGE_ARTIFACT=
+  STUB_FORGE_FROM=
+  STUB_UNLISTED=
 }
 
 tree_cases() {
@@ -663,6 +669,27 @@ FAIL $name (specimen)"
   STUB_EMPTY_ARTIFACT=list-ignored.txt
   check run-alone-empties-the-ignored-listing-file FAIL "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
 
+  stub_case run-alone-rewrites-the-whole-run-file
+  awk '$0 != "test admit::tests::refusal_admit_ruling ... ok"' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  STUB_FORGE_ARTIFACT=cargo-test.txt
+  STUB_FORGE_FROM=$work/stub/test.out
+  check run-alone-rewrites-the-whole-run-file FAIL "required not_ok=$t src/lib.rs admit::tests::refusal_admit_ruling"
+
+  for listing in "$work/stub"/list-*.txt; do
+    stem=${listing##*/list-halvo-route-}
+    stem=${stem%.txt}
+    if [ "$stem" = lib ]; then
+      printf '     Running unittests src/lib.rs (target/debug/deps/halvo_route-0123456789abcdef)\n'
+    else
+      printf '     Running tests/%s.rs (target/debug/deps/%s-0123456789abcdef)\n' "$stem" "$stem"
+    fi
+    cat "$listing"
+  done >"$work/forged-list.txt" || exit 2
+  STUB_UNLISTED=refusal_no_hold
+  STUB_FORGE_ARTIFACT=list.txt
+  STUB_FORGE_FROM=$work/forged-list.txt
+  check run-alone-rewrites-the-listing-file FAIL "required not_listed=$t tests/refusal_spend.rs refusal_no_hold"
+
   mkdir "$work/tmp-committed-specimen" || exit 2
   STUB_TMPDIR=$work/tmp-committed-specimen
   STUB_PLANT_FROM=$work/short.tsv
@@ -703,6 +730,13 @@ FAIL $name (specimen)"
   check job-sets-cargo-quiet PASS "$want_required"
   STUB_COLOR=always
   check job-sets-cargo-colour PASS "$want_required"
+
+  mkdir "$work/no-commit-directory" || exit 2
+  real=$(command -v mkdir) || exit 2
+  printf '#!/bin/sh\ncase $* in\n  */commit) exit 1 ;;\nesac\nexec %s "$@"\n' "$real" >"$work/no-commit-directory/mkdir" || exit 2
+  chmod +x "$work/no-commit-directory/mkdir" || exit 2
+  STUB_PATH=$work/no-commit-directory:$PATH
+  check commit-directory-cannot-be-made FAIL "FAIL $name (setup)"
 
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
   code=$?
@@ -799,7 +833,7 @@ required_cases() {
   mv "$work/repo/$required" "$work/repo/$required.away" || exit 2
   check no-list FAIL 'required list=bad'
   restore_repo
-  tail -n 1 "$work/pristine/$required" >>"$work/repo/$required"
+  head -n 1 "$work/pristine/$required" >>"$work/repo/$required"
   check list-with-a-line-twice FAIL 'required list=bad'
   restore_repo
 
@@ -944,6 +978,12 @@ pin_cases() {
   awk '{ print } END { print "const PINNED_OLD: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
   check constant-whose-name-starts-with-pinned FAIL 'pins unreadable=PINNED'
   restore_repo
+  awk '{ print } END { print "const PINNEDS: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check constant-whose-name-goes-on-with-a-letter FAIL 'pins unreadable=PINNED'
+  restore_repo
+  awk '{ print } END { print "const PINNED2: [(&str, &str); 0] = [];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check constant-whose-name-goes-on-with-a-digit FAIL 'pins unreadable=PINNED'
+  restore_repo
 
   mv "$work/repo/$pin_file" "$work/repo/$pin_file.away" || exit 2
   check no-pin-test-file FAIL 'pins unreadable=PINNED'
@@ -1026,6 +1066,9 @@ fi
 if [ "$kind" = exact ] && [ -n "${STUB_EMPTY_ARTIFACT:-}" ]; then
   : >"$CI_D_ARTIFACTS/$STUB_EMPTY_ARTIFACT"
 fi
+if [ "$kind" = exact ] && [ -n "${STUB_FORGE_ARTIFACT:-}" ]; then
+  cp "$STUB_FORGE_FROM" "$CI_D_ARTIFACTS/$STUB_FORGE_ARTIFACT" || exit 98
+fi
 if [ "${CARGO_TERM_QUIET:-false}" = true ] || [ "${CARGO_TERM_COLOR:-auto}" = always ]; then
   printf '\033[1mcargo setting\033[0m quiet=%s color=%s\n' "${CARGO_TERM_QUIET:-}" "${CARGO_TERM_COLOR:-}"
   exit 0
@@ -1068,7 +1111,7 @@ case $kind in
       *" $kind "*) cr=$(printf '\r') ;;
     esac
     awk -v kind="$kind" -v dir="$STUB_DIR" -v stems="$stems" -v names="$*" -v not_run=" $STUB_NOT_RUN " \
-      -v no_summary=" $STUB_NO_SUMMARY " -v drop=" $STUB_DROP " '
+      -v no_summary=" $STUB_NO_SUMMARY " -v drop=" $STUB_DROP " -v unlisted="${STUB_UNLISTED:-}" '
       BEGIN {
         n = split(stems, stem, " ")
         m = split(names, name, " ")
@@ -1079,7 +1122,7 @@ case $kind in
           else printf "     Running tests/%s.rs (target/debug/deps/%s-0123456789abcdef)\n", s, s
           file = dir "/" (kind == "ignored" ? "ignored" : "list") "-halvo-route-" s ".txt"
           if (kind != "exact") {
-            while ((getline line < file) > 0) print line
+            while ((getline line < file) > 0) if (!(kind == "list" && line == unlisted ": test")) print line
             close(file)
             continue
           }
