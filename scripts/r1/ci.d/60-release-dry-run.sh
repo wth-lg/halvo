@@ -495,6 +495,29 @@ GITSTUB
   changed_still=$(git -C "$repo" status --porcelain --untracked-files=no)
   [ -n "$changed_still" ] && got=PASS || got=FAIL
   verdict tracked-change-before-the-run-is-kept PASS "$got"
+  tracked_state() {
+    git -C "$repo" status --porcelain --untracked-files=no
+    git -C "$repo" ls-files -v
+    git -C "$repo" for-each-ref --format='%(refname) %(objectname)'
+    git -C "$repo" rev-parse HEAD
+  }
+  hidden_edit_case() {
+    case_name=$1
+    repository "$case_name" "$typed"
+    git -C "$repo" checkout -q -B main
+    printf 'a tracked note\n' >"$repo/notes.txt"
+    git -C "$repo" add notes.txt && git -C "$repo" commit -q -m 'Add a note' || exit 2
+    printf 'a local edit\n' >>"$repo/notes.txt"
+    git -C "$repo" update-index "$2" -- notes.txt || exit 2
+    tracked_state >"$work/hidden-$case_name-before"
+    refused_before_cargo_release "$case_name" 'carries the index flag' --execute
+    tracked_state >"$work/hidden-$case_name-after"
+    got=FAIL
+    cmp -s "$work/hidden-$case_name-before" "$work/hidden-$case_name-after" && grep -q -x 'a local edit' "$repo/notes.txt" && got=PASS
+    verdict "$case_name-keeps-the-clone-and-the-edit" PASS "$got"
+  }
+  hidden_edit_case edit-under-assume-unchanged --assume-unchanged
+  hidden_edit_case edit-under-skip-worktree --skip-worktree
   repository release-commit-without-its-tag "$typed"
   git -C "$repo" checkout -q -B main
   git -C "$repo" commit -q --allow-empty -m 'Release 1.2.3'
