@@ -1597,7 +1597,7 @@ fn a_claimed_file_that_cannot_be_named_back_stays_under_its_private_name_and_ans
 fn a_failed_step_of_a_delete_if_holds_answers_its_class_and_keeps_the_file() {
     for code in CODES {
         for (step, call) in [("walk", 1), ("open_item", 1), ("publish", 1), ("remove", 1)] {
-            if code == ENOENT && step == "publish" {
+            if code == ENOENT && (step == "publish" || step == "remove") {
                 continue;
             }
             let store = item(stored().failing_call(step, call, code));
@@ -1901,4 +1901,32 @@ fn a_live_write_beside_a_removal_at_the_person_s_word_answers_the_fault_of_its_r
         })
     );
     assert_eq!(store.fs.paths(), [DIR]);
+}
+
+#[test]
+fn a_delete_if_holds_whose_claim_is_put_back_before_its_unlink_looks_once_more() {
+    let put_back = |entries: &mut BTreeMap<PathBuf, Entry>| {
+        let claimed = entries
+            .remove(&PathBuf::from(own_claim()))
+            .expect("the claimed file");
+        entries.insert(PathBuf::from(PATH), claimed);
+    };
+    let store = item(stored().before_call("remove", 1, put_back));
+    assert!(matches!(
+        store.delete_if_holds(STORED),
+        DeleteIfHolds::Deleted
+    ));
+    assert_eq!(store.fs.paths(), [DIR]);
+
+    let store = item(
+        stored()
+            .before_call("remove", 1, put_back)
+            .before_call("remove", 2, put_back),
+    );
+    let answer = store.delete_if_holds(STORED);
+    assert!(
+        matches!(answer, DeleteIfHolds::Fault(Fault { code: -1 })),
+        "{answer:?}"
+    );
+    assert_eq!(bytes_at(&store.fs, PATH), Some(STORED.to_vec()));
 }

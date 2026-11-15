@@ -661,6 +661,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
                         Ok(()) => DeleteIfHolds::Deleted,
                         Err(error) => DeleteIfHolds::Fault(Stop::fault(&error)),
                     },
+                    Err(error) if self.fs.is_absent(&error) => self.gone_or_again(held, again),
                     Err(error) => kept(Stop::of(&error).into()),
                 }
             }
