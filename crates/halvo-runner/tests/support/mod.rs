@@ -26,13 +26,20 @@ pub const RUNNER: &str = env!("CARGO_BIN_EXE_halvo-runner");
 
 static NEXT: AtomicU32 = AtomicU32::new(1);
 
-/// A directory of its own under the target's temporary directory, made anew for each call.
+/// A directory of its own under the target's temporary directory, made anew for each call: a name that stands,
+/// left by an earlier process with the same process id, is passed over for the next count.
 pub fn scratch(tag: &str) -> PathBuf {
-    let n = NEXT.fetch_add(1, Ordering::SeqCst);
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("runner-{tag}-{}-{n}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("make the scratch directory");
-    dir
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(root).expect("make the target's temporary directory");
+    loop {
+        let n = NEXT.fetch_add(1, Ordering::SeqCst);
+        let dir = root.join(format!("runner-{tag}-{}-{n}", std::process::id()));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => return dir,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => panic!("make the scratch directory: {error}"),
+        }
+    }
 }
 
 pub fn ids(n: u8) -> (RunId, AgentId, WorkflowId) {
