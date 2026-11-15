@@ -531,6 +531,37 @@ fn g4_an_end_run_under_another_agent_drops_nothing() {
 }
 
 #[test]
+fn g4_a_load_whose_held_start_names_another_agent_makes_no_facts_and_its_verified_finish_learns_nothing(
+) {
+    let mut w = active_world();
+    w.add_pair(2);
+    w.pair = 2;
+    w.start(50, "replay");
+    let held = w
+        .handlers
+        .starts
+        .get_mut(&id(50))
+        .expect("the held start of run 50");
+    held.agent = halvo_schema::AgentId::parse(&agent(1)).expect("an agent id");
+    let RunnerReply::Load(load) = w.load(50) else {
+        panic!("a load reply");
+    };
+    assert!(
+        !w.handlers.facts.contains_key(&id(50)),
+        "a load under agent 2 makes no facts of a start held under agent 1"
+    );
+    let number = load.playbook.expect("a stored playbook").number.get();
+    let served = w.load_steps(50, number, 1);
+    let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
+    assert_eq!(w.put(50, number, vec![proposal]), Ok(stored(0)));
+    w.log(50, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
+    assert!(w.finish(50, "replay", "completed").is_ok());
+    let wf2 = WorkflowId::parse(&wf(2)).expect("a workflow id");
+    assert!(w.host.edits().iter().all(|e| e.workflow != wf2));
+    assert_eq!(revs(&w, 50), [1]);
+}
+
+#[test]
 fn g4_a_store_fault_in_the_sweep_at_a_start_is_answered_store_and_a_repeat_stores_the_row_once() {
     let mut w = active_world();
     w.replay(2);

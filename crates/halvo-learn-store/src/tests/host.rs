@@ -30,12 +30,14 @@ pub fn run(n: u32) -> String {
     id('5', n)
 }
 
-/// The agent store's side of the test host: the store in memory, and a switch that makes its rows read as a
-/// store fault, an `agent_config` row that its parser refuses.
+/// The agent store's side of the test host: the store in memory, a switch that makes its rows read as a store
+/// fault, an `agent_config` row that its parser refuses, and the run ids whose rows read as removed, a stand-in for
+/// the cascade of a workflow's delete or an expiry, which the store in memory does not make.
 pub struct AgentSide {
     pub store: MemoryStore,
     pub fault: bool,
     pub gone: Vec<WorkflowId>,
+    pub hidden_runs: Vec<String>,
     once: bool,
 }
 
@@ -44,7 +46,16 @@ impl RowRead for AgentSide {
         if (self.fault || self.once) && kind == "agent_config" {
             visit("{}");
         }
-        self.store.for_each(kind, visit);
+        let hidden: Vec<String> = self
+            .hidden_runs
+            .iter()
+            .map(|r| format!("\"run\":\"{r}\""))
+            .collect();
+        self.store.for_each(kind, &mut |row| {
+            if !hidden.iter().any(|h| row.contains(h.as_str())) {
+                visit(row);
+            }
+        });
     }
 }
 
@@ -95,6 +106,7 @@ impl TestHost {
                 store: MemoryStore::new(),
                 fault: false,
                 gone: Vec::new(),
+                hidden_runs: Vec::new(),
                 once: false,
             },
             learn: Vec::new(),

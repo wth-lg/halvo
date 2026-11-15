@@ -533,4 +533,21 @@ fn a_start_run_of_a_held_run_under_another_agent_at_runs_held_max_drops_no_other
         (2..last).all(|r| held(&w, r)),
         "a start of run 42 under agent 2 dropped a held run"
     );
+    w.host.agent.hidden_runs.push(run(42));
+    let reply = w.coordinator(json!({
+        "op": "start_run", "workflow": wf(2), "agent": agent(2), "run": run(42), "mode": "replay",
+    }));
+    assert!(
+        matches!(
+            reply,
+            Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
+        ),
+        "with the first agent's rows of run 42 removed the agent store accepts the start: {reply:?}"
+    );
+    assert!(
+        (2..last).all(|r| held(&w, r)),
+        "a start of the held run 42 under agent 2 dropped another held run"
+    );
+    let held_42 = &w.handlers.starts[&RunId::parse(&run(42)).expect("a run id")];
+    assert_eq!(held_42.agent.as_str(), agent(2));
 }
