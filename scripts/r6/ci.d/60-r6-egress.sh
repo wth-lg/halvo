@@ -945,7 +945,7 @@ EOF
 list_copy() {
   calls=$((calls + 1))
   list_given=$work/list-$calls.txt
-  printf '%s\n' "$list_text" >"$list_given" || fail setup
+  printf '%s' "$list_text" >"$list_given" || fail setup
 }
 
 list_after() {
@@ -959,8 +959,13 @@ list_after() {
 
 tree_hashes() {
   printf '%s\n' "$tracked_paths" | git -c core.quotePath=false hash-object --no-filters --stdin-paths 2>/dev/null
-  find . \( -path ./.git -o -path ./target -o -name node_modules \) -prune -o -type l -print 2>/dev/null | sed 's/^/link /' | LC_ALL=C sort
-  find . \( -path ./.git -o -path ./target -o -name node_modules \) -prune -o -type f -perm -u+x -print 2>/dev/null | sed 's/^/exec /' | LC_ALL=C sort
+  printf '%s\n' "$tracked_all" | tr '\n' '\000' | xargs -0 ls -ldn 2>&1 | awk '
+    {
+      kind = substr($1, 1, 1) substr($1, 4, 1)
+      at = index($0, " -> ")
+      print "kind " kind (at > 0 ? " " substr($0, at + 4) : "") " " NR
+    }
+  '
 }
 
 git_view() {
@@ -980,7 +985,7 @@ tree_after() {
       printf '%s\n' '--now--'
       printf '%s\n' "$hashes_now"
     } | awk -v list="$list" '
-      /^(link|exec) / { kind[$0] += (part == 1 ? 1 : (part == 2 ? -1 : 0)); next }
+      /^kind / { kind[$0] += (part == 1 ? 1 : (part == 2 ? -1 : 0)); next }
       $0 == "--reference--" { part = 1; next }
       $0 == "--now--" { part = 2; next }
       part == 0 { path[++n] = $0; next }
@@ -1158,8 +1163,10 @@ state_before_calls() {
   candidate_words=$(cat "$work/candidates.txt") || fail setup
   candidate_count=$(printf '%s\n' "$candidate_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
   tracked_paths=$(git -c core.quotePath=false ls-tree -r "$tree" | awk -F '\t' '$1 ~ /^100/ { print $2 }') || fail setup
-  list_text=$(git cat-file blob "$list_blob") || fail setup
-  printf '%s\n' "$list_text" >"$work/list-0.txt" || fail setup
+  tracked_all=$(git -c core.quotePath=false ls-tree -r "$tree" | awk -F '\t' '$1 ~ /^1[02]0/ { print $2 }') || fail setup
+  list_text=$(git cat-file blob "$list_blob" && printf x) || fail setup
+  list_text=${list_text%x}
+  printf '%s' "$list_text" >"$work/list-0.txt" || fail setup
   list_copy_id=$(git hash-object --no-filters -- "$work/list-0.txt") || fail setup
   tree_changes "$work/before-calls.txt" || fail setup
   if [ -s "$work/before-calls.txt" ]; then
@@ -3071,10 +3078,10 @@ EOF
   git -C "$work/repo" replace -d "$listed" >/dev/null 2>&1
   STUB_CHECK=symlink-tree
   STUB_MARKER=$work/marker-link
-  case_run run-swaps-a-tracked-file-for-a-link FAIL check 'tree changed=after link ./docs/r2/trials/egress.md'
+  case_run run-swaps-a-tracked-file-for-a-link FAIL check 'tree changed=after kind l'
   git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
   STUB_CHECK=exec-bit
-  case_run run-sets-an-exec-bit FAIL check 'tree changed=after'
+  case_run run-sets-an-exec-bit FAIL check 'tree changed=after kind -x'
   chmod -x "$work/repo/docs/r2/trials/egress.md" || self_failed "setup at line $LINENO"
   STUB_BUILD_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run build-changes-a-tracked-file FAIL check 'tree changed=before-calls M docs/r2/trials/egress.md'
