@@ -1586,4 +1586,29 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     expect(gaps).toEqual([30_000, 60_000, 120_000, 240_000, 480_000]);
     expect(skeleton(w)?.alarm_failures).toBe(5);
   });
+
+  for (const failing of ["ledger.nextDue", "metering.nextSend"] as const) {
+    test(`M2: ${failing} throwing from the due time alone for an account with no mark: 5 runs, alarm-stopped, alarm null; status still answers, and destroy begins the delete and makes the cancel`, async () => {
+      let now = 8000;
+      const w = world({ clock: () => now });
+      await w.seeded({ customerId: "cus_one" });
+      w.answers.throwIn = failing;
+      await w.entries.rearm();
+      const runs: Ms[] = [];
+      for (let run = 0; run < 20; run += 1) {
+        const due = w.alarmAt();
+        if (due === null) break;
+        now = Math.max(now, due);
+        runs.push(now);
+        await w.entries.alarm();
+      }
+      expect(runs).toHaveLength(5);
+      expect(events().filter((event) => event === "alarm-stopped")).toHaveLength(1);
+      expect(w.alarmAt()).toBeNull();
+      expect(skeleton(w)?.alarm_failures).toBe(5);
+      expect(await w.entries.status(HASH)).toEqual({ result: "active" });
+      expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+      expect(w.portCalls.filter((call) => call[0] === "cancelSubscription")).toEqual([["cancelSubscription", "sub_one"]]);
+    });
+  }
 });
