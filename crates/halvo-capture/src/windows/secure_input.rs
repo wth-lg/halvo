@@ -879,6 +879,11 @@ impl PasswordGate {
     pub(crate) fn latch_count(&self) -> usize {
         self.shared.lock().open.len()
     }
+
+    #[cfg(test)]
+    pub(crate) fn pointer_since(&self) -> Option<u32> {
+        self.shared.lock().pointer_since
+    }
 }
 
 #[cfg(target_os = "windows")]

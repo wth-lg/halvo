@@ -1271,11 +1271,12 @@ fn run_raw_input(
     };
     let registered = if device == RawDevice::Pointer {
         let mut route = clicks();
+        let before = super::now_tick().wrapping_sub(ms_of(crate::secure_input::windows::TICK_STEP));
         let registered = (calls.register_device)(&dev);
         if registered.is_ok() {
             route.owner = Some(RawDevice::Pointer);
             if let Some(gate) = &route.gate {
-                gate.pointer_takes_the_clicks(super::now_tick());
+                gate.pointer_takes_the_clicks(before);
             }
         }
         registered
@@ -3941,5 +3942,57 @@ mod tests {
                 }
             }
         }
+    }
+
+    static MOUSE_REGISTERED_AT: AtomicU64 = AtomicU64::new(u64::MAX);
+
+    fn register_timed(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        if device.usUsage == RawDevice::Pointer.hid_usage() && device.dwFlags != RIDEV_REMOVE {
+            MOUSE_REGISTERED_AT.store(u64::from(super::super::now_tick()), Ordering::SeqCst);
+        }
+        register_counted(device)
+    }
+
+    #[test]
+    fn the_pointer_owns_the_clicks_from_a_tick_step_before_its_registration() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        MOUSE_REGISTERED_AT.store(u64::MAX, Ordering::SeqCst);
+        let mut pointer = RawInputSource::with_calls(
+            RawDevice::Pointer,
+            StartCalls {
+                register_device: register_timed,
+                remove_device: register_counted,
+                ..SYSTEM_CALLS
+            },
+        );
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        let since = clicks().gate.as_ref().and_then(|gate| gate.pointer_since());
+        let registered = MOUSE_REGISTERED_AT.load(Ordering::SeqCst);
+        let pointer_stopped = pointer.shutdown();
+        let keyboard_stopped = keyboard.shutdown();
+        let _ = registrations();
+        println!(
+            "TF pointer-since keyboard_started={} pointer_started={} pointer_since={since:?} \
+             mouse_registered_at={registered} pointer_stopped={} keyboard_stopped={}",
+            keyboard_started.is_ok(),
+            pointer_started.is_ok(),
+            pointer_stopped.is_ok(),
+            keyboard_stopped.is_ok()
+        );
+        assert!(
+            keyboard_started.is_ok() && pointer_started.is_ok() && registered != u64::MAX,
+            "INCONCLUSIVE: a source did not start or the pointer's mouse registration was not seen"
+        );
+        let since = since.expect("the pointer's time of owning the clicks");
+        let ahead = i64::from((registered as u32).wrapping_sub(since) as i32);
+        assert!(
+            ahead >= ms_of(crate::secure_input::windows::TICK_STEP).into(),
+            "the pointer's time of owning the clicks begins {ahead} ms before its registration, \
+             less than one tick step"
+        );
     }
 }
