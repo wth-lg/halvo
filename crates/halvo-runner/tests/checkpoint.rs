@@ -516,3 +516,53 @@ fn a_later_prepare_after_the_person_changed_the_checkpoint_writes_nothing() {
     );
     assert_eq!(prepared_copies(&files), 0, "{:?}", files.names());
 }
+
+/// A11.3, A7.4: the slot `workbook` names the same file under another spelling (`<dir>/./formulas.xlsx`) from the
+/// load before the `begin`, and the person removes the run's checkpoint and changes the workbook there. The new
+/// spelling is a new path of the rows, but its checkpoint is the same file; the runner prepares only while every
+/// `made` copy of the run stands as its row says, so the step fails with `step_failed` before `prepare`, and no
+/// checkpoint is made again under the first spelling's `made` row.
+#[test]
+fn a_later_prepare_under_another_spelling_after_the_checkpoint_was_removed_makes_no_copy() {
+    let files = FillFiles::new("checkpoint-respelled", 2);
+    let sup = fill(181, &files);
+    let copy = files.dir.join(checkpoint_name(&sup));
+    let respelled = files
+        .dir
+        .join(".")
+        .join("formulas.xlsx")
+        .to_string_lossy()
+        .into_owned();
+    let mut persons = None;
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "workbook", &respelled);
+            }
+        },
+        |n| {
+            if n == 3 {
+                std::fs::remove_file(&copy).expect("the person removes the checkpoint");
+                persons = Some(person_changes(&files));
+            }
+        },
+    );
+    let persons = persons.expect("the person changed the workbook");
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(
+        states(&seen),
+        [(CheckpointState::Planned, 1), (CheckpointState::Made, 2)]
+    );
+    assert!(
+        !copy.exists(),
+        "no checkpoint made again: {:?}",
+        files.names()
+    );
+    assert_eq!(prepared_copies(&files), 0, "{:?}", files.names());
+    assert_eq!(files.workbook_bytes(), persons, "the person's workbook");
+}

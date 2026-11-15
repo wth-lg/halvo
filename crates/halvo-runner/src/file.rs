@@ -119,19 +119,31 @@ fn refused(config: &AgentConfig) -> Stop {
 }
 
 /// The rows of one checkpoint of the run that the store took: the `planned` row alone, or the `made` row with the
-/// SHA-256 and the length of the copy that it names.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// path of the copy that it names, the copy's SHA-256 and its length.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Taken {
     Planned,
-    Made(Sha256, u64),
+    Made {
+        copy: PathBuf,
+        sha: Sha256,
+        len: u64,
+    },
 }
 
-/// Whether the regular file at `full`, opened without following a link, has the length `len` and the SHA-256 `sha`.
-fn stands(full: &Path, sha: Sha256, len: u64) -> bool {
-    halvo_checkpoint::open_regular(full)
-        .ok()
-        .and_then(|file| Sha256::of_reader(file, len).ok())
-        == Some((sha, len))
+impl Taken {
+    /// Whether the checkpoint is as its rows say: a `planned` row alone says nothing of a copy, and a `made` row's
+    /// copy is a regular file, opened without following a link, with the row's length and SHA-256.
+    fn stands(&self) -> bool {
+        match self {
+            Taken::Planned => true,
+            Taken::Made { copy, sha, len } => {
+                halvo_checkpoint::open_regular(copy)
+                    .ok()
+                    .and_then(|file| Sha256::of_reader(file, *len).ok())
+                    == Some((*sha, *len))
+            }
+        }
+    }
 }
 
 /// Where the run's read step read: the slot of its source, the source and the folder.
@@ -192,7 +204,11 @@ impl Runner {
             Ok(RunnerReply::Stored(Stored { stored: 1 })) => {
                 let taken = match made {
                     None => Taken::Planned,
-                    Some((sha, len)) => Taken::Made(sha, len),
+                    Some((sha, len)) => Taken::Made {
+                        copy: dir.join(copy),
+                        sha,
+                        len,
+                    },
                 };
                 self.checkpoints.insert(path, taken);
                 Ok(())
@@ -247,9 +263,10 @@ impl Runner {
     /// SHA-256, the length and the name that `prepare` gives, before the effect's `propose` (A7.1, CP-98 (4)); a
     /// later `prepare` of the run on the same path sends neither row again, whether it takes the run's checkpoint as
     /// it stands or answers the checkpoint error, so the `made` row keeps the SHA-256 of the copy that stands
-    /// (CP-139 (b)). Before such a later `prepare` the checkpoint must stand as a regular file with the length and
-    /// the SHA-256 of its `made` row, and the copy that `prepare` then gives must have them too; otherwise the step
-    /// fails with `step_failed`, so that no checkpoint is made again under a row that names another digest.
+    /// (CP-139 (b)). Before every `prepare`, each checkpoint of the run whose `made` row the store took must stand as
+    /// a regular file with that row's length and SHA-256, and the copy that a later `prepare` of the same path gives
+    /// must have them too; otherwise the step fails with `step_failed`, so that no checkpoint that the person removed
+    /// or changed is made again under a row that names another digest, also under another spelling of its path.
     /// The load before the
     /// `begin` is also held against the sheet of the `prepare`, a changed sheet being met as another digest is
     /// (CP-159 G2), and against the source of the read step, held as a text, so that another spelling of the same
@@ -298,28 +315,27 @@ impl Runner {
             let range_text = slot_text(&loaded, target.range.as_ref())?;
             let range = Range::parse(&range_text).map_err(|e| Failure::Step(sheet_cause(&e)))?;
             let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
+            if !self.checkpoints.values().all(Taken::stands) {
+                return Err(Failure::Step(Cause::StepFailed));
+            }
             let taken = self
                 .checkpoints
                 .get(workbook.to_string_lossy().as_ref())
-                .copied();
-            let name = halvo_checkpoint::checkpoint_name(&workbook, &run)
-                .ok_or(Failure::Step(Cause::StepFailed))?;
-            match taken {
-                None => self.checkpoint_row(&dir, &workbook, &name, None)?,
-                Some(Taken::Made(sha, len)) if !stands(&dir.join(&name), sha, len) => {
-                    return Err(Failure::Step(Cause::StepFailed));
-                }
-                Some(_) => {}
+                .cloned();
+            if taken.is_none() {
+                let planned = halvo_checkpoint::checkpoint_name(&workbook, &run)
+                    .ok_or(Failure::Step(Cause::StepFailed))?;
+                self.checkpoint_row(&dir, &workbook, &planned, None)?;
             }
             let prepared = folder
                 .prepare(&workbook, &run, &sheet, range, &rows)
                 .map_err(|e| Failure::Step(sheet_cause(&e)))?;
             let copy = (prepared.checkpoint_sha256(), prepared.checkpoint_bytes());
             match taken {
-                Some(Taken::Made(sha, len)) if (sha, len) != copy => {
+                Some(Taken::Made { sha, len, .. }) if (sha, len) != copy => {
                     return Err(Failure::Step(Cause::StepFailed));
                 }
-                Some(Taken::Made(..)) => {}
+                Some(Taken::Made { .. }) => {}
                 _ => {
                     self.checkpoint_row(&dir, &workbook, prepared.checkpoint_name(), Some(copy))?
                 }
