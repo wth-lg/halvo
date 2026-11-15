@@ -1657,7 +1657,11 @@ set, and the root's own volume name answers the root.
   delete under either build. The
   rows `rebuilt-page-gap-not-zeroed` and `edited-page-gap-not-zeroed` of
   `crates/halvo-sqlcipher/mutants.rows` judge that zeroing on that crate's
-  own tables. No row of a store file can take it out, because a row
+  own tables. That crate's structural check (`tests/page_gap/rules.rs`)
+  reads an image as given and takes the page count from its length, so an
+  image cut by its last pages reads clean: who hands it an image answers
+  for its length, by comparing `Checked.pages` with the file's own page
+  count. No row of a store file can take it out, because a row
   mutates files under the directory of its rows file alone. The checks of
   this file do not show the zeroing either: on main, before the build of
   ADR 0013, the store's `UPDATE` passed them. A deleted key row still breaks

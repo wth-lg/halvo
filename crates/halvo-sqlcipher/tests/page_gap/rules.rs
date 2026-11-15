@@ -42,7 +42,12 @@
 //! read, so a decrypted keyed image is read up to its usable size alone; and
 //! plants() shows that the check sees a planted byte on the caller's image,
 //! not that the caller's draw would leave anything, so each includer owes its
-//! own draw with secure delete off that must produce lines.
+//! own draw with secure delete off that must produce lines. The check reads an
+//! image as given and takes the page count from its length, so an image cut
+//! by its last pages reads clean: who hands the check an image answers for its
+//! length, and compares [`Checked::pages`] with the file's own page count
+//! (the header's count at byte 28, or the highest page that dbstat names)
+//! (S-96).
 
 use std::collections::{BTreeMap, BTreeSet};
 
