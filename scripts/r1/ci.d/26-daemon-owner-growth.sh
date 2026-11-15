@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: The ignored test two_million_floor_records_grow_the_owner_by_at_most_the_bound runs in a release build of the lib's tests, passes as exactly one test and prints its growth line over 2,000,000 records with the child's elapsed_ms; its heap bytes-in-use line is printed and not held (ruling DM-10); and in the same build the test a_release_build_refuses_the_three_gate_modes_as_usage, which exists without debug assertions alone, passes as exactly one test with its seconds printed.
+# lane: alone
 set -u
 name=26-daemon-owner-growth
 test_name=daemon::owner::tests::two_million_floor_records_grow_the_owner_by_at_most_the_bound
