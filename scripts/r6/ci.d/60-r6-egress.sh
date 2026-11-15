@@ -91,7 +91,8 @@ The import listing: the check prints the count of the undefined or imported symb
 route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on Windows where the
 runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
 it is a measurement and refuses nothing.
-Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of commands of the first list.
+Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of wrapped runs of the first
+list that were made and whose egress line was read; a job with none fails.
 The limits that stay:
 1. a socket or a process start inside a third-party crate, also when code of the three crates calls
    it; the check prints their names from the lock on its line "egress limit third-party crates=".
@@ -1181,6 +1182,7 @@ last_line() {
 
 run_checks() {
   i=0
+  checks=0
   while IFS= read -r entry || [ -n "$entry" ]; do
     i=$((i + 1))
     word=${entry%% *}
@@ -1225,6 +1227,7 @@ EOF
         continue
         ;;
     esac
+    checks=$((checks + 1))
     denied=$((denied + count))
     printf 'egress run=%s mode=%s command=%s denied=%s exit=%s\n' "$word" "$run_mode" "$status" "$count" "$code"
     wrapped_holds "$code" || ran=no
@@ -1233,6 +1236,10 @@ EOF
       ran=no
     fi
   done <"$work/run-list.txt"
+  if [ "$checks" -eq 0 ]; then
+    printf 'egress checks=0: no command of the first list ran\n'
+    ran=no
+  fi
 }
 
 not_observed() {
@@ -2009,6 +2016,8 @@ self_test() {
   link_tree=$(odd_repo "$work/repo-link" link) || self_failed "setup at line $LINENO"
   non_ascii_tree=$(non_ascii_repo "$work/repo-non-ascii") || self_failed "setup at line $LINENO"
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
+  awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+ / { next } { print }' "$self" \
+    >"$work/norun.sh" || self_failed "setup at line $LINENO"
   awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
     self_failed "setup at line $LINENO"
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
@@ -2273,6 +2282,11 @@ EOF
   case_job=windows
   STUB_CANARY_DROP=m22
   case_run canary-requires-a-windows-entry-in-the-windows-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_methods:51'
+  case_job=windows
+  case_run windows-job-runs-every-command PASS - 'egress checks=6 denied=0 entries=0'
+  case_job=windows
+  case_self=$work/norun.sh
+  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran'
   case_job=windows
   case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-finding.json
