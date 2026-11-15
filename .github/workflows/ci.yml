@@ -100,6 +100,63 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop of the new tests of U4.10 (200 runs each)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -u
+          fail=0
+          total=0
+          loop() {
+            pkg=$1; dir=$2; sel=$3; n=$4; shift 4
+            total=$((total + n))
+            read -r -a selw <<< "$sel"
+            exe=$(cargo test --locked --no-run --message-format=json -p "$pkg" "${selw[@]}" 2>/dev/null | grep '"executable":"' | grep -E '"profile":\{[^}]*"test":true' | sed 's/.*"executable":"\([^"]*\)".*/\1/' | tail -n 1)
+            exe=$(printf '%s' "$exe" | sed 's/\\\\/\\/g')
+            if command -v cygpath >/dev/null 2>&1 && [ -n "$exe" ]; then exe=$(cygpath -u "$exe"); fi
+            if [ -z "$exe" ] || [ ! -f "$exe" ]; then
+              echo "loop $pkg $sel: no test binary"
+              fail=1
+              return
+            fi
+            start=$(date +%s)
+            ok=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              i=$((i + 1))
+              res=$(cd "$dir" && "$exe" --exact "$@" 2>&1)
+              if printf '%s\n' "$res" | grep -Eq "^test result: ok\. $n passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out"; then
+                ok=$((ok + 1))
+              else
+                echo "loop $pkg $sel: run $i failed"
+                printf '%s\n' "$res" | tail -n 40
+              fi
+            done
+            echo "loop $pkg $sel tests=$n runs=200 passed=$ok seconds=$(( $(date +%s) - start ))"
+            [ "$ok" -eq 200 ] || fail=1
+          }
+          loop halvo-schema crates/halvo-schema '--lib' 5 \
+            executable::day::tests::the_day_moves_with_the_offset_at_the_edges_of_its_range \
+            executable::day::tests::a_day_runs_from_its_first_nanosecond_to_its_last_on_the_offset_clock \
+            executable::day::tests::an_instant_before_the_epoch_of_its_clock_is_day_0 \
+            executable::day::tests::the_largest_instant_has_a_day_without_overflow \
+            executable::day::tests::at_offset_0_the_day_is_the_utc_day_of_the_instant
+          loop halvo-runner crates/halvo-runner '--lib' 3 \
+            args::tests::an_offset_in_its_range_is_kept \
+            args::tests::an_offset_out_of_range_or_of_another_form_is_refused \
+            release::fake::every_row_takes_the_day_of_its_instant_at_the_runs_offset_either_way
+          loop halvo-runner crates/halvo-runner '--test frames' 2 \
+            a_start_without_a_utc_offset_or_with_one_out_of_range_is_refused_before_any_frame \
+            a_utc_offset_from_minus_50400_to_50400_is_taken
+          loop halvo-runner crates/halvo-runner '--test fill' 1 \
+            every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset
+          loop halvo-runner crates/halvo-runner '--test checkpoint' 1 \
+            a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_propose
+          loop halvo-agent-client crates/halvo-agent-client '--test start' 2 \
+            a_start_gives_the_runner_the_callers_offset_as_utc_offset \
+            a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_exit
+          echo "loop tests=$total fail=$fail"
+          exit "$fail"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -156,6 +213,63 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop of the new tests of U4.10 (200 runs each)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -u
+          fail=0
+          total=0
+          loop() {
+            pkg=$1; dir=$2; sel=$3; n=$4; shift 4
+            total=$((total + n))
+            read -r -a selw <<< "$sel"
+            exe=$(cargo test --locked --no-run --message-format=json -p "$pkg" "${selw[@]}" 2>/dev/null | grep '"executable":"' | grep -E '"profile":\{[^}]*"test":true' | sed 's/.*"executable":"\([^"]*\)".*/\1/' | tail -n 1)
+            exe=$(printf '%s' "$exe" | sed 's/\\\\/\\/g')
+            if command -v cygpath >/dev/null 2>&1 && [ -n "$exe" ]; then exe=$(cygpath -u "$exe"); fi
+            if [ -z "$exe" ] || [ ! -f "$exe" ]; then
+              echo "loop $pkg $sel: no test binary"
+              fail=1
+              return
+            fi
+            start=$(date +%s)
+            ok=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              i=$((i + 1))
+              res=$(cd "$dir" && "$exe" --exact "$@" 2>&1)
+              if printf '%s\n' "$res" | grep -Eq "^test result: ok\. $n passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out"; then
+                ok=$((ok + 1))
+              else
+                echo "loop $pkg $sel: run $i failed"
+                printf '%s\n' "$res" | tail -n 40
+              fi
+            done
+            echo "loop $pkg $sel tests=$n runs=200 passed=$ok seconds=$(( $(date +%s) - start ))"
+            [ "$ok" -eq 200 ] || fail=1
+          }
+          loop halvo-schema crates/halvo-schema '--lib' 5 \
+            executable::day::tests::the_day_moves_with_the_offset_at_the_edges_of_its_range \
+            executable::day::tests::a_day_runs_from_its_first_nanosecond_to_its_last_on_the_offset_clock \
+            executable::day::tests::an_instant_before_the_epoch_of_its_clock_is_day_0 \
+            executable::day::tests::the_largest_instant_has_a_day_without_overflow \
+            executable::day::tests::at_offset_0_the_day_is_the_utc_day_of_the_instant
+          loop halvo-runner crates/halvo-runner '--lib' 3 \
+            args::tests::an_offset_in_its_range_is_kept \
+            args::tests::an_offset_out_of_range_or_of_another_form_is_refused \
+            release::fake::every_row_takes_the_day_of_its_instant_at_the_runs_offset_either_way
+          loop halvo-runner crates/halvo-runner '--test frames' 2 \
+            a_start_without_a_utc_offset_or_with_one_out_of_range_is_refused_before_any_frame \
+            a_utc_offset_from_minus_50400_to_50400_is_taken
+          loop halvo-runner crates/halvo-runner '--test fill' 1 \
+            every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset
+          loop halvo-runner crates/halvo-runner '--test checkpoint' 1 \
+            a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_propose
+          loop halvo-agent-client crates/halvo-agent-client '--test start' 2 \
+            a_start_gives_the_runner_the_callers_offset_as_utc_offset \
+            a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_exit
+          echo "loop tests=$total fail=$fail"
+          exit "$fail"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
