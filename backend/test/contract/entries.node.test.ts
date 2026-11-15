@@ -1246,4 +1246,22 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     expect(stored.result === "snapshot" && stored.tables.skeleton?.[0]?.cancel_answered_at).toBe(8000);
     expect(made).toBe(1);
   });
+
+  test("L1 (e): closeOpen throwing at the bound is caught and logged by name, the storage goes all the same, and the count of closed intervals is logged as unknown", async () => {
+    let now = 8000;
+    const w = world({ clock: () => now });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.settled = false;
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
+    w.answers.throwIn = "metering.closeOpen";
+    w.reset();
+    now = 8000 + DELETE_REMOVAL_BOUND_MS;
+    await w.entries.alarm();
+    w.answers.throwIn = null;
+    expect(await w.holds()).toBe(false);
+    expect(lines).toEqual([
+      { event: "alarm-error", error: "Error" },
+      { event: "usage-not-billable", error: "Error" },
+    ]);
+  });
 });

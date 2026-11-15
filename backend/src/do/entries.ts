@@ -582,7 +582,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       });
       if (recorded !== null) return recorded;
     }
-    const last = step((open): DeleteAnswer | { closed: number } => {
+    const last = step((open): DeleteAnswer | { closed: number | { unknown: unknown } } => {
       if (!holds(open.sql)) return { result: "deleted" };
       const now = open.begin();
       if (holder(open.sql, hash) !== null || destroyingSince(open.sql) !== mark) return NOT_FINISHED;
@@ -595,13 +595,20 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         return { closed: 0 };
       }
       if (now < stored.answeredAt + DELETE_REMOVAL_BOUND_MS) return NOT_FINISHED;
-      const closed = metered ? metering.closeOpen(open.sql, now) : 0;
+      let closed: number | { unknown: unknown } = 0;
+      try {
+        closed = metered ? metering.closeOpen(open.sql, now) : 0;
+      } catch (error) {
+        open.caught(error);
+        closed = { unknown: error };
+      }
       open.beginWithoutAlarm();
       return { closed };
     });
     if ("result" in last) return last;
     await host.deleteAll();
-    logNotBillable({ call: null, notBillable: last.closed });
+    if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
+    else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
     return { result: "deleted" };
   }
 
