@@ -276,10 +276,7 @@ mod macos {
     }
 
     fn after(hold: &Hold, decision: Decision) {
-        if matches!(
-            decision,
-            Decision::Moment { first: true } | Decision::Refused { moment: Some(true) }
-        ) {
+        if decision.reports() {
             stop_reading(hold);
             let _ = hold.ivars().shown.send(Step::Shown);
         }

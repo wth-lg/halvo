@@ -45,6 +45,19 @@ pub enum Decision {
     Refused { moment: Option<bool> },
 }
 
+impl Decision {
+    /// Whether this decision makes the show's report on screen: the show's first moment, taken at
+    /// a notice, at the repeating reading or at a press (ruling RD-103 item 2 (d)). The caller
+    /// makes the report and ends the repeating reading when it answers true, and at no other
+    /// decision.
+    pub fn reports(self) -> bool {
+        matches!(
+            self,
+            Decision::Moment { first: true } | Decision::Refused { moment: Some(true) }
+        )
+    }
+}
+
 /// The moment of one show of the alert (ruling RD-103): the pair that the last reading stored.
 /// A press answers only after a moment that a reading on the main thread observed for this show,
 /// and only `arm` after the latest of the return of the first moment's report, each later moment

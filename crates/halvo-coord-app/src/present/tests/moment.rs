@@ -53,10 +53,7 @@ impl Show {
     fn event(&mut self, event: Event, read: Option<Pair>, at: u64) -> Decision {
         let now = self.at(at);
         let decision = self.moment.decide(&mut self.guard, event, read, now);
-        if matches!(
-            decision,
-            Decision::Moment { first: true } | Decision::Refused { moment: Some(true) }
-        ) {
+        if decision.reports() {
             self.reports += 1;
         }
         decision
@@ -150,6 +147,33 @@ fn moment_the_pair_turns_true_with_no_notice_and_the_repeating_reading_takes_the
     show.returned(200);
     assert!(!show.answers(699));
     assert!(show.answers(700));
+    assert_eq!(show.reports, 1);
+}
+
+#[test]
+fn moment_the_first_moment_makes_the_report_whether_a_notice_a_reading_or_a_press_took_it() {
+    for (decision, reports) in [
+        (Decision::Moment { first: true }, true),
+        (Decision::Refused { moment: Some(true) }, true),
+        (Decision::Moment { first: false }, false),
+        (
+            Decision::Refused {
+                moment: Some(false),
+            },
+            false,
+        ),
+        (Decision::Refused { moment: None }, false),
+        (Decision::Answer, false),
+        (Decision::Nothing, false),
+    ] {
+        assert_eq!(decision.reports(), reports, "{decision:?}");
+    }
+    let mut show = Show::new();
+    let first = show.press(TRUE, true, 300);
+    assert!(
+        first.reports(),
+        "the first moment taken at a press: {first:?}"
+    );
     assert_eq!(show.reports, 1);
 }
 
