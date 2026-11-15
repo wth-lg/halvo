@@ -959,6 +959,7 @@ own_case() {
 own_run() {
   [ -z "$fixture_added" ] || fixture_commit
   [ -z "$case_max_s" ] || case_t0=$(date +%s)
+  [ -z "$case_index_same" ] || cp "$fixture/.git/index" "$tmp/index.before"
   witness=
   if [ -n "$case_witness" ]; then
     own_term=
@@ -996,9 +997,14 @@ own_run() {
     [ -z "$case_env" ] || mkdir -p "$tmp/case-home" || exit 99
     if [ -n "$case_git_home" ]; then
       HOME=$(mktemp -d "$tmp/case-git-home.XXXXXX") || exit 99
-      GIT_CONFIG_GLOBAL=$HOME/gitconfig
       XDG_CONFIG_HOME=$HOME/config
-      export HOME GIT_CONFIG_GLOBAL XDG_CONFIG_HOME
+      export HOME XDG_CONFIG_HOME
+      if [ "$case_git_home" = plain ]; then
+        unset GIT_CONFIG_GLOBAL
+      else
+        GIT_CONFIG_GLOBAL=$HOME/gitconfig
+        export GIT_CONFIG_GLOBAL
+      fi
     fi
     if [ -n "$case_git_count" ]; then
       GIT_CONFIG_COUNT=1
@@ -1009,7 +1015,8 @@ own_run() {
     if [ -n "$case_git_names" ]; then
       GIT_AUTHOR_NAME='A Caller'
       GIT_CASE_VALUE="two  words, and a tab${tab}here"
-      export GIT_AUTHOR_NAME GIT_CASE_VALUE
+      GIT_INDEX_FILE=$tmp/no-index-of-the-caller/index
+      export GIT_AUTHOR_NAME GIT_CASE_VALUE GIT_INDEX_FILE
     fi
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
@@ -1119,6 +1126,8 @@ own_judge() {
     got='witness-ended'
   elif [ "$left" -gt 0 ]; then
     got=$left-processes-left
+  elif [ -n "$case_index_same" ] && ! cmp -s "$fixture/.git/index" "$tmp/index.before"; then
+    got=index-of-the-checkout-changed
   elif [ -n "$case_signal" ] && [ "${before:-0}" -lt "$case_signal_min" ]; then
     got=${before:-no}-processes-before-the-signal
   elif [ -n "$case_gone" ] && ! tmpdirs_gone; then
@@ -1211,6 +1220,7 @@ case_reset() {
   case_env=
   case_git_home=
   case_cdpath=
+  case_index_same=
   case_git_count=
   case_git_names=
   case_cargo_home=
@@ -1603,6 +1613,19 @@ own_self_test() {
   case_path=$stand_in_cargo/bin
   case_witness=yes
   own_case git-in-the-cargo-bin-directory-named-with-a-slash-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
+  case_cargo_home=$stand_in_cargo
+  case_path=$stand_in_cargo/./bin
+  case_witness=yes
+  own_case git-in-the-cargo-bin-directory-spelled-with-a-dot-does-not-answer-for-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "[ -z \"\${GIT_CONFIG_GLOBAL+set}\" ] && [ \"\${XDG_CONFIG_HOME:-}\" = \"\$HOME/config\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; git config --global ci-d.case seen && printf 'PASS 10-a\\n'"
+  case_git_home=plain
+  case_witness=yes
+  own_case global-setting-of-a-script-leaves-the-settings-that-the-driver-reads 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit && touch -t 200001010000 "$fixture/tracked.txt"
+  case_index_same=yes
+  case_witness=yes
+  own_case index-of-the-checkout-with-stale-stat-data-is-the-same-after-a-run 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   if ! command -v cygpath >/dev/null 2>&1; then
     new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
       git -C "$fixture" add tracked.txt >/dev/null 2>&1 && fixture_commit &&
@@ -1611,7 +1634,7 @@ own_self_test() {
     case_witness=yes
     own_case git-setting-of-the-caller-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
   fi
-  new_repo && add_script r1 10-a.sh "$good" '[ "${GIT_AUTHOR_NAME:-}" = "A Caller" ] && [ "${GIT_CASE_VALUE:-}" = "two  words, and a tab	here" ] || { printf "FAIL 10-a (the GIT_ names of the caller changed)\n"; exit 1; }; printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" '[ "${GIT_AUTHOR_NAME:-}" = "A Caller" ] && [ "${GIT_CASE_VALUE:-}" = "two  words, and a tab	here" ] && [ "${GIT_INDEX_FILE##*/no-index-of-the-caller/}" = index ] || { printf "FAIL 10-a (the GIT_ names of the caller changed)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_git_names=yes
   case_witness=yes
   own_case git-names-of-the-caller-reach-a-script-unchanged 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
