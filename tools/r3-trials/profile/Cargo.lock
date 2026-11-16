@@ -343,6 +343,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-test-dir"
+version = "0.0.0"
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -656,6 +660,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 name = "r3-profile"
 version = "0.0.0"
 dependencies = [
+ "halvo-test-dir",
  "libc",
  "r3-web",
  "serde_json",

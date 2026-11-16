@@ -211,6 +211,20 @@ pub fn browser_did_not_start(line: &str) -> bool {
     of_a_run && line.ends_with(" cause=browser_start")
 }
 
+/// The cause word of a run of items 1, 2 or the task shape that ended with the fault `fault`:
+/// `signal` for a signal, `browser_start` when the executor's start of a browser returned the
+/// fault (`start_failed`), whatever its name (A13.1: a browser that does not start has that cause
+/// and no other), and None for the caller's own word.
+pub fn start_cause(fault: &str, start_failed: bool) -> Option<&'static str> {
+    if fault == "signal" {
+        Some("signal")
+    } else if start_failed {
+        Some("browser_start")
+    } else {
+        None
+    }
+}
+
 pub fn landing(path: &str) -> (&'static str, &'static str) {
     match path {
         "/bill" => ("ok", "no"),
@@ -222,6 +236,29 @@ pub fn landing(path: &str) -> (&'static str, &'static str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_fault_of_the_start_itself_is_a_browser_that_did_not_start() {
+        let rows = [
+            ("browser_start", true, Some("browser_start")),
+            ("no_channel", true, Some("browser_start")),
+            ("start", true, Some("browser_start")),
+            ("no_route", true, Some("browser_start")),
+            ("signal", true, Some("signal")),
+            ("signal", false, Some("signal")),
+            ("signin", false, None),
+            ("task", false, None),
+            ("fixture", false, None),
+            ("navigate", false, None),
+        ];
+        for (fault, start_failed, want) in rows {
+            assert_eq!(
+                start_cause(fault, start_failed),
+                want,
+                "{fault} {start_failed}"
+            );
+        }
+    }
 
     #[test]
     fn bound_follows_the_rule_of_the_workflow_run() {

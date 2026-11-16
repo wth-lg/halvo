@@ -103,10 +103,10 @@ port 18090; item 3 added no flag. The trial's flags that the product lacks: the 
 macOS (A8.3), the web trial's port-form flags and A13.7's `--isolate-origins` (CP-93 (5)).
 
 What ran. Items 1 and 2 ran on `mac` at d66953a4, the hosted cells of items 1, 2 and 4 in run
-43552018301 at eb189792, and item 3 at c9eafc41 on `mac` and in run 43566221064. No later commit
-changes a value that a cell computes: they change tests, checks, help texts, SAFETY notes, lint
-entries, texts, item 3's lines (8b0f1a1e, before item 3 ran) and the place of the web trial's kill
-line printer (cadf0314, a function of the context now); the profile README lists each commit.
+43552018301 at eb189792, item 3 at c9eafc41 on `mac` and in run 43566221064. No later commit
+changes a value that a recorded line holds: they change tests, checks, help texts, SAFETY notes,
+lint entries, texts, item 3's lines (8b0f1a1e before it ran; 56919992 after, same bytes; U0.3c's
+denial lines), the kill line's printer (cadf0314), a `no_channel` start's cause; README lists all.
 
 Item 3 ran the program under `sh scripts/egress/check.sh` with the list of A14.3: the fixture and
 one Chrome that signs in, opens `/bill` and `/pay` and holds that page for 20 s, without the relay.
