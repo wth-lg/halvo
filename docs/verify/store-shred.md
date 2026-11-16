@@ -118,7 +118,7 @@ fixed order. Check 2 is three tests: one over random races of processes
 that open a store, one over random races of processes that create one in
 an empty directory, and one of two fixed cases around the directory lock.
 `docs/verify/check-covered.sh` reads this table and the table under
-Covered code. The delete tail, `EncryptedStore::delete_store_dir`, is held
+Covered code. The delete tail, `EncryptedStore::delete_data_dir`, is held
 by tests and rows, not by the formal checks: no move of check 1 calls it,
 and a later unit adds it as a move (ruling ST-45 Addition 1).
 
@@ -1159,8 +1159,8 @@ What the code does since store-3, each sentence with the test that shows it.
   `delete_all_acts_through_its_handle_and_leaves_a_directory_put_at_the_store_name_as_it_was` (P1),
   `delete_all_opens_lists_and_changes_nothing_behind_a_link_put_at_the_store_name` (P2),
   `the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_file_under_roots` (P3).
-- `EncryptedStore::delete_store_dir(store_dir, roots)` is the tail for a
-  directory that no handle holds: it takes the directory lock, runs the
+- `EncryptedStore::delete_data_dir(dir, layout)` is the tail for a
+  data directory that no handle holds: it takes the directory lock, runs the
   root step, removes the store's files in every case, and never opens the
   database. A root is named by `store.key` or by a `create.pending` that
   reads made, never by one that reads owed. The witness binds the tail in
@@ -1171,12 +1171,26 @@ What the code does since store-3, each sentence with the test that shows it.
   than a holder, and on Windows a path part that Win32 trims, get the root
   step for the named root alone. In every other arm (the lock held; nothing
   at the store name; a link or an entry of another kind at the store name
-  that this call removed, after that removal) the tail opens the roots path
-  once and destroys every entry whose name is a root name or a partial
-  name, whether or not anything names a root, also beside a key file that
-  this build does not handle, unless it refuses the roots path by ruling
-  ST-46 K2 (below); it opens no roots path that leads through a store name
-  at which it did not open a directory itself. The root reads
+  that this call removed, after that removal) the tail opens the roots
+  directory once, from the handle of the directory that holds it (the data
+  directory, or the store directory in the scratch layout) by its fixed name
+  and following no link, and destroys every entry whose name is a root name
+  or a partial name, whether or not anything names a root, also beside a key
+  file that this build does not handle (store-3b; below). The handle's
+  delete-all goes through the roots directory that its open held before the
+  unwrap, or that its create held after create_root, and reads its root by
+  the identity of the root file that the open or the create read: the file
+  of that identity at any name of the held directory, met through a kept
+  handle of that identity at the step's own look, found again by one more
+  listing when the name of the first listing was absent at that look; so a
+  root moved inside the directory is destroyed where it lies, and the
+  report says when the held directory no longer stands at its path
+  (`RootsLeft::at_its_path`), which answers `DeleteIncomplete` (store-3b;
+  tests
+  `a_root_file_renamed_inside_the_held_roots_directory_is_destroyed_where_it_lies`,
+  `a_roots_directory_moved_while_a_store_holds_it_loses_the_root_where_it_lies_and_the_delete_says_so`).
+  The tail on a key file, which records no identity, reads the root by its
+  name as follows. The root reads
   destroyed only when a root was named and this call removed, at the
   root's own name (the root name in any letter case, never a partial name
   alone), a regular file that is not empty and, off Windows, of the root
@@ -1187,16 +1201,19 @@ What the code does since store-3, each sentence with the test that shows it.
   root's file, and its zero-fill went through that handle or the count
   read through it after its own removal is 0. A name of the root that is
   absent at the look (the root name, or a partial name) never counts as
-  removed by this call, and the root reads left (ruling ST-46 K1; tests
-  `a_root_file_renamed_aside_after_the_listing_reads_left_and_no_ok_stands_over_a_copy_that_opens`,
-  `a_root_file_renamed_aside_after_the_listing_with_a_link_at_its_name_reads_left`,
-  `a_root_file_renamed_aside_after_the_listing_with_an_empty_file_at_its_name_reads_left`,
-  `a_partial_root_file_renamed_aside_after_the_listing_reads_the_root_left`,
+  removed by this call, and the root reads left (ruling ST-46 K1; test
+  `a_partial_root_file_renamed_aside_after_the_listing_reads_the_root_left`).
+  With the identity, the handle's delete destroys a root file renamed aside
+  after its listing where it lies (store-3b, B1's window in a roots
+  directory of usual size; tests
+  `a_root_file_renamed_aside_after_the_listing_is_destroyed_where_it_lies_and_no_copy_opens`,
+  `a_root_file_renamed_aside_after_the_listing_with_a_link_at_its_name_is_destroyed_where_it_lies`,
+  `a_root_file_renamed_aside_after_the_listing_with_an_empty_file_at_its_name_is_destroyed_where_it_lies`,
   `with_nothing_moved_after_the_listing_the_root_reads_destroyed`). A
   partial name of the named root that is renamed aside, with a link or an
   entry of another kind put at its name after the listing, reads Gone for
   that name, as before the round; K1's tests hold the absent partial name
-  (ruling ST-46 Addition 1 S4, for store-3b). Left (not found) when one
+  (ruling ST-46 Addition 1 S4; store-3b leaves it). Left (not found) when one
   was named and not removed; and unnamed when nothing named one. A link,
   an entry of another kind, an empty file or, off Windows, a file of
   another length at that name is removed as the entry that it is, with no
@@ -1326,8 +1343,11 @@ What the code does since store-3, each sentence with the test that shows it.
   found that a create there made its directory at the trimmed sibling
   (ruling ST-45 H6 (b)). The refusal also takes a path whose inner part
   ends in a space, such as a real directory made through its verbatim name,
-  although Win32 would open that part as written: it fails closed, and a
-  test of it is store-3b's (ruling ST-45 Addition 2). Tests:
+  although Win32 would open that part as written: it fails closed, the
+  create, the open and the tail write and destroy nothing under such a
+  directory (ruling ST-45 Addition 2 (c); test
+  `a_store_below_a_real_directory_whose_name_ends_in_a_space_is_refused_and_nothing_under_it_changes`).
+  Tests:
   `a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trimmed_name`,
   `a_key_file_version_past_u32_or_below_zero_answers_newer_or_older_store`,
   `the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays`,
@@ -1431,18 +1451,32 @@ set, and the root's own volume name answers the root.
 ## Not covered
 
 - The roots reached by path (ruling ST-44 F1 (f)). At a create, before the
-  root is made, the cleanup of a stopped create, `abandon_create` and the
-  look for a live root reach the roots directory by its path. The delete
-  does not follow a roots directory that was moved: it says that it is not
-  finished, and the root that stands in the moved directory can still
-  unwrap a copy of the store. Following a moved roots directory with a
-  handle held for the store's life is store-3b's.
+  root is made, the cleanup of a stopped create and the look for a live
+  root reach the roots directory by its path, and so does create_root
+  itself; the create holds the directory by its path after create_root
+  answered, so a directory moved between the two leaves the root that
+  create_root made, which wraps no key, and the wrap through the held
+  directory answers `RootMissing`. The cleanup by a made mark destroys only
+  the file of the identity that the mark records, wherever it reaches it.
+  From the hold on (store-3b), the wrap, the unwrap, the open's cleanup,
+  `abandon_create` and the root step of delete-all go through the held
+  handle: a roots directory moved while a store holds it loses its root
+  where it lies, and the delete says that it is not finished, because the
+  directory no longer stands at its path; what stands at the old path then
+  is not touched, and the tail after the handle is dropped sweeps it.
+- File identities (store-3b). An identity is the volume and the file number
+  read from an open handle. A file number that the volume gives again to a
+  new file after the root file was removed reads as the root file's
+  identity: the step destroys that file as the root's. A copy of the root
+  file is a file of another identity, which the handle's delete destroys
+  only as another root file of the held directory, and the tail's sweep
+  destroys at a root name; a copy outside the roots directory stays, the
+  copy that docs/privacy-limits.md names.
 - A later call on a handle whose root read destroyed (ruling ST-45 H3). It
   reports the roots from the listing that the earlier call kept and opens
   no roots path, so a root file put under the roots directory after that
   call is neither destroyed nor named by the handle; the tail, run after
-  the handle is dropped, finishes what was left. The identity of the roots
-  directory goes with the held handle to store-3b.
+  the handle is dropped, finishes what was left.
 - The root of a key file that this build does not handle (ruling ST-44
   F5). Its name is given once, by the call that removes its key file; a
   root of a key file of version 1 is an item of the login keychain, and its
@@ -1469,7 +1503,11 @@ set, and the root's own volume name answers the root.
   another volume, while a connection is open answers `Obstructed` for the
   store directory; a move to another volume is a copy and a removal, by
   reasoning and not by a run. L4: on Windows every call is by name under a
-  handle that is held without delete sharing. L5: not tried: a device
+  handle that is held without delete sharing; from store-3b the roots
+  directory that a store holds is such a handle too, so neither the store
+  directory nor the roots directory can be renamed or removed while a store
+  is open (test
+  `a_roots_directory_that_a_store_holds_cannot_be_renamed_until_the_store_is_dropped`). L5: not tried: a device
   number after a restart and a second volume; no stale number can be used,
   because the numbers are read from the handle at each open. L6: P9 holds
   the trial's first item in the suite, so a change of the pinned SQLCipher
@@ -1495,7 +1533,7 @@ set, and the root's own volume name answers the root.
   keeps the wrapped key, which does not unwrap once the root is destroyed.
   On Windows the read-only attribute of `store.key` is cleared by its path,
   which follows a link put there after the look (ruling ST-46 Addition 1
-  S4, for store-3b)
+  S4; store-3b leaves it)
   (ruling ST-46 K5 N1;
   `delete_all_zeroes_a_store_key_of_mode_0400_through_every_name`);
   a file of another program that a process of the same user hard-links at
@@ -1529,20 +1567,20 @@ set, and the root's own volume name answers the root.
   `a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok`.
 - What the reading destroyed rests on (ruling ST-45 H4). On Windows any
   regular file at the root's name that is not empty counts as the root's
-  file, because the protected form has no fixed length. A root file that a
-  program renamed aside, with a file of the right length put at its name,
-  reads destroyed while the renamed file can still unwrap; binding the
-  reading to the file's identity is store-3b's. So does a directory put at
-  the old roots name that holds a file of the root file's length at the
-  root's name: that file is the witness, the handle's delete destroys every
-  root file there and reads its own root destroyed while the moved root
-  still unwraps, and the answer is `Ok`. A program that puts that file
-  there makes this state, and so does a person who moves the roots folder
-  away and puts a copy of it at the old name without a program: the copy
-  that docs/privacy-limits.md line 25 names. Store-3b's
-  held handle and the identity of the roots directory close it, and
-  store-3b takes the case as a test that fails first (ruling ST-46 K6, the
-  verifier's issue 3). A rename alone, or with a
+  file in the tail on a key file, because the protected form has no fixed
+  length. In that tail a root file that a program renamed aside, with a file
+  of the right length put at its name, reads destroyed while the renamed
+  file can still unwrap, because the key file records no identity; the
+  handle's delete-all reads by the identity and is not misled (store-3b).
+  A directory put at the old roots name that holds a file of the root
+  file's length at the root's name is not touched by the handle's delete:
+  it destroys its root in the held roots directory where it lies and
+  answers `DeleteIncomplete`, because that directory no longer stands at
+  its path (store-3b closes ruling ST-46 K6, the verifier's issue 3; test
+  `st46_k6_the_handles_delete_destroys_its_root_in_the_moved_roots_directory_and_leaves_the_directory_at_the_old_name`).
+  A person who moves the roots folder away and puts a copy of it at the old
+  name makes the copy that docs/privacy-limits.md line 25 names. A rename
+  alone, or with a
   link, an empty file or a file of another length put at the name, reads
   left, because the step's own look met no root file there (ruling ST-46
   K1). `destroy_root_at`, which the cleanup of a create and the custody's
@@ -1553,30 +1591,22 @@ set, and the root's own volume name answers the root.
 - The tail's sweep (ruling ST-45 H1). The roots location that a caller
   gives the tail is that data directory's own (ruling ST-32 (a)), so two
   stores that share one roots directory both lose their root at a tail.
-  Before its sweep the tail walks the parts of the roots path below the
-  deepest directory that the roots path and the store path share, by their
-  parts as given, and looks at each without following it: when a part is
-  a link (on Windows a link or a junction), or the path holds a parent
-  part, the tail runs no sweep, takes the named root alone with its
-  witness, reads the roots as not listed and answers `DeleteIncomplete` on
-  every call; such a roots path is refused. Links above the shared
-  directory stay (a home on another volume, `/var` on macOS): both names
-  are reached through them alike (ruling ST-46 K2; tests
-  `the_tail_runs_no_sweep_through_a_link_in_a_part_of_the_roots_path`,
-  `the_tail_runs_no_sweep_on_a_roots_path_with_a_parent_part`, and on
-  Windows
-  `the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path`).
-  Named and not built: a caller that gives another data directory's roots
-  by a plain path destroys them (the rule of the interface is that the
-  store path and the roots path are built from one data directory value);
-  a link that a second program puts into the path after the walk; the open
-  of the roots from the parent's handle and the tail that takes a data
-  directory with a closed layout are store-3b's. The walk is a look by path
-  that a later call acts on by name. A store path and a roots path spelled
-  differently (another letter case, a relative path beside an absolute
-  one) share fewer parts as given, so the walk looks at more parts, and a
-  link in the parts that they share as spelled is followed (ruling ST-46
-  Addition 1 S4, for store-3b).
+  From store-3b the tail takes a data directory and a closed layout
+  (`Layout::DataDirectory`, the store and the roots side by side;
+  `Layout::ScratchStore`, the roots inside the store directory), opens the
+  data directory as a handle and opens the store directory and the roots
+  directory from the handle of the directory that holds each, by their
+  fixed names, following no link: a link (on Windows a link or a junction)
+  at the roots name reads not listed and answers `DeleteIncomplete`, and a
+  link put at the store name after the tail's look leads its sweep nowhere
+  else (tests `the_tail_follows_no_link_at_the_roots_name_of_its_data_directory`,
+  `a_link_put_at_the_store_name_after_the_tails_look_leads_its_sweep_nowhere_else`,
+  and on Windows
+  `the_tail_follows_no_directory_link_at_the_roots_name_of_its_data_directory`).
+  A data directory that is a link is not followed and nothing is removed.
+  Links above the data directory stay (a home on another volume, `/var` on
+  macOS). The walk of ruling ST-46 K2 and its spelling case are gone with
+  the free roots path.
   A create that makes its directory after the tail read that none stands
   can lose its root; the daemon's instance lock is the guard. After a
   handle's delete that the witness stopped, the tail after a restart sweeps
@@ -1588,11 +1618,10 @@ set, and the root's own volume name answers the root.
   followed, and it is not counted in `not_followed`, which counts the store's
   own names. The delete tail does not ask SQLite whether another program
   holds `store.db`, because it never opens the database: a holder that does
-  not hold the directory lock is not refused. The tail on a name where no
-  directory stands sweeps the roots directory that it is given, unless that
-  path leads through the store name or the tail refuses it by ruling ST-46
-  K2 (a link or a parent part below the directory that it shares with the
-  store path), and answers `Ok` with the root unnamed when no root file
+  not hold the directory lock is not refused. The tail on a data directory
+  at whose store name no directory stands sweeps the roots directory that it
+  opens from the data directory's handle, and in the scratch layout sweeps
+  nothing, and answers `Ok` with the root unnamed when no root file
   stays (ruling ST-45 H1, which restores ST-30 (1)(d) for the tail); the daemon's instance lock on the data directory
   keeps the tail from running beside a live daemon. A
   program that takes `store.db` between the probe and the open makes `open`
@@ -1613,10 +1642,19 @@ set, and the root's own volume name answers the root.
   its partial files, that no mark and no key file names. It wraps no key,
   the next tail's sweep destroys it (ruling ST-45 H1; the kill table's
   stopped create runs that tail), and while it stands a create under that root
-  id answers `RootExists`. (ii) A mark that reads made destroys by id: two
-  creates under one root id with a delete between them are not covered;
-  the rule is a fresh id for each create, and no caller passes an id
-  twice. Binding the made mark to the file's identity is store-3b's.
+  id answers `RootExists`. (ii) From store-3b a mark that reads made
+  records the identity of the root file that the create's wrap read, and a
+  cleanup by the mark destroys the file of that identity alone, never a
+  file of another identity at the root's name and never the root file that
+  the open read for `store.key`; a mark that reads made without an identity
+  reads owed. The tail names the mark's root by that identity: a file of
+  another identity at its name reads the root left, and without the lock
+  the tail leaves such a file and names it (tests
+  `a_made_mark_records_the_identity_of_the_root_file_that_the_create_made`,
+  `an_opens_cleanup_leaves_the_root_that_store_key_names_under_the_name_of_the_marks_root`,
+  `a_tail_without_the_lock_leaves_a_file_of_another_identity_at_the_marks_root_name_and_names_it`,
+  `a_tail_reads_the_marks_root_left_when_only_a_file_of_another_identity_stands_at_its_name`,
+  `a_creates_cleanup_by_a_made_mark_leaves_a_file_of_another_identity_at_the_marks_root_name`).
 
 - On Windows the store sets no access rule on its files and directories,
   syncs no directory after a rename or an unlink, and opens a link at a
@@ -1700,7 +1738,7 @@ set, and the root's own volume name answers the root.
   `DatabaseMissing` and `create` is refused with `AlreadyExists`, so
   neither finishes that directory. Without it `open` gives `Sealed`, and a
   `create` clears what is left and makes a new store. The tail
-  `EncryptedStore::delete_store_dir`, which finishes such a directory, is
+  `EncryptedStore::delete_data_dir`, which finishes such a directory, is
   called by no move; tests of `store::hardening_tests` read it. The root
   is destroyed, so nothing in the directory can be read, unless the root
   step itself failed, and then the report of the error named the root.
