@@ -1773,9 +1773,14 @@ fn an_agent_whose_history_is_refused_is_set_aside_and_every_other_agent_recovers
         by: StopBy::Person,
     });
     assert!(w.calls().contains(&"cancel".to_string()), "and stops");
+    w.calls();
     let refused_start = w.act(Act::Start { agent: agent(0) });
     assert_eq!(refused_start.report.answer, Err(Cause::NoService));
-    w.calls();
+    assert_eq!(
+        w.calls(),
+        Vec::<String>::new(),
+        "a start of the agent set aside tries nothing"
+    );
     w.ports.clear_refusals();
     w.act(Act::Tick);
     assert!(!w.board.aside(&agent(0)), "the first read that answers");
