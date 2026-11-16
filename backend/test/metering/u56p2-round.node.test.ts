@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { makeStripePort } from "../../src/billing/stripe/adapter.ts";
 import { driven, runs } from "./u56p2-provider-world.ts";
 
 const HOUR = 3_600_000;
@@ -23,14 +24,15 @@ describe("X1: the stored id goes first until a call settles it; then no try asks
     });
   });
 
-  test("a stored id that the provider does not know is settled by its read after the refusal; no later try asks for it", async () => {
+  test("a stored id that the provider does not know is settled by its read in the second try whose customer read shows the key, with one cancel-stored-unknown line; no later try asks for it (P7-120 N2, the two-try form)", async () => {
     const { ending, w } = await driven({ plans: 30, stored: "sub_gone", delayMs: 1000 });
     w.close();
     expect({
       storedRequests: ending.asked.filter((each) => each.path === "/v1/subscriptions/sub_gone").map((each) => `${each.attempt} ${each.method}`),
       settledFor: ending.storedSettledFor,
+      lines: ending.lines["cancel-stored-unknown"] ?? 0,
       gone: ending.goneAfterMs !== null,
-    }).toEqual({ storedRequests: ["1 DELETE", "1 GET"], settledFor: "sub_gone", gone: true });
+    }).toEqual({ storedRequests: ["1 DELETE", "1 GET", "2 DELETE", "2 GET"], settledFor: "sub_gone", lines: 1, gone: true });
   });
 });
 
@@ -47,6 +49,46 @@ describe("X3: an id that cannot be sent unchanged makes no request and is never 
       linesHourly: unanswered >= 1 && unanswered <= 49,
       first: ending.answers[0],
     }).toEqual({ badRequests: 0, live: [BAD_ID], gone: null, errors: 0, linesHourly: true, first: "failed 1/1" });
+  });
+});
+
+describe("X3's cursor with no server (pr-review-35 finding 1, its case f1-04)", () => {
+  test("a live id that cannot be sent, last on a full first page behind entries that ended: the cursor is the page's last sendable id, page 2's live subscription is cancelled, no request carries the bad id, and the call answers failed 1/1", async () => {
+    const bad = "sub_\uD800";
+    const order = [...Array.from({ length: 99 }, (_, k) => ({ id: `sub_x${String(k).padStart(3, "0")}`, status: "incomplete_expired" })), { id: bad, status: "active" }, { id: "sub_live2", status: "active" }];
+    const ended = new Set<string>();
+    const asked: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+      asked.push(`${method} ${url.pathname} ${url.searchParams.get("starting_after") ?? "-"}`);
+      if (url.pathname === "/v1/customers/cus_1") return new Response(JSON.stringify({ id: "cus_1", object: "customer", livemode: false }), { status: 200 });
+      if (url.pathname === "/v1/subscriptions" && method === "GET") {
+        const shown = order.filter((e) => !ended.has(e.id));
+        const after = url.searchParams.get("starting_after");
+        const rest = shown.slice(after === null ? 0 : shown.findIndex((e) => e.id === after) + 1);
+        const limit = Number(url.searchParams.get("limit"));
+        const data = rest.slice(0, limit).map((e) => ({ id: e.id, object: "subscription", status: e.status, customer: "cus_1" }));
+        return new Response(JSON.stringify({ object: "list", has_more: rest.length > limit, data }), { status: 200 });
+      }
+      if (url.pathname === "/v1/subscriptions/sub_live2" && method === "DELETE") {
+        ended.add("sub_live2");
+        return new Response(JSON.stringify({ id: "sub_live2", object: "subscription", status: "canceled", customer: "cus_1" }), { status: 200 });
+      }
+      return new Response("{}", { status: 500 });
+    }) as typeof fetch;
+    try {
+      const port = makeStripePort({ baseUrl: "https://provider.invalid", apiKey: "sk_test_x", signingSecret: "whsec_x", priceId: "price_x" }, () => 0);
+      const got = await port.cancelSubscription(null, "cus_1", "unsettled");
+      expect({ got, asked, ended: [...ended] }).toEqual({
+        got: { kind: "failed", cancelled: 1, unended: 1, stored: "unsettled" },
+        asked: ["GET /v1/customers/cus_1 -", "GET /v1/subscriptions -", "GET /v1/subscriptions sub_x098", "DELETE /v1/subscriptions/sub_live2 -", "GET /v1/subscriptions -"],
+        ended: ["sub_live2"],
+      });
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });
 

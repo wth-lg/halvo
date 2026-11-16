@@ -1,13 +1,13 @@
 [
   { "query": "SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "bindings": ["table", "skeleton"], "rows": [] },
   {
-    "query": "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER, cancel_stored_settled_for TEXT, cancel_unanswered_at INTEGER)",
+    "query": "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER, cancel_stored_settled_for TEXT, cancel_unanswered_at INTEGER, cancel_stored_unknown_for TEXT)",
     "bindings": [],
     "rows": []
   },
   {
-    "query": "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    "bindings": [null, 1000, 0, null, null, null, null, null, null, null],
+    "query": "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at, cancel_stored_unknown_for) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "bindings": [null, 1000, 0, null, null, null, null, null, null, null, null],
     "rows": []
   },
   { "query": "SELECT name FROM sqlite_master WHERE type = ? AND name = ?", "bindings": ["table", "skeleton"], "rows": [{ "name": "skeleton" }] },
@@ -17,9 +17,9 @@
   { "query": "UPDATE skeleton SET alarm_failures = ?", "bindings": [0], "rows": [] },
   { "query": "UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", "bindings": [62000, 120000], "rows": [] },
   {
-    "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at FROM skeleton",
+    "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at, cancel_stored_unknown_for FROM skeleton",
     "bindings": [],
-    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": null, "cancel_answered_for": null, "cancel_next_at": 62000, "cancel_delay": 120000, "removal_decided_at": null, "cancel_stored_settled_for": null, "cancel_unanswered_at": null }]
+    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": null, "cancel_answered_for": null, "cancel_next_at": 62000, "cancel_delay": 120000, "removal_decided_at": null, "cancel_stored_settled_for": null, "cancel_unanswered_at": null, "cancel_stored_unknown_for": null }]
   },
   {
     "query": "UPDATE skeleton SET cancel_answered_at = ?, cancel_answered_for = ?, cancel_next_at = ?, cancel_delay = ?, removal_decided_at = ?",
@@ -29,6 +29,8 @@
   { "query": "UPDATE skeleton SET removal_decided_at = ?", "bindings": [4000], "rows": [] },
   { "query": "UPDATE skeleton SET cancel_stored_settled_for = ?", "bindings": ["sub_1"], "rows": [] },
   { "query": "UPDATE skeleton SET cancel_unanswered_at = ?", "bindings": [3500], "rows": [] },
+  { "query": "UPDATE skeleton SET cancel_stored_unknown_for = ?", "bindings": ["sub_1"], "rows": [] },
+  { "query": "UPDATE skeleton SET cancel_stored_unknown_for = ?", "bindings": [null], "rows": [] },
   { "query": "CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT, began_at INTEGER NOT NULL)", "bindings": [], "rows": [] },
   { "query": "DELETE FROM cancel_call", "bindings": [], "rows": [] },
   { "query": "INSERT INTO cancel_call (subscription_id, began_at) VALUES (?, ?)", "bindings": ["sub_1", 3000], "rows": [] },
@@ -41,9 +43,9 @@
   { "query": "DELETE FROM cancel_call WHERE subscription_id IS ? AND began_at = ?", "bindings": [null, 4000], "rows": [] },
   { "query": "SELECT subscription_id, began_at FROM cancel_call", "bindings": [], "rows": [] },
   {
-    "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at FROM skeleton",
+    "query": "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at, cancel_stored_unknown_for FROM skeleton",
     "bindings": [],
-    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": 3000, "cancel_answered_for": "sub_1", "cancel_next_at": null, "cancel_delay": null, "removal_decided_at": 4000, "cancel_stored_settled_for": "sub_1", "cancel_unanswered_at": 3500 }]
+    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": 3000, "cancel_answered_for": "sub_1", "cancel_next_at": null, "cancel_delay": null, "removal_decided_at": 4000, "cancel_stored_settled_for": "sub_1", "cancel_unanswered_at": 3500, "cancel_stored_unknown_for": null }]
   },
   { "query": "CREATE TABLE test_clock (time INTEGER NOT NULL)", "bindings": [], "rows": [] },
   { "query": "INSERT INTO test_clock (time) VALUES (?)", "bindings": [3000], "rows": [] },
@@ -70,7 +72,7 @@
   {
     "query": "SELECT * FROM \"skeleton\"",
     "bindings": [],
-    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": 3000, "cancel_answered_for": "sub_1", "cancel_next_at": null, "cancel_delay": null, "removal_decided_at": 4000, "cancel_stored_settled_for": "sub_1", "cancel_unanswered_at": 3500 }]
+    "rows": [{ "destroying_since": 2000, "last_now": 2500, "alarm_failures": 0, "cancel_answered_at": 3000, "cancel_answered_for": "sub_1", "cancel_next_at": null, "cancel_delay": null, "removal_decided_at": 4000, "cancel_stored_settled_for": "sub_1", "cancel_unanswered_at": 3500, "cancel_stored_unknown_for": null }]
   },
   { "query": "SELECT * FROM \"ledger_cap\"", "bindings": [], "rows": [{ "amount": 700, "period": "month" }] }
 ]

@@ -1,5 +1,5 @@
 import { type Accounts, type Applied, SESSION_LENGTH_MS } from "../accounts/index.ts";
-import type { ProviderEvent, ProviderPort, SubscriptionState } from "../billing/port.ts";
+import type { ProviderEvent, ProviderPort, StoredIdState, SubscriptionState } from "../billing/port.ts";
 import type {
   CapGetAnswer,
   CapSetAnswer,
@@ -114,6 +114,7 @@ interface Mark {
   delay: Ms | null;
   decidedAt: Ms | null;
   storedSettledFor: string | null;
+  storedUnknownFor: string | null;
   unansweredAt: Ms | null;
 }
 
@@ -124,7 +125,7 @@ type Fourth =
       kind: "cancel";
       subscriptionId: string | null;
       customerId: string | null;
-      storedSettled: boolean;
+      stored: StoredIdState;
       mark: Ms;
       unacknowledged: number;
       began: Ms | null;
@@ -265,7 +266,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const holds = (sql: Sql) => tableExists(sql, SKELETON);
   const skeletonRow = (sql: Sql) =>
     sql.exec(
-      "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at FROM skeleton",
+      "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at, cancel_stored_unknown_for FROM skeleton",
     )[0] ??
     contractBroken();
   const lastNow = (sql: Sql) => Number(skeletonRow(sql).last_now);
@@ -280,6 +281,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       delay: timeOrNull(row.cancel_delay),
       decidedAt: timeOrNull(row.removal_decided_at),
       storedSettledFor: row.cancel_stored_settled_for === null || row.cancel_stored_settled_for === undefined ? null : String(row.cancel_stored_settled_for),
+      storedUnknownFor: row.cancel_stored_unknown_for === null || row.cancel_stored_unknown_for === undefined ? null : String(row.cancel_stored_unknown_for),
       unansweredAt: timeOrNull(row.cancel_unanswered_at),
     };
   };
@@ -437,13 +439,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   function createTables(sql: Sql, now: Ms): void {
     sql.exec(
-      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER, cancel_stored_settled_for TEXT, cancel_unanswered_at INTEGER)",
+      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER, cancel_stored_settled_for TEXT, cancel_unanswered_at INTEGER, cancel_stored_unknown_for TEXT)",
     );
     sql.exec(
-      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at, cancel_stored_unknown_for) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       null,
       now,
       0,
+      null,
       null,
       null,
       null,
@@ -851,8 +854,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       const calls = subscriptionId !== null || customerId !== null;
       if (calls) storeCallRecord(open.sql, subscriptionId, now);
-      const storedSettled = subscriptionId !== null && mark.storedSettledFor === subscriptionId;
-      return { kind: "cancel", subscriptionId, customerId, storedSettled, mark: mark.since, unacknowledged, began: calls ? now : null };
+      const stored: StoredIdState =
+        subscriptionId === null ? "unsettled" : mark.storedSettledFor === subscriptionId ? "settled" : mark.storedUnknownFor === subscriptionId ? "unknown-once" : "unsettled";
+      return { kind: "cancel", subscriptionId, customerId, stored, mark: mark.since, unacknowledged, began: calls ? now : null };
     }, by);
   }
 
@@ -874,7 +878,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (next.kind === "answer") return next.answer;
     if (next.kind === "again") return contractBroken();
     const mark = next.mark;
-    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId, customerId: next.customerId, storedSettled: next.storedSettled } : null;
+    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId, customerId: next.customerId, stored: next.stored } : null;
     if (made !== null) {
       for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
       const id = made.subscriptionId;
@@ -890,7 +894,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           log({ event: by.line, error: errorName(clearing) });
         }
       };
-      const settled = (async () => host.port.cancelSubscription(id, made.customerId, made.storedSettled))().then(
+      const settled = (async () => host.port.cancelSubscription(id, made.customerId, made.stored))().then(
         (answer) => ({ answer }),
         (error: unknown) => ({ error }),
       );
@@ -900,7 +904,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (first === null) {
         log({ event: "cancel-call-unsettled" });
         void settled.then(clear);
-        cancelled = { kind: "failed", cancelled: 0, unended: 0, storedSettled: false };
+        cancelled = { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" };
       } else if ("error" in first) {
         clear();
         throw first.error;
@@ -913,9 +917,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           if (first !== null) clearCallRecord(open.sql, id, began);
           const current = markOf(open.sql);
           if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, line: false };
-          if (answer.storedSettled && id !== null) open.sql.exec("UPDATE skeleton SET cancel_stored_settled_for = ?", id);
+          if (answer.stored === "settled" && id !== null) open.sql.exec("UPDATE skeleton SET cancel_stored_settled_for = ?", id);
+          // The one writer of cancel_stored_unknown_for (ruling P7-120, Addition 1, N2): the first counted unknown answer is
+          // kept for the row's id, and any other state of the answer clears it.
+          if (id !== null) open.sql.exec("UPDATE skeleton SET cancel_stored_unknown_for = ?", answer.stored === "unknown-once" ? id : null);
+          const firstUnknown = answer.stored === "unknown-once" && current.storedUnknownFor !== id;
           let capped = false;
-          if (answer.cancelled > 0) open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + SYNC_RETRY_MS, SYNC_RETRY_MS);
+          if (answer.cancelled > 0 || firstUnknown) open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + SYNC_RETRY_MS, SYNC_RETRY_MS);
           else {
             const delay = current.delay ?? SYNC_RETRY_MS;
             open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));

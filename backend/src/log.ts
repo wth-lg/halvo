@@ -19,7 +19,8 @@ export type LogEvent =
   | "cancel-call-unsettled"
   | "removal-overdue"
   | "cancel-customer-unknown"
-  | "cancel-list-fault";
+  | "cancel-list-fault"
+  | "cancel-stored-unknown";
 
 export interface LogFields {
   event: LogEvent;

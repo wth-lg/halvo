@@ -125,7 +125,7 @@ describe("against the pinned stripe-mock", () => {
       expect(session.kind).toBe("session");
       expect(["open", "complete", "expired", "unknown", "failed"]).toContain((await port.readSession("cs_test_a1")).kind);
       expect((await port.openManagePage({ customerId: "cus_test_1", returnUrl: "http://127.0.0.1:8787/v1/done" })).kind).toBe("page");
-      expect(["cancelled", "failed"]).toContain((await port.cancelSubscription("sub_test_1", "cus_test_1", false)).kind);
+      expect(["cancelled", "failed"]).toContain((await port.cancelSubscription("sub_test_1", "cus_test_1", "unsettled")).kind);
     } finally {
       globalThis.fetch = real;
     }
@@ -179,7 +179,7 @@ describe("what the adapter sends", () => {
         kind: "page",
         url: "http://127.0.0.1:2/manage",
       });
-      expect(await port.cancelSubscription("sub_test_1", "cus_test_1", false)).toEqual({ kind: "nothing-to-cancel" });
+      expect(await port.cancelSubscription("sub_test_1", "cus_test_1", "unsettled")).toEqual({ kind: "nothing-to-cancel" });
       expect(server.requests.map(endpoint).slice(3)).toEqual([
         "DELETE /v1/subscriptions/{id}",
         "GET /v1/subscriptions/{id}",
@@ -221,10 +221,10 @@ describe("what the adapter sends", () => {
         expect(await port.startCheckout({ accountId: ACCOUNT, successUrl: "http://127.0.0.1:1/v1/done", expiresAt: NOW })).toEqual({ kind: "failed" });
         expect(await port.readSession("cs_1")).toEqual({ kind: "failed" });
         expect(await port.openManagePage({ customerId: "cus_1", returnUrl: "http://127.0.0.1:1/v1/done" })).toEqual({ kind: "failed" });
-        expect(await port.cancelSubscription("sub_1", "cus_1", false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-        expect(await port.cancelSubscription(null, "cus_1", false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-        expect(await port.cancelSubscription("sub_1", null, false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-        expect(await port.cancelSubscription(null, null, false)).toEqual({ kind: "nothing-to-cancel" });
+        expect(await port.cancelSubscription("sub_1", "cus_1", "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+        expect(await port.cancelSubscription(null, "cus_1", "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+        expect(await port.cancelSubscription("sub_1", null, "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+        expect(await port.cancelSubscription(null, null, "unsettled")).toEqual({ kind: "nothing-to-cancel" });
         expect(await port.sendUsage({ accountId: ACCOUNT, customerId: "c", identifier: "a:0", amountMinor: 1, timestamp: 0 })).toEqual({ kind: "failed" });
         expect(await port.readUsageTotal({ accountId: ACCOUNT, customerId: "c", from: 0, to: 1 })).toEqual({ kind: "failed" });
       }
@@ -279,7 +279,7 @@ describe("what the adapter sends", () => {
       "nothing-to-cancel",
     ],
     ["a refusal, then a read of another subscription", [{ status: 400, body: ERROR() }, { status: 200, body: JSON.stringify({ id: "sub_2", status: "canceled" }) }], "failed"],
-    ["a refusal, then a read of an unknown id", [{ status: 404, body: MISSING }, { status: 404, body: MISSING }], "nothing-to-cancel"],
+    ["a refusal, then a read of an unknown id (a first unknown answer, P7-120 N2)", [{ status: 404, body: MISSING }, { status: 404, body: MISSING }], "failed"],
     ["a refusal, then a 404 with a known error type and no code", [{ status: 404, body: ERROR() }, { status: 404, body: ERROR() }], "failed"],
     [
       "a refusal, then a 404 with another code",
@@ -297,8 +297,8 @@ describe("what the adapter sends", () => {
       return replies[Math.min(at++, replies.length - 1)] ?? { status: 500, body: "" };
     });
     try {
-      expect(await makeStripePort(config(server.url)).cancelSubscription("sub_1", "cus_1", false)).toEqual(
-        want === "failed" ? { kind: want, cancelled: 0, unended: name === "a refusal, then a read that says active" ? 1 : 0, storedSettled: false } : { kind: want },
+      expect(await makeStripePort(config(server.url)).cancelSubscription("sub_1", "cus_1", "unsettled")).toEqual(
+        want === "failed" ? { kind: want, cancelled: 0, unended: name === "a refusal, then a read that says active" ? 1 : 0, stored: name.startsWith("a refusal, then a read of an unknown id") ? "unknown-once" : "unsettled" } : { kind: want },
       );
       expect(server.requests.map((each) => `${each.method} ${each.path}`)).toEqual([
         ...(replies.length === 1 ? ["DELETE /v1/subscriptions/sub_1"] : ["DELETE /v1/subscriptions/sub_1", "GET /v1/subscriptions/sub_1"]),
@@ -312,10 +312,10 @@ describe("what the adapter sends", () => {
 
   test("a cancel that meets no answer reads no subscription and is failed, and the call goes on to the customer's read", async () => {
     const closed = await freePort();
-    expect(await makeStripePort(config(`http://127.0.0.1:${closed}`)).cancelSubscription("sub_1", "cus_1", false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
+    expect(await makeStripePort(config(`http://127.0.0.1:${closed}`)).cancelSubscription("sub_1", "cus_1", "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
     const server = await startRecorder((request) => (request.method === "DELETE" ? "drop" : request.path === "/v1/customers/cus_1" ? CUSTOMER_REPLY : EMPTY_LIST));
     try {
-      expect(await makeStripePort(config(server.url)).cancelSubscription("sub_1", "cus_1", false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
+      expect(await makeStripePort(config(server.url)).cancelSubscription("sub_1", "cus_1", "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
       expect(server.requests.map((each) => `${each.method} ${each.path}`)).toEqual(["DELETE /v1/subscriptions/sub_1", "GET /v1/customers/cus_1", "GET /v1/subscriptions"]);
     } finally {
       await server.close();
@@ -346,9 +346,9 @@ describe("what the adapter sends", () => {
           timed(() => port.readSession("cs_1")),
           timed(() => port.startCheckout({ accountId: ACCOUNT, successUrl: "http://127.0.0.1:1/v1/done", expiresAt: NOW })),
           timed(() => port.openManagePage({ customerId: "cus_1", returnUrl: "http://127.0.0.1:1/v1/done" })),
-          timed(() => port.cancelSubscription("sub_1", "cus_1", false)),
-          timed(() => makeStripePort(config(slowRefusal.url)).cancelSubscription("sub_1", "cus_1", false)),
-          timed(() => makeStripePort(config(pageTimesOut.url)).cancelSubscription(null, "cus_1", false)),
+          timed(() => port.cancelSubscription("sub_1", "cus_1", "unsettled")),
+          timed(() => makeStripePort(config(slowRefusal.url)).cancelSubscription("sub_1", "cus_1", "unsettled")),
+          timed(() => makeStripePort(config(pageTimesOut.url)).cancelSubscription(null, "cus_1", "unsettled")),
         ]);
         for (const result of results) {
           expect(result.kind).toBe("failed");

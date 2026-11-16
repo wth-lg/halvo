@@ -15,9 +15,9 @@ test("the provider port without a provider key answers failed and rejected, noth
     expect(await port.verifyWebhook(new Uint8Array([123, 125]), new Headers(), 1)).toEqual({ kind: "rejected" });
     expect(await port.readSession("cs_1")).toEqual({ kind: "failed" });
     expect(await port.openManagePage({ customerId: "cus_1", returnUrl: "http://127.0.0.1:1/v1/done" })).toEqual({ kind: "failed" });
-    expect(await port.cancelSubscription("sub_1", "cus_1", false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-    expect(await port.cancelSubscription(null, "cus_1", false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-    expect(await port.cancelSubscription(null, null, false)).toEqual({ kind: "nothing-to-cancel" });
+    expect(await port.cancelSubscription("sub_1", "cus_1", "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+    expect(await port.cancelSubscription(null, "cus_1", "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+    expect(await port.cancelSubscription(null, null, "unsettled")).toEqual({ kind: "nothing-to-cancel" });
     expect(await port.sendUsage({ accountId: "a", customerId: "c", identifier: "a:0", amountMinor: 1, timestamp: 0 })).toEqual({ kind: "failed" });
     expect(await port.readUsageTotal({ accountId: "a", customerId: "c", from: 0, to: 1 })).toEqual({ kind: "failed" });
   } finally {

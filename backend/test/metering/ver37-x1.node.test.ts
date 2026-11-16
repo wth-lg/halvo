@@ -62,7 +62,7 @@ async function x1(fault: Fault) {
       if (fails > 0) {
         fails -= 1;
         call.answer = "failed";
-        return { kind: "failed", cancelled: 0, unended: 0, storedSettled: false };
+        return { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" };
       }
       call.answer = "cancelled";
       return { kind: "cancelled" };

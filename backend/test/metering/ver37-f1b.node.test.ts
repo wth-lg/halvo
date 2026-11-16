@@ -57,7 +57,7 @@ async function f1b() {
       if (fails > 0) {
         fails -= 1;
         late.push({ t: now - START, answer: "failed" });
-        return { kind: "failed", cancelled: 0, unended: 0, storedSettled: false };
+        return { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" };
       }
       late.push({ t: now - START, answer: "cancelled" });
       answeredAt = answeredAt ?? now;

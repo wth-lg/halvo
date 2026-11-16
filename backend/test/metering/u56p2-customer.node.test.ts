@@ -137,11 +137,31 @@ describe("the customer's list at a delete (unit 5.6 part 2; rulings P7-86 E and 
 });
 
 describe("guards that hold at e9c45eec and at the head", () => {
-  test("a stored id that the provider no longer knows, with the expected customer and an empty list: the delete ends", async () => {
+  test("a stored id that the provider no longer knows, with the expected customer and an empty list: the first try keeps the first unknown answer and answers failed, and the try 60 s later ends the delete (P7-120 N2)", async () => {
     const w = await listed({}, { subscribed: false });
     await subscribed(w, "sub_gone");
     w.at(START + MINUTE);
-    expect(await destroy(w)).toEqual({ result: "deleted" });
+    const first = await destroy(w);
+    const kept = await skeleton(w);
+    await alarmAt(w, START + MINUTE + MINUTE);
+    expect({
+      first,
+      unknownFor: kept?.cancel_stored_unknown_for,
+      settledFor: kept?.cancel_stored_settled_for,
+      nextAt: Number(kept?.cancel_next_at) - (START + MINUTE),
+      calls: w.calls.flatMap((each) => (each.kind === "cancel" ? [[each.subscriptionId, each.stored, each.answer]] : [])),
+      holds: await holds(w),
+    }).toEqual({
+      first: { result: "not-finished" },
+      unknownFor: "sub_gone",
+      settledFor: null,
+      nextAt: MINUTE,
+      calls: [
+        ["sub_gone", "unsettled", "failed"],
+        ["sub_gone", "unknown-once", "nothing-to-cancel"],
+      ],
+      holds: false,
+    });
     w.close();
   });
 

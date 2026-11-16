@@ -1,5 +1,5 @@
 import { makeAccounts } from "../../../src/accounts/index.ts";
-import type { ProviderEvent, ProviderPort } from "../../../src/billing/port.ts";
+import type { ProviderEvent, ProviderPort, StoredIdState } from "../../../src/billing/port.ts";
 import { CALL_IN_FLIGHT_MS, type Entries, makeEntries, ownTables } from "../../../src/do/entries.ts";
 import { makeLedger } from "../../../src/ledger/index.ts";
 import { makeMetering } from "../../../src/metering/index.ts";
@@ -59,6 +59,7 @@ export type Scenario = {
   readonly lateSubscriptionId?: readonly number[];
   readonly listedSecondPlan?: readonly number[];
   readonly settledSecondPlan?: readonly number[];
+  readonly unknownStoredPlan?: readonly number[];
 };
 
 export type Options = { readonly downtimeBudgetSeconds: number; readonly onFailedCheck: "stop" | "list" };
@@ -124,7 +125,8 @@ type Account = {
   idLate: boolean;
   secondPlanLive: boolean;
   settledPlanPending: boolean;
-  storedSettledByACall: boolean;
+  unknownStoredPending: boolean;
+  storedState: StoredIdState;
   sendsMade: Set<string>;
   endedByTheDeleteAt: number | null;
   deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
@@ -326,7 +328,8 @@ class World {
       idLate: this.scenario.lateSubscriptionId?.includes(index) ?? false,
       secondPlanLive: this.scenario.listedSecondPlan?.includes(index) ?? false,
       settledPlanPending: this.scenario.settledSecondPlan?.includes(index) ?? false,
-      storedSettledByACall: false,
+      unknownStoredPending: this.scenario.unknownStoredPlan?.includes(index) ?? false,
+      storedState: "unsettled",
       sendsMade: new Set(),
       endedByTheDeleteAt: null,
       deleteBound: new Map(),
@@ -399,11 +402,13 @@ class World {
       verifyWebhook: async () => ({ kind: "rejected" }),
       readSession: async () => failed,
       openManagePage: async () => failed,
-      cancelSubscription: async (subscriptionId, customerId, storedSettled) => {
+      cancelSubscription: async (subscriptionId, customerId, stored) => {
         this.count("call.cancel");
         if (customerId !== account.customer) this.fail("a cancel for another customer", `${account.id} cancelled for ${String(customerId)}`);
-        if (account.storedSettledByACall && !storedSettled) this.fail("the stored id asked again after a call settled it", `${account.id}: ${String(subscriptionId)}`);
-        if (storedSettled && !account.storedSettledByACall) this.fail("a stored id taken as settled that no call settled", `${account.id}: ${String(subscriptionId)}`);
+        if (account.storedState === "settled" && stored !== "settled") this.fail("the stored id asked again after a call settled it", `${account.id}: ${String(subscriptionId)}`);
+        if (stored === "settled" && account.storedState !== "settled") this.fail("a stored id taken as settled that no call settled", `${account.id}: ${String(subscriptionId)}`);
+        if (account.storedState === "unknown-once" && stored === "unsettled") this.fail("the first unknown answer of the stored id not kept", `${account.id}: ${String(subscriptionId)}`);
+        if (stored === "unknown-once" && account.storedState !== "unknown-once") this.fail("an unknown answer kept that no call gave", `${account.id}: ${String(subscriptionId)}`);
         this.linesAtTheCancel(account);
         if (account.idLate && subscriptionId === null) {
           account.idLate = false;
@@ -419,15 +424,29 @@ class World {
         if (account.secondPlanLive) {
           account.secondPlanLive = false;
           this.count("cancel.progress-with-the-stored-plan-unanswered");
-          return { kind: "failed", cancelled: 1, unended: 0, storedSettled: false };
+          return { kind: "failed", cancelled: 1, unended: 0, stored: "unsettled" };
         }
         if (account.settledPlanPending && !account.providerEnded && subscriptionId !== null) {
           this.orderAtTheCancel(account);
           account.providerEnded = true;
           account.endedByTheDeleteAt = this.meter.endSubscription(account.id, seconds());
-          account.storedSettledByACall = true;
+          account.storedState = "settled";
           this.count("cancel.the-stored-plan-settled-and-a-second-plan-unended");
-          return { kind: "failed", cancelled: 0, unended: 1, storedSettled: true };
+          return { kind: "failed", cancelled: 0, unended: 1, stored: "settled" };
+        }
+        if (account.unknownStoredPending && account.storedState === "unsettled" && !account.providerEnded && subscriptionId !== null) {
+          this.orderAtTheCancel(account);
+          account.providerEnded = true;
+          account.endedByTheDeleteAt = this.meter.endSubscription(account.id, seconds());
+          account.storedState = "unknown-once";
+          this.count("cancel.the-stored-id-unknown-once-and-the-plan-ended-through-the-list");
+          return { kind: "failed", cancelled: 1, unended: 0, stored: "unknown-once" };
+        }
+        if (account.unknownStoredPending && account.storedState === "unknown-once") {
+          account.unknownStoredPending = false;
+          account.storedState = "settled";
+          this.count("cancel.the-stored-id-unknown-twice-and-nothing-to-cancel");
+          return { kind: "nothing-to-cancel" };
         }
         if (account.settledPlanPending) {
           account.settledPlanPending = false;
@@ -1091,6 +1110,7 @@ class World {
       if (account.ended === "delete") {
         if (view !== null) this.fail("storage after account delete", `${account.id} still holds storage`);
         if (!account.providerEnded || account.secondPlanLive || account.settledPlanPending) this.fail("a deleted account whose plan the provider still bills", account.id);
+        if (account.unknownStoredPending) this.fail("a delete that ended after one unknown answer of the stored id", account.id);
       } else if (view === null) {
         this.fail("storage", `${account.id} lost its storage without an account delete`);
       }

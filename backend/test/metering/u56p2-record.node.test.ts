@@ -205,7 +205,7 @@ describe("the pace of the tries after a failed call (P7-117 T2, T8 and T9; Addit
 });
 
 describe("X1 in the object: the column of the settled stored id (P7-119 Addition 1)", () => {
-  const settledArguments = (w: World) => w.calls.flatMap((each) => (each.kind === "cancel" ? [[each.subscriptionId, each.storedSettled]] : []));
+  const settledArguments = (w: World) => w.calls.flatMap((each) => (each.kind === "cancel" ? [[each.subscriptionId, each.stored]] : []));
 
   test("a failed call that settles the stored id writes it into cancel_stored_settled_for, and the next try passes the stored id as settled", async () => {
     const w = await listed({ plans: [{ id: "sub_2" }, { id: "sub_3" }], perCall: 1 });
@@ -217,8 +217,8 @@ describe("X1 in the object: the column of the settled stored id (P7-119 Addition
     expect({ afterFirst, calls: settledArguments(w), holds: await holds(w) }).toEqual({
       afterFirst: "sub_1",
       calls: [
-        ["sub_1", false],
-        ["sub_1", true],
+        ["sub_1", "unsettled"],
+        ["sub_1", "settled"],
       ],
       holds: false,
     });
@@ -236,8 +236,49 @@ describe("X1 in the object: the column of the settled stored id (P7-119 Addition
     expect({ afterFirst, calls: settledArguments(w) }).toEqual({
       afterFirst: null,
       calls: [
-        [null, false],
-        ["sub_1", false],
+        [null, "unsettled"],
+        ["sub_1", "unsettled"],
+      ],
+    });
+    w.close();
+  });
+});
+
+describe("R2 of P7-120: e26, a call that does not settle within its bound", () => {
+  test("the bound settles nothing: after a kept first unknown, a call held past CANCEL_CALL_BOUND_MS starts the count again, its late answer writes nothing, and the next call is asked with the stored id unsettled", async () => {
+    const late = held();
+    const w = await listed({ faults: [{ kind: "none" }, late.fault] }, { subscribed: false });
+    await subscribed(w, "sub_gone");
+    w.at(START + MINUTE);
+    const first = await destroy(w);
+    const afterFirst = await skeleton(w);
+    w.at(Number(afterFirst?.cancel_next_at));
+    const second = quiet(w.lines, () => w.entries().alarm());
+    await tick();
+    w.endPauses();
+    await second;
+    const afterBound = await skeleton(w);
+    late.release();
+    await tick();
+    await tick();
+    const afterLate = await skeleton(w);
+    await alarmAt(w, Number(afterLate?.cancel_next_at));
+    const column = (row: Record<string, string | number | null> | null) => [row?.cancel_stored_settled_for ?? null, row?.cancel_stored_unknown_for ?? null];
+    expect({
+      first,
+      afterFirst: column(afterFirst),
+      afterBound: column(afterBound),
+      afterLate: column(afterLate),
+      calls: w.calls.flatMap((each) => (each.kind === "cancel" ? [[each.subscriptionId, each.stored]] : [])),
+    }).toEqual({
+      first: { result: "not-finished" },
+      afterFirst: [null, "sub_gone"],
+      afterBound: [null, null],
+      afterLate: [null, null],
+      calls: [
+        ["sub_gone", "unsettled"],
+        ["sub_gone", "unknown-once"],
+        ["sub_gone", "unsettled"],
       ],
     });
     w.close();

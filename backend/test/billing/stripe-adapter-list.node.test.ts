@@ -19,7 +19,7 @@ async function cancel(model: Model, subscriptionId: string | null, customerId: s
   const server = await startRecorder(provider(model));
   try {
     const port = makeStripePort(config(server.url, over), clock);
-    const answer = await port.cancelSubscription(subscriptionId, customerId, false);
+    const answer = await port.cancelSubscription(subscriptionId, customerId, "unsettled");
     return { answer, requests: server.requests.map(line), recorded: [...server.requests], lines: [...logged] };
   } finally {
     await server.close();
@@ -95,7 +95,7 @@ describe("the walk of the customer's list (contract 2 from unit 5.6 part 2; P7-8
   test("T8: a listed subscription refused on every try while its read shows it live: the walk goes past it and ends the next one, and the last whole list keeps the answer failed with the count 1", async () => {
     const run = await cancel({ subs: [live("sub_2"), live("sub_3")], refused: ["sub_2"] }, null);
     expect({ answer: run.answer, requests: run.requests }).toEqual({
-      answer: { kind: "failed", cancelled: 1, unended: 1, storedSettled: false },
+      answer: { kind: "failed", cancelled: 1, unended: 1, stored: "unsettled" },
       requests: [
         `GET /v1/customers/${CUSTOMER}`,
         "GET /v1/subscriptions",
@@ -117,7 +117,7 @@ describe("the walk of the customer's list (contract 2 from unit 5.6 part 2; P7-8
       },
       null,
     );
-    expect({ answer: run.answer, last: run.requests.at(-1) }).toEqual({ answer: { kind: "failed", cancelled: 1, unended: 0, storedSettled: false }, last: "GET /v1/subscriptions" });
+    expect({ answer: run.answer, last: run.requests.at(-1) }).toEqual({ answer: { kind: "failed", cancelled: 1, unended: 0, stored: "unsettled" }, last: "GET /v1/subscriptions" });
   });
 });
 
@@ -139,7 +139,7 @@ describe("T3: a page that is a fault is the answer failed, never the end of the 
   test.each(PAGE_FAULTS)("the first page answers %s: failed with the count 0, one cancel-list-fault line and no cancel", async (_, fault) => {
     const run = await cancel({ subs: [live("sub_1")], page: (index, reply) => (index === 0 ? fault : reply) }, null);
     expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
-      answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false },
+      answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" },
       requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions"],
       lines: ['{"event":"cancel-list-fault"}'],
     });
@@ -149,7 +149,7 @@ describe("T3: a page that is a fault is the answer failed, never the end of the 
     const ended = Array.from({ length: 99 }, (_, index) => live(`sub_ie_${index}`, "incomplete_expired"));
     const run = await cancel({ subs: [...ended, live("sub_a"), live("sub_b")], page: (index, reply) => (index === 1 ? fault : reply) }, null);
     expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
-      answer: { kind: "failed", cancelled: 1, unended: 0, storedSettled: false },
+      answer: { kind: "failed", cancelled: 1, unended: 0, stored: "unsettled" },
       requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_a", "GET /v1/subscriptions after sub_a"],
       lines: ['{"event":"cancel-list-fault"}'],
     });
@@ -157,7 +157,7 @@ describe("T3: a page that is a fault is the answer failed, never the end of the 
 
   test("the whole list after the last cancel answers a fault: failed with the count, and one cancel-list-fault line", async () => {
     const run = await cancel({ subs: [live("sub_1")], page: (index, reply) => (index === 1 ? { status: 500, body: REFUSED } : reply) }, null);
-    expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 1, unended: 0, storedSettled: false }, lines: ['{"event":"cancel-list-fault"}'] });
+    expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 1, unended: 0, stored: "unsettled" }, lines: ['{"event":"cancel-list-fault"}'] });
   });
 });
 
@@ -169,7 +169,7 @@ describe("T5 and U2: the read of the customer", () => {
 
   test("U4: an unanswered cancel of the stored id and a customer shown as deleted: failed, and the next try decides", async () => {
     const run = await cancel({ subs: [live("sub_1")], dropped: ["sub_1"], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) }, "sub_1");
-    expect({ answer: run.answer, requests: run.requests }).toEqual({ answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false }, requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`] });
+    expect({ answer: run.answer, requests: run.requests }).toEqual({ answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" }, requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`] });
   });
 
   test("the stored id ended by this call and a customer shown as deleted: cancelled", async () => {
@@ -184,7 +184,7 @@ describe("T5 and U2: the read of the customer", () => {
   ] as [string, Reply][])("a customer that the provider does not know or shows in the other mode (%s): failed, one cancel-customer-unknown line, no list", async (_, reply) => {
     const run = await cancel({ subs: [live("sub_1")], customer: reply }, null);
     expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
-      answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false },
+      answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" },
       requests: [`GET /v1/customers/${CUSTOMER}`],
       lines: ['{"event":"cancel-customer-unknown"}'],
     });
@@ -192,7 +192,7 @@ describe("T5 and U2: the read of the customer", () => {
 
   test("a key that names no mode shows no customer as its own: failed, one cancel-customer-unknown line", async () => {
     const run = await cancel({ subs: [live("sub_1")] }, null, CUSTOMER, { apiKey: "halvo_key_of_no_mode" });
-    expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false }, lines: ['{"event":"cancel-customer-unknown"}'] });
+    expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" }, lines: ['{"event":"cancel-customer-unknown"}'] });
   });
 
   test("a key of live mode goes on with a customer of live mode to the list", async () => {
@@ -211,7 +211,7 @@ describe("T5 and U2: the read of the customer", () => {
   ] as [string, Reply][])("U2: a read of the customer that answers %s is failed, with no line and no list", async (_, reply) => {
     const run = await cancel({ subs: [live("sub_1")], customer: reply }, null);
     expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
-      answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false },
+      answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" },
       requests: [`GET /v1/customers/${CUSTOMER}`],
       lines: [],
     });
@@ -219,10 +219,10 @@ describe("T5 and U2: the read of the customer", () => {
 });
 
 describe("U1, U3, U4 and U6: the stored id and the count", () => {
-  test("U1: a stored id that the provider does not know and a customer that it does not know: failed, after the read of the customer", async () => {
+  test("U1: a stored id that the provider does not know and a customer that it does not know: failed, after the read of the customer, and the unknown answer does not count (P7-120 N2: the stored id stays unsettled)", async () => {
     const run = await cancel({ subs: [], customer: { status: 404, body: MISSING } }, "sub_gone");
     expect({ answer: run.answer, requests: run.requests }).toEqual({
-      answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: true },
+      answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" },
       requests: ["DELETE /v1/subscriptions/sub_gone", "GET /v1/subscriptions/sub_gone", `GET /v1/customers/${CUSTOMER}`],
     });
   });
@@ -249,13 +249,13 @@ describe("U1, U3, U4 and U6: the stored id and the count", () => {
 
   test("U3: the stored id ended by this call and a fault of the list: failed with the count 0", async () => {
     const run = await cancel({ subs: [live("sub_1")], page: () => ({ status: 500, body: REFUSED }) }, "sub_1");
-    expect(run.answer).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: true });
+    expect(run.answer).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "settled" });
   });
 
   test("U4: an unanswered cancel of the stored id is failed whatever the list shows, and the walk still ends the listed subscription", async () => {
     const run = await cancel({ subs: [live("sub_1", "canceled"), live("sub_2")], dropped: ["sub_1"] }, "sub_1");
     expect({ answer: run.answer, requests: run.requests }).toEqual({
-      answer: { kind: "failed", cancelled: 1, unended: 0, storedSettled: false },
+      answer: { kind: "failed", cancelled: 1, unended: 0, stored: "unsettled" },
       requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_2", "GET /v1/subscriptions"],
     });
   });
@@ -282,9 +282,9 @@ describe("U1, U3, U4 and U6: the stored id and the count", () => {
     const model: Model = { subs: [live("sub_1")], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) };
     const server = await startRecorder(twoHundredWith(model, "sub_1", body));
     try {
-      const answer = await makeStripePort(config(server.url)).cancelSubscription("sub_1", CUSTOMER, false);
+      const answer = await makeStripePort(config(server.url)).cancelSubscription("sub_1", CUSTOMER, "unsettled");
       expect({ answer, requests: server.requests.map(line) }).toEqual({
-        answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false },
+        answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" },
         requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`],
       });
     } finally {
@@ -296,7 +296,7 @@ describe("U1, U3, U4 and U6: the stored id and the count", () => {
     const model: Model = { subs: [live("sub_2")] };
     const server = await startRecorder(twoHundredWith(model, "sub_2", body));
     try {
-      const answer = await makeStripePort(config(server.url)).cancelSubscription(null, CUSTOMER, false);
+      const answer = await makeStripePort(config(server.url)).cancelSubscription(null, CUSTOMER, "unsettled");
       expect({ answer, requests: server.requests.map(line) }).toEqual({
         answer: { kind: "nothing-to-cancel" },
         requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_2", "GET /v1/subscriptions"],
@@ -309,7 +309,7 @@ describe("U1, U3, U4 and U6: the stored id and the count", () => {
   test("U4: an unanswered cancel of the stored id, with an empty list: failed with the count 0", async () => {
     const run = await cancel({ subs: [live("sub_1", "canceled")], dropped: ["sub_1"] }, "sub_1");
     expect({ answer: run.answer, requests: run.requests }).toEqual({
-      answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false },
+      answer: { kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" },
       requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions"],
     });
   });
@@ -333,14 +333,14 @@ describe("the bound of one call (contract 3.6; P7-117 (d), S7, U5)", () => {
     expect({ requests: run.requests.length, deletes: run.requests.filter((each) => each.startsWith("DELETE")).length - (stored === null ? 0 : 1), answer: run.answer }).toEqual({
       requests: 20,
       deletes: listed,
-      answer: { kind: "failed", cancelled: listed, unended: 0, storedSettled: stored !== null },
+      answer: { kind: "failed", cancelled: listed, unended: 0, stored: stored !== null ? "settled" : "unsettled" },
     });
   });
 
   test("REQUEST_START_MARGIN_MS: no request starts with less than 500 ms of the call's deadline left (980 ms a request: the eleventh would start with 200 ms left)", async () => {
     let now = 0;
     const run = await cancel({ subs: many(30), tick: () => (now += 980) }, null, CUSTOMER, {}, () => now);
-    expect({ requests: run.requests.length, answer: run.answer }).toEqual({ requests: 10, answer: { kind: "failed", cancelled: 8, unended: 0, storedSettled: false } });
+    expect({ requests: run.requests.length, answer: run.answer }).toEqual({ requests: 10, answer: { kind: "failed", cancelled: 8, unended: 0, stored: "unsettled" } });
   });
 
   test.each([
@@ -355,7 +355,7 @@ describe("the bound of one call (contract 3.6; P7-117 (d), S7, U5)", () => {
       let before = 0;
       const requestsOfEach: number[] = [];
       for (let each = 0; each < 40; each += 1) {
-        const answer = await port.cancelSubscription(stored, CUSTOMER, false);
+        const answer = await port.cancelSubscription(stored, CUSTOMER, "unsettled");
         answers.push(answer.kind === "failed" ? `failed ${answer.cancelled}` : answer.kind);
         requestsOfEach.push(server.requests.length - before);
         before = server.requests.length;
@@ -380,9 +380,9 @@ describe("T4: no address or no key", () => {
     try {
       for (const over of [{ baseUrl: "" }, { apiKey: "" }]) {
         const port = makeStripePort(config(server.url, over));
-        expect(await port.cancelSubscription(null, CUSTOMER, false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-        expect(await port.cancelSubscription("sub_1", CUSTOMER, false)).toEqual({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false });
-        expect(await port.cancelSubscription(null, null, false)).toEqual({ kind: "nothing-to-cancel" });
+        expect(await port.cancelSubscription(null, CUSTOMER, "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+        expect(await port.cancelSubscription("sub_1", CUSTOMER, "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unsettled" });
+        expect(await port.cancelSubscription(null, null, "unsettled")).toEqual({ kind: "nothing-to-cancel" });
       }
       expect(server.requests).toEqual([]);
     } finally {

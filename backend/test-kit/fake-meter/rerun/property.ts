@@ -439,6 +439,7 @@ export function searchCases(): SearchCase[] {
   });
   cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), listedSecondPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
   cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), settledSecondPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
+  cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), unknownStoredPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
   return cases;
 }
 
