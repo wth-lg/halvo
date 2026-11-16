@@ -11,23 +11,35 @@
 //! with `attempt` is refused. A line whose first bytes, after spaces and tabs alone and compared
 //! without ASCII letter case, are a known word of its block (`attempt` and `verdict` in the driver
 //! block, `bound` and `verdict` in the cells block) and that does not start with that word at its
-//! first byte is refused with its line. Every other line of a block is passed over, and no line
-//! outside the block is read. Within one model, machine, task and seed, `compile`, `recover` and
-//! `write` have `i=1` and `replay` has `i` from 1 to 3 with no gap; the verdict's driver and
-//! writer have exactly the attempt lines of AS-A13.6, else `driver:verdict`.
+//! first byte is refused with its line. Every other line of a block is passed over but for the
+//! count below, and no line outside the block is read. Within one model, machine, task and seed,
+//! `compile`, `recover` and `write` have `i=1` and `replay` has `i` from 1 to 3 with no gap; the
+//! verdict's driver and writer have exactly the attempt lines of AS-A13.6, else `driver:verdict`.
 //! In the driver block (a line above the opening fence is not read), a line whose words, divided
 //! by spaces and tabs, have `limits` first and later `task=bill` or `task=order` while the verdict
 //! names no driver, or `task=reply` while it names no writer, each compared without ASCII letter
 //! case, is refused with its line; it is checked among the verdict's lines, in file order, after
 //! the set (ruling SG-63, over T5.4's literal form until the planner's Revision).
 //! The last line of each block starts with `verdict`, and the cells block holds a `bound` line.
+//! After the set and the verdict's lines comes the count (U0.2c), for every model: within one
+//! model, machine, task and seed, five attempt lines for each counted `drive` line and none
+//! without one, and within one model, machine and seed, one `write` line for each counted `reply`
+//! line and none without one. A counted line starts at its first byte with `drive model=<token>
+//! machine=<m> task=<bill|order> seed=<n> ` or `reply model=<token> machine=<m> seed=<n> `, with
+//! values of T5.1 and T5.2; the rest of it is not read, and a `drive` or `reply` line in any other
+//! form is not counted. A cell that breaks the count is refused at its first counted line, or at
+//! its first attempt line when it has none; of several such cells, the smallest line is named.
+//! For the unit that writes the recorded table (U3.1): a refusal of the count means that the
+//! trial file lost or gained a line of a cell. The cure is a rebuild of the file by the
+//! agent-setup run from its raw files, never a line added or removed by hand.
 //! Still passed over (named limits): a line of a known word hidden by a byte other than a space
 //! or a tab, such as a no-break space or a form feed, or by a letter outside ASCII; a `limits`
 //! line in another form; and a value typed by hand, which only a rebuild from the trial's raw
-//! files tells (T5.4). A file from which an attempt line of a model that is neither the verdict's
-//! driver nor its writer is missing whole, with every other line of its form, imports with one row
-//! fewer and no refusal unless the numbering shows a gap: the count of rows against the `drive`
-//! and `reply` lines is a later unit's (U0.2c).
+//! files tells (T5.4). A cell missing whole, its `drive` or `reply` line with its attempt lines,
+//! imports with its rows fewer and no refusal unless it is of the verdict's driver or writer,
+//! whose set refuses it. A cell that ends `notrun` after its compile and leaves its attempt lines
+//! with no `drive` line is refused, until the agent-setup run answers whether its harness writes
+//! such a cell (its pass inbox, 2026-11-15T00:50:19Z, question 3).
 
 mod blob;
 mod block;
