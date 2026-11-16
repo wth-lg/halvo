@@ -92,12 +92,41 @@ fn an_absent_file_counts_as_removed() {
         expect: made(COPY),
     };
     assert_eq!(
-        remove(&locks(&scratch), &row),
-        Ok(Removal::Absent),
+        format!("{:?}", remove(&locks(&scratch), &row)),
+        "Err(Folder)",
         "no folder"
     );
     assert_eq!(Removal::Absent.state(), "gone");
     assert_eq!(Removal::Removed.state(), "gone");
+}
+
+/// U2.4 (3): a folder that is absent, as it is while the volume that holds it is not mounted,
+/// is undecided and never `gone`: the copy may still lie in it. Once the folder is back, the
+/// next call decides.
+#[test]
+fn an_absent_folder_as_on_a_volume_that_is_not_mounted_is_undecided() {
+    let scratch = Scratch::new("remove-unmounted");
+    let run = run();
+    let folder = scratch.path("volume/folder");
+    let workbook = folder.join("values.xlsx");
+    let row = Row {
+        folder: &folder,
+        workbook: &workbook,
+        run: &run,
+        expect: made(COPY),
+    };
+    let locks = locks(&scratch);
+    let never_there = remove(&locks, &row);
+    assert_eq!(format!("{never_there:?}"), "Err(Folder)", "never there");
+    scratch.write("volume/folder/values.xlsx", b"the workbook now");
+    let copy = folder.join(copy_name("values.xlsx"));
+    fs::write(&copy, COPY).expect("write the checkpoint");
+    fs::rename(scratch.path("volume"), scratch.path("unmounted")).expect("unmount");
+    let unmounted = remove(&locks, &row);
+    assert_eq!(format!("{unmounted:?}"), "Err(Folder)", "unmounted");
+    fs::rename(scratch.path("unmounted"), scratch.path("volume")).expect("mount again");
+    assert_eq!(remove(&locks, &row), Ok(Removal::Removed), "mounted again");
+    assert!(!copy.exists());
 }
 
 /// The removing name of the checkpoint `checkpoint` as the crate documents it: the name, then

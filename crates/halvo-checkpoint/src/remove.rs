@@ -107,7 +107,13 @@ pub enum Undecided {
     /// process holds a directory of the way open for deletion), or the removal of the moved
     /// copy, after which the copy is put back under its own name.
     Remove(io::ErrorKind),
+    /// The folder is absent, as it is while the volume that holds it is not mounted: the copy
+    /// may still lie in it, so the call answers neither `gone` nor `left`.
+    Folder,
 }
+
+/// How a call or one of its steps ends: with the row's answer, or undecided.
+type Pass = Result<Removal, Undecided>;
 
 /// Removes the checkpoint of `row.run` beside `row.workbook`, inside `row.folder` alone
 /// (contracts.md A11.3, A6.6; the coordinator's rulings CP-96 (e), CP-98 (3) and CP-124). It
@@ -132,13 +138,14 @@ pub enum Undecided {
 /// goes, and so does a second name of the copy itself; any other entry stays, and when the
 /// copy's own name then holds no entry, the answer is that entry's reason as `left`, so that no
 /// answer is `gone` while the bytes lie in the folder. A copy that is absent counts as
-/// removed. Every other miss leaves the file and answers its reason, which is never a run's
-/// failure. It removes no checkpoint of a run that has not ended: the caller calls it only for
-/// a run whose end is stored.
+/// removed, and so does a directory on the way that is absent; a folder that is absent, as
+/// while its volume is not mounted, is [`Undecided::Folder`]. Every other miss leaves the file
+/// and answers its reason, which is never a run's failure. It removes no checkpoint of a run
+/// that has not ended: the caller calls it only for a run whose end is stored.
 pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
     let (dir, last) = match place(row.folder, row.workbook) {
         Ok(place) => place,
-        Err(answer) => return Ok(answer),
+        Err(answer) => return answer,
     };
     let Some(name) = checkpoint_name(Path::new(last), row.run) else {
         return Ok(Removal::Left(Left::NotFile));
@@ -146,21 +153,27 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
     let moved = removing_name(&name);
     let held = locks.hold(&dir).map_err(Undecided::Lock)?;
     let answer = match opened_dir(row, &dir) {
-        Ok(at) => match leftover(&at, &name, &moved, last, row.expect) {
-            Err(answer) => Ok(answer),
-            Ok(finished) => match checked(&at, &name, last, row.expect) {
-                Ok((file, seen, read)) => {
-                    drop(file);
-                    aside(&at, &name, &moved, &seen, read)
-                }
-                Err(Removal::Absent) if finished => Ok(Removal::Removed),
-                Err(answer) => Ok(answer),
-            },
-        },
-        Err(answer) => Ok(answer),
+        Ok(at) => within(&at, &name, &moved, last, row.expect),
+        Err(answer) => answer,
     };
     drop(held);
     answer
+}
+
+/// The pass inside the workbook's directory that the call opened and holds the lock of.
+fn within(at: &Dir, name: &OsStr, moved: &OsStr, workbook: &OsStr, expect: Expect) -> Pass {
+    let finished = match leftover(at, name, moved, workbook, expect) {
+        Ok(finished) => finished,
+        Err(answer) => return answer,
+    };
+    match checked(at, name, workbook, expect) {
+        Ok((file, seen, read)) => {
+            drop(file);
+            aside(at, name, moved, &seen, read)
+        }
+        Err(Removal::Absent) if finished => Ok(Removal::Removed),
+        Err(answer) => Ok(answer),
+    }
 }
 
 /// What a pass killed between the move aside and the removal left under the removing name
@@ -177,16 +190,16 @@ fn leftover(
     moved: &OsStr,
     workbook: &OsStr,
     expect: Expect,
-) -> Result<bool, Removal> {
+) -> Result<bool, Pass> {
     let found = match opened(at, moved) {
         Err(Removal::Absent) => return Ok(false),
-        Err(answer) => return stays(at, name, answer),
+        Err(answer) => return stays(at, name, Ok(answer)),
         Ok((_, _, found)) => found,
     };
     match own_entry(at, moved) {
         Ok(true) => {}
-        Ok(false) => return stays(at, name, Removal::Left(Left::Name)),
-        Err(answer) => return stays(at, name, answer),
+        Ok(false) => return stays(at, name, Ok(Removal::Left(Left::Name))),
+        Err(answer) => return stays(at, name, Ok(answer)),
     }
     if let Ok((_, _, copy)) = opened(at, name) {
         if same_file(&found, &copy) {
@@ -199,48 +212,64 @@ fn leftover(
             drop(file);
             match at.unlink(moved) {
                 Ok(()) => Ok(true),
-                Err(_) => stays(at, name, Removal::Left(Left::Unreadable)),
+                Err(error) => stays(at, name, Err(Undecided::Remove(error.kind()))),
             }
         }
-        Ok(_) => stays(at, name, Removal::Left(Left::Changed)),
+        Ok(_) => stays(at, name, Ok(Removal::Left(Left::Changed))),
         Err(Removal::Absent) => Ok(false),
-        Err(answer) => stays(at, name, answer),
+        Err(answer) => stays(at, name, Ok(answer)),
     }
 }
 
-fn stays(at: &Dir, name: &OsStr, answer: Removal) -> Result<bool, Removal> {
+/// An entry under the removing name that the pass leaves: the pass ends with `answer` when the
+/// copy's own name holds no entry, and goes on otherwise.
+fn stays(at: &Dir, name: &OsStr, answer: Pass) -> Result<bool, Pass> {
     match opened(at, name) {
         Err(Removal::Absent) => Err(answer),
         _ => Ok(false),
     }
 }
 
-fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Removal> {
-    let root = Root::new(folder).map_err(walked)?;
-    root.parent(workbook).map_err(walked)
+/// The folder of the row: [`Undecided::Folder`] when it is absent.
+fn root(folder: &Path) -> Result<Root, Pass> {
+    Root::new(folder).map_err(|walk| match walk {
+        Walk::Io(io::ErrorKind::NotFound) => Err(Undecided::Folder),
+        walk => Ok(walked(walk)),
+    })
+}
+
+fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Pass> {
+    root(folder)?
+        .parent(workbook)
+        .map_err(|walk| Ok(walked(walk)))
 }
 
 /// The workbook's directory walked again under the lock, part by part, and checked to be the
 /// directory whose lock the call holds.
-fn opened_dir(row: &Row<'_>, dir: &Path) -> Result<Dir, Removal> {
+fn opened_dir(row: &Row<'_>, dir: &Path) -> Result<Dir, Pass> {
     match place(row.folder, row.workbook) {
         Ok((again, _)) if again == dir => {}
-        Ok(_) => return Err(Removal::Left(Left::Link)),
+        Ok(_) => return Err(Ok(Removal::Left(Left::Link))),
         Err(answer) => return Err(answer),
     }
-    let root = Root::new(row.folder).map_err(walked)?;
-    let names = root.names(row.workbook).map_err(walked)?;
-    let (_, parts) = names.split_last().ok_or(Removal::Left(Left::NotFile))?;
-    let at = Dir::walk(root.dir(), parts).map_err(|error| match error.kind() {
+    let root = root(row.folder)?;
+    let names = root.names(row.workbook).map_err(|walk| Ok(walked(walk)))?;
+    let (_, parts) = names.split_last().ok_or(Ok(Removal::Left(Left::NotFile)))?;
+    let below = |error: io::Error| match error.kind() {
         io::ErrorKind::NotFound => Removal::Absent,
         io::ErrorKind::NotADirectory => Removal::Left(Left::Link),
         _ if is_loop(&error) => Removal::Left(Left::Link),
         _ => Removal::Left(Left::Unreadable),
+    };
+    let folder = Dir::walk(root.dir(), &[]).map_err(|error| match error.kind() {
+        io::ErrorKind::NotFound => Err(Undecided::Folder),
+        _ => Ok(below(error)),
     })?;
-    let opened = at.id().map_err(|_| Removal::Left(Left::Unreadable))?;
-    let named = FileId::at(dir).map_err(|_| Removal::Left(Left::Link))?;
+    let at = folder.below(parts).map_err(|error| Ok(below(error)))?;
+    let opened = at.id().map_err(|_| Ok(Removal::Left(Left::Unreadable)))?;
+    let named = FileId::at(dir).map_err(|_| Ok(Removal::Left(Left::Link)))?;
     if !same_file(&opened, &named) {
-        return Err(Removal::Left(Left::Link));
+        return Err(Ok(Removal::Left(Left::Link)));
     }
     Ok(at)
 }
