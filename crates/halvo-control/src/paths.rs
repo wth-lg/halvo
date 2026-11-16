@@ -126,8 +126,15 @@ impl DataDirCheck {
     }
 }
 
-#[cfg(target_os = "macos")]
-fn one_line(text: &str) -> String {
+/// The text on one line, for a person's eyes and no path to open: each control character and
+/// U+2028 and U+2029 reads "?", and every other character is kept, nothing cut (ruling CT-14 K5
+/// and its point for the planner). The resolved line and the offline form's `data_dir=` line
+/// print through it on both systems.
+///
+/// ```
+/// assert_eq!(halvo_control::paths::one_line("a\nb\tc é"), "a?b?c é");
+/// ```
+pub fn one_line(text: &str) -> String {
     text.chars()
         .map(|c| {
             if c.is_control() || c == '\u{2028}' || c == '\u{2029}' {
@@ -1114,6 +1121,20 @@ mod system {
 mod tests {
     use super::*;
     use std::ffi::OsString;
+
+    #[test]
+    fn k5_one_line_turns_each_control_character_and_line_separator_into_a_question_mark_and_cuts_nothing(
+    ) {
+        assert_eq!(
+            crate::paths::one_line("a\nb\tc\rd\u{2028}e\u{2029}f\u{7f}g\u{85}h"),
+            "a?b?c?d?e?f?g?h"
+        );
+        assert_eq!(one_line("/Volumes/Daten é ø 文"), "/Volumes/Daten é ø 文");
+        let long = format!("/Volumes/{}", "é".repeat(150));
+        assert!(long.len() > 200);
+        assert_eq!(one_line(&long), long);
+        assert_eq!(one_line("a\u{fffd}b"), "a\u{fffd}b");
+    }
 
     struct Account {
         base: Option<&'static str>,
