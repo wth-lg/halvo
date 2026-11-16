@@ -336,6 +336,42 @@ fn a_refused_learn_run_row_under_the_key_of_a_run_that_was_served_answers_its_re
 }
 
 #[test]
+fn while_a_run_of_a_is_held_a_refused_learn_edit_row_under_the_key_of_a_stops_nothing_of_a_run_of_b(
+) {
+    let mut w = two_workflows();
+    w.host
+        .put_raw_under("learn_edit", Some(&wf(1)), &refused("learn_edit", 1));
+    w.host.day = DAY + 1;
+    let held = w.replay(10);
+    assert_eq!(names(&held[1]), ["Pay"]);
+    w.pair = 2;
+    let edits_before = edits_of(&w, 2).len();
+    let served = w.replay(20);
+    assert_eq!(names(&served[1]), ["B", "Pay"]);
+    let proposal = with_locators(
+        served[2].clone(),
+        "button Next step",
+        vec![loc("C"), next()],
+    );
+    assert_eq!(w.put(20, w.loaded, vec![proposal]), Ok(stored(1)));
+    w.log(
+        20,
+        &[
+            (2, "step_ok", 2, None),
+            (3, "recovered", 3, None),
+            (4, "step_ok", 3, None),
+        ],
+    );
+    assert_eq!(w.finish(20, "replay", "completed"), Ok(stored(1)));
+    assert_eq!(of_run(&w, 20), [(1, None), (2, Some(1))]);
+    assert!(edits_of(&w, 2).len() > edits_before);
+    w.pair = 1;
+    w.log(10, &[(2, "step_ok", 2, None)]);
+    assert_eq!(w.finish(10, "replay", "completed"), Ok(stored(1)));
+    assert_eq!(of_run(&w, 10), [(1, None), (2, Some(0))]);
+}
+
+#[test]
 fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none(
 ) {
     let mut w = two_workflows();
