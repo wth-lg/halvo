@@ -192,6 +192,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
             })
             .collect(),
         password_guard: guard,
+        password_guard_bound_ms: (guard == PasswordGuard::Os).then_some(30_000),
         screen_filter_excludes_app: None,
         custody,
         onboarding,

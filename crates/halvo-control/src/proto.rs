@@ -1635,6 +1635,13 @@ pub struct StatusFields {
     pub sources: Vec<SourceLine>,
     pub kinds: Vec<KindLine>,
     pub password_guard: PasswordGuard,
+    /// The bound of the password guard in ms, which a page reads and no text holds as a number
+    /// of its own (rulings PR-30 PR10 and MA-12 G3): on a Mac how long the keyboard source holds
+    /// a key typed ahead before it records it (MA-12 B), on Windows how soon after its OS time
+    /// Halvo's detector must clear a key before the key is withheld (W3-7 Q1 (a)). `None` beside
+    /// the guard none.
+    #[serde(deserialize_with = "required")]
+    pub password_guard_bound_ms: Option<u64>,
     #[serde(deserialize_with = "required")]
     pub screen_filter_excludes_app: Option<bool>,
     pub custody: Custody,
@@ -1715,6 +1722,12 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
                 return fail("Windows reports no resolved data folder");
             }
         }
+    }
+    if (f.password_guard == PasswordGuard::None) != f.password_guard_bound_ms.is_none() {
+        return fail("a password guard reports its bound, and none reports none");
+    }
+    if f.password_guard_bound_ms == Some(0) {
+        return fail("the bound of a password guard is above zero");
     }
     let sources: Vec<SourceName> = f.sources.iter().map(|s| s.name).collect();
     if sources != SourceName::of(f.platform) {
@@ -3211,6 +3224,40 @@ stopped/kind body
             DaemonStatus::new(win).map(|_| ()),
             Err(StatusError("Windows reports no secure_input_keystrokes"))
         );
+    }
+
+    #[test]
+    fn pr10_the_status_reports_the_password_guard_with_its_bound_and_a_guard_without_one_is_refused(
+    ) {
+        assert_eq!(
+            status_json(Platform::Macos)["password_guard_bound_ms"],
+            30_000
+        );
+        assert_eq!(
+            status_json(Platform::Windows)["password_guard_bound_ms"],
+            serde_json::Value::Null
+        );
+        let without = StatusError("a password guard reports its bound, and none reports none");
+        let mut mac = sample_status(Platform::Macos).into_fields();
+        mac.password_guard_bound_ms = None;
+        assert_eq!(DaemonStatus::new(mac).map(|_| ()), Err(without));
+        let mut win = sample_status(Platform::Windows).into_fields();
+        win.password_guard = PasswordGuard::Halvo;
+        assert_eq!(DaemonStatus::new(win.clone()).map(|_| ()), Err(without));
+        win.password_guard_bound_ms = Some(250);
+        assert!(DaemonStatus::new(win).is_ok());
+        let mut none = sample_status(Platform::Windows).into_fields();
+        none.password_guard_bound_ms = Some(250);
+        assert_eq!(DaemonStatus::new(none).map(|_| ()), Err(without));
+        let mut zero = sample_status(Platform::Macos).into_fields();
+        zero.password_guard_bound_ms = Some(0);
+        assert_eq!(
+            DaemonStatus::new(zero).map(|_| ()),
+            Err(StatusError("the bound of a password guard is above zero"))
+        );
+        let mut json = status_json(Platform::Macos);
+        json["password_guard_bound_ms"] = serde_json::Value::Null;
+        assert!(serde_json::from_value::<DaemonStatus>(json).is_err());
     }
 
     fn refused(edit: impl Fn(&mut StatusFields)) {

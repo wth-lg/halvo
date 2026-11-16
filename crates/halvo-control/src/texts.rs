@@ -859,6 +859,7 @@ mod tests {
             .collect();
         f.switches = switches(on);
         f.password_guard = guard;
+        f.password_guard_bound_ms = (guard != PasswordGuard::None).then_some(30_000);
         f.capture = Capture::Pausing;
         f.capture_reason = None;
         DaemonStatus::new(f).expect("capture pausing takes every line and the mark")
