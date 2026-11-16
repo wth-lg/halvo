@@ -237,6 +237,7 @@ self_test() {
 #!/bin/sh
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$1 $2" in
+  'release --version') printf 'cargo-release %s\n' "${STUB_RELEASE_VERSION:-0.0.0}" ;;
   'release version')
     case ${3:-} in
       patch) printf '   Upgrading halvo from 1.2.3 to 1.2.4\n' ;;
@@ -780,6 +781,36 @@ GITSTUB
   stopped_case stand-in-that-stops-with-the-line-after-a-commit FAIL "git commit -q --allow-empty -m 'Release 1.2.4'; echo '$line' >&2; exit 1"
   stopped_case stand-in-that-stops-with-the-line-after-a-change FAIL "printf 'x\\n' >>notes.txt; echo '$line' >&2; exit 1"
   stopped_case stand-in-that-stops-with-the-line-after-a-new-branch FAIL "git branch release-1.2.4; echo '$line' >&2; exit 1"
+
+  self_dir=$(dirname "$0") || exit 2
+  self_dir=$(cd "$self_dir" && pwd) || exit 2
+  self=$self_dir/${0##*/}
+  measure_case() {
+    case_name=$1 want=$2
+    printf 'cargo_release_version=9.8.7\n' >"$repo/scripts/prerequisites.sh"
+    git -C "$repo" add -A && git -C "$repo" commit -q -m 'Pin the release tool' || exit 2
+    status=0
+    (
+      unset CI_D_ARTIFACTS
+      cd "$repo" && CI_D_REPO=$repo PATH="$work/bin:$PATH" STUB_RELEASE_VERSION=9.8.7 STUB_ACTION=commit-tag STUB_LOG="$work/argv-$case_name" CARGO_HOME="$work/no-cargo-home" sh "$self"
+    ) >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$work/argv-$case_name"
+    last=$(awk 'NF { last = $0 } END { print last }' "$work/out-$case_name")
+    got=FAIL
+    [ "$status" = 0 ] && [ "$last" = "PASS $name" ] &&
+      grep -q -x 'execute on main: refused by 54-tag-needs-store4 while the index statement stands: true' "$work/out-$case_name" &&
+      ! grep -q -E '^release (patch|minor|major) --config .* --execute' "$work/argv-$case_name" && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  repository measure-while-the-statement-stands "$typed"
+  with_statement
+  measure_case measure-while-the-statement-stands PASS
+  repository measure-with-a-release-sh-that-does-not-stop "$typed"
+  with_statement
+  sed 's/^    fail ".store4_cause; nothing was released"$/    :/' "$repo/scripts/release.sh" >"$work/release-that-does-not-stop.sh" || exit 2
+  cmp -s "$repo/scripts/release.sh" "$work/release-that-does-not-stop.sh" && exit 2
+  cp "$work/release-that-does-not-stop.sh" "$repo/scripts/release.sh" || exit 2
+  measure_case measure-with-a-release-sh-that-does-not-stop FAIL
 
   group_case() {
     case_name=$1 want=$2 dry=$3 version=$4 before=$5 expected=$6
