@@ -55,7 +55,7 @@ budget_run() {
     fail "mutation-test.sh --list exited $?"
   printf '%s\n' "$rows" >"$scratch/list" || exit 2
   awk -F '\t' 'sub(/^mutation:/, "", $1) { print $1 }' "$scratch/list" >"$scratch/listed" || exit 2
-  LC_ALL=C sort -u -o "$scratch/names" "$scratch/listed" || exit 2
+  sort -u -o "$scratch/names" "$scratch/listed" || exit 2
   m=$(awk 'END { print NR }' "$scratch/names") || exit 2
   [ "$m" -gt 0 ] || fail "mutation-test.sh --list printed no row"
   pushes=$(git rev-list --count --first-parent "$commit" 2>/dev/null)

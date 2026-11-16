@@ -1642,8 +1642,10 @@ lint_cases() {
   row lint-extern/crates/x/mutants.rows held src/lib.rs 's/shim_a/shim_b/' leak required X-1
   row lint-extern/crates/x/mutants.rows hook src/lib.rs 's/no_mangle/must_use/' leak required X-1
   row lint-extern/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  row lint-extern/crates/x/mutants.rows gone src/lib.rs 's/    fn shim_a\(\) -> i32;\n//' leak required X-1
   t lint-refuses-a-row-that-changes-a-line-of-an-extern-block PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:held (line 3 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
   t lint-refuses-a-row-that-changes-a-link-attribute PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:hook (line 6 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
+  t lint-refuses-a-row-that-deletes-a-line-of-an-extern-block PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:gone (line 3 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
   t lint-lets-a-row-outside-the-extern-block-of-its-file-run PASS with_cargo_home lint-extern form_said lint-extern yes 'PASS mutation:plain (applies and type-checks)'
   form_fixture lint-extern-kept crates/halvo-sqlcipher 0
   printf 'extern "C" {\n    fn shim_a() -> i32;\n}\n' > "$gate_scratch/lint-extern-kept/crates/halvo-sqlcipher/src/lib.rs"
@@ -1655,6 +1657,14 @@ lint_cases() {
   row lint-folded/crates/mutants.rows upper HALVO-SQLCIPHER/src/lib.rs 's/1 }/3 }/' leak required X-1
   t lint-refuses-a-path-that-the-file-system-folds-beyond-ascii-case PASS with_cargo_home lint-folded form_said lint-folded yes "FAIL mutation:held (the path crates/halvo-${lint_long_s}qlcipher/src/lib.rs reaches a tracked file only by a spelling that the file system folds beyond ASCII case)"
   t lint-lets-a-path-in-another-ascii-case-run PASS with_cargo_home lint-folded form_said lint-folded yes 'PASS mutation:upper (applies and builds)'
+  form_fixture lint-upper-tracked crates/Halvo-SQLCipher 0
+  row lint-upper-tracked/crates/mutants.rows held halvo-sqlcipher/src/lib.rs 's/1 }/2 }/' leak required X-1
+  t lint-lets-a-row-in-lower-case-on-a-path-tracked-in-upper-case-run PASS with_cargo_home lint-upper-tracked form_said lint-upper-tracked yes 'PASS mutation:held (applies and builds)'
+  form_fixture lint-no-script crates/x 0
+  mkdir -p "$gate_scratch/lint-no-script/crates/y"
+  printf '[package]\nname = "y"\n' > "$gate_scratch/lint-no-script/crates/y/Cargo.toml"
+  row lint-no-script/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  t lint-lets-a-row-run-beside-a-manifest-with-no-build-script PASS with_cargo_home lint-no-script form_said lint-no-script yes 'PASS mutation:plain (applies and type-checks)'
   form_fixture lint-folded-script crates/x 0
   row lint-folded-script/crates/x/mutants.rows held "build.r${lint_long_s}" 's/1;/2;/' leak required X-1
   t lint-refuses-a-build-script-name-that-the-file-system-folds PASS with_cargo_home lint-folded-script form_said lint-folded-script yes "FAIL mutation:held (the path crates/x/build.r${lint_long_s} reaches a tracked file only by a spelling that the file system folds beyond ASCII case)"
