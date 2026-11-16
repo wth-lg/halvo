@@ -1,4 +1,6 @@
 import { type Child, execFileSync, spawn } from "node:child_process";
+import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 declare module "node:child_process" {
   export function spawn(
@@ -6,6 +8,10 @@ declare module "node:child_process" {
     args: string[],
     options: { env?: Record<string, string | undefined>; stdio: ("ignore" | "pipe" | "inherit" | number)[]; detached: true },
   ): Child;
+}
+
+declare module "node:fs" {
+  export function unlinkSync(path: string): void;
 }
 
 type Options = { env?: Record<string, string | undefined>; stdio: ("ignore" | "pipe" | "inherit" | number)[] };
@@ -16,6 +22,15 @@ export interface Group {
   child: Child;
 }
 
+interface Id {
+  pid: number;
+  started: string;
+}
+
+interface Mark extends Id {
+  owner: Id;
+}
+
 interface Row {
   pid: number;
   pgid: number;
@@ -23,7 +38,7 @@ interface Row {
 }
 
 interface Live {
-  groups: Set<Group>;
+  groups: Map<Group, string>;
   installed: boolean;
 }
 
@@ -44,14 +59,14 @@ function table(): Row[] {
   return rows;
 }
 
-function members(group: Group): number[] {
-  const rows = table().filter((row) => row.pgid === group.pid);
-  const leader = rows.find((row) => row.pid === group.pid);
+function members(group: Id, rows = table()): number[] {
+  const inGroup = rows.filter((row) => row.pgid === group.pid);
+  const leader = inGroup.find((row) => row.pid === group.pid);
   if (leader !== undefined && leader.started !== group.started) return [];
-  return rows.map((row) => row.pid);
+  return inGroup.map((row) => row.pid);
 }
 
-function signal(group: Group, name: "SIGTERM" | "SIGKILL"): boolean {
+function signal(group: Id, name: "SIGTERM" | "SIGKILL"): boolean {
   if (members(group).length === 0) return false;
   try {
     process.kill(-group.pid, name);
@@ -61,7 +76,7 @@ function signal(group: Group, name: "SIGTERM" | "SIGKILL"): boolean {
   }
 }
 
-async function gone(group: Group, ms: number): Promise<boolean> {
+async function gone(group: Id, ms: number): Promise<boolean> {
   const until = Date.now() + ms;
   while (members(group).length > 0) {
     if (Date.now() >= until) return false;
@@ -70,26 +85,35 @@ async function gone(group: Group, ms: number): Promise<boolean> {
   return true;
 }
 
-function stopNow(group: Group): void {
+function stopNow(group: Id): boolean {
   for (const name of ["SIGTERM", "SIGKILL"] as const) {
-    if (!signal(group, name)) return;
+    if (!signal(group, name)) return members(group).length === 0;
     const until = Date.now() + GRACE_MS;
     while (members(group).length > 0 && Date.now() < until) sleep(100);
-    if (members(group).length === 0) return;
+    if (members(group).length === 0) return true;
   }
+  return false;
+}
+
+function unmark(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {}
 }
 
 function live(): Live {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
   const found = shared[LIVE];
   if (found !== undefined) return found;
-  const made: Live = { groups: new Set(), installed: false };
+  const made: Live = { groups: new Map(), installed: false };
   shared[LIVE] = made;
   return made;
 }
 
 function stopAll(state: Live): void {
-  for (const group of state.groups) stopNow(group);
+  for (const [group, mark] of state.groups) {
+    if (stopNow(group)) unmark(mark);
+  }
   state.groups.clear();
 }
 
@@ -113,20 +137,39 @@ function install(state: Live): void {
 }
 
 /**
+ * The directory of the marks of a checkout: HALVO_GROUP_MARKS when it is set and not empty, otherwise .tmp/groups
+ * under the working directory, which is backend/ of the checkout when the node tests run.
+ */
+export function marksDir(): string {
+  const set: string | undefined = process.env.HALVO_GROUP_MARKS;
+  return set === undefined || set === "" ? join(process.cwd(), ".tmp", "groups") : set;
+}
+
+/**
  * Starts command in a process group of its own and returns the group, known by its leader's pid and start time.
- * Until endGroup ends it, the process that started it ends the group, TERM first and KILL after 5 s, when it gets
- * TERM, INT or HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then
- * exits with 1), and when it exits.
+ * It writes the mark group-<pid>.json into marksDir(), with the group's pid and start time and the pid and start time
+ * of the process that started it (the owner), and removes the mark once the group has no member left.
+ * Until endGroup ends it, the owner ends the group, TERM first and KILL after 5 s, when it gets TERM, INT or HUP
+ * (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
+ * and when it exits. A KILL of the owner runs none of these: the group and its mark stay until sweepMarks.
  */
 export function startGroup(command: string, args: string[], options: Options): Group {
   const state = live();
   install(state);
   const child = spawn(command, args, { ...options, detached: true });
   if (child.pid === undefined) throw new Error(`${command} did not start`);
-  const own = table().find((row) => row.pid === child.pid);
+  const rows = table();
+  const own = rows.find((row) => row.pid === child.pid);
   if (own === undefined || own.pgid !== child.pid) throw new Error(`${command} (pid ${child.pid}) does not lead its own process group`);
+  const owner = rows.find((row) => row.pid === process.pid);
+  if (owner === undefined) throw new Error(`the process table has no row for this process (pid ${process.pid})`);
   const group = { pid: child.pid, started: own.started, child };
-  state.groups.add(group);
+  const dir = marksDir();
+  const mark = join(dir, `group-${group.pid}.json`);
+  const record: Mark = { pid: group.pid, started: group.started, owner: { pid: owner.pid, started: owner.started } };
+  state.groups.set(group, mark);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(mark, JSON.stringify(record));
   return group;
 }
 
@@ -138,5 +181,67 @@ export async function endGroup(group: Group | null): Promise<void> {
     signal(group, "SIGKILL");
     if (!(await gone(group, GRACE_MS))) throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
   }
-  live().groups.delete(group);
+  const state = live();
+  const mark = state.groups.get(group);
+  if (mark !== undefined) unmark(mark);
+  state.groups.delete(group);
+}
+
+function readMark(path: string): Mark | null {
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    const id = (each: unknown): each is Id =>
+      typeof each === "object" &&
+      each !== null &&
+      Number.isSafeInteger((each as Id).pid) &&
+      (each as Id).pid > 1 &&
+      typeof (each as Id).started === "string";
+    if (!id(value)) return null;
+    const owner = (value as { owner?: unknown }).owner;
+    return id(owner) ? { pid: value.pid, started: value.started, owner: { pid: owner.pid, started: owner.started } } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ends the groups that the marks in marksDir() name and whose owner is gone: what a run of this checkout left when
+ * its process got KILL. A mark whose owner (pid and start time) is alive is kept, since a run that is still going owns
+ * it. A group whose leader has the marked pid and start time gets TERM, and KILL after 5 s, and its mark goes once it
+ * has no member. A group whose leader is gone while processes still have its pid as their group is left with its mark,
+ * since nothing tells those processes from a later group of the same id. Returns one line for each group that it ended
+ * or left, and for each mark that it could not read.
+ */
+export function sweepMarks(): string[] {
+  const dir = marksDir();
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const lines: string[] = [];
+  for (const name of names.filter((each) => /^group-\d+\.json$/.test(each)).sort()) {
+    const path = join(dir, name);
+    const mark = readMark(path);
+    if (mark === null) {
+      lines.push(`process-group: skipped the mark ${name}, which is no group with an owner`);
+      continue;
+    }
+    const rows = table();
+    if (rows.some((row) => row.pid === mark.owner.pid && row.started === mark.owner.started)) continue;
+    const leader = rows.find((row) => row.pid === mark.pid);
+    const count = members(mark, rows).length;
+    if (count === 0) {
+      unmark(path);
+    } else if (leader === undefined) {
+      lines.push(`process-group: left group ${mark.pid} (started ${mark.started}): its leader is gone and ${count} processes have its id as their group`);
+    } else if (stopNow(mark)) {
+      unmark(path);
+      lines.push(`process-group: ended group ${mark.pid} (started ${mark.started}), which a run of this checkout left: ${count} processes`);
+    } else {
+      lines.push(`process-group: group ${mark.pid} (started ${mark.started}) still has members after KILL`);
+    }
+  }
+  return lines;
 }

@@ -195,11 +195,55 @@ async function holdWrangler(dir: string): Promise<never> {
   return new Promise<never>(() => {});
 }
 
+function holdSleeper(dir: string): Promise<never> {
+  const group = startGroup(process.execPath, ["-e", "setInterval(() => {}, 1 << 30)"], { stdio: ["ignore", "ignore", "ignore"] });
+  const ready: Ready = { fork: { pid: process.pid, started: startedOf(process.pid) }, group: { pid: group.pid, started: group.started } };
+  writeFileSync(join(dir, "ready.json"), JSON.stringify(ready));
+  return new Promise<never>(() => {});
+}
+
+function exitOf(run: Group): Promise<number | null> {
+  return new Promise((resolve) => run.child.on("exit", (code) => resolve(code)));
+}
+
 if (MODE !== undefined) {
   if (HERE === undefined) throw new Error("HALVO_STOPPED_RUN_MODE is set and HALVO_STOPPED_RUN_DIR is not");
   if (MODE === "wrangler") test("holds wrangler dev up until the run is stopped", () => holdWrangler(HERE), 300_000);
+  else if (MODE === "sleeper") test("holds a sleeping node up until the run is stopped", () => holdSleeper(HERE), 300_000);
+  else if (MODE === "sweep") test("starts nothing, after the run's set-up", () => {});
   else throw new Error(`no mode ${MODE}`);
 } else {
+  test("after KILL to a whole run, the next run of the same checkout ends the server that the run left, by the mark that it wrote, and wrangler removes its build; a server that a run of another checkout marked stays", async () => {
+    mkdirSync(join(ROOT, ".tmp"), { recursive: true });
+    const dir = mkdtempSync(join(ROOT, ".tmp", "stopped-run."));
+    const other = mkdtempSync(join(ROOT, ".tmp", "stopped-run."));
+    const killed = startRun(dir, "wrangler", SELF);
+    const elsewhere = startRun(other, "sleeper", SELF, { HALVO_GROUP_MARKS: join(other, "marks") });
+    let server: Id | null = null;
+    let sleeper: Id | null = null;
+    let next: Group | null = null;
+    try {
+      server = (await waitReady(dir, "wrangler", killed)).group;
+      sleeper = (await waitReady(other, "sleeper", elsewhere)).group;
+      process.kill(-killed.pid, "SIGKILL");
+      process.kill(-elsewhere.pid, "SIGKILL");
+      expect(described(await settle([killed, elsewhere]))).toEqual([]);
+      expect(groupOf(server).map((row) => kind(row.command)).sort()).toEqual(SERVER);
+      expect(groupOf(sleeper)).toHaveLength(1);
+      expect(devDirs(dir).length).toBeGreaterThan(0);
+      next = startRun(dir, "sweep", SELF);
+      const code = await Promise.race([exitOf(next), pause(90_000).then(() => "still running")]);
+      expect(code, logOf(dir, "sweep")).toBe(0);
+      expect(described(await settle([server]))).toEqual([]);
+      expect(devDirs(dir)).toEqual([]);
+      expect(logOf(dir, "sweep")).toContain(`process-group: ended group ${server.pid} (started ${server.started})`);
+      expect(groupOf(sleeper)).toHaveLength(1);
+    } finally {
+      for (const id of [server, sleeper]) if (id !== null) await endRecorded(id);
+      for (const run of [killed, elsewhere, next]) await endGroup(run);
+    }
+  }, 180_000);
+
   const stops: [string, "group" | "main"][] = [
     ["SIGTERM", "group"],
     ["SIGINT", "group"],
