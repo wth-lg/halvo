@@ -1,7 +1,7 @@
 use halvo_agent_store::{CommitRefused, Host, MemoryStore, AGENT_KINDS};
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{
-    AgentId, ErrorName, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
+    AgentId, ErrorName, Instant, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
     WorkflowState, WriterStep,
 };
 use serde_json::json;
@@ -294,4 +294,23 @@ fn the_state_call() {
     };
     assert_eq!(w.state, WorkflowState::Paused);
     assert!(store.workflow(&workflow_id(9)).is_none());
+}
+
+#[test]
+fn the_day_of_an_instant_is_the_day_of_the_store_s_calendar() {
+    let second = 1_000_000_000_i64;
+    let day = 86_400 * second;
+    let utc = MemoryStore::new();
+    assert_eq!(utc.day(Instant(20_769 * day)), 20_769);
+    assert_eq!(utc.day(Instant(20_770 * day - 1)), 20_769);
+    let west = MemoryStore::new().with_utc_offset(-5 * 3600);
+    assert_eq!(
+        west.day(Instant(20_770 * day + 5 * 3600 * second - 1)),
+        20_769
+    );
+    assert_eq!(west.day(Instant(20_770 * day + 5 * 3600 * second)), 20_770);
+    let east = MemoryStore::new().with_utc_offset(3600);
+    assert_eq!(east.day(Instant(20_770 * day - 3600 * second)), 20_770);
+    assert_eq!(east.day(Instant(20_770 * day - 3600 * second - 1)), 20_769);
+    assert_eq!(utc.day(Instant(-1)), 0);
 }

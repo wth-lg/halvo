@@ -245,4 +245,8 @@ impl Host for MemoryStore {
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
         self.workflow_item(id)
     }
+
+    fn day(&self, at: halvo_schema::Instant) -> u32 {
+        u32::try_from(at.0.div_euclid(86_400_000_000_000)).unwrap_or(0)
+    }
 }

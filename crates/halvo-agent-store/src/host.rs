@@ -1,10 +1,11 @@
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{AgentId, ErrorName, Instant, RowRead, TypedRecord, WorkflowId, WorkflowItem};
 
-/// The four calls that a store offers a handler while the handler answers one request (W-C25.5), and no other.
-/// The host calls a handler to its end before it passes it the next request, so no other request changes the rows
-/// between a handler's reads and its commits. Each commit is a transaction of its own: a handler that makes a commit
-/// and then a state call (`create_agent`) leaves the commit stored when the state call is refused.
+/// The calls that a store offers a handler while the handler answers one request (W-C25.5), and no other: the four
+/// of the store and the day of the host's clock. The host calls a handler to its end before it passes it the next
+/// request, so no other request changes the rows between a handler's reads and its commits. Each commit is a
+/// transaction of its own: a handler that makes a commit and then a state call (`create_agent`) leaves the commit
+/// stored when the state call is refused.
 pub trait Host {
     /// The typed commit (W-C25.3): every record of the list, each a kind of the family `agent` and its compact
     /// JSON, in one transaction, or none of them with the error of the refusal.
@@ -25,13 +26,16 @@ pub trait Host {
 
     /// The item of the read `workflows` for one stored workflow, or none where it is not stored (W-C2.10).
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem>;
+
+    /// The local calendar day that holds the instant, counted in days from 1970-01-01 (W-C2.5): by the machine's
+    /// time zone in the product, with UTC as local time in a replay and in the gate. It is the one source of every
+    /// day that a handler builds, checks or bounds (CP-122).
+    fn day(&self, at: Instant) -> u32;
 }
 
-/// The instant and the local day number of a request, as the host reads them from its clock. The rows that a
-/// handler writes beyond the body's own record (the moves of the run's end, the record of `end_run`, a session
-/// part) take them.
+/// The instant of a request, as the host reads it from its clock once at the request's start, and nothing else: the
+/// day of the request is `Host::day` of it. The rows that a handler builds itself take this instant and its day.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Now {
     pub at: Instant,
-    pub day: u32,
 }

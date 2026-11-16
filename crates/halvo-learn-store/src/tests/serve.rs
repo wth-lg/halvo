@@ -2,7 +2,7 @@ use halvo_schema::executable::RunnerReply;
 use serde_json::{json, Value};
 
 use super::coordinator::edit_row;
-use super::host::{active_world, agent, compiled, locator, run, with_locators, World, DAY};
+use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, World, DAY};
 use crate::LearnHost;
 
 fn loc(name: &str) -> Value {
@@ -25,6 +25,13 @@ fn store(w: &mut World, rows: Vec<halvo_schema::TypedRecord>) {
 
 fn direct_compile(w: &mut World, r: u32, number: u32) {
     let now = w.host.agent_now();
+    let start = json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(r), "mode": "compile"});
+    let started =
+        halvo_agent_store::coordinator(&mut w.host.agent, now, start.to_string().as_bytes());
+    assert!(
+        started.is_ok(),
+        "the agent store starts run {r}: {started:?}"
+    );
     let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": number, "steps": compiled()});
     let reply = halvo_agent_store::runner(&mut w.host.agent, now, body.to_string().as_bytes());
     assert!(

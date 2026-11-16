@@ -3,7 +3,8 @@ mod common;
 use common::*;
 use halvo_agent_store::{Host, MemoryStore};
 use halvo_policy::{preset, validate};
-use halvo_schema::executable::CoordinatorReply;
+use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::{AgentLog, CoordinatorReply};
 use halvo_schema::{
     AgentId, Category, ErrorName, SeedCategory, TypedRecord, Workflow, WorkflowId, WorkflowState,
 };
@@ -264,6 +265,88 @@ fn start_run_checks_the_state_and_the_agent() {
         Err(ErrorName::NoWorkflow)
     );
     assert!(rows(&store, "agent_run").is_empty());
+    let started = start_rows(&store);
+    assert_eq!(started.len(), 1);
+    assert_eq!(started[0].run.as_str(), run(1));
+}
+
+fn start_rows(store: &MemoryStore) -> Vec<AgentLog> {
+    rows(store, "agent_log")
+        .iter()
+        .map(|r| AgentLog::parse(r.as_bytes()).expect("a log row"))
+        .filter(|l| l.event == LogEvent::StartAccepted)
+        .collect()
+}
+
+#[test]
+fn start_run_stores_one_start_row_from_the_request_s_clock() {
+    let mut store = unstarted("email").with_utc_offset(WEST);
+    let night = at(local(TODAY, 22 * 3600, WEST));
+    assert_eq!(night.at.0.div_euclid(NANOS_PER_DAY), i64::from(TODAY) + 1);
+    assert_eq!(start_at(&mut store, night, 1, 1, 1), Ok(accepted()));
+    assert_eq!(rows(&store, "agent_log").len(), 1);
+    let row = start_rows(&store).pop().expect("the start row");
+    assert_eq!(
+        (row.workflow.as_str(), row.agent.as_str(), row.run.as_str()),
+        (wf(1).as_str(), agent(1).as_str(), run(1).as_str())
+    );
+    assert_eq!((row.seq.get(), row.day, row.at), (1, TODAY, night.at));
+    assert_eq!(
+        (
+            row.step,
+            row.cause,
+            row.model,
+            row.ms,
+            row.tokens_in,
+            row.tokens_out
+        ),
+        (None, None, None, None, None, None)
+    );
+}
+
+#[test]
+fn a_start_run_repeated_for_the_same_agent_and_workflow_is_answered_as_the_first_and_stores_nothing(
+) {
+    let mut store = unstarted("email");
+    assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Ok(accepted()));
+    let before = rows(&store, "agent_log");
+    let later = at(NOW.at.0 + NANOS_PER_DAY);
+    assert_eq!(start_at(&mut store, later, 1, 1, 1), Ok(accepted()));
+    assert_eq!(rows(&store, "agent_log"), before);
+}
+
+#[test]
+fn a_start_run_of_a_run_that_another_agent_s_rows_name_is_refused_with_binding() {
+    let mut store = unstarted("email");
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    create(&mut store, 2, 2).expect("create_agent of the second agent");
+    assert_eq!(start_at(&mut store, NOW, 2, 2, 1), Ok(accepted()));
+    let before = rows(&store, "agent_log");
+    assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Err(declared("binding")));
+    assert_eq!(rows(&store, "agent_log"), before);
+}
+
+#[test]
+fn a_start_run_after_the_run_s_end_is_refused_with_effect() {
+    let mut store = unstarted("email");
+    assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Ok(accepted()));
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let before = rows(&store, "agent_log");
+    assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Err(declared("effect")));
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    assert_eq!(start_at(&mut store, NOW, 1, 1, 2), Err(declared("effect")));
+    assert_eq!(rows(&store, "agent_log"), before);
+}
+
+#[test]
+fn a_start_run_of_another_agent_for_a_run_that_end_run_ended_is_refused_with_binding() {
+    let mut store = unstarted("email");
+    assert_eq!(end_run(&mut store, 7), Ok(accepted()));
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    create(&mut store, 2, 2).expect("create_agent of the second agent");
+    let before = rows(&store, "agent_log");
+    assert_eq!(start_at(&mut store, NOW, 2, 2, 7), Err(declared("binding")));
+    assert_eq!(rows(&store, "agent_log"), before);
 }
 
 #[test]

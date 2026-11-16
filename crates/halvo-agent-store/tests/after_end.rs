@@ -27,8 +27,8 @@ fn log(r: u32, seq: u32) -> Value {
         "agent": agent(1),
         "run": run(r),
         "seq": seq,
-        "day": 20_770,
-        "at": 1_794_400_000_000_000_000_i64,
+        "day": ROW_DAY,
+        "at": ROW_AT,
         "event": "step_ok",
         "step": 1,
         "cause": null,
@@ -55,7 +55,7 @@ fn ended(end: End) -> MemoryStore {
     let mut store = store_with("utility_bill_payment");
     assert_eq!(runner(&mut store, playbook(1, 1, 1)), Ok(stored(1)));
     assert_eq!(runner(&mut store, session(1, ORIGIN)), Ok(stored(1)));
-    assert_eq!(runner(&mut store, log(1, 1)), Ok(stored(1)));
+    assert_eq!(runner(&mut store, log(1, 2)), Ok(stored(1)));
     match end {
         End::Finish => assert_eq!(
             finish(&mut store, run_record(1, Some("compile"), "completed")),
@@ -85,6 +85,7 @@ fn refused_after(end: End, bodies: &[Value]) -> MemoryStore {
         );
     }
     assert_eq!(counts(&store), before);
+    start(&mut store, 2);
     store
 }
 
@@ -120,8 +121,8 @@ fn put_session_is_refused(end: End) {
 }
 
 fn log_is_refused(end: End) {
-    let mut store = refused_after(end, &[log(1, 2), log(1, 1)]);
-    assert_eq!(runner(&mut store, log(2, 1)), Ok(stored(1)));
+    let mut store = refused_after(end, &[log(1, 2), log(1, 3)]);
+    assert_eq!(runner(&mut store, log(2, 2)), Ok(stored(1)));
 }
 
 #[test]
@@ -212,14 +213,14 @@ fn load_of_another_agent_that_names_an_ended_run_is_refused() {
         &mut store,
         json!({"op": "load", "agent": agent(2), "run": run(1)}),
     );
-    assert_eq!(got.map(|_| ()), Err(declared("effect")));
+    assert_eq!(got.map(|_| ()), Err(declared("binding")));
 }
 
 #[test]
 fn log_of_another_agent_that_names_an_ended_run_is_refused_with_binding_first() {
     let mut store = ended(End::Finish);
     second_agent(&mut store);
-    let mut body = log(1, 1);
+    let mut body = log(1, 2);
     body["agent"] = json!(agent(2));
     body["records"][0]["agent"] = json!(agent(2));
     body["records"][0]["workflow"] = json!(wf(2));

@@ -1,9 +1,10 @@
-use halvo_schema::executable::{AgentConfig, RunId};
+use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::{AgentConfig, AgentLog, RunId};
 use halvo_schema::{AgentId, ErrorName, FullWorkflow, Workflow, WorkflowId};
 
 use crate::errors::Own;
-use crate::host::Host;
-use crate::rows;
+use crate::host::{Host, Now};
+use crate::{day, rows};
 
 pub(crate) fn stored(host: &dyn Host, workflow: &WorkflowId) -> Result<Workflow, ErrorName> {
     host.workflow(workflow)
@@ -38,7 +39,11 @@ pub(crate) fn open_run(host: &dyn Host, run: &RunId) -> Result<(), ErrorName> {
     Ok(())
 }
 
-pub(crate) fn own_run(host: &dyn Host, run: &RunId, agent: &AgentId) -> Result<(), ErrorName> {
+pub(crate) fn no_other_agent(
+    host: &dyn Host,
+    run: &RunId,
+    agent: &AgentId,
+) -> Result<(), ErrorName> {
     let rows = host.rows();
     let another = rows::effects(rows)?
         .iter()
@@ -50,6 +55,35 @@ pub(crate) fn own_run(host: &dyn Host, run: &RunId, agent: &AgentId) -> Result<(
             .iter()
             .any(|r| &r.run == run && &r.agent != agent);
     if another {
+        return Err(Own::Binding.into());
+    }
+    Ok(())
+}
+
+pub(crate) fn start_row(
+    host: &dyn Host,
+    now: Now,
+    run: &RunId,
+    agent: &AgentId,
+) -> Result<Option<AgentLog>, ErrorName> {
+    let today = day::of(host, now);
+    let bound = day::bound(rows::AGENT_LOG);
+    Ok(rows::logs(host.rows())?.into_iter().find(|l| {
+        l.event == LogEvent::StartAccepted
+            && &l.run == run
+            && &l.agent == agent
+            && bound.is_none_or(|days| day::stands(today, days, l.day))
+    }))
+}
+
+pub(crate) fn own_run(
+    host: &dyn Host,
+    now: Now,
+    run: &RunId,
+    agent: &AgentId,
+) -> Result<(), ErrorName> {
+    no_other_agent(host, run, agent)?;
+    if start_row(host, now, run, agent)?.is_none() {
         return Err(Own::Binding.into());
     }
     Ok(())
