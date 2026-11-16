@@ -727,6 +727,36 @@ GITSTUB
   got=PASS
   [ "$status" = 1 ] && grep -q -F 'scripts/r1/ci.d/54-tag-needs-store4.sh exited 3' "$work/out-54-that-ends-without-its-line" && [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
   verdict 54-that-ends-without-its-line-stops-execute FAIL "$got"
+  stop_at_level() {
+    case_name=$1 coming_tag=$2
+    shift 2
+    log=$work/argv-$case_name
+    level_cause=$(store4_cause "$repo" "$coming_tag") || exit 2
+    snapshot "$repo" >"$work/stop-$case_name-before"
+    status=0
+    (cd "$repo" && PATH="$work/bin:$PATH" STUB_ACTION=commit-tag STUB_LOG="$log" CARGO_HOME="$work/no-cargo-home" sh scripts/release.sh --execute "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$log"
+    snapshot "$repo" >"$work/stop-$case_name-after"
+    got=PASS
+    [ "$status" = 1 ] && [ -n "$level_cause" ] && grep -q -x -F -e "release.sh: $level_cause; nothing was released" "$work/out-$case_name" &&
+      grep -q '^release version ' "$log" && ! grep -q -E '^release (patch|minor|major) --config .* --execute' "$log" &&
+      cmp -s "$work/stop-$case_name-before" "$work/stop-$case_name-after" && got=FAIL
+    verdict "$case_name" FAIL "$got"
+  }
+  kept_repo=$repo
+  kept_cause=$cause
+  repository index-statement-with-origin "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  git clone -q --bare "$repo" "$work/origin-of-the-statement.git" || exit 2
+  git -C "$repo" remote add origin "$work/origin-of-the-statement.git"
+  git -C "$repo" fetch -q origin
+  stop_at_level execute-in-a-clone-whose-origin-holds-head-as-main v1.2.4
+  repo=$statement_repo
+  stop_at_level execute-minor-on-a-tree-with-the-statement v1.3.0 minor
+  stop_at_level execute-major-on-a-tree-with-the-statement v2.0.0 major
+  repo=$kept_repo
+  cause=$kept_cause
   got=FAIL
   free_cause=$(store4_cause "$statement_free_repo" v1.2.4) && [ -z "$free_cause" ] && got=PASS
   verdict 54-passes-the-tag-of-a-fixture-without-the-statement PASS "$got"
