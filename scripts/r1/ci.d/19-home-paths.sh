@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails; tag=not-a-tag-run otherwise), and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 # lane: free
 set -u
 name=19-home-paths
@@ -66,11 +66,66 @@ has_commit() {
   git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1
 }
 
+event_program='
+let event;
+try {
+  event = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+} catch (error) {
+  process.exit(3);
+}
+const field = (object, key) => (object !== null && typeof object === "object" && typeof object[key] === "string" ? object[key] : "");
+const repository = event !== null && typeof event === "object" ? event.repository : null;
+process.stdout.write(field(repository, "default_branch") + "\n" + field(event, "before") + "\n");
+'
+
+read_the_event() {
+  default_branch=main
+  event_before=
+  [ -n "${GITHUB_EVENT_PATH:-}" ] || return 0
+  command -v node >/dev/null 2>&1 || fail 'node is not on PATH, and the check reads the event file that GITHUB_EVENT_PATH names with it, to learn the default branch and the commits of a push; set Node.js up before this step'
+  node -e "$event_program" "$GITHUB_EVENT_PATH" >"$scratch/event" 2>/dev/null </dev/null || fail 'the event file that GITHUB_EVENT_PATH names cannot be read as JSON, so the check cannot tell the default branch or the commits of a push; run the job again'
+  default_branch=$(sed -n 1p "$scratch/event") || default_branch=
+  event_before=$(sed -n 2p "$scratch/event") || event_before=
+  if [ -z "$default_branch" ] || ! git check-ref-format "refs/heads/$default_branch"; then
+    fail 'the event file that GITHUB_EVENT_PATH names gives no default branch that git reads as a branch name (repository.default_branch), so the check cannot take the copy of the default branch; run the job again'
+  fi
+}
+
+take_the_copy_of_the_default_branch() {
+  default_ref=refs/remotes/origin/$default_branch
+  default_copy=
+  default_note=
+  if ! default_commit=$(git rev-parse -q --verify "$default_ref^{commit}" 2>/dev/null); then
+    if [ "$shallow" = true ]; then
+      default_note="not-run (no $default_ref in this shallow clone)"
+      return 0
+    fi
+    [ -z "${GITHUB_EVENT_PATH:-}" ] || fail "$default_ref is not in this clone, so the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that the default branch holds cannot scan beside the copy of this branch; the checkout step needs fetch-depth: 0"
+    default_note="not-run (no $default_ref in this clone)"
+    return 0
+  fi
+  mkdir -p "$scratch/default/scripts" || fail 'mkdir failed'
+  for file in check-home-paths.sh commit-range.sh; do
+    git cat-file blob "$default_commit:scripts/$file" >"$scratch/default/scripts/$file" 2>/dev/null </dev/null ||
+      fail "$default_ref holds no scripts/$file, so the copy of the default branch cannot scan beside the copy of this branch; restore the file on the default branch"
+  done
+  git cat-file blob "$default_commit:scripts/check-commit-messages.sh" >"$scratch/default/scripts/check-commit-messages.sh" 2>/dev/null </dev/null ||
+    : >"$scratch/default/scripts/check-commit-messages.sh"
+  default_copy=$scratch/default/scripts/check-home-paths.sh
+}
+
+counts_of() {
+  sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$@"
+}
+
 scan_head() {
   repo=$1
   cd "$repo" || fail "cannot enter $repo"
   [ -f scripts/check-home-paths.sh ] || fail 'scripts/check-home-paths.sh is missing'
   head_commit=$(git rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null) || fail 'HEAD names no commit'
+  read_the_event
+  shallow=$(git rev-parse --is-shallow-repository 2>/dev/null) || shallow=unknown
+  take_the_copy_of_the_default_branch
   tag=not-a-tag-run
   tag_to_read=
   tag_cause=
@@ -85,9 +140,9 @@ scan_head() {
       fi
       ;;
   esac
-  if has_commit refs/remotes/origin/main && ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+  if has_commit "$default_ref" && ! git merge-base --is-ancestor HEAD "$default_ref"; then
     kind=since-the-default-branch
-    range=refs/remotes/origin/main..HEAD
+    range=$default_ref..HEAD
   elif has_commit HEAD^1; then
     kind=head-commit
     range='HEAD^!'
@@ -97,10 +152,22 @@ scan_head() {
   fi
   sh scripts/check-home-paths.sh "$range" ${tag_to_read:+"$tag_to_read"} >"$scratch/out" 2>"$scratch/err" </dev/null
   code=$?
+  default_code=
+  if [ -n "$default_copy" ]; then
+    sh "$default_copy" "$range" ${tag_to_read:+"$tag_to_read"} >"$scratch/default-out" 2>"$scratch/default-err" </dev/null
+    default_code=$?
+  fi
   drop_own_tag_ref
   listed=$(git rev-list --count "$range" 2>/dev/null) || listed=0
-  counts=$(sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$scratch/out" "$scratch/err") || counts=
+  counts=$(counts_of "$scratch/out" "$scratch/err") || counts=
   printf 'range=%s tag=%s %s exit=%s\n' "$kind" "$tag" "${counts:-commits=unread lines=unread}" "$code"
+  default_counts=
+  if [ -n "$default_copy" ]; then
+    default_counts=$(counts_of "$scratch/default-out" "$scratch/default-err") || default_counts=
+    printf 'copy-of-the-default-branch %s exit=%s\n' "${default_counts:-commits=unread lines=unread}" "$default_code"
+  else
+    printf 'copy-of-the-default-branch %s\n' "$default_note"
+  fi
   sh scripts/check-home-paths.sh --stale >"$scratch/stale" 2>&1 </dev/null
   stale_code=$?
   stale=$(sed -n 's/.*entries read \([0-9]*\), stale \([0-9]*\)\.$/entries=\1 stale=\2/p' "$scratch/stale") || stale=
@@ -121,6 +188,19 @@ scan_head() {
       ;;
     *) fail "sh scripts/check-home-paths.sh could not check the range (exit $code); run sh scripts/check-home-paths.sh '$range' on a clone of this head and read its error" ;;
   esac
+  if [ -n "$default_copy" ]; then
+    way_on="on a clone of this head, run the scanner of a checkout of the default branch: sh <checkout of the default branch>/scripts/check-home-paths.sh '$range'${tag_to_read:+ $GITHUB_REF}"
+    case $default_code in
+      0)
+        [ -n "$default_counts" ] || fail "the copy of scripts/check-home-paths.sh that $default_ref holds exited 0 and printed no count of the commits and lines that it read, so nothing shows what it read; $way_on, and read its last line"
+        case $default_counts in
+          commits=0\ *) [ "$listed" = 0 ] || fail "the copy of scripts/check-home-paths.sh that $default_ref holds read 0 commits, and git lists $listed for that range, so it did not read the head; $way_on" ;;
+        esac
+        ;;
+      1) fail "the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that $default_ref holds finds an added line or a message with a home path that scripts/home-path-allow.txt does not allow, and the copy of this branch finds none: this branch changed the scanner or its range file, or the default branch holds an older scanner that refuses a line which the newer one accepts; the commits must pass both copies, so take each line that it lists out of the commit that added it, and undo a change that weakens the scan; $way_on" ;;
+      *) fail "the copy of scripts/check-home-paths.sh that $default_ref holds could not check the range (exit $default_code); $way_on, and read its error" ;;
+    esac
+  fi
   [ -z "$tag_cause" ] || fail "tag=$tag: $tag_cause"
   case $stale_code in
     0)
@@ -168,10 +248,14 @@ add_commit() {
 }
 
 expect() {
+  (scan_head "$scratch/$2") >"$scratch/$2.out" 2>&1
+  code=$?
+  judge "$@"
+}
+
+judge() {
   want=$1
   case_name=$2
-  (scan_head "$scratch/$case_name") >"$scratch/$case_name.out" 2>&1
-  code=$?
   last=$(tail -n 1 "$scratch/$case_name.out") || last=
   case $code:$last in
     "0:PASS $name") got=PASS ;;
@@ -229,13 +313,147 @@ expect_the_clone_unchanged() {
   fi
 }
 
-self_test() {
+weak_scanner() {
+  cat <<'EOF'
+#!/bin/sh
+case ${1:-} in
+  --stale)
+    printf 'check-home-paths: PASS: --stale: stand-in: entries read 0, stale 0.\n'
+    exit 0
+    ;;
+esac
+printf 'check-home-paths: PASS: stand-in: commits read 1, lines with a home path 0.\n'
+EOF
+}
+
+event_of_a_run() {
+  printf '{"ref": "%s", "before": "%s", "forced": %s, "repository": {"default_branch": "%s"}}\n' "$3" "$4" "$5" "$6" >"$scratch/$1.event.json" || exit 2
+  GITHUB_EVENT_NAME=$2
+  GITHUB_REF=$3
+  GITHUB_EVENT_PATH=$scratch/$1.event.json
+}
+
+no_event() {
+  unset GITHUB_EVENT_NAME GITHUB_REF GITHUB_EVENT_PATH
+}
+
+case_branch_scanner_that_prints_counts_and_finds_nothing() {
+  c=branch-scanner-that-prints-counts-and-finds-nothing
+  fixture "$c"
+  git -C "$scratch/$c" update-ref refs/remotes/origin/trunk HEAD || exit 2
+  weak_scanner >"$scratch/$c/scripts/check-home-paths.sh" || exit 2
+  add_commit "$c" "see /$u/zoe/x" 'weaken the scanner'
+  event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false trunk
+  expect FAIL "$c" 'the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that refs/remotes/origin/trunk holds finds'
+  no_event
+}
+
+case_branch_range_file_that_leaves_out_the_commit_with_the_path() {
+  c=branch-range-file-that-leaves-out-the-commit-with-the-path
+  fixture "$c"
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  add_commit "$c" "see /$u/zoe/x" 'second'
+  printf 'commit_range() { git rev-list -n 1 HEAD; }\n' >>"$scratch/$c/scripts/commit-range.sh" || exit 2
+  add_commit "$c" 'plain again' 'list the head commit alone'
+  expect FAIL "$c" 'the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that refs/remotes/origin/main holds finds'
+}
+
+case_list_entry_of_the_branch_holds_for_both_copies() {
+  c=list-entry-of-the-branch-holds-for-both-copies
+  fixture "$c"
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  printf 'notes.txt\t/%s/zoe\tmade up\n' "$u" >>"$scratch/$c/scripts/home-path-allow.txt" || exit 2
+  add_commit "$c" "see /$u/zoe/x" 'second'
+  expect PASS "$c" 'copy-of-the-default-branch commits=1 lines=0 exit=0'
+}
+
+case_default_branch_missing_from_a_full_clone_of_a_workflow_run() {
+  c=default-branch-missing-from-a-full-clone-of-a-workflow-run
+  fixture "$c"
+  add_commit "$c" 'more plain text' 'second'
+  event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false main
+  expect FAIL "$c" 'refs/remotes/origin/main is not in this clone'
+  no_event
+}
+
+case_default_branch_without_the_range_file() {
+  c=default-branch-without-the-range-file
+  fixture "$c"
+  mv "$scratch/$c/scripts/commit-range.sh" "$scratch/$c.commit-range.sh" || exit 2
+  add_commit "$c" 'more plain text' 'take the range file out'
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  mv "$scratch/$c.commit-range.sh" "$scratch/$c/scripts/commit-range.sh" || exit 2
+  add_commit "$c" 'plain again' 'put the range file back'
+  expect FAIL "$c" 'refs/remotes/origin/main holds no scripts/commit-range.sh'
+}
+
+case_shallow_clone_without_the_default_branch() {
+  c=shallow-clone-without-the-default-branch
+  fixture "$c-source"
+  add_commit "$c-source" 'more plain text' 'second'
+  add_commit "$c-source" 'plain again' 'third'
+  git clone -q --no-local --depth 2 "$scratch/$c-source" "$scratch/$c" || exit 2
+  git -C "$scratch/$c" remote set-head origin --delete >/dev/null 2>&1
+  for branch in main master; do
+    git -C "$scratch/$c" update-ref -d "refs/remotes/origin/$branch" >/dev/null 2>&1
+  done
+  event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false main
+  expect PASS "$c" 'copy-of-the-default-branch not-run (no refs/remotes/origin/main in this shallow clone)'
+  no_event
+}
+
+new_cases='
+branch-scanner-that-prints-counts-and-finds-nothing
+branch-range-file-that-leaves-out-the-commit-with-the-path
+list-entry-of-the-branch-holds-for-both-copies
+default-branch-missing-from-a-full-clone-of-a-workflow-run
+default-branch-without-the-range-file
+shallow-clone-without-the-default-branch
+'
+
+run_new_case() {
+  case " $(printf '%s' "$new_cases" | tr '\n' ' ') " in
+    *" $1 "*) ;;
+    *)
+      printf 'FAIL self-test:%s (no case %s)\n' "$name" "$1"
+      exit 1
+      ;;
+  esac
+  case_function=case_$(printf '%s' "$1" | sed 's/-/_/g') || exit 2
+  "$case_function"
+}
+
+self_test_start() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   make_scratch
-  unset GITHUB_REF
+  no_event
   wrong=
   rejected=0
   u=Users
+}
+
+self_test_end() {
+  if [ -n "$wrong" ]; then
+    printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+    exit 1
+  fi
+  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$1"
+}
+
+self_test_cases() {
+  [ $# -gt 0 ] || {
+    printf 'FAIL %s (usage: --self-test-case <name>...)\n' "$name"
+    exit 1
+  }
+  self_test_start
+  for one_case in "$@"; do
+    run_new_case "$one_case"
+  done
+  self_test_end "$rejected"
+}
+
+self_test() {
+  self_test_start
 
   sh "$repo/scripts/check-home-paths.sh" --self-test >"$scratch/predicate.out" 2>&1
   code=$?
@@ -444,16 +662,18 @@ self_test() {
   add_commit list-malformed-in-the-commit 'more plain text' 'second'
   expect FAIL list-malformed-in-the-commit
 
-
-  if [ -n "$wrong" ]; then
-    printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
-    exit 1
-  fi
-  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$((rejected + predicate))"
+  for one_case in $new_cases; do
+    run_new_case "$one_case"
+  done
+  self_test_end "$((rejected + predicate))"
 }
 
 case ${1:-} in
   --self-test) self_test ;;
+  --self-test-case)
+    shift
+    self_test_cases "$@"
+    ;;
   '') measure ;;
   *)
     printf 'FAIL %s (usage)\n' "$name"
