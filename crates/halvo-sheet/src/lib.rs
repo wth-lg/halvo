@@ -226,8 +226,10 @@ impl Folder {
     /// `replace` that this process called for the run's checkpoint of that workbook and that
     /// was refused, a later `prepare` of the run on the workbook answers [`Error::Checkpoint`]
     /// too, before it takes the lock and with nothing written, and the checkpoint stays. The
-    /// process remembers each such call for its life, the directory compared by
-    /// [`halvo_checkpoint::same_file`]: a runner is one process for one run. `replace` holds
+    /// process remembers each such call for its life, and a later checkpoint is the same when
+    /// its name and its directory are, or when it is the same file, compared by
+    /// [`halvo_checkpoint::same_file`] (so another spelling of the workbook on a volume that
+    /// folds case is the same): a runner is one process for one run. `replace` holds
     /// the same lock from its compare to its rename, so of two runs that prepared one workbook
     /// from the same file, the `replace` that comes second finds the workbook changed and
     /// leaves it: no edit is lost.

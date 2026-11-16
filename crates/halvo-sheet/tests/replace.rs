@@ -353,6 +353,31 @@ fn a_copy_that_cannot_be_read_is_answered_as_left_and_stays() {
 }
 
 #[test]
+fn a_prepare_of_the_run_by_another_spelling_after_a_refused_replace_answers_the_checkpoint_error() {
+    let scratch = Scratch::new("replace-refused-spelling");
+    let s = setup(&scratch);
+    if !scratch.path("VALUES.xlsx").exists() {
+        println!("the volume does not fold case");
+        return;
+    }
+    fs::rename(scratch.path(&s.copy), scratch.path("elsewhere.xlsx")).expect("move the copy");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Copy))
+    );
+    let listing = scratch.names("");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(78.0)]];
+    let again = s
+        .folder
+        .prepare(Path::new("VALUES.xlsx"), &run, "Values", range, &values);
+    assert_eq!(again.as_ref().err(), Some(&Error::Checkpoint));
+    drop(again);
+    assert_eq!(scratch.names(""), listing, "nothing written");
+}
+
+#[test]
 fn a_folder_that_does_not_hold_the_workbook_touches_nothing_and_is_no_first_replace() {
     let scratch = Scratch::new("replace-folder");
     let s = setup(&scratch);

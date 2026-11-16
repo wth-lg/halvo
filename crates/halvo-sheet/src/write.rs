@@ -308,32 +308,47 @@ struct Made<'a> {
     permissions: Permissions,
 }
 
-static REPLACE_CALLED: Mutex<Vec<(FileId, std::ffi::OsString)>> = Mutex::new(Vec::new());
-
-fn checkpoint_key(checkpoint: &Path) -> Option<(FileId, std::ffi::OsString)> {
-    let dir = FileId::at(directory(checkpoint)).ok()?;
-    Some((dir, checkpoint.file_name()?.to_os_string()))
+struct Called {
+    dir: Option<FileId>,
+    name: std::ffi::OsString,
+    file: Option<FileId>,
 }
 
-pub(crate) fn note_replace_called(prepared: &Prepared) {
-    if let Some(key) = checkpoint_key(&prepared.checkpoint) {
-        let mut called = REPLACE_CALLED
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        called.push(key);
+impl Called {
+    fn of(checkpoint: &Path) -> Called {
+        Called {
+            dir: FileId::at(directory(checkpoint)).ok(),
+            name: checkpoint.file_name().unwrap_or_default().to_os_string(),
+            file: FileId::at(checkpoint).ok(),
+        }
+    }
+
+    fn names(&self, other: &Called) -> bool {
+        let same = |a: &Option<FileId>, b: &Option<FileId>| match (a, b) {
+            (Some(a), Some(b)) => same_file(a, b),
+            _ => false,
+        };
+        (self.name == other.name && same(&self.dir, &other.dir)) || same(&self.file, &other.file)
     }
 }
 
-fn replace_called(checkpoint: &Path) -> bool {
-    let Some((dir, name)) = checkpoint_key(checkpoint) else {
-        return false;
-    };
-    let called = REPLACE_CALLED
+static REPLACE_CALLED: Mutex<Vec<Called>> = Mutex::new(Vec::new());
+
+pub(crate) fn note_replace_called(prepared: &Prepared) {
+    let called = Called::of(&prepared.checkpoint);
+    REPLACE_CALLED
         .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    called
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(called);
+}
+
+fn replace_called(checkpoint: &Path) -> bool {
+    let now = Called::of(checkpoint);
+    REPLACE_CALLED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
         .iter()
-        .any(|(seen, noted)| *noted == name && same_file(seen, &dir))
+        .any(|called| called.names(&now))
 }
 
 pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
