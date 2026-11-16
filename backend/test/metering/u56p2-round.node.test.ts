@@ -63,7 +63,7 @@ describe("X4 and X5: what the call counts and what the object writes", () => {
     }).toEqual({ first: ["failed 0/1", "failed 0/0"], capped: true, lines: true, gone: null });
   });
 
-  test("R4 (c): a subscription refused on every try writes cancel-unanswered once an hour although each try ends a new subscription", async () => {
+  test("R4 (c): a subscription refused on every try writes cancel-unanswered once an hour although each try ends a new subscription (6 hours of tries at 60 s)", async () => {
     const { ending, w } = await driven({
       plans: 0,
       stored: false,
@@ -74,13 +74,13 @@ describe("X4 and X5: what the call counts and what the object writes", () => {
       beforeTry: (attempt, made) => {
         if (attempt > 1) made(`sub_new_${attempt}`);
       },
-      days: 1,
+      days: 0.25,
     });
     w.close();
     const unanswered = ending.lines["cancel-unanswered"] ?? 0;
     expect({ waits: [...new Set(ending.waits)], lines: unanswered, live: ending.live, gone: ending.goneAfterMs }).toEqual({
       waits: [60_000],
-      lines: 25,
+      lines: 7,
       live: ["sub_refused"],
       gone: null,
     });
