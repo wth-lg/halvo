@@ -16,7 +16,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -100,6 +100,16 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: U0.3c tests, loops and self-tests (scratch branch, never merged)
+        if: success() || failure()
+        timeout-minutes: 60
+        shell: bash
+        run: sh .u03c/step.sh tests
+      - name: U0.3c hosted harness run and a TERM (scratch branch, never merged)
+        if: success() || failure()
+        timeout-minutes: 70
+        shell: bash
+        run: sh .u03c/step.sh harness
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -122,7 +132,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -156,6 +166,21 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: U0.3c tests, loops and self-tests (scratch branch, never merged)
+        if: success() || failure()
+        timeout-minutes: 60
+        shell: bash
+        run: sh .u03c/step.sh tests
+      - name: U0.3c item 3 with its denial lines (scratch branch, never merged)
+        if: success() || failure()
+        timeout-minutes: 30
+        shell: bash
+        run: sh .u03c/step.sh item3
+      - name: U0.3c hosted harness run and a TERM (scratch branch, never merged)
+        if: success() || failure()
+        timeout-minutes: 70
+        shell: bash
+        run: sh .u03c/step.sh harness
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
