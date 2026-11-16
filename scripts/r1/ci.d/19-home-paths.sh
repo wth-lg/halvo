@@ -294,7 +294,7 @@ copy_scripts() {
 fixture() {
   dir=$scratch/$1
   mkdir -p "$dir/scripts" "$scratch/no-hooks" || exit 2
-  git init -q "$dir" || exit 2
+  git init -q -b main "$dir" || exit 2
   copy_scripts "$dir"
   printf 'plain\n' >"$dir/notes.txt"
   in_fixture "$1" add -A . || exit 2
@@ -784,7 +784,7 @@ self_test() {
   add_commit home-path-in-the-head-commit "see /$u/zoe/x" 'second'
   expect FAIL home-path-in-the-head-commit
 
-  git init -q "$scratch/home-path-in-the-root-commit" || exit 2
+  git init -q -b main "$scratch/home-path-in-the-root-commit" || exit 2
   mkdir -p "$scratch/home-path-in-the-root-commit/scripts" "$scratch/no-hooks" || exit 2
   copy_scripts "$scratch/home-path-in-the-root-commit"
   printf 'see /%s/zoe/x\n' "$u" >"$scratch/home-path-in-the-root-commit/notes.txt"
