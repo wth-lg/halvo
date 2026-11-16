@@ -202,6 +202,20 @@ function holdSleeper(dir: string): Promise<never> {
   return new Promise<never>(() => {});
 }
 
+function marked(dir: string): Id[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => /^group-\d+\.json$/.test(name))
+    .flatMap((name) => {
+      try {
+        const mark = JSON.parse(readFileSync(join(dir, name), "utf8"));
+        return [{ pid: mark.pid, started: mark.started }];
+      } catch {
+        return [];
+      }
+    });
+}
+
 function exitOf(run: Group): Promise<number | null> {
   return new Promise((resolve) => run.child.on("exit", (code) => resolve(code)));
 }
@@ -243,6 +257,35 @@ if (MODE !== undefined) {
       for (const run of [killed, elsewhere, next]) await endGroup(run);
     }
   }, 180_000);
+
+  test("test/contract/wrangler.node.test.ts starts wrangler dev in a group that its run marks, and a run of it whose main process alone gets SIGHUP while that server starts leaves no process of the run's group or of that group", async () => {
+    mkdirSync(join(ROOT, ".tmp"), { recursive: true });
+    const dir = mkdtempSync(join(ROOT, ".tmp", "stopped-run."));
+    const marks = join(dir, "marks");
+    const run = startRun(dir, "contract", "test/contract/wrangler.node.test.ts", { HALVO_GROUP_MARKS: marks });
+    const watched: Id[] = [run];
+    try {
+      for (let tries = 0; ; tries += 1) {
+        const groups = [run, ...marked(marks)];
+        const rows = table();
+        const holder = groups.find((id) => groupOf(id, rows).some((row) => kind(row.command) === "wrangler"));
+        if (holder !== undefined) {
+          watched.push(...groups.slice(1));
+          const where = holder === run ? "in the run's own process group, which no mark names" : "in a group that the run marked";
+          expect(`wrangler dev runs ${where}`).toBe("wrangler dev runs in a group that the run marked");
+          break;
+        }
+        if (groupOf(run, rows).length === 0) throw new Error(`the run ended before its wrangler dev started:\n${logOf(dir, "contract")}`);
+        if (tries > 1200) throw new Error(`no wrangler dev in the run after 60 s:\n${logOf(dir, "contract")}`);
+        await pause(50);
+      }
+      process.kill(run.pid, "SIGHUP");
+      expect(described(await settle(watched))).toEqual([]);
+    } finally {
+      for (const id of watched.slice(1)) await endRecorded(id);
+      await endGroup(run);
+    }
+  }, 120_000);
 
   const stops: [string, "group" | "main"][] = [
     ["SIGTERM", "group"],
