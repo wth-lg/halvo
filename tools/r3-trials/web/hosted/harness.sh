@@ -244,19 +244,27 @@ STUB
 #!/bin/sh
 echo "curl $*" >>"$R3_STUB_LOG"
 while [ $# -gt 0 ]; do
-  [ "$1" = -o ] && printf 'not the wheel\n' >"$2"
+  if [ "$1" = -o ]; then
+    if [ -n "${R3_WHEEL:-}" ]; then cp "$R3_WHEEL" "$2"; else printf 'not the wheel\n' >"$2"; fi
+  fi
   shift
 done
 exit 0
 STUB
-  sed 's/^echo "curl/echo "python/' "$rb/curl" >"$rb/python"
+  cat >"$rb/python" <<'STUB'
+#!/bin/sh
+echo "python $*" >>"$R3_STUB_LOG"
+[ "$1" = -m ] && exit 0
+[ -n "${R3_REAL_PYTHON:-}" ] || exit 1
+exec "$R3_REAL_PYTHON" "$@"
+STUB
   for s in sudo reg node curl python; do chmod 755 "$rb/$s"; done
 }
 
 in_stand_ins() {
   env -i PATH="${R3_FIRST_BIN:-$work/run-bin}:$work/run-bin:/usr/bin:/bin" HOME="$work" R3_STUB_LOG="$1/calls" \
     R3_REG="$1/reg" R3_REG_NO_DELETE="${R3_REG_NO_DELETE:-}" R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" \
-    R3_RUN_BIN="$work/run-bin" \
+    R3_RUN_BIN="$work/run-bin" R3_WHEEL="${R3_WHEEL:-}" R3_REAL_PYTHON="$real_python" \
     "${R3_CASE_SH:-sh}" -s >"$1/out" 2>&1
 }
 
@@ -266,6 +274,7 @@ posix_sh() {
 
 put_back_cases() {
   stand_ins
+  real_python=$(command -v python 2>/dev/null || command -v python3 2>/dev/null)
   c="$work/w-earlier"
   mkdir -p "$c/reg/Google/Chrome"
   printf 'REG_DWORD 0x1' >"$c/reg/Google/Chrome/RemoteDebuggingAllowed"
@@ -352,6 +361,32 @@ CASE
   verdict win_refuses_a_wheel_whose_bytes_differ_from_its_line \
     "$(holds has "$c/out" "bytes_ok=no sha256_ok=no")$(has "$c/out" installed && echo _installed)$(has "$c/calls" "^python" && echo _python)" \
     "python_calls=$(grep -c '^python' "$c/calls")"
+  c="$work/w-wheel-sha"
+  mkdir -p "$c/hd"
+  printf 'fetch file=pypdf-0-py3-none-any.whl version=0 bytes=14 sha256=%s url=https://example.invalid/w.whl\n' \
+    0000000000000000000000000000000000000000000000000000000000000000 >"$c/hd/fetch.txt"
+  in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"; pypdf_ready "$RUNNER_TEMP/hd" && echo installed
+CASE
+  verdict win_refuses_a_wheel_of_the_right_size_and_another_sha256 \
+    "$(holds has "$c/out" "bytes_ok=yes sha256_ok=no")$(has "$c/out" installed && echo _installed)$(has "$c/calls" "^python" && echo _python)" \
+    "python_calls=$(grep -c '^python' "$c/calls")"
+  c="$work/w-wheel-licence"
+  mkdir -p "$c/hd"
+  "$real_python" -I -c 'import hashlib, os, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1], "w")
+z.writestr("w-0.dist-info/METADATA", "Name: w\nClassifier: License :: OSI Approved :: BSD License\n")
+z.writestr("w-0.dist-info/LICENSE", "Redistribution and use in source and binary forms are permitted.\n* Redistributions of source code must retain the above copyright notice.\n* Redistributions in binary form must reproduce the above copyright notice.\n")
+z.close()
+b = open(sys.argv[1], "rb").read()
+open(sys.argv[2], "w").write("fetch file=pypdf-0-py3-none-any.whl version=0 bytes=%d sha256=%s url=https://example.invalid/w.whl\n" % (len(b), hashlib.sha256(b).hexdigest()))' \
+    "$c/w.whl" "$c/hd/fetch.txt"
+  R3_WHEEL="$c/w.whl" in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"; pypdf_ready "$RUNNER_TEMP/hd" && echo installed
+CASE
+  verdict win_refuses_a_wheel_whose_licence_lacks_a_clause \
+    "$(holds has "$c/out" "pypdf_licence classifier_bsd=yes licence_file_bsd3=no")$(has "$c/out" "bytes_ok=yes sha256_ok=yes" || echo _bytes)$(has "$c/out" installed && echo _installed)$(has "$c/calls" "^python -m" && echo _pip)" \
+    "pip_calls=$(grep -c '^python -m' "$c/calls")"
   for same in yes no; do
     c="$work/m-reuse-$same"
     mkdir -p "$c/bin"
