@@ -253,10 +253,6 @@ impl Clock for Both {
         self.ports.now()
     }
 
-    fn today(&self) -> Result<u32, PortError> {
-        self.ports.today()
-    }
-
     fn day(&self, at: u64) -> Result<u32, PortError> {
         self.ports.day(at)
     }

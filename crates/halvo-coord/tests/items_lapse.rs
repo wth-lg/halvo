@@ -135,9 +135,6 @@ impl Clock for Panicky<'_> {
     fn now(&self) -> Result<u64, PortError> {
         self.inner.now()
     }
-    fn today(&self) -> Result<u32, PortError> {
-        self.inner.today()
-    }
     fn day(&self, at: u64) -> Result<u32, PortError> {
         self.inner.day(at)
     }
