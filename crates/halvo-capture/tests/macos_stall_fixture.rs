@@ -219,6 +219,42 @@ fn drops_line(drops: &DropCounts) -> String {
     line.join(" ")
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NoReply {
+    Late { reply: String, wait: Duration },
+    Ended { reply: String },
+}
+
+impl NoReply {
+    fn word(&self) -> String {
+        let named = |reply: &str| reply.trim_end_matches('=').replace(' ', "_");
+        match self {
+            Self::Late { reply, wait } => {
+                format!("late_reply_{}_within_{}_ms", named(reply), wait.as_millis())
+            }
+            Self::Ended { reply } => format!("output_ended_before_{}", named(reply)),
+        }
+    }
+}
+
+impl std::fmt::Display for NoReply {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Late { reply, wait } => write!(
+                f,
+                "the fixture gave no line that starts with {reply} within {} ms",
+                wait.as_millis()
+            ),
+            Self::Ended { reply } => write!(
+                f,
+                "the fixture's output ended before a line that starts with {reply}"
+            ),
+        }
+    }
+}
+
+const NOT_DRIVEN: &str = "a reply of the fixture did not come";
+
 struct Fixture {
     child: Option<Child>,
     input: Box<dyn Write + Send>,
@@ -226,7 +262,10 @@ struct Fixture {
     pid: i32,
     notes: Vec<String>,
     by: &'static str,
+    wait: Duration,
 }
+
+const ASK_WAIT: Duration = Duration::from_secs(10);
 
 fn lines_of(output: impl std::io::Read + Send + 'static) -> Receiver<String> {
     let (tx, lines) = channel();
@@ -393,6 +432,7 @@ fn launched(opener: &Path, bundle: &Path, tag: &str, wait: Duration) -> Result<F
         pid,
         notes: Vec::new(),
         by: "opened",
+        wait: ASK_WAIT,
     })
 }
 
@@ -421,6 +461,7 @@ impl Fixture {
             pid,
             notes: Vec::new(),
             by: "spawned",
+            wait: ASK_WAIT,
         })
     }
 
@@ -449,33 +490,81 @@ impl Fixture {
         self.input.flush().expect("the fixture takes a command");
     }
 
-    fn reply(&mut self, prefix: &str, within: Duration) -> String {
+    fn try_send(&mut self, command: &str, reply: &str) -> Result<(), NoReply> {
+        writeln!(self.input, "{command}")
+            .and_then(|()| self.input.flush())
+            .map_err(|_| NoReply::Ended {
+                reply: reply.to_owned(),
+            })
+    }
+
+    fn try_reply(&mut self, prefix: &str, within: Duration) -> Result<String, NoReply> {
         if let Some(at) = self.notes.iter().position(|note| note.starts_with(prefix)) {
-            return self.notes.remove(at);
+            return Ok(self.notes.remove(at));
         }
         let deadline = Instant::now() + within;
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
             match self.lines.recv_timeout(left) {
-                Ok(line) if line.starts_with(prefix) => return line,
+                Ok(line) if line.starts_with(prefix) => return Ok(line),
                 Ok(line) => self.notes.push(line),
-                Err(_) => panic!("the fixture gave no line that starts with {prefix} in time"),
+                Err(RecvTimeoutError::Timeout) => {
+                    return Err(NoReply::Late {
+                        reply: prefix.to_owned(),
+                        wait: within,
+                    })
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(NoReply::Ended {
+                        reply: prefix.to_owned(),
+                    })
+                }
             }
         }
     }
 
+    fn reply(&mut self, prefix: &str, within: Duration) -> String {
+        self.try_reply(prefix, within)
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"))
+    }
+
+    fn try_request(
+        &mut self,
+        command: &str,
+        prefix: &str,
+        within: Duration,
+    ) -> Result<String, NoReply> {
+        self.try_send(command, prefix)?;
+        self.try_reply(prefix, within)
+    }
+
+    fn try_ask(&mut self, command: &str, prefix: &str) -> Result<String, NoReply> {
+        self.try_request(command, prefix, self.wait)
+    }
+
     fn ask(&mut self, command: &str, prefix: &str) -> String {
-        self.send(command);
-        self.reply(prefix, Duration::from_secs(10))
+        self.try_ask(command, prefix)
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"))
+    }
+
+    fn try_state(&mut self) -> Result<FixtureState, NoReply> {
+        self.try_ask("state", "front=")
+            .map(|line| FixtureState::parse(&line))
     }
 
     fn state(&mut self) -> FixtureState {
-        FixtureState::parse(&self.ask("state", "front="))
+        self.try_state()
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"))
+    }
+
+    fn try_in_front(&mut self) -> Result<bool, NoReply> {
+        let state = self.try_state()?;
+        Ok(state.front && state.key && frontmost_pid() == Some(self.pid))
     }
 
     fn in_front(&mut self) -> bool {
-        let state = self.state();
-        state.front && state.key && frontmost_pid() == Some(self.pid)
+        self.try_in_front()
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"))
     }
 
     fn bring_to_front(&mut self, within: Duration) -> Option<&'static str> {
@@ -490,22 +579,47 @@ impl Fixture {
         until(Duration::from_secs(1), || self.in_front()).then_some("other_process")
     }
 
+    fn try_focus(&mut self, field: &str) -> Result<(), NoReply> {
+        self.try_ask(field, "focus=").map(drop)
+    }
+
     fn focus(&mut self, field: &str) {
-        self.ask(field, "focus=");
+        self.try_focus(field)
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"));
+    }
+
+    fn try_keys(&mut self, step: Duration, keys: &str) -> Result<(), NoReply> {
+        self.try_request(
+            &format!("keys {} {keys}", step.as_millis()),
+            "posted=",
+            Duration::from_secs(20),
+        )
+        .map(drop)
     }
 
     fn keys(&mut self, step: Duration, keys: &str) {
-        self.send(&format!("keys {} {keys}", step.as_millis()));
-        self.reply("posted=", Duration::from_secs(20));
+        self.try_keys(step, keys)
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"));
+    }
+
+    fn try_stamps(&mut self) -> Result<Vec<Stamp>, NoReply> {
+        self.try_ask("stamps", "stamps n=")
+            .map(|line| parse_stamps(&line))
     }
 
     fn stamps(&mut self) -> Vec<Stamp> {
-        parse_stamps(&self.ask("stamps", "stamps n="))
+        self.try_stamps()
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"))
+    }
+
+    fn try_click(&mut self, at: &str) -> Result<(), NoReply> {
+        self.try_request(&format!("click {at}"), "clicked", Duration::from_secs(10))
+            .map(drop)
     }
 
     fn click(&mut self, at: &str) {
-        self.send(&format!("click {at}"));
-        self.reply("clicked", Duration::from_secs(10));
+        self.try_click(at)
+            .unwrap_or_else(|no_reply| panic!("{no_reply}"));
     }
 
     fn ended(&mut self) -> bool {
@@ -601,7 +715,11 @@ fn codes(codes: &[u16]) -> String {
 }
 
 fn secure_field_centre(fixture: &mut Fixture) -> String {
-    let line = fixture.ask("where", "x=");
+    try_secure_field_centre(fixture).unwrap_or_else(|no_reply| panic!("{no_reply}"))
+}
+
+fn try_secure_field_centre(fixture: &mut Fixture) -> Result<String, NoReply> {
+    let line = fixture.try_ask("where", "x=")?;
     let mut point = (String::new(), String::new());
     for word in line.split(' ') {
         match word.split_once('=') {
@@ -610,7 +728,7 @@ fn secure_field_centre(fixture: &mut Fixture) -> String {
             _ => {}
         }
     }
-    format!("{} {}", point.0, point.1)
+    Ok(format!("{} {}", point.0, point.1))
 }
 
 fn until(within: Duration, mut done: impl FnMut() -> bool) -> bool {
@@ -674,7 +792,14 @@ impl Recorder {
             drops,
         }
     }
+}
 
+trait Records {
+    fn between(&self, from: SystemTime, to: SystemTime) -> usize;
+    fn take_entries(&self) -> Vec<RawEntry>;
+}
+
+impl Records for Recorder {
     fn between(&self, from: SystemTime, to: SystemTime) -> usize {
         self.keys
             .lock()
@@ -682,6 +807,10 @@ impl Recorder {
             .iter()
             .filter(|&&at| at >= from && at < to)
             .count()
+    }
+
+    fn take_entries(&self) -> Vec<RawEntry> {
+        self.drops.take_entries()
     }
 }
 
@@ -729,6 +858,7 @@ struct Round {
     entries: Vec<RawEntry>,
     case: Option<Case>,
     verdict: Option<Verdict>,
+    not_driven: Option<NoReply>,
 }
 
 fn return_start(stamps: &[Stamp]) -> u64 {
@@ -739,11 +869,11 @@ fn return_start(stamps: &[Stamp]) -> u64 {
         .map_or(0, |stamp| stamp.ns)
 }
 
-fn keep_the_field(fixture: &mut Fixture, how: Move) -> bool {
+fn keep_the_field(fixture: &mut Fixture, how: Move) -> Result<bool, NoReply> {
     if !state_reads(true, NEVER_ON_WAIT) {
-        return false;
+        return Ok(false);
     }
-    let stamps = fixture.stamps();
+    let stamps = fixture.try_stamps()?;
     let since = if how == Move::Return {
         return_start(&stamps)
     } else {
@@ -758,7 +888,7 @@ fn keep_the_field(fixture: &mut Fixture, how: Move) -> bool {
     while raw_ns() < until {
         std::thread::sleep(Duration::from_millis(5));
     }
-    true
+    Ok(true)
 }
 
 fn letter_step(wait_ms: u64) -> Duration {
@@ -767,18 +897,27 @@ fn letter_step(wait_ms: u64) -> Duration {
 
 fn round(
     fixture: &mut Fixture,
-    recorder: &Recorder,
+    recorder: &impl Records,
     how: Move,
     wait_ms: u64,
     bound: Duration,
     keep: Keep,
 ) -> Round {
-    let _ = recorder.drops.take_entries();
+    let _ = recorder.take_entries();
     let from = raw_ns();
     let mut round = round_inner(fixture, recorder, how, wait_ms, bound, keep);
     round.from = from;
-    round.stamps = fixture.stamps();
-    round.entries = recorder.drops.take_entries();
+    match fixture.try_stamps() {
+        Ok(stamps) => round.stamps = stamps,
+        Err(no_reply) => {
+            if round.not_driven.is_none() {
+                round.counted = false;
+                round.why_not = NOT_DRIVEN;
+                round.not_driven = Some(no_reply);
+            }
+        }
+    }
+    round.entries = recorder.take_entries();
     let found = evidence(&round.stamps, &round.entries, since_of(how, &round.stamps));
     round.case = (how != Move::Return || round.counted).then(|| short_case(&found));
     if keep == Keep::Mended {
@@ -790,7 +929,22 @@ fn round(
             bound,
         ));
     }
+    if round.not_driven.is_some() {
+        round.verdict = Some(not_driven_verdict(&round));
+    }
     round
+}
+
+fn not_driven_verdict(round: &Round) -> Verdict {
+    let recorded = match round.verdict {
+        Some(verdict) if !round.stamps.is_empty() => verdict == Verdict::Recorded,
+        _ => round.ahead > 0,
+    } || round.markers > MARKERS.len();
+    if recorded {
+        Verdict::Recorded
+    } else {
+        Verdict::NotDriven
+    }
 }
 
 fn since_of(how: Move, stamps: &[Stamp]) -> u64 {
@@ -803,7 +957,7 @@ fn since_of(how: Move, stamps: &[Stamp]) -> u64 {
 
 fn round_inner(
     fixture: &mut Fixture,
-    recorder: &Recorder,
+    recorder: &impl Records,
     how: Move,
     wait_ms: u64,
     bound: Duration,
@@ -824,129 +978,192 @@ fn round_inner(
         entries: Vec::new(),
         case: None,
         verdict: None,
+        not_driven: None,
     };
-    fixture.ask("clear", "cleared");
-    if how == Move::Return {
-        fixture.focus("secure");
-        if !state_reads(true, Duration::from_secs(2)) {
-            round.why_not = "the secure field did not turn secure input on";
-            return round;
-        }
-        if fixture.ask("away", "away=") != "away=1" {
-            round.why_not = "no Finder to yield the front to";
-            return round;
-        }
-        if !until(Duration::from_secs(3), || {
-            frontmost_pid() != Some(fixture.pid) && !secure_input_active()
-        }) {
-            round.why_not = "the fixture kept the front or secure input after it yielded";
-            return round;
-        }
-    } else {
-        fixture.focus("plain");
-        if !state_reads(false, Duration::from_secs(2)) {
-            round.why_not = "secure input did not read off before the round";
-            return round;
-        }
-        if !fixture.in_front() {
-            round.why_not = "the fixture was not in front before the first key";
-            return round;
-        }
-    }
-    let centre = matches!(how, Move::Click | Move::Return).then(|| secure_field_centre(fixture));
-    let whole = matches!(how, Move::WholePassword | Move::WholePasswordBurst);
-    let step = if how == Move::WholePasswordBurst {
-        BURST_STEP
-    } else {
-        letter_step(wait_ms)
+    let drive = Drive {
+        how,
+        wait_ms,
+        bound,
+        keep,
     };
-    let ahead_from = SystemTime::now();
-    let command = if how == Move::Itself {
-        format!("stall {wait_ms} self")
-    } else {
-        format!("stall {wait_ms}")
+    let mut window = Window {
+        ahead_from: SystemTime::now(),
+        markers_from: None,
     };
-    fixture.send(&command);
-    fixture.reply("waiting", Duration::from_secs(5));
-    let letters = codes(&LETTERS);
-    match how {
-        Move::Tab | Move::LeavingKeyUp => fixture.keys(step, &format!("{TAB} {letters}")),
-        Move::WholePassword | Move::WholePasswordBurst => {
-            fixture.keys(step, &format!("{TAB} {letters} {RETURN}"));
-        }
-        Move::Click => {
-            fixture.click(&centre.expect("the centre of the secure field"));
-            fixture.keys(step, &letters);
-        }
-        Move::Return => {
-            fixture.click(&centre.expect("the centre of the secure field"));
-            fixture.keys(step, &letters);
-        }
-        Move::Itself => fixture.keys(step, &letters),
-    }
-    fixture.reply(
-        "woke",
-        Duration::from_millis(wait_ms) + Duration::from_secs(5),
-    );
-    let landed = until(Duration::from_secs(3), || {
-        let state = fixture.state();
-        round.secure = state.secure;
-        state.secure == LETTERS.len()
-            && (whole || keep == Keep::Autoleave || state.focus == "secure")
-            && (how != Move::Return || state.front)
-    });
-    round.which = fixture
-        .ask(&format!("which {LETTER_TEXT}"), "which=")
-        .trim_start_matches("which=")
-        .to_owned();
-    if !landed {
+    if let Err(no_reply) = drive.round(fixture, recorder, &mut round, &mut window) {
         std::thread::sleep(bound + MARGIN);
-        round.ahead = recorder.between(ahead_from, SystemTime::now());
-        round.why_not = "the letters did not land in the secure field";
-        return round;
-    }
-    if keep == Keep::Mended && !keep_the_field(fixture, how) {
-        round.never_on = true;
-        round.why_not = "never_on";
-        std::thread::sleep(bound + MARGIN);
-        round.ahead = recorder.between(ahead_from, SystemTime::now());
-        fixture.focus("plain");
-        return round;
-    }
-    if how == Move::LeavingKeyUp {
-        fixture.keys(Duration::ZERO, &format!("{RETURN}d"));
-        fixture.reply("left_secure", Duration::from_secs(3));
-        if !state_reads(false, Duration::from_secs(2)) {
-            round.why_not = "secure input did not read off after the leaving key";
-            std::thread::sleep(bound + MARGIN);
-            round.ahead = recorder.between(ahead_from, SystemTime::now());
-            return round;
-        }
-        fixture.keys(Duration::ZERO, &format!("{RETURN}u"));
-    } else if !whole {
-        fixture.focus("plain");
-    }
-    if !state_reads(false, Duration::from_secs(2)) {
-        round.why_not = "secure input did not read off before the markers";
-        std::thread::sleep(bound + MARGIN);
-        round.ahead = recorder.between(ahead_from, SystemTime::now());
-        return round;
-    }
-    let markers_from = SystemTime::now();
-    fixture.keys(Duration::from_millis(30), &codes(&MARKERS));
-    std::thread::sleep(bound + MARGIN);
-    let state = fixture.state();
-    round.plain = state.plain;
-    round.ahead = recorder.between(ahead_from, markers_from);
-    round.markers = recorder.between(markers_from, SystemTime::now());
-    if state.plain != MARKERS.len() {
-        round.why_not = "the markers did not land in the plain field";
-    } else if round.markers < MARKERS.len() {
-        round.why_not = "the markers were not recorded";
-    } else {
-        round.counted = true;
+        let now = SystemTime::now();
+        round.counted = false;
+        round.why_not = NOT_DRIVEN;
+        round.ahead = recorder.between(window.ahead_from, window.markers_from.unwrap_or(now));
+        round.markers = window
+            .markers_from
+            .map_or(0, |markers_from| recorder.between(markers_from, now));
+        round.not_driven = Some(no_reply);
     }
     round
+}
+
+struct Drive {
+    how: Move,
+    wait_ms: u64,
+    bound: Duration,
+    keep: Keep,
+}
+
+struct Window {
+    ahead_from: SystemTime,
+    markers_from: Option<SystemTime>,
+}
+
+impl Drive {
+    fn round(
+        &self,
+        fixture: &mut Fixture,
+        recorder: &impl Records,
+        round: &mut Round,
+        window: &mut Window,
+    ) -> Result<(), NoReply> {
+        let Self {
+            how,
+            wait_ms,
+            bound,
+            keep,
+        } = *self;
+        fixture.try_ask("clear", "cleared")?;
+        if how == Move::Return {
+            fixture.try_focus("secure")?;
+            if !state_reads(true, Duration::from_secs(2)) {
+                round.why_not = "the secure field did not turn secure input on";
+                return Ok(());
+            }
+            if fixture.try_ask("away", "away=")? != "away=1" {
+                round.why_not = "no Finder to yield the front to";
+                return Ok(());
+            }
+            if !until(Duration::from_secs(3), || {
+                frontmost_pid() != Some(fixture.pid) && !secure_input_active()
+            }) {
+                round.why_not = "the fixture kept the front or secure input after it yielded";
+                return Ok(());
+            }
+        } else {
+            fixture.try_focus("plain")?;
+            if !state_reads(false, Duration::from_secs(2)) {
+                round.why_not = "secure input did not read off before the round";
+                return Ok(());
+            }
+            if !fixture.try_in_front()? {
+                round.why_not = "the fixture was not in front before the first key";
+                return Ok(());
+            }
+        }
+        let centre = if matches!(how, Move::Click | Move::Return) {
+            Some(try_secure_field_centre(fixture)?)
+        } else {
+            None
+        };
+        let whole = matches!(how, Move::WholePassword | Move::WholePasswordBurst);
+        let step = if how == Move::WholePasswordBurst {
+            BURST_STEP
+        } else {
+            letter_step(wait_ms)
+        };
+        window.ahead_from = SystemTime::now();
+        let command = if how == Move::Itself {
+            format!("stall {wait_ms} self")
+        } else {
+            format!("stall {wait_ms}")
+        };
+        fixture.try_request(&command, "waiting", Duration::from_secs(5))?;
+        let letters = codes(&LETTERS);
+        match how {
+            Move::Tab | Move::LeavingKeyUp => {
+                fixture.try_keys(step, &format!("{TAB} {letters}"))?
+            }
+            Move::WholePassword | Move::WholePasswordBurst => {
+                fixture.try_keys(step, &format!("{TAB} {letters} {RETURN}"))?;
+            }
+            Move::Click | Move::Return => {
+                fixture.try_click(&centre.expect("the centre of the secure field"))?;
+                fixture.try_keys(step, &letters)?;
+            }
+            Move::Itself => fixture.try_keys(step, &letters)?,
+        }
+        fixture.try_reply(
+            "woke",
+            Duration::from_millis(wait_ms) + Duration::from_secs(5),
+        )?;
+        let mut no_reply = None;
+        let landed = until(Duration::from_secs(3), || match fixture.try_state() {
+            Ok(state) => {
+                round.secure = state.secure;
+                state.secure == LETTERS.len()
+                    && (whole || keep == Keep::Autoleave || state.focus == "secure")
+                    && (how != Move::Return || state.front)
+            }
+            Err(failed) => {
+                no_reply = Some(failed);
+                true
+            }
+        });
+        if let Some(failed) = no_reply {
+            return Err(failed);
+        }
+        round.which = fixture
+            .try_ask(&format!("which {LETTER_TEXT}"), "which=")?
+            .trim_start_matches("which=")
+            .to_owned();
+        if !landed {
+            std::thread::sleep(bound + MARGIN);
+            round.ahead = recorder.between(window.ahead_from, SystemTime::now());
+            round.why_not = "the letters did not land in the secure field";
+            return Ok(());
+        }
+        if keep == Keep::Mended && !keep_the_field(fixture, how)? {
+            round.never_on = true;
+            round.why_not = "never_on";
+            std::thread::sleep(bound + MARGIN);
+            round.ahead = recorder.between(window.ahead_from, SystemTime::now());
+            let _ = fixture.try_focus("plain");
+            return Ok(());
+        }
+        if how == Move::LeavingKeyUp {
+            fixture.try_keys(Duration::ZERO, &format!("{RETURN}d"))?;
+            fixture.try_reply("left_secure", Duration::from_secs(3))?;
+            if !state_reads(false, Duration::from_secs(2)) {
+                round.why_not = "secure input did not read off after the leaving key";
+                std::thread::sleep(bound + MARGIN);
+                round.ahead = recorder.between(window.ahead_from, SystemTime::now());
+                return Ok(());
+            }
+            fixture.try_keys(Duration::ZERO, &format!("{RETURN}u"))?;
+        } else if !whole {
+            fixture.try_focus("plain")?;
+        }
+        if !state_reads(false, Duration::from_secs(2)) {
+            round.why_not = "secure input did not read off before the markers";
+            std::thread::sleep(bound + MARGIN);
+            round.ahead = recorder.between(window.ahead_from, SystemTime::now());
+            return Ok(());
+        }
+        let markers_from = SystemTime::now();
+        window.markers_from = Some(markers_from);
+        fixture.try_keys(Duration::from_millis(30), &codes(&MARKERS))?;
+        std::thread::sleep(bound + MARGIN);
+        let state = fixture.try_state()?;
+        round.plain = state.plain;
+        round.ahead = recorder.between(window.ahead_from, markers_from);
+        round.markers = recorder.between(markers_from, SystemTime::now());
+        if state.plain != MARKERS.len() {
+            round.why_not = "the markers did not land in the plain field";
+        } else if round.markers < MARKERS.len() {
+            round.why_not = "the markers were not recorded";
+        } else {
+            round.counted = true;
+        }
+        Ok(())
+    }
 }
 
 fn started_fixture(name: &str) -> Fixture {
@@ -1043,7 +1260,7 @@ fn round_line(
         "{name} round={number} wait_ms={} bound_ms={} counted={} ahead={} markers={} plain={} \
          secure={} which={} keep={keep:?} never_on={} on_runs_us={} last_off_us={} off_us={} \
          inside_on={} span_on={span_on} on_outside={} inside_off={} first_release_us={} \
-         on_drops={} case={case} rv={verdict}",
+         on_drops={} case={case} rv={verdict} not_driven={}",
         round.wait_ms,
         bound.as_millis(),
         u8::from(round.counted),
@@ -1065,7 +1282,15 @@ fn round_line(
         off_in_narrow(&found),
         at(found.first_release),
         found.on_drops.len(),
+        round
+            .not_driven
+            .as_ref()
+            .map_or_else(|| String::from("-"), NoReply::word),
     )
+}
+
+fn phase_counts(counted: usize, not_driven: usize) -> String {
+    format!("phase_counted={counted} phase_not_driven={not_driven}")
 }
 
 fn whole_entries(round: &Round) -> bool {
@@ -1131,9 +1356,17 @@ fn phase_on(
         while run < plan.cap && good < plan.count {
             let round = round(fixture, recorder, how, wait_ms, bound, plan.keep);
             let number = rounds.len();
+            let counted = rounds.iter().filter(|round: &&Round| round.counted).count()
+                + usize::from(round.counted);
+            let not_driven = rounds
+                .iter()
+                .filter(|round: &&Round| round.not_driven.is_some())
+                .count()
+                + usize::from(round.not_driven.is_some());
             println!(
-                "{}",
-                round_line(name, number, &round, bound, plan.keep, how)
+                "{} {}",
+                round_line(name, number, &round, bound, plan.keep, how),
+                phase_counts(counted, not_driven)
             );
             println!(
                 "{name} drops round={number} {}",
@@ -1160,6 +1393,32 @@ fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
     )
 }
 
+fn driven_note(round: &Round) -> String {
+    round
+        .not_driven
+        .as_ref()
+        .map_or_else(String::new, |no_reply| {
+            format!(" (not driven: {})", no_reply.word())
+        })
+}
+
+fn assert_some_round_driven(name: &str, rounds: &[Round]) {
+    let not_driven: Vec<String> = rounds
+        .iter()
+        .filter_map(|round| {
+            round
+                .not_driven
+                .as_ref()
+                .map(|no_reply| format!("wait {} ms: {}", round.wait_ms, no_reply.word()))
+        })
+        .collect();
+    assert!(
+        rounds.is_empty() || not_driven.len() < rounds.len(),
+        "{name}: every round of the phase was not driven: {}",
+        not_driven.join(", ")
+    );
+}
+
 fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: usize) {
     judge_mended_in(name, rounds, waits, count, short_form());
 }
@@ -1176,7 +1435,14 @@ fn judge_mended_in(
         rounds
             .iter()
             .filter(|round| round.verdict.is_some_and(want))
-            .map(|round| format!("wait {} ms: ahead {}", round.wait_ms, round.ahead))
+            .map(|round| {
+                format!(
+                    "wait {} ms: ahead {}{}",
+                    round.wait_ms,
+                    round.ahead,
+                    driven_note(round)
+                )
+            })
             .collect()
     };
     for round in rounds
@@ -1194,6 +1460,7 @@ fn judge_mended_in(
         "{name}: recorded keys beside the markers in rounds that counted: {}",
         recorded.join(", ")
     );
+    assert_some_round_driven(name, rounds);
     let never_on = of(|verdict| verdict == Verdict::NeverOn);
     assert!(
         never_on.is_empty(),
@@ -1231,6 +1498,7 @@ fn judge_mended_in(
     if short {
         let outside: Vec<String> = rounds
             .iter()
+            .filter(|round| round.not_driven.is_none())
             .filter_map(|round| {
                 let found = on_outside(&evidence(&round.stamps, &round.entries, 0));
                 (found > 0).then(|| format!("wait {} ms: {found}", round.wait_ms))
@@ -1259,14 +1527,26 @@ fn judge_mended_in(
         "{name}: records of the markers other than one for each marker: {}",
         inexact.join(", ")
     );
+    let any_held = rounds
+        .iter()
+        .any(|round| round.verdict == Some(Verdict::Held));
     let short: Vec<String> = waits
         .iter()
         .filter_map(|&(wait_ms, _)| {
-            let held = rounds
-                .iter()
-                .filter(|round| round.wait_ms == wait_ms && round.verdict == Some(Verdict::Held))
-                .count();
-            (held < count).then(|| format!("wait {wait_ms} ms: {held} of {count}"))
+            let at_wait = |verdict: Verdict| {
+                rounds
+                    .iter()
+                    .filter(|round| round.wait_ms == wait_ms && round.verdict == Some(verdict))
+                    .count()
+            };
+            let held = at_wait(Verdict::Held);
+            let not_driven = if any_held {
+                at_wait(Verdict::NotDriven)
+            } else {
+                0
+            };
+            (held + not_driven < count)
+                .then(|| format!("wait {wait_ms} ms: {held} of {count}, {not_driven} not driven"))
         })
         .collect();
     assert!(
@@ -1323,17 +1603,27 @@ fn measured(name: &str, form: &str, rounds: &[Round]) {
 fn judge(name: &str, rounds: &[Round]) {
     let leaked: Vec<String> = rounds
         .iter()
-        .filter(|round| round.counted && round.ahead > 0)
-        .map(|round| format!("wait {} ms: {}", round.wait_ms, round.ahead))
+        .filter(|round| {
+            round.counted && round.ahead > 0 || round.verdict == Some(Verdict::Recorded)
+        })
+        .map(|round| {
+            format!(
+                "wait {} ms: {}{}",
+                round.wait_ms,
+                round.ahead,
+                driven_note(round)
+            )
+        })
         .collect();
     assert!(
         leaked.is_empty(),
         "{name}: recorded keys beside the markers in rounds that counted: {}",
         leaked.join(", ")
     );
+    assert_some_round_driven(name, rounds);
     let not_counted: Vec<String> = rounds
         .iter()
-        .filter(|round| !round.counted)
+        .filter(|round| !round.counted && round.not_driven.is_none())
         .map(|round| format!("wait {} ms: {}", round.wait_ms, round.why_not))
         .collect();
     assert!(
@@ -1343,7 +1633,7 @@ fn judge(name: &str, rounds: &[Round]) {
     );
     let inexact: Vec<String> = rounds
         .iter()
-        .filter(|round| round.markers != MARKERS.len())
+        .filter(|round| round.counted && round.markers != MARKERS.len())
         .map(|round| format!("wait {} ms: {}", round.wait_ms, round.markers))
         .collect();
     assert!(
@@ -1530,7 +1820,7 @@ fn a_key_typed_on_a_return_to_a_secure_field_is_not_recorded() {
 }
 
 fn three_way_recorded(round: &Round) -> bool {
-    round.ahead > 0 && (round.counted || round.secure > 0)
+    round.ahead > 0 && (round.counted || round.not_driven.is_some() || round.secure > 0)
         || round.verdict == Some(Verdict::Recorded)
 }
 
@@ -1544,8 +1834,10 @@ fn three_way_verdict(rounds: &[Round]) -> (&'static str, usize, usize, usize) {
         .filter(|round| round.counted && !three_way_recorded(round))
         .count();
     let not_driven = rounds.len() - failed - held;
+    let every_round_not_driven = rounds.iter().all(|round| round.not_driven.is_some());
     let verdict = match (rounds.len(), failed, not_driven) {
         (0, _, _) | (_, 1.., _) => "failed",
+        _ if every_round_not_driven => "failed",
         (_, 0, 0) => "held",
         (_, 0, _) => "notdriven",
     };
@@ -1574,9 +1866,10 @@ fn judge_three_ways(name: &str, rounds: &[Round]) {
     assert!(
         failed == 0,
         "{name}: a key was recorded in {failed} rounds, counted or not: a key ahead of the markers \
-         in a counted round, a key ahead with a letter landed in the secure field, or a round \
-         judged recorded"
+         in a counted round or in a round not driven, a key ahead with a letter landed in the \
+         secure field, or a round judged recorded"
     );
+    assert_some_round_driven(name, rounds);
     assert!(
         inexact.is_empty(),
         "{name}: records of the markers other than one for each marker: {}",
@@ -1606,9 +1899,17 @@ struct Control {
     plain: usize,
     secure: usize,
     after: usize,
+    not_driven: Option<NoReply>,
 }
 
-fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) -> Control {
+#[derive(Default)]
+struct ControlWindow {
+    plain_from: Option<SystemTime>,
+    secure_from: Option<SystemTime>,
+    after_from: Option<SystemTime>,
+}
+
+fn control_round(fixture: &mut Fixture, recorder: &impl Records, bound: Duration) -> Control {
     let mut control = Control {
         counted: false,
         why_not: "",
@@ -1617,45 +1918,81 @@ fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) ->
         plain: 0,
         secure: 0,
         after: 0,
+        not_driven: None,
     };
-    fixture.ask("clear", "cleared");
-    fixture.focus("plain");
-    if !state_reads(false, Duration::from_secs(2)) || !fixture.in_front() {
+    let mut window = ControlWindow::default();
+    if let Err(no_reply) = drive_control(fixture, recorder, bound, &mut control, &mut window) {
+        std::thread::sleep(bound + MARGIN);
+        let now = SystemTime::now();
+        let between = |from: Option<SystemTime>, to: Option<SystemTime>| {
+            from.map_or(0, |from| recorder.between(from, to.unwrap_or(now)))
+        };
+        control.counted = false;
+        control.why_not = NOT_DRIVEN;
+        control.plain = between(window.plain_from, window.secure_from);
+        control.secure = between(window.secure_from, window.after_from);
+        control.after = between(window.after_from, None);
+        control.not_driven = Some(no_reply);
+    }
+    control
+}
+
+fn drive_control(
+    fixture: &mut Fixture,
+    recorder: &impl Records,
+    bound: Duration,
+    control: &mut Control,
+    window: &mut ControlWindow,
+) -> Result<(), NoReply> {
+    fixture.try_ask("clear", "cleared")?;
+    fixture.try_focus("plain")?;
+    if !state_reads(false, Duration::from_secs(2)) || !fixture.try_in_front()? {
         control.why_not = "the fixture was not in front with secure input off";
-        return control;
+        return Ok(());
     }
     let plain_from = SystemTime::now();
-    fixture.keys(Duration::from_millis(30), &codes(&LETTERS[..5]));
+    window.plain_from = Some(plain_from);
+    fixture.try_keys(Duration::from_millis(30), &codes(&LETTERS[..5]))?;
     std::thread::sleep(bound + MARGIN);
     let secure_from = SystemTime::now();
+    window.secure_from = Some(secure_from);
     control.plain = recorder.between(plain_from, secure_from);
-    fixture.focus("secure");
+    fixture.try_focus("secure")?;
     if !state_reads(true, Duration::from_secs(2)) {
         control.why_not = "the secure field did not turn secure input on";
-        return control;
+        return Ok(());
     }
-    fixture.keys(Duration::from_millis(30), &codes(&LETTERS[5..]));
-    fixture.focus("plain");
+    fixture.try_keys(Duration::from_millis(30), &codes(&LETTERS[5..]))?;
+    fixture.try_focus("plain")?;
     if !state_reads(false, Duration::from_secs(2)) {
         control.why_not = "secure input did not read off after the secure field";
         std::thread::sleep(bound + MARGIN);
         control.secure = recorder.between(secure_from, SystemTime::now());
-        return control;
+        return Ok(());
     }
     let after_from = SystemTime::now();
-    fixture.keys(Duration::from_millis(30), &codes(&LETTERS[..3]));
+    window.after_from = Some(after_from);
+    fixture.try_keys(Duration::from_millis(30), &codes(&LETTERS[..3]))?;
     std::thread::sleep(bound + MARGIN);
     control.secure = recorder.between(secure_from, after_from);
     control.after = recorder.between(after_from, SystemTime::now());
-    let state = fixture.state();
+    let state = fixture.try_state()?;
     control.landed_plain = state.plain;
     control.landed_secure = state.secure;
     if state.plain != 8 || state.secure != 3 {
         control.why_not = "the letters did not land where they were typed";
-        return control;
+        return Ok(());
     }
     control.counted = true;
-    control
+    Ok(())
+}
+
+fn control_verdict(control: &Control) -> &'static str {
+    match (&control.not_driven, control.secure) {
+        (None, _) => "-",
+        (Some(_), 0) => "notdriven",
+        (Some(_), _) => "recorded",
+    }
 }
 
 fn control_rounds_on(
@@ -1669,22 +2006,35 @@ fn control_rounds_on(
     let mut rounds = Vec::new();
     for number in 0..count {
         let control = control_round(fixture, &recorder, bound);
+        rounds.push(control);
+        let control = &rounds[number];
         println!(
             "{name} control={number} bound_ms={} counted={} landed_plain={} landed_secure={} \
-             plain_records={} secure_records={} after_records={}",
+             plain_records={} secure_records={} after_records={} rv={} not_driven={} {}",
             bound.as_millis(),
             u8::from(control.counted),
             control.landed_plain,
             control.landed_secure,
             control.plain,
             control.secure,
-            control.after
+            control.after,
+            control_verdict(control),
+            control
+                .not_driven
+                .as_ref()
+                .map_or_else(|| String::from("-"), NoReply::word),
+            phase_counts(
+                rounds.iter().filter(|control| control.counted).count(),
+                rounds
+                    .iter()
+                    .filter(|control| control.not_driven.is_some())
+                    .count()
+            )
         );
         println!(
             "{name} drops control={number} {}",
             drops_line(&recorder.drops)
         );
-        rounds.push(control);
     }
     let drops = recorder.drops.clone();
     (rounds, drops)
@@ -1696,11 +2046,36 @@ fn control_phase(name: &str, bound: Duration, source: (InputSource, DropCounts),
     judge_control(name, &rounds);
 }
 
+fn control_note(control: &Control) -> String {
+    control
+        .not_driven
+        .as_ref()
+        .map_or_else(String::new, |no_reply| {
+            format!(" (not driven: {})", no_reply.word())
+        })
+}
+
 fn judge_control(name: &str, rounds: &[Control]) {
     assert!(!rounds.is_empty(), "{name}: the control ran no round");
+    let recorded: Vec<String> = rounds
+        .iter()
+        .filter(|control| control_verdict(control) == "recorded")
+        .map(|control| format!("{}{}", control.secure, control_note(control)))
+        .collect();
+    assert!(
+        recorded.is_empty(),
+        "{name}: records of the secure field in control rounds not driven: {}",
+        recorded.join(", ")
+    );
+    let not_driven: Vec<String> = rounds.iter().map(control_note).collect();
+    assert!(
+        not_driven.iter().any(String::is_empty),
+        "{name}: every control round was not driven:{}",
+        not_driven.join(",")
+    );
     let not_counted: Vec<&str> = rounds
         .iter()
-        .filter(|control| !control.counted)
+        .filter(|control| !control.counted && control.not_driven.is_none())
         .map(|control| control.why_not)
         .collect();
     assert!(
@@ -1708,7 +2083,7 @@ fn judge_control(name: &str, rounds: &[Control]) {
         "{name}: control rounds that did not count: {}",
         not_counted.join(", ")
     );
-    for control in rounds {
+    for control in rounds.iter().filter(|control| control.not_driven.is_none()) {
         assert_eq!(
             (control.plain, control.secure, control.after),
             (5, 0, 3),
@@ -1849,6 +2224,7 @@ fn stand_in_round(counted: bool, ahead: usize) -> Round {
         entries: Vec::new(),
         case: None,
         verdict: None,
+        not_driven: None,
     }
 }
 
@@ -1861,6 +2237,7 @@ fn stand_in_control(counted: bool, plain: usize, secure: usize) -> Control {
         plain,
         secure,
         after: 3,
+        not_driven: None,
     }
 }
 
@@ -2536,6 +2913,7 @@ enum Verdict {
     NotCounted(&'static str),
     NoProof,
     Recorded,
+    NotDriven,
 }
 
 fn mended_verdict(
@@ -3914,5 +4292,426 @@ fn the_waits_rounds_and_kept_time_of_both_forms_are_the_ruled_ones() {
         KEPT_MARGIN,
         Duration::from_millis(130),
         "the kept time of MA-19 (4)"
+    );
+}
+
+const STAND_IN_WAIT: Duration = Duration::from_millis(300);
+
+struct StandInRecords {
+    keys: usize,
+}
+
+impl Records for StandInRecords {
+    fn between(&self, _from: SystemTime, _to: SystemTime) -> usize {
+        self.keys
+    }
+
+    fn take_entries(&self) -> Vec<RawEntry> {
+        Vec::new()
+    }
+}
+
+fn stand_in_fixture(case: &str, on_clear: &str) -> Fixture {
+    let body = format!(
+        "exec 3>\"$2\" 4<\"$1\"\nprintf 'ready pid=%s\\n' \"$$\" >&3\n\
+         while IFS= read -r line <&4; do\n  case $line in\n    clear) {on_clear} ;;\n    \
+         quit) exit 0 ;;\n    *) printf 'unknown\\n' >&3 ;;\n  esac\ndone"
+    );
+    let fixture_script = stand_in(&format!("{case}-fixture"), &body);
+    let opener = stand_in(
+        &format!("{case}-opener"),
+        &format!("\"{}\" \"$3\" \"$5\" &\nexit 0", fixture_script.display()),
+    );
+    let bundle = Path::new(env!("CARGO_TARGET_TMPDIR")).join("NoBundle.app");
+    let mut fixture = launched(
+        &opener,
+        &bundle,
+        &format!("stand-in-{case}-"),
+        Duration::from_secs(5),
+    )
+    .expect("the stand-in fixture answers ready");
+    fixture.wait = STAND_IN_WAIT;
+    fixture
+}
+
+fn stand_in_line(name: &str, round: &Round, keep: Keep) -> String {
+    let line = round_line(name, 0, round, Duration::ZERO, keep, Move::Tab);
+    println!("{line}");
+    line
+}
+
+fn judged_mended(rounds: &[Round]) -> Option<String> {
+    let waits = stall_waits();
+    panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+        || judge_mended_in("stand-in", rounds, &waits, 1, true),
+    )))
+}
+
+fn held_at_each_wait() -> Vec<Round> {
+    stall_waits()
+        .iter()
+        .map(|&(wait_ms, _)| held_round(wait_ms))
+        .collect()
+}
+
+#[test]
+fn a_round_whose_fixture_output_ends_before_a_reply_is_not_driven() {
+    let mut fixture = stand_in_fixture("ended", "exit 0");
+    let none = StandInRecords { keys: 0 };
+    let first = round(
+        &mut fixture,
+        &none,
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let line = stand_in_line("stand-in-ended", &first, Keep::Mended);
+    assert!(line.contains(" counted=0 "), "{line}");
+    assert!(
+        line.ends_with(" not_driven=output_ended_before_cleared"),
+        "{line}"
+    );
+    assert!(line.contains(" rv=notdriven "), "{line}");
+    let second = round(
+        &mut fixture,
+        &none,
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    assert!(
+        stand_in_line("stand-in-ended", &second, Keep::Mended)
+            .ends_with(" not_driven=output_ended_before_cleared"),
+        "a fixture whose output ended drives no later round"
+    );
+    let control = control_round(&mut fixture, &none, Duration::ZERO);
+    let control_line = format!("{control:?}");
+    println!("stand-in-ended control {control_line}");
+    let mut beside = held_at_each_wait();
+    beside.push(first);
+    assert_eq!(
+        judged_mended(&beside),
+        None,
+        "one round not driven beside a held round at each wait passes"
+    );
+    let every = judged_mended(&[second]);
+    assert!(
+        every
+            .as_deref()
+            .is_some_and(|text| text.contains("every round of the phase was not driven")),
+        "{every:?}"
+    );
+    let controls = |rounds: &[Control]| {
+        panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || judge_control("stand-in", rounds),
+        )))
+    };
+    let alone = controls(std::slice::from_ref(&control));
+    assert!(
+        alone
+            .as_deref()
+            .is_some_and(|text| text.contains("every control round was not driven")),
+        "{alone:?}"
+    );
+    assert_eq!(
+        controls(&[stand_in_control(true, 5, 0), control]),
+        None,
+        "one control not driven beside a counted control passes"
+    );
+}
+
+#[test]
+fn a_round_whose_reply_comes_after_its_wait_is_not_driven() {
+    let mut fixture = stand_in_fixture("late", "sleep 1; printf 'cleared\\n' >&3");
+    let round = round(
+        &mut fixture,
+        &StandInRecords { keys: 0 },
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let line = stand_in_line("stand-in-late", &round, Keep::Mended);
+    assert!(line.contains(" counted=0 "), "{line}");
+    assert!(
+        line.ends_with(" not_driven=late_reply_cleared_within_300_ms"),
+        "{line}"
+    );
+    assert!(line.contains(" rv=notdriven "), "{line}");
+    let (verdict, held, failed, not_driven) = three_way_verdict(&[round]);
+    assert_eq!(
+        (verdict, held, failed, not_driven),
+        ("failed", 0, 0, 1),
+        "a return phase whose every round was not driven fails"
+    );
+}
+
+fn not_driven_round(wait_ms: u64, ahead: usize) -> Round {
+    Round {
+        wait_ms,
+        why_not: NOT_DRIVEN,
+        secure: 0,
+        verdict: Some(if ahead > 0 {
+            Verdict::Recorded
+        } else {
+            Verdict::NotDriven
+        }),
+        not_driven: Some(NoReply::Late {
+            reply: String::from("left_secure"),
+            wait: Duration::from_secs(3),
+        }),
+        ..stand_in_round(false, ahead)
+    }
+}
+
+type DrivenRow = (&'static str, Vec<Round>, Option<&'static str>);
+
+#[test]
+fn each_judge_reads_a_round_not_driven_by_its_rule_on_a_table() {
+    let waits = stall_waits();
+    let held_but_at = |at: usize, rounds: Vec<Round>| -> Vec<Round> {
+        let mut all: Vec<Round> = waits
+            .iter()
+            .enumerate()
+            .filter(|&(index, _)| index != at)
+            .map(|(_, &(wait_ms, _))| held_round(wait_ms))
+            .collect();
+        all.extend(rounds);
+        all
+    };
+    let outside = Round {
+        stamps: stamps_at(&ROUND),
+        entries: vec![reading_at(500, 501, Reading::On)],
+        ..not_driven_round(600, 0)
+    };
+    let late_click = Round {
+        verdict: Some(Verdict::LateClick),
+        ..stand_in_round(false, 0)
+    };
+    let mended_rows: [DrivenRow; 6] = [
+        (
+            "a round not driven in place of the held round of one wait",
+            held_but_at(2, vec![not_driven_round(600, 0)]),
+            None,
+        ),
+        (
+            "a round not driven with readings of on outside every span, beside held rounds",
+            held_but_at(2, vec![outside]),
+            None,
+        ),
+        (
+            "every round not driven",
+            waits
+                .iter()
+                .map(|&(wait_ms, _)| not_driven_round(wait_ms, 0))
+                .collect(),
+            Some("every round of the phase was not driven"),
+        ),
+        (
+            "no held round: a late click and rounds not driven",
+            vec![
+                late_click,
+                not_driven_round(150, 0),
+                not_driven_round(300, 0),
+                not_driven_round(600, 0),
+                not_driven_round(850, 0),
+                not_driven_round(2_000, 0),
+            ],
+            Some("rounds that did not count by the cap of rounds run"),
+        ),
+        (
+            "a round not driven with a recorded key, beside held rounds",
+            held_but_at(2, vec![not_driven_round(600, 2)]),
+            Some("recorded keys beside the markers in rounds that counted: wait 600 ms: ahead 2 (not driven: late_reply_left_secure_within_3000_ms)"),
+        ),
+        (
+            "a round not driven is no round that did not count",
+            vec![
+                held_round(150),
+                held_round(300),
+                held_round(600),
+                held_round(850),
+                held_round(2_000),
+                not_driven_round(300, 0),
+            ],
+            None,
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (what, rounds, want) in mended_rows {
+        let got = judged_mended(&rounds);
+        println!("mended row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    let as_is = |rounds: &[Round]| {
+        panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || judge("stand-in", rounds),
+        )))
+    };
+    for (what, got, want) in [
+        (
+            "as is: a round not driven beside a counted round",
+            as_is(&[stand_in_round(true, 0), not_driven_round(1_500, 0)]),
+            None,
+        ),
+        (
+            "as is: every round not driven",
+            as_is(&[not_driven_round(1_500, 0)]),
+            Some("every round of the phase was not driven"),
+        ),
+        (
+            "as is: a round not driven with a recorded key",
+            as_is(&[stand_in_round(true, 0), not_driven_round(1_500, 1)]),
+            Some("recorded keys beside the markers in rounds that counted"),
+        ),
+    ] {
+        println!("as-is row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    let key_alone = Round {
+        verdict: Some(Verdict::NotDriven),
+        ..not_driven_round(300, 1)
+    };
+    for (what, rounds, want) in [
+        (
+            "three-way: a key ahead in a round not driven, no letter landed, not judged recorded",
+            vec![stand_in_round(true, 0), key_alone],
+            "failed",
+        ),
+        (
+            "three-way: a round not driven with no key beside a counted round",
+            vec![stand_in_round(true, 0), not_driven_round(300, 0)],
+            "notdriven",
+        ),
+        (
+            "three-way: every round not driven",
+            vec![not_driven_round(300, 0), not_driven_round(600, 0)],
+            "failed",
+        ),
+    ] {
+        let (got, ..) = three_way_verdict(&rounds);
+        println!("three-way row: {what}: want={want} got={got}");
+        if got != want {
+            wrong.push(what);
+        }
+    }
+    let control = |rounds: &[Control]| {
+        panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || judge_control("stand-in", rounds),
+        )))
+    };
+    let not_driven_control = |secure: usize| Control {
+        why_not: NOT_DRIVEN,
+        not_driven: Some(NoReply::Ended {
+            reply: String::from("focus="),
+        }),
+        ..stand_in_control(false, 5, secure)
+    };
+    for (what, got, want) in [
+        (
+            "control: a round not driven beside a counted round",
+            control(&[stand_in_control(true, 5, 0), not_driven_control(0)]),
+            None,
+        ),
+        (
+            "control: a round not driven with a record of the secure field",
+            control(&[stand_in_control(true, 5, 0), not_driven_control(1)]),
+            Some("records of the secure field in control rounds not driven: 1 (not driven: output_ended_before_focus)"),
+        ),
+        (
+            "control: every round not driven",
+            control(&[not_driven_control(0)]),
+            Some("every control round was not driven"),
+        ),
+    ] {
+        println!("control row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "rows that gave another verdict: {wrong:?}"
+    );
+}
+
+#[test]
+fn a_recorded_key_in_a_round_not_driven_fails_its_phase() {
+    let mut fixture = stand_in_fixture("recorded", "exit 0");
+    let one = StandInRecords { keys: 1 };
+    let mended = round(
+        &mut fixture,
+        &one,
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let line = stand_in_line("stand-in-recorded", &mended, Keep::Mended);
+    assert!(line.contains(" ahead=1 "), "{line}");
+    assert!(line.contains(" rv=recorded "), "{line}");
+    let as_is = round(
+        &mut fixture,
+        &one,
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::AsIs,
+    );
+    let as_is_line = stand_in_line("stand-in-recorded", &as_is, Keep::AsIs);
+    assert!(as_is_line.contains(" rv=recorded "), "{as_is_line}");
+    let returned = round(
+        &mut fixture,
+        &one,
+        Move::Return,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    assert_eq!(
+        returned.secure, 0,
+        "no letter was read in the secure field of the stand-in"
+    );
+    let (verdict, _, failed, _) = three_way_verdict(std::slice::from_ref(&returned));
+    assert_eq!(
+        (verdict, failed),
+        ("failed", 1),
+        "a recorded key in a return round not driven fails, with no letter read"
+    );
+    let mut beside = held_at_each_wait();
+    beside.push(mended);
+    let found = judged_mended(&beside);
+    assert!(
+        found
+            .as_deref()
+            .is_some_and(|text| text.contains("recorded keys beside the markers")),
+        "{found:?}"
+    );
+    let as_is_judged = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+        || judge("stand-in", &[as_is]),
+    )));
+    assert!(
+        as_is_judged
+            .as_deref()
+            .is_some_and(|text| text.contains("recorded keys beside the markers")),
+        "{as_is_judged:?}"
     );
 }
