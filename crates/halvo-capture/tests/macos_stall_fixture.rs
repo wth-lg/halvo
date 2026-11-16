@@ -4312,9 +4312,13 @@ impl Records for StandInRecords {
 }
 
 fn stand_in_fixture(case: &str, on_clear: &str) -> Fixture {
+    stand_in_fixture_with(case, &format!("clear) {on_clear} ;;"))
+}
+
+fn stand_in_fixture_with(case: &str, answers: &str) -> Fixture {
     let body = format!(
         "exec 3>\"$2\" 4<\"$1\"\nprintf 'ready pid=%s\\n' \"$$\" >&3\n\
-         while IFS= read -r line <&4; do\n  case $line in\n    clear) {on_clear} ;;\n    \
+         while IFS= read -r line <&4; do\n  case $line in\n    {answers}\n    \
          quit) exit 0 ;;\n    *) printf 'unknown\\n' >&3 ;;\n  esac\ndone"
     );
     let fixture_script = stand_in(&format!("{case}-fixture"), &body);
@@ -4420,6 +4424,31 @@ fn a_round_whose_fixture_output_ends_before_a_reply_is_not_driven() {
         None,
         "one control not driven beside a counted control passes"
     );
+}
+
+#[test]
+fn a_round_whose_stamps_reply_does_not_come_is_not_driven() {
+    let mut fixture = stand_in_fixture_with(
+        "stamps-ended",
+        "clear) printf 'cleared\\n' >&3 ;;\n    plain) printf 'focus=plain\\n' >&3 ;;\n    \
+         state) printf 'front=1 key=1 focus=plain plain=0 secure=0\\n' >&3 ;;\n    \
+         stamps) exit 0 ;;",
+    );
+    let round = round(
+        &mut fixture,
+        &StandInRecords { keys: 0 },
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let line = stand_in_line("stand-in-stamps-ended", &round, Keep::Mended);
+    assert!(line.contains(" counted=0 "), "{line}");
+    assert!(
+        line.ends_with(" not_driven=output_ended_before_stamps_n"),
+        "{line}"
+    );
+    assert!(line.contains(" rv=notdriven "), "{line}");
 }
 
 #[test]
