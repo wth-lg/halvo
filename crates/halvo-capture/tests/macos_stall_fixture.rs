@@ -4647,6 +4647,69 @@ fn each_judge_reads_a_round_not_driven_by_its_rule_on_a_table() {
             wrong.push(what);
         }
     }
+    let read = |ahead: usize, markers: usize, stamps: bool, judged: Option<Verdict>| Round {
+        markers,
+        stamps: if stamps {
+            stamps_at(&ROUND)
+        } else {
+            Vec::new()
+        },
+        verdict: judged,
+        ..not_driven_round(300, ahead)
+    };
+    for (what, round, want) in [
+        (
+            "verdict: no record and no stamps",
+            read(0, 0, false, None),
+            Verdict::NotDriven,
+        ),
+        (
+            "verdict: a key ahead and no stamps, judged otherwise",
+            read(1, 0, false, Some(Verdict::NotCounted(NOT_DRIVEN))),
+            Verdict::Recorded,
+        ),
+        (
+            "verdict: a key ahead as is, with the stamps read",
+            read(1, 0, true, None),
+            Verdict::Recorded,
+        ),
+        (
+            "verdict: a key ahead excused by the stamps",
+            read(1, 0, true, Some(Verdict::NotCounted(NOT_DRIVEN))),
+            Verdict::NotDriven,
+        ),
+        (
+            "verdict: judged recorded with the stamps read and no key ahead",
+            read(0, 0, true, Some(Verdict::Recorded)),
+            Verdict::Recorded,
+        ),
+        (
+            "verdict: more records after the markers than markers",
+            read(
+                0,
+                MARKERS.len() + 1,
+                true,
+                Some(Verdict::NotCounted(NOT_DRIVEN)),
+            ),
+            Verdict::Recorded,
+        ),
+        (
+            "verdict: the markers recorded once each",
+            read(
+                0,
+                MARKERS.len(),
+                true,
+                Some(Verdict::NotCounted(NOT_DRIVEN)),
+            ),
+            Verdict::NotDriven,
+        ),
+    ] {
+        let got = not_driven_verdict(&round);
+        println!("verdict row: {what}: want={want:?} got={got:?}");
+        if got != want {
+            wrong.push(what);
+        }
+    }
     assert!(
         wrong.is_empty(),
         "rows that gave another verdict: {wrong:?}"
