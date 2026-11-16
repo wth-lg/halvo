@@ -88,7 +88,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.run.answer_lost",
-        "Halvo could not pass your answer on, so it stopped the task.",
+        "Halvo could not pass your answer on to the agent, so it stopped the task.",
     ),
     (
         "say_again",
@@ -342,7 +342,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("confirm.asked_by", "“{name}” asks for this."),
     (
         "confirm.asked_by_place",
-        "Question {n} of {count}: “{name}” asks for this.",
+        "Question {n} of {count}. The agent “{name}” asks for this.",
     ),
     ("from.you", "You gave this"),
     ("from.site", "From the site"),
