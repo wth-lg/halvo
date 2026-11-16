@@ -31,6 +31,7 @@ afterEach(() => {
 });
 
 test("drawn customers (seed 562): no call answers cancelled or nothing-to-cancel while a subscription that has not ended stays on a customer that is not deleted, a fault is never an end, no call makes more than 20 requests, the count of a failed call is what its list ended, and a customer with no refusal and no fault ends", async () => {
+  const began = performance.now();
   await fc.assert(
     fc.asyncProperty(drawn, async (c) => {
       const subs: Sub[] = c.statuses.map((status, index) => ({ id: `sub_${String(index).padStart(2, "0")}`, status, customer: CUSTOMER }));
@@ -50,7 +51,7 @@ test("drawn customers (seed 562): no call answers cancelled or nothing-to-cancel
         for (let call = 0; call < 12 && !ended; call += 1) {
           const before = subs.map((each) => each.status);
           const requestsBefore = server.requests.length;
-          const answer = await port.cancelSubscription(stored, CUSTOMER, false);
+          const answer = await port.cancelSubscription(stored, CUSTOMER, "unsettled");
           const made = server.requests.slice(requestsBefore);
           const changed = subs.filter((each, index) => !ENDED.includes(before[index] as string) && each.status === "canceled");
           const listFaulted = fault !== null && made.some((request, index) => request.path === "/v1/subscriptions" && server.requests.slice(0, requestsBefore + index).filter((each) => each.path === "/v1/subscriptions").length === fault.page);
@@ -73,4 +74,6 @@ test("drawn customers (seed 562): no call answers cancelled or nothing-to-cancel
     }),
     { seed: 562, numRuns: 60, endOnFailure: true },
   );
-});
+  process.stdout.write(`drawn customers (seed 562): seconds ${((performance.now() - began) / 1000).toFixed(2)}
+`);
+}, 120_000);
