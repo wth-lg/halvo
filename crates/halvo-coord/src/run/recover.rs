@@ -1,4 +1,5 @@
 use super::check::raise_checks;
+use crate::items::drive::{class_of, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs, Stamp};
 use crate::schedule::{item_closed, resync, seq_refusal, Board, Ended, Member, Owed, Owing};
 use crate::types::{
@@ -124,12 +125,15 @@ fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError
 
 /// Stores recovery's body for one agent: `run_ended` with `interrupted` for each run that ends
 /// and `item_lapsed` with `app_ended` for each open item, after the agent's last event, which
-/// the agent's events take once the owner acknowledged them. An empty body calls no port.
+/// the agent's events take once the owner acknowledged them. The rows go in bodies of at most
+/// `request_records` records and `request_bytes` bytes, each row a debt of its own, so that a
+/// body is cut between the rows of two debts and never inside one (I7.2, ruling RD-64 2.2). An
+/// empty body calls no port.
 fn log_recovery_body<P: Owner, C>(
     ports: &P,
     f: &mut Found<C>,
-    day: u32,
-    at: i64,
+    (day, at): (u32, i64),
+    limits: &Limits,
 ) -> Result<(), PortError> {
     let mut whats: Vec<What> = f
         .step
@@ -160,8 +164,13 @@ fn log_recovery_body<P: Owner, C>(
             what,
         })
         .collect();
-    ports.log(&events)?;
-    f.events.extend(events);
+    let mut sent = 0;
+    while sent < events.len() {
+        let n = crate::items::drive::body_len(&events[sent..], limits);
+        ports.log(&events[sent..sent + n])?;
+        f.events.extend_from_slice(&events[sent..sent + n]);
+        sent += n;
+    }
     Ok(())
 }
 
@@ -291,19 +300,20 @@ where
     let mut owed: Vec<Owed> = Vec::new();
     let mut ended: Vec<Ended> = Vec::new();
     for f in &mut found {
-        let mut logged = log_recovery_body(ports, f, day, at);
+        let mut logged = log_recovery_body(ports, f, (day, at), limits);
         if matches!(&logged, Err(e) if seq_refusal(e))
             && resync(ports, &f.agent.agent, &mut f.events).is_ok()
         {
             f.step = f.step(&reaped);
-            logged = log_recovery_body(ports, f, day, at);
+            logged = log_recovery_body(ports, f, (day, at), limits);
         }
+        let gone = matches!(&logged, Err(e) if class_of(e, false) == Some(Class::Gone));
         ended.extend(f.step.ended.iter().map(|run| Ended {
             run: run.clone(),
             cause: RunEnd::Interrupted,
             next: Vec::new(),
         }));
-        if logged.is_err() {
+        if logged.is_err() && !gone {
             let runs = f.step.ended.iter().map(|run| Owing::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Interrupted,
@@ -329,7 +339,8 @@ where
     }
     for f in &found {
         if let Some(run) = &f.step.owed {
-            if ports.send(&Body::EndRun { run: run.clone() }).is_err() {
+            let sent = ports.send(&Body::EndRun { run: run.clone() });
+            if matches!(&sent, Err(e) if class_of(e, false) != Some(Class::Gone)) {
                 owed.push(Owed {
                     agent: f.agent.agent.clone(),
                     workflow: f.workflow.id.clone(),

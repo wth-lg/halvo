@@ -49,6 +49,13 @@ pub struct Owed {
     pub what: Owing,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Dropped {
+    count: u32,
+    event: String,
+    refusal: String,
+}
+
 /// One agent on the board: its facts (I5.1) and whether it has a stored session, which the
 /// head of a run reads (I5.5).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -127,6 +134,7 @@ pub struct Board<C> {
     listed: bool,
     aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
     defer_held: Vec<AgentId>,
+    dropped: Vec<(AgentId, Dropped)>,
 }
 
 impl<C> Board<C> {
@@ -150,6 +158,7 @@ impl<C> Board<C> {
             listed: false,
             aside: Vec::new(),
             defer_held: Vec::new(),
+            dropped: Vec::new(),
         }
     }
 
@@ -192,6 +201,31 @@ impl<C> Board<C> {
     /// A store of the agent was acknowledged.
     pub fn acknowledged(&mut self, agent: &AgentId) {
         self.defer_held.retain(|a| a != agent);
+    }
+
+    /// The number of the agent's records taken off in this life, with the event name and the
+    /// refusal name of the last one, or none (I7.2, ruling RD-64 2.6).
+    pub fn dropped(&self, agent: &AgentId) -> Option<(u32, &str, &str)> {
+        self.dropped
+            .iter()
+            .find(|(a, _)| a == agent)
+            .map(|(_, d)| (d.count, d.event.as_str(), d.refusal.as_str()))
+    }
+
+    /// Counts one record of the agent taken off, by its event name and the name of the refusal
+    /// that took it off (ruling RD-64 2.6).
+    pub fn count_dropped(&mut self, agent: &AgentId, event: &str, refusal: &str) {
+        let k = match self.dropped.iter().position(|(a, _)| a == agent) {
+            Some(k) => k,
+            None => {
+                self.dropped.push((agent.clone(), Dropped::default()));
+                self.dropped.len() - 1
+            }
+        };
+        let d = &mut self.dropped[k].1;
+        d.count = d.count.saturating_add(1);
+        event.clone_into(&mut d.event);
+        refusal.clone_into(&mut d.refusal);
     }
 
     /// Whether this is the life's first creation move that read the owner's list, which raises

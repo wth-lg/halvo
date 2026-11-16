@@ -1624,6 +1624,17 @@ where
     }
 
     fn publish(&self, st: &mut State<Cfg<P>>) {
+        let State { board, ledgers, .. } = &mut *st;
+        if let Some(board) = board.as_mut() {
+            for (agent, l) in ledgers.iter_mut() {
+                for (event, refusal) in l.taken_off() {
+                    board.count_dropped(agent, &event, &refusal);
+                }
+                if l.take_acked() {
+                    board.acknowledged(agent);
+                }
+            }
+        }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         if st.sync.publish(rows, items, note) {

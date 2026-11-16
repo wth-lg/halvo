@@ -218,6 +218,7 @@ pub struct Ports<C> {
     bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
     agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
+    record_refusals: RefCell<Vec<(fn(&Event) -> bool, PortError)>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
     marks: RefCell<Vec<(RunId, Reaped)>>,
@@ -249,6 +250,7 @@ impl<C> Ports<C> {
             bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
             agent_refusals: RefCell::new(Vec::new()),
+            record_refusals: RefCell::new(Vec::new()),
             limits,
             created: RefCell::new(Vec::new()),
             marks: RefCell::new(Vec::new()),
@@ -433,10 +435,17 @@ impl<C> Ports<C> {
         r.push((method, agent.clone(), error));
     }
 
+    /// Makes `Owner::log` answer `error` for a body that holds a record that `names` names, until
+    /// `clear_refusals`.
+    pub fn refuse_record(&self, names: fn(&Event) -> bool, error: PortError) {
+        self.record_refusals.borrow_mut().push((names, error));
+    }
+
     /// Makes every method do its work again.
     pub fn clear_refusals(&self) {
         self.refusals.borrow_mut().clear();
         self.agent_refusals.borrow_mut().clear();
+        self.record_refusals.borrow_mut().clear();
     }
 
     fn checked_agent(&self, method: Method, agent: &AgentId, call: &Call) -> Result<(), PortError> {
@@ -703,6 +712,15 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         }
         for agent in events.iter().map(|e| &e.agent) {
             self.checked_agent(Method::Log, agent, &call)?;
+        }
+        let named = self
+            .record_refusals
+            .borrow()
+            .iter()
+            .find(|(names, _)| events.iter().any(names))
+            .map(|(_, e)| e.clone());
+        if let Some(e) = named {
+            return Err(self.note(call, e));
         }
         if let Some(name) = self.log_refusal(events) {
             return Err(self.note(call, refusal(name)));

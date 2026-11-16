@@ -3,6 +3,7 @@ use super::{
     tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
     StartStep, Stop, Verdict, Waiting,
 };
+use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
@@ -939,6 +940,30 @@ fn gone_refusal(error: &PortError) -> bool {
     matches!(error, PortError::Refused(name) if name.as_str() == "no_workflow")
 }
 
+/// Whether a refusal of a debt's body of the day `day` ends the debt by its class (I7.2, ruling
+/// RD-64 2.1, 2.2): class B ends it; class C drops a debt whose day is more than two days after
+/// the clock's day `today`, or outside its bound, and counts its record as taken off; any other
+/// debt stays owed and goes again at each tick.
+fn debt_refused<C>(
+    board: &mut Board<C>,
+    agent: &AgentId,
+    error: &PortError,
+    day: u32,
+    today: u32,
+    event: &str,
+) -> bool {
+    match class_of(error, false) {
+        Some(Class::Gone) => true,
+        Some(Class::One) if alone(day, today) == Alone::Off => {
+            if let PortError::Refused(name) = error {
+                board.count_dropped(agent, event, name.as_str());
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
 fn send_owed<P: Owner, C: ConfigView>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -964,7 +989,14 @@ fn send_owed<P: Owner, C: ConfigView>(
             match log_end(cx, board, i, run, *cause, (*day, *at), true) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => reread_finds_run_ended(cx, board, i, run),
-                Err(e) => gone_refusal(&e),
+                Err(e) => debt_refused(
+                    board,
+                    &owed.agent,
+                    &e,
+                    *day,
+                    cx.move_stamp.day(),
+                    "run_ended",
+                ),
             }
         }
         Owing::ItemLapsed {
@@ -989,7 +1021,14 @@ fn send_owed<P: Owner, C: ConfigView>(
                     let facts = &mut board.members[i].facts;
                     read_after_seq(cx.ports, facts).is_ok() && item_closed(&facts.events, item)
                 }
-                Err(e) => gone_refusal(&e),
+                Err(e) => debt_refused(
+                    board,
+                    &owed.agent,
+                    &e,
+                    *day,
+                    cx.move_stamp.day(),
+                    "item_lapsed",
+                ),
             }
         }
     }
