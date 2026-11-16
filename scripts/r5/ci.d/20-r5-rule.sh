@@ -479,6 +479,7 @@ fixture() {
   fx_change_at=
   fx_change_file=status
   fx_change_line=
+  fx_written=
   case_all=no
   printf '%s\n' 1111111111111111111111111111111111111111 >"$work/oid" || exit 2
   : >"$work/status" || exit 2
@@ -491,6 +492,27 @@ hidden() {
     *"$1"*) wrong="$wrong $case_name:printed" ;;
   esac
   grep -q "$1" "$self_art/$case_name/tree-before.txt" 2>/dev/null || wrong="$wrong $case_name:artifacts"
+}
+
+fresh() {
+  mkdir -p "$self_art/$case_name" || exit 2
+  : >"$self_art/$case_name/tree-before.txt" || exit 2
+}
+
+lm77_fixtures() {
+  fixture "$1changed-file-with-a-word-of-its-own"
+  fx_written=$2
+  fresh
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/zqtreeword.rs\n' >"$work/status"
+  check FAIL-tests 'tree changed=before files=1'
+  hidden zqtreeword
+
+  fixture "$1changed-file-under-heldout"
+  fx_written=$2
+  fresh
+  printf '1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/heldout/zqmadeupcase.jsonl\n' >"$work/status"
+  check FAIL-tests 'tree changed=before files=1'
+  hidden zqmadeupcase
 }
 
 check() {
@@ -508,7 +530,7 @@ check() {
         printf '%s\n' "$fx_list"
       }
     fi
-    measure "$self_art/$case_name" "$case_all"
+    measure "$self_art/$case_name$fx_written" "$case_all"
   )
   code=$?
   last=${out##*"$nl"}
@@ -730,15 +752,19 @@ self_test() {
   printf '1 M. N... 100644 100644 100644 0000 0000 crates/halvo-schema/src/learning.rs\n' >"$work/status"
   check FAIL-tests 'tree changed=before files=1'
 
-  fixture changed-file-with-a-word-of-its-own
-  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/zqtreeword.rs\n' >"$work/status"
-  check FAIL-tests 'tree changed=before files=1'
-  hidden zqtreeword
+  lm77_fixtures '' ''
 
-  fixture changed-file-under-heldout
-  printf '1 .M N... 100644 100644 100644 0000 0000 fixtures/r5/cases/heldout/zqmadeupcase.jsonl\n' >"$work/status"
-  check FAIL-tests 'tree changed=before files=1'
-  hidden zqmadeupcase
+  twice=$wrong
+  lm77_fixtures twice- ''
+  lm77_fixtures twice- -unread
+  if [ "${wrong#"$twice"}" = ' twice-changed-file-with-a-word-of-its-own:artifacts twice-changed-file-under-heldout:artifacts' ]; then
+    wrong=$twice
+    got=unread-artifacts
+  else
+    wrong="$wrong lm-77-fixtures-twice-over-one-artifacts-directory"
+    got=artifacts-read
+  fi
+  printf 'case %s/lm-77-fixtures-twice-over-one-artifacts-directory want=unread-artifacts got=%s\n' "$name" "$got"
 
   fixture test-run-changes-a-tracked-file
   fx_change_at=halvo-schema
