@@ -32,11 +32,21 @@ pub fn now_nanos() -> i64 {
     i64::try_from(since.as_nanos()).expect("an instant of i64")
 }
 
-/// An offset whose local day differs from the UTC day for at least two hours from now: +50,400 s when the UTC
-/// hour is 12 or later, else -50,400 s (the coordinator's ruling CP-204 D7).
+/// The offset that a binary test of the day gives a run that it starts now: [`offset_of_another_day_at`] of the
+/// system's clock.
 pub fn offset_of_another_day() -> i32 {
+    offset_of_another_day_at(now_nanos())
+}
+
+/// The offset for a run started at `utc_ns` nanoseconds since 1970-01-01T00:00:00Z: +50,400 s when the UTC hour is
+/// 12 or later, else -50,400 s (the coordinator's ruling CP-204 D7). From that instant the local day at the offset
+/// differs from the UTC day until 14:00 UTC for -50,400 s, at least 2 hours, and until the next 00:00 UTC for
+/// +50,400 s, which is 1 second for a call at 23:59:59 UTC. No offset of the range differs from the UTC day on both
+/// sides of 00:00 UTC, so a test asserts the difference from the UTC day only for a row at whose instant the two
+/// days differ (CP-212 V2).
+pub fn offset_of_another_day_at(utc_ns: i64) -> i32 {
     let max = halvo_schema::executable::day::UTC_OFFSET_S_MAX;
-    if now_nanos().div_euclid(1_000_000_000).rem_euclid(86_400) >= 12 * 3_600 {
+    if utc_ns.div_euclid(1_000_000_000).rem_euclid(86_400) >= 12 * 3_600 {
         max
     } else {
         -max

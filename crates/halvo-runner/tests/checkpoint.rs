@@ -162,11 +162,13 @@ fn a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_p
             "the day of the row's instant at the run's offset {} (CP-204 D3)",
             sup.utc_offset_s
         );
-        assert_ne!(
-            row.day,
-            day_of(row.at, 0),
-            "the UTC day of the row's instant"
-        );
+        if day_of(row.at, sup.utc_offset_s) != day_of(row.at, 0) {
+            assert_ne!(
+                row.day,
+                day_of(row.at, 0),
+                "the UTC day of the row's instant (CP-212 V2)"
+            );
+        }
     }
 
     let stands = std::fs::read(&copy).expect("the checkpoint stands after the run");
