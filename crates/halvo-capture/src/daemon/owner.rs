@@ -3202,8 +3202,9 @@ mod tests {
     }
 
     /// An owner whose store answers `fault` to every write, past its third
-    /// set-aside in a row.
-    fn stopped_by(fault: WriteFault) -> Harness {
+    /// set-aside in a row, and the time that the stop's DrainFailing names:
+    /// the time at which the third batch's drain began failing.
+    fn stopped_by(fault: WriteFault) -> (Harness, SystemTime) {
         let store = ModelStore::new();
         store.fail_every_write(Some(fault));
         let mut harness = Harness::over(store, open_floor(), 2048);
@@ -3224,7 +3225,13 @@ mod tests {
             is_the_stop(after_the_set_aside(&reports)),
             "the third set-aside of {fault:?}: {reports:?}"
         );
-        harness
+        let [Report::DrainFailing { since: began, .. }, _, Report::DrainFailing { since, .. }] =
+            reports[..]
+        else {
+            panic!("{reports:?}");
+        };
+        assert_eq!(since, began, "the stop names another time: {reports:?}");
+        (harness, since)
     }
 
     /// D4 and D5: at the third set-aside in a row the owner reports
@@ -3234,7 +3241,7 @@ mod tests {
     fn three_set_asides_in_a_row_hold_the_next_batch_until_a_good_write(
         fault: WriteFault,
     ) -> Vec<(i32, u64)> {
-        let mut harness = stopped_by(fault);
+        let (mut harness, _) = stopped_by(fault);
         assert_eq!(harness.owner.snapshot().events_lost, 6);
         for _ in 0..2 {
             harness.emit(foreground_now());
@@ -3392,7 +3399,7 @@ mod tests {
     #[test]
     fn a_batch_given_up_in_the_hold_ends_no_hold() {
         for answer in [WriteFault::Refused, WriteFault::Sealed] {
-            let mut harness = stopped_by(WriteFault::Db(19));
+            let (mut harness, _) = stopped_by(WriteFault::Db(19));
             harness.store.fail_every_write(Some(answer));
             harness.emit(foreground_now());
             harness.emit(foreground_now());
@@ -3505,5 +3512,53 @@ mod tests {
               last=2026-11-13T11:59:59Z error=db"
             ]
         );
+    }
+
+    /// D4 and D5: after the third set-aside in a row no batch is held and the
+    /// owner waits for an event, not for a retry; a batch that the store
+    /// takes at its first try ends the hold with DrainHealthy and starts the
+    /// count again.
+    #[test]
+    fn the_first_batch_that_the_store_takes_after_the_stop_ends_the_hold() {
+        let (mut harness, _) = stopped_by(WriteFault::Db(19));
+        assert_eq!(
+            harness.owner.wait(),
+            POLL,
+            "the owner waits less than a poll while nothing is held"
+        );
+        harness.store.fail_every_write(None);
+        harness.emit(foreground_now());
+        harness.emit(foreground_now());
+        assert_eq!(settled(&mut harness).events_persisted, 2);
+        assert_eq!(harness.reports(), [Report::DrainHealthy]);
+        harness.store.fail_every_write(Some(WriteFault::Db(19)));
+        batch_through_three_tries(&mut harness, 2);
+        assert_eq!(
+            after_the_set_aside(&harness.reports()),
+            Some(Report::DrainHealthy)
+        );
+    }
+
+    /// D4: in the hold a batch whose fault is of the class of Io is held; its
+    /// DrainFailing names io with the time at which the drain began failing
+    /// before the stop, and it is never set aside.
+    #[test]
+    fn an_io_fault_in_the_hold_reports_io_since_the_stop() {
+        let (mut harness, since) = stopped_by(WriteFault::Db(19));
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        harness.emit(foreground_now());
+        settled(&mut harness);
+        assert_eq!(
+            harness.reports(),
+            [Report::DrainFailing {
+                cause: DrainCause::Io,
+                since
+            }]
+        );
+        two_due_tries(&mut harness);
+        let held = harness.owner.snapshot();
+        assert_eq!((held.events_lost, held.events_pending), (6, 1));
     }
 }
