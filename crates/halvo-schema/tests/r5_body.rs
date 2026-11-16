@@ -486,7 +486,7 @@ fn plain_reply(len: usize) -> String {
     let room = len + 1 - r#"{"refinements":[]}"#.len();
     let step = |entry: &str| entry.len() + 1;
     let first = (0..step(ENTRY))
-        .find(|n| (room - n * step(kept)) % step(ENTRY) == 0)
+        .find(|n| (room - n * step(kept)).is_multiple_of(step(ENTRY)))
         .unwrap();
     let second = (room - first * step(kept)) / step(ENTRY);
     let list = [vec![kept; first], vec![ENTRY; second]].concat().join(",");
