@@ -1800,6 +1800,16 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   else
     own_not_run global-check-stat-of-a-script-leaves-the-read-of-the-driver 'git under cygpath reads no inode'
   fi
+  if ! command -v cygpath >/dev/null 2>&1; then
+    new_repo && printf 'line 1\n' >"$fixture/tracked.txt" && touch -t 200001010000 "$fixture/tracked.txt" &&
+      git -C "$fixture" add tracked.txt >/dev/null 2>&1 && fixture_commit &&
+      add_script r1 10-a.sh "$good" "[ -z \"\${GIT_CONFIG_GLOBAL+set}\" ] && [ \"\${XDG_CONFIG_HOME:-}\" = \"\$HOME/config\" ] && [ \"\${HOME%/case-git-home.*}\" != \"\$HOME\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; git config --global core.checkStat minimal && git config --global core.trustctime false && sleep 1 && cp -p \"\$CI_D_REPO/tracked.txt\" \"\$CI_D_ARTIFACTS/kept\" && printf 'line 2\\n' >\"\$CI_D_REPO/tracked.txt\" && touch -r \"\$CI_D_ARTIFACTS/kept\" \"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+    case_git_home=plain
+    case_witness=yes
+    own_case global-check-stat-of-a-script-in-a-home-of-its-own-leaves-the-index-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  else
+    own_not_run global-check-stat-of-a-script-in-a-home-of-its-own-leaves-the-index-read-of-the-driver 'git under cygpath reads no inode'
+  fi
   new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
   case_cargo_home=$(mktemp -d "$tmp/cargo-home.XXXXXX") && mkdir "$case_cargo_home/bin" &&
     printf '#!/bin/sh\ncase "$*" in *"status --porcelain"* | *diff-index*) exit 0 ;; esac\nexec %s "$@"\n' "$real_git" >"$case_cargo_home/bin/git" &&
