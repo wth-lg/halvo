@@ -66,6 +66,11 @@ pub(in crate::store) const SEAM_BEFORE_THE_FIRST_READ: &str =
     "a database open, before its first read";
 #[cfg(test)]
 pub(in crate::store) const SEAM_AFTER_THE_ROOT: &str = "a create, after its root";
+/// A place where a test acts in a create whose look met an entry at the
+/// root's name, before the create picks its answer.
+#[cfg(test)]
+pub(in crate::store) const SEAM_IN_THE_REFUSAL_ARM: &str =
+    "a create, after its look met an entry at the root's name";
 /// A place where a test acts after the tail opened the store directory and
 /// before its root step.
 #[cfg(test)]
@@ -1119,6 +1124,21 @@ enum CleanupRoots<'a> {
     Held(&'a RootsHandle, FileIdentity),
 }
 
+/// The answer of a create whose look met an entry at the root name of its
+/// id, read through the custody and never written, so that the refusal
+/// publishes no root (the review's F1): `RootExists` for a root that the
+/// custody reads, and for a name at which nothing stands any longer; the
+/// custody's own error for a root that it cannot read. The read is an unwrap
+/// of an empty wrap, which no root authenticates.
+fn a_root_that_stands(custody: &dyn KeyCustody) -> CustodyError {
+    match custody.unwrap_store_key(&WrappedKey(Vec::new()), KeyLabel::STORE) {
+        Ok(_) | Err(CustodyError::WrapAuthFailed | CustodyError::RootMissing) => {
+            CustodyError::RootExists
+        }
+        Err(e) => e,
+    }
+}
+
 fn clear_pending(store_dir: &Dir, roots: CleanupRoots<'_>, keyed: KeyNames) -> StoreResult<()> {
     let present = store_dir.entry(OsStr::new(CREATE_PENDING)).is_ok()
         || store_dir.entry(OsStr::new(CREATE_PENDING_TEMP)).is_ok();
@@ -1947,12 +1967,9 @@ impl EncryptedStore {
         if let Some(roots) = custody.roots() {
             clear_pending(dir, CleanupRoots::Path(roots), key_file.names())?;
             if file_root::root_file_may_be_present(roots, custody.root_id()) {
-                return Err(StoreError::Custody(
-                    custody
-                        .create_root()
-                        .err()
-                        .unwrap_or(CustodyError::RootExists),
-                ));
+                #[cfg(test)]
+                failpoint::seam(SEAM_IN_THE_REFUSAL_ARM);
+                return Err(StoreError::Custody(a_root_that_stands(custody.as_ref())));
             }
         }
         if key_file.present()? {

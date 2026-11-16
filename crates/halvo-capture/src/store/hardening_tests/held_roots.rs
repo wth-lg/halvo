@@ -789,3 +789,76 @@ fn an_abandoned_create_with_an_unlistable_held_directory_keeps_its_mark() {
          listing of the held roots directory failed and the cleanup by identity answered Ok"
     );
 }
+
+/// The review's F1: a create whose look met an entry at the root's name of
+/// its id, an entry that is gone before the create picks its answer, answers
+/// RootExists and publishes no root that nothing names.
+#[test]
+fn a_create_refused_at_a_root_that_leaves_before_its_answer_publishes_no_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    std::fs::create_dir_all(&roots_dir).unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    std::fs::write(&root_file, [0x21u8; 32]).unwrap();
+    let gone = root_file.clone();
+    let _seam = crate::store::failpoint::at(crate::store::db::SEAM_IN_THE_REFUSAL_ARM, move || {
+        std::fs::rename(&gone, gone.with_extension("taken-away")).unwrap();
+    });
+    let created = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+    let published = root_files_in(&roots_dir);
+    println!("F1 create={created:?} root_files_after={}", published.len());
+    assert!(
+        matches!(
+            created,
+            Err(StoreError::Custody(
+                crate::custody::CustodyError::RootExists
+            ))
+        ),
+        "{created:?}"
+    );
+    assert_eq!(
+        published,
+        Vec::<String>::new(),
+        "the refused create published a root that nothing names"
+    );
+}
+
+/// store-3b: a data directory that is a link is not followed: the tail
+/// removes nothing, counts it as not followed and answers DeleteIncomplete,
+/// and the store behind the link opens and reads after it.
+#[test]
+fn a_data_directory_that_is_a_link_is_not_followed() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = dir.path().join("real");
+    let (store_dir, roots_dir, root_id, segment) = file_root_store(&real);
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    let answer = EncryptedStore::delete_data_dir(&link, crate::store::Layout::DataDirectory);
+
+    let reads = open_over_file_root(&store_dir, &roots_dir, root_id)
+        .map(|store| store.read_segment(segment, &mut Vec::new()).is_ok());
+    let link_stands =
+        std::fs::symlink_metadata(&link).is_ok_and(|meta| meta.file_type().is_symlink());
+    println!(
+        "DATA-DIR-LINK {} store_behind_reads={reads:?} link_stands={link_stands}",
+        answer_line(&answer)
+    );
+    assert!(matches!(reads, Ok(true)), "{reads:?}");
+    assert!(
+        link_stands,
+        "the tail removed the link at the data directory"
+    );
+    assert!(answer.is_err(), "{}", answer_line(&answer));
+    assert_eq!(delete_report(&answer).not_followed, 1);
+}
