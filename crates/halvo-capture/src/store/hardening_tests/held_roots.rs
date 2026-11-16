@@ -862,3 +862,92 @@ fn a_data_directory_that_is_a_link_is_not_followed() {
     assert!(answer.is_err(), "{}", answer_line(&answer));
     assert_eq!(delete_report(&answer).not_followed, 1);
 }
+
+/// store-3b: the tail on a data directory at whose name nothing stands, in
+/// both layouts, answers Ok with nothing named and the roots read as listed
+/// and empty, and makes nothing at that name.
+#[test]
+fn a_tail_on_a_data_directory_that_does_not_exist_answers_ok_with_nothing_named() {
+    let dir = tempfile::tempdir().unwrap();
+    let absent = dir.path().join("never-made");
+    for layout in [
+        crate::store::Layout::DataDirectory,
+        crate::store::Layout::ScratchStore,
+    ] {
+        let answer = EncryptedStore::delete_data_dir(&absent, layout);
+        println!("ABSENT-DATA-DIR layout={layout:?} {}", answer_line(&answer));
+        assert!(answer.is_ok(), "{layout:?}: {}", answer_line(&answer));
+        let report = delete_report(&answer);
+        assert_eq!(report.root, RootReading::Unnamed);
+        assert!(report.roots.listed && report.roots.names.is_empty());
+        assert_eq!(report.not_followed, 0);
+        assert!(
+            !absent.exists(),
+            "{layout:?}: the tail made something at the name"
+        );
+    }
+}
+
+/// store-3b: the open holds its roots directory following no link at its
+/// last part: a link at the roots path is refused with RootCorrupt, and the
+/// root behind it is not read.
+#[test]
+fn an_open_whose_roots_path_is_a_link_is_refused_and_reads_no_root_behind_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let behind = dir.path().join("roots-behind");
+    std::fs::rename(&roots_dir, &behind).unwrap();
+    std::os::unix::fs::symlink(&behind, &roots_dir).unwrap();
+    let opened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    println!("ROOTS-LINK open={opened:?}");
+    assert!(
+        matches!(
+            opened,
+            Err(StoreError::Custody(
+                crate::custody::CustodyError::RootCorrupt
+            ))
+        ),
+        "an open held a roots directory through a link: {opened:?}"
+    );
+}
+
+/// store-3b: abandon_create destroys its root through the roots directory
+/// that the create holds: with that directory moved after the root was made,
+/// the root in the moved directory is destroyed and nothing is made at the
+/// old path.
+#[test]
+fn an_abandoned_create_destroys_its_root_in_the_held_roots_directory_after_it_moved() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let moved = dir.path().join("roots-moved");
+    let (from, to) = (roots_dir.clone(), moved.clone());
+    let _seam = crate::store::failpoint::at(crate::store::db::SEAM_AFTER_THE_ROOT, move || {
+        std::fs::rename(&from, &to).unwrap()
+    });
+    crate::store::failpoint::arm("create_after_the_key_file");
+    let created = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+    let destroyed = no_root_bytes_at(&moved.join(format!("{root_id}.root")));
+    println!(
+        "ABANDON-HELD create={created:?} moved_root_destroyed={destroyed} old_path_exists={}",
+        roots_dir.exists()
+    );
+    assert!(created.is_err(), "the create answered Ok");
+    assert!(
+        destroyed,
+        "the abandoned create left its root in the roots directory that it held"
+    );
+    assert!(
+        !roots_dir.exists(),
+        "the abandoned create made a roots directory at the old path"
+    );
+}
