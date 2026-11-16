@@ -1464,6 +1464,14 @@ set, and the root's own volume name answers the root.
   where it lies, and the delete says that it is not finished, because the
   directory no longer stands at its path; what stands at the old path then
   is not touched, and the tail after the handle is dropped sweeps it.
+  A create whose look meets an entry at its root's name reads that root
+  through the custody and publishes nothing: `RootExists`, or the custody's
+  own error for a root that it cannot read (the review's F1; test
+  `a_create_refused_at_a_root_that_leaves_before_its_answer_publishes_no_root`).
+  A root write whose create of its partial name fails, as when another
+  writer of the same id holds that name, makes and removes nothing
+  (ruling S-95 (f); test
+  `a_root_write_whose_partial_name_another_writer_holds_leaves_that_file_and_makes_no_root`).
 - File identities (store-3b). An identity is the volume and the file number
   read from an open handle. A file number that the volume gives again to a
   new file after the root file was removed reads as the root file's
@@ -1584,7 +1592,10 @@ set, and the root's own volume name answers the root.
   link, an empty file or a file of another length put at the name, reads
   left, because the step's own look met no root file there (ruling ST-46
   K1). `destroy_root_at`, which the cleanup of a create and the custody's
-  destroy call, looks at the root's name with no listing and answers Ok
+  destroy call, counts the fate of each partial name of the root as it
+  counts the root file's (the review's N7; test
+  `a_cleanup_whose_partial_root_file_cannot_be_destroyed_answers_an_error`),
+  looks at the root's name with no listing and answers Ok
   when the name is absent, so that a cleanup that runs again ends; a root
   of an abandoned create that a program renamed aside in that window
   stays, beside the limit (i) of the pending mark below.
@@ -1647,7 +1658,11 @@ set, and the root's own volume name answers the root.
   cleanup by the mark destroys the file of that identity alone, never a
   file of another identity at the root's name and never the root file that
   the open read for `store.key`; a mark that reads made without an identity
-  reads owed. The tail names the mark's root by that identity: a file of
+  reads owed. A cleanup by identity in a held directory that it cannot list
+  answers the listing's error, so the mark stays beside the root that
+  stays (tests
+  `an_abandoned_create_with_an_unlistable_held_directory_keeps_its_mark`,
+  `an_opens_cleanup_beside_an_unlistable_held_directory_keeps_its_mark`). The tail names the mark's root by that identity: a file of
   another identity at its name reads the root left, and without the lock
   the tail leaves such a file and names it (tests
   `a_made_mark_records_the_identity_of_the_root_file_that_the_create_made`,
