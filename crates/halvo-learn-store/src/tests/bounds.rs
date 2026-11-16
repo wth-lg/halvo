@@ -71,7 +71,7 @@ fn admitted_and_stored(total: usize) -> (Result<(), AdmitCause>, usize, Vec<Valu
     let answer = admit(&mut w, 2, proposal.clone());
     let taken = u32::from(answer.is_ok());
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(taken)));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     let edits = newest(&w).len();
     (answer, edits, w.replay(3))
@@ -155,7 +155,7 @@ fn kept_at_finish(total: usize) -> (usize, Vec<LearnEdit>) {
     w.clean_use(4, 2);
     w.clean_use(5, 2);
     assert_eq!(newest(&w)[0].state.name(), "active");
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     (bytes(&w.replay(6)[1]), newest(&w))
 }

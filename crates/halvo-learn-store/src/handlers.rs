@@ -125,8 +125,6 @@ pub struct LearnHandlers {
     pub(crate) made: u64,
     pub(crate) class_rule: ClassRule,
     #[cfg(test)]
-    pub(crate) probes: Vec<RunId>,
-    #[cfg(test)]
     pub(crate) faults: Vec<Fault>,
 }
 
@@ -138,8 +136,6 @@ impl Default for LearnHandlers {
             starts: BTreeMap::new(),
             made: 0,
             class_rule: class_of,
-            #[cfg(test)]
-            probes: Vec::new(),
             #[cfg(test)]
             faults: Vec::new(),
         }

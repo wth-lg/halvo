@@ -35,6 +35,13 @@ fn newest(w: &World) -> Vec<LearnEdit> {
 
 fn direct_compile(w: &mut World, r: u32, number: u32) {
     let now = w.host.agent_now();
+    let start = json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(r), "mode": "compile"});
+    let started =
+        halvo_agent_store::coordinator(&mut w.host.agent, now, start.to_string().as_bytes());
+    assert!(
+        started.is_ok(),
+        "the agent store starts run {r}: {started:?}"
+    );
     let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": number, "steps": compiled()});
     let reply = halvo_agent_store::runner(&mut w.host.agent, now, body.to_string().as_bytes());
     assert!(
@@ -81,8 +88,8 @@ fn an_unverified_run_with_step_ok_makes_no_clean_use_and_a_failure_that_does_not
     w.log(
         3,
         &[
-            (1, "step_ok", 2, None),
-            (2, "step_failed", 3, Some("timeout")),
+            (2, "step_ok", 2, None),
+            (3, "step_failed", 3, Some("timeout")),
         ],
     );
     assert!(w.finish(3, "replay", "failed").is_ok());
@@ -117,7 +124,7 @@ fn a_candidate_on_a_step_whose_provisional_edit_stays_provisional_is_dropped() {
         vec![loc("B"), loc("A"), pay()],
     );
     assert_eq!(w.put(3, 1, vec![proposal]), Ok(stored(1)));
-    w.log(3, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(3, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     let edits = newest(&w);
     assert_eq!(edits.len(), 1);
@@ -131,7 +138,7 @@ fn a_candidate_of_a_run_whose_compile_number_is_no_longer_the_newest_at_finish_i
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(1)));
     w.compile(20, 2, compiled());
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert!(w.host.edits().is_empty());
 }
@@ -156,12 +163,12 @@ fn a_candidate_whose_list_on_an_edit_made_active_after_its_admission_would_not_f
         vec![locator("css", &long('e'), None)],
     );
     assert_eq!(w.put(3, 1, vec![edit]), Ok(stored(1)));
-    w.log(3, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(3, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     w.clean_use(4, 2);
     w.clean_use(5, 2);
     assert_eq!(newest(&w)[0].state.name(), "active");
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert_eq!(newest(&w).len(), 1);
 }
@@ -265,7 +272,7 @@ fn a_proposal_on_a_step_after_the_first_page_of_sixteen_is_admitted_and_stored()
     assert_eq!(served.len(), 18);
     let proposal = with_locators(served[17].clone(), "button S18 now", vec![loc("A")]);
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(1)));
-    w.log(2, &[(1, "recovered", 18, None), (2, "step_ok", 18, None)]);
+    w.log(2, &[(2, "recovered", 18, None), (3, "step_ok", 18, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     let edits = newest(&w);
     assert_eq!(edits.len(), 1);

@@ -87,12 +87,14 @@ fn refusal_propose_after_end() {
         put(&mut store, row(1, 2, 1, "held", "payment", 1, None, None)),
         Err(declared("effect"))
     );
+    start(&mut store, 2);
     assert_eq!(end_run(&mut store, 2), Ok(accepted()));
     assert_eq!(
         put(&mut store, row(2, 3, 1, "held", "payment", 1, None, None)),
         Err(declared("effect"))
     );
     assert_eq!(effects(&store).len(), 2);
+    start(&mut store, 3);
     assert_eq!(
         put(&mut store, row(3, 4, 1, "held", "payment", 1, None, None)),
         Ok(stored(1))
@@ -102,6 +104,7 @@ fn refusal_propose_after_end() {
 #[test]
 fn refusal_end_run_loses() {
     let mut store = unattended_sender();
+    start(&mut store, 2);
     let moves = [
         row(1, 1, 1, "cleared", "send", 1, None, None),
         row(1, 1, 2, "releasing", "send", 1, None, None),
@@ -138,7 +141,7 @@ fn refusal_end_run_loses() {
     }
     for e in 1..=4 {
         let last = last_of(&store, &effect(e));
-        assert_eq!((last.day, last.at), (NOW.day, NOW.at));
+        assert_eq!((last.day, last.at), (TODAY, NOW.at));
         assert_eq!(last.approval, None);
     }
     let record = stored_run(&store, 1);
@@ -146,7 +149,7 @@ fn refusal_end_run_loses() {
     let record = &record[0];
     assert_eq!(record.mode, None);
     assert_eq!(record.outcome, Outcome::Failed);
-    assert_eq!(record.day, NOW.day);
+    assert_eq!(record.day, TODAY);
     assert_eq!(record.agent, AgentId::parse(&agent(1)).expect("an id"));
     assert_eq!(record.playbook, None);
     assert_eq!(record.model, None);

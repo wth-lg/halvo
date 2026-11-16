@@ -39,6 +39,20 @@ pub(crate) fn load(
     }
 }
 
+/// The agent's newest compile number as the agent store's `load` would give it, by the agent store's read that
+/// needs no runner body (CP-135 (5) refuses a runner body of a run with no start row): `Some(None)` for an agent
+/// with no compile number, and none where the agent store refuses the agent.
+pub(crate) fn newest_number(
+    host: &mut dyn LearnHost,
+    agent: &AgentId,
+) -> Result<Option<Option<NonZeroU32>>, ErrorName> {
+    match halvo_agent_store::newest_playbook(&*host.agent_host(), agent) {
+        Ok(playbook) => Ok(Some(playbook.map(|p| p.number))),
+        Err(e @ (ErrorName::Store | ErrorName::Internal)) => Err(e),
+        Err(_) => Ok(None),
+    }
+}
+
 /// The stored steps of the compile number, read page by page through `load_steps`, which stores nothing.
 pub(crate) fn compiled(
     host: &mut dyn LearnHost,
