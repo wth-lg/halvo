@@ -23,7 +23,7 @@ ck_jobs=${CI_D_CHECK_JOBS-}
 st_limit_set=${CI_D_SCRIPT_LIMIT_S+set}
 st_limit=${CI_D_SCRIPT_LIMIT_S-1200}
 st_own_limit=$st_limit
-[ -n "$st_limit_set" ] || st_own_limit=1100
+[ -n "$st_limit_set" ] || st_own_limit=1250
 st_perl="setpgrp(0, 0); my \$f = delete \$ENV{RUN_CI_D_PID_FILE}; if (defined \$f) { open(my \$h, '>', \$f) or exit 127; print \$h \"\$\$\\n\"; close(\$h) or exit 127; } \$SIG{INT} = \$SIG{QUIT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
 mode=run
 job=
@@ -2061,20 +2061,20 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   mkdir -p "$tmp/jump-date" &&
     printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r jump ]; then\n  now=$(%s +%%s) || exit 1\n  if [ -e jump.used ]; then read -r jump <jump; echo "$((now + jump))"; else : >jump.used; echo "$now"; fi\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/jump-date/date" &&
     chmod +x "$tmp/jump-date/date" || wrong="$wrong stand-in-date-not-made"
-  new_repo && printf '1000\n' >"$fixture/jump"
+  new_repo && printf '1150\n' >"$fixture/jump"
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=slow
   case_path=$tmp/jump-date
   case_max_s=40
   case_witness=yes
-  own_case own-cases-past-1000-s-pass-below-their-limit 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
-  new_repo && printf '1100\n' >"$fixture/jump"
+  own_case own-cases-past-1150-s-pass-below-their-limit 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
+  new_repo && printf '1250\n' >"$fixture/jump"
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=slow
   case_path=$tmp/jump-date
   case_max_s=40
   case_witness=yes
-  own_case own-cases-reach-their-limit-at-1100-s 1 'FAIL self-test:run-ci-d (time limit 1100 s)' macos --self-test run-ci-d
+  own_case own-cases-reach-their-limit-at-1250-s 1 'FAIL self-test:run-ci-d (time limit 1250 s)' macos --self-test run-ci-d
   new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ "${1:-}" = --self-test ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
