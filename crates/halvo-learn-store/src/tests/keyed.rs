@@ -313,6 +313,29 @@ fn a_refused_row_held_under_no_key_is_read_by_no_workflow_and_stops_nothing() {
 }
 
 #[test]
+fn a_refused_learn_run_row_under_the_key_of_a_run_that_was_served_answers_its_replay_put_with_the_count_0(
+) {
+    let mut w = two_workflows();
+    let served = w.replay(10);
+    let proposal = with_locators(
+        served[2].clone(),
+        "button Next step",
+        vec![loc("C"), next()],
+    );
+    w.host
+        .put_raw_under("learn_run", Some(&wf(1)), &refused("learn_run", 2));
+    assert_eq!(w.put(10, w.loaded, vec![proposal.clone()]), Ok(stored(0)));
+    w.pair = 2;
+    let served = w.replay(20);
+    let proposal = with_locators(
+        served[2].clone(),
+        "button Next step",
+        vec![loc("C"), next()],
+    );
+    assert_eq!(w.put(20, w.loaded, vec![proposal]), Ok(stored(1)));
+}
+
+#[test]
 fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none(
 ) {
     let mut w = two_workflows();
