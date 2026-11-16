@@ -83,7 +83,7 @@ pub(crate) fn check_server(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnixConnector {
     socket: PathBuf,
-    data_dir: PathBuf,
+    data_dir: DataDir,
     expected_pid: Option<u32>,
 }
 
@@ -96,7 +96,7 @@ impl UnixConnector {
             .map_err(|e| ClientError::Protocol(e.to_string()))?;
         Ok(Self {
             socket,
-            data_dir: data_dir.path().to_path_buf(),
+            data_dir: data_dir.clone(),
             expected_pid: None,
         })
     }
@@ -106,7 +106,7 @@ impl UnixConnector {
     pub(crate) fn at(data_dir: &DataDir) -> Self {
         Self {
             socket: data_dir.control_socket(),
-            data_dir: data_dir.path().to_path_buf(),
+            data_dir: data_dir.clone(),
             expected_pid: None,
         }
     }
@@ -122,7 +122,7 @@ impl UnixConnector {
     }
 
     /// The data directory whose instance lock the connector reads.
-    pub fn data_dir(&self) -> &Path {
+    pub fn data_dir(&self) -> &DataDir {
         &self.data_dir
     }
 
@@ -619,7 +619,7 @@ mod tests {
 
     fn held(dir: &DataDir) -> crate::instance_lock::InstanceLock {
         crate::testing::make_private_dir(dir.path()).unwrap();
-        crate::instance_lock::InstanceLock::try_take(dir.path())
+        crate::instance_lock::InstanceLock::try_take(dir)
             .unwrap()
             .expect("the lock is free before the test takes it")
     }
@@ -641,7 +641,7 @@ mod tests {
     fn connector_beside(data_dir: &Path, socket_dir: &DataDir) -> UnixConnector {
         UnixConnector {
             socket: socket_dir.control_socket(),
-            data_dir: data_dir.to_path_buf(),
+            data_dir: DataDir::from_flag(data_dir).unwrap(),
             expected_pid: None,
         }
     }
