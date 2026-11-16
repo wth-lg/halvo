@@ -716,6 +716,14 @@ where
     P: Owner + Runs + Analysis + Rng,
     C: ConfigView,
 {
+    let agent = &board.members[i].facts.agent;
+    if board.aside(agent) {
+        return Served {
+            agent: agent.clone(),
+            answer: Err(Cause::NoService),
+            run: None,
+        };
+    }
     let off = holds(&board.members[i].facts).contains(&Hold::Off);
     let served = start_steps(cx, board, i, trigger, listed, from_queue, unread);
     if !off && holds(&board.members[i].facts).contains(&Hold::Off) {
@@ -1118,6 +1126,62 @@ fn store_record_shows_ended<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -
     })
 }
 
+/// The recovery of each agent that recovery set aside, made by the first tick whose read of its
+/// history answers, before any start of it (I5.8, ruling RD-64 1.4): the agent takes the events
+/// so read, and what `recover_step` gives with this life's answers of `Runs::reap` becomes owed
+/// on the board, its `run_ended` with `interrupted` and its `item_lapsed` with `app_ended` at the
+/// tick's day and instant and its `end_run`, which the tick's payment then sends.
+fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
+    for (agent, reaped) in board.aside_agents() {
+        let Some(i) = board.index(&agent) else {
+            board.take_aside(&agent);
+            continue;
+        };
+        let mut events = Vec::new();
+        if resync(cx.ports, &agent, &mut events).is_err() {
+            continue;
+        }
+        board.take_aside(&agent);
+        let facts = &mut board.members[i].facts;
+        let step = crate::run::recover_step(
+            &crate::run::Earlier {
+                agent: &agent,
+                events: &events,
+                last: facts.runs.first(),
+            },
+            &reaped,
+        );
+        facts.events = events;
+        facts.store_ended = newest_started(facts)
+            .is_none_or(|run| facts.runs.first().is_some_and(|l| &l.run == run));
+        let workflow = facts.workflow.id.clone();
+        let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
+        let ends = step.ended.into_iter().map(|run| Owing::RunEnded {
+            run,
+            cause: RunEnd::Interrupted,
+            day,
+            at,
+        });
+        let lapses = step
+            .lapsed
+            .into_iter()
+            .map(|(item, lapsed)| Owing::ItemLapsed {
+                item,
+                lapsed,
+                day,
+                at,
+            });
+        let end_run = step.owed.map(|run| Owing::EndRun { run });
+        for what in ends.chain(lapses).chain(end_run) {
+            board.owed.push(Owed {
+                agent: agent.clone(),
+                workflow: workflow.clone(),
+                what,
+            });
+        }
+    }
+}
+
 fn pay_owed<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
     let owed = std::mem::take(&mut board.owed);
     for o in owed {
@@ -1227,6 +1291,7 @@ where
     let Some(listed) = listed else {
         return report;
     };
+    recover_aside(cx, board);
     pay_owed(cx, board);
     for m in &board.members {
         if starts && wants_active(&m.facts) {
@@ -1239,7 +1304,7 @@ where
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
-        let on_list = listed.contains(&facts.workflow.id);
+        let on_list = listed.contains(&facts.workflow.id) && !board.aside(&agent);
         match tick_step(facts, on_list, cx.limits) {
             Ask::Ready if starts => {
                 let still = |f: &Facts<C>| {

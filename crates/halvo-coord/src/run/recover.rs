@@ -242,15 +242,24 @@ where
     let workflows = ports.workflows().map_err(|e| cause(&e))?;
     let agents = ports.agents().map_err(|e| cause(&e))?;
     let mut found: Vec<Found<P::Config>> = Vec::new();
+    let mut aside: Vec<AgentId> = Vec::new();
     for agent in agents {
-        let Some(workflow) = workflows
-            .iter()
-            .find(|w| w.id() == &agent.workflow)
-            .map(|w| full_or_paused_manual(w, &agent.agent, day))
-        else {
+        let Some(listed) = workflows.iter().find(|w| w.id() == &agent.workflow) else {
             continue;
         };
-        let events = history(ports, &agent.agent).map_err(|e| cause(&e))?;
+        let workflow = full_or_paused_manual(listed, &agent.agent, day);
+        let events = match history(ports, &agent.agent) {
+            Ok(events) => events,
+            Err(PortError::Refused(name)) => match name.as_str() {
+                "no_workflow" => continue,
+                "binding" if matches!(listed, Workflow::Dismissed(_)) => Vec::new(),
+                _ => {
+                    aside.push(agent.agent.clone());
+                    Vec::new()
+                }
+            },
+            Err(e) => return Err(cause(&e)),
+        };
         let step = recover_step(
             &Earlier {
                 agent: &agent.agent,
@@ -361,6 +370,9 @@ where
         .collect();
     let mut board = Board::new(day, members);
     board.owed = owed;
+    for agent in &aside {
+        board.set_aside(agent, reaped.clone());
+    }
     let checked = raise_checks(ports, &mut board, limits, None);
     Ok(Life {
         board,

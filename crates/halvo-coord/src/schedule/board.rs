@@ -1,4 +1,5 @@
 use super::Queue;
+use crate::ports::Reaped;
 use crate::types::{AgentId, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
 
 /// What the coordinator owes the owner for an agent, sent again at each tick until the owner
@@ -124,6 +125,7 @@ pub struct Board<C> {
     pub owed: Vec<Owed>,
     ranks: u64,
     listed: bool,
+    aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
 }
 
 impl<C> Board<C> {
@@ -145,7 +147,31 @@ impl<C> Board<C> {
             owed: Vec::new(),
             ranks: 0,
             listed: false,
+            aside: Vec::new(),
         }
+    }
+
+    /// Whether recovery set the agent aside: the owner refused to read its history, so it is a
+    /// member with no event read, which no tick raises or starts anything for (I5.8, ruling
+    /// RD-64 1.4).
+    pub fn aside(&self, agent: &AgentId) -> bool {
+        self.aside.iter().any(|(a, _)| a == agent)
+    }
+
+    /// Sets the agent aside with this life's answers of `Runs::reap`, by which its own recovery
+    /// is made once its history can be read (I5.8, ruling RD-64 1.4).
+    pub fn set_aside(&mut self, agent: &AgentId, reaped: Vec<(RunId, Reaped)>) {
+        self.aside.retain(|(a, _)| a != agent);
+        self.aside.push((agent.clone(), reaped));
+    }
+
+    /// The agents that are set aside, each with the answers of `Runs::reap` of this life.
+    pub(super) fn aside_agents(&self) -> Vec<(AgentId, Vec<(RunId, Reaped)>)> {
+        self.aside.clone()
+    }
+
+    pub(super) fn take_aside(&mut self, agent: &AgentId) {
+        self.aside.retain(|(a, _)| a != agent);
     }
 
     /// Whether this is the life's first creation move that read the owner's list, which raises

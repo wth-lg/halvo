@@ -1732,3 +1732,100 @@ fn the_rows_of_recovery_carry_the_day_of_their_at_across_midnight() {
     }
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
+
+fn refused(name: &str) -> PortError {
+    PortError::Refused(halvo_coord::types::Name::parse(name).unwrap())
+}
+
+#[test]
+fn an_agent_whose_history_is_refused_is_set_aside_and_every_other_agent_recovers() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    let first = started(&mut w, 0);
+    let second = started(&mut w, 1);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    let ended = relife(
+        &mut w,
+        &[
+            (first.clone(), Reaped::Gone),
+            (second.clone(), Reaped::Gone),
+        ],
+    );
+    assert_eq!(ended, vec![(second.clone(), RunEnd::Interrupted)]);
+    assert_eq!(w.board.members.len(), 2, "a board with both agents");
+    assert!(w.board.aside(&agent(0)));
+    assert!(!w.board.aside(&agent(1)));
+    assert!(w.facts(0).events.is_empty(), "no event read for it");
+    assert_eq!(w.events_of(0).last().unwrap(), "run_started");
+    assert_eq!(w.events_of(1).last().unwrap(), "run_ended interrupted");
+    assert_eq!(
+        w.calls(),
+        vec!["reap", "log run_ended interrupted", "end_run"],
+        "nothing of the agent set aside is logged or sent"
+    );
+    w.store_end(1, &second, Outcome::Failed, 0);
+    w.act(Act::Tick);
+    let done = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(done.report.answer, Ok(Answer::Ok), "the other agent starts");
+    let run = done.report.run.unwrap();
+    w.act(Act::Stop {
+        run: run.clone(),
+        by: StopBy::Person,
+    });
+    assert!(w.calls().contains(&"cancel".to_string()), "and stops");
+    let refused_start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(refused_start.report.answer, Err(Cause::NoService));
+    w.calls();
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)), "the first read that answers");
+    assert_eq!(w.events_of(0).last().unwrap(), "run_ended interrupted");
+    let calls = w.calls();
+    assert!(calls.contains(&"log run_ended interrupted".to_string()));
+    assert!(calls.contains(&"end_run".to_string()), "{calls:?}");
+}
+
+#[test]
+fn a_tick_starts_nothing_for_an_agent_set_aside_while_its_history_is_refused() {
+    let slotted = A {
+        person: false,
+        slotted: true,
+    };
+    let mut w = world_with(&[slotted, slotted], two_live());
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    let done = w.act(Act::Tick);
+    let started: Vec<AgentId> = done
+        .report
+        .started
+        .iter()
+        .map(|s| s.agent.clone())
+        .collect();
+    assert_eq!(
+        started,
+        vec![agent(1)],
+        "the tick starts the other agent alone"
+    );
+    assert!(w.board.aside(&agent(0)));
+}
+
+#[test]
+fn recovery_leaves_out_an_agent_whose_history_is_refused_with_no_workflow() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("no_workflow"));
+    relife(&mut w, &[]);
+    assert_eq!(w.board.members.len(), 1);
+    assert!(!w.board.aside(&agent(0)));
+}
+
+#[test]
+fn recovery_still_ends_with_no_board_when_the_owner_does_not_answer_a_history() {
+    let w = world(&[MANUAL, MANUAL]);
+    w.ports.new_life();
+    w.ports
+        .refuse_agent(Method::History, &agent(1), PortError::Busy);
+    assert_eq!(recover(&w.ports, &w.limits).err(), Some(Cause::Busy));
+}

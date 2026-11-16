@@ -217,6 +217,7 @@ pub struct Ports<C> {
     approvals: Cell<u128>,
     bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
+    agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
     marks: RefCell<Vec<(RunId, Reaped)>>,
@@ -247,6 +248,7 @@ impl<C> Ports<C> {
             approvals: Cell::new(0),
             bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
+            agent_refusals: RefCell::new(Vec::new()),
             limits,
             created: RefCell::new(Vec::new()),
             marks: RefCell::new(Vec::new()),
@@ -423,9 +425,31 @@ impl<C> Ports<C> {
         r.push((method, error));
     }
 
+    /// Makes `method` answer `error` for the agent `agent` alone until `clear_refusals`:
+    /// `Owner::history` of that agent, and `Owner::log` of a body that holds a record of it.
+    pub fn refuse_agent(&self, method: Method, agent: &AgentId, error: PortError) {
+        let mut r = self.agent_refusals.borrow_mut();
+        r.retain(|(m, a, _)| *m != method || a != agent);
+        r.push((method, agent.clone(), error));
+    }
+
     /// Makes every method do its work again.
     pub fn clear_refusals(&self) {
         self.refusals.borrow_mut().clear();
+        self.agent_refusals.borrow_mut().clear();
+    }
+
+    fn checked_agent(&self, method: Method, agent: &AgentId, call: &Call) -> Result<(), PortError> {
+        let found = self
+            .agent_refusals
+            .borrow()
+            .iter()
+            .find(|(m, a, _)| *m == method && a == agent)
+            .map(|(_, _, e)| e.clone());
+        match found {
+            Some(e) => Err(self.note(call.clone(), e)),
+            None => Ok(()),
+        }
     }
 
     /// The decisions that `Runs::answer_confirm` sent, in order.
@@ -677,6 +701,9 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         {
             self.checked(Method::LogRunStarted, &call)?;
         }
+        for agent in events.iter().map(|e| &e.agent) {
+            self.checked_agent(Method::Log, agent, &call)?;
+        }
         if let Some(name) = self.log_refusal(events) {
             return Err(self.note(call, refusal(name)));
         }
@@ -687,6 +714,7 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
         self.checked(Method::History, &Call::History(agent.clone(), after))?;
+        self.checked_agent(Method::History, agent, &Call::History(agent.clone(), after))?;
         self.record(Call::History(agent.clone(), after));
         let mut found: Vec<Event> = self
             .events
