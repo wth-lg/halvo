@@ -1,6 +1,7 @@
 mod common;
 
 use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
@@ -1656,9 +1657,11 @@ fn places() -> (Vec<WritePlace>, Vec<RemovalPlace>) {
 /// purged ordinals of `raise_mark`, and the support row that a new proposal drops in `set_support` (src/propose.rs),
 /// each beside the checkpointed write under which it runs or the sentence of the contract that allows it outside one.
 /// The test fails when a place appears that a list does not hold, when a listed place is gone, and when a listed test
-/// is no test of this file: a new place needs its search right after it before a list may gain it. Its limit: it
+/// is no test of this file: a new place needs its search right after it before a list may gain it. Its limits: it
 /// reads text, so a removal written as a statement that does not begin with `DELETE`, or behind a macro or a built
-/// string, is not seen.
+/// string, is not seen; nor are these forms, named by the readers of ruling S-82 (item 4 (c)): a new call written over
+/// two lines, a call through another name of the transaction, a listed removal run from a new place under a plain
+/// write, a remove call on another receiver name, and an alias inside braces.
 #[test]
 fn every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search() {
     let (writes, removals) = places();
@@ -1882,5 +1885,644 @@ fn a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker() {
     assert!(
         !scratch.path().join("derived").exists(),
         "right after the delete of everything, derived/ with every entry that could hold {REBUILT_ALL}"
+    );
+}
+
+/// A drawn sequence of numbers, the same for the same seed (xorshift).
+struct Draw(u64);
+
+impl Draw {
+    fn new(seed: u64) -> Draw {
+        Draw(0x9e37_79b9_7f4a_7c15 ^ seed.wrapping_mul(0x1_0001_0001))
+    }
+
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+
+    fn below(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
+
+    /// A length of made-up text from 20 to 950 bytes, short, middling and long in a drawn mix.
+    fn length(&mut self) -> usize {
+        (match self.below(6) {
+            0 => 20 + self.below(60),
+            1 => 700 + self.below(250),
+            _ => 80 + self.below(500),
+        }) as usize
+    }
+}
+
+/// A test handler that commits, in one typed commit, one record of `test_own` for each note and one record of the
+/// window kind `test_trace` for each trace of the body
+/// `{"workflow":<id>,"notes":[<text>,...],"traces":[[<segment>,<expires>],...]}` of its request.
+struct OwnNotes;
+
+impl halvo_derived::Handler for OwnNotes {
+    fn handle(
+        &self,
+        request: &halvo_schema_core::request::RawRequest,
+        cx: &mut halvo_derived::HandlerCx<'_>,
+    ) -> Result<Box<serde_json::value::RawValue>, ErrorName> {
+        let body: serde_json::Value =
+            serde_json::from_str(request.body().get()).map_err(|_| ErrorName::Malformed)?;
+        let workflow = &body["workflow"];
+        let mut records: Vec<TypedRecord> = Vec::new();
+        for note in body["notes"].as_array().ok_or(ErrorName::Malformed)? {
+            records.push(TypedRecord {
+                kind: "test_own",
+                json: format!(
+                    r#"{{"v":1,"workflow":{workflow},"note":{note},"at":1794339000000000000}}"#
+                ),
+            });
+        }
+        for trace in body["traces"].as_array().ok_or(ErrorName::Malformed)? {
+            records.push(TypedRecord {
+                kind: "test_trace",
+                json: format!(
+                    r#"{{"v":1,"workflow":{workflow},"segments":[{}],"expires":{}}}"#,
+                    trace[0], trace[1]
+                ),
+            });
+        }
+        cx.commit(&records).map_err(|_| ErrorName::State)?;
+        Ok(serde_json::value::RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+/// The six calls of the checkpointed write whose removals the page-gap test drives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Removal {
+    Delete,
+    Dismissal,
+    Open,
+    Expiry,
+    Purge,
+    PurgeBelow,
+}
+
+impl Removal {
+    fn letter(self) -> char {
+        match self {
+            Removal::Delete => 'd',
+            Removal::Dismissal => 's',
+            Removal::Open => 'o',
+            Removal::Expiry => 'e',
+            Removal::Purge => 'p',
+            Removal::PurgeBelow => 'b',
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Removal::Delete => "delete-of-a-workflow",
+            Removal::Dismissal => "dismissal",
+            Removal::Open => "expiry-of-an-open",
+            Removal::Expiry => "expiry-call",
+            Removal::Purge => "purge",
+            Removal::PurgeBelow => "purge-below",
+        }
+    }
+}
+
+/// What one drawn store showed: the removals made, the taken markers found after their removal, the stored markers
+/// found in more places than their row and its index entry, and the rows in which the store differs from the model.
+#[derive(Default)]
+struct GapCount {
+    removals: u64,
+    left: u64,
+    copies: u64,
+    model: u64,
+    unseen: u64,
+}
+
+/// The name and the bytes of every entry of `derived/` under `scratch`, read once.
+fn entries_of(scratch: &Scratch) -> Vec<(String, Vec<u8>)> {
+    std::fs::read_dir(scratch.path().join("derived"))
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            (
+                entry.file_name().to_string_lossy().into_owned(),
+                std::fs::read(entry.path()).unwrap_or_default(),
+            )
+        })
+        .collect()
+}
+
+/// The whole made-up markers `vxpg<letter><seed>r<serial>q` in `files`, with the number of places of each.
+fn drawn_markers(files: &[(String, Vec<u8>)], letter: char, seed: u64) -> BTreeMap<String, u64> {
+    let stem = format!("vxpg{letter}{seed:02}r");
+    let mut found = BTreeMap::new();
+    for (_, bytes) in files {
+        let mut at = 0;
+        while at + 14 <= bytes.len() {
+            let piece = &bytes[at..at + 14];
+            if piece.starts_with(stem.as_bytes())
+                && piece[8..13].iter().all(u8::is_ascii_digit)
+                && piece[13] == b'q'
+            {
+                *found
+                    .entry(String::from_utf8_lossy(piece).into_owned())
+                    .or_insert(0) += 1;
+                at += 14;
+            } else {
+                at += 1;
+            }
+        }
+    }
+    found
+}
+
+/// What a taken text of the page-gap test is, read from its form.
+fn what_it_is(text: &str) -> &'static str {
+    if text.starts_with("vxpg") {
+        "a drawn marker of a row of origin own or of an evidence row"
+    } else if text.starts_with(r#"{"v":1,"id":"#) {
+        "the full shape of the workflow's row"
+    } else if text.contains(r#""segments":"#) {
+        "the body of a row of the window kind test_trace"
+    } else if text.starts_with(r#"{"v":1,"workflow":"#) {
+        "the body of a support row"
+    } else if text.ends_with("support") {
+        "a support row's entry (summary, kind) in the index rows_summary"
+    } else if text.ends_with("evidence") {
+        "an evidence row's entry (summary, kind) in the index rows_summary"
+    } else if text.ends_with(".test") {
+        "the made-up domain of the workflow's site"
+    } else {
+        "a support row's entry (kind, workflow, summary) in the index rows_kind_workflow"
+    }
+}
+
+/// The names of the entries of `files` in which `text` stands whole.
+fn standing_in(files: &[(String, Vec<u8>)], text: &str) -> Vec<String> {
+    files
+        .iter()
+        .filter(|(_, bytes)| bytes.windows(text.len()).any(|w| w == text.as_bytes()))
+        .map(|(name, _)| name.clone())
+        .collect()
+}
+
+/// Whether `text` stands whole in one of `files`.
+fn stands_in(files: &[(String, Vec<u8>)], text: &str) -> bool {
+    !standing_in(files, text).is_empty()
+}
+
+/// The model of a drawn store: the stored rows of origin own by marker, the stored evidence by marker with its
+/// summary's serial and the day of its window, and the stored rows of `test_trace` by their exact body, each with its
+/// workflow, its segment and the day of its window.
+#[derive(Default)]
+struct Model {
+    own: BTreeMap<String, u64>,
+    evidence: BTreeMap<String, (u64, u64, u32)>,
+    traces: BTreeMap<String, (u64, u64, u32)>,
+}
+
+/// One drawn store for one removal. Twelve workflows: eight that the removals take from, four of them with a made-up
+/// domain as their site, and four fillers whose rows stand among theirs. Rows of origin own and evidence with made-up
+/// text of 20 to 950 bytes, and rows of the window kind `test_trace`, are written in a drawn order, 240 at the start
+/// and 30 between the removals. Before each removal of a kind other than the delete of a workflow one filler is deleted,
+/// so that pages are merged and built again while the rows that the removal will take live on them. After each
+/// removal, with the store open and again after the close, every entry of `derived/` is read: the whole markers and
+/// exact bodies that the removal took (for the dismissal and the delete, the bodies of the support rows and of the full
+/// shape of the workflow; for the delete, its site's domain too) are counted where they stand, each stored marker is
+/// counted against its places, and the stored rows are compared with the model through the test's own connection.
+fn page_gap_store(removal: Removal, seed: u64) -> GapCount {
+    let letter = removal.letter();
+    let mut draw = Draw::new(seed * 8 + u64::from(letter as u8));
+    let scratch = Scratch::new("page-gap");
+    let clock = TestClock::at_day(DAY);
+    let host = || {
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
+            "test",
+            Takes::Runner,
+            Box::new(OwnNotes),
+        )
+    };
+    let entries = with(&[&OWN, &TRACE]);
+    let mut store = keyless(&scratch, &entries, host());
+    let sites: Vec<Option<String>> = (0..12u64)
+        .map(|k| (k % 2 == 0 && k < 8).then(|| format!("vxpgsite{letter}{seed:02}k{k}.test")))
+        .collect();
+    let windowed = matches!(removal, Removal::Open | Removal::Expiry);
+    let own_share = if removal == Removal::Dismissal { 4 } else { 7 };
+    let mut serial = 0u64;
+    let mut at = 0u64;
+    let episode_of =
+        |k: u64, serial: u64, marker: Option<&str>, expires_day: Option<u32>, draw: &mut Draw| {
+            let fill = ["ab", "cd", "ef", "gh"][draw.below(4) as usize].repeat(draw.length() / 2);
+            let title = format!("{} {fill}", marker.unwrap_or("Pay"));
+            let mut e = titled(serial, DAY, &format!("com.example.pg{k}"), &title);
+            e.site = sites[k as usize].as_deref().map(|s| domain(s).unwrap());
+            if let Some(day) = expires_day {
+                e.expires = Instant(i64::from(day) * DAY_NS);
+            }
+            e
+        };
+    let mut batch = |store: &mut Store, episodes: Vec<Episode>| {
+        at += 1;
+        store
+            .commit_batch(
+                &store_id(1),
+                &episodes,
+                position(at, 0),
+                &mut Seq(1000 * at),
+            )
+            .unwrap();
+    };
+    let first: Vec<Episode> = (0..12u64)
+        .map(|k| {
+            serial += 1;
+            episode_of(k, serial, None, None, &mut draw)
+        })
+        .collect();
+    batch(&mut store, first);
+    let mut ids: BTreeMap<u64, String> = BTreeMap::new();
+    for item in listed(&store) {
+        if let Workflow::Full(full) = &item.workflow {
+            let k: u64 = full
+                .app
+                .as_str()
+                .trim_start_matches("com.example.pg")
+                .parse()
+                .unwrap();
+            ids.insert(k, item.workflow.id().as_str().to_owned());
+        }
+    }
+    assert_eq!(ids.len(), 12);
+    let mut live: Vec<u64> = (0..12).collect();
+    let mut takeable: Vec<u64> = (0..8).collect();
+    let mut fillers: Vec<u64> = (8..12).collect();
+    let mut model = Model::default();
+    let mut today = DAY;
+    let mut count = GapCount::default();
+
+    let mut write = |store: &mut Store,
+                     draw: &mut Draw,
+                     live: &[u64],
+                     model: &mut Model,
+                     today: u32,
+                     rows: u64| {
+        let mut written = 0;
+        while written < rows {
+            let k = live[draw.below(live.len() as u64) as usize];
+            if draw.below(10) < own_share {
+                let (mut notes, mut traces) = (Vec::new(), Vec::new());
+                for _ in 0..1 + draw.below(4) {
+                    serial += 1;
+                    let marker = format!("vxpg{letter}{seed:02}r{serial:05}q");
+                    let fill =
+                        ["ij", "kl", "mn", "op"][draw.below(4) as usize].repeat(draw.length() / 2);
+                    notes.push(format!("{marker} {fill}"));
+                    model.own.insert(marker, k);
+                }
+                for _ in 0..draw.below(3) {
+                    serial += 1;
+                    let day = if windowed {
+                        today + 1 + draw.below(5) as u32
+                    } else {
+                        DAY + 400
+                    };
+                    let expires = i64::from(day) * DAY_NS + 7_000 + serial as i64;
+                    traces.push(serde_json::json!([serial, expires]));
+                    let body = format!(
+                        r#"{{"v":1,"workflow":"{}","segments":[{serial}],"expires":{expires}}}"#,
+                        ids[&k]
+                    );
+                    model.traces.insert(body, (k, serial, day));
+                }
+                written += (notes.len() + traces.len()) as u64;
+                let body =
+                    serde_json::json!({"workflow": ids[&k], "notes": notes, "traces": traces})
+                        .to_string();
+                store.handle(&raw_request("runner", &body)).unwrap();
+            } else {
+                serial += 1;
+                let marker = format!("vxpg{letter}{seed:02}r{serial:05}q");
+                let expires = windowed.then(|| today + 1 + draw.below(5) as u32);
+                let e = episode_of(k, serial, Some(&marker), expires, draw);
+                model
+                    .evidence
+                    .insert(marker, (k, serial, expires.unwrap_or(u32::MAX)));
+                batch(store, vec![e]);
+                written += 1;
+            }
+        }
+    };
+
+    write(&mut store, &mut draw, &live, &mut model, today, 240);
+    for _ in 0..4 {
+        if removal != Removal::Delete && !fillers.is_empty() {
+            let filler = fillers.remove(0);
+            store
+                .decide(&InterfaceDecision::delete(
+                    &InterfaceRole::claim(),
+                    RequestId::from_random([8; 16]),
+                    WorkflowId::parse(&ids[&filler]).unwrap(),
+                ))
+                .unwrap();
+            live.retain(|l| *l != filler);
+            model.own.retain(|_, of| *of != filler);
+            model.evidence.retain(|_, (of, _, _)| *of != filler);
+            model.traces.retain(|_, (of, _, _)| *of != filler);
+        }
+        let mut taken_markers: Vec<String> = Vec::new();
+        let mut taken_texts: Vec<String> = Vec::new();
+        let evidence_entry = |n: u64| format!("{}evidence", summary_id(n).as_str());
+        let act: Box<dyn FnOnce(&mut Store)> = match removal {
+            Removal::Delete | Removal::Dismissal => {
+                if takeable.len() < 3 {
+                    break;
+                }
+                let k = takeable.remove(draw.below(takeable.len() as u64) as usize);
+                let item = listed(&store)
+                    .into_iter()
+                    .find(|item| item.workflow.id().as_str() == ids[&k])
+                    .unwrap();
+                let workflow = item.workflow.id().clone();
+                taken_texts.push(serde_json::to_string(&item.workflow).unwrap());
+                for summary in &item.summaries {
+                    let support = halvo_schema_core::record::Support {
+                        workflow: workflow.clone(),
+                        summary: summary.clone(),
+                        day: DAY,
+                    };
+                    taken_texts.push(serde_json::to_string(&support).unwrap());
+                    taken_texts.push(format!("{}{}", workflow.as_str(), summary.as_str()));
+                    taken_texts.push(format!("{}support", summary.as_str()));
+                }
+                if removal == Removal::Delete {
+                    live.retain(|l| *l != k);
+                    taken_texts.extend(sites[k as usize].clone());
+                    taken_markers.extend(
+                        model
+                            .own
+                            .iter()
+                            .filter(|(_, of)| **of == k)
+                            .map(|(m, _)| m.clone()),
+                    );
+                    for (marker, (of, n, _)) in &model.evidence {
+                        if *of == k {
+                            taken_markers.push(marker.clone());
+                            taken_texts.push(evidence_entry(*n));
+                        }
+                    }
+                    taken_texts.extend(
+                        model
+                            .traces
+                            .iter()
+                            .filter(|(_, (of, _, _))| *of == k)
+                            .map(|(b, _)| b.clone()),
+                    );
+                }
+                let decision = if removal == Removal::Delete {
+                    InterfaceDecision::delete
+                } else {
+                    InterfaceDecision::dismiss
+                };
+                Box::new(move |store: &mut Store| {
+                    store
+                        .decide(&decision(
+                            &InterfaceRole::claim(),
+                            RequestId::from_random([7; 16]),
+                            workflow,
+                        ))
+                        .unwrap();
+                })
+            }
+            Removal::Expiry | Removal::Open => {
+                today += 1;
+                for (marker, (_, n, d)) in &model.evidence {
+                    if *d <= today {
+                        taken_markers.push(marker.clone());
+                        taken_texts.push(evidence_entry(*n));
+                    }
+                }
+                taken_texts.extend(
+                    model
+                        .traces
+                        .iter()
+                        .filter(|(_, (_, _, d))| *d <= today)
+                        .map(|(b, _)| b.clone()),
+                );
+                Box::new(|store: &mut Store| {
+                    store.expire().unwrap();
+                })
+            }
+            Removal::Purge => {
+                let mut ordinals = Vec::new();
+                for (marker, (_, n, _)) in &model.evidence {
+                    if draw.below(3) == 0 {
+                        ordinals.push(ord(*n));
+                        taken_markers.push(marker.clone());
+                        taken_texts.push(evidence_entry(*n));
+                    }
+                }
+                for (body, (_, n, _)) in &model.traces {
+                    if draw.below(3) == 0 {
+                        ordinals.push(ord(*n));
+                        taken_texts.push(body.clone());
+                    }
+                }
+                Box::new(move |store: &mut Store| {
+                    store.purge(&ordinals).unwrap();
+                })
+            }
+            Removal::PurgeBelow => {
+                let mut segments: Vec<u64> = model
+                    .evidence
+                    .values()
+                    .chain(model.traces.values())
+                    .map(|(_, n, _)| *n)
+                    .collect();
+                segments.sort();
+                let first_live = segments[segments.len() / 3] + 1;
+                for (marker, (_, n, _)) in &model.evidence {
+                    if *n < first_live {
+                        taken_markers.push(marker.clone());
+                        taken_texts.push(evidence_entry(*n));
+                    }
+                }
+                taken_texts.extend(
+                    model
+                        .traces
+                        .iter()
+                        .filter(|(_, (_, n, _))| *n < first_live)
+                        .map(|(b, _)| b.clone()),
+                );
+                Box::new(move |store: &mut Store| {
+                    store.purge_below(ord(first_live)).unwrap();
+                })
+            }
+        };
+        let before = entries_of(&scratch);
+        let seen = drawn_markers(&before, letter, seed);
+        count.unseen += taken_markers
+            .iter()
+            .filter(|m| !seen.contains_key(*m))
+            .count() as u64;
+        count.unseen += taken_texts
+            .iter()
+            .filter(|t| !stands_in(&before, t))
+            .count() as u64;
+        drop(before);
+        if removal == Removal::Open {
+            clock.set_day(today);
+            drop(store);
+            store = keyless(&scratch, &entries, host());
+        } else {
+            if removal == Removal::Expiry {
+                clock.set_day(today);
+            }
+            act(&mut store);
+        }
+        count.removals += 1;
+        for marker in &taken_markers {
+            model.own.remove(marker);
+            model.evidence.remove(marker);
+        }
+        for body in &taken_texts {
+            model.traces.remove(body);
+        }
+        let mut left: BTreeSet<String> = BTreeSet::new();
+        let scan = |left: &mut BTreeSet<String>, count: &mut GapCount, model: &Model| {
+            let files = entries_of(&scratch);
+            let found = drawn_markers(&files, letter, seed);
+            for text in taken_markers.iter().chain(taken_texts.iter()) {
+                let entries = standing_in(&files, text);
+                if !entries.is_empty() && left.insert(text.clone()) {
+                    println!(
+                        "PAGE-GAP {} seed {seed}: left after its removal: {} in {}",
+                        removal.name(),
+                        what_it_is(text),
+                        entries.join(" and ")
+                    );
+                }
+            }
+            for (marker, places) in &found {
+                let allowed = if model.own.contains_key(marker) {
+                    2
+                } else if model.evidence.contains_key(marker) {
+                    1
+                } else {
+                    continue;
+                };
+                if *places > allowed {
+                    count.copies += 1;
+                }
+            }
+        };
+        scan(&mut left, &mut count, &model);
+        drop(store);
+        scan(&mut left, &mut count, &model);
+        let conn = plain(&scratch);
+        let mut statement = conn
+            .prepare(
+                "SELECT kind, body FROM rows WHERE kind IN ('test_own', 'evidence', 'test_trace')",
+            )
+            .unwrap();
+        let rows: Vec<(String, String)> = statement
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        drop(statement);
+        drop(conn);
+        let stem = format!("vxpg{letter}{seed:02}r");
+        let mut stored: BTreeSet<String> = BTreeSet::new();
+        for (kind, body) in &rows {
+            if kind == "test_trace" {
+                stored.insert(body.clone());
+            } else if let Some(at) = body.find(&stem) {
+                stored.insert(body[at..(at + 14).min(body.len())].to_owned());
+            }
+        }
+        let expected: BTreeSet<String> = model
+            .own
+            .keys()
+            .chain(model.evidence.keys())
+            .chain(model.traces.keys())
+            .cloned()
+            .collect();
+        count.model += stored.symmetric_difference(&expected).count() as u64;
+        count.left += left.len() as u64;
+        store = keyless(&scratch, &entries, host());
+        write(&mut store, &mut draw, &live, &mut model, today, 30);
+    }
+    drop(store);
+    count
+}
+
+/// The seeds of the page-gap test, for each removal: chosen so that, at a head whose build of the database leaves the
+/// gap of a rebuilt page as it was, each removal leaves at least one marker (9087f2d7 on this Mac: a drawn search over
+/// seeds 1 to 24 for the dismissal and 1 to 16 for the others).
+const PAGE_GAP_SEEDS: &[(Removal, &[u64])] = &[
+    (Removal::Delete, &[1, 2, 3, 4, 5, 6, 7, 8]),
+    (Removal::Dismissal, &[1, 2, 3, 4, 5, 6, 7, 8]),
+    (Removal::Open, &[2, 12, 1, 3]),
+    (Removal::Expiry, &[4, 5, 1, 2]),
+    (Removal::Purge, &[15, 1, 2, 3]),
+    (Removal::PurgeBelow, &[1, 6, 2, 3]),
+];
+
+/// Removed rows leave no text in the gap of a page that the database built again (rulings S-80, item 5, S-81, F3, and
+/// S-82, item 4, written from the verifier's probe evidence/verifier-37/v37r.rs). For each of the six calls of the
+/// checkpointed write that `every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search` lists (the
+/// delete of a workflow, the dismissal, the expiry of an open, the expiry call, the purge and the purge below the first
+/// live ordinal), drawn keyless stores with fixed seeds, 8 for the delete and the dismissal and 4 for each of the
+/// others, each as `page_gap_store` builds it, four stores at a time on threads of their own. The test prints one line per removal with its counts: the stores, the
+/// removals, the taken markers and bodies found in an entry of `derived/` after their removal, the stored markers found
+/// in more places than their row and its index entry, and the stored rows that differ from the model. It fails when one
+/// count but the first two is above 0. At a head whose build of the database leaves the gap of a rebuilt page as it
+/// was, it fails: that is the finding of ruling S-82, which the mend of the database's build closes.
+#[test]
+fn removed_rows_leave_no_text_in_the_gap_of_a_page_built_again() {
+    let mut lines = Vec::new();
+    let mut failed = false;
+    for (removal, seeds) in PAGE_GAP_SEEDS {
+        let mut total = GapCount::default();
+        let mut counts = Vec::new();
+        for four in seeds.chunks(4) {
+            counts.extend(std::thread::scope(|scope| {
+                let runs: Vec<_> = four
+                    .iter()
+                    .map(|seed| scope.spawn(move || page_gap_store(*removal, *seed)))
+                    .collect();
+                runs.into_iter()
+                    .map(|run| run.join().unwrap())
+                    .collect::<Vec<GapCount>>()
+            }));
+        }
+        for count in counts {
+            total.removals += count.removals;
+            total.left += count.left;
+            total.copies += count.copies;
+            total.model += count.model;
+            total.unseen += count.unseen;
+        }
+        let line = format!(
+            "PAGE-GAP {}: stores {}, removals {}, markers-left {}, extra-copies {}, model-differences {}, \
+             unseen-before-removal {}",
+            removal.name(),
+            seeds.len(),
+            total.removals,
+            total.left,
+            total.copies,
+            total.model,
+            total.unseen
+        );
+        println!("{line}");
+        failed |= total.left > 0 || total.copies > 0 || total.model > 0 || total.unseen > 0;
+        lines.push(line);
+    }
+    assert!(
+        !failed,
+        "removed rows left text in the files:\n{}",
+        lines.join("\n")
     );
 }

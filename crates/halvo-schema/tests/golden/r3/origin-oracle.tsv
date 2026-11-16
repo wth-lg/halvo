@@ -1,4 +1,4 @@
-# made by node v26.12.0 (url.domainToASCII and new URL, the WHATWG URL parser with UTS 46), from origin-table.js of the run ledger's evidence/builder-20/bin, seed 20261112; labels=2985 addresses=2000; columns: kind, the input as hex of its UTF-8, node's answer, - where node refuses
+# made by node v26.12.0 (url.domainToASCII and new URL, the WHATWG URL parser with UTS 46), from origin-table.js of the run ledger's evidence/builder-20/bin, seed 20261112, and the number-form address rows of add-number-rows.js of the run ledger's evidence/builder-29/bin (node v26.12.0, 23 rows); labels=2985 addresses=2023; columns: kind, the input as hex of its UTF-8, node's answer, - where node refuses
 label	7061793132eb8980eb8c80	xn--pay12-346ty4b
 label	e9ada5e6b9a0e4bcbcecbb9861	xn--a-156a990he43bw01c
 label	e7bab0e69786ed97a1e5b8becebd	xn--yxa1547bize501a0u0h
@@ -4984,3 +4984,26 @@ address	487474703a2f2feba6bfe88dbae8be9ee9949c512e7465737423212f686f6d65	http://
 address	4854540a503a2f2f5c753a7040612e343239343936373239353f78	-
 address	68747470733a2f2f2f753a7040e889b7eb8383d0a1e383b22ed0bce7bca4d185c389e382bdce992eec91995f	https://xn--q1a699tzd5csyvb.xn--9ca45lglfb7094bxk2f.xn--_-835f:443
 address	48747450733a2f2f7540d098e383b1e79dbbed94a6e8a9855a39cf845f2e6578616d706c652e786e2d2d62636865722d6b76613a303830234078	https://xn--z9_-vzc19cw06svgxfpo5af34k.example.xn--bcher-kva:80
+address	687474703a2f2f303137372e302e302e312f	http://127.0.0.1:80
+address	68747470733a2f2f303137372e302e302e312f	https://127.0.0.1:443
+address	687474703a2f2f312e322e332e30342f	http://1.2.3.4:80
+address	687474703a2f2f3031302e302e302e312f	http://8.0.0.1:80
+address	687474703a2f2f30302e302e302e302f	http://0.0.0.0:80
+address	687474703a2f2f3132372e302e302e3031302f	http://127.0.0.8:80
+address	687474703a2f2f303132372e302e302e312f	http://87.0.0.1:80
+address	687474703a2f2f303330302e303235302e302e312f	http://192.168.0.1:80
+address	687474703a2f2f30382e302e302e312f	-
+address	687474703a2f2f307837662e302e302e312f	http://127.0.0.1:80
+address	68747470733a2f2f307866662e307866662e307866662e307866662f	https://255.255.255.255:443
+address	687474703a2f2f312e322e332e3078612f	http://1.2.3.10:80
+address	687474703a2f2f307837663030303030312f	http://127.0.0.1:80
+address	687474703a2f2f3078612e3078622f	http://10.0.0.11:80
+address	687474703a2f2f307843302e307841382e302e312f	http://192.168.0.1:80
+address	687474703a2f2f312e322e3078332e342f	http://1.2.3.4:80
+address	687474703a2f2f312e322e332e3078672f	http://1.2.3.0xg:80
+address	687474703a2f2f312e322e332e342e352f	-
+address	687474703a2f2f312e322e332e342e352e362f	-
+address	68747470733a2f2f3132372e302e302e302e312f	-
+address	687474703a2f2f302e302e302e302e302f	-
+address	687474703a2f2f312e322e332e342e3078352f	-
+address	687474703a2f2f612e312e322e332e342f	-

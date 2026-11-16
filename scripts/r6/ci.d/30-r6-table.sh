@@ -11,6 +11,29 @@ specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 required=scripts/r6/required-tests.txt
 fixed_tests='halvo-route tests/no_grant_in_release.rs no_grant_in_release
 halvo-route tests/no_grant_in_release.rs pinned_files_hold_their_hashes'
+floor_tests='halvo-route tests/no_grant_in_release.rs no_grant_in_release
+halvo-route tests/no_grant_in_release.rs pinned_files_hold_their_hashes
+halvo-route tests/refusal_spend.rs refusal_no_hold
+halvo-route tests/refusal_spend.rs refusal_over_room
+halvo-route tests/refusal_spend.rs refusal_second_dispatch
+halvo-route tests/refusal_spend.rs refusal_ruling_none
+halvo-route tests/refusal_spend.rs refusal_no_cap
+halvo-route tests/refusal_spend.rs refusal_not_active
+halvo-route tests/refusal_spend.rs refusal_zero_amount
+halvo-route tests/refusal_spend.rs refusal_final_state
+halvo-route src/lib.rs admit::tests::refusal_admit_ruling
+halvo-route src/lib.rs admit::tests::refusal_admit_no_cap
+halvo-route src/lib.rs admit::tests::refusal_admit_over_room
+halvo-route src/lib.rs admit::tests::refusal_admit_sum
+halvo-route src/lib.rs admit::tests::refusal_admit_overflow
+halvo-route src/lib.rs leave::tests::refusal_leave_ruling
+halvo-route src/lib.rs leave::tests::refusal_leave_local
+halvo-route src/lib.rs leave::tests::refusal_leave_ceiling
+halvo-route src/lib.rs leave::tests::refusal_leave_part
+halvo-route src/lib.rs leave::tests::refusal_leave_origin
+halvo-route src/lib.rs leave::tests::refusal_leave_consent
+halvo-route tests/no_grant_in_release.rs the_manifest_holds_the_package_and_the_dev_dependencies_alone
+halvo-route tests/formal_traces.rs formal_traces'
 pin_file=crates/halvo-route/tests/no_grant_in_release.rs
 want_line='selftest tables=20 derived_pass=20 product_pass=- one_tier_fail=20 random_fail=20 peek_fail=20'
 want_product='selftest tables=20 derived_pass=20 product_pass=20 one_tier_fail=20 random_fail=20 peek_fail=20'
@@ -198,6 +221,23 @@ $wanted_text
 EOF
 }
 
+hold_floor() {
+  floor_list=$committed/$required
+  [ -f "$floor_list" ] || floor_list=/dev/null
+  R6_FLOOR=$floor_tests awk '
+    { sub(/\r$/, ""); have[$0] = 1 }
+    END {
+      n = split(ENVIRON["R6_FLOOR"], line, "\n")
+      for (i = 1; i <= n; i++) {
+        if (!(line[i] in have)) {
+          print "required dropped=" line[i]
+          bad = 1
+        }
+      }
+      exit bad
+    }' "$floor_list"
+}
+
 pinned() {
   "$@" crates/halvo-route/src/lib.rs crates/halvo-route/src/leave.rs crates/halvo-route/src/ruling.rs \
     crates/halvo-route/src/tier.rs crates/halvo-route/Cargo.toml
@@ -306,6 +346,7 @@ measure() {
   cause=
 
   read_commit
+  hold_floor || cause=tests
   hold_pins || cause=tests
   if ! cargo test --locked -p halvo-route -p halvo-route-gate >"$artifacts/cargo-test.txt" 2>&1; then
     cause=tests
@@ -417,6 +458,12 @@ restore_repo() {
   cp -R "$work/pristine/." "$work/repo/" || exit 2
 }
 
+required_text() {
+  required_count=$(LC_ALL=C sort -u "$work/wanted.txt" | grep -c '') || exit 2
+  printf 'required tests=%s ok=%s listed=%s ignored=0 ran=%s\n' \
+    "$required_count" "$required_count" "$required_count" "$required_count"
+}
+
 make_stub() {
   mkdir -p "$work/stub" "$work/pristine/scripts/r6" "$work/pristine/crates/halvo-route/src" \
     "$work/pristine/crates/halvo-route/tests" "$work/pristine/crates/halvo-route-gate/tests/data" "$work/tree" || exit 2
@@ -501,6 +548,26 @@ tree_cases() {
   check list-trimmed-in-the-work-tree FAIL "required ignored=$t src/lib.rs admit::tests::refusal_admit_sum"
   restore_repo
 
+  mkdir "$work/committed-short" || exit 2
+  cp -R "$work/pristine/." "$work/committed-short/" || exit 2
+  grep -v ' refusal_zero_amount$' "$work/pristine/$required" >"$work/committed-short/$required"
+  STUB_COMMITTED=$work/committed-short
+  check list-of-the-commit-lost-a-line FAIL "required dropped=$t tests/refusal_spend.rs refusal_zero_amount" \
+    "FAIL $name (tests)"
+
+  mkdir "$work/committed-longer" || exit 2
+  cp -R "$work/pristine/." "$work/committed-longer/" || exit 2
+  printf '%s tests/formal_traces.rs the_floor_refuses_199_drawn_traces\n' "$t" >>"$work/committed-longer/$required"
+  longer_count=$(LC_ALL=C sort -u "$work/wanted.txt" | grep -c '') || exit 2
+  longer_count=$((longer_count + 1))
+  stub_case list-of-the-commit-gained-a-line
+  awk '{ print } $0 == "test formal_traces ... ok" { print "test the_floor_refuses_199_drawn_traces ... ok" }' \
+    "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  printf 'the_floor_refuses_199_drawn_traces: test\n' >>"$STUB_DIR/list-$t-formal_traces.txt"
+  STUB_COMMITTED=$work/committed-longer
+  check list-of-the-commit-gained-a-line PASS "required tests=$longer_count ok=$longer_count" \
+    "PASS $name"
+
   mkdir "$work/committed-e1" || exit 2
   cp -R "$work/pristine/." "$work/committed-e1/" || exit 2
   printf '\n' >>"$work/committed-e1/crates/halvo-route/src/ruling.rs"
@@ -552,12 +619,12 @@ FAIL $name (specimen)"
   printf 'h crates/halvo-route/src/admit.rs\n' >"$STUB_TREE/flags"
   check flagged-file-before-the-run FAIL 'tree changed=before h crates/halvo-route/src/admit.rs'
   printf '? notes.txt\n! target/\n' >"$STUB_TREE/status"
-  check untracked-and-ignored-before-the-run PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check untracked-and-ignored-before-the-run PASS "$want_required"
 
   STUB_QUIET=true
-  check job-sets-cargo-quiet PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check job-sets-cargo-quiet PASS "$want_required"
   STUB_COLOR=always
-  check job-sets-cargo-colour PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check job-sets-cargo-colour PASS "$want_required"
 
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
   code=$?
@@ -657,11 +724,11 @@ required_cases() {
 
   stub_case carriage-returns
   awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
-  check carriage-returns PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check carriage-returns PASS "$want_required"
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
-  check windows-paths PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  check windows-paths PASS "$want_required"
 
   stub_case running-line-without-a-binary
   awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "     Running tests/forge.rs" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -942,6 +1009,7 @@ esac
 EOF
   chmod +x "$work/bin/cargo"
   make_stub
+  want_required=$(required_text) || exit 2
   restore_repo
   rejected=0
   wrong=
@@ -950,7 +1018,7 @@ EOF
   STUB_SELFTEST_EXIT=0
   STUB_FRESH=$work/fresh.tsv
 
-  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21' ' files=5 same=5' "$want_line
+  check all-hold PASS "$want_required" ' files=5 same=5' "$want_line
 specimen rows=540 same=yes
 PASS $name"
   [ -z "${R6_TABLE_NESTED:-}" ] || self_test_end

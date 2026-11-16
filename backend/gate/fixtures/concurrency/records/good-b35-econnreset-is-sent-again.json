@@ -1,0 +1,13 @@
+{
+  "kind": "send",
+  "ruling": "B-35",
+  "about": "an attempt that ended with no status and ECONNRESET is a lost send, as before",
+  "source": "by hand",
+  "attempt": {
+    "status": null,
+    "error": "ECONNRESET"
+  },
+  "expect": {
+    "resend": true
+  }
+}

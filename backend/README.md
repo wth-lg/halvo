@@ -151,7 +151,7 @@ at the first phase, before any check was built.
 **licenses** (`gate/lib/licenses.mjs`). It reads the license of every package in `pnpm-lock.yaml`.
 A package bundled into the deployable Worker must have a license in `gate/license-allowlist.json`.
 Every other package must have one too, or an entry in `gate/license-exceptions.json` that names
-the package, its license and the reason. The check also fails when it could not read every
+the package by its exact name, its versions, its license, the chain that brings it and the reason. The check also fails when it could not read every
 package's license, when an exception covers no package, and when a package is an error-tracking,
 analytics or crash-upload package. That last rule is a list of name patterns in
 `gate/lib/licenses.mjs`: a package of that kind whose name the list does not hold passes it, and
@@ -159,7 +159,11 @@ only the outbound check then sees what the package sends. The PASS line ends wit
 number of packages that this platform does not install, whose license the check reads from
 `.tools/licenses.json`. The check fails for every entry of that file that does not carry the
 lockfile's integrity for its package. It cannot see an entry whose license was changed by hand
-while its integrity was kept. The self-test reads the made checkouts under
+while its integrity was kept. The gate trusts the license field of each package's manifest, and of
+the registry's answer for a package that this platform does not install; it reads no license text.
+At 69342faa the license of 23 of the 29 packages that the exceptions name was read from the
+registry's statement, and one installed package, @img/sharp-libvips-darwin-arm64, carries no
+license file. The self-test reads the made checkouts under
 `gate/fixtures/licenses/` with the readers of the check and builds their Workers with wrangler,
 so it needs the switches of `scripts/env.sh`: start it with
 `sh gate/checks/85-licenses.sh --self-test`.

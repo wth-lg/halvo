@@ -5,6 +5,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
+use crate::executable::names::YesNo;
 use crate::executable::{ApprovalId, Digest, EffectId, RunId, WebOrigin};
 use crate::ids::{AgentId, WorkflowId};
 use crate::record::Instant;
@@ -169,8 +170,8 @@ impl Answered {
     }
 }
 
-/// The `kind` and the `cause` of `item_lapsed`: a confirmation with one of the six causes of I4.2, an item of
-/// another kind with a cause of `OtherLapse`.
+/// The `kind` and the `cause` of `item_lapsed`: a confirmation with one of the seven causes of `ConfirmLapse`, an
+/// item of another kind with a cause of `OtherLapse`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lapsed {
     Confirm(ConfirmLapse),
@@ -193,12 +194,45 @@ impl Lapsed {
     }
 }
 
-/// The `cause` of `hold_cleared`: the hold that ended, with the `run` and the `answer` of the check.
+/// The `cause` of `hold_set`: the hold that was set, with the `run` whose refused sign-in the hold
+/// `sign_in_refused` answers (ruling RD-73 4.2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Held {
+    Person,
+    Failures,
+    SignInRefused { run: RunId },
+}
+
+impl Held {
+    /// The row's `cause`.
+    pub fn cause(&self) -> HoldSetCause {
+        match self {
+            Held::Person => HoldSetCause::Person,
+            Held::Failures => HoldSetCause::Failures,
+            Held::SignInRefused { .. } => HoldSetCause::SignInRefused,
+        }
+    }
+}
+
+/// The `cause` of `hold_cleared`: the hold that ended, with the `run` and the `answer` of the check, and the `run`
+/// whose refused sign-in the hold `sign_in_refused` answered (ruling RD-73 4.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Cleared {
     Person,
     Failures,
     Check { run: RunId, answer: CheckAnswer },
+    SignInRefused { run: RunId },
+}
+
+/// What the coordinator saw of the defers of a run whose whole life it saw, the keys `defer_launch` and
+/// `defer_ticks_failed` of `run_ended` (contracts.md I7.1, ruling RD-86 items 1 and 2): whether the defer of its own
+/// launch was acknowledged, and the count of the ticks at which the run stood on the board and no defer was
+/// acknowledged. Where the life did not see the run whole the writer of U2.4f writes both keys null and never `no`
+/// or 0; that is its duty, and this reader takes `no` and 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Defers {
+    pub launch: YesNo,
+    pub ticks_failed: u32,
 }
 
 /// An event of `coord_event` with the keys that it sets; every other key of the row is null.
@@ -212,6 +246,7 @@ pub enum What {
     RunEnded {
         run: RunId,
         cause: RunEnd,
+        defers: Option<Defers>,
     },
     ItemRaised {
         item: ItemId,
@@ -230,7 +265,7 @@ pub enum What {
         entry: Entry,
     },
     HoldSet {
-        cause: HoldSetCause,
+        held: Held,
     },
     HoldCleared {
         cleared: Cleared,
@@ -260,7 +295,11 @@ impl What {
 /// A record of the kind `coord_event` (contracts.md I7.1): `{"v":1,"workflow":..,"agent":..,"seq":..,"day":..,
 /// "at":..,"event":..,"run":..,"slot":..,"item":..,"kind":..,"effect":..,"approval":..,"digest":..,"answer":..,
 /// "cause":..,"trigger":..,"origin":..}`, every key always written, those that the event does not set as null.
-/// `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
+/// The reader also takes a row with the keys `defer_launch` and `defer_ticks_failed`, both of them or neither, in
+/// any place among these, null on every event and set on `run_ended` alone (contracts.md I7.1, ruling RD-86), so
+/// that it reads a row of a sender that writes them; the writer writes them after `origin`, only on a `run_ended`
+/// whose `defers` is set, and the registry's entry lists neither key yet, so the store's commit refuses a row with
+/// their values until the entry and the writers change together. `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
 /// what a row holds: the registry's `check_record` takes free text under `origin` and free names for this kind, so
 /// a `coord_event` is committed only after `CoordEvent::parse` or `CoordLog::parse` has read it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -276,6 +315,31 @@ pub struct CoordEvent {
 const KEYS: [&str; 18] = [
     "v", "workflow", "agent", "seq", "day", "at", "event", "run", "slot", "item", "kind", "effect",
     "approval", "digest", "answer", "cause", "trigger", "origin",
+];
+
+const DEFER_KEYS: [&str; 2] = ["defer_launch", "defer_ticks_failed"];
+
+const KEYS_WITH_DEFERS: [&str; 20] = [
+    "v",
+    "workflow",
+    "agent",
+    "seq",
+    "day",
+    "at",
+    "event",
+    "run",
+    "slot",
+    "item",
+    "kind",
+    "effect",
+    "approval",
+    "digest",
+    "answer",
+    "cause",
+    "trigger",
+    "origin",
+    "defer_launch",
+    "defer_ticks_failed",
 ];
 
 const OWN: [&str; 11] = [
@@ -415,21 +479,50 @@ fn lapsed(obj: &Obj<'_>, kind: ItemKind) -> Result<Lapsed, Refusal> {
     })
 }
 
-fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
+fn yes_no(raw: &RawValue) -> Result<YesNo, Refusal> {
+    YesNo::parse(&json::string("YesNo", raw)?).map_err(json::agent_setup)
+}
+
+fn defers(obj: &Obj<'_>) -> Result<Option<Defers>, Refusal> {
+    let launch = obj.read("defer_launch", opt(yes_no))?;
+    let ticks_failed = obj.read("defer_ticks_failed", opt(json::count))?;
+    match (launch, ticks_failed) {
+        (None, None) => Ok(None),
+        (Some(launch), Some(ticks_failed)) => Ok(Some(Defers {
+            launch,
+            ticks_failed,
+        })),
+        (Some(_), None) => Err(Refusal::new("CoordEvent", "not_null").at("defer_launch")),
+        (None, Some(_)) => Err(Refusal::new("CoordEvent", "not_null").at("defer_ticks_failed")),
+    }
+}
+
+fn start_rules(trigger: Trigger, slot: Option<u32>) -> Result<(), Refusal> {
+    match (trigger, slot) {
+        (Trigger::Schedule, None) => Err(Refusal::new("CoordEvent", "no_slot").at("slot")),
+        _ => Ok(()),
+    }
+}
+
+fn what(obj: &Obj<'_>, event: Event, with_defers: bool) -> Result<What, Refusal> {
+    if with_defers && event != Event::RunEnded {
+        obj.null_but(&DEFER_KEYS, &[])?;
+    }
     Ok(match event {
         Event::RunStarted => {
             obj.null_but(&OWN, &["run", "slot", "trigger"])?;
-            What::RunStarted {
-                run: obj.read("run", run_id)?,
-                trigger: obj.read("trigger", Trigger::from_raw)?,
-                slot: obj.read("slot", opt(json::count))?,
-            }
+            let run = obj.read("run", run_id)?;
+            let trigger = obj.read("trigger", Trigger::from_raw)?;
+            let slot = obj.read("slot", opt(json::count))?;
+            start_rules(trigger, slot)?;
+            What::RunStarted { run, trigger, slot }
         }
         Event::RunEnded => {
             obj.null_but(&OWN, &["run", "cause"])?;
             What::RunEnded {
                 run: obj.read("run", run_id)?,
                 cause: obj.read("cause", RunEnd::from_raw)?,
+                defers: if with_defers { defers(obj)? } else { None },
             }
         }
         Event::ItemRaised => {
@@ -468,10 +561,23 @@ fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
             }
         }
         Event::HoldSet => {
-            obj.null_but(&OWN, &["cause"])?;
-            What::HoldSet {
-                cause: obj.read("cause", HoldSetCause::from_raw)?,
-            }
+            let held = match obj.read("cause", HoldSetCause::from_raw)? {
+                HoldSetCause::Person => {
+                    obj.null_but(&OWN, &["cause"])?;
+                    Held::Person
+                }
+                HoldSetCause::Failures => {
+                    obj.null_but(&OWN, &["cause"])?;
+                    Held::Failures
+                }
+                HoldSetCause::SignInRefused => {
+                    obj.null_but(&OWN, &["cause", "run"])?;
+                    Held::SignInRefused {
+                        run: obj.read("run", run_id)?,
+                    }
+                }
+            };
+            What::HoldSet { held }
         }
         Event::HoldCleared => {
             let cleared = match obj.read("cause", HoldCause::from_raw)? {
@@ -490,6 +596,12 @@ fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
                         answer: obj.read("answer", CheckAnswer::from_raw)?,
                     }
                 }
+                HoldCause::SignInRefused => {
+                    obj.null_but(&OWN, &["cause", "run"])?;
+                    Cleared::SignInRefused {
+                        run: obj.read("run", run_id)?,
+                    }
+                }
             };
             What::HoldCleared { cleared }
         }
@@ -505,7 +617,12 @@ fn what(obj: &Obj<'_>, event: Event) -> Result<What, Refusal> {
 impl CoordEvent {
     pub(in crate::coordinator) fn from_raw(raw: &RawValue) -> Result<CoordEvent, Refusal> {
         let obj = json::object("CoordEvent", raw)?;
-        obj.exactly(&KEYS)?;
+        let with_defers = DEFER_KEYS.iter().any(|key| obj.has(key));
+        if with_defers {
+            obj.exactly(&KEYS_WITH_DEFERS)?;
+        } else {
+            obj.exactly(&KEYS)?;
+        }
         obj.read("v", json::version("CoordEvent"))?;
         let workflow = obj.read("workflow", workflow_id)?;
         let agent = obj.read("agent", agent_id)?;
@@ -519,7 +636,7 @@ impl CoordEvent {
             seq,
             day,
             at,
-            what: what(&obj, event)?,
+            what: what(&obj, event, with_defers)?,
         })
     }
 
@@ -534,10 +651,13 @@ impl CoordEvent {
         json::write("CoordEvent", self)
     }
 
-    /// Checks the one rule that the types leave to a value: the cause `check` lapses a `ready` item alone.
+    /// Checks the two rules that the types leave to a value: the cause `check` lapses a `ready` item alone, and a
+    /// `run_started` of the trigger `schedule` names its slot, else the rule `no_slot` at `slot` (contracts.md
+    /// I5.3, I7.1).
     pub fn rules(&self) -> Result<(), Refusal> {
         match &self.what {
             What::ItemLapsed { lapsed, .. } => lapsed.rules(),
+            What::RunStarted { trigger, slot, .. } => start_rules(*trigger, *slot),
             _ => Ok(()),
         }
     }
@@ -550,7 +670,7 @@ impl CoordEvent {
                 ("slot", slot.map_or(Cell::Null, Cell::Count)),
                 text("trigger", trigger.as_str()),
             ],
-            What::RunEnded { run, cause } => vec![
+            What::RunEnded { run, cause, .. } => vec![
                 ("run", Cell::Text(run.as_str())),
                 text("cause", cause.as_str()),
             ],
@@ -590,7 +710,13 @@ impl CoordEvent {
                 ]
             }
             What::ItemReleased { item, entry } => entry_cells(item, entry),
-            What::HoldSet { cause } => vec![text("cause", cause.as_str())],
+            What::HoldSet { held } => match held {
+                Held::Person | Held::Failures => vec![text("cause", held.cause().as_str())],
+                Held::SignInRefused { run } => vec![
+                    ("run", Cell::Text(run.as_str())),
+                    text("cause", held.cause().as_str()),
+                ],
+            },
             What::HoldCleared { cleared } => match cleared {
                 Cleared::Person => vec![text("cause", HoldCause::Person.as_str())],
                 Cleared::Failures => vec![text("cause", HoldCause::Failures.as_str())],
@@ -598,6 +724,10 @@ impl CoordEvent {
                     ("run", Cell::Text(run.as_str())),
                     text("answer", answer.as_str()),
                     text("cause", HoldCause::Check.as_str()),
+                ],
+                Cleared::SignInRefused { run } => vec![
+                    ("run", Cell::Text(run.as_str())),
+                    text("cause", HoldCause::SignInRefused.as_str()),
                 ],
             },
             What::SlotSkipped { slot } => vec![("slot", slot.map_or(Cell::Null, Cell::Count))],
@@ -651,7 +781,16 @@ impl Serialize for CoordEvent {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.rules()
             .map_err(<S::Error as serde::ser::Error>::custom)?;
-        let mut map = serializer.serialize_map(Some(KEYS.len()))?;
+        let defers = match &self.what {
+            What::RunEnded { defers, .. } => *defers,
+            _ => None,
+        };
+        let len = if defers.is_some() {
+            KEYS_WITH_DEFERS.len()
+        } else {
+            KEYS.len()
+        };
+        let mut map = serializer.serialize_map(Some(len))?;
         map.serialize_entry("v", &1u32)?;
         map.serialize_entry("workflow", &self.workflow)?;
         map.serialize_entry("agent", &self.agent)?;
@@ -666,6 +805,10 @@ impl Serialize for CoordEvent {
                 .find(|(k, _)| *k == key)
                 .map_or(Cell::Null, |(_, cell)| *cell);
             map.serialize_entry(key, &cell)?;
+        }
+        if let Some(defers) = defers {
+            map.serialize_entry("defer_launch", &Cell::Text(defers.launch.as_str()))?;
+            map.serialize_entry("defer_ticks_failed", &Cell::Count(defers.ticks_failed))?;
         }
         map.end()
     }

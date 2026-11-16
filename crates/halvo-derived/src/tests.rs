@@ -1,12 +1,11 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use halvo_schema_core::kinds;
 use halvo_schema_core::record::{Instant, Proposal, RecurrenceStep, SummaryRead};
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
 
-use crate::db::{due_now, require, Checkpointed, Now, Progress, Removes, Tx};
+use crate::db::{due_now, require, require_mend, Checkpointed, Now, Progress, Removes, Tx};
 use crate::error::OpenError;
 use crate::{sql, Clock, DbKey, Host, IdSource, Store};
 
@@ -53,6 +52,55 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
     assert_eq!(
         past.unwrap_err().sqlite_error_code(),
         Some(ErrorCode::OperationInterrupted)
+    );
+}
+
+/// S-85, item 5: the open refuses by name a process whose linked database does not answer that it is Halvo's mended
+/// build, and this build is that one. No test build links another library, so the call in `Db::open` is held by the
+/// text of src/db.rs: the call stands once on a line of code, a line that is no comment, and that line lies in the
+/// function `open`. Its limit: it reads text, so a call that stands on a line of code and never runs, as one behind a
+/// condition that is false, passes it; a test by behaviour would need a test-only switch in src/db.rs (ruling S-98,
+/// item 2).
+#[test]
+fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
+    assert_eq!(
+        require_mend(false),
+        Err(OpenError::Setting("page_gap_mend_linked"))
+    );
+    assert_eq!(require_mend(true), Ok(()));
+    assert!(halvo_sqlcipher::page_gap_mend_linked());
+    let source = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("db.rs"),
+    )
+    .unwrap()
+    .replace("\r\n", "\n");
+    let call = "require_mend(halvo_sqlcipher::page_gap_mend_linked())?;";
+    let code: Vec<(usize, &str)> = source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim_start().starts_with("//"))
+        .collect();
+    let calls: Vec<usize> = code
+        .iter()
+        .filter(|(_, line)| line.contains(call))
+        .map(|(n, _)| *n)
+        .collect();
+    assert_eq!(calls.len(), 1, "the call on a line of code of src/db.rs");
+    let lines: Vec<&str> = source.lines().collect();
+    let open = lines
+        .iter()
+        .position(|line| line.contains("pub(crate) fn open("))
+        .unwrap();
+    let end = open
+        + lines[open..]
+            .iter()
+            .position(|line| *line == "    }")
+            .unwrap();
+    assert!(
+        (open..end).contains(&calls[0]),
+        "the call stands in Db::open"
     );
 }
 
@@ -184,46 +232,18 @@ impl Drop for UnitDir {
     }
 }
 
-/// One reading of the clock, in nanoseconds since 1970, taken once for the process at its first unit directory.
-fn process_nanos() -> u128 {
-    static AT: std::sync::OnceLock<u128> = std::sync::OnceLock::new();
-    *AT.get_or_init(|| {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    })
-}
-
-/// The name of a unit directory: the test's name, the process id, the process's one reading of the clock and the
-/// counter, so that a process id that the system hands out again meets no directory of an earlier process.
-fn unit_leaf_name(name: &str, pid: u32, nanos: u128, n: usize) -> String {
-    format!("derived-unit-{name}-{pid}-{nanos}-{n}")
-}
-
-/// Makes `parent` where it is missing and then the new directory `leaf` under it, which must not exist.
-fn make_unit_leaf(parent: &Path, leaf: &str) -> std::io::Result<PathBuf> {
-    std::fs::create_dir_all(parent)?;
-    let path = parent.join(leaf);
-    std::fs::create_dir(&path)?;
-    Ok(path)
-}
-
 /// A data directory of its own, one per call, under `tmp/` of the target directory beside the integration tests'
 /// scratch: 12-test fails a test run that leaves an entry in its temporary directory. The test binary stands at
-/// `<target>/<profile>/deps/<binary>`. The directory is named by `unit_leaf_name` and made by `make_unit_leaf`: a leaf
-/// that exists already fails the test at once with its path.
+/// `<target>/<profile>/deps/<binary>`. The directory `derived-unit-<name>-<process id>-<n>` is made by
+/// `halvo_test_dir::make`, which passes over a name that stands.
 fn data_dir(name: &str) -> UnitDir {
-    static COUNT: AtomicUsize = AtomicUsize::new(0);
-    let n = COUNT.fetch_add(1, Ordering::Relaxed);
     let exe = std::env::current_exe().unwrap();
     let parent = exe.ancestors().nth(3).unwrap().join("tmp");
-    let leaf = unit_leaf_name(name, std::process::id(), process_nanos(), n);
-    match make_unit_leaf(&parent, &leaf) {
+    match halvo_test_dir::make(&parent, &format!("derived-unit-{name}")) {
         Ok(path) => UnitDir(path),
         Err(e) => panic!(
-            "the unit directory {} cannot be made: {e}",
-            parent.join(&leaf).display()
+            "the unit directory derived-unit-{name} under {} cannot be made: {e}",
+            parent.display()
         ),
     }
 }
@@ -813,30 +833,6 @@ fn two_unit_directories_of_one_name_in_one_process_get_two_paths() {
     let second = data_dir("twice");
     assert_ne!(first.path(), second.path());
     assert!(first.path().is_dir() && second.path().is_dir());
-}
-
-/// A second making of a unit leaf that exists fails, and leaves the first one's content as it was.
-#[test]
-fn a_second_making_of_a_unit_leaf_that_exists_fails() {
-    let parent = data_dir("leaf-parent");
-    let made = make_unit_leaf(parent.path(), "leaf").unwrap();
-    std::fs::write(made.join("kept"), b"kept").unwrap();
-    assert_eq!(
-        make_unit_leaf(parent.path(), "leaf")
-            .err()
-            .map(|e| e.kind()),
-        Some(std::io::ErrorKind::AlreadyExists)
-    );
-    assert_eq!(std::fs::read(made.join("kept")).unwrap(), b"kept");
-}
-
-/// The name of a unit directory, for one process id and one counter, differs for two readings of the clock.
-#[test]
-fn the_unit_leaf_name_differs_for_two_readings_of_the_clock() {
-    assert_ne!(
-        unit_leaf_name("same", 4242, 1_000, 7),
-        unit_leaf_name("same", 4242, 1_001, 7)
-    );
 }
 
 /// What the text check of the crate's sources found: each line that names ANALYZE or the pragma optimize, each

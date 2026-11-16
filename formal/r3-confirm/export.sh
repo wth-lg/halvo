@@ -117,7 +117,7 @@ fi
 number "$seed" || fail "Export.cfg holds no Seed"
 number "$count" || fail "Export.cfg holds no Count"
 
-work=$(mktemp -d) || fail "mktemp made no directory"
+work=$(mktemp -d "${TMPDIR:-/tmp}/r3-confirm-export.XXXXXX") || fail "mktemp made no directory"
 mkdir "$work/java" || fail "the scratch directory cannot be written"
 cp "$here/Confirm.tla" "$work/Confirm.tla" || fail "Confirm.tla cannot be copied"
 sed -e "s/^  Seed = .*\$/  Seed = $seed/" -e "s/^  Count = .*\$/  Count = $count/" "$here/Export.cfg" >"$work/Export.cfg" ||
@@ -125,7 +125,7 @@ sed -e "s/^  Seed = .*\$/  Seed = $seed/" -e "s/^  Count = .*\$/  Count = $count
 
 (
   cd "$work" || exit 1
-  "$java" -XX:+UseParallelGC -Xmx1g -Djava.io.tmpdir="$work/java" -cp "$jar" tlc2.TLC -workers 1 -deadlock -metadir "$work/states" \
+  "$java" -XX:+UseParallelGC -Xmx1g -Djava.io.tmpdir=java -cp "$jar" tlc2.TLC -workers 1 -deadlock -metadir states \
     -config Export.cfg Confirm.tla >tlc.out 2>tlc.err
 )
 status=$?

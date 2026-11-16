@@ -1,0 +1,58 @@
+{
+  "kind": "attempts",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69), (a)",
+  "about": "an attempt that built no crossing is drawn again and does not stop the driver; the next one crosses and counts",
+  "source": "by hand",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "stopAtFirstViolation": true,
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": 152,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    },
+    {
+      "counted": true,
+      "facts": {
+        "crossed": true,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    }
+  ],
+  "expect": {
+    "halted": false,
+    "discarded": [
+      {
+        "key": "attempt-1",
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": 152
+      }
+    ],
+    "runs": [
+      {
+        "key": "attempt-2",
+        "rigUnbuilt": false
+      }
+    ],
+    "reported": [
+      "attempt-1",
+      "attempt-2"
+    ]
+  }
+}

@@ -1,10 +1,14 @@
+#![deny(clippy::undocumented_unsafe_blocks)]
+
 mod common;
 
 use std::time::Duration;
 
 use common::{gone, line_gone, wait_until, Rig};
 use halvo_agent_client::marks::Group;
-use halvo_agent_client::{process, CallError, EndRun};
+use halvo_agent_client::{
+    process, CallError, EndRun, NotStarted, RelativePath, RunnerExit, StartError,
+};
 use halvo_schema::executable::frame::HandbackResult;
 use halvo_schema::executable::names::{HandbackOutcome, Outcome};
 use halvo_schema::executable::text::V1;
@@ -47,7 +51,10 @@ fn a_runner_that_cannot_be_made_answers_not_started_and_leaves_no_mark() {
     let script = rig.script(&["hello", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert!(rig.mark(&run).is_none());
     let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
     assert_eq!(end.end_run, EndRun::NoRunner);
@@ -56,13 +63,270 @@ fn a_runner_that_cannot_be_made_answers_not_started_and_leaves_no_mark() {
     assert_eq!(rig.sup.cancel(&run), Err(CallError::Ended));
 }
 
+fn relative_start(
+    name: &str,
+    set: impl FnOnce(&mut halvo_agent_client::Config),
+    spec: impl FnOnce(&mut halvo_agent_client::RunSpec),
+) -> (Result<(), StartError>, common::Script, Rig) {
+    let rig = Rig::configured(name, set);
+    let script = rig.script(&["hello", "idle"]);
+    let mut s = rig.spec(&script);
+    spec(&mut s);
+    (rig.sup.start(s), script, rig)
+}
+
+#[test]
+fn a_start_whose_runner_browser_model_or_data_directory_is_relative_answers_not_started_naming_it_before_any_process_or_mark(
+) {
+    let relative_data = std::path::PathBuf::from(format!("relative-data-{}", common::run_id()));
+    let cases = vec![
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-runner",
+                |c| c.runner = std::path::PathBuf::from("agent-client-peer"),
+                |_| {},
+            );
+            ("runner", RelativePath::Runner, script, rig, answer)
+        },
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-browser",
+                |_| {},
+                |s| s.browser = std::path::PathBuf::from("script"),
+            );
+            ("browser", RelativePath::Browser, script, rig, answer)
+        },
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-model",
+                |_| {},
+                |s| s.model = Some(std::path::PathBuf::from("model.gguf")),
+            );
+            ("model", RelativePath::Model, script, rig, answer)
+        },
+        {
+            let data = relative_data.clone();
+            let (answer, script, rig) =
+                relative_start("relative-data", |c| c.data_dir = data, |_| {});
+            ("data directory", RelativePath::DataDir, script, rig, answer)
+        },
+    ];
+    std::thread::sleep(Duration::from_millis(500));
+    for (what, path, script, rig, answer) in &cases {
+        assert_eq!(
+            *answer,
+            Err(StartError::NotStarted(NotStarted::Relative(*path))),
+            "a start with a relative {what}"
+        );
+        assert!(
+            script.log().is_empty(),
+            "a runner was made for a start with a relative {what}: {}",
+            script.log()
+        );
+        assert!(
+            !rig.data().exists(),
+            "a start with a relative {what} wrote under the data directory"
+        );
+        assert!(
+            rig.rec.starts.lock().unwrap().is_empty() && rig.rec.ends.lock().unwrap().is_empty(),
+            "a start with a relative {what} called the mark sink"
+        );
+    }
+    assert!(
+        !relative_data.exists(),
+        "a start with a relative data directory made it"
+    );
+}
+
+#[test]
+fn a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_exit() {
+    let rig = Rig::new("start-refused");
+    let script = rig.script(&["exit 2"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(
+        rig.sup.start(spec),
+        Err(StartError::NotStarted(NotStarted::Runner {
+            exit: Some(RunnerExit::Status(2))
+        }))
+    );
+    assert!(script.wait_log("exit", SHORT), "{}", script.log());
+    assert_runner_gone(&script);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    assert_eq!(
+        end.forced, None,
+        "a runner that left by itself was ended by force"
+    );
+}
+
+#[test]
+fn a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended()
+{
+    let rig = Rig::new("start-refused-child");
+    let script = rig.script(&["child-brief 200", "exit 2"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let asked = std::time::Instant::now();
+    let answer = rig.sup.start(spec);
+    let waited = asked.elapsed();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    eprintln!(
+        "u46 refused start with a brief child: start answered after {} ms, end reported after {} ms",
+        waited.as_millis(),
+        asked.elapsed().as_millis()
+    );
+    assert_eq!(
+        answer,
+        Err(StartError::NotStarted(NotStarted::Runner {
+            exit: Some(RunnerExit::Status(2))
+        }))
+    );
+    let children = script.logged("child");
+    assert_eq!(children.len(), 1, "{}", script.log());
+    if cfg!(windows) {
+        assert_eq!(
+            end.forced, None,
+            "the job's child ended by itself within the settle and was recorded as ended by force"
+        );
+    } else {
+        assert_eq!(
+            end.forced,
+            Some(halvo_agent_client::Forced {
+                path: halvo_agent_client::ForcedPath::LinkEnd,
+                browser: false
+            }),
+            "a child in the runner's group is ended with the group at the runner's exit"
+        );
+    }
+    assert!(wait_until(SHORT, || children
+        .iter()
+        .all(|(pid, created)| gone(*pid, *created))));
+}
+
+#[test]
+fn a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_nothing() {
+    let rig = Rig::new("start-running-relative");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec.clone()).unwrap();
+    let mut again = spec;
+    again.browser = std::path::PathBuf::from("script");
+    assert_eq!(rig.sup.start(again), Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    assert_eq!(rig.rec.starts.lock().unwrap().len(), 1);
+    rig.sup.kill(&run).unwrap();
+}
+
+static FAIL_READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn system_temp() -> Option<std::ffi::OsString> {
+    static TEMP: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+    TEMP.get_or_init(|| {
+        let out = std::process::Command::new("/usr/bin/getconf")
+            .arg("DARWIN_USER_TEMP_DIR")
+            .output()
+            .ok()?;
+        let text = String::from_utf8(out.stdout).ok()?;
+        Some(text.trim().into())
+    })
+    .clone()
+}
+
+fn read_until_told(value: halvo_agent_client::SystemValue) -> Option<std::ffi::OsString> {
+    use halvo_agent_client::SystemValue;
+    if FAIL_READ.load(std::sync::atomic::Ordering::SeqCst) {
+        return None;
+    }
+    match value {
+        SystemValue::SystemRoot => std::env::var_os("SystemRoot"),
+        SystemValue::TmpDir => system_temp(),
+        SystemValue::Temp => Some(std::env::temp_dir().into_os_string()),
+    }
+}
+
+#[test]
+fn a_start_of_a_running_run_id_whose_value_read_fails_on_that_call_answers_started_and_makes_nothing(
+) {
+    let rig = Rig::reading("start-running-missing", read_until_told);
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let at = std::time::Instant::now();
+    let first = rig.sup.start(spec.clone());
+    assert_eq!(
+        first,
+        Ok(()),
+        "the first start after {:?}: {}",
+        at.elapsed(),
+        script.log()
+    );
+    FAIL_READ.store(true, std::sync::atomic::Ordering::SeqCst);
+    let again = rig.sup.start(spec);
+    FAIL_READ.store(false, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(again, Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    assert_eq!(rig.rec.starts.lock().unwrap().len(), 1);
+    assert!(rig.rec.ends.lock().unwrap().is_empty());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_start_with_a_relative_browser_of_a_run_id_whose_mark_of_an_earlier_life_stands_answers_started(
+) {
+    let rig = Rig::new("start-mark-relative");
+    let script = rig.script(&["hello", "idle"]);
+    let mut spec = rig.spec(&script);
+    let dir = halvo_agent_client::marks::marks_dir(&rig.data());
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join(spec.run.as_str()),
+        halvo_agent_client::marks::first_line(&spec.run),
+    )
+    .unwrap();
+    spec.browser = std::path::PathBuf::from("script");
+    assert_eq!(rig.sup.start(spec), Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(
+        script.log().is_empty(),
+        "a runner was made: {}",
+        script.log()
+    );
+    assert!(rig.rec.starts.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_start_refused_for_a_relative_path_leaves_no_entry_and_the_same_run_id_then_starts() {
+    let rig = Rig::new("start-refused-then-absolute");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let mut relative = spec.clone();
+    relative.browser = std::path::PathBuf::from("script");
+    assert_eq!(
+        rig.sup.start(relative),
+        Err(StartError::NotStarted(NotStarted::Relative(
+            RelativePath::Browser
+        )))
+    );
+    assert_eq!(rig.sup.kill(&run), Err(CallError::UnknownRun));
+    assert_eq!(rig.sup.start(spec), Ok(()));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    rig.sup.kill(&run).unwrap();
+}
+
 #[test]
 fn a_runner_that_ends_before_the_start_answers_gives_not_started_and_leaves_no_process() {
     let rig = Rig::new("start-ends");
     let script = rig.script(&["child", "sleep 200", "exit 3"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     let children = script.logged("child");
     assert_eq!(children.len(), 1, "{}", script.log());
@@ -79,6 +343,7 @@ fn a_runner_that_ends_with_no_stored_finish_gets_end_run_and_its_mark_goes_at_th
     let rig = Rig::new("end-run");
     let script = rig.script(&[
         "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
         r#"send {"t":"progress","step":1,"of":2}"#,
         r#"send {"t":"done","outcome":"failed"}"#,
         "exit 1",
@@ -113,7 +378,11 @@ fn an_end_run_that_is_not_acknowledged_leaves_the_mark() {
     rig.store
         .fail_all
         .store(1, std::sync::atomic::Ordering::SeqCst);
-    let script = rig.script(&["hello", "exit 1"]);
+    let script = rig.script(&[
+        "hello",
+        r#"ask {"t":"secret","ref":"fixture_token"}"#,
+        "exit 1",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
@@ -153,7 +422,10 @@ fn a_runner_that_does_not_answer_within_the_wait_is_ended_before_not_started() {
     let script = rig.script(&["child", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     let children = script.logged("child");
     assert_eq!(children.len(), 1, "{}", script.log());
@@ -167,7 +439,10 @@ fn a_hello_of_another_run_is_no_start() {
     let script = rig.script(&["hello-other", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     assert!(rig.rec.wait_end(&run, SHORT).is_some());
 }
@@ -181,7 +456,10 @@ fn a_second_start_of_a_run_id_is_refused_with_started_and_makes_no_runner() {
     rig.sup.start(spec.clone()).unwrap();
     let before =
         std::fs::read_to_string(rig.data().join("agents/marks").join(run.as_str())).unwrap();
-    assert_eq!(rig.sup.start(spec), Err(CallError::Started));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::Started)
+    );
     let after =
         std::fs::read_to_string(rig.data().join("agents/marks").join(run.as_str())).unwrap();
     assert_eq!(before, after);
@@ -198,7 +476,10 @@ fn a_start_of_a_run_whose_mark_of_an_earlier_life_stands_is_refused_with_started
     std::fs::create_dir_all(&dir).unwrap();
     let first = format!("mark run={}\n", spec.run);
     std::fs::write(dir.join(spec.run.as_str()), &first).unwrap();
-    assert_eq!(rig.sup.start(spec.clone()), Err(CallError::Started));
+    assert_eq!(
+        rig.sup.start(spec.clone()).map_err(StartError::call_error),
+        Err(CallError::Started)
+    );
     assert_eq!(
         std::fs::read_to_string(dir.join(spec.run.as_str())).unwrap(),
         first
@@ -271,7 +552,10 @@ fn a_browser_frame_before_hello_is_answered_and_its_browser_is_ended_by_a_start_
     );
     let script = rig.script(&["browser child", "idle"]);
     let spec = rig.spec(&script);
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert!(
         script.log().contains(r#"reply {"t":"browser_reply"}"#),
         "{}",
@@ -357,7 +641,10 @@ fn a_hello_of_another_agent_is_no_start() {
     let script = rig.script(&["hello-other-agent", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     assert!(rig.rec.wait_end(&run, SHORT).is_some());
 }
@@ -366,15 +653,15 @@ fn a_hello_of_another_agent_is_no_start() {
 fn a_frame_that_cannot_be_read_ends_the_run_and_its_runner() {
     for bad in ["garbage", "oversize"] {
         let rig = Rig::new("broken-frame");
-        let script = rig.script(&["hello", "on-eof hang", "child", bad, "log sent", "idle"]);
+        let script = rig.script(&["hello", "on-eof hang", "child", bad, "idle"]);
         let spec = rig.spec(&script);
         let run = spec.run.clone();
         rig.sup.start(spec).unwrap();
-        assert!(script.wait_log("sent", SHORT), "{}", script.log());
         let end = rig.rec.wait_end(&run, SHORT);
         assert!(end.is_some(), "{bad}: the run did not end");
         assert_runner_gone(&script);
         let child = script.logged("child");
+        assert_eq!(child.len(), 1, "{bad}: {}", script.log());
         assert!(
             wait_until(SHORT, || child.iter().all(|(p, c)| gone(*p, *c))),
             "{bad}"
@@ -402,4 +689,159 @@ fn a_runner_that_closes_its_output_gets_link_end_to_end_by_itself_before_the_lib
     assert!(rig.rec.wait_end(&run, SHORT + link_end).is_some());
     assert!(gone(runner[0].0, runner[0].1));
     assert!(closed.elapsed() >= link_end - Duration::from_millis(1600));
+}
+
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn waitid(idtype: i32, id: u32, info: *mut std::ffi::c_void, options: i32) -> i32;
+    fn proc_pidinfo(
+        pid: i32,
+        flavor: i32,
+        arg: u64,
+        buffer: *mut std::ffi::c_void,
+        size: i32,
+    ) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+const PROC_PIDTBSDINFO: i32 = 3;
+#[cfg(target_os = "macos")]
+const PROC_BSDINFO_SIZE: usize = 136;
+#[cfg(target_os = "macos")]
+const P_PID: i32 = 1;
+#[cfg(target_os = "macos")]
+const WEXITED: i32 = 0x04;
+#[cfg(target_os = "macos")]
+const WNOHANG: i32 = 0x01;
+#[cfg(target_os = "macos")]
+const WNOWAIT: i32 = 0x20;
+#[cfg(target_os = "macos")]
+const SIGINFO_BUFFER_WORDS: usize = 32;
+#[cfg(target_os = "macos")]
+const SIGINFO_PID_WORD: usize = 3;
+
+#[cfg(target_os = "macos")]
+struct OwnChild(std::process::Child);
+
+#[cfg(target_os = "macos")]
+impl Drop for OwnChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn table_row(pid: u32, arg: u64) -> Result<u32, i32> {
+    let mut buf = [0u8; PROC_BSDINFO_SIZE];
+    let size = i32::try_from(PROC_BSDINFO_SIZE).unwrap();
+    let pid = i32::try_from(pid).unwrap();
+    // SAFETY: buf holds PROC_BSDINFO_SIZE bytes, the size that the call is given, and proc_pidinfo writes at most
+    // that many; it reads the table and changes nothing.
+    let got = unsafe { proc_pidinfo(pid, PROC_PIDTBSDINFO, arg, buf.as_mut_ptr().cast(), size) };
+    if got == size {
+        Ok(u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]))
+    } else {
+        Err(std::io::Error::last_os_error().raw_os_error().unwrap_or(0))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn exit_reported(pid: u32) -> bool {
+    let mut info = [0i32; SIGINFO_BUFFER_WORDS];
+    // SAFETY: info holds 128 bytes, more than the 104 bytes of siginfo_t that waitid writes; WNOWAIT leaves the
+    // child unreaped and WNOHANG returns at once.
+    let r = unsafe {
+        waitid(
+            P_PID,
+            pid,
+            info.as_mut_ptr().cast(),
+            WEXITED | WNOHANG | WNOWAIT,
+        )
+    };
+    r == 0 && u32::try_from(info[SIGINFO_PID_WORD]).ok() == Some(pid)
+}
+
+#[cfg(target_os = "macos")]
+const PROBE_PIPE: &str = "the standard library makes the probe's pipe on macOS and then marks its ends close-on-exec, which is no one step; a process that another thread of the test binary starts in between holds the write end, so /bin/cat sees no end of its input and the probe fails at the wait for its exit, a failure of the probe and not of the read";
+
+#[cfg(target_os = "macos")]
+#[test]
+fn the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_read_with_it_finds_the_unreaped_one(
+) {
+    use std::process::{Command, Stdio};
+    let mut child = OwnChild(
+        Command::new("/bin/cat")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+    let pid = child.0.id();
+    let input = child.0.stdin.take();
+    let created = process::creation_time(pid);
+    let running = (
+        table_row(pid, 0),
+        table_row(pid, 1),
+        created.is_some_and(|c| process::is_running(pid, c)),
+    );
+    drop(input);
+    let exited = wait_until(SHORT, || exit_reported(pid));
+    let unreaped = (
+        table_row(pid, 0),
+        table_row(pid, 1),
+        process::creation_time(pid),
+        created.is_some_and(|c| process::is_running(pid, c)),
+    );
+    let reaped_status = if exited { child.0.wait().ok() } else { None };
+    let reaped = (
+        table_row(pid, 0),
+        table_row(pid, 1),
+        process::creation_time(pid),
+        created.is_some_and(|c| process::is_running(pid, c)),
+    );
+    println!("exit-read limit: {PROBE_PIPE}");
+    println!(
+        "exit-read running: arg0={:?} arg1={:?} public={} | exited unreaped: arg0={:?} arg1={:?} public={} | reaped: arg0={:?} arg1={:?} public={}",
+        running.0,
+        running.1,
+        running.2,
+        unreaped.0,
+        unreaped.1,
+        unreaped.2.is_some() || unreaped.3,
+        reaped.0,
+        reaped.1,
+        reaped.2.is_some() || reaped.3
+    );
+    assert!(running.0.is_ok(), "the read with 0 finds the running child");
+    assert!(running.1.is_ok(), "the read with 1 finds the running child");
+    assert!(running.2, "the public reads find the running child");
+    assert!(
+        exited,
+        "the child exited within SHORT once the test closed its input"
+    );
+    assert!(
+        unreaped.0.is_err(),
+        "the read with 0 finds no exited child that is not reaped"
+    );
+    assert!(
+        unreaped.1.is_ok(),
+        "the read with 1 finds the exited child that is not reaped"
+    );
+    assert_eq!(
+        (unreaped.2, unreaped.3),
+        (None, false),
+        "the public reads find no exited child"
+    );
+    assert!(reaped_status.is_some_and(|s| s.success()));
+    assert!(
+        reaped.0.is_err() && reaped.1.is_err(),
+        "neither read finds the reaped child"
+    );
+    assert_eq!(
+        (reaped.2, reaped.3),
+        (None, false),
+        "the public reads find no reaped child"
+    );
 }

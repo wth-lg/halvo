@@ -1,225 +1,222 @@
-//! macOS capture backend.
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod apps;
 pub mod audio;
 pub mod foreground;
 pub mod input;
 pub mod mic;
+pub mod run_loop;
 pub mod screen;
+pub(crate) mod secure_input_byte;
 pub mod window_title;
 
-use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, SystemTime};
+#[cfg(test)]
+use crate::event::Modality;
+use crate::source::{CaptureError, HealthReason, SourceState};
 
-use uuid::Uuid;
-
-use crate::daemon::{DaemonError, TimedRunReport};
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
-use crate::sink::{self, SinkError, SinkHandle, SinkWriter};
-use crate::source::{CaptureSource, EmitOutcome, EventSink};
-
-/// The cap on the screen stream's frame rate.
-pub const SCREEN_FRAME_CAP_FPS: i32 = 2;
-
-/// How often the foreground poller samples `NSWorkspace.frontmostApplication`.
-pub const FOREGROUND_POLL: Duration = Duration::from_millis(400);
-
-/// The bounded sink capacity.
-pub const SINK_CAPACITY: usize = 2048;
-
-/// The write side of the current foreground bundle id. Not `Clone`: the
-/// foreground poller is its only holder.
-#[derive(Debug)]
-pub struct ForegroundWriter(Arc<Mutex<String>>);
-
-/// A read side of the current foreground bundle id, one per source that stamps
-/// events with the focused app.
-#[derive(Debug, Clone)]
-pub struct ForegroundReader(Arc<Mutex<String>>);
-
-/// The foreground state: one writer and a reader to clone for the other sources.
-pub fn foreground_state() -> (ForegroundWriter, ForegroundReader) {
-    let shared = Arc::new(Mutex::new(String::new()));
-    (ForegroundWriter(shared.clone()), ForegroundReader(shared))
+pub(crate) fn source_failure(error: CaptureError) -> SourceState {
+    let reason = match &error {
+        CaptureError::PermissionDenied(_) => HealthReason::Permission,
+        CaptureError::Timeout { .. } => HealthReason::Timeout,
+        CaptureError::ThreadEnded => HealthReason::ThreadEnded,
+        CaptureError::NotImplemented(_) => HealthReason::NotImplemented,
+        CaptureError::Os { .. } | CaptureError::Start(_) | CaptureError::AlreadyStarted => {
+            HealthReason::OsError
+        }
+    };
+    SourceState::Failed { reason, error }
 }
 
-impl ForegroundWriter {
-    /// Replace the current foreground bundle id.
-    pub fn set(&self, bundle_id: String) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = bundle_id;
-    }
-}
+#[cfg(debug_assertions)]
+pub(crate) use timed::timed_run;
 
-impl ForegroundReader {
-    /// The current foreground bundle id, or an empty string before the first
-    /// poll.
-    pub fn get(&self) -> String {
-        self.0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-}
+#[cfg(debug_assertions)]
+mod timed {
+    use std::sync::atomic::AtomicBool;
+    use std::time::Duration;
 
-/// Store placement for an event whose payload bytes are not persisted in this
-/// phase: the nil segment id and key id 0, carrying the payload's measured size
-/// where the source knows it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Unpersisted {
-    pub byte_len: u64,
-}
+    use super::foreground::FOREGROUND_POLL;
+    use super::{foreground, input, run_loop, screen, secure_input_byte};
+    use crate::daemon::{DaemonError, FailedSource, RunOutcome, RunSources, SourceName, TimedRun};
+    use crate::source::{CaptureSource, SourceContext, SourceCounters};
 
-impl Unpersisted {
-    pub const EMPTY: Self = Self { byte_len: 0 };
-
-    pub fn placement(self) -> (SegmentRef, SegmentKeyId) {
-        (
-            SegmentRef {
-                segment_id: Uuid::nil(),
-                byte_offset: 0,
-                byte_len: self.byte_len,
-            },
-            SegmentKeyId(0),
+    pub(crate) fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
+        let mut sources = MacSources::claim()?;
+        crate::daemon::run_timed(
+            run,
+            &mut sources,
+            crate::daemon::discard_port::DiscardPort::new(run.store_dir.clone()),
+            crate::daemon::maintenance::SystemClocks::new(),
+            crate::daemon::signal::flag(),
+            crate::daemon::SETTLE_BOUND,
         )
     }
-}
 
-/// Emit an event that carries only metadata: the modality, the foreground app
-/// and the [`Unpersisted`] placement. No payload bytes are read or persisted.
-pub(crate) fn emit_metadata_only(
-    sink: &SinkHandle,
-    modality: Modality,
-    foreground_app: String,
-    placement: Unpersisted,
-) -> Result<EmitOutcome, SinkError> {
-    let (segment_ref, segment_key_id) = placement.placement();
-    sink.emit(CaptureStreamEvent::new_raw(
-        CapturedAt {
-            wall_clock: SystemTime::now(),
-            sequence: sink.next_sequence(),
-        },
-        modality,
-        foreground_app,
-        segment_ref,
-        segment_key_id,
-    ))
-}
-
-/// A source that failed to start. Reported, not fatal: the timed run continues
-/// with the sources that did start.
-#[derive(Debug)]
-struct SourceStartFailure {
-    name: &'static str,
-    error: crate::source::CaptureError,
-}
-
-impl std::fmt::Display for SourceStartFailure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "source {} did not start: {}", self.name, self.error)
-    }
-}
-
-/// Run every macOS source for a bounded window and report per-modality counts.
-/// Reads the gate's secure-input switch from the environment, then delegates to
-/// [`run_sources`], which takes it as a parameter.
-pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
-    let secure_gate = std::env::var("HALVO_GATE_SECURE_INPUT").as_deref() == Ok("1");
-    run_sources(seconds, secure_gate)
-}
-
-/// Run every macOS source for `seconds`. When `secure_gate` is set, hold secure
-/// input for the window so the zero-keystroke invariant can be measured.
-fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, DaemonError> {
-    let (handle, writer) = sink::channel(SINK_CAPACITY);
-    let counts = Arc::new(Counts::default());
-    let drain = {
-        let counts = counts.clone();
-        std::thread::spawn(move || drain_counting(writer, &counts))
-    };
-
-    let (foreground_writer, foreground_reader) = foreground_state();
-
-    let mut screen = screen::ScreenSource::new(SCREEN_FRAME_CAP_FPS, foreground_reader.clone());
-    let mut input = input::InputSource::new(foreground_reader);
-    let secure_violations = input.violations_handle();
-    let mut foreground = foreground::ForegroundSource::new(FOREGROUND_POLL, foreground_writer);
-    let mut audio = audio::SystemAudioSource::disabled();
-    let mut mic = mic::MicrophoneSource::disabled();
-
-    let starts: [(&'static str, Result<(), crate::source::CaptureError>); 5] = [
-        ("foreground", foreground.start(handle.clone())),
-        ("screen", screen.start(handle.clone())),
-        ("input", input.start(handle.clone())),
-        ("system_audio", audio.start(handle.clone())),
-        ("microphone", mic.start(handle.clone())),
-    ];
-    let failed: Vec<SourceStartFailure> = starts
-        .into_iter()
-        .filter_map(|(name, result)| result.err().map(|error| SourceStartFailure { name, error }))
-        .collect();
-    for failure in &failed {
-        eprintln!("halvo-capture: {failure}");
+    struct MacSources {
+        main_loop: run_loop::MainRunLoop,
+        foreground_state: Option<(foreground::ForegroundWriter, foreground::ForegroundReader)>,
+        input_counters: input::InputCounters,
+        started: Vec<(SourceName, Box<dyn CaptureSource>)>,
+        hold_refusal: Option<DaemonError>,
+        input: Option<input::InputSource>,
     }
 
-    let _secure_hold = secure_gate.then(crate::secure_input_macos::hold_secure_input);
-
-    std::thread::sleep(Duration::from_secs(seconds));
-
-    drop(_secure_hold);
-
-    foreground.stop();
-    screen.stop();
-    input.stop();
-    audio.stop();
-    mic.stop();
-
-    drop(handle);
-    drain
-        .join()
-        .map_err(|_| DaemonError::Store("drain thread panicked".into()))?;
-
-    Ok(TimedRunReport {
-        seconds,
-        screen_frame: counts.screen_frame.load(),
-        keystroke: counts.keystroke.load(),
-        pointer: counts.pointer.load(),
-        foreground_app: counts.foreground_app.load(),
-        window_title: counts.window_title.load(),
-        secure_input_keystrokes: secure_violations.count(),
-    })
-}
-
-#[derive(Default)]
-struct Counts {
-    screen_frame: Counter,
-    keystroke: Counter,
-    pointer: Counter,
-    foreground_app: Counter,
-    window_title: Counter,
-}
-
-#[derive(Default)]
-struct Counter(std::sync::atomic::AtomicU64);
-
-impl Counter {
-    fn inc(&self) {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    }
-    fn load(&self) -> u64 {
-        self.0.load(std::sync::atomic::Ordering::Relaxed)
-    }
-}
-
-fn drain_counting(writer: SinkWriter, counts: &Counts) {
-    while let Some(event) = writer.recv() {
-        match event.modality {
-            Modality::ScreenFrame => counts.screen_frame.inc(),
-            Modality::Keystroke => counts.keystroke.inc(),
-            Modality::Pointer => counts.pointer.inc(),
-            Modality::ForegroundApp => counts.foreground_app.inc(),
-            Modality::WindowTitle => counts.window_title.inc(),
-            Modality::SystemAudio | Modality::Microphone | Modality::Camera => {}
+    impl MacSources {
+        fn claim() -> Result<MacSources, DaemonError> {
+            let off_the_main_thread =
+                || DaemonError::NotImplemented("a second timed run, or one off the main thread,");
+            let mut main_loop =
+                run_loop::MainRunLoop::claim().map_err(|_| off_the_main_thread())?;
+            let foreground_state = Some(
+                main_loop
+                    .foreground_state()
+                    .ok_or_else(off_the_main_thread)?,
+            );
+            Ok(MacSources {
+                main_loop,
+                foreground_state,
+                input_counters: input::InputCounters::new(),
+                started: Vec::new(),
+                hold_refusal: None,
+                input: None,
+            })
         }
+    }
+
+    impl RunSources for MacSources {
+        fn start(
+            &mut self,
+            ctx: &SourceContext,
+            wanted: &[SourceName],
+            hold_after: Option<Duration>,
+        ) -> Vec<FailedSource> {
+            let Some((foreground_writer, foreground_reader)) = self.foreground_state.take() else {
+                return Vec::new();
+            };
+            let mut failed = Vec::new();
+            let mut foreground_writer = Some(foreground_writer);
+            for name in wanted {
+                let mut source: Box<dyn CaptureSource> = match name {
+                    SourceName::Foreground => match foreground_writer.take() {
+                        Some(writer) => Box::new(foreground::ForegroundSource::new(
+                            FOREGROUND_POLL,
+                            writer,
+                            self.main_loop.turns(),
+                        )),
+                        None => continue,
+                    },
+                    SourceName::Screen => Box::new(screen::ScreenSource::new(
+                        screen::SCREEN_FRAME_CAP,
+                        foreground_reader.clone(),
+                    )),
+                    SourceName::Input => {
+                        let plan =
+                            hold_after.map_or(input::HoldPlan::Never, input::HoldPlan::After);
+                        let mut input = input::InputSource::new(
+                            foreground_reader.clone(),
+                            self.input_counters.clone(),
+                            plan,
+                        );
+                        match input.begin(ctx.clone()) {
+                            Ok(_) => self.input = Some(input),
+                            Err(error) => failed.push(FailedSource {
+                                name: name.as_str(),
+                                error: error.to_string(),
+                            }),
+                        }
+                        continue;
+                    }
+                };
+                match source.begin(ctx.clone()) {
+                    Ok(_) => self.started.push((*name, source)),
+                    Err(error) => failed.push(FailedSource {
+                        name: name.as_str(),
+                        error: error.to_string(),
+                    }),
+                }
+            }
+            failed
+        }
+
+        fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+            let slice = Duration::from_millis(100);
+            let until = std::time::Instant::now() + window;
+            loop {
+                if stop.load(std::sync::atomic::Ordering::SeqCst) {
+                    return true;
+                }
+                let left = until.saturating_duration_since(std::time::Instant::now());
+                if left.is_zero() {
+                    return false;
+                }
+                self.main_loop.turn_for(left.min(slice));
+            }
+        }
+
+        fn stop(&mut self) -> Vec<FailedSource> {
+            let mut failed = Vec::new();
+            if let Some(mut input) = self.input.take() {
+                failed.extend(crate::daemon::stop_failure(
+                    SourceName::Input,
+                    input.shutdown(),
+                ));
+                self.hold_refusal = secure_input_byte::refusal_or_none(input.hold_refusal()).err();
+            }
+            for (name, mut source) in self.started.drain(..) {
+                failed.extend(crate::daemon::stop_failure(name, source.shutdown()));
+            }
+            failed
+        }
+
+        fn figures(&self) -> SourceCounters {
+            self.input_counters.figures()
+        }
+
+        fn hold_refusal(&self) -> Option<DaemonError> {
+            match &self.hold_refusal {
+                Some(DaemonError::SecureInputRefused(status)) => {
+                    Some(DaemonError::SecureInputRefused(*status))
+                }
+                _ => None,
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod off_source_tests {
+    use std::sync::mpsc::RecvTimeoutError;
+    use std::time::{Duration, Instant};
+
+    use crate::sink;
+    use crate::source::{CaptureError, CaptureSource, SourceContext, SourceState, Started};
+
+    pub(crate) fn the_off_source_keeps_its_lifecycle(mut source: impl CaptureSource) {
+        let (handle, writer) = sink::channel(8);
+        let first = source.begin(SourceContext::new(handle.clone()));
+        let second = source.begin(SourceContext::new(handle.clone()));
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        let again = source.begin(SourceContext::new(handle.clone()));
+        let state = source.health().state;
+        drop(handle);
+        let received = writer
+            .recv_timeout(Duration::from_secs(2))
+            .map(|received| received.event().modality);
+        assert_eq!(first, Ok(Started::Off), "the first begin");
+        assert_eq!(second, Err(CaptureError::AlreadyStarted), "a second begin");
+        assert!(
+            shut.is_ok() && took < Duration::from_secs(1),
+            "shutdown {shut:?} after {took:?}"
+        );
+        assert_eq!(again, Ok(Started::Off), "a begin after the shutdown");
+        assert_eq!(state, SourceState::Off, "the health state");
+        assert_eq!(
+            received,
+            Err(RecvTimeoutError::Disconnected),
+            "the off source emitted an event or kept a handle of the sink"
+        );
     }
 }
 
@@ -228,41 +225,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unpersisted_placement_is_the_nil_sentinel() {
-        let (seg, key) = Unpersisted { byte_len: 128 }.placement();
-        assert!(seg.segment_id.is_nil());
-        assert_eq!(seg.byte_len, 128);
-        assert_eq!(key.0, 0);
-        assert_eq!(Unpersisted::EMPTY.placement().0.byte_len, 0);
-    }
-
-    #[test]
-    fn foreground_state_flows_from_the_writer_to_every_reader() {
-        let (writer, reader) = foreground_state();
-        let other = reader.clone();
-        assert_eq!(reader.get(), "");
-        writer.set("com.apple.Terminal".into());
-        assert_eq!(reader.get(), "com.apple.Terminal");
-        assert_eq!(other.get(), "com.apple.Terminal");
-    }
-
-    #[test]
-    fn a_metadata_only_event_carries_no_persisted_bytes() {
-        let (handle, writer) = sink::channel(1);
-        emit_metadata_only(
-            &handle,
-            Modality::WindowTitle,
-            "com.apple.Terminal".into(),
-            Unpersisted { byte_len: 7 },
-        )
-        .unwrap();
-        drop(handle);
-        let event = writer.recv().unwrap();
-        assert_eq!(event.modality, Modality::WindowTitle);
-        assert_eq!(event.foreground_app, "com.apple.Terminal");
-        assert!(event.segment_ref.segment_id.is_nil());
-        assert_eq!(event.segment_ref.byte_len, 7);
-        assert_eq!(event.segment_key_id.0, 0);
-        assert!(!event.is_derived);
+    fn each_error_of_a_source_reads_its_own_health_reason() {
+        let reason_of = |error| match source_failure(error) {
+            SourceState::Failed { reason, .. } => reason,
+            other => panic!("source_failure answered {other:?}"),
+        };
+        assert_eq!(
+            reason_of(CaptureError::Timeout {
+                stage: "input_tap_join",
+                ms: 1000
+            }),
+            HealthReason::Timeout
+        );
+        assert_eq!(
+            reason_of(CaptureError::ThreadEnded),
+            HealthReason::ThreadEnded
+        );
+        assert_eq!(
+            reason_of(CaptureError::PermissionDenied(Modality::Keystroke)),
+            HealthReason::Permission
+        );
+        assert_eq!(
+            reason_of(CaptureError::Os {
+                stage: "stop_capture",
+                domain: "ScreenCaptureKit",
+                code: -3808
+            }),
+            HealthReason::OsError
+        );
     }
 }

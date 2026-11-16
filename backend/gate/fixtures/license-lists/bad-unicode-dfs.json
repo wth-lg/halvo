@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: a-tool-under-unicode-dfs@1.0.0 has the license Unicode-DFS-2016, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "a-tool-under-unicode-dfs@1.0.0",
+      "license": "Unicode-DFS-2016"
+    }
+  ]
+}

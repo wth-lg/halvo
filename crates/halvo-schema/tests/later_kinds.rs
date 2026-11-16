@@ -1,3 +1,5 @@
+//! AGENT_RUN, its example row and its row of OTHER_STATES are frozen on the form of the agent-setup run's record agent_run from before that run's U1.7: they test the registry's mechanism on a fixed form, and the record's own form is that run's (contracts.md C3.7).
+
 use halvo_schema::kinds::{
     check_entries, check_record, FieldType, KindEntry, Origin, RetentionClass, KINDS,
 };

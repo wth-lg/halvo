@@ -1,0 +1,37 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 4",
+  "about": "a 409 stopped for an id sent twice with no row under the id",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "top": {
+    "final": {
+      "now": 9000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 9000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

@@ -2,6 +2,6 @@
   "expect": "covers no lockfile package",
   "packages": [{ "id": "plain@1.0.0", "license": "MIT" }],
   "exceptions": [
-    { "package": "gone", "license": "MPL-2.0", "reason": "The package left the lockfile; the entry stayed." }
+    { "package": "gone", "versions": ["1.0.0"], "license": "MPL-2.0", "reason": "The package left the lockfile; the entry stayed." }
   ]
 }

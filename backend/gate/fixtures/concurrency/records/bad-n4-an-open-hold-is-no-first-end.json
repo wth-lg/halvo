@@ -1,0 +1,235 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107, the verifier's changed copy m21, on the N4 sentence of P7-83 (7) (c)",
+  "about": "the unheld wave of good-n4-the-judge-names-the-first-hold-that-ended-before-the-last-answer with w1's hold still open at the last read: an open hold has not ended, so the first end before the last answer is still w0's settle, 5 ms before it. The open hold is also read as a violation twice, as any hold open and not yet due at the last read and any stream that ended with no ledger event; the record pins the first end",
+  "source": "by hand, after the verifier's m21",
+  "top": {
+    "cell": {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 3,
+      "switch": "usage-last",
+      "k": 2
+    },
+    "requests": [
+      {
+        "id": "w0",
+        "index": 0,
+        "status": 200,
+        "body": "",
+        "sentAt": 1000,
+        "headersAt": 1100,
+        "endedAt": 1030,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w0",
+          "amount": 100,
+          "now": 1010,
+          "expiresAt": 4010
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "w1",
+        "index": 1,
+        "status": 200,
+        "body": "",
+        "sentAt": 1000,
+        "headersAt": 1150,
+        "endedAt": null,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w1",
+          "amount": 100,
+          "now": 1020,
+          "expiresAt": 4020
+        },
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "w2",
+        "index": 2,
+        "status": 200,
+        "body": "",
+        "sentAt": 1000,
+        "headersAt": 1200,
+        "endedAt": 3205,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w2",
+          "amount": 100,
+          "now": 1030,
+          "expiresAt": 4030
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "mockEvents": [
+      {
+        "t": 1050,
+        "id": "w0",
+        "ev": "request"
+      },
+      {
+        "t": 975,
+        "id": "w0",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 1015,
+        "id": "w0",
+        "ev": "end",
+        "clean": true
+      },
+      {
+        "t": 1050,
+        "id": "w1",
+        "ev": "request"
+      },
+      {
+        "t": 1050,
+        "id": "w2",
+        "ev": "request"
+      },
+      {
+        "t": 3150,
+        "id": "w2",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 3190,
+        "id": "w2",
+        "ev": "end",
+        "clean": true
+      }
+    ],
+    "final": {
+      "now": 3500,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 20
+      },
+      "periods": [
+        {
+          "period_start": 1000,
+          "reported": 38,
+          "unreported": 0,
+          "open": 100
+        }
+      ],
+      "holds": [
+        {
+          "request_id": "w0",
+          "period_start": 1000,
+          "amount": 100,
+          "expires_at": 4010,
+          "state": "settled",
+          "dispatched": 1,
+          "created_at": 1010,
+          "created_seq": 1,
+          "ended_at": 1025,
+          "ended_seq": 3,
+          "ended_by": "settle",
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        },
+        {
+          "request_id": "w1",
+          "period_start": 1000,
+          "amount": 100,
+          "expires_at": 4020,
+          "state": "open",
+          "dispatched": 1,
+          "created_at": 1020,
+          "created_seq": 2,
+          "ended_at": null,
+          "ended_seq": null,
+          "ended_by": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "cost": null,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        },
+        {
+          "request_id": "w2",
+          "period_start": 1000,
+          "amount": 100,
+          "expires_at": 4030,
+          "state": "settled",
+          "dispatched": 1,
+          "created_at": 1030,
+          "created_seq": 4,
+          "ended_at": 3200,
+          "ended_seq": 12,
+          "ended_by": "settle",
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "w1"
+      },
+      {
+        "clause": "integrity",
+        "id": "w1"
+      }
+    ],
+    "facts": {
+      "held": false,
+      "firstEndBeforeTheLastAnswer": {
+        "state": "settled",
+        "ms": 5
+      }
+    }
+  }
+}

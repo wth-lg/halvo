@@ -1,0 +1,61 @@
+{
+  "kind": "line",
+  "ruling": "B-39; contract 9.6",
+  "about": "one counted run at 200 with no slow attempt: the line keeps contract 9's form and ends with slow and burst-p50-at-200",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try1",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100,
+          200,
+          300
+        ],
+        "burstMedianMs": 200,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "PASS concurrency: runs=1 of 1 cells=1 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=0 rollover-uncrossed=0 slow=0 burst-p50-at-200=200ms rollover-redrawn=0",
+    "lostInTransport": 0
+  }
+}

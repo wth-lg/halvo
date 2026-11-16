@@ -66,15 +66,52 @@ pub(crate) fn scratch(name: &str) -> std::path::PathBuf {
         .ancestors()
         .nth(3)
         .expect("the target directory above deps");
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = target
-        .join("tmp")
-        .join("halvo-sheet-unit")
-        .join(format!("{name}-{}-{nanos}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("make the scratch directory");
-    dir
+    halvo_test_dir::make(&target.join("tmp").join("halvo-sheet-unit"), name)
+        .expect("make the scratch directory")
+}
+
+pub(crate) fn locks() -> halvo_checkpoint::Locks {
+    let exe = std::env::current_exe().expect("the test binary");
+    let target = exe
+        .ancestors()
+        .nth(3)
+        .expect("the target directory above deps");
+    let data = target.join("tmp").join("halvo-sheet-unit-data");
+    std::fs::create_dir_all(&data).expect("make the data directory");
+    halvo_checkpoint::Locks::open(&data, std::time::Duration::from_secs(10)).expect("the locks")
+}
+
+#[test]
+fn two_threads_at_one_clock_value_get_two_scratch_directories() {
+    const THREADS: usize = 64;
+    let start = std::sync::Arc::new(std::sync::Barrier::new(THREADS));
+    let threads: Vec<_> = (0..THREADS)
+        .map(|i| {
+            let start = std::sync::Arc::clone(&start);
+            std::thread::spawn(move || {
+                start.wait();
+                let dir = scratch("one-clock-value");
+                std::fs::write(dir.join(format!("thread-{i}")), b"mine").expect("its file");
+                dir
+            })
+        })
+        .collect();
+    let dirs: Vec<std::path::PathBuf> = threads
+        .into_iter()
+        .map(|t| t.join().expect("the thread"))
+        .collect();
+    for (i, dir) in dirs.iter().enumerate() {
+        let names: Vec<String> = std::fs::read_dir(dir)
+            .expect("list the directory")
+            .map(|e| {
+                e.expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(names, vec![format!("thread-{i}")], "{}", dir.display());
+    }
 }
 
 pub(crate) fn edit(all: &mut Entries, name: &str, from: &str, to: &str) {

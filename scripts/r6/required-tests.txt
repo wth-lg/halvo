@@ -19,3 +19,5 @@ halvo-route src/lib.rs leave::tests::refusal_leave_ceiling
 halvo-route src/lib.rs leave::tests::refusal_leave_part
 halvo-route src/lib.rs leave::tests::refusal_leave_origin
 halvo-route src/lib.rs leave::tests::refusal_leave_consent
+halvo-route tests/no_grant_in_release.rs the_manifest_holds_the_package_and_the_dev_dependencies_alone
+halvo-route tests/formal_traces.rs formal_traces

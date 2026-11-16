@@ -1,0 +1,24 @@
+{
+  "kind": "attempt-line",
+  "ruling": "B-38",
+  "about": "the log line of a slow attempt names it slow, gives its median and bound, and its late settles",
+  "source": "by hand",
+  "result": {
+    "key": "ledger-usage-last-at-200-plain-1-try1",
+    "kind": "matrix",
+    "counted": false,
+    "error": null,
+    "violations": [],
+    "ms": 5,
+    "facts": {
+      "slow": true,
+      "burstMedianMs": 2700,
+      "slowBoundMs": 2600,
+      "lateSettles": 2
+    }
+  },
+  "discarded": 0,
+  "expect": {
+    "line": "concurrency: ledger-usage-last-at-200-plain-1-try1: slow, did not count, 0 violation(s), 5 ms, first-burst median 2700 ms over the bound of 2600 ms, 2 late settle(s)"
+  }
+}

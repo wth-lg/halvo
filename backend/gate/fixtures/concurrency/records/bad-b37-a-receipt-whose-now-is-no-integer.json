@@ -1,0 +1,10 @@
+{
+  "kind": "receipt",
+  "ruling": "B-37",
+  "about": "a receipt whose now is no integer is refused",
+  "source": "by hand",
+  "header": "{\"requestId\":\"r\",\"amount\":100,\"now\":\"soon\",\"expiresAt\":4010}",
+  "expect": {
+    "now": null
+  }
+}

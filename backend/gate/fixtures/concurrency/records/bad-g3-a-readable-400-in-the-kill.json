@@ -1,0 +1,29 @@
+{
+  "kind": "judge",
+  "ruling": "F3 of P7-69 in the default branch, by P7-76 G3",
+  "about": "a 400 rejected, its body read whole, on a request that ended in the kill: the kill excuses only a body that cannot be read (the review's p05)",
+  "source": "by hand",
+  "request": {
+    "status": 400,
+    "body": "{\"result\":\"rejected\"}",
+    "headersAt": 4039,
+    "endedAt": 4041
+  },
+  "top": {
+    "kill": {
+      "at": 4040,
+      "inFlight": 1
+    },
+    "restartReadyAt": 4500,
+    "firstLedgerReadAt": 9000
+  },
+  "expect": {
+    "counted": false,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

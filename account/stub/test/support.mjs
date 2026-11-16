@@ -1,15 +1,18 @@
 import { connect } from "node:net";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync } from "node:fs";
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
 import { startStub as start } from "../src/stub.mjs";
 
 const ends = [];
+const made = [];
 after(async () => {
   for (const end of ends) await Promise.race([end(), new Promise((resolve) => setTimeout(resolve, 5000))]);
+  for (const dir of made) rmSync(dir, { recursive: true, maxRetries: 5 });
 });
 
 /** Starts the stub in this process, as startStub does, and closes it after the last test of the file, also after a failure. */
@@ -98,15 +101,30 @@ export const appHeaders = (credential = CRED) => [
 
 export const portOf = (url) => Number(new URL(url).port);
 
-/** Makes a new empty directory under the system's temp directory for one record. */
-export const fresh = () => mkdtempSync(join(tmpdir(), "halvo-stub-record-"));
+/**
+ * Makes a new empty directory under the system's temp directory for one record, and removes it with all it holds after
+ * the last test of the file, once every stub and command line that the file started has stopped.
+ */
+export function fresh() {
+  const dir = mkdtempSync(join(tmpdir(), "halvo-stub-record-"));
+  made.push(dir);
+  return dir;
+}
 
 /** Starts the stub's command line with `args`; resolves to the child, its first line of standard output parsed as JSON, and its standard error. */
-export function spawnStub(args) {
+export const spawnStub = (args) => spawnReady(process.execPath, [STUB, ...args]);
+
+/** As spawnStub, for a command line that `sh -c script` starts with `args` as $0, $1 and so on. */
+export const spawnShell = (script, args) => spawnReady("/bin/sh", ["-c", script, ...args]);
+
+function spawnReady(file, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [STUB, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(file, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const gone = new Promise((done) => child.on("exit", done));
     ends.push(() => {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      if (child.exitCode !== null || child.signalCode !== null) return undefined;
+      child.kill("SIGKILL");
+      return gone;
     });
     let out = "";
     let err = "";
@@ -122,6 +140,104 @@ export function spawnStub(args) {
     child.on("exit", (code) => resolve({ child, ready: null, code, stderr: () => err }));
   });
 }
+
+/**
+ * Opens a client through `open` (net.connect by default; resolves at `event`) that keeps its side open when the stub
+ * ends its own. `ended` resolves true when the stub's end arrives and false when the socket closes first.
+ */
+export function openPeer(port, open = (options) => connect(options), event = "connect") {
+  return new Promise((resolve) => {
+    const socket = open({ host: "127.0.0.1", port, allowHalfOpen: true });
+    const chunks = [];
+    let sawEnd;
+    let sawClose;
+    const ended = new Promise((done) => {
+      sawEnd = done;
+    });
+    const closed = new Promise((done) => {
+      sawClose = done;
+    });
+    socket.on("data", (chunk) => chunks.push(chunk));
+    socket.on("end", () => sawEnd(true));
+    socket.on("close", () => {
+      sawEnd(false);
+      sawClose(true);
+    });
+    socket.on("error", () => {});
+    socket.once(event, () => resolve({ socket, ended, closed, got: () => Buffer.concat(chunks) }));
+  });
+}
+
+/** The number of final answers in the bytes that a client read: each status line but those of 100 Continue. */
+export const answersIn = (bytes) => {
+  const text = Buffer.isBuffer(bytes) ? bytes.toString("latin1") : bytes;
+  return text.split("HTTP/1.1 ").length - 1 - (text.split("HTTP/1.1 100 ").length - 1);
+};
+
+/**
+ * Checks the record's promise for each connection of `read`, a map from connection number to the number of answers
+ * its client read: either the client read as many answers as the record holds status lines for the connection, or the
+ * record holds `forced-close` for it, with its three keys alone, once and as its last line, and the client read no more
+ * answers than it has status lines. Returns the connections that hold `forced-close`.
+ */
+export function keepsPromise(dir, read) {
+  const record = readFileSync(join(dir, "requests.jsonl"), "utf8")
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line));
+  const forced = [];
+  for (const [key, got] of Object.entries(read)) {
+    const connection = Number(key);
+    const mine = record.filter((line) => line.connection === connection);
+    const statuses = mine.filter((line) => line.status !== undefined).length;
+    const lines = mine.filter((line) => line.error === "forced-close");
+    assert.ok(lines.length <= 1, `connection ${connection} holds forced-close ${lines.length} times`);
+    if (lines.length === 0) {
+      assert.equal(got, statuses, `connection ${connection}: answers read against status lines, with no forced-close`);
+      continue;
+    }
+    assert.deepEqual(Object.keys(lines[0]).sort(), ["connection", "error", "seq"]);
+    assert.equal(mine.at(-1), lines[0], `forced-close is the last line of connection ${connection}`);
+    assert.ok(got <= statuses, `connection ${connection}: ${got} answers read, ${statuses} status lines`);
+    forced.push(connection);
+  }
+  return forced;
+}
+
+/**
+ * True when `bytes` hold the head of a final HTTP/1.1 answer, after any 100 Continue, and as many body bytes as its
+ * content-length names. The answer to HEAD has no body, so for it count status lines with answersIn.
+ */
+export function holdsAnswer(bytes) {
+  let start = 0;
+  for (;;) {
+    const end = bytes.indexOf("\r\n\r\n", start);
+    if (end < 0) return false;
+    const head = parse(bytes.subarray(start, end + 4));
+    if (head.status !== 100) return bytes.length >= end + 4 + Number(head.headers.get("content-length") ?? 0);
+    start = end + 4;
+  }
+}
+
+/**
+ * Waits until `holds()` is true, looking every 10 ms for at most `ms`, and resolves to the ms from the start to the end
+ * of the look that held; when a look that ends `ms` or more after the start fails, fails with the sentence that `what`
+ * did not arrive, those ms and `detail()`.
+ */
+export async function waitFor(holds, what, { ms = 2000, detail = () => "" } = {}) {
+  const started = performance.now();
+  for (;;) {
+    const held = holds();
+    const waited = Math.round(performance.now() - started);
+    if (held) return waited;
+    if (waited >= ms) assert.fail(`${what} did not arrive within ${waited} ms${detail() === "" ? "" : `; ${detail()}`}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** Waits for at most 2,000 ms until `client` (with `got()`) holds a whole final answer; a failure names the bytes read and `more()`. */
+export const answerIn = (client, what = "the answer", more = () => "") =>
+  waitFor(() => holdsAnswer(client.got()), what, { detail: () => [`the client had read ${client.got().length} bytes`, more()].filter((part) => part !== "").join("; ") });
 
 /** Resolves to the exit code of a child once it has exited. */
 export const exited = (child) => new Promise((resolve) => (child.exitCode !== null ? resolve(child.exitCode) : child.on("exit", (code) => resolve(code))));

@@ -6,3 +6,7 @@
 {"op":"add_origin","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","origin":"http://utility.test:18090","way":"sign_in"}
 {"op":"add_origin","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","origin":"https://graph.test:18443","way":"account_link"}
 {"op":"add_origin","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","origin":"http://pay.test:18090","way":"new_origin"}
+{"op":"list_checkpoints","workflow":null,"agent":null,"after":null}
+{"op":"list_checkpoints","workflow":null,"agent":null,"after":"50505050505050505050505050505050"}
+{"op":"mark_checkpoint","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","workbook":["/data/books/bills.xlsx"],"state":"gone","left":null}
+{"op":"mark_checkpoint","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","workbook":["/data/books/bills.xlsx"],"state":"left","left":"not_file"}

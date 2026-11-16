@@ -10,7 +10,7 @@ import { stripVTControlCharacters } from "node:util";
 import { z } from "zod";
 import { holdFor } from "./config.mjs";
 import { call } from "./http.mjs";
-import { judge } from "./rule.mjs";
+import { gatewayOf, judge } from "./rule.mjs";
 import { MICRO_PER_MINOR, spikeApi } from "./targets.mjs";
 
 const int = z.number().int();
@@ -23,7 +23,8 @@ const MockEvent = z.object({
   output_tokens: int.optional(),
   clean: z.boolean().optional(),
 });
-const Receipt = z.object({ requestId: z.string(), amount: int, expiresAt: int });
+/** The header x-ledger-receipt as the driver keeps it: the hold's amount, its expiry and the ledger's time of the reserve, which the S1 spike's receipt lacks. */
+export const Receipt = z.object({ requestId: z.string(), amount: int, now: int.optional(), expiresAt: int });
 const Trailer = z.union([
   z.object({ settled: z.literal(true), outcome: z.string(), cost: int, settle_ms: int }),
   z.object({ settled: z.literal(false), why: z.string() }),
@@ -316,8 +317,19 @@ function accountOf(random) {
 
 
 const MAX_RESENDS = 5;
-const resetBeforeTheServerAccepted = (record) => record.status === null && record.error === "ECONNRESET";
-const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
+const LOST_BEFORE_AN_ANSWER = new Set(["ECONNRESET", "EPIPE"]);
+const resetBeforeTheServerAccepted = (record) => record.status === null && LOST_BEFORE_AN_ANSWER.has(record.error);
+/** True when an attempt was lost on its way to the gateway and the driver sends it again under its id. */
+export const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
+/** True when the driver sends an attempt again: it was lost on its way in, the traffic is not paused, and fewer than MAX_RESENDS earlier attempts were sent again. */
+export const sendsAgain = (record, paused) => !paused && record.lost.length < MAX_RESENDS && lostOnTheWayIn(record);
+/** The entry that the driver keeps in a request's record for an attempt that it sends again, with the time of that attempt's send. */
+export const lostAttemptOf = (record) =>
+  resetBeforeTheServerAccepted(record) ? { why: "reset", body: "", sentAt: record.sentAt } : { why: "500", body: record.body, sentAt: record.sentAt };
+
+const BODY_KEPT_CHARS = 4097;
+/** The body that the driver keeps of an answer that is not a stream, after one more chunk of its text: its first 4,097 characters. That is one more than the longest body that stress/rule.mjs reads as the dev proxy's text, so a body that this cut shortened is longer than any proxy text and is never read as one. */
+export const keptBodyOf = (kept, text) => (kept + text).slice(0, BODY_KEPT_CHARS);
 
 class Traffic {
   constructor(plan, level, port, chat) {
@@ -385,8 +397,8 @@ class Traffic {
         await this.issue(this.plan[index], record);
         this.active--;
         this.wake();
-        if (this.paused || record.lost.length >= MAX_RESENDS || !lostOnTheWayIn(record)) break;
-        record.lost.push(resetBeforeTheServerAccepted(record) ? { why: "reset", body: "" } : { why: "500", body: record.body });
+        if (!sendsAgain(record, this.paused)) break;
+        record.lost.push(lostAttemptOf(record));
         Object.assign(record, { sentAt: null, status: null, headersAt: null, endedAt: null, error: null, body: "", endedCleanly: false });
         await sleep(25 * record.lost.length);
       }
@@ -476,7 +488,7 @@ class Traffic {
         response.setEncoding("utf8");
         response.on("data", (text) => {
           if (record.status !== 200) {
-            if (record.body.length < 400) record.body += text.slice(0, 400);
+            record.body = keptBodyOf(record.body, text);
             return;
           }
           pending += text;
@@ -524,6 +536,15 @@ async function crossTheBoundary(traffic, mockPort, wave, boundaryAt, holdLifeMs)
   await call(mockPort, "POST", `/release?wave=${wave}`).catch(() => undefined);
 }
 
+/** The options with which the driver starts a cell's server: its ports, its state and log under the run's directory, and the hold life of the cell's gateway. */
+export const serverOptionsOf = (cfg, cell, variant, dir, ports) => ({
+  ...ports,
+  stateDir: join(dir, "state"),
+  logFile: join(dir, "server.log"),
+  holdLifeMs: gatewayOf(cfg, cell).holdLifeMs,
+  variant,
+});
+
 export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
   const cfg = ctx.cfg;
   const who = variant === "counts-open-holds" ? "ledger" : "control";
@@ -543,16 +564,9 @@ export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
   let server = null;
   let record;
   let kill = null;
+  const gateway = gatewayOf(cfg, cell);
   try {
-    const options = {
-      port: await freePort(),
-      inspectorPort: await freePort(),
-      stateDir: join(dir, "state"),
-      logFile: join(dir, "server.log"),
-      mockPort: mock.port,
-      holdLifeMs: cell.kind === "void" ? cfg.voidHoldLifeMs : cfg.holdLifeMs,
-      variant,
-    };
+    const options = serverOptionsOf(cfg, cell, variant, dir, { port: await freePort(), inspectorPort: await freePort(), mockPort: mock.port });
     server = await startServer(ctx, options);
     const startMs = server.readyMs;
     const setAt = Date.now();
@@ -613,7 +627,7 @@ export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
     await sleep(Math.max(0, due - Date.now()));
     firstLedgerReadAt ??= Date.now();
     const final = await api.snapshot(server.port, run);
-    record = { requests: traffic.records, empty, afterRestart, final, kill, firstLedgerReadAt, restartReadyAt, startMs, restartMs, anchor, periodMs: cfg.periodMs };
+    record = { requests: traffic.records, empty, afterRestart, final, kill, firstLedgerReadAt, restartReadyAt, startMs, restartMs, anchor, periodMs: cfg.periodMs, gateway };
   } catch (error) {
     if (error instanceof Error) error.afterKill = kill !== null;
     throw error;
@@ -677,9 +691,13 @@ async function schedule(tasks, capacity, halted) {
   return Promise.all(running);
 }
 
+const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport", "crossingBuilt", "firstAdmissionMs", "held", "firstEndBeforeTheLastAnswer"];
+const CROSSING_DRAWS_MAX = 5;
+
 async function runCounted(ctx, cell, variant, runNo, withKill) {
   const who = variant === "counts-open-holds" ? "ledger" : "control";
   const discarded = [];
+  let unbuiltDraws = 0;
   for (let attempt = 0; ; attempt++) {
     const began = Date.now();
     let result;
@@ -691,15 +709,24 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
       const key = `${who}-${cell.name.replace("@", "-at-")}-${withKill ? "kill" : "plain"}-${runNo}-try${attempt + 1}`;
       result = { key, cell: cell.name, kind: cell.kind, level: cell.level, switch: cell.switch, variant, withKill, counted: false, violations, facts: null, ms: Date.now() - began, error: text };
     }
-    const last = attempt + 1 >= ctx.cfg.attempts;
+    const unbuilt = result.facts?.crossed === false && result.facts?.crossingBuilt === false;
+    const drawsOfTheCell = ctx.crossingDraws.get(cell.name) ?? 0;
+    const drawAgain = unbuilt && drawsOfTheCell < CROSSING_DRAWS_MAX;
+    if (drawAgain) {
+      ctx.crossingDraws.set(cell.name, drawsOfTheCell + 1);
+      unbuiltDraws++;
+    }
+    const rigUnbuilt = unbuilt && !drawAgain;
+    const last = rigUnbuilt || attempt + 1 - unbuiltDraws >= ctx.cfg.attempts;
     const neverCounted = last && !(result.counted && !result.error);
-    const lostTheCrossing = result.facts?.crossed === false;
+    const lostTheCrossing = result.facts?.crossed === false && !unbuilt;
     if (ctx.stopAtFirstViolation && (result.violations.length > 0 || neverCounted || lostTheCrossing)) ctx.halted = true;
+    if (result.counted && !result.error) ctx.countedRuns.set(cell.name, (ctx.countedRuns.get(cell.name) ?? 0) + 1);
     if ((result.counted && !result.error) || last || ctx.halted) {
       ctx.progress(result, discarded.length);
-      return { ...result, discarded };
+      return rigUnbuilt ? { ...result, discarded, rigUnbuilt, countedAtTheDraw: ctx.countedRuns.get(cell.name) ?? 0 } : { ...result, discarded };
     }
-    if (result.error) ctx.progress(result, discarded.length);
+    if (result.error || result.facts?.slow === true || unbuilt) ctx.progress(result, discarded.length);
     discarded.push({
       key: result.key,
       error: result.error,
@@ -707,6 +734,7 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
       openAtKill: result.facts?.openAtKill ?? null,
       streamAtKill: result.facts?.streamAtKill ?? null,
       crossed: result.facts?.crossed ?? null,
+      ...Object.fromEntries(FACTS_OF_A_DISCARDED_ATTEMPT.filter((name) => name in (result.facts ?? {})).map((name) => [name, result.facts[name]])),
       violations: result.violations,
     });
   }
@@ -717,6 +745,8 @@ export async function runCells(ctx, cellList, variant) {
   mkdirSync(ctx.outDir, { recursive: true });
   ctx.registry ??= join(ctx.outDir, "..", "started.jsonl");
   ctx.started ??= new Set();
+  ctx.crossingDraws ??= new Map();
+  ctx.countedRuns ??= new Map();
   ctx.mockScript ??= fileURLToPath(new URL("./upstream.mjs", import.meta.url));
   const tasks = [];
   for (const cell of cellList) {

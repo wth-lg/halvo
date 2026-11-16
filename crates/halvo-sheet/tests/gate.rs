@@ -14,7 +14,7 @@ fn each_workbook_of_the_trial_is_changed_in_one_cell_with_the_sameness_of_a13_4_
         let scratch = Scratch::new("gate-carried");
         fs::copy(corpus(change.file), scratch.path(change.file)).expect("copy");
         let original = book(&scratch.path(change.file));
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let range = Range::parse(change.cell).expect("a range");
         let values = vec![vec![Value::Number(change.new)]];
         let done = folder
@@ -42,7 +42,7 @@ fn each_workbook_of_the_trial_is_changed_in_one_cell_with_the_sameness_of_a13_4_
     }
     let scratch = Scratch::new("gate-refused");
     fs::copy(corpus(REFUSED.file), scratch.path(REFUSED.file)).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse(REFUSED.cell).expect("a range");
     let values = vec![vec![Value::Number(REFUSED.new)]];
     let got = folder.prepare(Path::new(REFUSED.file), &run, REFUSED.sheet, range, &values);

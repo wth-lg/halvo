@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The halvo-derived test binaries of the workspace's test build, which 12-test has built before it in the hosted job, pass, each test that this file lists passes under its test target, each test that those binaries report, ignored or not, is on this file's list, so an ignored test fails the check, cargo tree -p halvo-derived -e features lists no bundled feature and no openssl-sys, and no tracked file differs from HEAD after the tests.
+# rule: The halvo-derived test binaries of the workspace's test build, which the check builds itself when no check before it has built it, pass, each test that this file lists passes under its test target, each test that those binaries report, ignored or not, is on this file's list, so an ignored test fails the check, cargo tree -p halvo-derived -e features lists no bundled feature and no openssl-sys, and no tracked file differs from HEAD after the tests.
 set -u
 name=50-derived
 own=scripts/r2/ci.d/50-derived.sh
@@ -14,6 +14,7 @@ esac
 #= src/lib.rs tests::no_catalogued_statement_plans_a_temporary_b_tree
 #= src/lib.rs tests::the_progress_handler_interrupts_a_statement_past_its_budget
 #= src/lib.rs tests::a_setting_that_is_not_in_effect_is_refused
+#= src/lib.rs tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap
 #= src/lib.rs hash::tests::the_site_hash_is_hmac_sha256
 #= src/lib.rs tests::expire_removes_and_counts_a_bounded_row_with_no_day_which_the_report_reads_as_due_now
 #= src/lib.rs tests::a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it_is_not
@@ -34,6 +35,8 @@ esac
 #= tests/open.rs open_refuses_a_database_with_another_schema
 #= tests/open.rs open_refuses_entries_without_the_kinds_of_the_workflow_run
 #= tests/open.rs open_creates_the_database_and_opens_it_again
+#= tests/open.rs open_refuses_a_store_whose_auto_vacuum_is_not_0
+#= tests/open.rs open_refuses_a_keyless_store_whose_page_size_is_not_4096
 #= tests/commit.rs commit_batch_stores_each_summary_and_its_evidence_with_the_position
 #= tests/commit.rs commit_batch_hashes_the_title_token_with_the_key_of_its_own_database
 #= tests/commit.rs commit_batch_refuses_a_batch_read_from_another_store
@@ -166,16 +169,12 @@ esac
 #= tests/cases.rs a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call
 #= tests/cases.rs a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered
 #= tests/cases.rs two_scratch_directories_of_one_name_in_one_process_get_two_paths
-#= tests/cases.rs the_scratch_leaf_name_differs_for_two_readings_of_the_clock
-#= tests/cases.rs a_second_making_of_a_scratch_leaf_that_exists_fails
 #= src/lib.rs tests::two_unit_directories_of_one_name_in_one_process_get_two_paths
 #= tests/past_bound.rs a_dropped_fixture_leaves_no_directory
 #= tests/privacy.rs the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one
 #= tests/privacy.rs the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed
 #= tests/privacy.rs every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search
 #= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
-#= src/lib.rs tests::a_second_making_of_a_unit_leaf_that_exists_fails
-#= src/lib.rs tests::the_unit_leaf_name_differs_for_two_readings_of_the_clock
 #= src/lib.rs tests::the_keyed_row_read_takes_the_same_steps_however_many_rows_of_its_kind_other_workflows_hold
 #= src/lib.rs tests::the_store_s_own_connection_reads_each_setting_of_the_open_after_a_first_and_a_second_open
 #= src/lib.rs tests::the_open_s_read_back_refuses_by_name_each_setting_that_reads_otherwise
@@ -185,6 +184,9 @@ esac
 #= tests/sync.rs each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag
 #= tests/replaced.rs a_replaced_app_and_a_dropped_support_row_leave_no_marker_on_pages_built_again
 #= tests/replaced.rs single_drops_of_small_support_rows_each_with_its_checkpoint_leave_no_marker
+#= tests/privacy.rs removed_rows_leave_no_text_in_the_gap_of_a_page_built_again
+#= tests/page_gap_check.rs small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check
+#= tests/page_gap_check.rs the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

@@ -1,0 +1,32 @@
+{
+  "kind": "sends-again",
+  "ruling": "B-35",
+  "about": "an attempt that ended EPIPE after four earlier resends is sent a fifth time",
+  "source": "by hand",
+  "attempt": {
+    "status": null,
+    "error": "EPIPE",
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      },
+      {
+        "why": "reset",
+        "body": ""
+      },
+      {
+        "why": "reset",
+        "body": ""
+      },
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "paused": false,
+  "expect": {
+    "sendsAgain": true
+  }
+}

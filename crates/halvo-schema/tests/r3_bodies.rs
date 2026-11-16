@@ -1,4 +1,7 @@
-use halvo_schema::executable::body::{CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply};
+use halvo_schema::executable::body::{
+    CoordinatorCall, CoordinatorReply, LoadReply, RunnerCall, RunnerReply, SessionReply,
+    StepsReply, Stored, CHECKPOINTS_REPLY_MAX,
+};
 use halvo_schema::executable::names::{ActionClass, Cause, FieldName, Way};
 use halvo_schema::executable::record::{
     AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
@@ -34,7 +37,7 @@ fn run_record(run: &str, rest: &str) -> String {
     format!(r#"{{"v":1,"workflow":"{W}","agent":"{A}","run":"{run}",{rest}}}"#)
 }
 
-const RUN_REST: &str = r#""day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null"#;
+const RUN_REST: &str = r#""day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null"#;
 
 const PAY_KEPT: &str = r#"[{"name":"payee","value":["Northwind Power"]},{"name":"amount","value":["84.20"]},{"name":"instrument","value":["card 4242"]},{"name":"origin","value":["http://pay.test:18090"]}]"#;
 
@@ -1409,10 +1412,11 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
 #[test]
 fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     let load = format!(
-        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}]}}"#
+        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}],"start":null}}"#
     );
-    let empty_load =
-        format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
+    let empty_load = format!(
+        r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
+    );
     let steps = format!(r#"{{"steps":[{},{}]}}"#, wait(3), wait(4));
     let session_reply = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
     for text in [
@@ -1925,7 +1929,7 @@ fn the_reply_of_create_agent_is_revision_1_and_set_bindings_and_add_origin_take_
 fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
     let load = |origins: &str| {
         format!(
-            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[]}}"#
+            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[],"start":null}}"#
         )
     };
     assert!(RunnerReply::parse(load(ORIGINS).as_bytes()).is_ok());
@@ -1946,4 +1950,92 @@ fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
         "repeated_name",
         "origins",
     );
+}
+
+#[test]
+fn every_reply_of_a_runner_body_is_counted_on_the_bytes_given_by_its_own_parse_and_its_readers() {
+    type Parse = fn(&[u8]) -> Result<(), Refusal>;
+    let load = format!(
+        r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
+    );
+    let steps = format!(r#"{{"steps":[{}]}}"#, wait(3));
+    let session = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
+    let cases: [(&str, &str, Parse); 4] = [
+        (&load, "LoadReply", |b| LoadReply::parse(b).map(drop)),
+        (&steps, "StepsReply", |b| StepsReply::parse(b).map(drop)),
+        (&session, "SessionReply", |b| {
+            SessionReply::parse(b).map(drop)
+        }),
+        (r#"{"stored":1}"#, "Stored", |b| Stored::parse(b).map(drop)),
+    ];
+    for (text, type_name, parse) in cases {
+        let room = CHECKPOINTS_REPLY_MAX - text.len();
+        let inside = |n: usize| format!("{{{}{}", " ".repeat(n), &text[1..]);
+        let at = inside(room);
+        assert_eq!(at.len(), CHECKPOINTS_REPLY_MAX);
+        assert!(parse(at.as_bytes()).is_ok(), "{type_name}");
+        assert!(RunnerReply::parse(at.as_bytes()).is_ok(), "{type_name}");
+        assert!(
+            serde_json::from_str::<RunnerReply>(&at).is_ok(),
+            "{type_name}"
+        );
+        for over in [
+            format!("{}{text}", " ".repeat(room + 1)),
+            format!("{text}{}", "\n".repeat(room + 1)),
+            inside(room + 1),
+        ] {
+            for (refusal, name) in [
+                (parse(over.as_bytes()).expect_err(type_name), type_name),
+                (
+                    RunnerReply::parse(over.as_bytes()).expect_err(type_name),
+                    "RunnerReply",
+                ),
+            ] {
+                assert_eq!(
+                    (refusal.cause(), refusal.type_name(), refusal.rule()),
+                    (RefusalCause::Length, name, "reply_bytes"),
+                    "{type_name}"
+                );
+            }
+        }
+        let through_serde = serde_json::from_str::<RunnerReply>(&inside(room + 1))
+            .expect_err(type_name)
+            .to_string();
+        assert!(
+            through_serde.contains("length: RunnerReply: -: reply_bytes"),
+            "{type_name}: {through_serde}"
+        );
+    }
+}
+
+fn refused_with(
+    result: Result<impl std::fmt::Debug, Refusal>,
+    cause: RefusalCause,
+    type_name: &str,
+    rule: &str,
+) {
+    let refusal = result.expect_err(type_name);
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (cause, type_name, rule)
+    );
+}
+
+#[test]
+fn a_runner_reply_one_byte_over_its_bound_is_refused_before_any_byte_of_it_is_read() {
+    let text = r#"{"stored":1}"#;
+    let fill = |len: usize| " ".repeat(len - text.len() - 1);
+    for len in [CHECKPOINTS_REPLY_MAX, CHECKPOINTS_REPLY_MAX + 1] {
+        let not_json_at_first = format!("x{}{text}", fill(len));
+        let broken_at_last = format!("{text}{}x", fill(len));
+        for input in [not_json_at_first, broken_at_last] {
+            assert_eq!(input.len(), len);
+            let parsed = RunnerReply::parse(input.as_bytes());
+            if len > CHECKPOINTS_REPLY_MAX {
+                refused_with(parsed, RefusalCause::Length, "RunnerReply", "reply_bytes");
+            } else {
+                refused_with(parsed, RefusalCause::Malformed, "RunnerReply", "json");
+            }
+        }
+    }
 }

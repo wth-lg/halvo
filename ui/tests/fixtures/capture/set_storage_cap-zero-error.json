@@ -1,0 +1,6 @@
+{
+  "error": "cap_out_of_range",
+  "max_bytes": 1099511627776,
+  "min_bytes": 1073741824,
+  "outcome_not_known": false
+}

@@ -22,6 +22,46 @@ where
     text.parse().map_err(serde::de::Error::custom)
 }
 
+macro_rules! one_spelling {
+    ($kind:ident, $what:literal, [$($variant:ident => $text:literal),+ $(,)?]) => {
+        impl $kind {
+            pub const ALL: &'static [$kind] = &[$($kind::$variant),+];
+
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $($kind::$variant => $text),+
+                }
+            }
+        }
+
+        impl std::str::FromStr for $kind {
+            type Err = $crate::model::UnknownSpelling;
+
+            fn from_str(text: &str) -> Result<Self, Self::Err> {
+                $kind::ALL
+                    .iter()
+                    .copied()
+                    .find(|value| value.as_str() == text)
+                    .ok_or($crate::model::UnknownSpelling { what: $what })
+            }
+        }
+
+        impl serde::Serialize for $kind {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for $kind {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                $crate::model::from_text(deserializer)
+            }
+        }
+    };
+}
+
+pub(crate) use one_spelling;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Modality {
     ScreenFrame,
@@ -410,6 +450,97 @@ impl Serialize for UtcDay {
 }
 
 impl<'de> Deserialize<'de> for UtcDay {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        from_text(deserializer)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum InstantError {
+    #[error("not an instant in the form YYYY-MM-DDTHH:MM:SSZ")]
+    Format,
+    #[error(transparent)]
+    Day(#[from] DayError),
+}
+
+/// A UTC instant in whole seconds, written `YYYY-MM-DDTHH:MM:SSZ`, inside the days that
+/// [`UtcDay`] holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UtcSecond(i64);
+
+impl UtcSecond {
+    pub fn from_unix_seconds(seconds: i64) -> Result<Self, DayError> {
+        UtcDay::from_days_since_epoch(seconds.div_euclid(SECONDS_PER_DAY as i64))?;
+        Ok(Self(seconds))
+    }
+
+    pub const fn unix_seconds(self) -> i64 {
+        self.0
+    }
+
+    pub fn day(self) -> UtcDay {
+        UtcDay(self.0.div_euclid(SECONDS_PER_DAY as i64))
+    }
+
+    pub fn from_day_and_time(
+        day: UtcDay,
+        hour: u32,
+        minute: u32,
+        second: u32,
+    ) -> Result<Self, InstantError> {
+        if hour > 23 || minute > 59 || second > 59 {
+            return Err(InstantError::Format);
+        }
+        let within = i64::from(hour * 3_600 + minute * 60 + second);
+        Ok(Self(day.0 * SECONDS_PER_DAY as i64 + within))
+    }
+}
+
+impl fmt::Display for UtcSecond {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let within = self.0.rem_euclid(SECONDS_PER_DAY as i64);
+        write!(
+            f,
+            "{}T{:02}:{:02}:{:02}Z",
+            self.day(),
+            within / 3_600,
+            within % 3_600 / 60,
+            within % 60
+        )
+    }
+}
+
+impl FromStr for UtcSecond {
+    type Err = InstantError;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let bytes = text.as_bytes();
+        if bytes.len() != 20
+            || bytes[10] != b'T'
+            || bytes[13] != b':'
+            || bytes[16] != b':'
+            || bytes[19] != b'Z'
+        {
+            return Err(InstantError::Format);
+        }
+        let day: UtcDay = text[..10].parse()?;
+        let two = |at: usize| match (bytes[at], bytes[at + 1]) {
+            (high @ b'0'..=b'9', low @ b'0'..=b'9') => {
+                Ok(u32::from(high - b'0') * 10 + u32::from(low - b'0'))
+            }
+            _ => Err(InstantError::Format),
+        };
+        Self::from_day_and_time(day, two(11)?, two(14)?, two(17)?)
+    }
+}
+
+impl Serialize for UtcSecond {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for UtcSecond {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         from_text(deserializer)
     }
@@ -1182,6 +1313,57 @@ mod tests {
     fn a_day_text_with_another_byte_in_place_of_a_hyphen_is_refused() {
         for text in ["2026-11x09", "2026-11009", "2026x11-09", "2026011-09"] {
             assert!(text.parse::<UtcDay>().is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn an_observation_window_without_one_of_its_keys_is_refused() {
+        every_key_is_read::<ObservationWindow>(
+            &serde_json::json!({"rolling_days": 14, "first_report_day": 7}),
+        );
+    }
+
+    #[test]
+    fn an_instant_writes_and_reads_the_utc_form_with_a_z() {
+        for (seconds, text) in [
+            (0, "1970-01-01T00:00:00Z"),
+            (1_794_474_000, "2026-11-12T09:00:00Z"),
+            (1_794_474_005, "2026-11-12T09:00:05Z"),
+            (-1, "1969-12-31T23:59:59Z"),
+            (253_402_300_799, "9999-12-31T23:59:59Z"),
+            (-62_167_219_200, "0000-01-01T00:00:00Z"),
+        ] {
+            let at = UtcSecond::from_unix_seconds(seconds).unwrap();
+            assert_eq!(at.to_string(), text);
+            assert_eq!(text.parse::<UtcSecond>().unwrap(), at);
+            assert_eq!(serde_json::to_string(&at).unwrap(), format!("\"{text}\""));
+            assert_eq!(
+                serde_json::from_str::<UtcSecond>(&format!("\"{text}\"")).unwrap(),
+                at
+            );
+        }
+        assert!(UtcSecond::from_unix_seconds(253_402_300_800).is_err());
+        assert!(UtcSecond::from_unix_seconds(-62_167_219_201).is_err());
+        assert!(UtcSecond::from_unix_seconds(i64::MIN).is_err());
+        assert!(UtcSecond::from_unix_seconds(i64::MAX).is_err());
+    }
+
+    #[test]
+    fn an_instant_in_another_form_is_refused() {
+        for text in [
+            "2026-11-12T09:00:00",
+            "2026-11-12 09:00:00Z",
+            "2026-11-12T09:00:00z",
+            "2026-11-12T24:00:00Z",
+            "2026-11-12T09:60:00Z",
+            "2026-11-12T09:00:60Z",
+            "2026-11-12T9:00:00ZZ",
+            "2026-11-12T09:00:00+00:00",
+            "2026-02-30T09:00:00Z",
+            "2026-11-12T0a:00:00Z",
+            "",
+        ] {
+            assert!(text.parse::<UtcSecond>().is_err(), "{text}");
         }
     }
 }

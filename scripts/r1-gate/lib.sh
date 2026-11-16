@@ -437,6 +437,14 @@ gate_build() {
   return 1
 }
 
+gate_type_check() {
+  mkdir -p "$GATE_TARGET" || { gate_build_error="cannot make $GATE_TARGET"; return 1; }
+  ( cd "$GATE_ROOT" && CARGO_TARGET_DIR="$GATE_TARGET" cargo check -q --locked -p halvo-capture --bin halvo-capture ) > "$GATE_TARGET/check.log" 2>&1 && return 0
+  gate_build_error=$(grep -m 1 -E '^error' "$GATE_TARGET/check.log")
+  [ -n "$gate_build_error" ] || gate_build_error=$(head -1 "$GATE_TARGET/check.log")
+  return 1
+}
+
 gate_defect=''
 
 predicate_sha() {

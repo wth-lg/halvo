@@ -1,0 +1,21 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "a 502 no-time-left whose answer came 1,000 ms after the send",
+  "source": "by hand",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"no-time-left\",\"hold\":\"voided\"}",
+    "headersAt": 2000,
+    "endedAt": 2005
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

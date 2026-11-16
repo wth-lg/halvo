@@ -1,4 +1,4 @@
-use super::{current_slot, finished, holds, needs_person, slot_due, slot_open, Board};
+use super::{clean, current_slot, finished, holds, needs_person, slot_due, slot_open, Board};
 use crate::types::{
     AgentId, ConfigView, Doing, Facts, Limits, Outcome, RunEnd, RunId, Runtime, What, WorkflowId,
     WorkflowState,
@@ -40,21 +40,22 @@ pub enum Ask {
 /// What one tick raises or starts for the agent of `facts` (I5.3, I5.9): nothing while its
 /// workflow is not `listed`, a hold stands, a run of it is live, a start of it is queued or an
 /// item of it is open; for an agent that needs the person, and for every agent with no
-/// finished run, `ready` when it has no finished run or its current slot is open, unless a
-/// `slot_skipped` event with a null slot has the facts' day; for any other agent a start when
-/// its slot is due (`slot_due`).
+/// finished run, `ready` when it has no clean run (`clean`) or its current slot is open, unless
+/// a `slot_skipped` event with a null slot stands: until a slot opens after that event's day,
+/// and for an agent with no slot while the event is handed out (rulings RD-67 5.2, RD-73 1.2);
+/// for any other agent a start when its slot is due (`slot_due`).
 pub fn tick_step<C: ConfigView>(facts: &Facts<C>, listed: bool, limits: &Limits) -> Ask {
     if !listed || !holds(facts).is_empty() || facts.doing != Doing::Idle(None) {
         return Ask::Nothing;
     }
     let first = !finished(facts);
     if needs_person(&facts.config) || first {
-        let open = current_slot(&facts.workflow, facts.today).is_some_and(|s| slot_open(facts, s));
-        let skipped = facts
-            .events
-            .iter()
-            .any(|e| e.day == facts.today && matches!(e.what, What::SlotSkipped { slot: None }));
-        if (first || open) && !skipped {
+        let current = current_slot(&facts.workflow, facts.today);
+        let open = current.is_some_and(|s| slot_open(facts, s));
+        let skipped = facts.events.iter().any(|e| {
+            matches!(e.what, What::SlotSkipped { slot: None }) && current.is_none_or(|s| s <= e.day)
+        });
+        if (!clean(facts) || open) && !skipped {
             Ask::Ready
         } else {
             Ask::Nothing

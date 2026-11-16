@@ -1,0 +1,22 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1; B-51, condition the row without the mark",
+  "about": "the row ended voided at its expiry but carries the dispatch mark, for an id sent once",
+  "source": "by hand",
+  "row": {
+    "dispatched": 1
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "voided-at-expiry",
+        "id": "r"
+      }
+    ]
+  }
+}

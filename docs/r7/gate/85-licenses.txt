@@ -1,5 +1,5 @@
-line: PASS licenses: packages=231 exceptions=26 bundled=1 cached=121
-stamp: 2026-11-12T17:16:16Z
-load: 46.35
-tree: 80f51ca8b3f2cdde39c588991f2d819e8c94e39a
+line: PASS licenses: packages=231 exceptions=29 bundled=1 cached=121
+stamp: 2026-11-15T12:45:44Z
+load: 9.59
+tree: 59eb12ce55d8da6fc252b034336345dd6acc99db
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

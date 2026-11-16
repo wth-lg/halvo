@@ -97,6 +97,11 @@ pub const NAMES: &[&str] = &[
 /// The most learned locators of one edit's list; it equals `LOCATORS_MAX` of halvo-learn.
 pub const LOCATORS_BOUND: usize = 4;
 
+/// The most bytes of a learned target's compact JSON, the bytes that its writer writes and a `learn_edit` row
+/// stores: the target stands inside a step of at most 2,048 bytes (AG-A3.4), so one row stays within the 2,560
+/// bytes of contracts.md L1.7.
+pub const TARGET_BYTES: usize = 2048;
+
 /// The most run ids of one edit's source set; it equals 1 + `K_CLEAN` of halvo-learn.
 pub const RUNS_BOUND: usize = 3;
 

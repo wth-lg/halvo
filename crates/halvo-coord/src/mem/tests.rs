@@ -1,5 +1,5 @@
 use super::*;
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
+use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Stamp, Tray};
 use crate::types::*;
 
 fn id<T>(parse: fn(&str) -> Result<T, Cause>, n: u8) -> T {
@@ -167,6 +167,80 @@ fn clock_gives_what_the_test_set() {
     assert_eq!(p.today(), Ok(20_760));
     p.set_clock(1_793_707_205_000, 20_760);
     assert_eq!(p.now(), Ok(1_793_707_205_000));
+}
+
+const DAY_20760: u64 = 1_793_664_000_000;
+const HOUR: u64 = 3_600_000;
+
+#[test]
+fn clock_gives_the_local_day_of_an_instant_in_its_zone() {
+    let p: Ports<Config> = Ports::new(DAY_20760 + 12 * HOUR, 20_760);
+    assert_eq!(p.day(DAY_20760 + 24 * HOUR - 1), Ok(20_760));
+    assert_eq!(p.day(DAY_20760 + 24 * HOUR), Ok(20_761));
+    assert_eq!(p.day(DAY_20760), Ok(20_760));
+    assert_eq!(p.day(DAY_20760 - 1), Ok(20_759));
+    p.set_zone(5 * HOUR as i64);
+    assert_eq!(p.day(DAY_20760 + 19 * HOUR - 1), Ok(20_760));
+    assert_eq!(p.day(DAY_20760 + 19 * HOUR), Ok(20_761));
+    p.set_zone(-(7 * HOUR as i64));
+    assert_eq!(p.day(DAY_20760 + 7 * HOUR - 1), Ok(20_759));
+    assert_eq!(p.day(DAY_20760 + 7 * HOUR), Ok(20_760));
+    assert_eq!(p.today(), Ok(20_760));
+    p.set_now(DAY_20760 + 31 * HOUR);
+    assert_eq!(p.today(), Ok(20_761));
+    p.set_clock(DAY_20760 + 2 * HOUR, 20_700);
+    assert_eq!(p.today(), Ok(20_700));
+    assert_eq!(p.day(DAY_20760 + 24 * HOUR), Ok(20_701));
+}
+
+#[test]
+fn today_is_the_day_of_one_read_of_now() {
+    let p: Ports<Config> = Ports::new(DAY_20760 + 24 * HOUR - 1, 20_760);
+    p.step_reads(1);
+    assert_eq!(p.today(), Ok(20_760));
+    assert_eq!(p.now(), Ok(DAY_20760 + 24 * HOUR));
+    assert_eq!(p.today(), Ok(20_761));
+}
+
+#[test]
+fn a_stamp_takes_the_day_of_the_instant_that_it_read() {
+    let p: Ports<Config> = Ports::new(DAY_20760 + 24 * HOUR - 1, 20_760);
+    p.step_reads(1);
+    let stamp = Stamp::read(&p).unwrap();
+    assert_eq!(stamp.now(), DAY_20760 + 24 * HOUR - 1);
+    assert_eq!(stamp.day(), 20_760);
+    assert_eq!(stamp.at(), (DAY_20760 + 24 * HOUR - 1) as i64 * 1_000_000);
+    assert_eq!(p.today(), Ok(20_761));
+    let largest = i64::MAX as u64 / 1_000_000;
+    let p: Ports<Config> = Ports::new(largest, 106_751);
+    assert_eq!(
+        Stamp::read(&p).map(Stamp::at),
+        Ok(largest as i64 * 1_000_000)
+    );
+    p.set_now(largest + 1);
+    assert_eq!(Stamp::read(&p), Err(PortError::NoService));
+    let p: Ports<Config> = Ports::new(u64::MAX, 0);
+    assert_eq!(Stamp::read(&p), Err(PortError::NoService));
+}
+
+/// A clock whose day answers for every instant.
+struct Far;
+
+impl Clock for Far {
+    fn now(&self) -> Result<u64, PortError> {
+        Ok(u64::MAX)
+    }
+
+    fn day(&self, _at: u64) -> Result<u32, PortError> {
+        Ok(0)
+    }
+}
+
+/// No stamp holds an instant whose nanoseconds pass `i64::MAX`, also from a clock that gives a
+/// day for it: the `at` of a row would not be its instant (review case review_day_1).
+#[test]
+fn no_stamp_holds_an_instant_past_the_largest_at() {
+    assert_eq!(Stamp::read(&Far), Err(PortError::NoService));
 }
 
 fn spec() -> RunSpec {

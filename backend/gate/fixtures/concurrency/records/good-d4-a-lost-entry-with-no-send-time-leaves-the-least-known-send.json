@@ -1,0 +1,61 @@
+{
+  "kind": "judge",
+  "ruling": "P7-107 K5 (c), on D4 of P7-83 (7) (c)",
+  "about": "a request whose first lost entry has no send time, the form of records from before unit 4.10, and whose second was sent at 1,200 ms; its last send was at 3,700 ms and its answer at 4,050 ms: the wait runs from the least known send, 1,200 ms, so 2,850 ms and slow, and no wait is NaN",
+  "source": "the finder's case good-d4r-lost0-without-send-time-does-not-fall-to-last-send of the unit's review (evidence/builder-56/90-review-verdicts.txt), written by hand",
+  "top": {
+    "requests": [
+      {
+        "id": "q0",
+        "index": 0,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 3700,
+        "headersAt": 4050,
+        "endedAt": 4051,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [
+          {
+            "why": "reset",
+            "body": ""
+          },
+          {
+            "why": "500",
+            "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+            "sentAt": 1200
+          }
+        ],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "slow": true,
+      "burstWaits": [
+        2850
+      ],
+      "burstMedianMs": 2850,
+      "slowBoundMs": 2600
+    }
+  }
+}

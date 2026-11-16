@@ -1,0 +1,7 @@
+{
+  "name": "r4-driver-trial-wdio",
+  "private": true,
+  "dependencies": {
+    "@wdio/tauri-service": "1.5.1"
+  }
+}

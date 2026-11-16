@@ -20,7 +20,7 @@ fn range(text: &str) -> Range {
 
 fn copy(scratch: &Scratch, file: &str) -> Folder {
     fs::copy(corpus(file), scratch.path(file)).expect("copy the corpus workbook");
-    Folder::new(&scratch.dir).expect("the folder opens")
+    Folder::new(&scratch.dir, common::locks()).expect("the folder opens")
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn a_file_that_is_no_workbook_gets_the_cause_workbook_and_shows_nothing_of_it() 
         "cut.xlsx",
         &fs::read(corpus("values.xlsx")).expect("read")[..900],
     );
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     for file in ["plain.xlsx", "cut.xlsx"] {
         let got = folder.read(Path::new(file), "Values", range("A1"));
         assert_eq!(got, Err(Error::Workbook(Refusal::Unreadable)), "{file}");

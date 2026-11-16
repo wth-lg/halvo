@@ -1,0 +1,15 @@
+[package]
+name = "halvo-sample"
+version = "0.0.0"
+description = "Composes, splits, builds and checks the labelled sample of the workflow run"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-redact = { path = "../halvo-redact" }
+halvo-schema = { path = "../halvo-schema" }
+halvo-seam = { path = "../halvo-seam" }
+rand_chacha = { version = "0.10.0", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

@@ -1,0 +1,30 @@
+{
+  "kind": "gateway-default",
+  "ruling": "P7-69 F7 (the verifier's D09, the review's d08)",
+  "about": "judge with no gateway in its input takes gatewayOf of stress/config.mjs; the driver records gatewayOf of its own cfg, which is config with the kill runs set. Both give the same bound for a matrix cell and for the void cell, so a record that lacks the constants is judged as the driver's record is",
+  "source": "by hand",
+  "cases": [
+    {
+      "cell": {
+        "name": "usage-last@200",
+        "kind": "matrix",
+        "level": 200,
+        "switch": "usage-last",
+        "killRuns": 0,
+        "plainRuns": 1
+      },
+      "slowBoundMs": 2600
+    },
+    {
+      "cell": {
+        "name": "void@20",
+        "kind": "void",
+        "level": 20,
+        "switch": "usage-last",
+        "killRuns": 0,
+        "plainRuns": 1
+      },
+      "slowBoundMs": 1300
+    }
+  ]
+}

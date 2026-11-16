@@ -1,0 +1,39 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 4",
+  "about": "a 409 stopped for an id sent twice whose row expired at its amount without the mark: neither line 1 nor line 2 holds",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "state": "expired",
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      },
+      {
+        "clause": "voided-at-expiry",
+        "id": "r"
+      }
+    ]
+  }
+}

@@ -199,3 +199,50 @@ fn open_removes_rows_that_name_a_summary_or_a_workflow_that_is_not_stored() {
          one, and moves no other family of its entries; the table holds the entries' families and no more"
     );
 }
+
+/// A keyless database made by a connection of the test's own with `pragma`, holding no table (one is made and dropped,
+/// so that the setting is written into the file), and what the keyless open of the test host answers for it.
+fn keyless_open_of_a_file_made_with(name: &str, pragma: &str) -> Result<(), OpenError> {
+    let scratch = Scratch::new(name);
+    std::fs::create_dir_all(scratch.path().join("derived")).unwrap();
+    halvo_derived::test_host::start_sqlite();
+    let conn = halvo_sqlcipher::rusqlite::Connection::open(scratch.db()).unwrap();
+    conn.execute_batch(&format!("{pragma} CREATE TABLE t(x); DROP TABLE t;"))
+        .unwrap();
+    drop(conn);
+    let host = Host::new(
+        Box::new(TestClock::at_day(20_767)),
+        Box::new(common::NoProposals),
+    );
+    halvo_derived::test_host::open_keyless(scratch.path(), &registry(), host, &mut Seq(1)).map(drop)
+}
+
+/// S-85, item 5: the open refuses by name a store whose `auto_vacuum` reads otherwise than 0, here a keyless file made
+/// with `auto_vacuum` FULL, and opens one made with it NONE.
+#[test]
+fn open_refuses_a_store_whose_auto_vacuum_is_not_0() {
+    assert_eq!(
+        keyless_open_of_a_file_made_with("auto-vacuum-full", "PRAGMA auto_vacuum = FULL;"),
+        Err(OpenError::Setting("auto_vacuum"))
+    );
+    assert_eq!(
+        keyless_open_of_a_file_made_with("auto-vacuum-none", "PRAGMA auto_vacuum = NONE;"),
+        Ok(())
+    );
+}
+
+/// S-85, item 5 and S-94 P3: the open refuses by name a store whose page size reads otherwise than 4,096, tested keyless
+/// alone: under a key the database answers `PRAGMA page_size` itself, as the text of the cipher's page size, so a
+/// keyed file of another page size is the cipher's setting and no test here makes one. A keyless file made with a page
+/// size of 8,192 is refused and one made with 4,096 opens.
+#[test]
+fn open_refuses_a_keyless_store_whose_page_size_is_not_4096() {
+    assert_eq!(
+        keyless_open_of_a_file_made_with("page-size-8192", "PRAGMA page_size = 8192;"),
+        Err(OpenError::Setting("page_size"))
+    );
+    assert_eq!(
+        keyless_open_of_a_file_made_with("page-size-4096", "PRAGMA page_size = 4096;"),
+        Ok(())
+    );
+}

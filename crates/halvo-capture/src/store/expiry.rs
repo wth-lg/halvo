@@ -5,21 +5,30 @@ use std::collections::HashSet;
 use halvo_sqlcipher::rusqlite::{self, Connection, Row};
 use uuid::Uuid;
 
-use super::db::{db_error, unix_secs_now, Db, EncryptedStore, KeyFile};
-use super::segment::{self, SegmentFile};
-use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
+use super::db::{db_error, unix_secs_now, EncryptedStore};
+use super::segment;
+use super::{DeleteReport, SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
+
+/// What one sweep of the keyless segment files did: the files it removed,
+/// and the entries at the two walked levels of segments/ that the walk does
+/// not take as files of the store (a link or a directory with a store name
+/// among them, nothing below the two levels, and no live segment that the
+/// sweep keeps), which it leaves in place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sweep {
+    pub removed: u64,
+    pub not_store_files: u64,
+}
 
 fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
     row.get(0)
 }
 
 fn parse_segment_id(text: &str) -> StoreResult<Uuid> {
-    Uuid::parse_str(text).map_err(|e| {
-        StoreError::Corrupt(format!(
-            "segment_keys holds a corrupt segment id {text}: {e}"
-        ))
+    Uuid::parse_str(text).map_err(|_| {
+        StoreError::Corrupt("segment_keys holds a segment id that does not parse".to_string())
     })
 }
 
@@ -73,24 +82,16 @@ impl EncryptedStore {
         Ok(())
     }
 
-    pub(crate) fn remove_keyless_files(&self) -> StoreResult<u64> {
+    pub(crate) fn remove_keyless_files(&self) -> StoreResult<Sweep> {
         let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
-        let mut removed = 0u64;
-        let mut failures = Vec::new();
-        for file in segment::segment_files(self.dir())? {
-            if let SegmentFile::Segment { id, .. } = &file {
-                if live.contains(id) {
-                    continue;
-                }
-            }
-            match segment::remove_segment_file(file.path()) {
-                Ok(()) => removed += 1,
-                Err(e) => failures.push(e),
-            }
-        }
-        match failures.into_iter().next() {
+        let swept =
+            segment::sweep_segment_files(self.handle(), self.fs(), &|id| live.contains(&id))?;
+        match swept.first_failure {
             Some(first) => Err(first),
-            None => Ok(removed),
+            None => Ok(Sweep {
+                removed: swept.removed,
+                not_store_files: swept.not_store_files,
+            }),
         }
     }
 
@@ -100,16 +101,49 @@ impl EncryptedStore {
         Ok(ids.len() as u64)
     }
 
-    fn destroy_store_key(&mut self) -> StoreResult<()> {
-        self.destroy_root()?;
-        self.seal();
-        KeyFile::destroy(self.dir())?;
-        Db::destroy(self.dir())?;
-        match std::fs::remove_dir_all(segment::segments_root(self.dir())) {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(StoreError::Io(e.kind())),
+    /// Delete-all on this handle, in the order of the contract, every step
+    /// attempted whatever the others answered, each through the handle and
+    /// never by its kept name, following no link: (1) the count of keyed
+    /// segments, unknown when it cannot be read; (2) the root step, which opens
+    /// the custody's roots location once and, when that directory holds the
+    /// store's root, destroys every root file there, the store's own first,
+    /// and otherwise destroys nothing and reads the root as left; once a call
+    /// on this handle read its root destroyed, a later call opens no roots
+    /// path again and reports from the listing that the earlier call kept;
+    /// (3) the handle refuses writes from here on,
+    /// whatever step 2 answered; (4) the key file, removed even when its
+    /// zero-fill failed; (5) the three database files and the journal; (6)
+    /// the segments tree. `Ok` with the report when the root reads destroyed
+    /// and nothing is left, [`StoreError::DeleteIncomplete`] with it otherwise. A
+    /// second call on the same handle runs the steps again where they are
+    /// left, after an answer of [`StoreError::DeleteIncomplete`]. Once a call
+    /// answered `Ok`, the handle is in the deleted state: every call but
+    /// `delete_all` answers [`StoreError::Sealed`], and `delete_all` answers
+    /// `Ok` with the report of the call that finished and touches nothing on
+    /// disk or in the custody. It runs no bulk key delete, no checkpoint and no
+    /// keyless sweep.
+    pub fn delete_all(&mut self) -> StoreResult<DeleteReport> {
+        if let Some(finished) = self.finished_report() {
+            return Ok(finished);
         }
+        let keyed_segments = self.db().ok().and_then(|db| db.keyed_segments());
+        self.destroy_store_key()?;
+        let mut report = self.deleting_report().unwrap_or_else(|| self.untouched());
+        report.keyed_segments = keyed_segments;
+        if report.complete() {
+            self.mark_deleted(report.clone());
+            Ok(report)
+        } else {
+            Err(StoreError::DeleteIncomplete(Box::new(report)))
+        }
+    }
+
+    fn destroy_store_key(&mut self) -> StoreResult<()> {
+        let root_step = self.root_step();
+        #[cfg(test)]
+        super::failpoint::seam(super::db::SEAM_AFTER_THE_ROOT_STEP);
+        self.remove_files_after(root_step);
+        Ok(())
     }
 }
 
@@ -124,16 +158,16 @@ impl SegmentExpiry for EncryptedStore {
     }
 
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
-        if self.is_sealed() {
-            self.destroy_store_key()?;
+        if self.finished_report().is_some() {
             return Ok(ShredReport::default());
         }
-        let ids = self.segment_ids_with_keys(None)?;
-        let segments_shredded = self.shred_segments(&ids)?;
-        self.destroy_store_key()?;
-        Ok(ShredReport {
-            segments_shredded,
-            keys_destroyed: segments_shredded + STORE_KEY_COUNT,
+        let report = self.delete_all()?;
+        Ok(match report.keyed_segments {
+            Some(segments_shredded) => ShredReport {
+                segments_shredded,
+                keys_destroyed: segments_shredded + STORE_KEY_COUNT,
+            },
+            None => ShredReport::default(),
         })
     }
 }
@@ -213,7 +247,7 @@ mod tests {
         assert!(matches!(store.db(), Err(StoreError::Sealed)));
         drop(store);
         assert!(matches!(
-            EncryptedStore::open(dir.path(), DEFAULT_RETENTION),
+            crate::store::roots::open(dir.path(), DEFAULT_RETENTION),
             Err(StoreError::Sealed)
         ));
     }

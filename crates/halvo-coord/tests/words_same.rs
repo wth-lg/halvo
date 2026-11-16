@@ -9,6 +9,10 @@ const FIXTURE: &str = concat!(
 );
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the test starts the crate's own binary coord-words to read what it prints"
+)]
 fn words_same() {
     let out = Command::new(env!("CARGO_BIN_EXE_coord-words"))
         .arg("export")
@@ -41,6 +45,10 @@ fn export_is_one_line_of_the_keys_in_byte_order() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the test starts the crate's own binary coord-words to read what it prints"
+)]
 fn usage_is_refused_with_one_line_on_standard_error() {
     for args in [vec![], vec!["nope"], vec!["export", "more"]] {
         let out = Command::new(env!("CARGO_BIN_EXE_coord-words"))
@@ -90,6 +98,7 @@ fn expected_keys() -> BTreeSet<String> {
         "working.working",
         "working.stopping",
         "waiting_turn.queued",
+        "waiting_turn.store",
         "problem.failed",
         "problem.limit",
         "problem.class_mismatch",
@@ -232,6 +241,14 @@ fn expected_keys() -> BTreeSet<String> {
     for n in ["file", "range"] {
         k.insert(format!("field.local_edit.{n}"));
     }
+    for key in [
+        "say.item.new",
+        "say.item.gone",
+        "param_typed.full",
+        "param_typed.too_long",
+    ] {
+        k.insert(key.to_owned());
+    }
     k
 }
 
@@ -250,7 +267,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 209);
+    assert_eq!(seen.len(), 214);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -284,6 +301,8 @@ fn placeholders_are_the_ones_that_the_contract_names() {
         want.insert(format!("item.{}.title", kind.name()), vec!["name"]);
     }
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
+    want.insert("say.item.new".into(), vec!["name"]);
+    want.insert("say.item.gone".into(), vec!["name"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
         let expect: Vec<String> = want
@@ -404,7 +423,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 26);
+    assert_eq!(keys.len(), 27);
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use halvo_schema::coordinator::body::{CoordLog, History};
-use halvo_schema::coordinator::names::RunEnd;
-use halvo_schema::coordinator::record::CoordEvent;
+use halvo_schema::coordinator::names::{RunEnd, Trigger};
+use halvo_schema::coordinator::record::{CoordEvent, What};
+use halvo_schema::kinds::check_record;
 
 const WORKFLOW: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const AGENT: &str = "1a2b3c4d5e6f708192a3b4c5d6e7f809";
@@ -44,13 +45,19 @@ struct Form {
 /// from the contract's words.
 const FORMS: &[Form] = &[
     Form {
-        name: "run_started",
+        name: "run_started by the scheduler",
         event: "run_started",
         sets: &[
             ("run", RUN),
             ("slot", "20767"),
             ("trigger", r#""schedule""#),
         ],
+        may_be_null: &[],
+    },
+    Form {
+        name: "run_started by the person",
+        event: "run_started",
+        sets: &[("run", RUN), ("slot", "20767"), ("trigger", r#""person""#)],
         may_be_null: &["slot"],
     },
     Form {
@@ -234,6 +241,18 @@ const FORMS: &[Form] = &[
         may_be_null: &[],
     },
     Form {
+        name: "hold_set sign_in_refused",
+        event: "hold_set",
+        sets: &[("run", RUN), ("cause", r#""sign_in_refused""#)],
+        may_be_null: &[],
+    },
+    Form {
+        name: "hold_cleared sign_in_refused",
+        event: "hold_cleared",
+        sets: &[("run", RUN), ("cause", r#""sign_in_refused""#)],
+        may_be_null: &[],
+    },
+    Form {
         name: "slot_skipped",
         event: "slot_skipped",
         sets: &[("slot", "20766")],
@@ -344,6 +363,74 @@ fn r4_rows_null_means_null() {
     }
 }
 
+fn run_started(seq: u32, trigger: &str, slot: &str) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{WORKFLOW}","agent":"{AGENT}","seq":{seq},"day":20767,"at":1794339000000000000,"event":"run_started","run":{RUN},"slot":{slot},"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"{trigger}","origin":null}}"#
+    )
+}
+
+#[test]
+fn r4_rows_a_start_of_the_scheduler_with_a_null_slot_is_refused() {
+    let text = run_started(1, "schedule", "null");
+    let refusal = CoordEvent::parse(text.as_bytes()).expect_err(
+        "I5.3 and I7.1: a start by the scheduler is for a slot, and run_started schedule with a null slot is taken",
+    );
+    assert_eq!(
+        (refusal.type_name(), refusal.key(), refusal.rule()),
+        ("CoordEvent", Some("slot"), "no_slot")
+    );
+    let log = format!(
+        r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{text}]}}"#
+    );
+    assert_eq!(
+        CoordLog::parse(log.as_bytes())
+            .map(|_| ())
+            .map_err(|r| r.rule()),
+        Err("no_slot"),
+        "a coord_log body with run_started schedule and a null slot"
+    );
+    let reply = format!(
+        r#"{{"records":[{},{}],"last":2}}"#,
+        run_started(1, "schedule", "20767"),
+        run_started(2, "schedule", "null")
+    );
+    assert_eq!(
+        History::parse(reply.as_bytes())
+            .map(|_| ())
+            .map_err(|r| r.rule()),
+        Err("no_slot"),
+        "a coord_history reply with run_started schedule and a null slot"
+    );
+    let mut value = CoordEvent::parse(run_started(1, "person", "null").as_bytes()).unwrap();
+    if let What::RunStarted { trigger, .. } = &mut value.what {
+        *trigger = Trigger::Schedule;
+    }
+    assert_eq!(value.to_json().unwrap_err().rule(), "no_slot");
+    assert!(serde_json::to_string(&value).is_err());
+}
+
+#[test]
+fn r4_rows_a_start_of_the_person_with_a_null_slot_is_taken() {
+    for (trigger, slot) in [
+        ("person", "null"),
+        ("person", "20767"),
+        ("schedule", "20767"),
+    ] {
+        let text = run_started(1, trigger, slot);
+        let value = CoordEvent::parse(text.as_bytes())
+            .unwrap_or_else(|r| panic!("I5.3: run_started {trigger} with slot {slot}: {r}"));
+        assert_eq!(value.to_json().unwrap(), text, "{trigger} {slot}");
+    }
+    let log = format!(
+        r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{}]}}"#,
+        run_started(1, "person", "null")
+    );
+    assert!(
+        CoordLog::parse(log.as_bytes()).is_ok(),
+        "a coord_log body with run_started person and a null slot"
+    );
+}
+
 fn hold_set(v: &str, at: &str) -> String {
     format!(
         r#"{}"event":"hold_set","run":null,"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"person","trigger":null,"origin":null}}"#,
@@ -448,4 +535,129 @@ fn r4_rows_run_ended_with_the_cause_deleted_is_never_read() {
         Err("unknown_name"),
         "a coord_history reply with run_ended deleted"
     );
+}
+
+fn with_defers(text: &str, launch: &str, ticks: &str) -> String {
+    let body = text.strip_suffix('}').unwrap();
+    format!(r#"{body},"defer_launch":{launch},"defer_ticks_failed":{ticks}}}"#)
+}
+
+fn refused_at(text: &str, key: &str, rule: &str) {
+    let refusal = CoordEvent::parse(text.as_bytes())
+        .err()
+        .unwrap_or_else(|| panic!("taken: {text}"));
+    assert_eq!((refusal.key(), refusal.rule()), (Some(key), rule), "{text}");
+}
+
+#[test]
+fn r4_rows_run_ended_holds_the_two_defer_keys_both_null_or_both_set() {
+    for cause in STORED_ENDS {
+        let older = run_ended(1, cause);
+        let nulls = with_defers(&older, "null", "null");
+        let read = CoordEvent::parse(nulls.as_bytes()).unwrap_or_else(|r| panic!("{nulls}: {r}"));
+        assert_eq!(read, CoordEvent::parse(older.as_bytes()).unwrap());
+        assert_eq!(
+            read.to_json().unwrap(),
+            older,
+            "null defers are not written"
+        );
+        for (launch, ticks) in [
+            (r#""yes""#, "0"),
+            (r#""no""#, "0"),
+            (r#""no""#, "3"),
+            (r#""yes""#, "4294967295"),
+        ] {
+            let text = with_defers(&older, launch, ticks);
+            let read = CoordEvent::parse(text.as_bytes()).unwrap_or_else(|r| panic!("{text}: {r}"));
+            assert_eq!(read.to_json().unwrap(), text, "RD-86: written after origin");
+            assert_ne!(read, CoordEvent::parse(older.as_bytes()).unwrap());
+        }
+    }
+    let older = run_ended(1, "failed");
+    refused_at(
+        &with_defers(&older, r#""yes""#, "null"),
+        "defer_launch",
+        "not_null",
+    );
+    refused_at(
+        &with_defers(&older, "null", "2"),
+        "defer_ticks_failed",
+        "not_null",
+    );
+    refused_at(
+        &with_defers(&older, r#""maybe""#, "2"),
+        "defer_launch",
+        "unknown_name",
+    );
+    refused_at(
+        &with_defers(&older, "true", "2"),
+        "defer_launch",
+        "not_a_string",
+    );
+    for ticks in ["-1", r#""2""#, "2.0", "false"] {
+        refused_at(
+            &with_defers(&older, r#""no""#, ticks),
+            "defer_ticks_failed",
+            "not_a_count",
+        );
+    }
+    refused_at(
+        &with_defers(&older, r#""no""#, "4294967296"),
+        "defer_ticks_failed",
+        "range",
+    );
+}
+
+#[test]
+fn r4_rows_every_other_form_takes_the_two_defer_keys_null_alone() {
+    for form in FORMS.iter().filter(|form| form.event != "run_ended") {
+        let older = row_with(form, None);
+        let nulls = with_defers(&older, "null", "null");
+        let read =
+            CoordEvent::parse(nulls.as_bytes()).unwrap_or_else(|r| panic!("{}: {r}", form.name));
+        assert_eq!(read.to_json().unwrap(), older, "{}", form.name);
+        refused_at(
+            &with_defers(&older, r#""yes""#, "1"),
+            "defer_launch",
+            "not_null",
+        );
+        refused_at(
+            &with_defers(&older, "null", "1"),
+            "defer_ticks_failed",
+            "not_null",
+        );
+    }
+}
+
+#[test]
+fn r4_rows_a_row_with_one_of_the_two_defer_keys_is_refused() {
+    let older = run_ended(1, "completed");
+    let body = older.strip_suffix('}').unwrap();
+    refused_at(
+        &format!(r#"{body},"defer_launch":null}}"#),
+        "defer_ticks_failed",
+        "missing_key",
+    );
+    refused_at(
+        &format!(r#"{body},"defer_ticks_failed":null}}"#),
+        "defer_launch",
+        "missing_key",
+    );
+    let refusal = CoordEvent::parse(
+        format!(r#"{body},"defer_launch":null,"defer_ticks_failed":null,"defer":null}}"#)
+            .as_bytes(),
+    )
+    .unwrap_err();
+    assert_eq!((refusal.key(), refusal.rule()), (None, "unknown_key"));
+}
+
+#[test]
+fn r4_rows_the_kind_entry_refuses_defer_values_until_the_writers_write_them() {
+    let entry = &halvo_schema::coordinator::KINDS[0];
+    let older = run_ended(1, "completed");
+    assert_eq!(check_record(entry, &older), Ok(()));
+    let newer = with_defers(&older, r#""yes""#, "2");
+    assert!(CoordEvent::parse(newer.as_bytes()).is_ok());
+    let refusal = check_record(entry, &newer).unwrap_err();
+    assert!(refusal.contains("unknown_key"), "{refusal}");
 }

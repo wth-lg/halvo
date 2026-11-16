@@ -126,7 +126,7 @@ fn written(
     cells: &[(&str, Value)],
 ) -> Result<(), halvo_sheet::Error> {
     fs::copy(source, scratch.path("book.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let first = cells.first().expect("a cell").0;
     let last = cells.last().expect("a cell").0;
@@ -218,7 +218,7 @@ fn each_carried_workbook_differs_from_its_source_only_where_cp32_allows() {
     for change in CARRIED {
         let scratch = Scratch::new("package-carried");
         fs::copy(corpus(change.file), scratch.path(change.file)).expect("copy");
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let range = Range::parse(change.cell).expect("a range");
         let values = vec![vec![Value::Number(change.new)]];
         let done = folder
@@ -259,7 +259,7 @@ fn an_inline_text_of_every_kind_reads_back_through_calamine_as_written() {
         .map(|(c, t)| (*c, Value::Text(t.to_string())))
         .collect();
     assert_eq!(written(&scratch, &corpus("values.xlsx"), &values), Ok(()));
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let read = folder
         .read(
             Path::new("book.xlsx"),
@@ -359,7 +359,7 @@ fn a_changed_part_keeps_the_method_and_the_time_of_its_entry_and_the_rest_keep_t
         out.write_all(&bytes).expect("write");
     }
     out.finish().expect("finish");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let b5 = Range::parse("B5").expect("a range");
     let prepared = folder

@@ -22,7 +22,7 @@ const PINNED: [(&str, &str); 5] = [
     ),
     (
         "Cargo.toml",
-        "929ccd4db5a3d67ddc15d258a5b941f5d3949873365be684d22bed88ce4b12d0",
+        "42ed4aa130d163c0ece33201d1056146aecd2f15032e94a43fd4ec35a8f0da8c",
     ),
 ];
 
@@ -44,6 +44,21 @@ fn pinned_files_hold_their_hashes() {
         changed.is_empty(),
         "a pinned file changed. A change of a pinned file updates its hash in PINNED of tests/no_grant_in_release.rs in the same commit, where the reviewer of that commit reads the change.\n{}",
         changed.join("\n")
+    );
+}
+
+#[test]
+fn the_manifest_holds_the_package_and_the_dev_dependencies_alone() {
+    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
+        .expect("the crate's manifest");
+    let tables: Vec<&str> = manifest
+        .lines()
+        .filter(|line| line.trim_start().starts_with('['))
+        .collect();
+    assert_eq!(
+        (manifest.lines().next(), tables),
+        (Some("[package]"), vec!["[package]", "[dev-dependencies]"]),
+        "halvo-route has no dependency outside the workspace (contracts.md T0.7): its manifest opens with [package] and holds no table but [package] and [dev-dependencies]"
     );
 }
 

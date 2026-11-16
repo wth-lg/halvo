@@ -1,30 +1,34 @@
 {
   "problems": [
     "read the license of 7 of the 10 packages the lockfile lists; not read: absent@1.0.0, no-integrity@1.0.0, retagged@1.0.0. Run sh scripts/prerequisites.sh.",
-    "the cached license of absent@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
-    "the cached license of left-the-lockfile@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
-    "the cached license of no-integrity@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
-    "the cached license of retagged@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
+    "the cached license of absent@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "the cached license of left-the-lockfile@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "the cached license of no-integrity@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "the cached license of retagged@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "@scope/both@2.1.0 has the license (MIT) AND (GPL-3.0-only), which is neither on the allowlist nor in the exceptions",
     "no-license-cached@1.0.0 has the license NONE, which is neither on the allowlist nor in the exceptions",
     "unstated@1.0.0 has the license NONE, which is neither on the allowlist nor in the exceptions",
+    "the bundled package @scope/both@2.1.0 has the license (MIT) AND (GPL-3.0-only), which is not on the allowlist; an exception covers packages that are not bundled",
     "the bundled package native@1.0.0 has the license LGPL-3.0-or-later, which is not on the allowlist; an exception covers packages that are not bundled",
     "the bundled package unstated@1.0.0 has the license NONE, which is not on the allowlist; an exception covers packages that are not bundled"
   ],
   "packages": 10,
-  "excepted": 4,
+  "excepted": 5,
   "bundled": 3,
   "cached": 3,
   "lines": [
     "  read the license of 7 of the 10 packages the lockfile lists; not read: absent@1.0.0, no-integrity@1.0.0, retagged@1.0.0. Run sh scripts/prerequisites.sh.",
-    "  the cached license of absent@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
-    "  the cached license of left-the-lockfile@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
-    "  the cached license of no-integrity@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
-    "  the cached license of retagged@1.0.0 does not carry the lockfile's integrity for that package. Run sh scripts/prerequisites.sh.",
+    "  the cached license of absent@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "  the cached license of left-the-lockfile@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "  the cached license of no-integrity@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "  the cached license of retagged@1.0.0 does not carry the lockfile's integrity for that package, or was written under another reading of a list of licenses. Run sh scripts/prerequisites.sh.",
+    "  @scope/both@2.1.0 has the license (MIT) AND (GPL-3.0-only), which is neither on the allowlist nor in the exceptions",
     "  no-license-cached@1.0.0 has the license NONE, which is neither on the allowlist nor in the exceptions",
     "  unstated@1.0.0 has the license NONE, which is neither on the allowlist nor in the exceptions",
+    "  the bundled package @scope/both@2.1.0 has the license (MIT) AND (GPL-3.0-only), which is not on the allowlist; an exception covers packages that are not bundled",
     "  the bundled package native@1.0.0 has the license LGPL-3.0-or-later, which is not on the allowlist; an exception covers packages that are not bundled",
     "  the bundled package unstated@1.0.0 has the license NONE, which is not on the allowlist; an exception covers packages that are not bundled",
-    "FAIL licenses: 9 problems; first: read the license of 7 of the 10 packages the lockfile lists; not read: absent@1.0.0, no-integrity@1.0.0, retagged@1.0.0. Run sh scripts/prerequisites.sh."
+    "FAIL licenses: 11 problems; first: read the license of 7 of the 10 packages the lockfile lists; not read: absent@1.0.0, no-integrity@1.0.0, retagged@1.0.0. Run sh scripts/prerequisites.sh."
   ],
   "exit": 1
 }

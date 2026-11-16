@@ -1,0 +1,108 @@
+{
+  "kind": "judge",
+  "ruling": "B-33, B-38",
+  "about": "the same late settle in an attempt whose first burst waited 2,700 ms: the attempt does not count and the clause is not read in it",
+  "source": "by hand",
+  "request": {
+    "status": 200,
+    "body": "",
+    "headersAt": 1100,
+    "endedAt": 4600,
+    "trailer": {
+      "settled": true,
+      "outcome": "expired",
+      "cost": 19,
+      "settle_ms": 1
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire",
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "cost": 19,
+    "late_at": 4500,
+    "late_seq": 3
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1050,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 4450,
+      "id": "r",
+      "ev": "usage",
+      "final": true,
+      "input_tokens": 1,
+      "output_tokens": 1
+    },
+    {
+      "t": 4490,
+      "id": "r",
+      "ev": "end",
+      "clean": true
+    }
+  ],
+  "top": {
+    "requests": [
+      {
+        "id": "first",
+        "index": 0,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 900,
+        "headersAt": 3600,
+        "endedAt": 3601,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "r",
+        "index": 1,
+        "status": 409,
+        "body": "{\"result\":\"stopped\"}",
+        "sentAt": 1000,
+        "headersAt": 4050,
+        "endedAt": 4060,
+        "hold": 100,
+        "receipt": {
+          "requestId": "r",
+          "amount": 100,
+          "now": 1010,
+          "expiresAt": 4010
+        },
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ]
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "lateSettles": 1,
+      "slow": true
+    }
+  }
+}

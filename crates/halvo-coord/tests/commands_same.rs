@@ -70,23 +70,30 @@ fn i8_1() -> Value {
          "errors": ["unknown_agent", "no_service", "busy", "malformed"]},
         {"command": "agents_answer", "args": [
             arg("item", "id", None, None),
+            arg("step", "count", None, None),
             arg("choice", "name", None, Some(choices)),
             arg("param", "name", Some("choose"), Some(params.clone())),
             arg("n", "count", Some("choose"), None)],
          "replies": ["reply-ok"],
-         "errors": ["stale", "presenter", "early", "state", "unknown_item", "no_service", "busy", "malformed"]},
+         "errors": ["stale", "presenter", "early", "hold", "state", "budget", "queue_full", "unknown_item", "no_service", "busy", "malformed"]},
         {"command": "agents_setup_typed", "args": [
             arg("item", "id", None, None),
+            arg("step", "count", None, None),
             arg("param", "name", None, Some(params)),
             arg("text", "text", None, None)],
-         "replies": ["reply-ok"], "errors": ["stale", "state", "unknown_item", "malformed"]},
+         "replies": ["reply-ok"], "errors": ["stale", "state", "unknown_item", "malformed", "no_service"]},
         {"command": "agents_present", "args": [arg("item", "id", None, None)], "replies": ["reply-ok"],
          "errors": ["stale", "presenter", "unknown_item", "no_service", "malformed"]},
         {"command": "agents_control", "args": [
             arg("agent", "id", None, None),
             arg("action", "name", None, Some(vec!["run_now", "stop", "switch_off", "switch_on"]))],
          "replies": ["reply-ok"],
-         "errors": ["hold", "state", "budget", "queue_full", "unknown_agent", "no_service", "busy", "malformed"]}
+         "errors": ["hold", "state", "budget", "queue_full", "unknown_agent", "no_service", "busy", "malformed"]},
+        {"command": "agents_shown", "args": [
+            arg("item", "id", None, None),
+            arg("step", "count", None, None)],
+         "replies": ["reply-ok"],
+         "errors": ["unknown_item", "presenter", "stale", "state", "no_service", "malformed"]}
     ])
 }
 
@@ -110,6 +117,20 @@ fn commands_json_keeps_the_key_order_of_i8_3_on_one_line() {
     assert!(text.starts_with("[{\"command\":\"agents_snapshot\",\"args\":[],\"replies\":["));
     assert!(text.contains("{\"name\":\"after\",\"type\":\"count\",\"when\":null,\"values\":null}"));
     assert!(text.ends_with("]\n") && text.matches('\n').count() == 1);
+}
+
+#[test]
+fn the_answer_commands_require_the_step_and_answer_one_without_it_malformed() {
+    use halvo_coord::types::{ArgType, Cause};
+    for name in ["agents_answer", "agents_setup_typed"] {
+        let row = LIST.iter().find(|c| c.name == name).unwrap();
+        let step = row.args.iter().find(|a| a.name == "step");
+        assert!(
+            step.is_some_and(|a| a.kind == ArgType::Count && a.when.is_none()),
+            "{name}: {step:?}"
+        );
+        assert!(row.errors.contains(&Cause::Malformed), "{name}");
+    }
 }
 
 #[test]

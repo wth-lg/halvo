@@ -114,6 +114,26 @@ pub enum Locked {
     Size,
     /// More than one Keychain item answers to the name.
     Duplicate,
+    /// On macOS, the store that this build does not keep its secret in holds an item under
+    /// the name too: a build without the feature `keychain` found a Keychain item, or a
+    /// build with it found the file of the file store beside its own Keychain item, with
+    /// other bytes. The store picks neither, and no operation of this crate leaves the
+    /// state in which both stores hold other bytes.
+    OtherStore,
+    /// On macOS, a build with the feature `keychain` found the file of the file store, and
+    /// the move of that file into the Keychain did not finish because a step of it failed:
+    /// the add or the read back failed, the removal of the file was refused or found another
+    /// file under the name, or a second add found an item that another process had added.
+    /// The file is kept. This is the one member after which the Keychain may hold the item
+    /// that the add made; a later read that finds equal bytes in both stores finishes the
+    /// move.
+    Move {
+        /// The OSStatus or errno with which that step was refused or failed, or -1 when the
+        /// step answered without one: a second add found an item, the read back found none
+        /// or other bytes, the removal found another file, or the step was refused with
+        /// another member.
+        code: i64,
+    },
 }
 
 /// A failure of the system with its code: an OSStatus of the Keychain, an errno of macOS,

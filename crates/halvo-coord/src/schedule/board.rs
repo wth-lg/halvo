@@ -123,6 +123,7 @@ pub struct Board<C> {
     /// What the coordinator owes the owner, in the order in which it came to be owed.
     pub owed: Vec<Owed>,
     ranks: u64,
+    listed: bool,
 }
 
 impl<C> Board<C> {
@@ -143,7 +144,15 @@ impl<C> Board<C> {
             roster_full: false,
             owed: Vec::new(),
             ranks: 0,
+            listed: false,
         }
+    }
+
+    /// Whether this is the life's first creation move that read the owner's list, which raises
+    /// `setup` again (I5.8): later in the life an agent's slots on the board can be older than its
+    /// acknowledged bindings, so that the hold `setup` reads as standing when it no longer does.
+    pub(super) fn first_listing(&mut self) -> bool {
+        !std::mem::replace(&mut self.listed, true)
     }
 
     pub(super) fn rank(&mut self) -> u64 {

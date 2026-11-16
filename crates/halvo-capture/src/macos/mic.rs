@@ -1,48 +1,46 @@
-//! Microphone capture source: present, but off by default in R1.
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+};
 
-use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
-
-/// Microphone capture. Off by default; R1 does not wire the capture.
-pub struct MicrophoneSource;
+pub struct MicrophoneSource {
+    begun: bool,
+}
 
 impl MicrophoneSource {
     pub fn disabled() -> Self {
-        Self
+        Self { begun: false }
     }
 }
 
 impl CaptureSource for MicrophoneSource {
-    fn modality(&self) -> Modality {
-        Modality::Microphone
+    fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+        if self.begun {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        self.begun = true;
+        Ok(Started::Off)
     }
 
-    fn start(&mut self, _sink: SinkHandle) -> Result<(), CaptureError> {
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.begun = false;
         Ok(())
     }
 
-    fn stop(&mut self) {}
+    fn health(&self) -> SourceHealth {
+        SourceHealth {
+            state: SourceState::Off,
+            counters: SourceCounters::default(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sink;
+    use crate::macos::off_source_tests::the_off_source_keeps_its_lifecycle;
 
     #[test]
-    fn disabled_by_default_and_start_is_a_no_op() {
-        let (handle, _writer) = sink::channel(1);
-        let mut source = MicrophoneSource::disabled();
-        assert!(source.start(handle).is_ok());
-        source.stop();
-    }
-
-    #[test]
-    fn modality_is_microphone() {
-        assert_eq!(
-            MicrophoneSource::disabled().modality(),
-            Modality::Microphone
-        );
+    fn the_off_source_answers_off_and_keeps_no_handle_of_the_sink() {
+        the_off_source_keeps_its_lifecycle(MicrophoneSource::disabled());
     }
 }

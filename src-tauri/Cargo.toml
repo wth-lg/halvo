@@ -11,4 +11,20 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
-halvo-capture = { path = "../crates/halvo-capture" }
+halvo-control = { path = "../crates/halvo-control" }
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39.1"
+windows-core = "0.62.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSError", "NSString", "NSURL", "NSURLRequest"] }
+objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKContentRuleList", "WKContentRuleListStore", "WKContentWorld", "WKFrameInfo", "WKNavigationAction", "WKNavigationDelegate", "WKPreferences", "WKUserContentController", "WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore"] }
+block2 = "0.6.2"
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test", "unstable"] }
+serde_json = "1"
+halvo-control = { path = "../crates/halvo-control", features = ["test-support"] }
+halvo-test-dir = { path = "../crates/halvo-test-dir" }

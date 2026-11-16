@@ -1,0 +1,18 @@
+{
+  "kind": "judge",
+  "ruling": "B-34, read by P7-69 F3",
+  "about": "a 409 whose body cannot be read in a run without the kill: only the kill excuses a body that cannot be read",
+  "source": "by hand",
+  "request": {
+    "body": "{\"result\":\"sto"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

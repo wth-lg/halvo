@@ -13,6 +13,12 @@ mod effect;
 mod limits;
 
 #[cfg(test)]
+mod formal_traces;
+#[cfg(test)]
+mod not_made;
+#[cfg(test)]
+mod not_made_guard;
+#[cfg(test)]
 mod step_traces;
 
 pub use admit::{admit, Facts, Provenance};

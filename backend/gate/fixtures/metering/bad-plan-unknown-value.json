@@ -1,0 +1,16 @@
+{
+  "edits": [],
+  "env": {
+    "HALVO_METERING_PLAN": "sometimes"
+  },
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: plan=refused; ",
+    "first failure: HALVO_METERING_PLAN=sometimes is refused: the variable is bounded or unset"
+  ]
+}

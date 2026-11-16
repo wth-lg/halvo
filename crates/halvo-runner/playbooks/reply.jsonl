@@ -1,0 +1,3 @@
+{"v":1,"n":1,"kind":"api","verb":"call","target":{"adapter":"graph_mail","op":"mail_list"},"args":[],"pre":[],"post":[],"effect":"none","class":"read"}
+{"v":1,"n":2,"kind":"api","verb":"call","target":{"adapter":"graph_mail","op":"mail_draft_reply"},"args":[{"name":"body","from":"model","value":null,"key":"reply_body"}],"pre":[],"post":[],"effect":"none","class":"prepare"}
+{"v":1,"n":3,"kind":"api","verb":"call","target":{"adapter":"graph_mail","op":"mail_send"},"args":[{"name":"to","from":"extract","value":null,"key":"to"},{"name":"subject","from":"extract","value":null,"key":"subject"},{"name":"body","from":"model","value":null,"key":"reply_body"}],"pre":[],"post":[],"effect":"none","class":"send"}
