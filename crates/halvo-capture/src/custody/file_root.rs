@@ -23,8 +23,9 @@ impl NamedRoot {
     }
 }
 
-/// Opens the roots directory at `roots` as a handle, following no link at
-/// its last part.
+/// Opens the roots directory at `roots` as a handle by the components of the
+/// path, following no link at its last part in any spelling (`roots/`,
+/// `roots/.`; ruling ST-47 T3).
 pub(crate) fn hold(roots: &Path) -> Result<Dir, CustodyError> {
     Dir::open(roots).map_err(|e| match e.kind() {
         ErrorKind::NotFound => CustodyError::RootMissing,
@@ -1364,7 +1365,6 @@ mod tests {
         let immutable = |on: bool| {
             let c = std::ffi::CString::new(partial.as_os_str().as_bytes()).unwrap();
             let flags = if on { libc::UF_IMMUTABLE } else { 0 };
-            // SAFETY: c is NUL-terminated and outlives the call, which reads only it.
             assert_eq!(unsafe { libc::chflags(c.as_ptr(), flags) }, 0);
         };
         immutable(true);
