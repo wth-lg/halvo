@@ -219,6 +219,11 @@ case $op in
 ' "$key" "$name" "${v%% *}" "${v#* }"
     ;;
   add)
+    if [ -n "${R3_REG_ADDS_ALLOWED:-}" ]; then
+      n=$(($(cat "$R3_REG.adds" 2>/dev/null || echo 0) + 1))
+      echo "$n" >"$R3_REG.adds"
+      [ "$n" -le "$R3_REG_ADDS_ALLOWED" ] || exit 1
+    fi
     mkdir -p "$d" || exit 1
     [ -z "$name" ] || printf '%s %s' "$type" "$data" >"$d/$name"
     ;;
@@ -265,6 +270,7 @@ in_stand_ins() {
   env -i PATH="${R3_FIRST_BIN:-$work/run-bin}:$work/run-bin:/usr/bin:/bin" HOME="$work" R3_STUB_LOG="$1/calls" \
     R3_REG="$1/reg" R3_REG_NO_DELETE="${R3_REG_NO_DELETE:-}" R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" \
     R3_RUN_BIN="$work/run-bin" R3_WHEEL="${R3_WHEEL:-}" R3_REAL_PYTHON="$real_python" \
+    R3_REG_ADDS_ALLOWED="${R3_REG_ADDS_ALLOWED:-}" \
     "${R3_CASE_SH:-sh}" -s >"$1/out" 2>&1
 }
 
@@ -346,6 +352,17 @@ CASE
   verdict win_puts_back_a_value_with_runs_of_spaces_byte_for_byte \
     "$(holds test "$v" = "REG_SZ a  b   c")$(has "$c/out" not_set && echo _not_set)$(has "$c/out" "policy removed=yes name=ProxyMode earlier=yes" || echo _line)" \
     "value_after=$(printf '%s' "$v" | tr ' ' '_')"
+  c="$work/w-changed"
+  mkdir -p "$c/reg/Google/Chrome"
+  printf 'REG_SZ fixed_servers' >"$c/reg/Google/Chrome/ProxyMode"
+  R3_REG_ADDS_ALLOWED=1 in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"; k=chrome
+policy_set "Google\\Chrome" ProxyMode REG_SZ direct >/dev/null
+policy_unset
+CASE
+  verdict win_says_removed_no_when_the_earlier_value_does_not_come_back \
+    "$(holds has "$c/out" "policy removed=no name=ProxyMode earlier=yes")$(has "$c/out" "policy removed=yes" && echo _says_removed)" \
+    "value_after=$(tr ' ' '_' <"$c/reg/Google/Chrome/ProxyMode" 2>/dev/null)"
   c="$work/w-port"
   mkdir -p "$c"
   in_stand_ins "$c" <<'CASE'
@@ -524,6 +541,22 @@ CASE
   verdict mac_a_failed_move_keeps_the_earlier_file \
     "$(holds test "$(cat "$c/managed/com.google.Chrome.plist" 2>/dev/null)" = earlier)$(has "$c/out" "policy removed=yes" && echo _says_removed)" \
     "out=$(tr ' \n' '_;' <"$c/out" | cut -c1-200)"
+  c="$work/m-stays"
+  mkdir -p "$c/managed" "$c/work" "$c/bin"
+  cat >"$c/bin/sudo" <<'STUB'
+#!/bin/sh
+case "$1 $3" in "mv "*removed-*) exit 1 ;; esac
+exec "$R3_RUN_BIN/sudo" "$@"
+STUB
+  chmod 755 "$c/bin/sudo"
+  R3_FIRST_BIN="$c/bin" in_stand_ins "$c" <<'CASE'
+. "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"
+PREFS_DAEMON="$RUNNER_TEMP/none"; set_policy com.google.Chrome chrome ProxyMode "<string>direct</string>"
+take_away
+CASE
+  verdict mac_says_removed_no_when_the_cells_file_stays \
+    "$(holds has "$c/out" "policy removed=no name=ProxyMode earlier=no")$(has "$c/out" "policy removed=yes" && echo _says_removed)" \
+    "file_left=$(holds test -e "$c/managed/com.google.Chrome.plist")"
   c="$work/m-daemon"
   mkdir -p "$c/bin"
   ln -s /bin/sleep "$c/bin/r3prefsd"
