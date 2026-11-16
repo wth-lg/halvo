@@ -1,10 +1,11 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails or has not answered within 120 s, when the check ends the git process that it started for it, by its pid; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 # lane: free
 set -u
 name=19-home-paths
 own_tag_ref=refs/ci-d/19-home-paths/tag-of-the-run
+remote_limit_s=120
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -22,10 +23,44 @@ drop_own_tag_ref() {
   return 0
 }
 
+stop_the_remote_call() {
+  [ -z "${remote_pid:-}" ] || kill -TERM "$remote_pid" 2>/dev/null
+  return 0
+}
+
+call_the_remote() {
+  remote_call_timed_out=
+  "$@" &
+  remote_pid=$!
+  remote_waited=0
+  while kill -0 "$remote_pid" 2>/dev/null; do
+    if [ "$remote_waited" -ge "$remote_limit_s" ]; then
+      remote_call_timed_out=yes
+      stop_the_remote_call
+      break
+    fi
+    sleep 1
+    remote_waited=$((remote_waited + 1))
+  done
+  wait "$remote_pid"
+  remote_status=$?
+  remote_pid=
+  return "$remote_status"
+}
+
+no_answer_within_the_limit() {
+  printf "git %s did not answer within %s s, so the check ended it, the one process that it had started for it, by its pid, and the tag's message was not read; run the job again, or on a clone of this head fetch the tag whole and scan it: git fetch origin +%s:%s && sh scripts/check-home-paths.sh 'HEAD^!' %s" "$1" "$remote_limit_s" "$GITHUB_REF" "$GITHUB_REF" "$GITHUB_REF"
+}
+
 tag_from_the_remote() {
-  if ! git ls-remote origin "$GITHUB_REF" >"$scratch/ls-remote" 2>"$scratch/ls-remote-error" </dev/null; then
+  trap 'stop_the_remote_call; drop_own_tag_ref; exit 2' INT TERM HUP
+  if ! call_the_remote git ls-remote origin "$GITHUB_REF" >"$scratch/ls-remote" 2>"$scratch/ls-remote-error" </dev/null; then
     tag=remote-could-not-be-asked
-    tag_cause="git ls-remote could not ask origin for $GITHUB_REF, so the tag's message was not read; run the job again"
+    if [ -n "$remote_call_timed_out" ]; then
+      tag_cause=$(no_answer_within_the_limit ls-remote) || tag_cause='git ls-remote did not answer'
+    else
+      tag_cause="git ls-remote could not ask origin for $GITHUB_REF, so the tag's message was not read; run the job again"
+    fi
     return 1
   fi
   remote_object=$(awk -F '\t' -v ref="$GITHUB_REF" '$2 == ref { print $1 }' "$scratch/ls-remote") || remote_object=
@@ -38,9 +73,8 @@ tag_from_the_remote() {
     tag=remote-holds-a-commit
     return 0
   fi
-  trap 'drop_own_tag_ref; exit 2' INT TERM HUP
   fetch_done=0
-  git -c maintenance.auto=false -c gc.auto=0 fetch -q --no-tags --no-write-fetch-head --refmap= origin "+$GITHUB_REF:$own_tag_ref" >"$scratch/fetch" 2>&1 </dev/null && fetch_done=1
+  call_the_remote git -c maintenance.auto=false -c gc.auto=0 fetch -q --no-tags --no-write-fetch-head --refmap= origin "+$GITHUB_REF:$own_tag_ref" >"$scratch/fetch" 2>&1 </dev/null && fetch_done=1
   type=$(git cat-file -t "$own_tag_ref" 2>/dev/null) || type=
   fetched_commit=$(git rev-parse -q --verify "$own_tag_ref^{commit}" 2>/dev/null) || fetched_commit=
   case $fetch_done:$type in
@@ -48,7 +82,11 @@ tag_from_the_remote() {
     *)
       drop_own_tag_ref
       tag=remote-could-not-be-asked
-      tag_cause="origin lists $GITHUB_REF, and git fetch could not fetch it, so the tag's message was not read; run the job again"
+      if [ -n "$remote_call_timed_out" ]; then
+        tag_cause=$(no_answer_within_the_limit fetch) || tag_cause='git fetch did not answer'
+      else
+        tag_cause="origin lists $GITHUB_REF, and git fetch could not fetch it, so the tag's message was not read; run the job again"
+      fi
       return 1
       ;;
   esac
@@ -328,8 +366,35 @@ state_of_the_clone() {
 }
 
 expect_the_clone_unchanged() {
+  clone_unchanged_by expect "$@"
+}
+
+expect_within_the_case_limit() {
+  (scan_head "$scratch/$2") >"$scratch/$2.out" 2>&1 &
+  case_pid=$!
+  case_waited=0
+  while kill -0 "$case_pid" 2>/dev/null && [ "$case_waited" -lt "$case_limit_s" ]; do
+    sleep 1
+    case_waited=$((case_waited + 1))
+  done
+  if kill -0 "$case_pid" 2>/dev/null; then
+    : >"$STAND_IN_DIR/go" || exit 2
+    kill -TERM "$case_pid" 2>/dev/null
+    wait "$case_pid"
+    code=$?
+    printf 'the case gave the check %s s, and with no verdict by then it let the remote that never answers end and sent TERM to the one process that it had started itself, by its pid\n' "$case_limit_s" >>"$scratch/$2.out"
+  else
+    wait "$case_pid"
+    code=$?
+  fi
+  judge "$@"
+}
+
+clone_unchanged_by() {
+  runner=$1
+  shift
   state_of_the_clone "$2" >"$scratch/$2.before"
-  expect "$@"
+  "$runner" "$@"
   state_of_the_clone "$2" >"$scratch/$2.after"
   if cmp -s "$scratch/$2.before" "$scratch/$2.after"; then
     printf 'case %s/%s-leaves-the-clone-as-it-was want=same got=same\n' "$name" "$2"
@@ -511,6 +576,54 @@ case_push_to_the_default_branch_without_an_event_file() {
   no_event
 }
 
+upload_pack_that_waits() {
+  cat <<'EOF'
+#!/bin/sh
+if [ "$STAND_IN_ANSWERS_FIRST" = yes ] && mkdir "$STAND_IN_DIR/answered" 2>/dev/null; then
+  exec git upload-pack "$@"
+fi
+: >"$STAND_IN_DIR/asked"
+while [ ! -f "$STAND_IN_DIR/go" ]; do sleep 1; done
+EOF
+}
+
+remote_that_never_answers() {
+  fixture "$1-source"
+  add_commit "$1-source" 'more plain text' 'second'
+  in_fixture "$1-source" tag -a -m 'built in /Users/<name>' v1 || exit 2
+  clone_with_the_tag_as_its_commit "$1-source" "$1"
+  mkdir "$scratch/$1.stand-in" || exit 2
+  upload_pack_that_waits >"$scratch/$1.upload-pack.sh" || exit 2
+  git -C "$scratch/$1" config remote.origin.uploadpack "sh $scratch/$1.upload-pack.sh" || exit 2
+  STAND_IN_DIR=$scratch/$1.stand-in
+  STAND_IN_ANSWERS_FIRST=$2
+  export STAND_IN_DIR STAND_IN_ANSWERS_FIRST
+  GITHUB_REF=refs/tags/v1
+  limit_of_the_run=$remote_limit_s
+  remote_limit_s=2
+  case_limit_s=60
+}
+
+after_the_remote_that_never_answers() {
+  : >"$STAND_IN_DIR/go" || exit 2
+  remote_limit_s=$limit_of_the_run
+  no_event
+}
+
+case_tag_ask_that_never_answers() {
+  c=tag-ask-that-never-answers
+  remote_that_never_answers "$c" no
+  clone_unchanged_by expect_within_the_case_limit FAIL "$c" 'tag=remote-could-not-be-asked: git ls-remote did not answer within 2 s'
+  after_the_remote_that_never_answers
+}
+
+case_tag_fetch_that_never_answers() {
+  c=tag-fetch-that-never-answers
+  remote_that_never_answers "$c" yes
+  clone_unchanged_by expect_within_the_case_limit FAIL "$c" 'tag=remote-could-not-be-asked: git fetch did not answer within 2 s'
+  after_the_remote_that_never_answers
+}
+
 new_cases='
 branch-scanner-that-prints-counts-and-finds-nothing
 branch-range-file-that-leaves-out-the-commit-with-the-path
@@ -526,6 +639,8 @@ push-to-the-default-branch-with-an-event-that-is-no-json
 push-to-the-default-branch-without-an-event-file
 push-whose-before-holds-upper-case-letters
 push-whose-before-is-39-characters-long
+tag-ask-that-never-answers
+tag-fetch-that-never-answers
 '
 
 run_new_case() {
