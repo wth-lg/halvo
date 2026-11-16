@@ -673,3 +673,176 @@ fn rd116_kill_stuck_after_a_refused_kill_when_the_clock_stepped_back() {
     assert_eq!(row.line, line("line.working.kill_stuck"));
     assert!(row.controls.is_empty());
 }
+
+fn ask_class(run: &RunId, n: usize, effect: u32, class: Class, fields: &[&str]) -> RunEvent {
+    RunEvent::Confirm(
+        ConfirmAsk::new(
+            run.clone(),
+            agent(n),
+            vec![AskedEffect {
+                effect: EffectId::parse(&format!("{effect:032x}")).unwrap(),
+                class,
+                digest: Digest::parse(&"ab".repeat(32)).unwrap(),
+                digest_ok: true,
+                fields: fields
+                    .iter()
+                    .map(|name| BoundField {
+                        name: Name::parse(name).unwrap(),
+                        from: BoundFrom::Slot,
+                        value: vec!["Lease".into()],
+                    })
+                    .collect(),
+                new_origin: None,
+            }],
+        )
+        .unwrap(),
+    )
+}
+
+fn live(n: u32) -> Limits {
+    Limits {
+        max_live_runs: n,
+        ..Limits::PRODUCT
+    }
+}
+
+#[test]
+fn rd116_r4_a_sign_in_handback_for_an_http_site_raises_its_item() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let m = mark(&c);
+    let ask = RunEvent::Handback(HandbackAsk {
+        run: run.clone(),
+        agent: agent(0),
+        reason: HandbackReason::SignIn,
+        origin: Some(Origin::parse("http://pay.site1.example:80").unwrap()),
+    });
+    assert_eq!(c.on_run(&run, ask), Ok(()));
+    assert!(answers_and_cancels(&c, m).is_empty(), "nothing declined");
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 1);
+    assert_eq!(s.items[0].kind(), ItemKind::SignIn);
+}
+
+#[test]
+fn rd116_r4_a_native_confirmation_takes_no_place_among_page_confirmations() {
+    let c = coordinator(&[MANUAL, MANUAL], live(2));
+    let native = start(&c, 0);
+    let page = start(&c, 1);
+    assert_eq!(
+        c.on_run(
+            &native,
+            ask_class(&native, 0, 0xe5, Class::Sign, &["document", "party"])
+        ),
+        Ok(())
+    );
+    assert_eq!(c.on_run(&page, ask_of(&page, 1, &[(0xe1, "ab")])), Ok(()));
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 2, "{s:?}");
+    let page_item = s
+        .items
+        .iter()
+        .find(|i| i.presenter() == Some(halvo_coord::types::Presenter::Page))
+        .unwrap();
+    let native_item = s
+        .items
+        .iter()
+        .find(|i| i.presenter() == Some(halvo_coord::types::Presenter::Native))
+        .unwrap();
+    let name = name_of(&s, page_item.agent());
+    assert_eq!(
+        page_item.text(),
+        words::text("confirm.asked_by", &[("name", &name)]).unwrap(),
+        "one page confirmation has no place"
+    );
+    let name = name_of(&s, native_item.agent());
+    assert_eq!(
+        native_item.text(),
+        words::text("confirm.asked_by", &[("name", &name)]).unwrap()
+    );
+}
+
+#[test]
+fn rd116_r4_another_item_before_two_page_confirmations_takes_no_place() {
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], live(3));
+    let first = start(&c, 0);
+    let a = start(&c, 1);
+    let b = start(&c, 2);
+    assert_eq!(
+        c.on_run(&first, link(&first, "https://mail.site1.example:443")),
+        Ok(())
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    assert_eq!(c.on_run(&a, ask_of(&a, 1, &[(0xe1, "ab")])), Ok(()));
+    assert_eq!(c.on_run(&b, ask_of(&b, 2, &[(0xe2, "ab")])), Ok(()));
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 3, "{s:?}");
+    assert_eq!(
+        s.items[0].kind(),
+        ItemKind::LinkAccount,
+        "the older item first"
+    );
+    let places: Vec<String> = s.items[1..]
+        .iter()
+        .enumerate()
+        .map(|(k, item)| {
+            let name = name_of(&s, item.agent());
+            let n = (k + 1).to_string();
+            words::text(
+                "confirm.asked_by_place",
+                &[("name", &name), ("n", &n), ("count", "2")],
+            )
+            .unwrap()
+        })
+        .collect();
+    let got: Vec<&str> = s.items[1..].iter().map(|i| i.text()).collect();
+    assert_eq!(got, places);
+}
+
+#[test]
+fn rd116_r4_a_gone_workflows_live_run_has_one_row() {
+    let (c, _) = gone_while_live();
+    let s = c.snapshot();
+    assert_eq!(s.rows.iter().filter(|r| r.agent == agent(0)).count(), 1);
+}
+
+#[test]
+fn rd116_r4_a_refused_kill_of_one_gone_agent_shows_kill_stuck_on_its_row_alone() {
+    let c = coordinator(&[MANUAL, MANUAL], live(2));
+    start(&c, 0);
+    start(&c, 1);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(0));
+    c.tick();
+    c.ports().ports.refuse(
+        halvo_coord::mem::Method::Kill,
+        halvo_coord::ports::PortError::Busy,
+    );
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(1));
+    c.tick();
+    assert_eq!(c.live(), 2);
+    let s = c.snapshot();
+    let line_of = |n: usize| {
+        s.rows
+            .iter()
+            .find(|r| r.agent == agent(n))
+            .map(|r| r.line.clone())
+            .unwrap()
+    };
+    assert_eq!(line_of(0), line("line.working.kill_stuck"));
+    assert_eq!(
+        line_of(1),
+        line("line.working.stopping"),
+        "no kill of its own yet"
+    );
+}

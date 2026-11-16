@@ -749,3 +749,198 @@ fn rd101i_a_lapse_after_a_switch_off_that_still_stands_has_the_line_of_a_stopped
     );
     assert_eq!(stop(&["end"]), line("line.run.lapsed"));
 }
+
+/// The line of run 2 (store outcome `store`) over the ledger rows `rows`, in order.
+fn line_over(rows: Vec<What>, store: Outcome) -> String {
+    let mut f = facts(State::Card).remove(0);
+    for what in rows {
+        row(&mut f, what);
+    }
+    let mut h = history(2, store);
+    h.effects = vec![];
+    card(&f, "N", &[h], &Limits::PRODUCT).unwrap().runs[0]
+        .text
+        .clone()
+}
+
+fn own(cause: RunEnd) -> What {
+    What::RunEnded {
+        run: run_of(2),
+        cause,
+    }
+}
+
+fn off() -> What {
+    What::HoldSet {
+        cause: halvo_coord::types::HoldSetCause::Person,
+    }
+}
+
+fn on() -> What {
+    What::HoldCleared {
+        cause: halvo_coord::types::Cleared::Person,
+    }
+}
+
+#[test]
+fn rd116_r4_every_cause_that_only_the_coordinator_gives_decides_the_line() {
+    for cause in [
+        RunEnd::Budget,
+        RunEnd::Kind,
+        RunEnd::Deleted,
+        RunEnd::Cancelled,
+        RunEnd::Lapsed,
+        RunEnd::Interrupted,
+    ] {
+        assert_eq!(
+            line_over(vec![own(cause)], Outcome::Failed),
+            line(&format!("line.run.{}", cause.name())),
+            "{cause:?}"
+        );
+    }
+}
+
+#[test]
+fn rd116_r4_the_switch_off_rule_reads_the_newest_person_hold_rows_before_the_runs_end() {
+    let lapsed = line("line.run.lapsed");
+    let stopped = line("line.run.cancelled");
+    let cases: Vec<(Vec<What>, &String, &str)> = vec![
+        (
+            vec![off(), on(), own(RunEnd::Lapsed)],
+            &lapsed,
+            "off, on, lapse",
+        ),
+        (
+            vec![off(), on(), off(), own(RunEnd::Lapsed)],
+            &stopped,
+            "off, on, off, lapse",
+        ),
+        (
+            vec![off(), on(), off(), on(), own(RunEnd::Lapsed)],
+            &lapsed,
+            "off, on, off, on, lapse",
+        ),
+        (
+            vec![
+                What::HoldSet {
+                    cause: halvo_coord::types::HoldSetCause::Failures,
+                },
+                own(RunEnd::Lapsed),
+            ],
+            &lapsed,
+            "a failures hold is no switch-off",
+        ),
+        (
+            vec![
+                off(),
+                What::HoldCleared {
+                    cause: halvo_coord::types::Cleared::Failures,
+                },
+                own(RunEnd::Lapsed),
+            ],
+            &stopped,
+            "a failures clear is no switch-on",
+        ),
+    ];
+    for (rows, want, why) in cases {
+        assert_eq!(&line_over(rows, Outcome::Declined), want, "{why}");
+    }
+    assert_eq!(
+        line_over(vec![off(), own(RunEnd::Interrupted)], Outcome::Failed),
+        line("line.run.interrupted"),
+        "an interrupted run after a switch-off keeps its own line"
+    );
+}
+
+#[test]
+fn rd116_r4_the_newest_own_row_of_this_run_decides_and_another_runs_row_does_not() {
+    assert_eq!(
+        line_over(
+            vec![own(RunEnd::Failed), own(RunEnd::Lapsed)],
+            Outcome::Declined
+        ),
+        line("line.run.lapsed"),
+        "the newest row of the run"
+    );
+    let mut f = facts(State::Card).remove(0);
+    row(&mut f, own(RunEnd::Lapsed));
+    row(
+        &mut f,
+        What::RunEnded {
+            run: run_of(3),
+            cause: RunEnd::Cancelled,
+        },
+    );
+    let mut older = history(2, Outcome::Declined);
+    older.effects = vec![];
+    let mut newer = history(3, Outcome::Declined);
+    newer.effects = vec![];
+    let c = card(&f, "N", &[newer, older], &Limits::PRODUCT).unwrap();
+    assert_eq!(c.runs[0].text, line("line.run.cancelled"));
+    assert_eq!(c.runs[1].text, line("line.run.lapsed"), "its own row alone");
+}
+
+#[test]
+fn rd116_r4_a_declined_run_with_one_refusal_beside_a_not_done_effect_says_you_said_no() {
+    let mut f = facts(State::Card).remove(0);
+    raised(&mut f, 0x51, &run_of(2));
+    answered(&mut f, 0x51, 0xe1, "ab", EffectAnswer::RejectOnce);
+    let (keys, text, _) = declined_card(&f, vec![rejected(0xe1, "ab"), rejected(0xe3, "ab")]);
+    assert_eq!(
+        keys,
+        ["run.effect.send.refused", "run.effect.send.not_done"]
+    );
+    assert_eq!(text, line("line.run.declined"));
+}
+
+#[test]
+fn rd116_r4_only_rejected_and_committed_effects_give_entries() {
+    for state in [
+        EffectState::Unknown,
+        EffectState::Releasing,
+        EffectState::Approved,
+        EffectState::Held,
+    ] {
+        let mut e = rejected(0xe1, "ab");
+        e.state = state;
+        let (keys, ..) = declined_card(&facts(State::Card).remove(0), vec![e]);
+        assert!(keys.is_empty(), "{state:?}: {keys:?}");
+    }
+    let mut with_cause = payment();
+    with_cause.cause = Some(Name::parse("ended").unwrap());
+    let c = beside_a_good_run(with_cause);
+    assert_eq!(
+        keys(&c, 0)[1],
+        "run.effect.payment",
+        "a committed row with a cause"
+    );
+}
+
+#[test]
+fn rd116_r4_a_not_done_entry_shows_the_first_field_of_its_class_by_name() {
+    let mut e = rejected(0xe1, "ab");
+    e.class = Class::Payment;
+    e.kept = vec![
+        one_kept("amount", "42.10 USD"),
+        one_kept("payee", "City Power"),
+    ];
+    let (_, _, fields) = declined_card(&facts(State::Card).remove(0), vec![e]);
+    assert_eq!(fields, [["City Power"]]);
+}
+
+#[test]
+fn rd116_r4_the_piece_bound_is_per_piece_and_takes_1024_bytes() {
+    let mut exact = payment();
+    exact.kept[0].value = vec!["Q".repeat(1024)];
+    let c = beside_a_good_run(exact);
+    assert_eq!(keys(&c, 0)[1], "run.effect.payment", "1,024 bytes is shown");
+    let mut two = payment();
+    two.kept[0].value = vec!["Q".repeat(600), "R".repeat(600)];
+    let c = beside_a_good_run(two);
+    assert_eq!(
+        keys(&c, 0)[1],
+        "run.effect.payment",
+        "two pieces under the bound"
+    );
+    assert_eq!(c.runs[0].effects[1].fields()[0].value.len(), 2);
+}

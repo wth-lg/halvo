@@ -737,6 +737,29 @@ fn i34_a_confirmation_said_by_its_agent_names_the_agent_that_asks_in_its_text() 
     );
 }
 
+#[test]
+fn rd116_r4_placed_gives_a_place_to_a_page_confirmation_alone() {
+    let ask = |class: Class, fields| {
+        ConfirmAsk::new(run_id(1), agent_id(1), vec![effect(1, class, fields)]).unwrap()
+    };
+    let native = ask(Class::Payment, bound(Class::Payment, &PAYMENT));
+    let native = compose_confirm(&item_id(1), &native, &shown(&native), &Table::new())
+        .unwrap()
+        .said_by(NAME)
+        .unwrap();
+    assert_eq!(
+        native.presenter(),
+        Some(halvo_coord::types::Presenter::Native)
+    );
+    assert_eq!(
+        native.clone().placed(NAME, 1, 2).unwrap(),
+        native,
+        "a native confirmation keeps its text"
+    );
+    let plain = compose_plain(&item_id(1), &agent_id(1), Plain::Stuck, NAME).unwrap();
+    assert_eq!(plain.clone().placed(NAME, 1, 2).unwrap(), plain);
+}
+
 /// Every item that a compose function makes with the agent's name says it arrives and that it
 /// goes with that name, in the place of I3.4, after `armed` and before `title`; a confirmation
 /// gets both from `said_by`; a typed parameter says when its answer is full, and a parameter
