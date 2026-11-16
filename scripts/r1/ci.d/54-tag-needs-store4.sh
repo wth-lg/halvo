@@ -115,6 +115,7 @@ self_test() {
   run_case empty-ref-type-with-the-statement PASS "$work/with" 'tag ref: false' GITHUB_REF_TYPE= GITHUB_REF_NAME=v1.2.4
   run_case tag-without-a-name-with-the-statement FAIL "$work/with" 'the ref is a tag of no name, and' GITHUB_REF_TYPE=tag GITHUB_REF_NAME=
   run_case root-from-ci-d-repo FAIL "$work" "$on_line_4" GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4 "CI_D_REPO=$work/with"
+  run_case git-dir-of-another-repository-in-the-environment FAIL "$work/with" "$on_line_4" GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4 "GIT_DIR=$work/without/.git"
 
   fixture name-in-other-files "$without_statement"
   repo=$work/name-in-other-files
