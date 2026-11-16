@@ -172,6 +172,8 @@ fn within(at: &Dir, name: &OsStr, moved: &OsStr, workbook: &OsStr, expect: Expec
     match checked(at, name, workbook, expect) {
         Ok((file, seen, read)) => {
             drop(file);
+            #[cfg(test)]
+            crate::seam::reach(crate::seam::Moment::Checked);
             aside(at, name, moved, &seen, read)
         }
         Err(Removal::Absent) if finished => Ok(Removal::Removed),
@@ -361,6 +363,8 @@ fn aside(
         put_back(at, moved, name);
         return Ok(Removal::Left(Left::Changed));
     }
+    #[cfg(test)]
+    crate::seam::reach(crate::seam::Moment::Aside);
     match at.unlink(moved) {
         Ok(()) => Ok(Removal::Removed),
         Err(error) => {
@@ -482,5 +486,139 @@ mod tests {
             !folder.join("sub-real").join(name).exists(),
             "the checkpoint is removed"
         );
+    }
+
+    use crate::seam::{self, Moment};
+    use std::io::Write;
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    const COPY: &[u8] = b"the workbook as prepare read it";
+
+    struct Case {
+        folder: PathBuf,
+        copy: PathBuf,
+        locks: Locks,
+        run: RunId,
+    }
+
+    impl Case {
+        fn new(name: &str) -> Case {
+            let base = scratch(name);
+            let folder = base.join("folder");
+            fs::create_dir_all(&folder).expect("make the folder");
+            fs::write(folder.join("values.xlsx"), b"the workbook now").expect("the workbook");
+            let run = RunId::parse("0123456789abcdef0123456789abcdef").expect("a run id");
+            let name = checkpoint_name(Path::new("values.xlsx"), &run).expect("a name");
+            let copy = folder.join(name);
+            fs::write(&copy, COPY).expect("the checkpoint");
+            fs::create_dir_all(base.join("data")).expect("make the data directory");
+            let wait = std::time::Duration::from_secs(5);
+            let locks = Locks::open(&base.join("data"), wait).expect("the locks open");
+            Case {
+                folder,
+                copy,
+                locks,
+                run,
+            }
+        }
+
+        fn remove(&self) -> Pass {
+            let workbook = self.folder.join("values.xlsx");
+            let row = Row {
+                folder: &self.folder,
+                workbook: &workbook,
+                run: &self.run,
+                expect: Expect::Made {
+                    sha256: Sha256::of(COPY),
+                    bytes: COPY.len() as u64,
+                },
+            };
+            remove(&self.locks, &row)
+        }
+
+        fn moved(&self) -> PathBuf {
+            let name = self.copy.file_name().expect("a name");
+            self.folder.join(removing_name(name))
+        }
+
+        fn names(&self) -> Vec<String> {
+            let mut names: Vec<String> = fs::read_dir(&self.folder)
+                .expect("list")
+                .map(|e| e.expect("entry").file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        }
+
+        fn name(path: &Path) -> String {
+            path.file_name()
+                .expect("a name")
+                .to_string_lossy()
+                .into_owned()
+        }
+    }
+
+    #[test]
+    fn a_file_moved_into_the_checkpoints_place_after_its_checks_stays_under_its_name() {
+        for theirs in [b"a file of the person's own".to_vec(), COPY.to_vec()] {
+            let case = Case::new("seam-swap");
+            let mine = case.folder.join("mine.xlsx");
+            fs::write(&mine, &theirs).expect("the person's file");
+            let (from, to) = (mine.clone(), case.copy.clone());
+            let got = seam::with(
+                move |moment| {
+                    if moment == Moment::Checked {
+                        fs::rename(&from, &to).expect("move it into the checkpoint's place");
+                    }
+                },
+                || case.remove(),
+            );
+            assert_eq!(got, Ok(Removal::Left(Left::Changed)));
+            assert_eq!(fs::read(&case.copy).expect("the person's file"), theirs);
+            let left = vec![Case::name(&case.copy), "values.xlsx".to_string()];
+            assert_eq!(case.names(), left);
+        }
+    }
+
+    #[test]
+    fn a_checkpoint_written_in_place_after_its_checks_is_left() {
+        let case = Case::new("seam-write");
+        let path = case.copy.clone();
+        let got = seam::with(
+            move |moment| {
+                if moment == Moment::Checked {
+                    let mut file = fs::OpenOptions::new()
+                        .write(true)
+                        .open(&path)
+                        .expect("open the checkpoint for writing");
+                    file.write_all(b"X").expect("write into the checkpoint");
+                }
+            },
+            || case.remove(),
+        );
+        assert_eq!(got, Ok(Removal::Left(Left::Changed)));
+        let mut written = COPY.to_vec();
+        written[0] = b'X';
+        assert_eq!(fs::read(&case.copy).expect("the checkpoint"), written);
+        let left = vec![Case::name(&case.copy), "values.xlsx".to_string()];
+        assert_eq!(case.names(), left);
+    }
+
+    #[test]
+    fn a_pass_killed_between_the_move_aside_and_the_removal_is_finished_by_the_next() {
+        let case = Case::new("seam-kill");
+        let killed = catch_unwind(AssertUnwindSafe(|| {
+            seam::with(
+                |moment| assert_ne!(moment, Moment::Aside, "the pass is killed"),
+                || case.remove(),
+            )
+        }));
+        assert!(killed.is_err(), "the hook stops the pass");
+        let mut left = vec![Case::name(&case.moved()), "values.xlsx".to_string()];
+        left.sort();
+        assert_eq!(case.names(), left);
+        assert_eq!(fs::read(case.moved()).expect("the moved copy"), COPY);
+        assert_eq!(case.remove(), Ok(Removal::Removed));
+        assert_eq!(case.names(), vec!["values.xlsx".to_string()]);
     }
 }
