@@ -76,7 +76,7 @@ fn delete_all_names_the_root_as_left_when_the_roots_directory_was_renamed_while_
         let renamed = std::fs::rename(&roots_dir, &moved);
         let answer = if tail {
             drop(store);
-            tail(&store_dir, &roots_dir)
+            super::tail(&store_dir, &roots_dir)
         } else {
             let mut store = store;
             store.delete_all()
@@ -166,9 +166,12 @@ fn a_create_in_a_directory_whose_name_is_not_unicode_leaves_only_the_lock_file_a
                 .collect()
         })
         .unwrap_or_default();
+    let opened = answer_text(&EncryptedStore::open(&odd, &roots, DEFAULT_RETENTION));
     println!(
-        "WIN-NON-UNICODE create={created} store_dir_now={left:?} roots_path_exists={}",
-        roots.exists()
+        "WIN-NON-UNICODE create={created} open={opened} store_dir_now={left:?} roots_path_exists={} \
+         steps={:?}",
+        roots.exists(),
+        crate::store::db::database_open_steps(&odd)
     );
     assert_eq!(left, vec!["writer.lock".to_string()]);
     assert!(
@@ -618,25 +621,28 @@ fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trim
     );
 }
 
-/// Ruling ST-46 K2 on Windows: a directory link in a part of the roots path
-/// below the directory that it shares with the store path: the tail runs no
-/// sweep and the other store opens after it. When the runner cannot make a
-/// directory link the test prints so and asserts nothing.
+/// Ruling ST-46 K2 on Windows with store-3b's closed layout: a directory
+/// link at the roots name of a data directory, to another store's roots. The
+/// tail opens the roots from the data directory's handle and follows no
+/// link there: it runs no sweep, and the other store's root unwraps after
+/// it. When the runner cannot make a directory link the test prints so and
+/// asserts nothing.
 #[test]
-fn the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path() {
+fn the_tail_follows_no_directory_link_at_the_roots_name_of_its_data_directory() {
     let dir = tempfile::tempdir().unwrap();
     let base = dir.path().to_path_buf();
     let (behind, behind_roots, behind_id, _) = file_root_store(&base.join("behind"));
     let wrapped = wrapped_of(&behind);
     let data = base.join("data");
     std::fs::create_dir(&data).unwrap();
-    let (store_dir, _, _, _) = file_root_store(&data);
-    let made = std::os::windows::fs::symlink_dir(base.join("behind"), data.join("alias"));
+    let (store_dir, roots_dir, _, _) = file_root_store(&data);
+    std::fs::rename(&roots_dir, data.join("roots-aside")).unwrap();
+    let made = std::os::windows::fs::symlink_dir(&behind_roots, &roots_dir);
     println!("WIN-ST46-K2 directory_link_made={}", made.is_ok());
     if made.is_err() {
         return;
     }
-    let answer = tail(&store_dir, &data.join("alias").join("roots"));
+    let answer = tail(&store_dir, &roots_dir);
     let other_unwraps = unwraps(&behind_roots, behind_id, &wrapped);
     println!(
         "WIN-ST46-K2 {} the_other_root_unwraps={other_unwraps}",
@@ -644,7 +650,128 @@ fn the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path()
     );
     assert!(
         other_unwraps,
-        "the tail swept another store's roots through a directory link"
+        "the tail swept another store's roots through a directory link at its roots name"
     );
-    assert!(answer.is_err(), "{}", report_line(&answer));
+    assert!(
+        answer.is_err() && !delete_report(&answer).roots.listed,
+        "{}",
+        report_line(&answer)
+    );
+}
+
+/// store-3b, the share mode (ruling ST-44 F10): a store holds its roots
+/// directory without delete sharing, so the directory cannot be renamed
+/// while a handle of the store, from a create or from an open, is open;
+/// after the handle is dropped the rename goes through.
+#[test]
+fn a_roots_directory_that_a_store_holds_cannot_be_renamed_until_the_store_is_dropped() {
+    let mut problems = Vec::new();
+    for handle in ["the create's", "the open's"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+        let root_id = RootId::fresh().unwrap();
+        let store = if handle == "the create's" {
+            EncryptedStore::create(
+                &store_dir,
+                Box::new(file_root_custody(
+                    &roots_dir,
+                    TestProtector::new(0x5a).0,
+                    root_id,
+                )),
+                DEFAULT_RETENTION,
+            )
+            .unwrap()
+        } else {
+            drop(
+                EncryptedStore::create(
+                    &store_dir,
+                    Box::new(file_root_custody(
+                        &roots_dir,
+                        TestProtector::new(0x5a).0,
+                        root_id,
+                    )),
+                    DEFAULT_RETENTION,
+                )
+                .unwrap(),
+            );
+            open_over_file_root(&store_dir, &roots_dir, root_id).unwrap()
+        };
+        let moved = dir.path().join("roots-moved");
+        let while_held = std::fs::rename(&roots_dir, &moved);
+        let code = while_held.as_ref().err().and_then(|e| e.raw_os_error());
+        drop(store);
+        let after = std::fs::rename(&roots_dir, &moved);
+        println!(
+            "WIN-ROOTS-SHARE handle={handle} renamed_while_held={} code={code:?} renamed_after_drop={}",
+            while_held.is_ok(),
+            after.is_ok()
+        );
+        if while_held.is_ok() || after.is_err() {
+            problems.push(handle);
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "the roots directory was renamed while the store held it, or not after: {problems:?}"
+    );
+}
+
+/// store-3b (ruling ST-45 Addition 2 (c)): a real directory whose name ends
+/// in a space, made through its verbatim name, with a store below it. The
+/// create, the open and the tail refuse such a path, although Win32 would
+/// open it as written, which fails closed; nothing under the directory is
+/// written or destroyed, and nothing stands at the trimmed name.
+#[test]
+fn a_store_below_a_real_directory_whose_name_ends_in_a_space_is_refused_and_nothing_under_it_changes(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().to_path_buf();
+    let spaced = base.join("data ");
+    let verbatim = crate::store::durable::verbatim_form(&spaced)
+        .expect("the verbatim form of an absolute path");
+    std::fs::create_dir(&verbatim).unwrap();
+    std::fs::write(verbatim.join("left-as-it-was"), b"bytes").unwrap();
+    let (store_dir, roots_dir) = (spaced.join("store"), spaced.join("roots"));
+    let created = answer_text(&EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh().unwrap(),
+        )),
+        DEFAULT_RETENTION,
+    ));
+    let opened = answer_text(&EncryptedStore::open(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+    ));
+    let tail = EncryptedStore::delete_data_dir(&spaced, crate::store::Layout::DataDirectory);
+    let listing: Vec<String> = std::fs::read_dir(&verbatim)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    let kept = std::fs::read(verbatim.join("left-as-it-was"))
+        .ok()
+        .as_deref()
+        == Some(&b"bytes"[..]);
+    let at_the_trimmed_name = base.join("data").exists();
+    println!(
+        "WIN-SPACE create={created} open={opened} tail={} listing={listing:?} kept={kept} \
+         trimmed_name_exists={at_the_trimmed_name}",
+        report_line(&tail)
+    );
+    assert_eq!(created, "Io(InvalidInput)");
+    assert_eq!(opened, "Io(InvalidInput)");
+    assert_eq!(listing, vec!["left-as-it-was".to_string()]);
+    assert!(kept, "a call wrote into the file under the directory");
+    assert!(
+        !at_the_trimmed_name,
+        "a call made something at the trimmed name"
+    );
+    assert!(
+        tail.is_err() && delete_report(&tail).not_followed == 1,
+        "{}",
+        report_line(&tail)
+    );
 }

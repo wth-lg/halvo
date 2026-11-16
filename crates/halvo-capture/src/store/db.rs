@@ -2789,6 +2789,51 @@ pub(in crate::store) fn dir_size(dir: &Dir) -> StoreResult<u64> {
     Ok(total)
 }
 
+/// What the steps of a database open answer in the directory `dir`, for the
+/// trace of a create in a directory whose name is not Unicode (inbox entry
+/// of 2026-11-13T20:16Z (d)): booleans and codes alone, no path.
+#[cfg(test)]
+#[cfg_attr(
+    not(windows),
+    expect(dead_code, reason = "the trace runs on Windows alone")
+)]
+pub(in crate::store) fn database_open_steps(dir: &Path) -> Vec<String> {
+    let mut steps = Vec::new();
+    let store = match Dir::open(dir) {
+        Ok(store) => store,
+        Err(e) => {
+            steps.push(format!(
+                "open_dir={:?} code={:?}",
+                e.kind(),
+                e.raw_os_error()
+            ));
+            return steps;
+        }
+    };
+    steps.push(format!(
+        "handle_path_is_unicode={}",
+        store.path().to_str().is_some()
+    ));
+    match database_name(&store) {
+        Ok((name, _, _)) => {
+            steps.push(format!(
+                "database_name_is_unicode={}",
+                name.to_str().is_some()
+            ));
+            steps.push(format!(
+                "sqlite_open={}",
+                match Connection::open_with_flags(&name, PROBE_OPEN) {
+                    Ok(_) => "Ok".to_string(),
+                    Err(rusqlite::Error::InvalidPath(_)) => "InvalidPath".to_string(),
+                    Err(e) => format!("code={:?}", e.sqlite_error_code()),
+                }
+            ));
+        }
+        Err(e) => steps.push(format!("database_name={e:?}")),
+    }
+    steps
+}
+
 #[cfg(test)]
 pub(in crate::store) mod test_support {
     pub(in crate::store) use crate::store::pages;
