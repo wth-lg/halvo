@@ -262,15 +262,46 @@ test("a group that ended by itself, whose id another program's leaderless group 
   expect(marksIn()).toEqual([`group-${a.pid}.json`, `group-${b.pid}.json`]);
 });
 
-test("endGroup ends the members that a group's exited leader left, since its caller started that group", async () => {
+function stderrOf(run: () => Promise<void>): Promise<string[]> {
+  const written: string[] = [];
+  const original = process.stderr.write;
+  process.stderr.write = (text: string) => {
+    written.push(text);
+    return true;
+  };
+  return run().then(
+    () => {
+      process.stderr.write = original;
+      return written;
+    },
+    (error) => {
+      process.stderr.write = original;
+      throw error;
+    },
+  );
+}
+
+test("endGroup: when the leader leaves on TERM, a child that outlives TERM gets KILL and the mark goes", async () => {
   const a = start();
   nextPid += 1;
-  rows.push({ pid: nextPid, pgid: a.pid, stat: "S", started: LATER });
-  rows = rows.filter((each) => each.pid !== a.pid);
+  rows.push({ pid: nextPid, pgid: a.pid, stat: "S", started: LATER, termProof: true });
   await endGroup(a);
-  expect(record).toEqual([`SIGTERM -${a.pid} gone`]);
+  expect(record).toEqual([`SIGTERM -${a.pid} ${LATER}`, `SIGKILL -${a.pid} gone`]);
   expect(rows.filter((each) => each.pgid === a.pid)).toEqual([]);
   expect(marksIn()).toEqual([]);
+}, 20_000);
+
+test("endGroup sends nothing to another program's group that took the id of a group that ended by itself, prints one line and keeps the mark", async () => {
+  const a = start();
+  rows = rows.filter((each) => each.pgid !== a.pid);
+  rows.push({ pid: 190_003, pgid: a.pid, stat: "S", started: OTHER });
+  const lines = await stderrOf(() => endGroup(a));
+  expect(record).toEqual([]);
+  expect(lines).toEqual([`process-group: left group ${a.pid} (started ${LATER}): its leader was gone when endGroup was called and 1 process has its id as their group\n`]);
+  expect(rows.filter((each) => each.pid === 190_003)).toHaveLength(1);
+  expect(marksIn()).toEqual([`group-${a.pid}.json`]);
+  fire("exit");
+  expect(record).toEqual([]);
 });
 
 test("the close of the IPC channel ends every group and exits with 1", () => {

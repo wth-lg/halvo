@@ -67,6 +67,7 @@ const LIVE = Symbol.for("halvo.test.process-group");
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const processes = (n: number) => (n === 1 ? "1 process has" : `${n} processes have`);
 
 const SYSTEM: Processes = {
   ps: () => execFileSync("ps", ["-A", "-o", "pid=,pgid=,stat=,lstart="], { encoding: "utf8", env: { ...process.env, TZ: "UTC0", LC_ALL: "C" } }),
@@ -241,24 +242,36 @@ export function startGroup(command: string, args: string[], options: Options): G
 }
 
 /**
- * Ends the group with TERM and, if a member is left after 5 s, with KILL; throws if a member is left 5 s after KILL.
- * Unlike the handlers and the sweep, it also signals the members of a group whose leader has exited, as the caller
- * holds the group that it started: a test that stops a run's leader itself ends what the run left in its group.
+ * Ends the group while its leader has the recorded pid and start time: TERM, and KILL to the members that are left
+ * after 5 s (also when the leader itself left on TERM); throws if a member is left 5 s after KILL. A group whose
+ * leader is gone when it is called gets no signal: endGroup prints one line, keeps its mark for the sweep and does not
+ * throw, since nothing tells those processes from another program's group that took the id.
  */
 export async function endGroup(group: Group | null): Promise<void> {
   if (group === null) return;
-  if (members(group).length > 0) {
-    send(group, "SIGTERM");
-    if (!(await gone(group, GRACE_MS))) {
-      send(group, "SIGKILL");
-      await gone(group, GRACE_MS);
-    }
-  }
-  if (members(group).length > 0) throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
   const state = live();
   const mark = state.groups.get(group);
-  if (mark !== undefined) unmark(mark);
   state.groups.delete(group);
+  const rows = table();
+  if (!leads(group, rows)) {
+    const count = members(group, rows).length;
+    if (count === 0) {
+      if (mark !== undefined) unmark(mark);
+    } else {
+      process.stderr.write(`process-group: left group ${group.pid} (started ${group.started}): its leader was gone when endGroup was called and ${processes(count)} its id as their group\n`);
+    }
+    return;
+  }
+  send(group, "SIGTERM");
+  if (!(await gone(group, GRACE_MS))) {
+    send(group, "SIGKILL");
+    await gone(group, GRACE_MS);
+  }
+  if (members(group).length > 0) {
+    if (mark !== undefined) state.groups.set(group, mark);
+    throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
+  }
+  if (mark !== undefined) unmark(mark);
 }
 
 async function gone(group: Id, ms: number): Promise<boolean> {

@@ -257,7 +257,10 @@ if (MODE !== undefined) {
       expect(groupOf(sleeper)).toHaveLength(1);
     } finally {
       for (const id of [server, sleeper]) if (id !== null) await endRecorded(id);
-      for (const run of [killed, elsewhere, next]) await endGroup(run);
+      for (const run of [killed, elsewhere, next]) {
+        if (run !== null) await endRecorded(run);
+        await endGroup(run);
+      }
     }
   }, 180_000);
 
@@ -291,6 +294,7 @@ if (MODE !== undefined) {
       expect(described(await settle(watched))).toEqual([]);
     } finally {
       for (const id of watched.slice(1)) await endRecorded(id);
+      await endRecorded(run);
       await endGroup(run);
     }
   }, 120_000);
@@ -324,6 +328,7 @@ if (MODE !== undefined) {
         expect(devDirs(dir)).toEqual([]);
       } finally {
         if (server !== null) await endRecorded(server);
+        await endRecorded(run);
         await endGroup(run);
       }
     }, 120_000);
