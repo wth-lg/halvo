@@ -988,3 +988,189 @@ fn a_tail_without_the_lock_destroys_the_marks_root_where_it_lies_and_leaves_anot
         .names
         .contains(&format!("{root_id}.root")));
 }
+
+/// Whether the bytes now at `file`, put as the root file of `root_id` in a
+/// fresh directory, unwrap `wrapped`.
+fn st47_unwraps(
+    scratch: &Path,
+    tag: &str,
+    file: &Path,
+    root_id: RootId,
+    wrapped: &WrappedKey,
+) -> bool {
+    let Ok(bytes) = std::fs::read(file) else {
+        return false;
+    };
+    let check = scratch.join(format!("check-{tag}"));
+    std::fs::create_dir_all(&check).unwrap();
+    std::fs::write(check.join(format!("{root_id}.root")), bytes).unwrap();
+    unwraps_under(&check, root_id, wrapped)
+}
+
+#[derive(Clone, Copy, Debug)]
+enum St47When {
+    HeldAndThatHandleDeletes,
+    HeldThenDropped,
+    NoStoreOpen,
+}
+
+/// One of the verify step's v21 cases (ruling ST-47 T1): the root file renamed
+/// inside the roots folder, with or without a copy put at its name, with the
+/// store open during the rename or not, then two deletes of the handle that
+/// the case has and two tails. No answer is Ok while the renamed file
+/// unwraps, after an Ok it does not unwrap, and while it stands the report
+/// names it.
+fn st47_renamed_inside(round: usize, when: St47When, copy_at_the_name: bool) -> Vec<String> {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let wrapped = wrapped_of(&store_dir);
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let aside = roots_dir.join("kept-aside");
+    let tag = format!("r{round} {when:?} copy={copy_at_the_name}");
+    let mut problems = Vec::new();
+    let mut n = 0;
+    let mut look = |what: &str, answer: &StoreResult<crate::store::DeleteReport>| {
+        n += 1;
+        let unwraps = st47_unwraps(dir.path(), &format!("{n}"), &aside, root_id, &wrapped);
+        let stands = aside.exists();
+        println!(
+            "ST47-T1 {tag} {what}: {} aside_stands={stands} aside_unwraps={unwraps}",
+            answer_line(answer)
+        );
+        if answer.is_ok() && unwraps {
+            problems.push(format!("{tag} {what}: Ok while the renamed root unwraps"));
+        }
+        let named = match answer {
+            Ok(report) => report.roots.names.contains(&"kept-aside".to_string()),
+            Err(StoreError::DeleteIncomplete(report)) => {
+                report.roots.names.contains(&"kept-aside".to_string())
+            }
+            Err(_) => true,
+        };
+        if stands && !named {
+            problems.push(format!(
+                "{tag} {what}: the renamed file stands and the report does not name it"
+            ));
+        }
+    };
+    let rename = || {
+        std::fs::rename(&root_file, &aside).unwrap();
+        if copy_at_the_name {
+            std::fs::copy(&aside, &root_file).unwrap();
+        }
+    };
+    match when {
+        St47When::HeldAndThatHandleDeletes => {
+            let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+            rename();
+            let first = store.delete_all();
+            look("held delete_all 1", &first);
+            let second = store.delete_all();
+            look("held delete_all 2", &second);
+            drop(store);
+        }
+        St47When::HeldThenDropped | St47When::NoStoreOpen => {
+            if let St47When::HeldThenDropped = when {
+                let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+                rename();
+                drop(store);
+            } else {
+                rename();
+            }
+            if let Ok(mut store) = open_over_file_root(&store_dir, &roots_dir, root_id) {
+                let first = store.delete_all();
+                look("new open's delete_all 1", &first);
+                let second = store.delete_all();
+                look("new open's delete_all 2", &second);
+                drop(store);
+            }
+        }
+    }
+    let first = tail(&store_dir, &roots_dir);
+    look("tail 1", &first);
+    let second = tail(&store_dir, &roots_dir);
+    look("tail 2", &second);
+    problems
+}
+
+#[test]
+fn st47_t1_no_delete_answers_ok_while_a_root_renamed_inside_the_roots_folder_unwraps() {
+    let mut problems = Vec::new();
+    for round in 1..=2 {
+        for when in [
+            St47When::HeldAndThatHandleDeletes,
+            St47When::HeldThenDropped,
+            St47When::NoStoreOpen,
+        ] {
+            for copy_at_the_name in [false, true] {
+                problems.extend(st47_renamed_inside(round, when, copy_at_the_name));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn st47_t1_the_sweep_removes_a_hard_link_of_an_outside_file_at_a_plain_name_without_writing_through_it(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let outside = dir.path().join("a-file-of-another-party");
+    std::fs::write(&outside, [0x5bu8; 32]).unwrap();
+    let plain = roots_dir.join("plain");
+    std::fs::hard_link(&outside, &plain).unwrap();
+
+    let answer = tail(&store_dir, &roots_dir);
+
+    let outside_kept = std::fs::read(&outside).ok().as_deref() == Some(&[0x5bu8; 32][..]);
+    println!(
+        "ST47-T1-LINK {} plain_stands={} outside_kept={outside_kept}",
+        answer_line(&answer),
+        plain.exists()
+    );
+    assert!(
+        outside_kept,
+        "the sweep wrote through a second name of another party's file"
+    );
+    assert!(
+        !plain.exists(),
+        "the sweep left a file at a plain name of the roots folder"
+    );
+    assert!(answer.is_ok(), "{}", answer_line(&answer));
+}
+
+#[test]
+fn st47_t1_a_root_moved_into_a_directory_of_the_roots_folder_keeps_every_delete_incomplete() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let wrapped = wrapped_of(&store_dir);
+    let sub = roots_dir.join("sub");
+    std::fs::create_dir(&sub).unwrap();
+    let moved = sub.join(format!("{root_id}.root"));
+    std::fs::rename(roots_dir.join(format!("{root_id}.root")), &moved).unwrap();
+
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
+
+    let unwraps = st47_unwraps(dir.path(), "sub", &moved, root_id, &wrapped);
+    let named = |answer: &StoreResult<crate::store::DeleteReport>| match answer {
+        Err(StoreError::DeleteIncomplete(report)) => {
+            report.roots.names.contains(&"sub".to_string())
+        }
+        _ => false,
+    };
+    println!(
+        "ST47-T1-DIR first={} second={} moved_root_unwraps={unwraps} sub_stands={}",
+        answer_line(&first),
+        answer_line(&second),
+        sub.exists()
+    );
+    assert!(
+        sub.exists(),
+        "the sweep entered or removed a directory of the roots folder"
+    );
+    assert!(
+        named(&first) && named(&second),
+        "a tail answered other than DeleteIncomplete naming the directory while it stands"
+    );
+}
