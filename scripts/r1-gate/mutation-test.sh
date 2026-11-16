@@ -271,9 +271,7 @@ rows_table() {
 row_place() {
   case $row_state in
     transitional|control) mutated=$row_file ;;
-    *) row_place_dir=${rows_file%/*}
-       [ "$row_place_dir" != "$rows_file" ] || row_place_dir=.
-       mutated=$row_place_dir/$row_file ;;
+    *) case $rows_file in */*) mutated=${rows_file%/*}/$row_file ;; *) mutated=$row_file ;; esac ;;
   esac
 }
 
@@ -346,8 +344,8 @@ lint_prepare() {
     case $lint_manifest in Cargo.toml) lint_dir='' ;; */Cargo.toml) lint_dir=${lint_manifest%Cargo.toml} ;; *) continue ;; esac
     [ -f "$tree/$lint_manifest" ] || continue
     stop_check
-    lint_build=$(awk '/^[ \t]*\[/ { section = $0; gsub(/[ \t]/, "", section); next }
-      section == "[package]" && /^[ \t]*build[ \t]*=/ { v = $0; sub(/^[^=]*=[ \t]*/, "", v); sub(/[ \t]*(#.*)?$/, "", v); print v; exit }' "$tree/$lint_manifest")
+    lint_build=$(awk '/^[ \t]*\[/ { section = $0; sub(/#.*/, "", section); gsub(/[ \t]/, "", section); next }
+      section == "[package]" && /^[ \t]*build[ \t]*=/ { v = $0; sub(/^[^=]*=[ \t]*/, "", v); sub(/[ \t]*(#.*)?$/, "", v); if (v ~ /^\047.*\047$/) v = "\"" substr(v, 2, length(v) - 2) "\""; print v; exit }' "$tree/$lint_manifest")
     step_check $? "awk of $lint_manifest" || return 2
     case $lint_build in
       false) continue ;;
@@ -357,7 +355,12 @@ lint_prepare() {
     [ -f "$tree/$lint_script" ] || continue
     printf 'script\t%s\t%s\n' "$lint_script" "$lint_manifest" >> "$work/built-by.tsv"
     stop_check
-    sed -n 's/.*rerun-if-changed=\([^"{}]*\)".*/\1/p' "$tree/$lint_script" > "$work/inputs.txt"
+    grep -o 'rerun-if-changed=[^"{}]*"' "$tree/$lint_script" > "$work/inputs.raw"
+    lint_status=$?
+    step_check "$lint_status" "grep of $lint_script"
+    [ "$lint_status" -le 1 ] || return 2
+    stop_check
+    sed 's/^rerun-if-changed=//; s/"$//' "$work/inputs.raw" > "$work/inputs.txt"
     step_check $? "sed of $lint_script" || return 2
     while IFS= read -r lint_input; do
       printf 'input\t%s%s\t%s\n' "$lint_dir" "$lint_input" "$lint_script" >> "$work/built-by.tsv"
@@ -378,7 +381,7 @@ lint_prepare() {
     }
     FNR == 1 { part++ }
     part == 1 { tracked[tolower($0)] = 1; next }
-    part == 2 { if ($1 == "script") script[norm($2)] = $3; else if ($1 == "input") input[norm($2)] = $3; next }
+    part == 2 { if ($1 == "script") script[tolower(norm($2))] = $3; else if ($1 == "input") input[tolower(norm($2))] = $3; next }
     $7 == "-" { print $0, "-"; next }
     {
       lint = "-"
@@ -388,8 +391,10 @@ lint_prepare() {
       if ($7 !~ /^retired / && p != "") {
         if (!(tolower(p) in tracked) && (getline seen < (tree "/" p)) >= 0) lint = "folded"
         close(tree "/" p)
-        if (lint == "-" && (p in script)) lint = "script " script[p]
-        if (lint == "-") for (q in input) if (p == q || index(p, q "/") == 1) { lint = "input " input[q]; break }
+        lp = tolower(p)
+        if (lint == "-" && (lp in script)) lint = "script " script[lp]
+        if (lint == "-") for (q in input) if (lp == q || index(lp, q "/") == 1) { lint = "input " input[q]; break }
+        if (lint == "-" && lp ~ /\.(c|h|s|cc|cpp|cxx|hh|hpp|hxx|m|mm|asm|def|ld|rc)$/) lint = "native"
       }
       print $0, lint
     }' "$work/tracked.tsv" "$work/built-by.tsv" "$table" > "$lint_out"
@@ -398,6 +403,7 @@ lint_prepare() {
 
 row_lint() {
   defect=''
+  case $row_state in 'retired '*) return 0 ;; esac
   row_place
   if [ "$row_lint" = folded ]; then
     defect="the path $mutated reaches a tracked file only by a spelling that the file system folds beyond ASCII case"; return 1
@@ -408,10 +414,9 @@ row_lint() {
     'script '*) defect="the file $mutated is the build script that ${row_lint#script } names, which only a build decides, and the kept build does not hold it"; return 1 ;;
     'input '*) defect="the file $mutated is an input that the build script ${row_lint#input } names, which only a build decides, and the kept build does not hold it"; return 1 ;;
   esac
-  case $mutated in
-    *.[cChHsS]|*.cc|*.cpp|*.cxx|*.hh|*.hpp|*.hxx|*.m|*.mm|*.asm|*.def|*.ld|*.rc)
-      defect="the file $mutated is native code that only a build script and the link read, and the kept build does not hold it"; return 1 ;;
-  esac
+  if [ "$row_lint" = native ]; then
+    defect="the file $mutated is native code that only a build script and the link read, and the kept build does not hold it"; return 1
+  fi
   return 0
 }
 
@@ -419,16 +424,27 @@ link_line() {
   perl -e '
     sub lines_of { my ($path) = @_; open(my $in, "<", $path) or exit 2; my @lines = <$in>; close($in); return @lines; }
     sub link_marks {
-      my @lines = @_; my @mark = (0) x @lines; my $depth = 0;
+      my @lines = @_; my @mark = (0) x @lines;
+      my ($depth, $pending, $attr, $from, $text) = (0, 0, 0, 0, "");
       for my $i (0 .. $#lines) {
-        my $line = $lines[$i]; my $code = $line;
+        my $code = $lines[$i];
         $code =~ s{//.*}{}; $code =~ s{"(?:[^"\\]|\\.)*"}{""}g;
-        if ($depth == 0 && $code =~ /\bextern\s*(?:""\s*)?\{/) {
-          my $after = $code; $after =~ s/^.*?\bextern\s*(?:""\s*)?\{//;
-          $depth = 1 + ($after =~ tr/{//) - ($after =~ tr/}//); $depth = 0 if $depth < 0; $mark[$i] = 1; next;
+        my $rest = $code;
+        if ($attr == 0 && $rest =~ s/^.*?#\s*!?\[//) { $attr = 1; $from = $i; $text = ""; }
+        if ($attr > 0) {
+          for my $c (split //, $rest) { $attr++ if $c eq "["; $attr-- if $c eq "]"; last if $attr == 0; $text .= $c; }
+          $mark[$_] = 1 for ($attr == 0 && $text =~ /\b(?:link|link_name|no_mangle|export_name|link_section|used)\b/) ? ($from .. $i) : ();
         }
         if ($depth > 0) { $mark[$i] = 1; $depth += ($code =~ tr/{//) - ($code =~ tr/}//); $depth = 0 if $depth < 0; next; }
-        $mark[$i] = 1 if $line =~ /#\s*!?\[\s*(?:unsafe\s*\(\s*)?(?:link|link_name|no_mangle|export_name|link_section|used)\b/;
+        if ($pending) {
+          $pending = 0 if $code =~ /\S/;
+          if ($code =~ /^\s*\{/) { $mark[$i] = 1; $depth = ($code =~ tr/{//) - ($code =~ tr/}//); $depth = 0 if $depth < 0; next; }
+        }
+        if ($code =~ /\bextern\s*(?:""\s*)?(\{|$)/) {
+          my $brace = $1; $mark[$i] = 1;
+          if ($brace eq "{") { my $after = $code; $after =~ s/^.*?\bextern\s*(?:""\s*)?\{//; $depth = 1 + ($after =~ tr/{//) - ($after =~ tr/}//); $depth = 0 if $depth < 0; }
+          else { $pending = 1; }
+        }
       }
       return @mark;
     }
@@ -1593,6 +1609,7 @@ stop_order_cases() {
   row stop-copy-staging/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
   t stop-during-the-git-init-of-the-copy-starts-no-git-add PASS no_git_add_after stop-copy-staging stopped_by stop-copy-staging TERM runner 60 run 143 gone none 0 'STOPPED mutation:held (signal TERM; no test was running)'
   t a-signal-recorded-before-the-self-test-s-traps-runs-no-case PASS selftest_after_a_signal
+  t a-signal-recorded-before-the-self-test-starts-prints-no-stopped-line PASS selftest_after_an_early_signal
 }
 
 no_git_add_after() {
@@ -1601,6 +1618,18 @@ no_git_add_after() {
   ! grep -q -e ' add -A' "$git_add_fixture/bin/calls" && return 0
   printf 'git add of the copy started after the signal\n'
   return 1
+}
+
+selftest_after_an_early_signal() {
+  early_dir=$gate_scratch/selftest-after-an-early-signal
+  mkdir -p "$early_dir"
+  ( cases() { : > "$early_dir/ran"; }
+    gate_scratch=''; stop_signal=TERM; stop_status=143
+    main --self-test ) > "$early_dir.out" 2>&1
+  early_status=$?
+  [ ! -e "$early_dir/ran" ] || { printf 'the self-test ran its cases after a recorded signal\n'; return 1; }
+  [ "$early_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$early_status"; return 1; }
+  ! grep -q '^STOPPED ' "$early_dir.out" || { printf 'the self-test printed %s\n' "$(grep -m 1 '^STOPPED ' "$early_dir.out")"; return 1; }
 }
 
 selftest_after_a_signal() {
@@ -1623,6 +1652,8 @@ lint_cases() {
   row lint-script/crates/x/mutants.rows held gen.rs 's/1;/2;/' leak required X-1
   row lint-script/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
   t lint-refuses-a-row-on-a-build-script-of-another-name PASS with_cargo_home lint-script form_said lint-script yes "FAIL mutation:held (the file crates/x/gen.rs is the build script that crates/x/Cargo.toml names, $lint_tail"
+  row lint-script/crates/x/mutants.rows upper GEN.RS 's/1;/3;/' leak required X-1
+  t lint-refuses-a-build-script-of-another-name-in-another-ascii-case PASS with_cargo_home lint-script form_said lint-script yes "FAIL mutation:upper (the file crates/x/GEN.RS is the build script that crates/x/Cargo.toml names, $lint_tail"
   t lint-lets-a-row-beside-a-build-script-of-another-name-run PASS with_cargo_home lint-script form_said lint-script yes 'PASS mutation:plain (applies and type-checks)'
   form_fixture lint-input crates/x 0
   printf 'fn main() {\n    println!("cargo:rerun-if-changed=src/names.rs");\n}\n' > "$gate_scratch/lint-input/crates/x/build.rs"
@@ -1631,11 +1662,39 @@ lint_cases() {
   row lint-input/crates/x/mutants.rows held src/names.rs 's/1;/2;/' leak required X-1
   row lint-input/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
   t lint-refuses-a-row-on-an-input-of-a-build-script PASS with_cargo_home lint-input form_said lint-input yes "FAIL mutation:held (the file crates/x/src/names.rs is an input that the build script crates/x/build.rs names, $lint_tail"
+  row lint-input/crates/x/mutants.rows upper SRC/NAMES.rs 's/1;/3;/' leak required X-1
+  t lint-refuses-an-input-of-a-build-script-in-another-ascii-case PASS with_cargo_home lint-input form_said lint-input yes "FAIL mutation:upper (the file crates/x/SRC/NAMES.rs is an input that the build script crates/x/build.rs names, $lint_tail"
+  form_fixture lint-inputs crates/x 0
+  printf 'fn main() {\n    println!("cargo:rerun-if-changed=src/two.rs"); println!("cargo:rerun-if-changed=src/one.rs");\n}\n' > "$gate_scratch/lint-inputs/crates/x/build.rs"
+  printf 'pub const N: i32 = 1;\n' > "$gate_scratch/lint-inputs/crates/x/src/two.rs"
+  printf '[package]\nname = "x"\n' > "$gate_scratch/lint-inputs/crates/x/Cargo.toml"
+  row lint-inputs/crates/x/mutants.rows held src/two.rs 's/1;/2;/' leak required X-1
+  t lint-refuses-the-second-input-that-a-line-of-a-build-script-names PASS with_cargo_home lint-inputs form_said lint-inputs yes "FAIL mutation:held (the file crates/x/src/two.rs is an input that the build script crates/x/build.rs names, $lint_tail"
+  form_fixture lint-key-forms crates/q 0
+  printf "[package]\nname = 'q'\nbuild = 'gen.rs'\n" > "$gate_scratch/lint-key-forms/crates/q/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/q/gen.rs"
+  mkdir -p "$gate_scratch/lint-key-forms/crates/h"
+  printf '[package] # the crate\nname = "h"\nbuild = "gen.rs"\n' > "$gate_scratch/lint-key-forms/crates/h/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/h/gen.rs"
+  row lint-key-forms/crates/q/mutants.rows quoted gen.rs 's/1;/2;/' leak required X-1
+  row lint-key-forms/crates/h/mutants.rows header gen.rs 's/1;/2;/' leak required X-1
+  t lint-refuses-a-build-script-that-a-single-quoted-build-key-names PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:quoted (the file crates/q/gen.rs is the build script that crates/q/Cargo.toml names, $lint_tail"
+  t lint-refuses-a-build-script-under-a-package-header-with-a-comment PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:header (the file crates/h/gen.rs is the build script that crates/h/Cargo.toml names, $lint_tail"
   t lint-lets-a-row-on-a-file-that-no-build-script-names-run PASS with_cargo_home lint-input form_said lint-input yes 'PASS mutation:plain (applies and type-checks)'
   form_fixture lint-native crates/x 0
   mkdir -p "$gate_scratch/lint-native/crates/x/csrc"
   printf 'int shim(void) { return 1; }\n' > "$gate_scratch/lint-native/crates/x/csrc/shim.c"
   row lint-native/crates/x/mutants.rows held csrc/shim.c 's/return 1/return 2/' leak required X-1
+  row lint-native/crates/x/mutants.rows oldnative csrc/shim.c 's/return 1/return 3/' leak 'retired replaced by the test x' X-1
+  printf 'int other(void) { return 1; }\n' > "$gate_scratch/lint-native/crates/x/csrc/OTHER.CPP"
+  row lint-native/crates/x/mutants.rows upper csrc/OTHER.CPP 's/return 1/return 2/' leak required X-1
+  t lint-lets-a-retired-row-on-native-code-be-retired PASS with_cargo_home lint-native form_said lint-native yes 'RETIRED mutation:oldnative (replaced by the test x)'
+  t lint-refuses-native-code-whose-extension-is-in-upper-case PASS with_cargo_home lint-native form_said lint-native yes 'FAIL mutation:upper (the file crates/x/csrc/OTHER.CPP is native code that only a build script and the link read, and the kept build does not hold it)'
+  form_fixture lint-root crates/x 0
+  mkdir -p "$gate_scratch/lint-root/crates/x/csrc"
+  printf 'int shim(void) { return 1; }\n' > "$gate_scratch/lint-root/crates/x/csrc/shim.c"
+  row lint-root/mutants.rows held crates/x/csrc/shim.c 's/return 1/return 2/' leak required X-1
+  t lint-refuses-native-code-that-a-rows-file-at-the-root-names PASS with_cargo_home lint-root form_said lint-root yes 'FAIL mutation:held (the file crates/x/csrc/shim.c is native code that only a build script and the link read, and the kept build does not hold it)'
   t lint-refuses-a-row-on-native-code-outside-the-kept-build PASS with_cargo_home lint-native form_said lint-native yes 'FAIL mutation:held (the file crates/x/csrc/shim.c is native code that only a build script and the link read, and the kept build does not hold it)'
   form_fixture lint-extern crates/x 0
   printf '#[link(name = "shim")]\nextern "C" {\n    fn shim_a() -> i32;\n}\n\n#[no_mangle]\npub extern "C" fn halvo_hook() -> i32 { 3 }\n\npub fn f() -> i32 { 1 }\n' > "$gate_scratch/lint-extern/crates/x/src/lib.rs"
@@ -1647,6 +1706,17 @@ lint_cases() {
   t lint-refuses-a-row-that-changes-a-link-attribute PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:hook (line 6 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
   t lint-refuses-a-row-that-deletes-a-line-of-an-extern-block PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:gone (line 3 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
   t lint-lets-a-row-outside-the-extern-block-of-its-file-run PASS with_cargo_home lint-extern form_said lint-extern yes 'PASS mutation:plain (applies and type-checks)'
+  form_fixture lint-extern-forms crates/x 0
+  printf 'extern "C"\n{\n    fn shim_a() -> i32;\n}\n\n#[link(\n    name = "shim",\n    kind = "static"\n)]\nextern "C" {\n    fn shim_c() -> i32;\n}\n\n#[cfg_attr(unix, no_mangle)]\npub extern "C" fn hook_a() -> i32 { 3 }\n\npub fn f() -> i32 { 1 }\n' > "$gate_scratch/lint-extern-forms/crates/x/src/lib.rs"
+  row lint-extern-forms/crates/x/mutants.rows nextline src/lib.rs 's/shim_a/shim_b/' leak required X-1
+  row lint-extern-forms/crates/x/mutants.rows multiline src/lib.rs 's/"static"/"dylib"/' leak required X-1
+  row lint-extern-forms/crates/x/mutants.rows cfgattr src/lib.rs 's/no_mangle/must_use/' leak required X-1
+  row lint-extern-forms/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  lint_extern_tail='is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
+  t lint-refuses-a-row-in-an-extern-block-whose-brace-is-on-the-next-line PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes "FAIL mutation:nextline (line 3 of crates/x/src/lib.rs $lint_extern_tail"
+  t lint-refuses-a-row-in-a-link-attribute-over-several-lines PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes "FAIL mutation:multiline (line 8 of crates/x/src/lib.rs $lint_extern_tail"
+  t lint-refuses-a-row-in-a-cfg-attr-that-names-no-mangle PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes "FAIL mutation:cfgattr (line 14 of crates/x/src/lib.rs $lint_extern_tail"
+  t lint-lets-a-row-below-the-extern-forms-run PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes 'PASS mutation:plain (applies and type-checks)'
   form_fixture lint-extern-kept crates/halvo-sqlcipher 0
   printf 'extern "C" {\n    fn shim_a() -> i32;\n}\n' > "$gate_scratch/lint-extern-kept/crates/halvo-sqlcipher/src/lib.rs"
   row lint-extern-kept/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/shim_a/shim_b/' leak required X-1
@@ -2513,13 +2583,14 @@ main() {
     esac
     shift
   done
-  stop_check
   if [ "$mode" = self-test ] && [ "$main_help" = no ] && [ -z "$main_bad" ]; then
+    [ -z "$stop_signal" ] || exit "$stop_status"
     gate_traps
     [ -z "$stop_signal" ] || exit "$stop_status"
     selftest_run
     return
   fi
+  stop_check
   trap runner_exit EXIT
   if [ "$main_help" = yes ]; then usage; return 0; fi
   case $main_bad in

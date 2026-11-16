@@ -51,6 +51,8 @@ budget_run() {
   commit=${GITHUB_SHA:-}
   case $commit in *[!0-9a-f]*) commit= ;; esac
   [ "${#commit}" -eq 40 ] || fail "GITHUB_SHA is not a commit id of 40 hex digits"
+  shallow=$(git rev-parse --is-shallow-repository 2>/dev/null)
+  [ "$shallow" = false ] || fail "the checkout is shallow, so git cannot count the first-parent commits of $commit"
   rows=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh --list --remove-scratch 2>&1) ||
     fail "mutation-test.sh --list exited $?"
   printf '%s\n' "$rows" >"$scratch/list" || exit 2
@@ -338,6 +340,11 @@ self_test() {
   ref=refs/heads/main
   chain push-to-main-third-commit-other-rows 3
   check push-to-main-third-commit-other-rows PASS 'ran 1 of 5 rows' "$order3"
+  runner push-to-main-shallow-checkout-is-refused "$applies; $listing; printf \"$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  chain push-to-main-shallow-checkout-is-refused 4
+  cp "$work/push-to-main-shallow-checkout-is-refused/head.id" "$work/push-to-main-shallow-checkout-is-refused/.git/shallow" || exit 2
+  check push-to-main-shallow-checkout-is-refused FAIL 'the checkout is shallow, so git cannot count the first-parent commits of ' "$apply_only"
   runner push-to-main-consecutive-counts-start-at-different-rows-4 "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   chain push-to-main-consecutive-counts-start-at-different-rows-4 4
