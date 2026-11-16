@@ -1566,8 +1566,8 @@ fn an_attempt_line_of_another_shape_is_refused() {
     ];
     for line in &shapes {
         assert_ne!(line, WRITE);
-        let got = run(&[ATTEMPT, line, VERDICT], &[BOUND]);
-        assert_eq!(got.refused(), "REFUSED source: driver:5", "{line:?}");
+        let got = run(&[ATTEMPT, COUNT_FAULT, line, VERDICT], &[BOUND]);
+        assert_eq!(got.refused(), "REFUSED source: driver:6", "{line:?}");
     }
     let mut bytes = file("driver", Vec::new());
     bytes.extend(b"```\n");
@@ -1649,8 +1649,13 @@ fn a_gap_in_the_replays_is_refused_at_the_first_replay_line_whose_i_less_one_has
         (vec![replay(1, "1"), replay(1, "3")], "driver:4"),
         (vec![replay(1, "3"), replay(1, "2")], "driver:4"),
         (
-            vec![replay(1, "2"), replay(2, "1"), replay(2, "3")],
-            "driver:3",
+            vec![
+                COUNT_FAULT.to_owned(),
+                replay(1, "2"),
+                replay(2, "1"),
+                replay(2, "3"),
+            ],
+            "driver:4",
         ),
         (
             vec![replay(2, "1"), replay(2, "3"), replay(1, "2")],
