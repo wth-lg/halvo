@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, expect, test } from "vitest";
 import { endGroup, marksDir, type Processes, startGroup, sweepMarks, useProcesses } from "./process-group.ts";
@@ -30,6 +30,7 @@ let nextPid = 100_000;
 let marks = "";
 let onPs: (() => void) | null = null;
 let spawnStarted = LATER;
+const dirs: string[] = [];
 
 const world: Processes = {
   ps: () => {
@@ -103,7 +104,9 @@ beforeEach(() => {
   handlers = new Map();
   onPs = null;
   mkdirSync(join(ROOT, ".tmp"), { recursive: true });
-  marks = join(mkdtempSync(join(ROOT, ".tmp", "process-group-rules.")), "marks");
+  const made = mkdtempSync(join(ROOT, ".tmp", "process-group-rules."));
+  dirs.push(made);
+  marks = join(made, "marks");
   process.env.HALVO_GROUP_MARKS = marks;
   spawnStarted = LATER;
   useProcesses(world, 300);
@@ -112,6 +115,7 @@ beforeEach(() => {
 afterAll(() => {
   useProcesses(null);
   delete process.env.HALVO_GROUP_MARKS;
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
 test("startGroup marks the group with its owner before it reads ps, adds the start time after, and installs one handler per event", () => {
@@ -360,7 +364,7 @@ test("sweep: the window of a mark written before its start time was read holds a
   });
   const outside = (g: number) =>
     `process-group: left group ${g} (started ${LATER}): its leader started outside the seconds of the spawn that its mark records`;
-  const ended = (g: number) => `process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 1 processes`;
+  const ended = (g: number) => `process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 1 process`;
   const [early, justEarly, justLate, late] = leaders as [number, number, number, number];
   expect(sweepMarks()).toEqual([outside(early), ended(justEarly), ended(justLate), outside(late)]);
   expect(record).toEqual([`SIGTERM -${justEarly} ${LATER}`, `SIGTERM -${justLate} ${LATER}`]);
@@ -572,7 +576,7 @@ test("the node tests' set-up prints each line of the sweep to stderr", async () 
   } finally {
     process.stderr.write = original;
   }
-  expect(written).toEqual([`process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 1 processes\n`]);
+  expect(written).toEqual([`process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 1 process\n`]);
 });
 
 test("the kit reads start times in UTC whatever TZ its process has, so a sweep under another TZ keeps the mark of a live owner", async () => {

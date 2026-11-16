@@ -315,6 +315,30 @@ lacks, and the test script does not end, so the windows job runs no test of the 
 holds the workerd tests and the node tests (`test/**/*.node.test.ts`), and then the records of
 check 50, `gate/fixtures/concurrency/records.mjs` run on `backend/` as the commit holds it.
 
+A node test starts a server through the test kit, `test/ledger/process-group.ts`, in a process
+group of its own, and marks it in `backend/.tmp/groups/` (a test can name another directory with
+`HALVO_GROUP_MARKS`). When a run of the node tests is stopped by TERM, INT or HUP, or loses
+vitest's main process, the kit ends the groups that it started; the node project's global set-up,
+`test/ledger/node-setup.ts`, sweeps at the start of each run the groups that an earlier run of the
+same checkout left after a KILL, by their marks, and prints a line for each group that it ends or
+leaves. A stopped run can leave: a mark under `backend/.tmp/groups/` and, until the next run of the
+checkout, its group; and wrangler's build under `backend/.wrangler/tmp/`, which wrangler removes
+when it gets TERM from the kit and keeps when it gets KILL (git ignores both directories). These
+are left for good or until a later step: a group that outlives TERM by more than the 500 ms after
+which vitest sends KILL to a fork that it stops; a group whose owner gets KILL, until the next run
+of the same checkout, and for good if none follows; one unmarked group when a KILL comes between
+the spawn and the first write of its mark; a group whose leader is gone while other processes
+keep its id, which the sweep and `endGroup` leave with a line (a group whose leader died before a
+test calls `endGroup` is left to the sweep); a group marked under a test's own
+`HALVO_GROUP_MARKS` directory, which no sweep reads; and the servers that
+`test/ledger/gateway-chat.node.test.ts`, `test/metering/stripe-meter-load.node.test.ts` and
+`test/billing/servers.ts` start outside the kit, which end only with the processes that own them.
+The sweep ends a group only by a mark of this checkout whose leader started at or after the mark's
+owner; a mark that a person writes by hand in the checkout's own marks directory, naming a leader
+that started after a dead owner, is trusted. Nothing empties `backend/.tmp/`: each run of the node
+tests adds the state directories of the wrangler, gateway and stop-case tests; remove them by
+hand when no run of the checkout is going.
+
 The gate runs in no CI job: it needs the stack and the sandbox of macOS. Its lines are kept as
 records, `docs/r7/gate/NN-name.txt`, one for each check: the line that the gate printed, the UTC
 time and the 1-minute load at which it came, and the trees of `backend/` and of

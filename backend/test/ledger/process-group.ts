@@ -14,6 +14,7 @@ declare module "node:child_process" {
 declare module "node:fs" {
   export function unlinkSync(path: string): void;
   export function realpathSync(path: string): string;
+  export function rmSync(path: string, options: { recursive: true; force: true }): void;
 }
 
 type Options = { env?: Record<string, string | undefined>; stdio: ("ignore" | "pipe" | "inherit" | number)[] };
@@ -69,6 +70,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 const processes = (n: number) => (n === 1 ? "1 process has" : `${n} processes have`);
+const many = (n: number) => (n === 1 ? "1 process" : `${n} processes`);
 
 const SYSTEM: Processes = {
   ps: () => execFileSync("ps", ["-A", "-o", "pid=,pgid=,stat=,lstart="], { encoding: "utf8", env: { ...process.env, TZ: "UTC0", LC_ALL: "C" } }),
@@ -214,14 +216,17 @@ export function marksDir(): string {
 
 /**
  * Starts command in a process group of its own and returns the group, known by its leader's pid and start time
- * (ps lstart read with TZ=UTC0 and LC_ALL=C). Right after the spawn it writes the mark group-<pid>.json into
- * marksDir() with the pid, the second before the spawn and the pid and start time of the process that started it
- * (the owner); after its read of ps it adds the leader's start time; it removes the mark once the group has no member
- * left. If that read fails or the child does not lead a group of its own, it sends KILL to the group, removes the
- * mark and throws. Until endGroup ends it, the owner ends the group, TERM first and KILL after 5 s, when it gets
- * TERM, INT or HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then
- * exits with 1), and when it exits; it signals a group only while its leader has the recorded pid and start time.
- * A KILL of the owner runs none of these: the group and its mark stay until sweepMarks.
+ * (ps lstart read with TZ=UTC0 and LC_ALL=C). It throws before the spawn when the process table has no row for its
+ * own process. Right after the spawn it writes the mark group-<pid>.json into marksDir() with the pid, the second
+ * before the spawn, the pid and start time of the process that started it (the owner) and the real path of the
+ * working directory (the checkout); after its read of ps it adds the leader's start time; it removes the mark once
+ * the group has no member left. If that read fails or the child does not lead a group of its own, it sends KILL to the
+ * group id, removes the mark and throws. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
+ * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
+ * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
+ * the members that are left, also when the leader itself left on TERM. When vitest stops a fork it sends KILL 500 ms
+ * after its TERM, so a group that outlives TERM by more than that keeps its mark. A KILL of the owner runs none of
+ * these: the group and its mark stay until sweepMarks.
  */
 export function startGroup(command: string, args: string[], options: Options): Group {
   const state = live();
@@ -313,12 +318,15 @@ function readMark(text: string): Mark | null {
 
 /**
  * Ends the groups that the marks in marksDir() name and whose owner is gone: what a run of this checkout left when
- * its process got KILL. A mark whose owner (pid and start time) is alive is kept, since a run that is still going owns
- * it. A group whose leader has the marked pid and start time (for a mark written before the start time was read, a
- * leader of the marked pid that started within a second before or two seconds after the spawn) gets TERM, and KILL
- * after 5 s, and its mark goes once it has no member. A group whose leader is gone while processes still have its pid
- * as their group is left with its mark, since nothing tells those processes from a later group of the same id.
- * Returns one line for each group that it ended or left, and for each mark that it could not read.
+ * its process got KILL. It leaves alone, with a line: a mark of another checkout; a mark whose owner (pid and start
+ * time) is alive, with no line, since a run that is still going owns it; the group of the sweeping process; a group
+ * whose leader is gone while processes still have its pid as their group, since nothing tells those processes from a
+ * later group of the same id; a group whose leader started before the mark's owner; and, for a mark written before
+ * its start time was read, a group whose leader started outside the second before to two seconds after the spawn.
+ * Any other group whose leader has the marked pid and start time gets TERM, and KILL after the grace, and its mark
+ * goes once the group has no member, as does the mark of a group that is gone; it removes a mark only when the file
+ * still reads as it did. Returns one line for each group that it ended or left, and for each mark that it could not
+ * read.
  */
 export function sweepMarks(): string[] {
   const dir = marksDir();
@@ -352,11 +360,13 @@ export function sweepMarks(): string[] {
     const self = rows.find((row) => row.pid === process.pid);
     const leader = rows.find((row) => row.pid === mark.pid && row.pgid === mark.pid);
     const at = leader === undefined ? null : epoch(leader.started);
-    if (mark.started === null && leader !== undefined && (at === null || at < mark.spawned - 1 || at > mark.spawned + 2)) {
+    const inside = at !== null && at >= mark.spawned - 1 && at <= mark.spawned + 2;
+    if (mark.started === null && leader !== undefined && !inside) {
       lines.push(`process-group: left group ${mark.pid} (started ${leader.started}): its leader started outside the seconds of the spawn that its mark records`);
       continue;
     }
     const started = mark.started ?? (leader !== undefined ? leader.started : "no start time");
+    const shown = mark.started === null && leader === undefined ? "" : ` (started ${started})`;
     const group = { pid: mark.pid, started };
     const count = members(group, rows).length;
     const born = epoch(started);
@@ -366,12 +376,12 @@ export function sweepMarks(): string[] {
     } else if (self !== undefined && mark.pid === self.pgid) {
       lines.push(`process-group: left group ${mark.pid}: it is the group of the sweeping process`);
     } else if (!leads(group, rows)) {
-      lines.push(`process-group: left group ${mark.pid} (started ${started}): its leader is gone and ${count} processes have its id as their group`);
+      lines.push(`process-group: left group ${mark.pid}${shown}: its leader is gone and ${processes(count)} its id as their group`);
     } else if (born === null || ownerBorn === null || born < ownerBorn) {
       lines.push(`process-group: left group ${mark.pid} (started ${started}): its leader started before the run that marked it`);
     } else if (stopNow([group]).length === 0) {
       release(path, text);
-      lines.push(`process-group: ended group ${mark.pid} (started ${started}), which a run of this checkout left: ${count} processes`);
+      lines.push(`process-group: ended group ${mark.pid} (started ${started}), which a run of this checkout left: ${many(count)}`);
     } else {
       lines.push(`process-group: group ${mark.pid} (started ${started}) still has members after KILL`);
     }
