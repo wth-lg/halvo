@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,25 +81,65 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 15-r3-test-dirs
+      - name: U5.1d loop of the new and changed tests
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$tmp/u51d-loop-messages.json" 2> "$tmp/u51d-loop-build.txt"
+          echo "build exit $?"
+          exe() {
+            grep '"reason":"compiler-artifact"' "$tmp/u51d-loop-messages.json" | grep '"executable":"' | grep "\"name\":\"$1\"" | sed 's/.*"executable":"\([^"]*\)".*/\1/' | sed 's/\\\\/\\/g' | tail -n 1
+          }
+          bad=
+          loop() {
+            file=$(exe "$1")
+            if [ -z "$file" ]; then echo "LOOP $2: no test binary $1"; bad=1; return; fi
+            pass=0
+            i=0
+            start=$(date +%s)
+            while [ "$i" -lt "$3" ]; do
+              i=$((i + 1))
+              out=$(cd crates/halvo-derived && "$file" "$2" --exact 2>&1)
+              if printf '%s\n' "$out" | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                pass=$((pass + 1))
+              else
+                echo "LOOP $2 run $i:"
+                printf '%s\n' "$out" | tail -n 25
+              fi
+            done
+            echo "LOOP $2 passed $pass of $3 in $(( $(date +%s) - start )) s"
+            [ "$pass" -eq "$3" ] || bad=1
+          }
+          loop privacy removed_rows_leave_no_text_in_the_gap_of_a_page_built_again 20
+          loop privacy the_indexes_over_the_body_are_rows_read_and_rows_read_workflow 200
+          loop replaced a_replaced_app_and_a_dropped_support_row_leave_no_marker_on_pages_built_again 20
+          loop replaced single_drops_of_small_support_rows_each_with_its_checkpoint_leave_no_marker 20
+          loop propose a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision 200
+          loop typed an_open_refuses_an_entry_that_drops_the_workflow_key_of_stored_rows_and_changes_nothing 200
+          loop typed an_open_refuses_an_entry_that_gives_a_stored_kind_another_family_and_changes_nothing 200
+          loop expiry a_bounded_row_with_a_day_and_no_day_of_going_gets_it_at_the_open_or_is_due 200
+          loop sync each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag 200
+          loop open open_refuses_a_store_whose_auto_vacuum_is_not_0 200
+          loop open open_refuses_a_keyless_store_whose_page_size_is_not_4096 200
+          loop halvo_derived tests::a_removal_compiles_under_the_checkpointed_write_alone 200
+          loop halvo_derived tests::no_source_runs_analyze_or_optimize_and_every_removal_stands_under_the_truncating_checkpoint 200
+          loop halvo_derived tests::the_index_of_the_keyed_read_holds_no_row_of_the_family_workflow 200
+          loop halvo_derived tests::the_keyed_row_read_searches_its_index_by_kind_and_workflow_and_the_whole_read_searches_rows_read_by_kind 200
+          loop halvo_derived tests::the_keyed_row_read_takes_the_same_steps_however_many_rows_of_its_kind_other_workflows_hold 200
+          loop halvo_derived tests::the_open_s_read_back_refuses_by_name_each_setting_that_reads_otherwise 200
+          loop halvo_derived tests::the_store_s_own_connection_reads_each_setting_of_the_open_after_a_first_and_a_second_open 200
+          loop halvo_derived tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap 200
+          if [ -n "$bad" ]; then echo "LOOP a test missed its count"; exit 1; fi
+          echo "LOOP every count met"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -148,25 +177,65 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-derived 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-derived 15-r3-test-dirs
+      - name: U5.1d loop of the new and changed tests
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$tmp/u51d-loop-messages.json" 2> "$tmp/u51d-loop-build.txt"
+          echo "build exit $?"
+          exe() {
+            grep '"reason":"compiler-artifact"' "$tmp/u51d-loop-messages.json" | grep '"executable":"' | grep "\"name\":\"$1\"" | sed 's/.*"executable":"\([^"]*\)".*/\1/' | sed 's/\\\\/\\/g' | tail -n 1
+          }
+          bad=
+          loop() {
+            file=$(exe "$1")
+            if [ -z "$file" ]; then echo "LOOP $2: no test binary $1"; bad=1; return; fi
+            pass=0
+            i=0
+            start=$(date +%s)
+            while [ "$i" -lt "$3" ]; do
+              i=$((i + 1))
+              out=$(cd crates/halvo-derived && "$file" "$2" --exact 2>&1)
+              if printf '%s\n' "$out" | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                pass=$((pass + 1))
+              else
+                echo "LOOP $2 run $i:"
+                printf '%s\n' "$out" | tail -n 25
+              fi
+            done
+            echo "LOOP $2 passed $pass of $3 in $(( $(date +%s) - start )) s"
+            [ "$pass" -eq "$3" ] || bad=1
+          }
+          loop privacy removed_rows_leave_no_text_in_the_gap_of_a_page_built_again 20
+          loop privacy the_indexes_over_the_body_are_rows_read_and_rows_read_workflow 200
+          loop replaced a_replaced_app_and_a_dropped_support_row_leave_no_marker_on_pages_built_again 20
+          loop replaced single_drops_of_small_support_rows_each_with_its_checkpoint_leave_no_marker 20
+          loop propose a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision 200
+          loop typed an_open_refuses_an_entry_that_drops_the_workflow_key_of_stored_rows_and_changes_nothing 200
+          loop typed an_open_refuses_an_entry_that_gives_a_stored_kind_another_family_and_changes_nothing 200
+          loop expiry a_bounded_row_with_a_day_and_no_day_of_going_gets_it_at_the_open_or_is_due 200
+          loop sync each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag 200
+          loop open open_refuses_a_store_whose_auto_vacuum_is_not_0 200
+          loop open open_refuses_a_keyless_store_whose_page_size_is_not_4096 200
+          loop halvo_derived tests::a_removal_compiles_under_the_checkpointed_write_alone 200
+          loop halvo_derived tests::no_source_runs_analyze_or_optimize_and_every_removal_stands_under_the_truncating_checkpoint 200
+          loop halvo_derived tests::the_index_of_the_keyed_read_holds_no_row_of_the_family_workflow 200
+          loop halvo_derived tests::the_keyed_row_read_searches_its_index_by_kind_and_workflow_and_the_whole_read_searches_rows_read_by_kind 200
+          loop halvo_derived tests::the_keyed_row_read_takes_the_same_steps_however_many_rows_of_its_kind_other_workflows_hold 200
+          loop halvo_derived tests::the_open_s_read_back_refuses_by_name_each_setting_that_reads_otherwise 200
+          loop halvo_derived tests::the_store_s_own_connection_reads_each_setting_of_the_open_after_a_first_and_a_second_open 200
+          loop halvo_derived tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap 200
+          if [ -n "$bad" ]; then echo "LOOP a test missed its count"; exit 1; fi
+          echo "LOOP every count met"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
