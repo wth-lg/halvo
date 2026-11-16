@@ -1,12 +1,13 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails or has not answered within 120 s, when the check ends the git process that it started for it, by its pid; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, or, when the event holds no repository, the branch of GITHUB_REF, else main), and on a push to the default branch from the before commit of the push, which a shallow clone fetches by its id within 120 s and FAILs without (copy-of-the-default-branch not-run when the push made the branch, or when a full clone does not hold that commit), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); when this branch's scripts/r1/ci.d/19-home-paths.sh differs from the default commit's, that copy of the whole check runs first, from a new directory, and its FAIL fails the run; the ranges are commit ids, git runs with replace objects off, the default copies are read and run before any code of this branch in this step, and the run FAILs when the clone holds a replace ref or a grafts file, before this branch's scanner ran or after it, and when the default ref or HEAD moved while that scanner ran; named limits: 19-home-paths, the driver and the workflow run as the pull request holds them (so a pull request that changes the lines of 19 that start the default copies passes, and so does a run in which the workflow or the driver sets HOME_PATHS_CHECK_OF_THE_DEFAULT_BRANCH), this branch's code of the step before (its self-tests) runs in the same clone first and can leave a process behind or write the repository before the default copy runs, a default commit that holds no scripts/r1/ci.d/19-home-paths.sh skips the default branch's copy of the check with a line that says why, and a change that weakens the scanner or the range file without adding a home path passes both copies and then is the default branch's copy, so the review of the diffs of those files is the guard; and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails or has not answered within 120 s, when the check ends the git process that it started for it, by its pid; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, or, when the event holds no repository, the branch of GITHUB_REF, else main), and on a push to the default branch from the before commit of the push, which a shallow clone fetches by its id within 120 s and FAILs without (copy-of-the-default-branch not-run when the push made the branch, or when a full clone does not hold that commit), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); when the head commit's scripts/r1/ci.d/19-home-paths.sh differs from the default commit's by object id, that copy of the whole check runs from a new directory, after the default copies of the scanner and before this branch's scanner, with an own tag ref of another name, and its FAIL fails the run; the ranges are commit ids, git runs with replace objects off, the default copies are read and run before any code of this branch in this step, and the run FAILs when the clone holds a replace ref or a grafts file, before this branch's scanner ran or after it, and when the default ref or HEAD moved while that scanner ran; named limits: 19-home-paths, the driver and the workflow run as the pull request holds them (so a pull request that changes the lines of 19 that start the default copies passes, and so does a run in which the workflow or the driver sets HOME_PATHS_CHECK_OF_THE_DEFAULT_BRANCH), this branch's code of the step before (its self-tests) runs in the same clone first and can leave a process behind or write the repository before the default copy runs, and this branch's 19 runs as the work tree holds it, which this branch's scanner can write while 19 runs (a copy of the default branch's in a clone of its own, or in a step before any code of the branch, is a unit of its own), a default commit that holds no scripts/r1/ci.d/19-home-paths.sh skips the default branch's copy of the check with a line that says why, and a change that weakens the scanner or the range file without adding a home path passes both copies and then is the default branch's copy, so the review of the diffs of those files is the guard; and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 # lane: free
 set -u
 GIT_NO_REPLACE_OBJECTS=1
 export GIT_NO_REPLACE_OBJECTS
 name=19-home-paths
 own_tag_ref=refs/ci-d/19-home-paths/tag-of-the-run
+[ -z "${HOME_PATHS_CHECK_OF_THE_DEFAULT_BRANCH:-}" ] || own_tag_ref=refs/ci-d/19-home-paths/tag-of-the-run-of-the-default-check
 remote_limit_s=120
 
 fail() {
@@ -215,15 +216,18 @@ run_the_check_of_the_default_branch() {
     return 0
   fi
   [ -n "$default_commit" ] || return 0
-  check_place=$(mktemp -d "$scratch/check-of-the-default-branch.XXXXXX") || fail 'mktemp failed'
-  if ! git cat-file blob "$default_commit:scripts/r1/ci.d/19-home-paths.sh" >"$check_place/19-home-paths.sh" 2>/dev/null </dev/null; then
+  default_check=$(git rev-parse -q --verify "$default_commit:scripts/r1/ci.d/19-home-paths.sh" 2>/dev/null) || default_check=
+  if [ -z "$default_check" ]; then
     printf 'check-of-the-default-branch not-run (the copy of the check that the default branch holds did not run: %s holds no scripts/r1/ci.d/19-home-paths.sh, after a rename there or in a commit older than the check)\n' "$default_label"
     return 0
   fi
-  if cmp -s "$check_place/19-home-paths.sh" scripts/r1/ci.d/19-home-paths.sh; then
+  head_check=$(git rev-parse -q --verify "$head_commit:scripts/r1/ci.d/19-home-paths.sh" 2>/dev/null) || head_check=
+  if [ "$default_check" = "$head_check" ]; then
     printf 'check-of-the-default-branch same\n'
     return 0
   fi
+  check_place=$(mktemp -d "$scratch/check-of-the-default-branch.XXXXXX") || fail 'mktemp failed'
+  git cat-file blob "$default_check" >"$check_place/19-home-paths.sh" 2>/dev/null </dev/null || fail "git cannot read the copy of scripts/r1/ci.d/19-home-paths.sh that $default_label holds"
   mkdir "$check_place/tmp" || fail 'mkdir failed'
   HOME_PATHS_CHECK_OF_THE_DEFAULT_BRANCH=running CI_D_REPO=$repo TMPDIR=$check_place/tmp sh "$check_place/19-home-paths.sh" >"$check_place/out" 2>&1 </dev/null
   check_code=$?
@@ -321,6 +325,7 @@ scan_head() {
     sh "$default_copy" "$range" ${tag_to_read:+"$tag_to_read"} >"$scratch/default-out" 2>"$scratch/default-err" </dev/null
     default_code=$?
   fi
+  run_the_check_of_the_default_branch
   sh scripts/check-home-paths.sh "$range" ${tag_to_read:+"$tag_to_read"} >"$scratch/out" 2>"$scratch/err" </dev/null
   code=$?
   ref_after=$(git rev-parse -q --verify "$default_ref^{commit}" 2>/dev/null) || ref_after=
@@ -330,7 +335,6 @@ scan_head() {
   fi
   refuse_replaced_objects 'the scanner of this branch wrote it, and a scanner that writes the repository is no scanner: read the diff of scripts/check-home-paths.sh'
   drop_own_tag_ref
-  run_the_check_of_the_default_branch
   counts=$(counts_of "$scratch/out" "$scratch/err") || counts=
   printf 'range=%s tag=%s %s exit=%s\n' "$kind" "$tag" "${counts:-commits=unread lines=unread}" "$code"
   default_counts=
@@ -762,6 +766,61 @@ case_branch_scanner_that_writes_over_the_default_copy() {
   event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false main
   expect FAIL "$c" 'the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that refs/remotes/origin/main holds finds'
   no_event
+}
+
+scanner_that_swaps_the_check_for_a_while() {
+  cat <<'EOF'
+#!/bin/sh
+case ${1:-} in
+  --stale)
+    printf 'check-home-paths: PASS: --stale: stand-in: entries read 0, stale 0.\n'
+    exit 0
+    ;;
+esac
+git show 'refs/remotes/origin/main:scripts/r1/ci.d/19-home-paths.sh' >../swap.main 2>/dev/null &&
+  git show 'HEAD:scripts/r1/ci.d/19-home-paths.sh' >../swap.branch 2>/dev/null &&
+  cat ../swap.main >scripts/r1/ci.d/19-home-paths.sh
+( sleep 3; cat ../swap.branch >scripts/r1/ci.d/19-home-paths.sh; : >../swap.restored ) </dev/null >/dev/null 2>&1 &
+printf 'check-home-paths: PASS: stand-in: commits read 1, lines with a home path 0.\n'
+EOF
+}
+
+pull_request_that_edits_a_verdict_of_the_check() {
+  fixture "$1"
+  mkdir -p "$scratch/$1/scripts/r1/ci.d" || exit 2
+  sed 's/kill -TERM /: /' "$repo/scripts/r1/ci.d/19-home-paths.sh" >"$scratch/$1/scripts/r1/ci.d/19-home-paths.sh" || exit 2
+  add_commit "$1" 'more plain text' 'the check'
+  git -C "$scratch/$1" update-ref refs/remotes/origin/main HEAD || exit 2
+  sed 's/^      1) fail "the copy of scripts\/check-home-paths.sh and scripts\/commit-range.sh that/      1) : "the copy of scripts\/check-home-paths.sh and scripts\/commit-range.sh that/' "$scratch/$1/scripts/r1/ci.d/19-home-paths.sh" >"$scratch/$1.check" || exit 2
+  if cmp -s "$scratch/$1.check" "$scratch/$1/scripts/r1/ci.d/19-home-paths.sh"; then
+    printf 'case %s/%s: the line of the check that the case changes is not in it\n' "$name" "$1"
+    exit 2
+  fi
+  cat "$scratch/$1.check" >"$scratch/$1/scripts/r1/ci.d/19-home-paths.sh" || exit 2
+  "$2" >"$scratch/$1/scripts/check-home-paths.sh" || exit 2
+  add_commit "$1" "see /$u/zoe/x" 'change a verdict of the check and the scanner'
+  mkdir "$scratch/$1.tmp" || exit 2
+  event_of_a_run "$1" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false main
+  (cd "$scratch/$1" && env GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" GITHUB_REF="$GITHUB_REF" GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH" CI_D_REPO="$scratch/$1" TMPDIR="$scratch/$1.tmp" sh scripts/r1/ci.d/19-home-paths.sh) >"$scratch/$1.out" 2>&1 </dev/null
+  code=$?
+  no_event
+}
+
+case_pull_request_that_edits_a_verdict_of_the_check() {
+  c='pull-request-that-edits-a-verdict-of-the-check'
+  pull_request_that_edits_a_verdict_of_the_check "$c" weak_scanner
+  judge FAIL "$c" 'the copy of scripts/r1/ci.d/19-home-paths.sh that refs/remotes/origin/main holds refuses this head'
+}
+
+case_scanner_that_swaps_the_check_for_a_while() {
+  c='scanner-that-swaps-the-check-for-a-while'
+  pull_request_that_edits_a_verdict_of_the_check "$c" scanner_that_swaps_the_check_for_a_while
+  swap_wait=0
+  while [ -f "$scratch/swap.main" ] && [ ! -f "$scratch/swap.restored" ] && [ "$swap_wait" -lt 20 ]; do
+    sleep 1
+    swap_wait=$((swap_wait + 1))
+  done
+  judge FAIL "$c" 'the copy of scripts/r1/ci.d/19-home-paths.sh that refs/remotes/origin/main holds refuses this head'
 }
 
 case_pull_request_that_edits_the_check_itself() {
@@ -1220,6 +1279,8 @@ clone-that-holds-a-replace-ref-of-the-scanner
 clone-that-holds-a-grafts-file
 branch-scanner-that-leaves-a-writer-behind
 term-during-the-fetch-of-the-before-commit
+pull-request-that-edits-a-verdict-of-the-check
+scanner-that-swaps-the-check-for-a-while
 '
 
 run_new_case() {
