@@ -409,7 +409,6 @@ lint_prepare() {
 
 row_lint() {
   defect=''
-  case $row_state in 'retired '*) return 0 ;; esac
   row_place
   if [ "$row_lint" = folded ]; then
     defect="the path $mutated reaches a tracked file only by a spelling that the file system folds beyond ASCII case"; return 1
@@ -1674,7 +1673,7 @@ selftest_after_an_early_signal() {
   early_dir=$gate_scratch/selftest-after-an-early-signal
   mkdir -p "$early_dir"
   # shellcheck disable=SC2016
-  sh -c 'set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT; early_ran=$1
+  sh -c 'early_ran=$1; set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT
     cases() { : > "$early_ran"; }
     stop_signal=TERM; stop_status=143
     main --self-test' "$DIR/mutation-test.sh" "$early_dir/ran" > "$early_dir.out" 2>&1
@@ -1689,7 +1688,7 @@ selftest_after_a_signal() {
   after_dir=$gate_scratch/selftest-after-a-signal
   mkdir -p "$after_dir"
   # shellcheck disable=SC2016
-  sh -c 'set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT; after_ran=$1
+  sh -c 'after_ran=$1; set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT
     cases() { : > "$after_ran"; }
     gate_traps() { trap gate_exit EXIT; stop_signal=TERM; stop_status=143; }
     main --self-test' "$DIR/mutation-test.sh" "$after_dir/ran" > "$after_dir.out" 2>&1
@@ -1731,8 +1730,13 @@ lint_cases() {
   printf '[package] # the crate\nname = "h"\nbuild = "gen.rs"\n' > "$gate_scratch/lint-key-forms/crates/h/Cargo.toml"
   printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/h/gen.rs"
   row lint-key-forms/crates/q/mutants.rows quoted gen.rs 's/1;/2;/' leak required X-1
+  mkdir -p "$gate_scratch/lint-key-forms/crates/u"
+  printf '[package]\nname = "u"\nbuild = "Gen.rs"\n' > "$gate_scratch/lint-key-forms/crates/u/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/u/Gen.rs"
+  row lint-key-forms/crates/u/mutants.rows lower gen.rs 's/1;/2;/' leak required X-1
   row lint-key-forms/crates/h/mutants.rows header gen.rs 's/1;/2;/' leak required X-1
   t lint-refuses-a-build-script-that-a-single-quoted-build-key-names PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:quoted (the file crates/q/gen.rs is the build script that crates/q/Cargo.toml names, $lint_tail"
+  t lint-refuses-a-build-script-whose-build-key-is-in-upper-case PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:lower (the file crates/u/gen.rs is the build script that crates/u/Cargo.toml names, $lint_tail"
   t lint-refuses-a-build-script-under-a-package-header-with-a-comment PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:header (the file crates/h/gen.rs is the build script that crates/h/Cargo.toml names, $lint_tail"
   t lint-lets-a-row-on-a-file-that-no-build-script-names-run PASS with_cargo_home lint-input form_said lint-input yes 'PASS mutation:plain (applies and type-checks)'
   form_fixture lint-native crates/x 0
