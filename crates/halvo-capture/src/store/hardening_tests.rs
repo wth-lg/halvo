@@ -4660,6 +4660,23 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
             self.destroy_calls.fetch_add(1, Ordering::SeqCst);
             self.inner.destroy_root()
         }
+
+        fn wrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            key: &StoreKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+            self.inner.wrap_store_key_in(roots, key, label)
+        }
+        fn unwrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            wrapped: &WrappedKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+            self.inner.unwrap_store_key_in(roots, wrapped, label)
+        }
     }
     const ROUNDS: usize = 64;
     let mut missing = Vec::new();
@@ -8442,6 +8459,22 @@ impl<C: KeyCustody> KeyCustody for StopsAfterItsRoot<C> {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.0.destroy_root()
     }
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        self.0.wrap_store_key_in(roots, key, label)
+    }
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.0.unwrap_store_key_in(roots, wrapped, label)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -9845,6 +9878,7 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
             left: vec![left],
             names: vec![format!("{left}.root")],
             listed: true,
+            at_its_path: true,
         },
         root_not_handled: Some(not_handled),
         key_file_gone: true,
@@ -10050,6 +10084,23 @@ impl KeyCustody for RootsWithAFailingDestroy {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         Err(CustodyError::RootDenied)
     }
+
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        self.inner.wrap_store_key_in(roots, key, label)
+    }
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.inner.unwrap_store_key_in(roots, wrapped, label)
+    }
 }
 
 #[cfg(unix)]
@@ -10174,6 +10225,9 @@ mod closed_list;
 
 #[cfg(unix)]
 mod pass_two;
+
+#[cfg(unix)]
+mod held_roots;
 
 #[cfg(windows)]
 mod closed_list_windows;

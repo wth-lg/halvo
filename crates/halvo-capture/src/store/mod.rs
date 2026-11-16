@@ -188,11 +188,13 @@ impl DeleteReport {
     }
 
     /// The root reads destroyed or unnamed, no root file that the step
-    /// counted stays, and the delete left nothing of the store: the report of
-    /// an `Ok`. A root that reads left never gives `Ok`.
+    /// counted stays, the roots directory that the step went through still
+    /// stands at its path, and the delete left nothing of the store: the
+    /// report of an `Ok`. A root that reads left never gives `Ok`.
     pub(in crate::store) fn complete(&self) -> bool {
         matches!(self.root, RootReading::Destroyed | RootReading::Unnamed)
             && self.roots.none_left()
+            && self.roots.at_its_path
             && self.root_not_handled.is_none()
             && self.key_file_gone
             && !self.database_left
