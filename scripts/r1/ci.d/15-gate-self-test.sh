@@ -109,6 +109,7 @@ push_base() {
     *) git -C "$CI_D_REPO" rev-parse -q --verify "$before^{commit}" >/dev/null && return 0 ;;
   esac
   default=$(event_value default_branch) || { unreadable "before $before names no commit here, and the push event holds no one value of default_branch"; return 1; }
+  ! git -C "$CI_D_REPO" merge-base --is-ancestor HEAD "refs/remotes/origin/$default" || { unreadable "before $before names no commit here, and HEAD is on refs/remotes/origin/$default, so the merge base gives no range"; return 1; }
   base=$(git -C "$CI_D_REPO" merge-base HEAD "refs/remotes/origin/$default") || { unreadable "before $before names no commit here, and HEAD has no merge base with refs/remotes/origin/$default"; return 1; }
   printf 'range: before %s names no commit here, so the base is the merge base with refs/remotes/origin/%s\n' "$before" "$default"
 }
@@ -307,6 +308,10 @@ self_test() {
   ranged new-branch-gate-file-changed gate push "$new_branch"
   git -C "$work/new-branch-gate-file-changed" update-ref refs/remotes/origin/trunk "$from" || exit 2
   check new-branch-gate-file-changed FAIL "$run_changed"
+  ranged force-push-to-the-default-branch gate push "{\"before\": \"1111111111111111111111111111111111111111\", \"repository\": {\"default_branch\": \"trunk\"}}"
+  git -C "$work/force-push-to-the-default-branch" update-ref refs/remotes/origin/trunk "$to" || exit 2
+  unread 'before 1111111111111111111111111111111111111111 names no commit here, and HEAD is on refs/remotes/origin/trunk, so the merge base gives no range'
+  check force-push-to-the-default-branch FAIL "$want"
   ranged new-branch-without-default-branch other push "{\"before\": \"$zero\"}"
   git -C "$work/new-branch-without-default-branch" update-ref refs/remotes/origin/trunk "$from" || exit 2
   unread "before $zero names no commit here, and the push event holds no one value of default_branch"
