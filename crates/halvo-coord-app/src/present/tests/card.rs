@@ -1,4 +1,5 @@
 use super::{field, pay, pay_fields};
+use crate::present::card::{breaks, LINES, LINE_CHARS, WINDOWS_MARKS};
 use crate::present::Card;
 use halvo_coord::types::{Cause, Class, FieldFrom};
 use halvo_coord::words;
@@ -104,7 +105,7 @@ fn a_card_is_refused_for_no_class_and_for_a_class_whose_entries_the_words_file_l
 }
 
 #[test]
-fn each_field_is_one_line_with_its_pieces_and_with_no_line_break_of_its_own() {
+fn a_field_is_taken_as_it_is_and_a_line_break_in_it_breaks_the_composed_form() {
     let fields = vec![
         field(
             "What to remove",
@@ -124,12 +125,16 @@ fn each_field_is_one_line_with_its_pieces_and_with_no_line_break_of_its_own() {
         card.lines(),
         [
             "What to remove: Draft oneDraft two",
-            "Message: Thanks. Amount: 1 USD  end",
+            "Message: Thanks.\nAmount: 1 USD\r\nend",
             "Something changed",
-            "Tab here: a b"
+            "Tab\there: a\u{0}b"
         ]
     );
-    assert_eq!(card.text().lines().count(), fields.len());
+    assert!(!card.whole());
+    for (i, field) in fields.iter().enumerate() {
+        let one = Card::new(&[Class::Payment], std::slice::from_ref(field)).unwrap();
+        assert_eq!(one.whole(), i % 2 == 0, "field {i}");
+    }
 }
 
 #[test]
@@ -154,26 +159,138 @@ fn a_mixed_card_is_refused_for_a_class_whose_entries_the_words_file_lacks() {
 }
 
 #[test]
-fn a_field_holds_no_line_separator_and_no_bidi_control() {
+fn each_mark_of_the_closed_list_in_a_label_or_a_value_breaks_the_composed_form_and_stays() {
     let marks = [
-        '\u{2028}', '\u{2029}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}',
-        '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\u{200e}', '\u{200f}', '\u{061c}',
-        '\u{85}',
+        '\u{0}', '\u{9}', '\u{a}', '\u{d}', '\u{1f}', '\u{7f}', '\u{85}', '\u{9f}', '\u{2028}',
+        '\u{2029}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}',
+        '\u{2067}', '\u{2068}', '\u{2069}', '\u{200e}', '\u{200f}', '\u{061c}',
     ];
     for mark in marks {
+        let code = u32::from(mark);
+        assert!(breaks(mark), "U+{code:04X}");
         let value = format!("City Power{mark}Amount: 0.01 USD");
-        let card = Card::new(
+        let in_value = Card::new(
             &[Class::Payment],
-            &[field(&format!("Pay{mark}to"), &[&value], FieldFrom::Site)],
+            &[field("Pay to", &[&value], FieldFrom::Site)],
         )
         .unwrap();
         assert_eq!(
-            card.lines(),
-            ["Pay to: City Power Amount: 0.01 USD"],
-            "U+{:04X}",
-            u32::from(mark)
+            in_value.lines(),
+            [format!("Pay to: {value}")],
+            "U+{code:04X}"
+        );
+        assert!(!in_value.whole(), "U+{code:04X} in a value");
+        let in_label = Card::new(
+            &[Class::Payment],
+            &[field(
+                &format!("Pay{mark}to"),
+                &["City Power"],
+                FieldFrom::Site,
+            )],
+        )
+        .unwrap();
+        assert!(!in_label.whole(), "U+{code:04X} in a label");
+    }
+    for plain in [
+        ' ', 'a', '\u{7e}', '\u{a0}', '\u{200d}', '\u{2027}', '\u{202f}', '\u{2065}', '\u{206a}',
+        '\u{61b}', '\u{61d}',
+    ] {
+        assert!(!breaks(plain), "U+{:04X}", u32::from(plain));
+    }
+}
+
+#[test]
+fn a_card_of_every_class_with_entries_keeps_the_composed_form_on_both_systems() {
+    for class in Class::ALL.iter().copied() {
+        for classes in [vec![class], vec![class; 3], vec![Class::Payment, class]] {
+            let Ok(card) = Card::new(&classes, &pay_fields()) else {
+                continue;
+            };
+            assert!(card.keeps(&[]), "{classes:?} on macOS");
+            assert!(card.keeps(WINDOWS_MARKS), "{classes:?} on Windows");
+            assert!(card.whole(), "{classes:?} on this system");
+        }
+    }
+}
+
+#[test]
+fn a_title_or_a_control_text_with_a_mark_of_the_list_breaks_the_composed_form() {
+    let lines = ["Pay to: City Power"];
+    assert!(Card::of("Pay this?", &lines, "Don't pay", "Pay").whole());
+    for mark in ['\n', '\u{2028}', '\u{202e}', '\u{0}'] {
+        let broken = format!("Pay{mark}");
+        assert!(
+            !Card::of(&broken, &lines, "Don't pay", "Pay").whole(),
+            "title"
+        );
+        assert!(
+            !Card::of("Pay this?", &lines, &broken, "Pay").whole(),
+            "reject"
+        );
+        assert!(
+            !Card::of("Pay this?", &lines, "Don't pay", &broken).whole(),
+            "allow"
         );
     }
+}
+
+#[test]
+fn an_access_key_mark_in_a_control_text_breaks_the_composed_form_where_the_system_has_one() {
+    let lines = ["Pay to: City Power"];
+    for (reject, allow) in [
+        ("Don't &pay", "Pay"),
+        ("Don't pay", "&Pay"),
+        ("Don't pay", "Pay &&"),
+    ] {
+        let card = Card::of("Pay this?", &lines, reject, allow);
+        assert!(!card.keeps(WINDOWS_MARKS), "{reject} / {allow} on Windows");
+        assert!(card.keeps(&[]), "{reject} / {allow} on macOS");
+        assert_eq!(card.whole(), cfg!(not(windows)), "{reject} / {allow} here");
+    }
+    let marked_text = Card::of("Pay & go?", &["Pay to: A & B"], "Don't pay", "Pay");
+    assert!(
+        marked_text.keeps(WINDOWS_MARKS),
+        "the mark counts in a control text alone"
+    );
+}
+
+#[test]
+fn the_placeholder_bounds_are_16_lines_and_120_characters() {
+    assert_eq!((LINES, LINE_CHARS), (16, 120));
+}
+
+#[test]
+fn a_card_over_its_bound_in_lines_or_in_characters_breaks_the_composed_form() {
+    let line = "Pay to: City Power";
+    assert!(Card::of("Pay this?", &vec![line; LINES], "Don't pay", "Pay").whole());
+    assert!(!Card::of("Pay this?", &vec![line; LINES + 1], "Don't pay", "Pay").whole());
+    let full = "\u{e9}".repeat(LINE_CHARS);
+    let over = "\u{e9}".repeat(LINE_CHARS + 1);
+    let other = "e".repeat(LINE_CHARS);
+    assert!(
+        Card::of(&full, &[&full], &full, &other).whole(),
+        "each at its bound"
+    );
+    assert!(
+        !Card::of("Pay this?", &[&over], "Don't pay", "Pay").whole(),
+        "a line"
+    );
+    assert!(
+        !Card::of(&over, &[line], "Don't pay", "Pay").whole(),
+        "the title"
+    );
+    assert!(
+        !Card::of("Pay this?", &[line], &over, "Pay").whole(),
+        "reject"
+    );
+    assert!(
+        !Card::of("Pay this?", &[line], "Don't pay", &over).whole(),
+        "allow"
+    );
+    assert!(
+        Card::of("Pay this?", &[], "Don't pay", "Pay").whole(),
+        "no line"
+    );
 }
 
 #[test]

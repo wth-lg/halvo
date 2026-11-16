@@ -1,8 +1,11 @@
 use super::Card;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::types::{Class, Field, FieldFrom, ItemId};
+use halvo_coord::types::{Class, Field, FieldFrom, ItemId, Limits};
+use std::time::Duration;
 
 mod card;
+mod guard;
+mod moment;
 mod outcome;
 mod scripted;
 mod serve;
@@ -10,6 +13,10 @@ mod system;
 
 pub const ALLOW: ConfirmAnswer = ConfirmAnswer::Allow;
 pub const REJECT: ConfirmAnswer = ConfirmAnswer::Reject;
+
+pub fn arm() -> Duration {
+    Duration::from_millis(Limits::PRODUCT.arm_ms)
+}
 
 pub fn item() -> ItemId {
     ItemId::parse("00000000000000000000000000000006").unwrap()
