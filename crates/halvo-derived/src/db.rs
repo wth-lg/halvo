@@ -440,6 +440,7 @@ impl Db {
     ) -> Result<Db, OpenError> {
         check_entries(entries)?;
         initialize_once();
+        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         let dir = data_dir.join("derived");
         std::fs::create_dir_all(&dir).map_err(|e| OpenError::Fault(io_fault(e)))?;
         let lock = WriterLock::take(&dir)?;
@@ -476,6 +477,8 @@ impl Db {
         require(&conn, "journal_mode", "wal")?;
         require(&conn, "foreign_keys", "1")?;
         require(&conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))?;
+        require(&conn, "auto_vacuum", "0")?;
+        require(&conn, "page_size", "4096")?;
         let progress = Progress::install(&mut conn, CALL_BUDGET)?;
         let families = families_of(entries);
         let mut db = Db {
@@ -785,6 +788,17 @@ fn set_key(conn: &Connection, key: &DbKey) -> Result<(), OpenError> {
 fn pragma(conn: &Connection, text: &str) -> Result<(), OpenError> {
     conn.execute_batch(text)
         .map_err(|e| OpenError::Fault(db_fault(e)))
+}
+
+/// Refuses, by the name `page_gap_mend_linked`, a process whose linked database is not Halvo's build, which zeroes
+/// the gap of a page that it builds again or edits in place under secure delete (`linked` is the answer of
+/// `halvo_sqlcipher::page_gap_mend_linked`), before the open touches a file.
+pub(crate) fn require_mend(linked: bool) -> Result<(), OpenError> {
+    if linked {
+        Ok(())
+    } else {
+        Err(OpenError::Setting("page_gap_mend_linked"))
+    }
 }
 
 pub(crate) fn require(conn: &Connection, name: &'static str, want: &str) -> Result<(), OpenError> {

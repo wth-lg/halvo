@@ -14,6 +14,7 @@ esac
 #= src/lib.rs tests::no_catalogued_statement_plans_a_temporary_b_tree
 #= src/lib.rs tests::the_progress_handler_interrupts_a_statement_past_its_budget
 #= src/lib.rs tests::a_setting_that_is_not_in_effect_is_refused
+#= src/lib.rs tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap
 #= src/lib.rs hash::tests::the_site_hash_is_hmac_sha256
 #= src/lib.rs tests::expire_removes_and_counts_a_bounded_row_with_no_day_which_the_report_reads_as_due_now
 #= src/lib.rs tests::a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it_is_not
@@ -34,6 +35,8 @@ esac
 #= tests/open.rs open_refuses_a_database_with_another_schema
 #= tests/open.rs open_refuses_entries_without_the_kinds_of_the_workflow_run
 #= tests/open.rs open_creates_the_database_and_opens_it_again
+#= tests/open.rs open_refuses_a_store_whose_auto_vacuum_is_not_0
+#= tests/open.rs open_refuses_a_keyless_store_whose_page_size_is_not_4096
 #= tests/commit.rs commit_batch_stores_each_summary_and_its_evidence_with_the_position
 #= tests/commit.rs commit_batch_hashes_the_title_token_with_the_key_of_its_own_database
 #= tests/commit.rs commit_batch_refuses_a_batch_read_from_another_store

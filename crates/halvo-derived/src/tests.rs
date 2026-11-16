@@ -6,7 +6,7 @@ use halvo_schema_core::kinds;
 use halvo_schema_core::record::{Instant, Proposal, RecurrenceStep, SummaryRead};
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
 
-use crate::db::{due_now, require, Now, Progress, Tx};
+use crate::db::{due_now, require, require_mend, Now, Progress, Tx};
 use crate::error::OpenError;
 use crate::{sql, Clock, DbKey, Host, IdSource, Store};
 
@@ -54,6 +54,19 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
         past.unwrap_err().sqlite_error_code(),
         Some(ErrorCode::OperationInterrupted)
     );
+}
+
+/// S-85, item 5: the open refuses by name a process whose linked database does not answer that it is Halvo's mended
+/// build, and this build is that one. No test build links another library, so the call in `Db::open` is held by the
+/// changed copies named in U5.2's report and not by this test.
+#[test]
+fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
+    assert_eq!(
+        require_mend(false),
+        Err(OpenError::Setting("page_gap_mend_linked"))
+    );
+    assert_eq!(require_mend(true), Ok(()));
+    assert!(halvo_sqlcipher::page_gap_mend_linked());
 }
 
 #[test]

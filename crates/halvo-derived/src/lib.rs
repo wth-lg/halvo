@@ -139,8 +139,10 @@ impl Store {
     /// one of the four kinds of the workflow run, when another store holds the writer lock or the database, when `key`
     /// does not open the database, when a setting that the store makes (secure delete, exclusive locking, the
     /// write-ahead log, foreign keys, the page-cache cap) does not read back as set from the store's one connection,
-    /// the connection of all its writes and reads, after it sets it, and when an existing database holds another
-    /// schema. It also fails, with `OpenError::Stored`, before it writes anything, where rows of a kind
+    /// the connection of all its writes and reads, after it sets it, when the database's `auto_vacuum` is not 0 or its
+    /// page size is not 4,096, when the linked database is not Halvo's build that zeroes the gap of a page that it
+    /// builds again or edits (`OpenError::Setting("page_gap_mend_linked")`, before any file is touched), and when an
+    /// existing database holds another schema. It also fails, with `OpenError::Stored`, before it writes anything, where rows of a kind
     /// are stored that the kind's entry cannot follow: rows stored under another retention class than the entry gives,
     /// or rows that the store deletes with one workflow while their record names another, or none, under the entry's
     /// workflow key; an open with the earlier entry then works as before. The tables and their indexes are created
