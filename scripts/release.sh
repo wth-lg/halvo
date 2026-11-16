@@ -35,10 +35,11 @@ Releases Halvo with cargo-release, one version for every package of the workspac
       first (git fetch --unshallow --tags origin), after the checks that read no
       history; a dry run refuses a shallow clone and names that command.
       Just before cargo-release it runs scripts/r1/ci.d/54-tag-needs-store4.sh
-      with the coming tag, and while crates/halvo-capture/src/store/db.rs holds
-      the statement that creates the search index events_fts, which store-4
-      takes out, it stops there with that check's line and changes nothing; a
-      dry run prints the line where --execute would stop and exits 0.
+      with the coming tag, and while a tracked file under crates/halvo-capture/src
+      holds a statement that creates the search index events_fts, which store-4
+      takes out, it stops there with that check's line: it makes no commit and no tag,
+      changes no tracked file and releases nothing; a dry run prints the line
+      where --execute would stop and exits 0.
       When cargo-release fails, the script puts the clone back to the commit it
       started from and deletes the tags that the run made, and says so.
   sh scripts/release.sh --help

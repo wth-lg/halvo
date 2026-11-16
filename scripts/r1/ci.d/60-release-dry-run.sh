@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The documented release command works on every commit: in a throwaway clone with no remote its dry run passes on a named branch and changes nothing, --execute refuses a branch other than main, and on main it makes one commit Release <next> with every package at <next>, one tag v<next> and the changelog entries grouped by type, and leaves the tree clean; while 54-tag-needs-store4 refuses the coming tag, because crates/halvo-capture/src/store/db.rs holds the statement that creates events_fts, it requires instead that the dry run prints release.sh: --execute would stop here: with that check's cause and that --execute on main stops with that check's line and changes nothing; on a release commit (no Unreleased entry, the subject Release <version>) it requires instead that the dry run refuses with its no entry line and changes nothing.
+# rule: The documented release command works on every commit: in a throwaway clone with no remote its dry run passes on a named branch and changes nothing, --execute refuses a branch other than main, and on main it makes one commit Release <next> with every package at <next>, one tag v<next> and the changelog entries grouped by type, and leaves the tree clean; while 54-tag-needs-store4 refuses the coming tag, because a tracked file under crates/halvo-capture/src holds a statement that creates events_fts, it requires instead that the dry run prints release.sh: --execute would stop here: with that check's cause and that --execute on main stops with that check's line and leaves the status, HEAD, the tags and the refs of the clone as they were; on a release commit (no Unreleased entry, the subject Release <version>) it requires instead that the dry run refuses with its no entry line and changes nothing.
 set -u
 name=60-release-dry-run
 types='Added Changed Deprecated Removed Fixed Security'
@@ -334,11 +334,11 @@ All notable changes are recorded in this file.
   help_status=0
   (cd "$repo" && sh scripts/release.sh --help) >"$work/help.txt" 2>&1 || help_status=$?
   missing=
-  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps" '54-tag-needs-store4' 'would stop'; do
+  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps" '54-tag-needs-store4' 'would stop' 'makes no commit and no tag' 'a tracked file under'; do
     grep -q -F -e "$fact" "$work/help.txt" || missing="$missing [$fact]"
   done
   got=FAIL
-  [ "$help_status" = 0 ] && [ -z "$missing" ] && got=PASS
+  [ "$help_status" = 0 ] && [ -z "$missing" ] && ! grep -q -F -e "check's line and changes nothing" "$work/help.txt" && got=PASS
   verdict help-states-what-a-person-who-runs-the-script-needs PASS "$got"
   release_case help-with-another-argument 64 no usage --help patch
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-dry-run-calls-cargo" && got=FAIL || got=PASS
