@@ -100,6 +100,58 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop of the new tests of U4.10 (200 runs each)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -u
+          fail=0
+          total=0
+          loop() {
+            pkg=$1; dir=$2; sel=$3; n=$4; shift 4
+            total=$((total + n))
+            read -r -a selw <<< "$sel"
+            exe=$(cargo test --locked --no-run --message-format=json -p "$pkg" "${selw[@]}" 2>/dev/null | grep '"executable":"' | grep -E '"profile":\{[^}]*"test":true' | sed 's/.*"executable":"\([^"]*\)".*/\1/' | tail -n 1)
+            exe=$(printf '%s' "$exe" | sed 's/\\\\/\\/g')
+            if command -v cygpath >/dev/null 2>&1 && [ -n "$exe" ]; then exe=$(cygpath -u "$exe"); fi
+            if [ -z "$exe" ] || [ ! -f "$exe" ]; then
+              echo "loop $pkg $sel: no test binary"
+              fail=1
+              return
+            fi
+            start=$(date +%s)
+            ok=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              i=$((i + 1))
+              res=$(cd "$dir" && "$exe" --exact "$@" 2>&1)
+              if printf '%s\n' "$res" | grep -Eq "^test result: ok\. $n passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out"; then
+                ok=$((ok + 1))
+              else
+                echo "loop $pkg $sel: run $i failed"
+                printf '%s\n' "$res" | tail -n 40
+              fi
+            done
+            echo "loop $pkg $sel tests=$n runs=200 passed=$ok seconds=$(( $(date +%s) - start ))"
+            [ "$ok" -eq 200 ] || fail=1
+          }
+          loop halvo-runner crates/halvo-runner '--lib' 3 \
+            release::fake::every_row_takes_the_day_of_its_instant_at_the_runs_offset_either_way \
+            release::fake::a_fill_runs_checkpoint_rows_take_the_day_of_their_instant_at_the_runs_offset_either_way \
+            release::fake::each_row_takes_the_day_of_its_own_instant_when_the_clock_moves_between_reads
+          loop halvo-runner crates/halvo-runner '--test fill' 2 \
+            every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset \
+            the_offset_helper_differs_from_the_utc_day_until_the_end_that_its_doc_names
+          loop halvo-runner crates/halvo-runner '--test checkpoint' 1 \
+            a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_propose
+          loop halvo-agent-client crates/halvo-agent-client '--test start' 3 \
+            a_start_gives_the_runner_the_callers_offset_as_utc_offset \
+            a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_exit \
+            the_stand_in_runner_refuses_an_offset_as_the_runner_does
+          loop halvo-agent-client crates/halvo-agent-client '--test stderr' 1 \
+            the_stand_in_started_by_hand_names_its_standard_error_and_writes_each_form_of_the_marker_the_flood_and_the_write_after_the_end_of_file
+          echo "loop tests=$total fail=$fail"
+          exit "$fail"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -156,6 +208,58 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop of the new tests of U4.10 (200 runs each)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -u
+          fail=0
+          total=0
+          loop() {
+            pkg=$1; dir=$2; sel=$3; n=$4; shift 4
+            total=$((total + n))
+            read -r -a selw <<< "$sel"
+            exe=$(cargo test --locked --no-run --message-format=json -p "$pkg" "${selw[@]}" 2>/dev/null | grep '"executable":"' | grep -E '"profile":\{[^}]*"test":true' | sed 's/.*"executable":"\([^"]*\)".*/\1/' | tail -n 1)
+            exe=$(printf '%s' "$exe" | sed 's/\\\\/\\/g')
+            if command -v cygpath >/dev/null 2>&1 && [ -n "$exe" ]; then exe=$(cygpath -u "$exe"); fi
+            if [ -z "$exe" ] || [ ! -f "$exe" ]; then
+              echo "loop $pkg $sel: no test binary"
+              fail=1
+              return
+            fi
+            start=$(date +%s)
+            ok=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              i=$((i + 1))
+              res=$(cd "$dir" && "$exe" --exact "$@" 2>&1)
+              if printf '%s\n' "$res" | grep -Eq "^test result: ok\. $n passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out"; then
+                ok=$((ok + 1))
+              else
+                echo "loop $pkg $sel: run $i failed"
+                printf '%s\n' "$res" | tail -n 40
+              fi
+            done
+            echo "loop $pkg $sel tests=$n runs=200 passed=$ok seconds=$(( $(date +%s) - start ))"
+            [ "$ok" -eq 200 ] || fail=1
+          }
+          loop halvo-runner crates/halvo-runner '--lib' 3 \
+            release::fake::every_row_takes_the_day_of_its_instant_at_the_runs_offset_either_way \
+            release::fake::a_fill_runs_checkpoint_rows_take_the_day_of_their_instant_at_the_runs_offset_either_way \
+            release::fake::each_row_takes_the_day_of_its_own_instant_when_the_clock_moves_between_reads
+          loop halvo-runner crates/halvo-runner '--test fill' 2 \
+            every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset \
+            the_offset_helper_differs_from_the_utc_day_until_the_end_that_its_doc_names
+          loop halvo-runner crates/halvo-runner '--test checkpoint' 1 \
+            a_fill_run_sends_the_planned_row_before_prepare_and_the_made_row_before_the_propose
+          loop halvo-agent-client crates/halvo-agent-client '--test start' 3 \
+            a_start_gives_the_runner_the_callers_offset_as_utc_offset \
+            a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_exit \
+            the_stand_in_runner_refuses_an_offset_as_the_runner_does
+          loop halvo-agent-client crates/halvo-agent-client '--test stderr' 1 \
+            the_stand_in_started_by_hand_names_its_standard_error_and_writes_each_form_of_the_marker_the_flood_and_the_write_after_the_end_of_file
+          echo "loop tests=$total fail=$fail"
+          exit "$fail"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
