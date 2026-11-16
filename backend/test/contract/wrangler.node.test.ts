@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { expect, test } from "vitest";
+import { endGroup, startGroup } from "../ledger/process-group.ts";
 
 const ROOT = process.cwd();
 const ACCOUNT = "4d2c6a8e-1f3b-4a5c-9e7d-0b1c2d3e4f5a";
@@ -95,7 +95,7 @@ test("on the real test entry --var passes a value with colons whole and wins ove
   const port = await freePort();
   const inspector = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const child = spawn(
+  const server = startGroup(
     join(ROOT, "node_modules/.bin/wrangler"),
     [
       "dev",
@@ -114,8 +114,9 @@ test("on the real test entry --var passes a value with colons whole and wins ove
       "--var",
       `PUBLIC_ORIGIN:${origin}`,
     ],
-    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, XDG_CONFIG_HOME: process.env.HALVO_WRANGLER_CONFIG_HOME } },
+    { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, XDG_CONFIG_HOME: process.env.HALVO_WRANGLER_CONFIG_HOME } },
   );
+  const child = server.child;
   let output = "";
   child.stdout.on("data", (chunk) => {
     output += String(chunk);
@@ -124,12 +125,9 @@ test("on the real test entry --var passes a value with colons whole and wins ove
     output += String(chunk);
   });
   let exited = false;
-  const exit = new Promise<void>((resolve) =>
-    child.on("exit", () => {
-      exited = true;
-      resolve();
-    }),
-  );
+  child.on("exit", () => {
+    exited = true;
+  });
   try {
     let up = false;
     for (let tries = 0; tries < 240 && !exited && !up; tries += 1) {
@@ -150,11 +148,10 @@ test("on the real test entry --var passes a value with colons whole and wins ove
     expect(snapshot.result).toBe("snapshot");
     expect(snapshot.config).toEqual({ holdLifeMs: 1234, intervalSeconds: 3600, marginSeconds: 300, publicOrigin: origin, testClock: true });
   } finally {
-    for (const signal of ["SIGINT", "SIGTERM", "SIGKILL"]) {
-      if (exited) break;
-      child.kill(signal);
-      await Promise.race([exit, pause(8000)]);
+    try {
+      await endGroup(server);
+    } finally {
+      writeFileSync(join(state, "wrangler.log"), output);
     }
-    writeFileSync(join(state, "wrangler.log"), output);
   }
 }, 120_000);
