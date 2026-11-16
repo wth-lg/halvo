@@ -999,7 +999,7 @@ pub fn compose(args: &ComposeArgs) -> Result<Vec<String>, Refusal> {
     for (name, text) in &files {
         let path: PathBuf = args.out.join(name);
         write_new(&path, text.as_bytes())
-            .map_err(|_| Refusal::new("output", path.display().to_string()))?;
+            .map_err(|_| Refusal::new("output", args.out.display().to_string()))?;
     }
     let per = |kind: TaskKind| -> String {
         let mut counts = [0u64; 10];

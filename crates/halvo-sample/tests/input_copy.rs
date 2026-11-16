@@ -417,6 +417,43 @@ fn the_output_refusal_of_input_copy_and_build_names_the_dir_argument_alone() {
     assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&built)));
 }
 
+#[test]
+fn the_layers_refusal_names_the_tier_or_layers_argument_alone() {
+    let dir = scratch("layers-detail");
+    let layer_set = dir.join("set.toml");
+    write(&layer_set, "envelope = [\"app\"]\nlayers = [\"accessibility_text\"]\n[kinds]\nforeground_app = []\nwindow_title = [\"text\"]\n");
+    let set = s(&layer_set);
+    let expect = |o: common::Out, arg: &Path| {
+        refused(&o, "layers");
+        assert_eq!(o.stderr, format!("REFUSED layers: {}\n", s(arg)));
+    };
+    let open = tier(&dir.join("open"), false);
+    let copy = |tier: &Path, extra: &[&str]| {
+        let mut a = vec![
+            "input-copy".to_owned(),
+            "--input-set".to_owned(),
+            set.clone(),
+        ];
+        a.extend(extra.iter().map(|e| (*e).to_owned()));
+        a.extend([s(tier), s(&dir.join("o"))]);
+        let a: Vec<&str> = a.iter().map(String::as_str).collect();
+        run(&a)
+    };
+    expect(copy(&open, &[]), &open);
+    let sealed = tier(&dir.join("sealed"), true);
+    let broken = dir.join("broken");
+    copy_dir(&sealed, &broken);
+    rehash(&broken, "layers/steps.jsonl", "{\"no\":\"layer\"}\n");
+    expect(copy(&broken, &[]), &broken);
+    let absent = dir.join("absent-place").join("gen-dev");
+    fs::create_dir_all(&absent).expect("an empty layer directory");
+    expect(copy(&open, &["--layers", &s(&absent)]), &absent);
+    let malformed = dir.join("malformed-place").join("gen-dev");
+    write(&malformed.join("steps.jsonl"), "{\"no\":\"layer\"}\n");
+    expect(copy(&open, &["--layers", &s(&malformed)]), &malformed);
+    assert!(!dir.join("o").exists());
+}
+
 fn without_entry(tier: &Path, rel: &str) {
     let mp = tier.join("manifest.toml");
     let mut m = TierManifest::parse(&fs::read(&mp).expect("m")).expect("parse");

@@ -254,10 +254,11 @@ fn read_layers(
     args: &InputCopyArgs,
     m: &TierManifest,
 ) -> Result<BTreeMap<String, LayerRecord>, Refusal> {
-    let (path, bytes) = match &args.layers {
+    let (arg, bytes) = match &args.layers {
         None => {
             let p = args.tier.join("layers/steps.jsonl");
-            let b = fs::read(&p).map_err(|_| Refusal::new("layers", p.display().to_string()))?;
+            let b = fs::read(&p)
+                .map_err(|_| Refusal::new("layers", args.tier.display().to_string()))?;
             let listed = m
                 .files
                 .iter()
@@ -266,11 +267,11 @@ fn read_layers(
             if listed.1 != crate::form::sha256_hex(&b) {
                 return Err(tier_fault(&args.tier, 1));
             }
-            (p, b)
+            (&args.tier, b)
         }
         Some(dir) => {
             let p = dir.join("steps.jsonl");
-            let fault = || Refusal::new("layers", p.display().to_string());
+            let fault = || Refusal::new("layers", dir.display().to_string());
             let b = fs::read(&p).map_err(|_| fault())?;
             if let Some(parent) = dir.parent() {
                 let lm = parent.join("manifest.toml");
@@ -289,11 +290,11 @@ fn read_layers(
                     }
                 }
             }
-            (p, b)
+            (dir, b)
         }
     };
     let records =
-        parse_file(&bytes).ok_or_else(|| Refusal::new("layers", path.display().to_string()))?;
+        parse_file(&bytes).ok_or_else(|| Refusal::new("layers", arg.display().to_string()))?;
     Ok(records.into_iter().map(|r| (r.step.clone(), r)).collect())
 }
 

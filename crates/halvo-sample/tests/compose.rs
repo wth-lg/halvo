@@ -286,6 +286,36 @@ fn rates_refusals() {
     assert!(!dir.join("o").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn the_output_refusal_of_compose_names_the_out_argument_alone() {
+    let dir = scratch("compose-output");
+    let sites = services(&dir.join("sites"));
+    write(&dir.join("rates.toml"), &rates(20, 4).write());
+    let out = dir.join("out");
+    let o = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg("umask 0277 && exec \"$0\" \"$@\"")
+        .arg(env!("CARGO_BIN_EXE_halvo-sample"))
+        .args([
+            "compose",
+            "--rates",
+            &s(&dir.join("rates.toml")),
+            "--out",
+            &s(&out),
+        ])
+        .args(sites.iter().map(|p| s(p)))
+        .output()
+        .expect("sh runs");
+    let o = common::Out {
+        code: o.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+    };
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&out)));
+}
+
 #[test]
 fn compose_refusals() {
     let dir = scratch("refusals");
