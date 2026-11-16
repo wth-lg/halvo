@@ -258,6 +258,11 @@ if (MODE !== undefined) {
     }
   }, 180_000);
 
+  test("backend/.wrangler/, where wrangler dev keeps its build under tmp/ for the node tests, is ignored by git, so a build that wrangler dev leaves there changes no tracked file", () => {
+    expect(execFileSync("git", ["check-ignore", "--no-index", ".wrangler/tmp/dev-left"], { encoding: "utf8" })).toBe(".wrangler/tmp/dev-left\n");
+    expect(execFileSync("git", ["ls-files", "--", ".wrangler"], { encoding: "utf8" })).toBe("");
+  });
+
   test("test/contract/wrangler.node.test.ts starts wrangler dev in a group that its run marks, and a run of it whose main process alone gets SIGHUP while that server starts leaves no process of the run's group or of that group", async () => {
     mkdirSync(join(ROOT, ".tmp"), { recursive: true });
     const dir = mkdtempSync(join(ROOT, ".tmp", "stopped-run."));

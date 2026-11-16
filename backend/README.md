@@ -311,7 +311,9 @@ names its owner), 20-r7-backend-static (the typecheck and the lint), 21-r7-backe
 script, in the macos job alone: on windows-2025 the stack needs lsof and `ps -o`, which Git Bash
 lacks, and the test script does not end, so the windows job runs no test of the backend),
 22-r7-backend-records and 23-r7-machine-paths (`scripts/check-machine-paths.sh` over
-`backend/` and `formal/r7-ledger/`).
+`backend/` and `formal/r7-ledger/`). 21-r7-backend-test runs the test script, whose vitest run
+holds the workerd tests and the node tests (`test/**/*.node.test.ts`), and then the records of
+check 50, `gate/fixtures/concurrency/records.mjs` run on `backend/` as the commit holds it.
 
 The gate runs in no CI job: it needs the stack and the sandbox of macOS. Its lines are kept as
 records, `docs/r7/gate/NN-name.txt`, one for each check: the line that the gate printed, the UTC
