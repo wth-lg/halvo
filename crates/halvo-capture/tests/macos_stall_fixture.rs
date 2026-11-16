@@ -1443,6 +1443,28 @@ fn assert_some_round_driven(name: &str, rounds: &[Round]) {
     );
 }
 
+fn at_wait(rounds: &[Round], wait_ms: u64, verdict: Verdict) -> usize {
+    rounds
+        .iter()
+        .filter(|round| round.wait_ms == wait_ms && round.verdict == Some(verdict))
+        .count()
+}
+
+fn by_wait_line(name: &str, rounds: &[Round], waits: &[(u64, Duration)]) -> String {
+    let of = |verdict: Verdict| {
+        waits
+            .iter()
+            .map(|&(wait_ms, _)| format!("{wait_ms}:{}", at_wait(rounds, wait_ms, verdict)))
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    format!(
+        "{name} by_wait held={} not_driven={}",
+        of(Verdict::Held),
+        of(Verdict::NotDriven)
+    )
+}
+
 fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: usize) {
     judge_mended_in(name, rounds, waits, count, short_form());
 }
@@ -1455,6 +1477,7 @@ fn judge_mended_in(
     short: bool,
 ) {
     assert!(!rounds.is_empty(), "{name}: the phase ran no round");
+    println!("{}", by_wait_line(name, rounds, waits));
     let of = |want: fn(Verdict) -> bool| -> Vec<String> {
         rounds
             .iter()
@@ -1551,32 +1574,54 @@ fn judge_mended_in(
         "{name}: records of the markers other than one for each marker: {}",
         inexact.join(", ")
     );
-    let any_held = rounds
+    if short {
+        assert!(
+            rounds
+                .iter()
+                .any(|round| round.verdict == Some(Verdict::Held)),
+            "{name}: no round of the phase was held: the short form passes a phase with one held \
+             round and no failed round"
+        );
+        return;
+    }
+    let not_driven_waits: Vec<u64> = waits
         .iter()
-        .any(|round| round.verdict == Some(Verdict::Held));
-    let short: Vec<String> = waits
+        .map(|&(wait_ms, _)| wait_ms)
+        .filter(|&wait_ms| at_wait(rounds, wait_ms, Verdict::Held) == 0)
+        .collect();
+    if !not_driven_waits.is_empty() {
+        println!(
+            "{name} not_driven_waits={}",
+            not_driven_waits
+                .iter()
+                .map(u64::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+    }
+    assert!(
+        not_driven_waits.is_empty(),
+        "{name}: not driven at {}: in the long form every wait needs a held round, and the long \
+         form takes no record from this run",
+        not_driven_waits
+            .iter()
+            .map(|wait_ms| format!("wait {wait_ms} ms"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let short_of_count: Vec<String> = waits
         .iter()
         .filter_map(|&(wait_ms, _)| {
-            let at_wait = |verdict: Verdict| {
-                rounds
-                    .iter()
-                    .filter(|round| round.wait_ms == wait_ms && round.verdict == Some(verdict))
-                    .count()
-            };
-            let held = at_wait(Verdict::Held);
-            let not_driven = if any_held {
-                at_wait(Verdict::NotDriven)
-            } else {
-                0
-            };
+            let held = at_wait(rounds, wait_ms, Verdict::Held);
+            let not_driven = at_wait(rounds, wait_ms, Verdict::NotDriven);
             (held + not_driven < count)
                 .then(|| format!("wait {wait_ms} ms: {held} of {count}, {not_driven} not driven"))
         })
         .collect();
     assert!(
-        short.is_empty(),
+        short_of_count.is_empty(),
         "{name}: rounds that did not count by the cap of rounds run: {}",
-        short.join(", ")
+        short_of_count.join(", ")
     );
 }
 
@@ -4204,7 +4249,7 @@ fn each_judge_of_a_mended_phase_fails_it_at_one_round_for_each_wait() {
         None,
         "one held round at each wait passes"
     );
-    let rows: [JudgeRow; 8] = [
+    let rows: [JudgeRow; 7] = [
         (
             "a recorded key",
             |round| round.verdict = Some(Verdict::Recorded),
@@ -4229,11 +4274,6 @@ fn each_judge_of_a_mended_phase_fails_it_at_one_round_for_each_wait() {
             "a record of the markers other than one for each",
             |round| round.markers = MARKERS.len() + 1,
             "records of the markers other than one for each marker",
-        ),
-        (
-            "a wait that kept fewer rounds than its count",
-            |round| round.verdict = Some(Verdict::LateClick),
-            "rounds that did not count by the cap of rounds run",
         ),
         (
             "the runner's gap not kept",
@@ -4264,6 +4304,24 @@ fn each_judge_of_a_mended_phase_fails_it_at_one_round_for_each_wait() {
             "{what}: {found:?}"
         );
     }
+    let mut late_click: Vec<Round> = waits
+        .iter()
+        .map(|&(wait_ms, _)| held_round(wait_ms))
+        .collect();
+    late_click[2].verdict = Some(Verdict::LateClick);
+    assert_eq!(
+        judged(&late_click),
+        None,
+        "a wait with a late click and no held round fails nothing in the short form (MA-27 item 2)"
+    );
+    let long = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+        || judge_mended_in("stand-in", &late_click, &waits, 1, false),
+    )));
+    assert!(
+        long.as_deref()
+            .is_some_and(|found| found.contains("not driven at wait 600 ms")),
+        "a wait with no held round reads not driven in the long form: {long:?}"
+    );
     assert!(
         judged(&[]).is_some_and(|found| found.contains("the phase ran no round")),
         "a phase that ran no round fails"
@@ -4583,7 +4641,7 @@ fn each_judge_reads_a_round_not_driven_by_its_rule_on_a_table() {
                 not_driven_round(850, 0),
                 not_driven_round(2_000, 0),
             ],
-            Some("rounds that did not count by the cap of rounds run"),
+            Some("no round of the phase was held"),
         ),
         (
             "a round not driven with a recorded key, beside held rounds",
@@ -5097,4 +5155,117 @@ fn a_round_not_driven_after_its_markers_reads_recorded_by_its_own_keys_alone() {
         wrong.is_empty(),
         "rows that gave another verdict: {wrong:?}"
     );
+}
+
+fn one_held_and_the_rest_not_driven() -> Vec<Round> {
+    let mut rounds = vec![held_round(150)];
+    for &(wait_ms, _) in &stall_waits()[1..] {
+        rounds.push(not_driven_round(wait_ms, 0));
+        rounds.push(not_driven_round(wait_ms, 0));
+    }
+    rounds
+}
+
+fn judged_in_form(rounds: &[Round], count: usize, short: bool) -> Option<String> {
+    let waits = stall_waits();
+    panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+        || judge_mended_in("stand-in", rounds, &waits, count, short),
+    )))
+}
+
+#[test]
+fn in_the_short_form_one_held_round_passes_a_phase_and_rounds_not_driven_are_printed_by_wait() {
+    let rounds = one_held_and_the_rest_not_driven();
+    assert_eq!(
+        judged_in_form(&rounds, SHORT_ROUNDS_FOR_EACH_WAIT, true),
+        None,
+        "one held round and no failed round pass the short form"
+    );
+    assert_eq!(
+        by_wait_line("stand-in", &rounds, &stall_waits()),
+        "stand-in by_wait held=150:1,300:0,600:0,850:0,2000:0 \
+         not_driven=150:0,300:2,600:2,850:2,2000:2"
+    );
+    let late_click = Round {
+        wait_ms: 300,
+        verdict: Some(Verdict::LateClick),
+        ..stand_in_round(false, 0)
+    };
+    assert_eq!(
+        judged_in_form(&[held_round(150), late_click], 1, true),
+        None,
+        "a wait with a late click and no held round fails nothing in the short form"
+    );
+    let found = judged_in_form(&[not_driven_round(150, 0), held_round(300)], 1, true);
+    assert_eq!(found, None, "one held round beside one not driven passes");
+    let none_held = Round {
+        wait_ms: 300,
+        verdict: Some(Verdict::LateClick),
+        ..stand_in_round(false, 0)
+    };
+    let found = judged_in_form(&[not_driven_round(150, 0), none_held], 1, true);
+    assert!(
+        found
+            .as_deref()
+            .is_some_and(|text| text.contains("no round of the phase was held")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn in_the_long_form_a_wait_with_no_held_round_reads_not_driven_and_takes_no_record() {
+    let found = judged_in_form(&one_held_and_the_rest_not_driven(), ROUNDS, false);
+    assert!(
+        found.as_deref().is_some_and(|text| text
+            .contains("not driven at wait 300 ms, wait 600 ms, wait 850 ms, wait 2000 ms")
+            && text.contains("the long form takes no record from this run")),
+        "{found:?}"
+    );
+    let held_at_each: Vec<Round> = stall_waits()
+        .iter()
+        .flat_map(|&(wait_ms, _)| {
+            [
+                held_round(wait_ms),
+                not_driven_round(wait_ms, 0),
+                not_driven_round(wait_ms, 0),
+            ]
+        })
+        .collect();
+    assert_eq!(
+        judged_in_form(&held_at_each, ROUNDS, false),
+        None,
+        "a held round at every wait and rounds not driven beside it pass the long form"
+    );
+    let mut short_of_count = held_at_each;
+    short_of_count.retain(|round| round.wait_ms != 600 || round.verdict == Some(Verdict::Held));
+    short_of_count.push(Round {
+        wait_ms: 600,
+        verdict: Some(Verdict::LateClick),
+        ..stand_in_round(false, 0)
+    });
+    let found = judged_in_form(&short_of_count, ROUNDS, false);
+    assert!(
+        found
+            .as_deref()
+            .is_some_and(|text| text
+                .contains("rounds that did not count by the cap of rounds run: wait 600 ms")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_phase_whose_every_round_was_not_driven_reads_not_driven_in_both_forms() {
+    let every: Vec<Round> = stall_waits()
+        .iter()
+        .map(|&(wait_ms, _)| not_driven_round(wait_ms, 0))
+        .collect();
+    for (short, count) in [(true, SHORT_ROUNDS_FOR_EACH_WAIT), (false, ROUNDS)] {
+        let found = judged_in_form(&every, count, short);
+        assert!(
+            found
+                .as_deref()
+                .is_some_and(|text| text.contains("every round of the phase was not driven")),
+            "short={short}: {found:?}"
+        );
+    }
 }
