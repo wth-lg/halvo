@@ -98,10 +98,18 @@ fn a_folder_that_is_a_link_or_a_relative_path_is_refused() {
         .canonicalize()
         .expect("the canonical working directory");
     let up = relative(&here, &scratch.path("folder"));
-    let cases: [(&str, Option<PathBuf>, &Path, Left); 4] = [
+    let mut trailing = alias.clone().into_os_string();
+    trailing.push(std::path::MAIN_SEPARATOR_STR);
+    let cases: [(&str, Option<PathBuf>, &Path, Left); 5] = [
         (
             "a folder that is a link",
             Some(alias.clone()),
+            &through,
+            Left::Link,
+        ),
+        (
+            "a link folder with a trailing separator",
+            Some(PathBuf::from(trailing)),
             &through,
             Left::Link,
         ),
