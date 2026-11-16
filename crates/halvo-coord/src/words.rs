@@ -60,11 +60,47 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.failures",
-        "It failed several times in a row, so Halvo switched it off.",
+        "Halvo switched it off after several tries in a row did not work. To try again, choose Switch on.",
+    ),
+    (
+        "line.problem.record",
+        "Halvo cannot read or save its record now, so it starts nothing and cannot save your answers. Stop still works.",
+    ),
+    (
+        "card.records_dropped",
+        "Since Halvo opened, {count} parts of its record could not be saved.",
+    ),
+    (
+        "line.problem.sign_in_refused",
+        "The site did not let it sign in.",
+    ),
+    (
+        "line.off.kept",
+        "This task is switched off. To let it run again, choose Switch on.",
+    ),
+    (
+        "line.all_set.nothing_first",
+        "The first time it ran, it found nothing to do.",
+    ),
+    (
+        "line.quitting",
+        "Halvo is closing, so it starts nothing new.",
+    ),
+    (
+        "line.run.answer_lost",
+        "Halvo could not pass your answer on to the agent, so it stopped the task.",
+    ),
+    (
+        "say_again",
+        "Halvo could not use your answers for “{name}”, so it asks again.",
     ),
     ("line.working.starting", "It is starting."),
     ("line.working.working", "It is doing its task now."),
     ("line.working.stopping", "It is stopping."),
+    (
+        "line.working.kill_stuck",
+        "Something of this agent still runs on your computer. Close Halvo and open it again to end it.",
+    ),
     (
         "line.waiting_turn.queued",
         "Only one agent works at a time, so it starts when its turn comes.",
@@ -303,6 +339,11 @@ pub const KEYS: &[(&str, &str)] = &[
         "Something changed after you said yes, so it has not done this yet and asks you again.",
     ),
     ("confirm.present", "See the details and answer"),
+    ("confirm.asked_by", "“{name}” asks for this."),
+    (
+        "confirm.asked_by_place",
+        "Question {n} of {count}. The agent “{name}” asks for this.",
+    ),
     ("from.you", "You gave this"),
     ("from.site", "From the site"),
     ("from.agent", "Written by the agent"),
@@ -333,8 +374,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "item.sign_in.bind",
         "This agent will now work on {origin}. Allow this site only if you know it.",
     ),
-    ("choice.sign_in.bind_decline", "Don't allow this site"),
-    ("choice.sign_in.bind_allow", "Allow this site"),
+    (
+        "choice.sign_in.bind_decline",
+        "Don't allow this site, and end this task",
+    ),
+    (
+        "choice.sign_in.bind_allow",
+        "Allow this site now and whenever this agent runs again",
+    ),
     (
         "item.setup.not_taken",
         "Halvo could not use those answers, so choose them again.",
@@ -346,6 +393,82 @@ pub const KEYS: &[(&str, &str)] = &[
     ("run.effect.submit", "It sent this form."),
     ("run.effect.sign", "It signed this document."),
     ("run.effect.local_edit", "It changed this file."),
+    (
+        "run.effect.payment.unshown",
+        "It made a payment, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.purchase.unshown",
+        "It placed an order, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.send.unshown",
+        "It sent a message, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.delete.unshown",
+        "It removed something, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.submit.unshown",
+        "It sent a form, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.sign.unshown",
+        "It signed a document, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.local_edit.unshown",
+        "It changed a file, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.unshown",
+        "It did one thing that Halvo cannot show.",
+    ),
+    ("run.effect.payment.not_done", "This payment was not made."),
+    ("run.effect.purchase.not_done", "This order was not placed."),
+    ("run.effect.send.not_done", "This message was not sent."),
+    (
+        "run.effect.delete.not_done",
+        "Something it was going to remove was not removed.",
+    ),
+    ("run.effect.submit.not_done", "This form was not sent."),
+    ("run.effect.sign.not_done", "This document was not signed."),
+    ("run.effect.local_edit.not_done", "This file was not changed."),
+    ("run.effect.not_done", "One step of this task was not done."),
+    (
+        "run.effect.payment.refused",
+        "You said no, so this payment was not made.",
+    ),
+    (
+        "run.effect.purchase.refused",
+        "You said no, so this order was not placed.",
+    ),
+    (
+        "run.effect.send.refused",
+        "You said no, so this message was not sent.",
+    ),
+    (
+        "run.effect.delete.refused",
+        "You said no, so something it was going to remove was not removed.",
+    ),
+    (
+        "run.effect.submit.refused",
+        "You said no, so this form was not sent.",
+    ),
+    (
+        "run.effect.sign.refused",
+        "You said no, so this document was not signed.",
+    ),
+    (
+        "run.effect.local_edit.refused",
+        "You said no, so this file was not changed.",
+    ),
+    (
+        "run.effect.refused",
+        "You said no, so one step of this task was not done.",
+    ),
+    ("line.run.stopped", "It stopped before the task was done."),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
     (

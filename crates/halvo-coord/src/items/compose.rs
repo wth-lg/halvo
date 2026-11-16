@@ -217,9 +217,9 @@ fn halvo_line(key: &str) -> Result<Field, Cause> {
 /// line `confirm.new_site` for a `new_origin`, whose value is the site's name of that origin
 /// (`site_name`, ruling IG-14); `armed` `yes` only while the item is `armed`.
 /// `malformed` for a field that the words table has no label for, or a piece of a value of
-/// more than 1,024 bytes; `state` for a confirmation of another request. Its `say_new` and
-/// `say_gone` are empty, because the agent's name is not among its inputs: whoever composes
-/// the snapshot names the agent with `Item::said_by`.
+/// more than 1,024 bytes; `state` for a confirmation of another request. Its `text`, `say_new`
+/// and `say_gone` are empty, because the agent's name is not among its inputs: whoever composes
+/// the snapshot names the agent with `Item::said_by` and its place with `Item::placed` (I3.4).
 pub fn compose_confirm(
     item: &ItemId,
     ask: &ConfirmAsk,

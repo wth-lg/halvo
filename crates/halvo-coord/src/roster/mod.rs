@@ -2,12 +2,14 @@
 //! of its configuration, its name, its row in the order of the list, and its card, as pure
 //! functions of the facts of I5.1.
 
+use crate::guard::EffectState;
 use crate::items::ConfirmState;
 use crate::schedule::{holds, next_slot, Hold};
 use crate::types::{
-    AgentId, Card, CardEffect, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing,
-    Facts, FullWorkflow, ItemKind, Limits, LineKey, LivePhase, Permission, Row, RunEnd, RunHistory,
-    Runtime, StatusLine, Tier, What,
+    Answered, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
+    ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
+    Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
+    RunId, Runtime, StatusLine, Tier, What,
 };
 use crate::words;
 
@@ -222,6 +224,22 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
     })
 }
 
+/// The row of an agent whose workflow a tick saw gone while its run lives (I5.7, ruling RD-54
+/// (g)): `working.stopping`, or `working.kill_stuck` where `stuck`, the run's kill having come
+/// due without ending it, no control and no next day, since a gone workflow has no slot.
+pub fn gone_row<C: ConfigView>(facts: &Facts<C>, stuck: bool, name: &str) -> Result<Row, Cause> {
+    let line = if stuck {
+        StatusLine::KillStuck
+    } else {
+        StatusLine::Stopping
+    };
+    Ok(Row {
+        controls: Vec::new(),
+        next: None,
+        ..row(facts, line, name)?
+    })
+}
+
 /// A row with the time at which its open item was raised, which orders the group `needs_you`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Placed {
@@ -250,39 +268,124 @@ pub fn order(rows: &mut [Placed]) {
     });
 }
 
+/// Whether the person refused `effect` of `run` (I2.6, ruling RD-85 item 1): the ledger `events`
+/// holds an `item_answered` row with `reject_once` for that effect id and that digest in an item
+/// whose `item_raised` row names `run`, released or not.
+fn said_no(events: &[Event], run: &RunId, effect: &PastEffect) -> bool {
+    let items: Vec<&ItemId> = events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Confirm(r),
+            } if r == run => Some(item),
+            _ => None,
+        })
+        .collect();
+    events.iter().any(|e| {
+        matches!(&e.what, What::ItemAnswered {
+            item,
+            answer: Answered::Confirm(entry),
+        } if entry.answer == EffectAnswer::RejectOnce
+            && entry.effect == effect.effect
+            && entry.digest == effect.digest
+            && items.contains(&item))
+    })
+}
+
+/// The end that a run's line says (I2.6, rulings RD-48 (c), RD-65 (e), RD-85 item 3): the cause
+/// of the coordinator's own newest `run_ended` row of the run where that cause is one that only
+/// the coordinator gives, and the agent store's outcome otherwise; a run that ended `lapsed`
+/// after the switch-off that still stands has the line of a stopped run (ruling RD-101 (i)).
+fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
+    let ended = events
+        .iter()
+        .rposition(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run.run));
+    let own = ended.and_then(|k| match &events[k].what {
+        What::RunEnded { cause, .. } => Some(*cause),
+        _ => None,
+    });
+    let set = events.iter().rposition(|e| {
+        matches!(
+            e.what,
+            What::HoldSet {
+                cause: HoldSetCause::Person
+            }
+        )
+    });
+    let cleared = events.iter().rposition(|e| {
+        matches!(
+            e.what,
+            What::HoldCleared {
+                cause: Cleared::Person
+            }
+        )
+    });
+    let switched_off_before = matches!((set, ended), (Some(s), Some(n)) if s < n)
+        && set.is_some_and(|s| cleared.is_none_or(|c| c < s));
+    match own {
+        Some(RunEnd::Lapsed) if switched_off_before => RunEnd::Cancelled,
+        Some(
+            end @ (RunEnd::Cancelled
+            | RunEnd::Lapsed
+            | RunEnd::Interrupted
+            | RunEnd::Deleted
+            | RunEnd::Budget
+            | RunEnd::Kind),
+        ) => end,
+        _ => RunEnd::from(run.outcome),
+    }
+}
+
+/// One run of a card (I2.6): its day; its line, the sentence of `line.run.<end>` for the end
+/// that `shown_end` gives, except that a `declined` run with no effect that the person refused
+/// has the neutral `line.run.stopped` (ruling RD-85 item 3); and one entry for each committed
+/// effect, by `CardEffect::committed` or, where that refuses it, `CardEffect::unshown`, and for
+/// each effect whose last row is `rejected` with a null cause, by `CardEffect::not_done`, in the
+/// order of the reply.
+fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
+    let refused = |e: &PastEffect| said_no(events, &h.run.run, e);
+    let mut effects = Vec::new();
+    for e in &h.effects {
+        match (e.state, &e.cause) {
+            (EffectState::Committed, _) => effects.push(
+                CardEffect::committed(e.class, &e.kept)
+                    .or_else(|_| CardEffect::unshown(e.class))?,
+            ),
+            (EffectState::Rejected, None) => {
+                effects.push(CardEffect::not_done(e.class, &e.kept, refused(e))?);
+            }
+            _ => {}
+        }
+    }
+    let key = match shown_end(events, &h.run) {
+        RunEnd::Declined if !h.effects.iter().any(refused) => "line.run.stopped".to_owned(),
+        end => format!("line.run.{}", end.name()),
+    };
+    Ok(CardRun {
+        day: words::day(h.run.day),
+        text: text(&key, &[])?,
+        effects,
+    })
+}
+
 /// The card of an agent (I2.6): its settings lines and the first `history_runs` runs of
-/// `history`, which `Owner::agent_history` gives newest first, each with its day, the sentence
-/// of `line.run.<end>` and one entry for each of its committed effects in the order of the
-/// reply, by `CardEffect::committed` (ruling H-8, filled at this unit's join with U3.2, ruling
-/// RD-28 (k)); a committed effect whose kept fields are not those of its class is `malformed`.
+/// `history`, which `Owner::agent_history` gives newest first, each by `card_run` over the
+/// agent's ledger rows in `facts`. No single effect fails the card.
 pub fn card<C: ConfigView>(
-    agent: &AgentId,
-    config: &C,
+    facts: &Facts<C>,
     name: &str,
     history: &[RunHistory],
     limits: &Limits,
 ) -> Result<Card, Cause> {
     Ok(Card {
-        agent: agent.clone(),
+        agent: facts.agent.clone(),
         name: name.to_owned(),
-        lines: lines(config),
+        lines: lines(&facts.config),
         runs: history
             .iter()
             .take(limits.history_runs as usize)
-            .map(|h| {
-                let end = RunEnd::from(h.run.outcome);
-                let effects = h
-                    .effects
-                    .iter()
-                    .filter(|e| e.state == crate::guard::EffectState::Committed)
-                    .map(|e| CardEffect::committed(e.class, &e.kept))
-                    .collect::<Result<_, _>>()?;
-                text(&format!("line.run.{}", end.name()), &[]).map(|text| CardRun {
-                    day: words::day(h.run.day),
-                    text,
-                    effects,
-                })
-            })
+            .map(|h| card_run(&facts.events, h))
             .collect::<Result<_, _>>()?,
     })
 }

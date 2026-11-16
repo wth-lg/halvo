@@ -577,6 +577,26 @@ where
                 )
             }
             RunEvent::Confirm(_) | RunEvent::Handback(_) | RunEvent::Bind(_) | RunEvent::Other => {
+                match event {
+                    RunEvent::Bind(ask) if ask.origin.insecure() => {
+                        return self
+                            .ports
+                            .answer_bind(run, crate::types::BindResult::Decline)
+                            .map_err(|e| cause_of(&e));
+                    }
+                    RunEvent::Handback(HandbackAsk {
+                        reason: crate::types::HandbackReason::AccountLink,
+                        origin: Some(origin),
+                        ..
+                    }) if origin.insecure() => {
+                        return items::answer_from_check(
+                            &self.ports,
+                            run,
+                            crate::types::HandbackResult::Declined,
+                        );
+                    }
+                    _ => {}
+                }
                 let facts = &board.members[i].facts;
                 let raise = match event {
                     RunEvent::Confirm(ask) => raise_confirm(facts, &st.table, ask, &self.limits),
@@ -1605,7 +1625,7 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        roster::card(agent, &facts.config, &name, &history, &self.limits)
+        roster::card(facts, &name, &history, &self.limits)
     }
 
     /// The reply of `agents_snapshot` (I8.1).
@@ -1642,12 +1662,34 @@ where
                 words::text("note.no_service", &[]).ok(),
             );
         };
-        let shown = Self::shown(st, board);
+        let mut shown = Self::shown(st, board);
+        let still: Vec<&Facts<Cfg<P>>> = board
+            .members
+            .iter()
+            .map(|m| &m.facts)
+            .filter(|f| board.gone.contains(&f.workflow.id) && matches!(f.doing, Doing::Live(_)))
+            .collect();
+        shown.extend(still.iter().copied());
+        shown.sort_by(|a, b| a.agent.cmp(&b.agent));
         let Ok(names) = roster::names(&shown, self.label) else {
             return (Vec::new(), Vec::new(), None);
         };
+        let now = (!still.is_empty()).then(|| self.ports.now().ok()).flatten();
         let mut placed: Vec<(Placed, Option<Item>)> = Vec::new();
         for (facts, name) in shown.iter().zip(&names) {
+            if still.iter().any(|f| f.agent == facts.agent) {
+                let due = |s: &schedule::Stop| s.at + self.limits.cancel_grace_s * 1000;
+                let stuck = board
+                    .runs
+                    .iter()
+                    .filter(|r| r.agent == facts.agent)
+                    .filter_map(|r| r.stop)
+                    .any(|s| now.is_some_and(|t| t >= due(&s)));
+                if let Ok(row) = roster::gone_row(*facts, stuck, name) {
+                    placed.push((Placed { row, raised: None }, None));
+                }
+                continue;
+            }
             let open = facts.doing.item();
             let held = open
                 .as_ref()
@@ -1670,13 +1712,31 @@ where
         }
         let mut rows: Vec<Placed> = placed.iter().map(|(p, _)| p.clone()).collect();
         roster::order(&mut rows);
-        let items = rows
+        let named: Vec<(&str, Item)> = rows
             .iter()
             .filter_map(|p| {
                 placed
                     .iter()
                     .find(|(q, _)| q.row.agent == p.row.agent)
                     .and_then(|(_, item)| item.clone())
+                    .map(|item| (p.row.name.as_str(), item))
+            })
+            .collect();
+        let pages = named
+            .iter()
+            .filter(|(_, i)| {
+                i.kind() == ItemKind::Confirm && i.presenter() == Some(Presenter::Page)
+            })
+            .count();
+        let mut n = 0;
+        let items = named
+            .into_iter()
+            .map(|(name, item)| {
+                if pages < 2 || item.presenter() != Some(Presenter::Page) {
+                    return item;
+                }
+                n += 1;
+                item.clone().placed(name, n, pages).unwrap_or(item)
             })
             .collect();
         let note = board

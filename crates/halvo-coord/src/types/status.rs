@@ -18,6 +18,9 @@ pub enum StatusLine {
     Working,
     /// `working.stopping`: a live run in the phase `stopping`.
     Stopping,
+    /// `working.kill_stuck`: the live run of an agent whose workflow a tick saw gone, whose kill
+    /// came due and did not end it (I5.7, ruling RD-54 (g)).
+    KillStuck,
     /// `waiting_turn.queued`: a queued start.
     Queued,
     /// `waiting_turn.store`: the agent store has not ended the agent's newest run (ruling
@@ -51,6 +54,7 @@ impl StatusLine {
             StatusLine::Starting,
             StatusLine::Working,
             StatusLine::Stopping,
+            StatusLine::KillStuck,
             StatusLine::Queued,
             StatusLine::Store,
         ]);
@@ -72,7 +76,10 @@ impl StatusLine {
             StatusLine::NotYet => Status::NotYet,
             StatusLine::Off => Status::Off,
             StatusLine::Failures | StatusLine::Problem(_) => Status::Problem,
-            StatusLine::Starting | StatusLine::Working | StatusLine::Stopping => Status::Working,
+            StatusLine::Starting
+            | StatusLine::Working
+            | StatusLine::Stopping
+            | StatusLine::KillStuck => Status::Working,
             StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
             StatusLine::TriedToday
             | StatusLine::New
@@ -92,6 +99,7 @@ impl StatusLine {
             StatusLine::Starting => "starting",
             StatusLine::Working => "working",
             StatusLine::Stopping => "stopping",
+            StatusLine::KillStuck => "kill_stuck",
             StatusLine::Queued => "queued",
             StatusLine::Store => "store",
             StatusLine::Problem(f) => f.name(),
