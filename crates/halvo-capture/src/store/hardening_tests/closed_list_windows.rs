@@ -926,3 +926,113 @@ fn st47_t1_a_root_renamed_to_a_name_that_ends_in_a_dot_is_seen_by_the_delete() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// Ruling ST-47 T3 on Windows: a directory link to a scratch store, given as
+/// `link\`, `link\.`, `link/` and its verbatim form with a trailing
+/// separator. The tail of both layouts answers DeleteIncomplete with
+/// not_followed 1, the store's open and the roots handle's open refuse it,
+/// the link stands, and the store behind it opens and reads after every
+/// call. When the runner cannot make a directory link the test prints so and
+/// asserts nothing.
+#[test]
+fn st47_t3_a_directory_link_spelled_with_a_trailing_separator_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().to_path_buf();
+    let real = base.join("real");
+    let roots = real.join("roots");
+    let root_id = RootId::fresh().unwrap();
+    let mut store = EncryptedStore::create(
+        &real,
+        Box::new(file_root_custody(
+            &roots,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = store
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    drop(store);
+    let link = base.join("link");
+    let roots_link = base.join("roots-link");
+    let made = std::os::windows::fs::symlink_dir(&real, &link)
+        .and_then(|()| std::os::windows::fs::symlink_dir(&roots, &roots_link));
+    println!("WIN-ST47-T3 directory_link_made={}", made.is_ok());
+    if made.is_err() {
+        return;
+    }
+    let spell = |path: &Path, tail: &str| {
+        let mut spelled = path.as_os_str().to_os_string();
+        spelled.push(tail);
+        PathBuf::from(spelled)
+    };
+    let verbatim = |path: &Path| {
+        let mut spelled = crate::store::durable::verbatim_form(path)
+            .expect("the verbatim form of an absolute path")
+            .into_os_string();
+        spelled.push("\\");
+        PathBuf::from(spelled)
+    };
+    let spellings = [
+        (r"link\", spell(&link, "\\"), spell(&roots_link, "\\")),
+        (r"link\.", spell(&link, "\\."), spell(&roots_link, "\\.")),
+        ("link/", spell(&link, "/"), spell(&roots_link, "/")),
+        (r"verbatim link\", verbatim(&link), verbatim(&roots_link)),
+    ];
+    let mut problems = Vec::new();
+    for (what, store_path, roots_path) in &spellings {
+        for layout in [
+            crate::store::Layout::ScratchStore,
+            crate::store::Layout::DataDirectory,
+        ] {
+            let answer = EncryptedStore::delete_data_dir(store_path, layout);
+            let not_followed = match &answer {
+                Err(StoreError::DeleteIncomplete(report)) => report.not_followed,
+                _ => u64::MAX,
+            };
+            let reads = open_over_file_root(&real, &roots, root_id).map(|store| {
+                store
+                    .read_segment(segment.segment_id, &mut Vec::new())
+                    .is_ok()
+            });
+            println!(
+                "WIN-ST47-T3 spelling={what} layout={layout:?} {} not_followed={not_followed} store_behind_reads={reads:?}",
+                report_line(&answer)
+            );
+            if not_followed != 1 || !matches!(reads, Ok(true)) {
+                problems.push(format!(
+                    "{what} {layout:?}: {} not_followed={not_followed} store_behind_reads={reads:?}",
+                    report_line(&answer)
+                ));
+            }
+        }
+        let opened = EncryptedStore::open_with(
+            store_path,
+            &roots,
+            DEFAULT_RETENTION,
+            |_: &crate::custody::CustodyLocator| {
+                Ok(Box::new(file_root_custody(
+                    &roots,
+                    TestProtector::new(0x5a).0,
+                    root_id,
+                )))
+            },
+        )
+        .map(drop);
+        let held = crate::custody::file_root::hold(roots_path).map(drop);
+        let links_stand = [&link, &roots_link].iter().all(|path| {
+            std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+        });
+        println!(
+            "WIN-ST47-T3 spelling={what} open={opened:?} roots_hold={held:?} links_stand={links_stand}"
+        );
+        if opened.is_ok() || held.is_ok() || !links_stand {
+            problems.push(format!(
+                "{what}: open={opened:?} roots_hold={held:?} links_stand={links_stand}"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
