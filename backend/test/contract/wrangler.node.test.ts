@@ -128,6 +128,8 @@ test("on the real test entry --var passes a value with colons whole and wins ove
   child.on("exit", () => {
     exited = true;
   });
+  let failed = false;
+  let failure: unknown;
   try {
     let up = false;
     for (let tries = 0; tries < 240 && !exited && !up; tries += 1) {
@@ -147,11 +149,20 @@ test("on the real test entry --var passes a value with colons whole and wins ove
     const snapshot = await post("/test/inspect", { account: ACCOUNT });
     expect(snapshot.result).toBe("snapshot");
     expect(snapshot.config).toEqual({ holdLifeMs: 1234, intervalSeconds: 3600, marginSeconds: 300, publicOrigin: origin, testClock: true });
-  } finally {
-    try {
-      await endGroup(server);
-    } finally {
-      writeFileSync(join(state, "wrangler.log"), output);
-    }
+  } catch (error) {
+    failed = true;
+    failure = error;
   }
+  let stopFailure: unknown;
+  try {
+    await endGroup(server);
+  } catch (error) {
+    stopFailure = error;
+  }
+  writeFileSync(join(state, "wrangler.log"), output);
+  if (failed) {
+    if (stopFailure !== undefined && failure instanceof Error) failure.message += `\nendGroup failed as well: ${String(stopFailure)}`;
+    throw failure;
+  }
+  if (stopFailure !== undefined) throw stopFailure;
 }, 120_000);
