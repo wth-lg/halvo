@@ -541,11 +541,14 @@ fn lines_that_are_not_known_are_passed_over() {
         "drive model=m_b machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0",
         "reply model=m_b machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1",
     ];
-    let cells_of_counted = [drive_cell("m_b", "mac", "bill", 1), reply_cell("m_b", "mac", 1)]
-        .concat()
-        .into_iter()
-        .filter(|line| line.starts_with("attempt "))
-        .collect::<Vec<_>>();
+    let cells_of_counted = [
+        drive_cell("m_b", "mac", "bill", 1),
+        reply_cell("m_b", "mac", 1),
+    ]
+    .concat()
+    .into_iter()
+    .filter(|line| line.starts_with("attempt "))
+    .collect::<Vec<_>>();
     let mut driver = vec![ATTEMPT];
     driver.extend(refs(&cells_of_counted));
     driver.extend(passed_over);
@@ -1591,7 +1594,10 @@ fn a_second_attempt_line_of_one_row_key_is_refused_at_its_line() {
         drive_cell("m_a", "mac", "order", 1),
         drive_cell("m_a", "mac", "bill", 2),
     ] {
-        let got = run(&refs(&with([base.clone(), other].concat(), VERDICT)), &[BOUND]);
+        let got = run(
+            &refs(&with([base.clone(), other].concat(), VERDICT)),
+            &[BOUND],
+        );
         got.passed();
         assert_eq!(got.stdout, "import rows=10 models=1 sources=2\n");
     }
@@ -1697,21 +1703,29 @@ fn the_verdicts_driver_and_writer_have_exactly_the_attempt_lines_of_the_trial() 
         let got = run(&refs(&with(lines.clone(), verdict)), &[BOUND]);
         assert_eq!(got.refused(), "REFUSED source: driver:verdict", "{verdict}");
     }
-    let mut writer_with_compile = writer_lines("m_w");
-    writer_with_compile.push(line_of("m_w", "bill", 1, "compile", "1"));
-    for (lines, verdict) in [
-        (
+    let got = run(
+        &refs(&with(
             [driver_lines("m_d"), writer_lines("m_d")].concat(),
             "verdict driver=m_d path=A writer=none",
-        ),
-        (writer_with_compile, "verdict driver=none path=B writer=m_w"),
-    ] {
-        run(&refs(&with(lines, verdict)), &[BOUND]).passed();
-    }
+        )),
+        &[BOUND],
+    );
+    got.passed();
 }
 
 #[test]
-fn a_model_that_is_neither_driver_nor_writer_may_have_compile_lines_alone() {
+fn a_writer_with_a_bill_compile_line_and_no_drive_line_is_refused_at_that_line() {
+    let mut lines = writer_lines("m_w");
+    lines.push(line_of("m_w", "bill", 1, "compile", "1"));
+    let got = run(
+        &refs(&with(lines, "verdict driver=none path=B writer=m_w")),
+        &[BOUND],
+    );
+    assert_eq!(got.refused(), "REFUSED source: driver:15");
+}
+
+#[test]
+fn a_model_that_is_neither_driver_nor_writer_with_compile_lines_alone_is_refused_at_the_first() {
     let mut lines = driver_lines("m_d");
     for task in ["bill", "order"] {
         for seed in 1..=3 {
@@ -1722,8 +1736,310 @@ fn a_model_that_is_neither_driver_nor_writer_may_have_compile_lines_alone() {
         &refs(&with(lines, "verdict driver=m_d path=A writer=none")),
         &[BOUND],
     );
+    assert_eq!(got.refused(), "REFUSED source: driver:75");
+}
+
+const SET_VERDICT: &str = "verdict driver=m_d path=A writer=m_d";
+
+fn set() -> Vec<String> {
+    [driver_lines("m_d"), writer_lines("m_d")].concat()
+}
+
+fn beside_set(other: &[String]) -> Run {
+    run(
+        &refs(&with([set(), other.to_vec()].concat(), SET_VERDICT)),
+        &[BOUND],
+    )
+}
+
+fn other_line(n: usize) -> String {
+    format!("driver:{}", set().len() + n + 3)
+}
+
+fn source(detail: &str) -> String {
+    format!("REFUSED source: {detail}")
+}
+
+#[test]
+fn another_models_cell_short_of_an_attempt_line_is_refused_at_its_drive_line() {
+    let cell = drive_cell("m_c", "mac", "bill", 1);
+    assert!(cell[3].contains(" kind=replay i=3 "));
+    let mut short = cell.clone();
+    short.remove(3);
+    assert!(short[4].starts_with("drive "));
+    assert_eq!(beside_set(&short).refused(), source(&other_line(4)));
+    let banana = |lines: &[String]| changed(lines, lines.len() - 1, "compile=ok", "compile=banana");
+    assert_eq!(
+        beside_set(&banana(&short)).refused(),
+        source(&other_line(4))
+    );
+    let got = beside_set(&banana(&cell));
     got.passed();
-    assert_eq!(got.stdout, "import rows=66 models=1 sources=2\n");
+    assert_eq!(got.stdout, "import rows=71 models=1 sources=2\n");
+}
+
+#[test]
+fn another_models_attempt_lines_with_no_drive_line_are_refused_at_the_first_of_them() {
+    let cell = drive_cell("m_c", "hosted-win", "order", 2);
+    let five = cell[..5].to_vec();
+    let recover = vec![cell[4].clone()];
+    let whole = drive_cell("m_e", "mac", "bill", 1);
+    let mut wrong = Vec::new();
+    for (what, other, want) in [
+        ("five", five.clone(), other_line(0)),
+        ("one recover line", recover.clone(), other_line(0)),
+        (
+            "five after a whole cell",
+            [whole.clone(), five].concat(),
+            other_line(6),
+        ),
+        (
+            "one after a whole cell",
+            [whole, recover].concat(),
+            other_line(6),
+        ),
+    ] {
+        refused_at(&beside_set(&other), &want, what, &mut wrong);
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn another_models_drive_line_with_no_attempt_line_is_refused_at_it() {
+    let drive = vec![drive_cell("m_c", "mac", "order", 3)[5].clone()];
+    assert_eq!(beside_set(&drive).refused(), source(&other_line(0)));
+    let after_whole = [drive_cell("m_e", "mac", "bill", 1), drive].concat();
+    assert_eq!(beside_set(&after_whole).refused(), source(&other_line(6)));
+}
+
+#[test]
+fn a_cell_with_two_drive_lines_is_refused_at_the_first_and_of_two_broken_cells_the_smaller_line_is_named(
+) {
+    let cell = drive_cell("m_c", "mac", "bill", 2);
+    let drive = cell[5].clone();
+    let twice_after = with(cell.clone(), &drive);
+    assert_eq!(beside_set(&twice_after).refused(), source(&other_line(5)));
+    let twice_around = [vec![drive.clone()], cell.clone()].concat();
+    assert_eq!(beside_set(&twice_around).refused(), source(&other_line(0)));
+    let mut short_z = drive_cell("m_z", "hosted-win", "order", 3);
+    short_z.remove(3);
+    let alone_b = vec![drive_cell("m_b", "mac", "bill", 1)[5].clone()];
+    let z_first = [short_z.clone(), alone_b.clone()].concat();
+    assert_eq!(beside_set(&z_first).refused(), source(&other_line(4)));
+    let b_first = [alone_b, short_z].concat();
+    assert_eq!(beside_set(&b_first).refused(), source(&other_line(0)));
+}
+
+#[test]
+fn another_models_write_line_with_no_reply_line_is_refused_at_it() {
+    let write = vec![reply_cell("m_c", "mac", 2)[0].clone()];
+    assert_eq!(beside_set(&write).refused(), source(&other_line(0)));
+    let after_whole = [reply_cell("m_e", "mac", 2), write].concat();
+    assert_eq!(beside_set(&after_whole).refused(), source(&other_line(2)));
+}
+
+#[test]
+fn another_models_reply_line_with_no_write_line_is_refused_at_it() {
+    let reply = vec![reply_cell("m_c", "hosted-win", 3)[1].clone()];
+    assert_eq!(beside_set(&reply).refused(), source(&other_line(0)));
+    let after_whole = [reply_cell("m_e", "hosted-win", 3), reply].concat();
+    assert_eq!(beside_set(&after_whole).refused(), source(&other_line(2)));
+}
+
+#[test]
+fn a_drive_line_after_a_space_or_with_its_keys_in_another_order_is_no_counted_line() {
+    let cell = drive_cell("m_c", "mac", "bill", 1);
+    let drive = &cell[5];
+    let mut wrong = Vec::new();
+    for line in [
+        format!(" {drive}"),
+        format!("\t{drive}"),
+        drive.replacen("model=m_c machine=mac", "machine=mac model=m_c", 1),
+        drive.replacen("task=bill seed=1", "seed=1 task=bill", 1),
+    ] {
+        let other = [vec![line.clone()], cell[..5].to_vec()].concat();
+        refused_at(&beside_set(&other), &other_line(1), &line, &mut wrong);
+    }
+    let reply = reply_cell("m_c", "mac", 1);
+    let other = vec![reply[0].clone(), format!(" {}", reply[1])];
+    refused_at(
+        &beside_set(&other),
+        &other_line(0),
+        "a reply line after a space",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn the_reply_count_holds_per_model_machine_and_seed() {
+    let mut wrong = Vec::new();
+    for (what, write, reply) in [
+        (
+            "seed",
+            reply_cell("m_c", "mac", 1),
+            reply_cell("m_c", "mac", 2),
+        ),
+        (
+            "machine",
+            reply_cell("m_c", "mac", 1),
+            reply_cell("m_c", "hosted-win", 1),
+        ),
+        (
+            "model",
+            reply_cell("m_c", "mac", 1),
+            reply_cell("m_e", "mac", 1),
+        ),
+    ] {
+        let other = vec![write[0].clone(), reply[1].clone()];
+        refused_at(&beside_set(&other), &other_line(0), what, &mut wrong);
+        let other = vec![reply[1].clone(), write[0].clone()];
+        refused_at(&beside_set(&other), &other_line(0), what, &mut wrong);
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn the_count_comes_after_the_gap_the_set_and_the_verdicts_lines() {
+    let alone = drive_cell("m_c", "mac", "bill", 1)[5].clone();
+    let mut gapped = drive_cell("m_b", "mac", "bill", 1);
+    gapped.remove(2);
+    let mut no_compile = set();
+    no_compile.remove(0);
+    assert!(set()[5].starts_with("drive model=m_d machine=mac task=bill seed=1 "));
+    let mut wrong = Vec::new();
+    for (what, driver, want) in [
+        (
+            "a gap before the count",
+            with([vec![alone.clone()], gapped].concat(), VERDICT),
+            "driver:6",
+        ),
+        (
+            "the set before the count",
+            with([vec![alone.clone()], no_compile].concat(), SET_VERDICT),
+            "driver:verdict",
+        ),
+        (
+            "the verdict's lines before the count",
+            with(
+                [
+                    vec![alone],
+                    changed(&set(), 5, "recover=ok", "recover=miss"),
+                ]
+                .concat(),
+                SET_VERDICT,
+            ),
+            "driver:9",
+        ),
+    ] {
+        refused_at(&run(&refs(&driver), &[BOUND]), want, what, &mut wrong);
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn the_order_cases_with_their_earlier_fault_mended_and_a_bad_cells_file_are_refused_at_the_count() {
+    let alone = drive_cell("m_c", "mac", "bill", 1)[5].clone();
+    let mut wrong = Vec::new();
+    for (what, driver) in [
+        (
+            "the gap mended",
+            with(
+                [vec![alone.clone()], drive_cell("m_b", "mac", "bill", 1)].concat(),
+                VERDICT,
+            ),
+        ),
+        (
+            "the set and the verdict's lines mended",
+            with([vec![alone.clone()], set()].concat(), SET_VERDICT),
+        ),
+    ] {
+        refused_at(&run(&refs(&driver), &[BOUND]), "driver:3", what, &mut wrong);
+    }
+    let got = run(
+        &[&alone, VERDICT],
+        &[BOUND, "bound model=M machine=mac bound_bytes=1 fits=no"],
+    );
+    refused_at(
+        &got,
+        "driver:3",
+        "the driver file before a bad cells file",
+        &mut wrong,
+    );
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn the_count_reads_the_lines_of_a_cell_wherever_they_stand_in_the_block() {
+    let cell = drive_cell("m_c", "mac", "bill", 1);
+    let reply = reply_cell("m_c", "mac", 1);
+    let other = drive_cell("m_e", "hosted-win", "order", 3);
+    let mut wrong = Vec::new();
+    for (what, lines) in [
+        (
+            "the drive line first",
+            [vec![cell[5].clone()], cell[..5].to_vec()].concat(),
+        ),
+        (
+            "the drive line just before the verdict line",
+            [cell[..5].to_vec(), other.clone(), vec![cell[5].clone()]].concat(),
+        ),
+        (
+            "two cells interleaved",
+            cell.iter()
+                .zip(other.iter())
+                .flat_map(|(a, b)| [a.clone(), b.clone()])
+                .collect(),
+        ),
+        (
+            "the reply line before its write line",
+            vec![reply[1].clone(), reply[0].clone()],
+        ),
+        (
+            "the reply line just before the verdict line",
+            [vec![reply[0].clone()], cell.clone(), vec![reply[1].clone()]].concat(),
+        ),
+    ] {
+        let rows = lines
+            .iter()
+            .filter(|line| line.starts_with("attempt "))
+            .count();
+        let got = beside_set(&lines);
+        let want = format!("import rows={} models=1 sources=2\n", 66 + rows);
+        if got.code != Some(0) || got.stdout != want {
+            wrong.push(format!(
+                "{what}: {:?} {:?} {:?}",
+                got.code, got.stdout, got.stderr
+            ));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+const NO_DRIVER_AS_U02_WROTE_IT: &str = "1f9f96fd225b36f133c25375e12da93ad70e29ce";
+
+#[test]
+fn the_golden_no_driver_driver_file_as_u02_wrote_it_is_refused_at_driver_7() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/r3/no_driver");
+    let text = std::fs::read_to_string(dir.join("driver.md")).expect("a golden input");
+    let mut lines: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            !line.starts_with("drive model=m_tiny ")
+                && (!line.starts_with("attempt model=m_tiny ") || line.contains(" kind=recover "))
+        })
+        .collect();
+    lines.push("");
+    let driver = lines.join("\n").into_bytes();
+    assert_eq!(
+        halvo_route_gate::import::blob_id(&driver),
+        NO_DRIVER_AS_U02_WROTE_IT
+    );
+    let cells = std::fs::read(dir.join("model-cells.md")).expect("a golden input");
+    assert_eq!(
+        run_files(driver, cells).refused(),
+        "REFUSED source: driver:7"
+    );
 }
 
 fn changed(lines: &[String], n: usize, from: &str, to: &str) -> Vec<String> {

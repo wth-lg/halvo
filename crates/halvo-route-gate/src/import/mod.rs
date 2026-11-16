@@ -38,8 +38,6 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::path::Path;
 
-use halvo_route::tier::CallKind;
-
 pub use blob::blob_id;
 
 use crate::out::{self, Refused};
@@ -156,8 +154,9 @@ impl Imported {
 /// Parses both trial files and makes the four files, or names the first fault: the driver file
 /// before the cells file, each in line order; after the lines of the driver block a gap of the
 /// numbering, the count of verdict lines, the last line, the set of the verdict's driver and writer
-/// and their `drive` and `reply` lines; after the lines of the cells block its last line and then
-/// whether it holds a `bound` line (`cells:block`).
+/// and their `drive` and `reply` lines, and then the count of attempt lines against the counted
+/// `drive` and `reply` lines of every model; after the lines of the cells block its last line and
+/// then whether it holds a `bound` line (`cells:block`).
 pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceError> {
     let block_of = |input: Input, bytes| {
         block(bytes).map_err(|fault| match fault {
@@ -167,9 +166,10 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     };
     let mut rows = Vec::new();
     let mut attempts = set::Attempts::new();
-    let mut replays = Vec::new();
+    let mut keyed = Vec::new();
     let mut verdicts = Vec::new();
     let mut said = Vec::new();
+    let mut counted = Vec::new();
     let driver_block = block_of(Input::Driver, driver.bytes)?;
     for &line in &driver_block {
         let fault = SourceError::Line(Input::Driver, line.number);
@@ -181,9 +181,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
             if attempts.insert(key.clone(), row.pass).is_some() {
                 return Err(fault);
             }
-            if row.kind == CallKind::Replay {
-                replays.push((line.number, key));
-            }
+            keyed.push((line.number, key));
             rows.push(row);
         } else if line.bytes.starts_with(lines::VERDICT) {
             verdicts.push(lines::verdict(line.bytes).ok_or(fault)?);
@@ -196,9 +194,12 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
             || lines::limits(line.bytes).is_some()
         {
             said.push((line.number, line.bytes));
+            if let Some(cell) = lines::counted(line.bytes) {
+                counted.push((line.number, cell));
+            }
         }
     }
-    if let Some(number) = set::gap(&replays, &attempts) {
+    if let Some(number) = set::gap(&keyed, &attempts) {
         return Err(SourceError::Line(Input::Driver, number));
     }
     let [verdict] = <[lines::Verdict; 1]>::try_from(verdicts).map_err(|_| SourceError::Verdict)?;
@@ -210,6 +211,9 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         set::Unsaid::Line(number) => SourceError::Line(Input::Driver, number),
         set::Unsaid::Missing => SourceError::Verdict,
     })?;
+    if let Some(number) = set::count(&keyed, &counted) {
+        return Err(SourceError::Line(Input::Driver, number));
+    }
     let mut bounds = Vec::new();
     let mut pairs: HashSet<(Model, Machine)> = HashSet::new();
     let cells_block = block_of(Input::Cells, cells.bytes)?;
