@@ -25,6 +25,9 @@ struct Bound {
     rev: u32,
 }
 
+/// Whether a record is one that a test names for a refusal of `Owner::log`.
+pub type Names = fn(&Event) -> bool;
+
 /// A port method, by which a test makes it refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Method {
@@ -218,7 +221,7 @@ pub struct Ports<C> {
     bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
     agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
-    record_refusals: RefCell<Vec<(fn(&Event) -> bool, PortError)>>,
+    record_refusals: RefCell<Vec<(Names, PortError)>>,
     tie_days: Cell<bool>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
@@ -439,7 +442,7 @@ impl<C> Ports<C> {
 
     /// Makes `Owner::log` answer `error` for a body that holds a record that `names` names, until
     /// `clear_refusals`.
-    pub fn refuse_record(&self, names: fn(&Event) -> bool, error: PortError) {
+    pub fn refuse_record(&self, names: Names, error: PortError) {
         self.record_refusals.borrow_mut().push((names, error));
     }
 

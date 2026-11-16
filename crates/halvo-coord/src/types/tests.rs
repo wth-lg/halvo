@@ -736,8 +736,11 @@ fn the_products_body_bounds_equal_the_schemas() {
 #[test]
 fn limits_refuse_body_bounds_above_the_schemas() {
     for (key, most) in [("request_records", 20), ("request_bytes", 16_384)] {
-        let at = PRODUCT_JSON.replace(&format!("\"{key}\":{most}"), &format!("\"{key}\":{most}"));
-        assert!(Limits::from_json(&at).is_ok(), "{key} at its bound");
+        assert!(
+            PRODUCT_JSON.contains(&format!("\"{key}\":{most}")),
+            "{key} at its bound"
+        );
+        assert!(Limits::from_json(PRODUCT_JSON).is_ok());
         let above = PRODUCT_JSON.replace(
             &format!("\"{key}\":{most}"),
             &format!("\"{key}\":{}", most + 1),
