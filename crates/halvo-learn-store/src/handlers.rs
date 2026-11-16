@@ -108,9 +108,12 @@ impl CoordinatorAnswer {
 /// own `load` of the run before they pass the body on (contracts.md L4.3; the coordinator's ruling LM-61).
 ///
 /// A row of the family `learn` that its parser refuses stops what rests on its kind in the workflow under whose key the
-/// store keeps it, and nothing else, since the handlers read the rows of a kind under the body's workflow key alone
-/// (`LearnHost::for_each_under`; contracts.md L4.2, L4.4; the coordinator's ruling LM-58 (a), (c)): a `learn_edit`
-/// row the edits of that workflow, whose runs are served the compiled steps, get no
+/// store keeps it, and nothing else, since the handlers read the `learn_edit`, `learn_run` and `learn_routine` rows
+/// under the workflow key of the body or of the run's held start (`LearnHost::for_each_under`; contracts.md L4.2,
+/// L4.4; the coordinator's rulings LM-58 (a), (c) and LM-86 L1), and read the `learn_run` rows of every workflow only
+/// to find a `put_playbook`'s run by its id where they hold no start of the run, after a restart; that read skips a
+/// refused row and stops nothing: a `learn_edit` row the edits of that workflow, whose runs are served the compiled
+/// steps, get no
 /// candidate and no move and store a rev 2 with `kept` 0; a `learn_run` row its run rows, its runs being lost runs whose
 /// mode comes from the remembered start; a `learn_routine` row its routine rows. A body that the agent store answered
 /// gets the agent store's reply whatever the learning part could read or store, and a replay `put_playbook` its count;
