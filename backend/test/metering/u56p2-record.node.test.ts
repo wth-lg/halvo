@@ -202,6 +202,26 @@ describe("the pace of the tries after a failed call (P7-117 T2, T8 and T9; Addit
 });
 
 describe("manage under the mark (P7-117 T7)", () => {
+  test("T7: a manage page asked before the delete and answered after the mark is written answers unavailable", async () => {
+    const w = await listed({ faults: [{ kind: "list-no-answer" }] });
+    await subscribed(w);
+    let answer: () => void = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    w.host.port.openManagePage = async () => {
+      await answered;
+      return { kind: "page", url: "https://billing.example.test/session" };
+    };
+    w.at(START + MINUTE);
+    const manage = w.entries().manage(HASH);
+    await tick();
+    expect(await destroy(w)).toEqual({ result: "not-finished" });
+    answer();
+    expect(await manage).toEqual({ result: "unavailable" });
+    w.close();
+  });
+
   test("T7: under the mark manage answers unavailable and opens no page, and start answers account-exists", async () => {
     const w = await listed({ faults: [{ kind: "list-no-answer" }] });
     await subscribed(w);

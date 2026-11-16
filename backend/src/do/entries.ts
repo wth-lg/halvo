@@ -1146,7 +1146,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         customerId: first.customerId,
         returnUrl: `${host.config.publicOrigin}/v1/done`,
       });
-      return page.kind === "page" ? { result: "page", url: page.url } : { result: "unavailable" };
+      if (page.kind !== "page") return { result: "unavailable" };
+      const unavailable: ManageAnswer = { result: "unavailable" };
+      return guarded<ManageAnswer>(hash, { nothing: unavailable, mismatch: unavailable, pending: unavailable }, (open) =>
+        destroyingSince(open.sql) !== null ? unavailable : { result: "page", url: page.url },
+      );
     },
 
     async destroy(hash) {
