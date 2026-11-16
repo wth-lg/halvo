@@ -2,8 +2,8 @@
   "edits": [
     {
       "file": "src/contract/schemas.ts",
-      "find": "result: z.enum([\"pending\", \"active\", \"payment-failed\", \"cancelled\", \"no-such-account\", \"credential-mismatch\"]),",
-      "replace": "result: z.enum([\"active\", \"payment-failed\", \"cancelled\", \"no-such-account\", \"credential-mismatch\"]),"
+      "find": "result: z.enum([\"pending\", \"active\", \"payment-failed\", \"cancelled\", \"closing\", \"no-such-account\", \"credential-mismatch\"]),",
+      "replace": "result: z.enum([\"active\", \"payment-failed\", \"cancelled\", \"closing\", \"no-such-account\", \"credential-mismatch\"]),"
     },
     {
       "file": "src/contract/routes.ts",
@@ -32,5 +32,5 @@
       "--write"
     ]
   ],
-  "line": "samples=31 of 31"
+  "line": "samples=32 of 32"
 }

@@ -45,6 +45,7 @@
         "active": [],
         "payment-failed": [],
         "cancelled": [],
+        "closing": [],
         "no-such-account": [],
         "credential-mismatch": []
       }

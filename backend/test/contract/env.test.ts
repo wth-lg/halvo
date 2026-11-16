@@ -36,7 +36,7 @@ test("an object that holds nothing has no table at all; the statements give thei
       .toArray()
       .map((row) => String(row.name));
     console.log(`statements test, workerd leg: the tables of the object are ${names.join(" ")}`);
-    const own = new Set(["skeleton", "test_clock", "account", "ledger_cap"]);
+    const own = new Set(["skeleton", "test_clock", "account", "ledger_cap", "cancel_call"]);
     expect(names.filter((name) => !own.has(name) && !name.startsWith("sqlite_") && !name.startsWith("_cf_"))).toEqual([]);
     let refused: string | null = null;
     try {
