@@ -181,8 +181,9 @@ fn a_create_in_a_directory_whose_name_is_not_unicode_leaves_only_the_lock_file_a
 }
 
 /// Test 4 of the verify step: the tail given a verbatim name that ends in a
-/// dot, with a file, nothing or an empty directory at the trimmed name, and
-/// one case with such a name as the roots path.
+/// dot, with a file, nothing or an empty directory at the trimmed name; from
+/// store-3b the name is the data directory's, and a roots path of that form
+/// cannot be given to the tail any longer.
 #[test]
 fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays() {
     for case in [
@@ -192,24 +193,26 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     ] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
-        let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
+        let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
         std::fs::create_dir(&verbatim).unwrap();
-        std::fs::write(verbatim.join("held-file"), b"inside").unwrap();
-        let sibling = base.join("store");
+        std::fs::create_dir(verbatim.join("store")).unwrap();
+        std::fs::write(verbatim.join("store").join("held-file"), b"inside").unwrap();
+        let sibling = base.join("data");
         match case {
             "a file at the trimmed name" => std::fs::write(&sibling, b"sibling").unwrap(),
             "a directory at the trimmed name" => std::fs::create_dir(&sibling).unwrap(),
             _ => {}
         }
-        let answer = tail(&verbatim, &base.join("roots"));
+        let answer =
+            EncryptedStore::delete_data_dir(&verbatim, crate::store::Layout::DataDirectory);
         let sibling_now = if sibling.is_dir() {
             Some(b"<dir>".to_vec())
         } else {
             std::fs::read(&sibling).ok()
         };
-        let inside_stays = verbatim.join("held-file").exists();
+        let inside_stays = verbatim.join("store").join("held-file").exists();
         println!(
-            "WIN-TRAILING-DOT case={case} {} sibling_now={:?} store_dot_holds_its_file={inside_stays}",
+            "WIN-TRAILING-DOT case={case} {} sibling_now={:?} data_dot_holds_its_file={inside_stays}",
             report_line(&answer),
             sibling_now.as_ref().map(|b| b.len())
         );
@@ -224,9 +227,9 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
         }
         assert!(
             !(answer.is_ok() && inside_stays),
-            "{case}: the tail answered Ok while store. holds a file"
+            "{case}: the tail answered Ok while data. holds a file"
         );
-        assert!(inside_stays, "{case}: the tail removed a file in store.");
+        assert!(inside_stays, "{case}: the tail removed a file in data.");
         if case == "nothing at the trimmed name" {
             assert!(
                 !sibling.exists(),
@@ -241,50 +244,30 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     }
     let dir = tempfile::tempdir().unwrap();
     let base = dir.path().to_path_buf();
-    let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+    let (made_at, _, root_id, _) = file_root_store(&base.join("data"));
     let wrapped = wrapped_of(&made_at);
-    let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
-    std::fs::rename(&made_at, &verbatim).unwrap();
-    let answer = tail(&verbatim, &roots_dir);
+    let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
+    std::fs::rename(base.join("data"), &verbatim).unwrap();
+    let answer = EncryptedStore::delete_data_dir(&verbatim, crate::store::Layout::DataDirectory);
+    let store_dot = verbatim.join("store");
     println!(
-        "WIN-TRAILING-DOT case=a store under such a name {} store_dot_holds_its_key_file={} trimmed_name_exists={}",
+        "WIN-TRAILING-DOT case=a store under such a name {} data_dot_holds_its_key_file={} trimmed_name_exists={}",
         report_line(&answer),
-        verbatim.join("store.key").exists(),
-        base.join("store").exists()
+        store_dot.join("store.key").exists(),
+        base.join("data").exists()
     );
     let report = delete_report(&answer);
     assert!(
-        report.root_destroyed() && !unwraps(&roots_dir, root_id, &wrapped),
-        "the tail at a name that ends in a dot did not run the root step"
+        report.root_destroyed() && !unwraps(&verbatim.join("roots"), root_id, &wrapped),
+        "the tail at a data directory whose name ends in a dot did not run the root step"
     );
     assert!(
-        verbatim.join("store.key").exists() && !base.join("store").exists(),
+        store_dot.join("store.key").exists() && !base.join("data").exists(),
         "the tail removed a file at or beside the name that ends in a dot"
     );
     assert!(
         matches!(answer, Err(StoreError::DeleteIncomplete(_))) && report.not_followed == 1,
         "the tail at a store under such a name did not answer DeleteIncomplete with not_followed 1"
-    );
-    let dir = tempfile::tempdir().unwrap();
-    let base = dir.path().to_path_buf();
-    let (store_dir, _, _, _) = file_root_store(&base);
-    let roots_dot = PathBuf::from(format!(r"\\?\{}\roots.", base.display()));
-    std::fs::create_dir(&roots_dot).unwrap();
-    std::fs::write(roots_dot.join("held-file"), b"inside").unwrap();
-    let answer = tail(&store_dir, &roots_dot);
-    println!(
-        "WIN-TRAILING-DOT case=such a name as the roots path {} roots_dot_holds_its_file={} sibling_roots_exists={}",
-        report_line(&answer),
-        roots_dot.join("held-file").exists(),
-        base.join("roots").exists()
-    );
-    assert!(
-        roots_dot.join("held-file").exists(),
-        "the tail removed a file under the roots path that ends in a dot"
-    );
-    assert!(
-        matches!(&answer, Err(StoreError::DeleteIncomplete(r)) if !r.root_destroyed()),
-        "the tail read the root as destroyed under a roots path that ends in a dot"
     );
 }
 
@@ -453,38 +436,39 @@ fn an_open_while_another_handle_holds_the_lock_file_without_sharing_answers_lock
 }
 
 /// Ruling ST-45 H6 (a): verbatim_form builds its form from the path's parts.
-/// A real directory named `store.` holds a store, and the tail is given its
-/// path written with forward slashes, with a dot part and with a doubled
+/// A real data directory named `data.` holds a store, and the tail is given
+/// its path written with forward slashes, with a dot part and with a doubled
 /// separator: the root step runs (the root no longer unwraps), the other root
-/// stays (H1: the named root alone in this arm), and `store.` keeps its files.
+/// stays (H1: the named root alone in this arm), and `data.` keeps its files.
 #[test]
 fn the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone() {
     let mut problems = Vec::new();
     for spelling in ["forward slashes", "a dot part", "a doubled separator"] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
-        let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+        let (made_at, roots_dir, root_id, _) = file_root_store(&base.join("data"));
         let wrapped = wrapped_of(&made_at);
         let other = RootId::fresh().unwrap();
         file_root_custody(&roots_dir, TestProtector::new(0x5a).0, other)
             .create_root()
             .unwrap();
-        let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
-        std::fs::rename(&made_at, &verbatim).unwrap();
+        let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
+        std::fs::rename(base.join("data"), &verbatim).unwrap();
         let text = base.display().to_string();
         let given = PathBuf::from(match spelling {
-            "forward slashes" => format!("{}/store.", text.replace('\\', "/")),
-            "a dot part" => format!(r"{text}\.\store."),
-            _ => format!(r"{text}\\store."),
+            "forward slashes" => format!("{}/data.", text.replace('\\', "/")),
+            "a dot part" => format!(r"{text}\.\data."),
+            _ => format!(r"{text}\\data."),
         });
-        let answer = tail(&given, &roots_dir);
-        let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
-        let other_stays = roots_dir.join(format!("{other}.root")).exists();
-        let key_file_stays = verbatim.join("store.key").exists();
+        let answer = EncryptedStore::delete_data_dir(&given, crate::store::Layout::DataDirectory);
+        let roots_now = verbatim.join("roots");
+        let destroyed = !unwraps(&roots_now, root_id, &wrapped);
+        let other_stays = roots_now.join(format!("{other}.root")).exists();
+        let key_file_stays = verbatim.join("store").join("store.key").exists();
         println!(
-            "WIN-ST45-H6A spelling={spelling} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays} store_dot_keeps_its_key_file={key_file_stays} trimmed_name_exists={}",
+            "WIN-ST45-H6A spelling={spelling} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays} data_dot_keeps_its_key_file={key_file_stays} trimmed_name_exists={}",
             report_line(&answer),
-            base.join("store").exists()
+            base.join("data").exists()
         );
         let incomplete =
             matches!(&answer, Err(StoreError::DeleteIncomplete(r)) if r.not_followed == 1);
@@ -505,24 +489,26 @@ fn the_tail_without_the_lock_destroys_the_named_root_alone() {
     for arm in ["a dotted name", "a directory at writer.lock"] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
-        let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+        let (made_at, roots_dir, root_id, _) = file_root_store(&base.join("data"));
         let wrapped = wrapped_of(&made_at);
         let other = RootId::fresh().unwrap();
         file_root_custody(&roots_dir, TestProtector::new(0x5a).0, other)
             .create_root()
             .unwrap();
-        let store_at = if arm == "a dotted name" {
-            let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
-            std::fs::rename(&made_at, &verbatim).unwrap();
-            verbatim
+        let (answer, roots_now) = if arm == "a dotted name" {
+            let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
+            std::fs::rename(base.join("data"), &verbatim).unwrap();
+            (
+                EncryptedStore::delete_data_dir(&verbatim, crate::store::Layout::DataDirectory),
+                verbatim.join("roots"),
+            )
         } else {
             std::fs::remove_file(made_at.join("writer.lock")).unwrap();
             std::fs::create_dir(made_at.join("writer.lock")).unwrap();
-            made_at.clone()
+            (tail(&made_at, &roots_dir), roots_dir.clone())
         };
-        let answer = tail(&store_at, &roots_dir);
-        let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
-        let other_stays = roots_dir.join(format!("{other}.root")).exists();
+        let destroyed = !unwraps(&roots_now, root_id, &wrapped);
+        let other_stays = roots_now.join(format!("{other}.root")).exists();
         println!(
             "WIN-ST45-H1 arm={arm} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays}",
             report_line(&answer)
@@ -773,5 +759,106 @@ fn a_store_below_a_real_directory_whose_name_ends_in_a_space_is_refused_and_noth
         tail.is_err() && delete_report(&tail).not_followed == 1,
         "{}",
         report_line(&tail)
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn a_root_file_moved_inside_the_held_roots_directory_is_destroyed_where_it_lies() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let wrapped = wrapped_of(&store_dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let parked = roots_dir.join("parked.bin");
+    std::fs::rename(&root_file, &parked).unwrap();
+
+    let answer = store.delete_all();
+    drop(store);
+
+    let line = report_line(&answer);
+    let parked_exists = parked.exists();
+    let parked_bytes_left =
+        matches!(std::fs::read(&parked), Ok(bytes) if bytes.iter().any(|&b| b != 0));
+    let mut unwraps_when_put_back = false;
+    if parked_exists && !root_file.exists() {
+        std::fs::rename(&parked, &root_file).unwrap();
+        unwraps_when_put_back = unwraps(&roots_dir, root_id, &wrapped);
+    }
+    println!(
+        "REVIEW-WIN-01 {line} parked_exists={parked_exists} parked_bytes_left={parked_bytes_left} \
+         unwraps_when_put_back={unwraps_when_put_back}"
+    );
+    assert!(
+        !parked_bytes_left,
+        "the root file moved to another name inside the held roots directory kept its bytes: {line}"
+    );
+    assert!(
+        !unwraps_when_put_back,
+        "the moved root file still unwraps the store key after delete_all: {line}"
+    );
+    let report = delete_report(&answer);
+    assert!(
+        report.root_destroyed(),
+        "the root found by its identity does not read destroyed: {line}"
+    );
+    assert!(
+        answer.is_ok(),
+        "delete_all answered other than Ok after it destroyed the moved root: {line}"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn a_read_only_root_file_moved_inside_the_held_roots_directory_is_destroyed_where_it_lies() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let wrapped = wrapped_of(&store_dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let parked = roots_dir.join("parked.bin");
+    std::fs::rename(&root_file, &parked).unwrap();
+    let mut permissions = std::fs::metadata(&parked).unwrap().permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(&parked, permissions).unwrap();
+
+    let answer = store.delete_all();
+    drop(store);
+
+    let line = report_line(&answer);
+    let parked_exists = parked.exists();
+    let parked_bytes_left =
+        matches!(std::fs::read(&parked), Ok(bytes) if bytes.iter().any(|&b| b != 0));
+    let mut unwraps_when_put_back = false;
+    if parked_exists && !root_file.exists() {
+        std::fs::rename(&parked, &root_file).unwrap();
+        unwraps_when_put_back = unwraps(&roots_dir, root_id, &wrapped);
+    }
+    if root_file.exists() {
+        if let Ok(meta) = std::fs::metadata(&root_file) {
+            let mut writable = meta.permissions();
+            #[expect(
+                clippy::permissions_set_readonly_false,
+                reason = "the test makes its own file removable for the temporary directory's cleanup"
+            )]
+            writable.set_readonly(false);
+            let _ = std::fs::set_permissions(&root_file, writable);
+        }
+    }
+    println!(
+        "REVIEW-WIN-04 {line} parked_exists={parked_exists} parked_bytes_left={parked_bytes_left} \
+         unwraps_when_put_back={unwraps_when_put_back}"
+    );
+    assert!(
+        !parked_bytes_left,
+        "the read-only root file moved inside the held roots directory kept its bytes: {line}"
+    );
+    assert!(
+        !unwraps_when_put_back,
+        "the read-only moved root file still unwraps the store key after delete_all: {line}"
+    );
+    assert!(
+        delete_report(&answer).root_destroyed() && answer.is_ok(),
+        "delete_all did not destroy a read-only root file found by its identity: {line}"
     );
 }
