@@ -157,6 +157,82 @@ ensure_cargo_deny() {
   echo "prerequisites: $version"
 }
 
+shellcheck_pin_file=scripts/r1/ci.d/16-shell-lint.sh
+shellcheck_sums_version=0.11.0
+shellcheck_sha256_darwin_aarch64=56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79
+shellcheck_sha256_darwin_x86_64=3c89db4edcab7cf1c27bff178882e0f6f27f7afdf54e859fa041fca10febe4c6
+
+shellcheck_platform() {
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) echo darwin.aarch64 ;;
+    Darwin-x86_64) echo darwin.x86_64 ;;
+    *) return 1 ;;
+  esac
+}
+
+shellcheck_sha256() {
+  case "$1" in
+    darwin.aarch64) echo "$shellcheck_sha256_darwin_aarch64" ;;
+    darwin.x86_64) echo "$shellcheck_sha256_darwin_x86_64" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_shellcheck() {
+  if ! platform=$(shellcheck_platform); then
+    echo "prerequisites: no prebuilt shellcheck matches $(uname -s) $(uname -m)"
+    return 1
+  fi
+  echo "prerequisites: installing shellcheck $1 into $CARGO_HOME/bin"
+  asset="shellcheck-v$1.$platform.tar.xz"
+  url="https://github.com/koalaman/shellcheck/releases/download/v$1/$asset"
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites-shellcheck.XXXXXX") || return 1
+  failed=
+  if ! curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$url"; then
+    failed="downloading the prebuilt shellcheck from $url"
+  elif ! sum=$(cargo_deny_sha256_of "$tmp/$asset") || [ "$sum" != "$(shellcheck_sha256 "$platform")" ]; then
+    failed="checking the sha256 of the prebuilt shellcheck $asset"
+  elif ! tar -xJf "$tmp/$asset" -C "$tmp"; then
+    failed="unpacking the prebuilt shellcheck $asset"
+  elif ! { mkdir -p "$CARGO_HOME/bin" && cp "$tmp/shellcheck-v$1/shellcheck" "$CARGO_HOME/bin/shellcheck"; }; then
+    failed="copying the prebuilt shellcheck into $CARGO_HOME/bin"
+  fi
+  rm -rf "$tmp"
+  if [ -n "$failed" ]; then
+    echo "prerequisites: $failed failed"
+    return 1
+  fi
+}
+
+ensure_shellcheck() {
+  pin=$(sed -n 's/^pinned_version=//p' "$shellcheck_pin_file") || pin=
+  if [ -z "$pin" ]; then
+    echo "prerequisites: error: $shellcheck_pin_file holds no line pinned_version=, which names the shellcheck version that this script installs on macOS; write it back, then run sh scripts/prerequisites.sh again" >&2
+    return 1
+  fi
+  if [ "$pin" != "$shellcheck_sums_version" ]; then
+    echo "prerequisites: error: $shellcheck_pin_file pins shellcheck $pin, and scripts/prerequisites.sh holds the sha256 of shellcheck $shellcheck_sums_version alone; write $pin in its line shellcheck_sums_version= and the sha256 of shellcheck-v$pin.darwin.aarch64.tar.xz and shellcheck-v$pin.darwin.x86_64.tar.xz, from the release page of shellcheck, in the two lines below it, then run sh scripts/prerequisites.sh again" >&2
+    return 1
+  fi
+  if shellcheck --version 2>/dev/null | grep -q -x -F "version: $pin"; then
+    echo "prerequisites: shellcheck $pin present"
+    return
+  fi
+  install_shellcheck "$pin" || return
+  have=$(shellcheck --version 2>/dev/null | sed -n 's/^version: //p')
+  if [ "$have" != "$pin" ]; then
+    echo "prerequisites: error: after the install shellcheck --version names ${have:-no version}, not $pin; an earlier directory of PATH may hold another shellcheck before $CARGO_HOME/bin" >&2
+    return 1
+  fi
+  echo "prerequisites: shellcheck $have"
+}
+
+ensure_shellcheck_on_macos() {
+  case "$(uname -s)" in
+    Darwin) ensure_shellcheck ;;
+  esac
+}
+
 sha512_of() {
   if command -v sha512sum >/dev/null 2>&1; then
     sha512sum "$1" | cut -d ' ' -f 1
@@ -681,6 +757,157 @@ EOF
   [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
   [ "$(count "cargo install cargo-deny --version $cargo_deny_version --locked" "$case_dir/calls")" = 1 ] || problems="$problems; cargo install did not run once with the pinned version"
   [ "$(cat "$CARGO_HOME/bin/$deny_executable" 2>/dev/null)" = "$deny_built" ] || problems="$problems; bin/$deny_executable is not the one that cargo install wrote"
+  verdict "$name"
+
+  sc_version=$shellcheck_sums_version
+  sc_marker="shellcheck archive $sc_version"
+  sc_url="https://github.com/koalaman/shellcheck/releases/download/v$sc_version/shellcheck-v$sc_version"
+  sc_zero=0000000000000000000000000000000000000000000000000000000000000000
+  mkdir "$work/sc" "$work/sc/shellcheck-v$sc_version"
+  printf '#!/bin/sh\nprintf "ShellCheck - shell script analysis tool\\nversion: %s\\n"\n' "$sc_version" >"$work/sc/shellcheck-v$sc_version/shellcheck"
+  chmod +x "$work/sc/shellcheck-v$sc_version/shellcheck"
+  echo "$sc_marker" >"$work/sc/archive"
+  sc_archive_sum=$(cargo_deny_sha256_of "$work/sc/archive")
+
+  new_shellcheck_case() {
+    new_case "$1"
+    mkdir "$case_dir/tmp"
+    printf 'pinned_version=%s\n' "$sc_version" >"$case_dir/16-shell-lint.sh"
+    echo Darwin >"$case_dir/uname-s"
+    echo arm64 >"$case_dir/uname-m"
+    cat >"$case_dir/stubs/uname" <<EOF
+#!/bin/sh
+case "\$1" in
+  -s) cat '$case_dir/uname-s' ;;
+  *) cat '$case_dir/uname-m' ;;
+esac
+EOF
+    cat >"$case_dir/stubs/tar" <<EOF
+#!/bin/sh
+echo "tar \$*" >>'$case_dir/calls'
+[ "\$1" = -xJf ] && [ "\$(cat "\$2")" = '$sc_marker' ] && [ "\$3" = -C ] || exit 1
+cp -R '$work/sc/shellcheck-v$sc_version' "\$4/"
+EOF
+    cat >"$case_dir/stubs/shellcheck" <<EOF
+#!/bin/sh
+[ -f '$CARGO_HOME/bin/shellcheck' ] || exit 127
+exec '$CARGO_HOME/bin/shellcheck' "\$@"
+EOF
+    cat >"$case_dir/stubs/brew" <<EOF
+#!/bin/sh
+echo "brew \$*" >>'$case_dir/calls'
+exit 1
+EOF
+    chmod +x "$case_dir/stubs/uname" "$case_dir/stubs/tar" "$case_dir/stubs/shellcheck" "$case_dir/stubs/brew"
+    cp "$work/sc/archive" "$case_dir/assets/shellcheck-v$sc_version.darwin.aarch64.tar.xz"
+    cp "$work/sc/archive" "$case_dir/assets/shellcheck-v$sc_version.darwin.x86_64.tar.xz"
+    sc_sum_aarch64=$sc_archive_sum
+    sc_sum_x86_64=$sc_archive_sum
+  }
+
+  run_ensure_shellcheck() {
+    status=0
+    stub_path=$(printenv PATH)
+    (
+      PATH="$case_dir/stubs:$stub_path"
+      TMPDIR="$case_dir/tmp"
+      shellcheck_pin_file=$case_dir/16-shell-lint.sh
+      shellcheck_sha256_darwin_aarch64=$sc_sum_aarch64
+      shellcheck_sha256_darwin_x86_64=$sc_sum_x86_64
+      ensure_shellcheck_on_macos
+    ) >>"$case_dir/output" 2>&1 || status=$?
+    case "$1:$status" in
+      ok:0 | fails:[1-9]*) ;;
+      *) problems="$problems; ensure_shellcheck_on_macos exited $status, wanted $1" ;;
+    esac
+    [ -z "$(ls -A "$case_dir/tmp")" ] || problems="$problems; a temporary directory was left in place"
+    [ "$(count 'brew ' "$case_dir/calls")" = 0 ] || problems="$problems; brew ran"
+  }
+
+  expect_no_shellcheck() {
+    [ ! -e "$CARGO_HOME/bin/shellcheck" ] || problems="$problems; bin/shellcheck exists"
+    [ "$(count "prerequisites: $1 failed" "$case_dir/output")" = 1 ] || problems="$problems; no line says that $1 failed"
+  }
+
+  expect_the_archive_binary() {
+    cmp -s "$work/sc/shellcheck-v$sc_version/shellcheck" "$CARGO_HOME/bin/shellcheck" || problems="$problems; bin/shellcheck is not the binary of the archive"
+  }
+
+  name='on macOS a cargo home with no shellcheck gets the prebuilt shellcheck of the pinned version whose sha256 is the pinned one, and a second run finds it and installs nothing'
+  new_shellcheck_case sc-prebuilt
+  run_ensure_shellcheck ok
+  run_ensure_shellcheck ok
+  expect_the_archive_binary
+  [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the download ran $(count 'curl ' "$case_dir/calls") times, not once"
+  [ "$(count "curl $sc_url.darwin.aarch64.tar.xz" "$case_dir/calls")" = 1 ] || problems="$problems; the download did not ask for the darwin.aarch64 archive of the pin"
+  [ "$(count 'tar ' "$case_dir/calls")" = 1 ] || problems="$problems; tar ran $(count 'tar ' "$case_dir/calls") times, not once"
+  [ "$(count "prerequisites: installing shellcheck $sc_version into $CARGO_HOME/bin" "$case_dir/output")" = 1 ] || problems="$problems; no line names the install"
+  [ "$(count "prerequisites: shellcheck $sc_version present" "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report the tool present"
+  [ "$(count ' failed' "$case_dir/output")" = 0 ] || problems="$problems; a line reports a failure"
+  verdict "$name"
+
+  name='on an Intel Mac the prebuilt shellcheck of darwin.x86_64 is installed against its own pinned sha256'
+  new_shellcheck_case sc-intel
+  echo x86_64 >"$case_dir/uname-m"
+  sc_sum_aarch64=$sc_zero
+  run_ensure_shellcheck ok
+  expect_the_archive_binary
+  [ "$(count "curl $sc_url.darwin.x86_64.tar.xz" "$case_dir/calls")" = 1 ] || problems="$problems; the download did not ask for the darwin.x86_64 archive of the pin"
+  [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the download ran $(count 'curl ' "$case_dir/calls") times, not once"
+  verdict "$name"
+
+  name='an archive of shellcheck whose sha256 is not the pinned one is never unpacked or copied, and the script fails'
+  new_shellcheck_case sc-checksum
+  sc_sum_aarch64=$sc_zero
+  sc_sum_x86_64=$sc_zero
+  run_ensure_shellcheck fails
+  expect_no_shellcheck "checking the sha256 of the prebuilt shellcheck shellcheck-v$sc_version.darwin.aarch64.tar.xz"
+  [ "$(count 'tar ' "$case_dir/calls")" = 0 ] || problems="$problems; tar ran"
+  verdict "$name"
+
+  name='a failed download of the prebuilt shellcheck fails the script, which installs nothing'
+  new_shellcheck_case sc-download
+  mv "$case_dir/assets/shellcheck-v$sc_version.darwin.aarch64.tar.xz" "$case_dir/assets/absent"
+  run_ensure_shellcheck fails
+  expect_no_shellcheck "downloading the prebuilt shellcheck from $sc_url.darwin.aarch64.tar.xz"
+  verdict "$name"
+
+  name='an archive of shellcheck that cannot be unpacked fails the script, which installs nothing'
+  new_shellcheck_case sc-unpack
+  echo 'not an archive' >"$case_dir/assets/shellcheck-v$sc_version.darwin.aarch64.tar.xz"
+  sc_sum_aarch64=$(cargo_deny_sha256_of "$case_dir/assets/shellcheck-v$sc_version.darwin.aarch64.tar.xz")
+  run_ensure_shellcheck fails
+  expect_no_shellcheck "unpacking the prebuilt shellcheck shellcheck-v$sc_version.darwin.aarch64.tar.xz"
+  verdict "$name"
+
+  name='a shellcheck of another version in the cargo home is replaced by the pinned one'
+  new_shellcheck_case sc-other-version
+  mkdir "$CARGO_HOME/bin"
+  printf '#!/bin/sh\nprintf "ShellCheck - shell script analysis tool\\nversion: 0.10.0\\n"\n' >"$CARGO_HOME/bin/shellcheck"
+  chmod +x "$CARGO_HOME/bin/shellcheck"
+  run_ensure_shellcheck ok
+  expect_the_archive_binary
+  [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the download ran $(count 'curl ' "$case_dir/calls") times, not once"
+  [ "$(tail -n 1 "$case_dir/output")" = "prerequisites: shellcheck $sc_version" ] || problems="$problems; the last line does not give the installed version"
+  verdict "$name"
+
+  name='a pin of shellcheck for which the script holds no sha256 stops the script with the fix, and nothing is downloaded'
+  new_shellcheck_case sc-no-sums
+  printf 'pinned_version=%s.1\n' "$sc_version" >"$case_dir/16-shell-lint.sh"
+  run_ensure_shellcheck fails
+  [ "$(count "pins shellcheck $sc_version.1, and scripts/prerequisites.sh holds the sha256 of shellcheck $sc_version alone; write $sc_version.1 in its line shellcheck_sums_version=" "$case_dir/output")" = 1 ] || problems="$problems; no line names the missing sums and the fix"
+  [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
+  [ ! -e "$CARGO_HOME/bin/shellcheck" ] || problems="$problems; bin/shellcheck exists"
+  verdict "$name"
+
+  name='under Git Bash on Windows the step of shellcheck runs no command and prints nothing'
+  new_shellcheck_case sc-windows
+  echo MINGW64_NT-10.0-26100 >"$case_dir/uname-s"
+  echo x86_64 >"$case_dir/uname-m"
+  run_ensure_shellcheck ok
+  [ ! -s "$case_dir/output" ] || problems="$problems; the step printed $(wc -l <"$case_dir/output" | tr -d ' ') lines"
+  [ ! -s "$case_dir/calls" ] || problems="$problems; a command ran: $(tr '\n' ';' <"$case_dir/calls")"
+  [ ! -e "$CARGO_HOME/bin/shellcheck" ] || problems="$problems; bin/shellcheck exists"
   verdict "$name"
 
   integrity_of() {
@@ -1577,6 +1804,7 @@ npm ci --no-audit --no-fund
 
 ensure_cargo_release
 ensure_cargo_deny
+ensure_shellcheck_on_macos
 cargo fetch --locked --manifest-path account/Cargo.toml
 ensure_backend "$HOME/.local"
 

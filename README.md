@@ -16,8 +16,10 @@ One command, run from the repository root. It installs only as the current user,
 no sudo, and is safe to run twice. It installs rustup and the Rust toolchain pinned in
 `rust-toolchain.toml` into `~/.rustup` and `~/.cargo`, the Tauri CLI into
 `node_modules/` with `npm ci`, and cargo-release into `~/.cargo/bin` from a prebuilt
-binary (or with `cargo install` when no prebuilt binary matches the platform). It
-also sets `core.hooksPath` to `.githooks` in this clone, so git runs two hooks. The
+binary (or with `cargo install` when no prebuilt binary matches the platform). On
+macOS it also installs shellcheck, at the version that `scripts/r1/ci.d/16-shell-lint.sh`
+pins, into `~/.cargo/bin` from the release archive of shellcheck, whose sha256 the
+script holds; on Windows it installs no shellcheck. It also sets `core.hooksPath` to `.githooks` in this clone, so git runs two hooks. The
 commit-msg hook rejects an attribution line in a commit message before the commit is
 made, and the pre-push hook refuses a push that would add a commit with such a line.
 If another git setting overrides the path, the command names that setting and stops.

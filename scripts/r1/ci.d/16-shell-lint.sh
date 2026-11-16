@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos
 # rule: shellcheck at its pinned version reports nothing for a tracked *.sh file, and no masked return status under scripts/r1-gate, scripts/ci and scripts/r1/ci.d.
+# lane: free
 set -u
 name=16-shell-lint
 pinned_version=0.11.0
@@ -11,15 +12,14 @@ fail() {
 }
 
 have_shellcheck() {
-  if ! command -v shellcheck >/dev/null 2>&1 && [ "${CI:-}" = true ]; then
-    HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install shellcheck >"$CI_D_ARTIFACTS/brew-install.txt" 2>&1
-  fi
   command -v shellcheck >/dev/null 2>&1
 }
 
 measure() {
   cd "$CI_D_REPO" || exit 2
   if ! have_shellcheck; then
+    [ "${CI:-}" != true ] ||
+      fail "shellcheck is not installed, and in CI the step Prerequisites installs it: sh scripts/prerequisites.sh installs the version of the pinned_version line of scripts/r1/ci.d/16-shell-lint.sh, checked against the sha256 that scripts/prerequisites.sh holds for it"
     printf 'SKIP %s (shellcheck is not installed)\n' "$name"
     exit 77
   fi
@@ -101,6 +101,7 @@ self_test() {
   export STUB_REAL STUB_TOOLS
   cat >"$work/tools/brew" <<'EOF'
 #!/bin/sh
+printf '%s\n' "$*" >>"$STUB_TOOLS/brew-calls"
 [ "$*" = 'install shellcheck' ] || exit 1
 printf '#!/bin/sh\nexec "%s" "$@"\n' "$STUB_REAL" >"$STUB_TOOLS/shellcheck"
 chmod +x "$STUB_TOOLS/shellcheck"
@@ -146,7 +147,8 @@ EOF
   tree shellcheck-installed-in-ci scripts/ci/clean.sh
   path=$work/tools:/usr/bin:/bin
   ci=true
-  check shellcheck-installed-in-ci PASS 'tracked *.sh files: 1, of them in the second pass: 1'
+  check shellcheck-installed-in-ci FAIL 'sh scripts/prerequisites.sh installs the version of the pinned_version line of scripts/r1/ci.d/16-shell-lint.sh'
+  [ ! -e "$work/tools/brew-calls" ] || wrong="$wrong shellcheck-installed-in-ci(brew was called)"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
