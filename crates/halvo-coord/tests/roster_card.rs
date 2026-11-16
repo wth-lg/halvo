@@ -8,7 +8,8 @@ use halvo_coord::types::{
     PastEffect, PastRun, Reply, RunHistory, RunId, Workflow, WorkflowId,
 };
 use halvo_coord::types::{
-    Answered, ApprovalId, DecisionEntry, EffectAnswer, ItemId, LapseCause, Lapsed, Raised, What,
+    Answered, ApprovalId, DecisionEntry, EffectAnswer, ItemId, LapseCause, Lapsed, Raised, RunEnd,
+    What,
 };
 use serde_json::Value;
 
@@ -615,4 +616,28 @@ fn rd85_each_class_has_its_not_done_and_refused_entry_with_its_first_kept_field_
         [Vec::<String>::new()],
         "a field that cannot be read"
     );
+}
+
+#[test]
+fn rd48c_the_coordinators_own_row_decides_the_line_only_for_an_end_that_the_coordinator_gives() {
+    for (own, store, want) in [
+        (RunEnd::Completed, Outcome::Failed, "line.run.failed"),
+        (RunEnd::Failed, Outcome::Completed, "line.run.completed"),
+        (RunEnd::Lapsed, Outcome::Completed, "line.run.lapsed"),
+        (RunEnd::Cancelled, Outcome::Failed, "line.run.cancelled"),
+        (RunEnd::Interrupted, Outcome::Failed, "line.run.interrupted"),
+    ] {
+        let mut f = facts(State::Card).remove(0);
+        row(
+            &mut f,
+            What::RunEnded {
+                run: run_of(2),
+                cause: own,
+            },
+        );
+        let mut h = history(2, store);
+        h.effects = vec![];
+        let c = card(&f, "N", &[h], &Limits::PRODUCT).unwrap();
+        assert_eq!(c.runs[0].text, line(want), "{own:?} {store:?}");
+    }
 }

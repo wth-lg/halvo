@@ -45,12 +45,14 @@ fn link(run: &RunId, origin: &str) -> RunEvent {
     })
 }
 
-const DECLINED: [&str; 5] = [
+const DECLINED: [&str; 7] = [
     "http://pay.site1.example:80",
     "http://127.example.com:80",
     "http://127.0.0.1.example.com:80",
     "http://localhost:8080",
     "http://10.0.0.1:80",
+    "http://127.a.b.c:80",
+    "http://128.0.0.1:80",
 ];
 
 #[test]
