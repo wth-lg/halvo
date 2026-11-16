@@ -9,6 +9,7 @@ publish = false
 rusqlite = { version = "0.41", features = ["sqlcipher"] }
 
 [dev-dependencies]
+halvo-test-dir = { path = "../halvo-test-dir" }
 memchr = "2"
 
 [build-dependencies]

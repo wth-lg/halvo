@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 use rusqlite::{params, Connection};
@@ -90,19 +89,17 @@ struct Scratch(PathBuf);
 
 impl Scratch {
     fn new(seed: u64, mode: Mode) -> Self {
-        static NEXT: AtomicU32 = AtomicU32::new(0);
         let target = std::env::current_exe()
             .unwrap()
             .ancestors()
             .nth(3)
             .unwrap()
             .to_path_buf();
-        let dir = target.join("tmp").join(format!(
-            "halvo-sqlcipher-page-gap-{}-{}-{seed}-{mode:?}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = halvo_test_dir::make(
+            &target.join("tmp"),
+            &format!("halvo-sqlcipher-page-gap-{seed}-{mode:?}"),
+        )
+        .unwrap();
         Scratch(dir)
     }
 
