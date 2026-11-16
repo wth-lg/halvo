@@ -8,6 +8,7 @@ publish = false
 [features]
 secure-enclave = []
 r2 = []
+stall-seam = []
 test-seam = []
 
 [dependencies]
@@ -81,7 +82,7 @@ windows-sys = { version = "0.61", features = [
 ] }
 
 [dev-dependencies]
-halvo-capture = { path = ".", features = ["test-seam"] }
+halvo-capture = { path = ".", features = ["stall-seam", "test-seam"] }
 proc-macro2 = { version = "1.0.107", default-features = false }
 proptest = "1"
 tempfile = "3"
