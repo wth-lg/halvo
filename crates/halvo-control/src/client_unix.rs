@@ -955,4 +955,36 @@ mod tests {
         }
         assert_eq!(rows, 13);
     }
+
+    #[test]
+    fn ct15_ctl_reads_a_data_folder_whose_name_is_longer_than_255_bytes_as_cannot_be_read() {
+        let (_root, short) = short_data_dir();
+        let long = short.path().parent().unwrap().join("x".repeat(256));
+        for path in [long.clone(), long.join("halvo")] {
+            let dir = DataDir::from_flag(path).unwrap();
+            for connector in [
+                UnixConnector::at(&dir),
+                UnixConnector::for_data_dir(&dir, &crate::paths::SystemAccount).unwrap(),
+            ] {
+                let mut deadlines = Deadlines::V1;
+                deadlines.read = Duration::from_millis(300);
+                let answer = Client::with_deadlines(connector, deadlines).status();
+                let printed = crate::ctl_text::print(
+                    &crate::ctl_text::Verb::Status { indicator: false },
+                    answer.map(crate::proto::Reply::Status),
+                    &dir,
+                );
+                assert_eq!(
+                    (printed.stderr, printed.status),
+                    (
+                        format!(
+                            "halvo-capture: the data directory or a folder on its path cannot be read: {}\n",
+                            dir.path().display()
+                        ),
+                        1
+                    )
+                );
+            }
+        }
+    }
 }

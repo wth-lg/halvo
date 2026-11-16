@@ -49,11 +49,16 @@ pub enum EntryAtDataDir {
 /// The cause at `dir`. A read that follows links comes first; only when it fails is the name read
 /// without following, and when nothing stands there the nearest name above it is read the same
 /// way. A directory there is no cause; a link whose target may not be reached for permission
-/// cannot be read, and any other link that the read cannot follow leads nowhere.
+/// cannot be read, and any other link that the read cannot follow leads nowhere. A path that the
+/// system refuses as a name, such as one with a part longer than 255 bytes, cannot be read
+/// (ruling CT-15).
 pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
     let followed = match std::fs::metadata(dir) {
         Ok(target) if target.is_dir() => return None,
         Ok(_) => return Some(EntryAtDataDir::NotADirectory),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidFilename => {
+            return Some(EntryAtDataDir::CannotBeRead)
+        }
         Err(e) => e,
     };
     let Ok(named) = std::fs::symlink_metadata(dir) else {
@@ -1734,6 +1739,19 @@ mod tests {
             std::fs::write(&file, b"x").unwrap();
             caused(&file.join("halvo"), EntryAtDataDir::NotADirectory);
             caused(&file.join("a").join("halvo"), EntryAtDataDir::NotADirectory);
+        }
+
+        #[test]
+        fn ct15_a_name_longer_than_255_bytes_reads_cannot_be_read_from_the_four_and_255_bytes_do_not(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let long = root.path().join("x".repeat(256));
+            caused(&long, EntryAtDataDir::CannotBeRead);
+            caused(&long.join("halvo"), EntryAtDataDir::CannotBeRead);
+            let longest = DataDir::from_flag(root.path().join("x".repeat(255))).unwrap();
+            assert_eq!(longest.is_provisioned(), Ok(false));
+            assert_eq!(check_data_dir(&longest, None), Ok(DataDirCheck::Missing));
+            assert_eq!(read(&longest).unwrap(), LockRead::NoDirectory);
         }
 
         fn mode(path: &Path) -> u32 {
