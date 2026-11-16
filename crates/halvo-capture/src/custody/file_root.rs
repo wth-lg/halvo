@@ -333,13 +333,7 @@ pub(crate) fn destroy_roots_through(
             }),
         };
         if !witness {
-            return (
-                unread_reading,
-                RootsLeft {
-                    at_its_path: at_its_path(),
-                    ..RootsLeft::none_counted(true)
-                },
-            );
+            return (unread_reading, roots_that_stand(&entries, at_its_path()));
         }
         if form == RootStepForm::NamedAlone {
             found.retain(|(file, _)| {
@@ -394,39 +388,42 @@ pub(crate) fn destroy_roots_through(
     let _ = dir.sync();
     match dir.entries() {
         Ok(entries) => {
-            let mut stays: Vec<(RootId, String)> = entries
-                .iter()
-                .filter_map(|entry| {
-                    RootFile::named_in_any_case(&entry.name)
-                        .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
-                })
-                .collect();
-            stays.sort_by(|a, b| a.1.cmp(&b.1));
+            let stands = roots_that_stand(&entries, at_its_path());
             let reading = match named_id {
                 None => RootReading::Unnamed,
                 Some(named)
                     if own_root_file_removed
                         && every_named_entry_destroyed
-                        && !stays.iter().any(|(id, _)| *id == named) =>
+                        && !stands.left.contains(&named) =>
                 {
                     RootReading::Destroyed
                 }
                 Some(named) => RootReading::Left(Some(named)),
             };
-            let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
-            left.dedup();
-            let names = stays.into_iter().map(|(_, name)| name).collect();
-            (
-                reading,
-                RootsLeft {
-                    left,
-                    names,
-                    listed: true,
-                    at_its_path: at_its_path(),
-                },
-            )
+            (reading, stands)
         }
         Err(_) => unread(),
+    }
+}
+
+/// The root files and partial root files of a listing, by their names as
+/// they stand, sorted by name.
+fn roots_that_stand(entries: &[durable::Entry], at_its_path: bool) -> RootsLeft {
+    let mut stays: Vec<(RootId, String)> = entries
+        .iter()
+        .filter_map(|entry| {
+            RootFile::named_in_any_case(&entry.name)
+                .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
+        })
+        .collect();
+    stays.sort_by(|a, b| a.1.cmp(&b.1));
+    let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
+    left.dedup();
+    RootsLeft {
+        left,
+        names: stays.into_iter().map(|(_, name)| name).collect(),
+        listed: true,
+        at_its_path,
     }
 }
 
@@ -661,13 +658,19 @@ pub(crate) fn root_file_may_be_present(roots: &Path, root_id: RootId) -> bool {
 }
 
 pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), CustodyError> {
+    destroy_named_root_at(roots, NamedRoot::by_id(root_id))
+}
+
+/// [`destroy_root_through`] on the roots directory at `roots`, opened here;
+/// Ok when nothing stands there.
+pub(crate) fn destroy_named_root_at(roots: &Path, root: NamedRoot) -> Result<(), CustodyError> {
     let dir = match Dir::open(roots) {
         Ok(dir) => dir,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
         Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
         Err(e) => return Err(root_io(e)),
     };
-    destroy_root_through(&dir, NamedRoot::by_id(root_id))
+    destroy_root_through(&dir, root)
 }
 
 /// The destruction of one root through `dir`, for a cleanup and for the

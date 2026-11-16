@@ -9172,7 +9172,7 @@ fn a_create_answers_locked_before_it_clears_a_pending_create() {
     )
     .unwrap();
     std::fs::copy(&pending_file, store_dir.join("create.pending")).unwrap();
-    std::fs::copy(
+    std::fs::rename(
         &pending_root_file,
         roots_dir.join(format!("{pending_root}.root")),
     )
@@ -9294,7 +9294,7 @@ fn refused_open_case<G>(
     )
     .unwrap();
     if !pending_names_the_store_root {
-        std::fs::copy(
+        std::fs::rename(
             killed
                 .path()
                 .join("roots")
@@ -9629,7 +9629,7 @@ fn open_after_a_stopped_create(pending_names_the_store_root: bool) -> OpenAfterA
     )
     .unwrap();
     if !pending_names_the_store_root {
-        std::fs::copy(
+        std::fs::rename(
             killed
                 .path()
                 .join("roots")
@@ -9694,7 +9694,7 @@ fn an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_cle
     )
     .unwrap();
     let pending_root_file = roots_dir.join(format!("{pending_root}.root"));
-    std::fs::copy(
+    std::fs::rename(
         killed
             .path()
             .join("roots")

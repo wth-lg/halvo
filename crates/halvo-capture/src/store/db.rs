@@ -1020,8 +1020,10 @@ fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
 
 /// Whether the root that a pending mark names was made: `Owed` is written
 /// before the root step, `Made` after the custody's create_root answered Ok
-/// and before the key file is published. A mark without the reading, or one
-/// that does not parse, reads `Owed`.
+/// and the wrap read the root file through the held roots directory, before
+/// the key file is published. A mark without the reading, one that does not
+/// parse, and one that reads made without the identity of its root file read
+/// `Owed`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum PendingReading {
@@ -1037,17 +1039,36 @@ struct Pending {
     root_id: RootId,
     #[serde(default)]
     reading: PendingReading,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    root_file: Option<FileIdentity>,
+}
+
+impl Pending {
+    /// The root that this mark names: one that reads made with the identity
+    /// of its root file, which a cleanup destroys alone; every other mark
+    /// names none.
+    fn made_root(&self) -> Option<NamedRoot> {
+        match (self.reading, self.root_file) {
+            (PendingReading::Made, Some(file)) => Some(NamedRoot {
+                id: self.root_id,
+                file: Some(file),
+            }),
+            _ => None,
+        }
+    }
 }
 
 fn write_pending(
     store_dir: &Dir,
     custody: &dyn KeyCustody,
     reading: PendingReading,
+    root_file: Option<FileIdentity>,
 ) -> StoreResult<()> {
     let json = serde_json::to_vec(&Pending {
         custody_kind: custody.kind(),
         root_id: custody.root_id(),
         reading,
+        root_file,
     })
     .map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
     durable::write_durably(
@@ -1081,11 +1102,12 @@ fn remove_pending(store_dir: &Dir) -> StoreResult<()> {
 }
 
 /// Where a cleanup of a stopped create reaches the roots: the directory that
-/// the store holds, or, before a create took its handle, the path.
+/// the store holds, with the identity of the store's own root file, which no
+/// cleanup destroys, or, before a create took its handle, the path.
 #[derive(Clone, Copy)]
 enum CleanupRoots<'a> {
     Path(&'a Path),
-    Held(&'a RootsHandle),
+    Held(&'a RootsHandle, FileIdentity),
 }
 
 fn clear_pending(store_dir: &Dir, roots: CleanupRoots<'_>, keyed: KeyNames) -> StoreResult<()> {
@@ -1094,13 +1116,12 @@ fn clear_pending(store_dir: &Dir, roots: CleanupRoots<'_>, keyed: KeyNames) -> S
     if !present || keyed == KeyNames::Unknown {
         return Ok(());
     }
-    if let Some(pending) = read_pending(store_dir).filter(|p| p.reading == PendingReading::Made) {
-        if keyed != KeyNames::Root(pending.root_id) {
+    if let Some(made) = read_pending(store_dir).and_then(|p| p.made_root()) {
+        if keyed != KeyNames::Root(made.id) {
             match roots {
-                CleanupRoots::Path(roots) => file_root::destroy_root_at(roots, pending.root_id)?,
-                CleanupRoots::Held(held) => {
-                    file_root::destroy_root_through(&held.dir, NamedRoot::by_id(pending.root_id))?
-                }
+                CleanupRoots::Path(roots) => file_root::destroy_named_root_at(roots, made)?,
+                CleanupRoots::Held(_, own) if made.file == Some(own) => {}
+                CleanupRoots::Held(held, _) => file_root::destroy_root_through(&held.dir, made)?,
             }
         }
     }
@@ -1933,7 +1954,7 @@ impl EncryptedStore {
         failpoint::seam(SEAM_BEFORE_THE_DATABASE_STEP);
         Db::destroy_in(dir)?;
         let _ = segment::remove_segments_tree(dir);
-        write_pending(dir, custody.as_ref(), PendingReading::Owed)?;
+        write_pending(dir, custody.as_ref(), PendingReading::Owed, None)?;
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
@@ -1956,7 +1977,12 @@ impl EncryptedStore {
             RootKeeping::Held { roots: held, .. } => Some((held, roots.named(custody.root_id()))),
             RootKeeping::NoRootFile => None,
         };
-        if let Err(e) = write_pending(dir, custody.as_ref(), PendingReading::Made) {
+        if let Err(e) = write_pending(
+            dir,
+            custody.as_ref(),
+            PendingReading::Made,
+            own_root.and_then(|(_, root)| root.file),
+        ) {
             drop(db);
             return Err(Self::abandon_create(
                 dir,
@@ -2148,7 +2174,10 @@ impl EncryptedStore {
         let unwrap_time = started.elapsed();
         let db = Db::open_existing(&store, store_key.expose())?;
         let cleanup_roots = match &kept {
-            RootKeeping::Held { roots: held, .. } => CleanupRoots::Held(held),
+            RootKeeping::Held {
+                roots: held,
+                root_file,
+            } => CleanupRoots::Held(held, *root_file),
             RootKeeping::NoRootFile => CleanupRoots::Path(roots),
         };
         let pending_left =
@@ -2502,8 +2531,9 @@ impl EncryptedStore {
     }
 }
 
-/// The root step of the tail in `form`: the root that the key file names, or
-/// that a made pending mark names when no key file stands. The sweep runs
+/// The root step of the tail in `form`: the root that the key file names, by
+/// its name, or that a made pending mark names when no key file stands, by
+/// the identity of its root file that the mark records. The sweep runs
 /// also beside a key file that this build does not handle, whose root then
 /// reads left on this call (ruling ST-45 H1).
 fn tail_root_step(
@@ -2513,12 +2543,10 @@ fn tail_root_step(
     form: RootStepForm,
 ) -> (RootReading, RootsLeft, Option<RootId>) {
     let (named, root_not_handled) = match place.what_it_names() {
-        KeyFileNames::Destroys(root_id) => (Some(root_id), None),
+        KeyFileNames::Destroys(root_id) => (Some(NamedRoot::by_id(root_id)), None),
         KeyFileNames::NotHandled(root_id) => (None, Some(root_id)),
         KeyFileNames::Nothing => (
-            read_pending(store)
-                .filter(|pending| pending.reading == PendingReading::Made)
-                .map(|pending| pending.root_id),
+            read_pending(store).and_then(|pending| pending.made_root()),
             None,
         ),
     };
@@ -2531,7 +2559,7 @@ fn tail_root_step(
             RootReading::Left(Some(root_id)),
             RootsLeft::none_counted(false),
         ),
-        None => file_root::destroy_roots_in(roots, named.map(NamedRoot::by_id), form),
+        None => file_root::destroy_roots_in(roots, named, form),
     };
     (reading, roots, root_not_handled)
 }
