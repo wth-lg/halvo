@@ -142,7 +142,7 @@ fn adv1_delete_after(what: Adv1Move, tail: bool) -> (bool, String) {
             println!("ADV1 {what:?} tail={tail} write_after_the_delete={write_after}");
             answer
         }
-        None => EncryptedStore::delete_store_dir(&store_dir, &roots_dir),
+        None => super::tail(&store_dir, &roots_dir),
     };
     let line = adv1_report_line(&answer);
     let unwraps = adv1_unwraps(&roots_now, root_id, &wrapped);
@@ -403,7 +403,7 @@ fn the_tail_with_the_roots_inside_a_moved_store_directory_answers_ok_only_when_t
     let roots = store_dir.join("roots");
     let moved = dir.path().join("moved-away");
     std::fs::rename(&store_dir, &moved).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots);
+    let answer = tail(&store_dir, &roots);
     let line = adv1_report_line(&answer);
     let unwraps = adv1_dev_fallback_unwraps(&moved.join("roots"), root_id, &wrapped);
     let reads = match EncryptedStore::open(&moved, &moved.join("roots"), DEFAULT_RETENTION) {
@@ -434,7 +434,7 @@ fn the_tail_on_a_store_directory_of_mode_000_destroys_the_root_or_reports_it() {
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, segment) = file_root_store(dir.path());
     set_mode(&store_dir, 0o000);
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     set_mode(&store_dir, 0o700);
     let text = match &answer {
         Ok(_) | Err(StoreError::DeleteIncomplete(_)) => adv1_report_line(&answer),
@@ -705,8 +705,8 @@ fn a_second_tail_on_a_key_file_of_version_1_does_not_answer_ok_for_a_root_that_n
         ),
     )
     .unwrap();
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     println!(
         "ADV1 version-1 first {} root_not_handled_is_named={}",
         adv1_report_line(&first),
@@ -738,7 +738,7 @@ fn the_tail_destroys_a_root_file_whose_name_stands_in_upper_case_on_a_volume_tha
     let upper = roots_dir.join(format!("{root_id}.root").to_uppercase());
     std::fs::rename(&lower, &upper).unwrap();
     let folds = lower.exists();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let line = adv1_report_line(&answer);
     let unwraps = adv1_unwraps(&roots_dir, root_id, &wrapped);
     println!("ADV1 upper-case volume_folds_case={folds} {line}");
@@ -1006,7 +1006,7 @@ fn the_tail_answers_ok_while_a_partial_root_and_a_store_key_temp_stay() {
     std::fs::copy(store_dir.join("store.key"), &temp).unwrap();
     adv3_set_immutable(&partial, true);
     adv3_set_immutable(&temp, true);
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     adv3_set_immutable(&partial, false);
     adv3_set_immutable(&temp, false);
     println!(
@@ -1317,8 +1317,8 @@ fn the_second_tail_after_the_roots_directory_moved_does_not_read_the_root_as_des
     let wrapped = adv1_wrapped(&store_dir);
     let moved = dir.path().join("roots-moved");
     std::fs::rename(&roots_dir, &moved).unwrap();
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     let unwraps = adv1_unwraps(&moved, root_id, &wrapped);
     println!("CL-TAIL-TWICE first {}", adv1_report_line(&first));
     println!("CL-TAIL-TWICE second {}", adv1_report_line(&second));
@@ -1341,8 +1341,8 @@ fn a_second_tail_on_a_key_file_of_version_3_does_not_read_its_root_as_destroyed(
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     edit_key_file(&store_dir, |v| v["version"] = 3.into());
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     println!(
         "CL-V3 first {} root_not_handled_is_named={}",
         adv1_report_line(&first),
@@ -1380,8 +1380,8 @@ fn the_tail_after_a_delete_stopped_after_its_root_step_answers_not_found_then_un
         store_dir.join("store.key").exists(),
         "the stopped delete left no key file"
     );
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     println!("CL-STOPPED first {}", adv1_report_line(&first));
     println!("CL-STOPPED second {}", adv1_report_line(&second));
     assert!(
@@ -1403,7 +1403,7 @@ fn the_tail_on_a_key_file_of_a_custody_with_no_root_file_names_the_root_as_not_h
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     edit_key_file(&store_dir, |v| v["custody_kind"] = "secure_enclave".into());
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let report = delete_report(&answer);
     println!(
         "CL-NO-ROOT-FILE {} root_not_handled_is_named={}",

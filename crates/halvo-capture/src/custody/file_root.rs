@@ -223,12 +223,17 @@ pub(crate) enum RootStepForm {
     Sweep,
 }
 
-/// The root step through the roots location at `roots`, opened here, for a
-/// tail that holds no roots handle: the step of [`destroy_roots_through`]
-/// on that directory. A roots path that stands and cannot be opened or listed
-/// reads not listed; in the sweep nothing at the path reads listed and empty.
-pub(crate) fn destroy_roots_in(
-    roots: &Path,
+/// The name of the roots directory in the directory that holds it: a data
+/// directory, or a scratch run's store directory (C3.5, C4 item 9).
+pub(crate) const ROOTS_DIR_NAME: &str = "roots";
+
+/// The root step of a tail on the roots directory of `parent`, opened from
+/// that handle by its fixed name and never followed: the step of
+/// [`destroy_roots_through`] on that directory. A link or an entry of another
+/// kind at the name, or a directory that cannot be opened or listed, reads
+/// not listed; in the sweep nothing at the name reads listed and empty.
+pub(crate) fn destroy_roots_below(
+    parent: &Dir,
     named: Option<NamedRoot>,
     form: RootStepForm,
 ) -> (RootReading, RootsLeft) {
@@ -236,17 +241,12 @@ pub(crate) fn destroy_roots_in(
     if named.is_none() && form != RootStepForm::Sweep {
         return (RootReading::Unnamed, RootsLeft::none_counted(false));
     }
-    let unread = (unread_reading, RootsLeft::none_counted(false));
-    #[cfg(windows)]
-    if durable::has_a_part_that_windows_trims(roots) {
-        return unread;
-    }
-    match Dir::open(roots) {
+    match parent.open_dir(OsStr::new(ROOTS_DIR_NAME)) {
         Ok(dir) => destroy_roots_through(&dir, named, form),
         Err(e) if e.kind() == ErrorKind::NotFound && form == RootStepForm::Sweep => {
             (unread_reading, RootsLeft::none_counted(named.is_none()))
         }
-        Err(_) => unread,
+        Err(_) => (unread_reading, RootsLeft::none_counted(false)),
     }
 }
 

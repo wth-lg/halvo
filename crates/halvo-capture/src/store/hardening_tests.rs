@@ -6307,6 +6307,22 @@ fn windows_open_refuses_a_file_link_or_a_junction_at_each_database_name() {
     }
 }
 
+/// The tail on the closed layout that `store_dir` and `roots` spell: the
+/// data directory when they are `<dir>/store` and `<dir>/roots`, the scratch
+/// store when `roots` is `<store_dir>/roots`; any other pair is no layout of
+/// the tail.
+fn tail(store_dir: &Path, roots: &Path) -> StoreResult<super::DeleteReport> {
+    if roots == store_dir.join("roots") {
+        return EncryptedStore::delete_data_dir(store_dir, super::Layout::ScratchStore);
+    }
+    let data_dir = store_dir
+        .parent()
+        .filter(|_| store_dir.file_name() == Some(std::ffi::OsStr::new("store")))
+        .filter(|dir| dir.join("roots") == roots)
+        .expect("the store path and the roots path spell no closed layout of the tail");
+    EncryptedStore::delete_data_dir(data_dir, super::Layout::DataDirectory)
+}
+
 fn delete_report(answer: &StoreResult<super::DeleteReport>) -> super::DeleteReport {
     match answer {
         Ok(report) => report.clone(),
@@ -6441,7 +6457,7 @@ fn the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_f
     std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
     let behind_before = files_with_bytes(&behind);
 
-    let answer = EncryptedStore::delete_store_dir(&data.join("store"), &roots_dir);
+    let answer = tail(&data.join("store"), &roots_dir);
     let report = delete_report(&answer);
 
     assert_eq!(
@@ -7259,7 +7275,7 @@ fn delete_all_with_a_blocked_shard_destroys_the_root_and_the_key_file_and_the_ta
     );
     assert!(store.write_segment(&mut Cursor::new(b"x")).is_err());
     drop(store);
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     assert!(tail.is_ok(), "{tail:?}");
     assert!(!segment_path(&store_dir, segment_id).exists());
 }
@@ -7361,7 +7377,7 @@ fn a_root_file_of_mode_000_is_root_denied_and_the_tail_removes_the_files_and_nam
     set_mode(&roots.root_path(root_id), 0o000);
     let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
     set_mode(&roots_dir, 0o500);
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     set_mode(&roots_dir, 0o700);
     let report = delete_report(&tail);
     assert_eq!(opened, "Custody(RootDenied)");
@@ -7379,7 +7395,7 @@ fn the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_i
     let (store_dir, roots_dir, _, segment_id) = file_root_store(dir.path());
     let len = std::fs::metadata(KeyFile::path(&store_dir)).unwrap().len() as usize;
     std::fs::write(KeyFile::path(&store_dir), vec![0u8; len]).unwrap();
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     assert!(tail.is_ok(), "{tail:?}");
     assert_eq!(delete_report(&tail).root, super::RootReading::Unnamed);
     assert_eq!(store_files_in(&store_dir), Vec::<String>::new());
@@ -7411,7 +7427,7 @@ fn the_tail_on_a_key_file_of_version_1_removes_the_files_and_reports_its_root_as
         ),
     )
     .unwrap();
-    let report = delete_report(&EncryptedStore::delete_store_dir(&store_dir, &roots_dir));
+    let report = delete_report(&tail(&store_dir, &roots_dir));
     assert_eq!(report.root_not_handled, Some(older), "{report:?}");
     assert_eq!(store_files_in(&store_dir), Vec::<String>::new());
     assert!(!report.root_destroyed());
@@ -8366,7 +8382,7 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
         states.under_the_limit_of_a_stopped_create && states.all_true(),
         "a create stopped between its create_root and the second write of its mark left {states:?}, not the named limit (i)"
     );
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     let left = root_files_in(&roots_dir);
     println!(
         "KILL op=stopped_create then the tail: answer_ok={} root_files_left={}",
@@ -8545,7 +8561,7 @@ fn a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file() {
                 Ok(mut reopened) => answer_text(&reopened.delete_all()),
                 Err(e) => {
                     println!("scenario=C open={e:?}");
-                    answer_text(&EncryptedStore::delete_store_dir(&store_dir, &roots_dir))
+                    answer_text(&tail(&store_dir, &roots_dir))
                 }
             }
         }
@@ -8966,13 +8982,13 @@ fn delete_all_counts_a_shard_that_it_cannot_list_as_left() {
 #[test]
 fn the_tail_counts_a_shard_that_it_cannot_list_as_left() {
     use std::os::unix::fs::PermissionsExt;
-    println!("CASE-NOTE: delete_store_dir must not answer Ok while a segment file under an unreadable shard is left");
+    println!("CASE-NOTE: delete_data_dir must not answer Ok while a segment file under an unreadable shard is left");
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, _root_id, segment_id) = file_root_store(dir.path());
     let file = segment_path(&store_dir, segment_id);
     let shard = file.parent().unwrap().to_path_buf();
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o000)).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
     let left = file.exists();
     println!(
@@ -8981,7 +8997,7 @@ fn the_tail_counts_a_shard_that_it_cannot_list_as_left() {
     );
     assert!(
         !(answer.is_ok() && left),
-        "delete_store_dir answered Ok, but the segment file under an unreadable shard is still there"
+        "delete_data_dir answered Ok, but the segment file under an unreadable shard is still there"
     );
 }
 

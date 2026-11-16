@@ -323,7 +323,7 @@ fn a_tail_without_the_lock_leaves_a_file_of_another_identity_at_the_marks_root_n
     let root_file = replace_the_root_file(dir.path(), &roots_dir, root_id);
     crate::store::failpoint::arm("tail_lock");
 
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
 
     let stands = std::fs::read(&root_file).ok().as_deref() == Some(&[0x44u8; 32][..]);
     let report = delete_report(&answer);
@@ -347,8 +347,8 @@ fn a_tail_reads_the_marks_root_left_when_only_a_file_of_another_identity_stands_
     let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
     replace_the_root_file(dir.path(), &roots_dir, root_id);
 
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let next = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
+    let next = tail(&store_dir, &roots_dir);
 
     println!(
         "MARK-TAIL-SWEEP {} next={}",
@@ -396,5 +396,67 @@ fn a_creates_cleanup_by_a_made_mark_leaves_a_file_of_another_identity_at_the_mar
     assert!(
         stands,
         "the create's cleanup by the mark destroyed a file of another identity at its root's name"
+    );
+}
+
+/// A scratch store in `<parent>/store`, its roots inside it, with one segment.
+fn a_scratch_store(parent: &Path) -> (PathBuf, RootId, uuid::Uuid) {
+    std::fs::create_dir_all(parent).unwrap();
+    let store_dir = parent.join("store");
+    let root_id = RootId::fresh().unwrap();
+    let mut store = EncryptedStore::create(
+        &store_dir,
+        Box::new(DevFallbackCustody::new(root_id, store_dir.join("roots"))),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = store
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    (store_dir, root_id, segment.segment_id)
+}
+
+/// ST-46 K10, an unrun race: the store directory moved away and a link to
+/// another store put at its name between the tail's look at the store and
+/// its sweep. The tail opens the roots from the store directory's handle,
+/// so it sweeps the roots of the directory that it looked at, and the other
+/// store opens and reads after it.
+#[test]
+fn a_link_put_at_the_store_name_after_the_tails_look_leads_its_sweep_nowhere_else() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, root_id, _) = a_scratch_store(&dir.path().join("first"));
+    let (other_dir, other_id, other_segment) = a_scratch_store(&dir.path().join("second"));
+    let moved = dir.path().join("first").join("moved");
+    let (from, to, link_to) = (store_dir.clone(), moved.clone(), other_dir.clone());
+    let _seam = crate::store::failpoint::at(
+        crate::store::db::SEAM_BEFORE_THE_TAILS_ROOT_STEP,
+        move || {
+            std::fs::rename(&from, &to).unwrap();
+            std::os::unix::fs::symlink(&link_to, &from).unwrap();
+        },
+    );
+
+    let answer = tail(&store_dir, &store_dir.join("roots"));
+
+    let other_reads = EncryptedStore::open(&other_dir, &other_dir.join("roots"), DEFAULT_RETENTION)
+        .map(|store| store.read_segment(other_segment, &mut Vec::new()).is_ok());
+    let own_root_left = moved.join("roots").join(format!("{root_id}.root")).exists();
+    println!(
+        "K10 LINK-AT-THE-STORE-NAME {} other_store_reads={other_reads:?} own_root_left={own_root_left}",
+        answer_line(&answer)
+    );
+    assert!(
+        matches!(other_reads, Ok(true)),
+        "the tail swept the roots of another store through a link put at its store name: \
+         {other_reads:?}; {}",
+        answer_line(&answer)
+    );
+    assert!(
+        !own_root_left,
+        "the tail left the root of the store that it looked at"
+    );
+    assert!(
+        root_files_in(&other_dir.join("roots")).contains(&format!("{other_id}.root")),
+        "the other store's root file is gone"
     );
 }

@@ -24,12 +24,16 @@ use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
-use super::{DeleteReport, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult};
+use super::{
+    DeleteReport, Layout, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult,
+};
 
 const KEY_FILE_VERSION: u32 = 2;
 #[cfg(target_os = "macos")]
 const STATS_AFTER_THE_FIRST: u32 = 2;
 const DATABASE_VERSION: i64 = 1;
+/// The name of the store directory in a data directory (C3.5).
+const STORE_DIR_NAME: &str = "store";
 const KEY_FILE: &str = "store.key";
 const CREATE_PENDING: &str = "create.pending";
 const CREATE_PENDING_TEMP: &str = "create.pending.tmp";
@@ -62,6 +66,11 @@ pub(in crate::store) const SEAM_BEFORE_THE_FIRST_READ: &str =
     "a database open, before its first read";
 #[cfg(test)]
 pub(in crate::store) const SEAM_AFTER_THE_ROOT: &str = "a create, after its root";
+/// A place where a test acts after the tail opened the store directory and
+/// before its root step.
+#[cfg(test)]
+pub(in crate::store) const SEAM_BEFORE_THE_TAILS_ROOT_STEP: &str =
+    "the tail, after its look at the store and before its root step";
 #[cfg(test)]
 pub(in crate::store) const SEAM_AT_THE_LOG_CHECK: &str =
     "an open, at the first instant of the log's check";
@@ -2389,77 +2398,63 @@ impl EncryptedStore {
         }
     }
 
-    /// The delete tail on a store directory that no handle holds. It takes the
-    /// writer lock, runs the root step, removes the key file, the database
-    /// files and the segments tree through a handle of the directory in every
-    /// case, never opens the database and follows no link. A root is named by
-    /// `store.key` or by a `create.pending` that reads made, never by one that
-    /// reads owed. With the lock held, with nothing at the store name, and
-    /// after it removed a link or an entry of another kind at the store name
-    /// (counted as not followed), the root step sweeps `roots`: it destroys
-    /// every root file and partial root file there, named or not, and opens
-    /// no roots path that leads through a store name at which it did not open
-    /// a directory itself. A directory that it cannot open leaves its root
-    /// unread; a lock that it cannot take for a reason other than a holder,
-    /// and on Windows a path of which a part ends in a dot or a space (read
-    /// through its verbatim form, with no removal at or beside it and
-    /// `not_followed` 1), get the root step for the named root alone, with
-    /// the witness; these three answer [`StoreError::DeleteIncomplete`] with
-    /// the files as left. The root reads destroyed only when a named root's
-    /// entries were removed by this call, left when a named root was not
-    /// removed, and unnamed when nothing names one; a key file of another
-    /// version, or of a custody that keeps no root file under `roots`, is
-    /// removed with the rest, and its root is reported as not handled and
-    /// never as destroyed. Answers as [`EncryptedStore::delete_all`] does,
-    /// `Ok` only with no root file or partial root file left under `roots`
-    /// or nothing there, and [`StoreError::Locked`] while another process
-    /// holds the directory (ruling ST-45 H1). A roots path that holds a parent
-    /// part, or a link in a part below the deepest directory that it shares
-    /// with the store path, is refused: the tail runs no sweep there, takes
-    /// the named root alone with its witness, reads the roots as not listed
-    /// and answers [`StoreError::DeleteIncomplete`] on every call (ruling
-    /// ST-46 K2).
-    pub fn delete_store_dir(store_dir: &Path, roots: &Path) -> StoreResult<DeleteReport> {
+    /// The delete tail on a data directory `dir` of the closed `layout`, which
+    /// no handle holds. It opens `dir` as a handle, opens the store directory
+    /// and the roots directory from the handle of the directory that holds
+    /// each by their fixed names, never by a path and following no link, takes
+    /// the writer lock, runs the root step, and removes the key file, the
+    /// database files and the segments tree through the store's handle in every
+    /// case; it never opens the database. A root is named by `store.key`, by
+    /// its name, or by a `create.pending` that reads made, by the identity of
+    /// its root file, never by one that reads owed. With the lock held, with
+    /// nothing at the store's name, and after it removed a link or an entry of
+    /// another kind at the store's name (counted as not followed), the root
+    /// step sweeps the roots directory: it destroys every root file and partial
+    /// root file there, named or not; in the scratch layout nothing is swept
+    /// where no store directory stands, because its roots lie inside it. A
+    /// link, or an entry of another kind, at the roots directory's name is not
+    /// followed: the roots read as not listed. A data directory that is a link
+    /// is not followed and nothing is removed. A store directory that it
+    /// cannot open leaves its root unread; a lock that it cannot take for a
+    /// reason other than a holder, and on Windows a data directory of which a
+    /// part ends in a dot or a space (read through its verbatim form, with no
+    /// removal and `not_followed` 1), get the root step for the named root
+    /// alone, with the witness; these answer [`StoreError::DeleteIncomplete`]
+    /// with the files as left. The root reads destroyed only when this call
+    /// destroyed a named root's file, left when a named root was not
+    /// destroyed, and unnamed when nothing names one; a key file of another
+    /// version, or of a custody that keeps no root file under the roots
+    /// directory, is removed with the rest, and its root is reported as not
+    /// handled and never as destroyed. Answers as
+    /// [`EncryptedStore::delete_all`] does, `Ok` only with no root file or
+    /// partial root file left in the roots directory or nothing there, and
+    /// [`StoreError::Locked`] while another process holds the store directory
+    /// (ruling ST-45 H1; store-3b).
+    pub fn delete_data_dir(dir: &Path, layout: Layout) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
-        if durable::has_a_part_that_windows_trims(store_dir) {
-            return finished(Self::root_step_alone_at_a_trimmed_name(store_dir, roots));
+        if durable::has_a_part_that_windows_trims(dir) {
+            return finished(Self::root_step_alone_at_a_trimmed_name(dir, layout));
         }
-        let store = match Dir::open(store_dir) {
-            Ok(store) => store,
+        match layout {
+            Layout::DataDirectory => Self::delete_in_a_data_directory(dir),
+            Layout::ScratchStore => Self::delete_a_scratch_store(dir),
+        }
+    }
+
+    fn delete_in_a_data_directory(dir: &Path) -> StoreResult<DeleteReport> {
+        let parent = match Dir::open(dir) {
+            Ok(parent) => parent,
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                let (root, roots) = sweep_where_no_store_stands(store_dir, roots);
-                return finished(DeleteReport {
-                    keyed_segments: None,
-                    root,
-                    roots,
-                    root_not_handled: None,
-                    key_file_gone: true,
-                    database_left: false,
-                    files_left: 0,
-                    not_followed: 0,
-                });
+                return finished(nothing_of_a_store(
+                    RootReading::Unnamed,
+                    RootsLeft::none_counted(true),
+                ))
             }
             Err(e) if durable::refusal(&e).is_some() => {
-                let gone = remove_what_stands_at(store_dir);
-                let (root, roots) = if gone {
-                    sweep_where_no_store_stands(store_dir, roots)
-                } else {
-                    (RootReading::Unnamed, RootsLeft::none_counted(false))
-                };
-                return finished(DeleteReport {
-                    keyed_segments: None,
-                    root,
-                    roots,
-                    root_not_handled: None,
-                    key_file_gone: true,
-                    database_left: false,
-                    files_left: u64::from(!gone),
-                    not_followed: 1,
-                });
-            }
-            #[cfg(windows)]
-            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
-                return Err(StoreError::Locked)
+                let mut report =
+                    not_opened(RootReading::Left(None), RootsLeft::none_counted(false));
+                report.not_followed = 1;
+                return finished(report);
             }
             Err(_) => {
                 return finished(not_opened(
@@ -2468,43 +2463,102 @@ impl EncryptedStore {
                 ))
             }
         };
-        let place = KeyFile::of_store(&store)?;
-        let _writer_lock = match DirLock::take(&store)
+        match parent.open_dir(OsStr::new(STORE_DIR_NAME)) {
+            Ok(store) => Self::delete_through(&store, &parent),
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                let (root, roots) =
+                    file_root::destroy_roots_below(&parent, None, RootStepForm::Sweep);
+                finished(nothing_of_a_store(root, roots))
+            }
+            Err(e) if durable::refusal(&e).is_some() => {
+                let gone = parent
+                    .remove_entry(OsStr::new(STORE_DIR_NAME))
+                    .and_then(|()| parent.sync())
+                    .is_ok();
+                let (root, roots) = if gone {
+                    file_root::destroy_roots_below(&parent, None, RootStepForm::Sweep)
+                } else {
+                    (RootReading::Unnamed, RootsLeft::none_counted(false))
+                };
+                let mut report = nothing_of_a_store(root, roots);
+                report.files_left = u64::from(!gone);
+                report.not_followed = 1;
+                finished(report)
+            }
+            #[cfg(windows)]
+            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
+                Err(StoreError::Locked)
+            }
+            Err(_) => finished(not_opened(
+                RootReading::Left(None),
+                RootsLeft::none_counted(false),
+            )),
+        }
+    }
+
+    fn delete_a_scratch_store(dir: &Path) -> StoreResult<DeleteReport> {
+        match Dir::open(dir) {
+            Ok(store) => Self::delete_through(&store, &store),
+            Err(e) if e.kind() == ErrorKind::NotFound => finished(nothing_of_a_store(
+                RootReading::Unnamed,
+                RootsLeft::none_counted(true),
+            )),
+            Err(e) if durable::refusal(&e).is_some() => {
+                let gone = remove_what_stands_at(dir);
+                let mut report =
+                    nothing_of_a_store(RootReading::Unnamed, RootsLeft::none_counted(gone));
+                report.files_left = u64::from(!gone);
+                report.not_followed = 1;
+                finished(report)
+            }
+            #[cfg(windows)]
+            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
+                Err(StoreError::Locked)
+            }
+            Err(_) => finished(not_opened(
+                RootReading::Left(None),
+                RootsLeft::none_counted(false),
+            )),
+        }
+    }
+
+    /// The tail through the handle of the store directory, with the roots
+    /// directory opened from the handle of `parent`, the directory that holds
+    /// it.
+    fn delete_through(store: &Dir, parent: &Dir) -> StoreResult<DeleteReport> {
+        let place = KeyFile::of_store(store)?;
+        let writer_lock = match DirLock::take(store)
             .and_then(|lock| failpoint::hit("tail_lock").map(|()| lock))
         {
             Ok(lock) => Some(lock),
             Err(StoreError::Locked) => return Err(StoreError::Locked),
             Err(_) => None,
         };
-        let refused = a_roots_path_that_the_sweep_refuses(store_dir, roots);
-        let form = match _writer_lock {
-            Some(_) if !refused => RootStepForm::Sweep,
-            _ => RootStepForm::NamedAlone,
+        let form = match writer_lock {
+            Some(_) => RootStepForm::Sweep,
+            None => RootStepForm::NamedAlone,
         };
-        let (reading, mut roots, root_not_handled) = tail_root_step(&store, &place, roots, form);
-        if refused {
-            roots.listed = false;
-        }
-        if _writer_lock.is_none() {
-            let mut report = not_opened(reading, roots);
-            report.root_not_handled = root_not_handled;
-            return finished(report);
-        }
-        let mut report = remove_the_store_files(&store, None, reading, roots);
+        #[cfg(test)]
+        failpoint::seam(SEAM_BEFORE_THE_TAILS_ROOT_STEP);
+        let (reading, roots, root_not_handled) = tail_root_step(store, &place, parent, form);
+        let mut report = match writer_lock {
+            Some(_) => remove_the_store_files(store, None, reading, roots),
+            None => not_opened(reading, roots),
+        };
         report.root_not_handled = root_not_handled;
         finished(report)
     }
 }
 
 impl EncryptedStore {
-    /// The tail on a path of which a part ends in a dot or a space: Win32
-    /// trims that end when it opens a name that is not verbatim, so a removal
-    /// could reach the sibling without it. The tail removes nothing at or
-    /// beside the path. It runs the root step from the key file that it reads
+    /// The tail on a data directory of which a part ends in a dot or a
+    /// space: Win32 trims that end when it opens a name that is not
+    /// verbatim, so a removal could reach the sibling without it. The tail
+    /// removes nothing. It runs the root step from the key file that it reads
     /// through the verbatim form of the path, takes no lock there, and counts
     /// the path as not followed.
     #[cfg(windows)]
-    fn root_step_alone_at_a_trimmed_name(store_dir: &Path, roots: &Path) -> DeleteReport {
+    fn root_step_alone_at_a_trimmed_name(dir: &Path, layout: Layout) -> DeleteReport {
         let unread = || {
             (
                 RootReading::Left(None),
@@ -2512,14 +2566,22 @@ impl EncryptedStore {
                 None,
             )
         };
-        let (reading, roots, root_not_handled) = durable::verbatim_form(store_dir)
+        let (reading, roots, root_not_handled) = durable::verbatim_form(dir)
             .and_then(|verbatim| Dir::open(&verbatim).ok())
-            .and_then(|store| {
+            .and_then(|parent| {
+                let store = match layout {
+                    Layout::DataDirectory => parent.open_dir(OsStr::new(STORE_DIR_NAME)).ok()?,
+                    Layout::ScratchStore => parent.try_clone().ok()?,
+                };
                 let place = KeyFile::of_store(&store).ok()?;
+                let roots_parent = match layout {
+                    Layout::DataDirectory => &parent,
+                    Layout::ScratchStore => &store,
+                };
                 Some(tail_root_step(
                     &store,
                     &place,
-                    roots,
+                    roots_parent,
                     RootStepForm::NamedAlone,
                 ))
             })
@@ -2531,15 +2593,16 @@ impl EncryptedStore {
     }
 }
 
-/// The root step of the tail in `form`: the root that the key file names, by
-/// its name, or that a made pending mark names when no key file stands, by
-/// the identity of its root file that the mark records. The sweep runs
-/// also beside a key file that this build does not handle, whose root then
-/// reads left on this call (ruling ST-45 H1).
+/// The root step of the tail in `form`, on the roots directory that
+/// `parent` holds: the root that the key file names, by its name, or that a
+/// made pending mark names when no key file stands, by the identity of its
+/// root file that the mark records. The sweep runs also beside a key file
+/// that this build does not handle, whose root then reads left on this call
+/// (ruling ST-45 H1).
 fn tail_root_step(
     store: &Dir,
     place: &KeyFilePlace,
-    roots: &Path,
+    parent: &Dir,
     form: RootStepForm,
 ) -> (RootReading, RootsLeft, Option<RootId>) {
     let (named, root_not_handled) = match place.what_it_names() {
@@ -2553,57 +2616,30 @@ fn tail_root_step(
     let (reading, roots) = match root_not_handled {
         Some(root_id) if form == RootStepForm::Sweep => (
             RootReading::Left(Some(root_id)),
-            file_root::destroy_roots_in(roots, None, RootStepForm::Sweep).1,
+            file_root::destroy_roots_below(parent, None, RootStepForm::Sweep).1,
         ),
         Some(root_id) => (
             RootReading::Left(Some(root_id)),
             RootsLeft::none_counted(false),
         ),
-        None => file_root::destroy_roots_in(roots, named, form),
+        None => file_root::destroy_roots_below(parent, named, form),
     };
     (reading, roots, root_not_handled)
 }
 
-/// The sweep of a tail at whose store name nothing stands, or no longer
-/// stands after this call removed it. It opens no roots path that leads
-/// through that store name, at which the tail opened no directory itself:
-/// nothing stands there (ruling ST-45 H1).
-fn sweep_where_no_store_stands(store_dir: &Path, roots: &Path) -> (RootReading, RootsLeft) {
-    if a_roots_path_that_the_sweep_refuses(store_dir, roots) {
-        return (RootReading::Unnamed, RootsLeft::none_counted(false));
+/// The report of a tail at whose store name no store directory stands, or no
+/// longer stands after this call removed what stood there.
+fn nothing_of_a_store(root: RootReading, roots: RootsLeft) -> DeleteReport {
+    DeleteReport {
+        keyed_segments: None,
+        root,
+        roots,
+        root_not_handled: None,
+        key_file_gone: true,
+        database_left: false,
+        files_left: 0,
+        not_followed: 0,
     }
-    if roots.starts_with(store_dir) {
-        return (RootReading::Unnamed, RootsLeft::none_counted(true));
-    }
-    file_root::destroy_roots_in(roots, None, RootStepForm::Sweep)
-}
-
-/// Whether the tail refuses to sweep `roots` (ruling ST-46 K2): the path holds
-/// a parent part, or a part below the deepest directory that the roots path
-/// and the store path share, by their parts as given, is a link (on Windows a
-/// link or a junction), looked at without following it. A part that does not
-/// stand ends the walk. Links above the shared directory stay: both names are
-/// reached through them alike.
-fn a_roots_path_that_the_sweep_refuses(store_dir: &Path, roots: &Path) -> bool {
-    use std::path::Component;
-    if roots.components().any(|part| part == Component::ParentDir) {
-        return true;
-    }
-    let shared = roots
-        .components()
-        .zip(store_dir.components())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let mut walked: PathBuf = roots.components().take(shared).collect();
-    for part in roots.components().skip(shared) {
-        walked.push(part);
-        match std::fs::symlink_metadata(&walked) {
-            Ok(meta) if meta.file_type().is_symlink() => return true,
-            Ok(_) => {}
-            Err(_) => return false,
-        }
-    }
-    false
 }
 
 /// On Windows a create or an open given a store path or a roots path of which
