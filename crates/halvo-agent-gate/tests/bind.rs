@@ -127,6 +127,10 @@ fn every_seed_binds_through_set_bindings_and_add_origin_with_the_port() {
                 .collect();
             assert_eq!(got_slots, slots, "seed {n} {name}");
 
+            let start = json!({"op": "start_run", "workflow": prepared.workflow.as_str(), "agent": prepared.agent.as_str(), "run": run.as_str(), "mode": "compile"});
+            let start =
+                CoordinatorCall::parse(start.to_string().as_bytes()).expect("a start_run body");
+            assert!(host.send(&start).is_ok(), "seed {n} {name}");
             let reply = load(&mut host, &prepared.agent, &run).expect("the runner's load");
             let RunnerReply::Load(LoadReply {
                 bindings: Some(loaded),
@@ -437,10 +441,15 @@ fn every_runner_body_of_an_ended_run_is_refused() {
     let (agent, workflow) = (p.agent.as_str().to_owned(), p.workflow.as_str().to_owned());
     let origin = format!("http://utility.agent.test:{PORT}");
     let session = |r: &RunId| json!({"op": "put_session", "agent": agent, "run": r.as_str(), "origin": origin, "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]});
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after 1970")
+        .as_nanos() as i64;
+    let day = at.div_euclid(86_400_000_000_000);
     let log = |r: &RunId| {
         json!({"op": "log", "agent": agent, "run": r.as_str(), "records": [{
-            "v": 1, "workflow": workflow, "agent": agent, "run": r.as_str(), "seq": 1, "day": 20_770,
-            "at": 1_794_400_000_000_000_000_i64, "event": "step_ok", "step": 1, "cause": null,
+            "v": 1, "workflow": workflow, "agent": agent, "run": r.as_str(), "seq": 2, "day": day,
+            "at": at, "event": "step_ok", "step": 1, "cause": null,
             "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
         }]})
     };
@@ -453,7 +462,16 @@ fn every_runner_body_of_an_ended_run_is_refused() {
     };
     let load_session = |r: &RunId| json!({"op": "load_session", "agent": agent, "run": r.as_str(), "origin": origin, "rev": 1, "part": 1});
     let body = |v: Value| RunnerCall::parse(v.to_string().as_bytes()).expect("a runner body");
+    let start = |r: &RunId| {
+        let start = json!({"op": "start_run", "workflow": workflow, "agent": agent, "run": r.as_str(), "mode": "compile"});
+        CoordinatorCall::parse(start.to_string().as_bytes()).expect("a start_run body")
+    };
 
+    assert_eq!(
+        host.runner(&body(load_session(&run))).map(|_| ()),
+        Err(declared("binding"))
+    );
+    assert!(host.send(&start(&run)).is_ok());
     assert!(host.runner(&body(session(&run))).is_ok());
     assert!(host.runner(&body(log(&run))).is_ok());
     assert!(load(&mut host, &p.agent, &run).is_ok());
@@ -470,6 +488,7 @@ fn every_runner_body_of_an_ended_run_is_refused() {
     assert_eq!(host.runner(&body(load_session(&run))).map(|_| ()), effect);
 
     let next = run_id(8);
+    assert!(host.send(&start(&next)).is_ok());
     assert!(load(&mut host, &p.agent, &next).is_ok());
     assert!(host.runner(&body(playbook(&next))).is_ok());
 }
