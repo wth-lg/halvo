@@ -264,6 +264,48 @@ fn a_copy_that_a_killed_pass_left_under_its_removing_name_is_finished_or_reporte
 }
 
 #[test]
+fn a_checked_leftover_that_cannot_be_unlinked_with_the_copys_name_empty_is_never_gone() {
+    let scratch = Scratch::new("remove-leftover-kept");
+    let workbook = scratch.write("folder/values.xlsx", b"the workbook now");
+    let copy = workbook.with_file_name(copy_name("values.xlsx"));
+    let moved = workbook.with_file_name(removing(&copy_name("values.xlsx")));
+    fs::write(&moved, COPY).expect("what a kill after the move aside leaves");
+    let folder = scratch.path("folder");
+    let locks = locks(&scratch);
+    let run = run();
+    let row = Row {
+        folder: &folder,
+        workbook: &workbook,
+        run: &run,
+        expect: made(COPY),
+    };
+    #[cfg(unix)]
+    let got = {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |m: u32| fs::set_permissions(&folder, fs::Permissions::from_mode(m));
+        mode(0o555).expect("read-only");
+        let got = remove(&locks, &row);
+        mode(0o755).expect("writable again");
+        got
+    };
+    #[cfg(windows)]
+    let got = {
+        use std::os::windows::fs::OpenOptionsExt;
+        let held = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&moved)
+            .expect("an application holds the leftover open without delete sharing");
+        let got = remove(&locks, &row);
+        drop(held);
+        got
+    };
+    assert!(matches!(got, Err(Undecided::Remove(_))), "{got:?}");
+    assert_eq!(fs::read(&moved).expect("the bytes lie there"), COPY);
+    assert!(!copy.exists());
+}
+
+#[test]
 fn a_removal_whose_every_pass_finds_the_removing_name_is_undecided_and_leaves_both_files() {
     let scratch = Scratch::new("remove-passes");
     let copy = with_checkpoint(&scratch, "values.xlsx");
