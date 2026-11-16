@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,44 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 19-home-paths 16-shell-lint 17-workflow-lint
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 19-home-paths 16-shell-lint 17-workflow-lint
+      - name: Loop of the new cases of 19-home-paths
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+          LOOP_JOBS: ${{ runner.os == 'macOS' && '3' || '4' }}
+        run: |
+          set +e
+          cases='branch-scanner-that-prints-counts-and-finds-nothing branch-range-file-that-leaves-out-the-commit-with-the-path list-entry-of-the-branch-holds-for-both-copies default-branch-missing-from-a-full-clone-of-a-workflow-run default-branch-without-the-range-file shallow-clone-without-the-default-branch push-of-three-commits-to-the-default-branch clean-push-of-three-commits-to-the-default-branch push-that-creates-the-default-branch forced-push-whose-old-tip-is-not-in-the-clone push-to-the-default-branch-with-an-event-that-is-no-json push-to-the-default-branch-without-an-event-file push-whose-before-holds-upper-case-letters push-whose-before-is-39-characters-long tag-ask-that-never-answers tag-fetch-that-never-answers event-without-a-default-branch default-branch-scanner-that-prints-no-count default-branch-range-file-that-lists-nothing default-branch-scanner-that-cannot-check push-to-the-default-branch-in-a-shallow-clone scheduled-run-on-the-default-branch push-to-another-branch'
+          rounds=200
+          loop_dir=$(mktemp -d)
+          start=$(date +%s)
+          seq 1 "$rounds" | xargs -P "$LOOP_JOBS" -I{} sh -c 'round_tmp=$(mktemp -d "$2/tmp-$1.XXXXXX"); TMPDIR=$round_tmp LC_ALL=C sh scripts/r1/ci.d/19-home-paths.sh --self-test-case $3 >"$2/round-$1.out" 2>&1; printf "exit=%s\n" "$?" >>"$2/round-$1.out"' _ {} "$loop_dir" "$cases"
+          end=$(date +%s)
+          whole=$(grep -l -x 'PASS self-test:19-home-paths (17 failing fixtures rejected)' "$loop_dir"/round-*.out | wc -l | tr -d ' ')
+          printf 'loop 19-home-paths: %s of %s rounds end with PASS self-test:19-home-paths (17 failing fixtures rejected); %s s for the loop, %s at a time\n' "$whole" "$rounds" "$((end - start))" "$LOOP_JOBS"
+          short=0
+          for one in $cases; do
+            passed=$(grep -l "^case 19-home-paths/$one want=\([A-Za-z-]*\) got=\1\$" "$loop_dir"/round-*.out | wc -l | tr -d ' ')
+            printf 'loop 19-home-paths/%s passed %s of %s\n' "$one" "$passed" "$rounds"
+            [ "$passed" = "$rounds" ] || short=1
+          done
+          for wrong_round in $(grep -L -x 'PASS self-test:19-home-paths (17 failing fixtures rejected)' "$loop_dir"/round-*.out | head -n 3); do
+            printf 'a round that did not pass, its case lines with want and got apart:\n'
+            grep '^case 19-home-paths/' "$wrong_round" | grep -v 'want=\([A-Za-z-]*\) got=\1$' | cut -c1-200
+            tail -n 2 "$wrong_round" | cut -c1-200
+          done
+          [ "$whole" = "$rounds" ] && [ "$short" = 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +180,44 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 19-home-paths
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 19-home-paths
+      - name: Loop of the new cases of 19-home-paths
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+          LOOP_JOBS: ${{ runner.os == 'macOS' && '3' || '4' }}
+        run: |
+          set +e
+          cases='branch-scanner-that-prints-counts-and-finds-nothing branch-range-file-that-leaves-out-the-commit-with-the-path list-entry-of-the-branch-holds-for-both-copies default-branch-missing-from-a-full-clone-of-a-workflow-run default-branch-without-the-range-file shallow-clone-without-the-default-branch push-of-three-commits-to-the-default-branch clean-push-of-three-commits-to-the-default-branch push-that-creates-the-default-branch forced-push-whose-old-tip-is-not-in-the-clone push-to-the-default-branch-with-an-event-that-is-no-json push-to-the-default-branch-without-an-event-file push-whose-before-holds-upper-case-letters push-whose-before-is-39-characters-long tag-ask-that-never-answers tag-fetch-that-never-answers event-without-a-default-branch default-branch-scanner-that-prints-no-count default-branch-range-file-that-lists-nothing default-branch-scanner-that-cannot-check push-to-the-default-branch-in-a-shallow-clone scheduled-run-on-the-default-branch push-to-another-branch'
+          rounds=200
+          loop_dir=$(mktemp -d)
+          start=$(date +%s)
+          seq 1 "$rounds" | xargs -P "$LOOP_JOBS" -I{} sh -c 'round_tmp=$(mktemp -d "$2/tmp-$1.XXXXXX"); TMPDIR=$round_tmp LC_ALL=C sh scripts/r1/ci.d/19-home-paths.sh --self-test-case $3 >"$2/round-$1.out" 2>&1; printf "exit=%s\n" "$?" >>"$2/round-$1.out"' _ {} "$loop_dir" "$cases"
+          end=$(date +%s)
+          whole=$(grep -l -x 'PASS self-test:19-home-paths (17 failing fixtures rejected)' "$loop_dir"/round-*.out | wc -l | tr -d ' ')
+          printf 'loop 19-home-paths: %s of %s rounds end with PASS self-test:19-home-paths (17 failing fixtures rejected); %s s for the loop, %s at a time\n' "$whole" "$rounds" "$((end - start))" "$LOOP_JOBS"
+          short=0
+          for one in $cases; do
+            passed=$(grep -l "^case 19-home-paths/$one want=\([A-Za-z-]*\) got=\1\$" "$loop_dir"/round-*.out | wc -l | tr -d ' ')
+            printf 'loop 19-home-paths/%s passed %s of %s\n' "$one" "$passed" "$rounds"
+            [ "$passed" = "$rounds" ] || short=1
+          done
+          for wrong_round in $(grep -L -x 'PASS self-test:19-home-paths (17 failing fixtures rejected)' "$loop_dir"/round-*.out | head -n 3); do
+            printf 'a round that did not pass, its case lines with want and got apart:\n'
+            grep '^case 19-home-paths/' "$wrong_round" | grep -v 'want=\([A-Za-z-]*\) got=\1$' | cut -c1-200
+            tail -n 2 "$wrong_round" | cut -c1-200
+          done
+          [ "$whole" = "$rounds" ] && [ "$short" = 0 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
