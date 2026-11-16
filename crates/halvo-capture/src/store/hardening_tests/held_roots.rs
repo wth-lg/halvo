@@ -1575,3 +1575,50 @@ fn st47_t3_control_a_real_folder_spelled_with_a_trailing_separator_answers_as_th
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// Ruling ST-47 T4 (adversary 1's M01): a create refused over a live store
+/// removes nothing. A create.pending written by hand, whose made mark records
+/// the identity of the live store's root file, with a hard link of that file
+/// at the mark's id: the create answers AlreadyExists, the live root still
+/// unwraps the store key, and the store opens after it.
+#[test]
+fn st47_t4_a_create_over_a_live_store_answers_already_exists_before_any_cleanup() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let live = roots_dir.join(format!("{root_id}.root"));
+    let wrapped = wrapped_of(&store_dir);
+    let marked = RootId::fresh().unwrap();
+    std::fs::hard_link(&live, roots_dir.join(format!("{marked}.root"))).unwrap();
+    write_made_mark(&store_dir, marked, Some(&live));
+
+    let created = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh().unwrap(),
+        )),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+
+    let live_unwraps = st47_unwraps(dir.path(), "live", &live, root_id, &wrapped);
+    let mark_stands = store_dir.join("create.pending").exists();
+    let opened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    println!(
+        "ST47-T4-M01 create={created:?} live_unwraps={live_unwraps} mark_stands_after_the_create={mark_stands} open={opened:?}"
+    );
+    assert!(
+        matches!(created, Err(StoreError::AlreadyExists)),
+        "{created:?}"
+    );
+    assert!(
+        live_unwraps,
+        "a create refused over a live store destroyed the root that store.key names"
+    );
+    assert!(
+        mark_stands,
+        "a create refused over a live store removed create.pending"
+    );
+    assert!(opened.is_ok(), "{opened:?}");
+}
