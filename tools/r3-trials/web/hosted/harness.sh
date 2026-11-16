@@ -256,6 +256,7 @@ STUB
 in_stand_ins() {
   env -i PATH="${R3_FIRST_BIN:-$work/run-bin}:$work/run-bin:/usr/bin:/bin" HOME="$work" R3_STUB_LOG="$1/calls" \
     R3_REG="$1/reg" R3_REG_NO_DELETE="${R3_REG_NO_DELETE:-}" R3_TAKEN_PORT=18190 RUNNER_TEMP="$1" here="$here" \
+    R3_RUN_BIN="$work/run-bin" \
     "${R3_CASE_SH:-sh}" -s >"$1/out" 2>&1
 }
 
@@ -440,6 +441,41 @@ CASE
   verdict mac_a_term_in_take_away_leaves_the_earlier_file \
     "$(holds test "$(cat "$c/managed/com.google.Chrome.plist" 2>/dev/null)" = earlier)$(has "$c/out" not_ended && echo _not_ended)$(has "$c/out" not_set && echo _not_set)" \
     "out=$(tr ' \n' '_;' <"$c/out" | cut -c1-240)"
+  c="$work/m-term-moved"
+  mkdir -p "$c/managed" "$c/work" "$c/bin"
+  printf 'earlier\n' >"$c/managed/com.google.Chrome.plist"
+  cat >"$c/bin/sudo" <<'STUB'
+#!/bin/sh
+case "$1 $3" in "mv "*earlier-*) mv "$2" "$3"; s=$?; kill -TERM "$PPID"; exit "$s" ;; esac
+exec "$R3_RUN_BIN/sudo" "$@"
+STUB
+  chmod 755 "$c/bin/sudo"
+  R3_FIRST_BIN="$c/bin" R3_CASE_SH=$(posix_sh) in_stand_ins "$c" <<'CASE'
+. "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"
+PREFS_DAEMON="$RUNNER_TEMP/none"; arm_undo
+set_policy com.google.Chrome chrome ProxyMode "<string>direct</string>"
+sleep 5; echo not_ended
+CASE
+  verdict mac_a_term_after_the_earlier_file_moved_puts_it_back \
+    "$(holds test "$(cat "$c/managed/com.google.Chrome.plist" 2>/dev/null)" = earlier)$(has "$c/out" not_ended && echo _not_ended)" \
+    "work=$(find "$c/work" -mindepth 1 -maxdepth 1 -name 'earlier-*' | wc -l | tr -d ' ')_earlier_left"
+  c="$work/m-move-fails"
+  mkdir -p "$c/managed" "$c/work" "$c/bin"
+  printf 'earlier\n' >"$c/managed/com.google.Chrome.plist"
+  cat >"$c/bin/sudo" <<'STUB'
+#!/bin/sh
+case "$1 $3" in "mv "*earlier-*) exit 1 ;; esac
+exec "$R3_RUN_BIN/sudo" "$@"
+STUB
+  chmod 755 "$c/bin/sudo"
+  R3_FIRST_BIN="$c/bin" in_stand_ins "$c" <<'CASE'
+. "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"
+PREFS_DAEMON="$RUNNER_TEMP/none"; set_policy com.google.Chrome chrome ProxyMode "<string>direct</string>"
+take_away
+CASE
+  verdict mac_a_failed_move_keeps_the_earlier_file \
+    "$(holds test "$(cat "$c/managed/com.google.Chrome.plist" 2>/dev/null)" = earlier)$(has "$c/out" "policy removed=yes" && echo _says_removed)" \
+    "out=$(tr ' \n' '_;' <"$c/out" | cut -c1-200)"
   c="$work/m-daemon"
   mkdir -p "$c/bin"
   ln -s /bin/sleep "$c/bin/r3prefsd"

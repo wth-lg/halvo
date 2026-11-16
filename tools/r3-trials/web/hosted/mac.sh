@@ -51,8 +51,15 @@ set_policy() {
   if [ ! -d "$dir" ]; then
     sudo mkdir -p "$dir" && made_dir=yes
   fi
-  if [ "$hadf" = yes ] && sudo mv "$plist" "$work/earlier-$pending_tag.plist"; then
+  if [ "$hadf" = yes ]; then
     earlier=yes
+    pending=$1
+    if ! sudo mv "$plist" "$work/earlier-$pending_tag.plist"; then
+      pending=""
+      earlier=no
+      echo "policy aside browser=$2 name=$3 moved=no"
+      return 1
+    fi
   fi
   pending=$1
   printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>%s</key>\n\t%s\n</dict>\n</plist>\n' "$3" "$4" >"$work/$1.plist"
@@ -270,7 +277,12 @@ cell() {
   before=$(ctl before "$step")
   echo "$before"
   case "$before" in *" reply=yes"*) cb=reply ;; *) cb=none ;; esac
-  set_policy "$dom" "$k" "$name" "$xml"
+  if ! set_policy "$dom" "$k" "$name" "$xml"; then
+    echo "notrun candidate=cdp machine=hosted-mac browser=$k step=$step cause=policy_aside"
+    code=1
+    ctl after "$step"
+    return 0
+  fi
   listing plist_install
   back=$(defaults read "$dir/$dom" "$name" 2>/dev/null)
   matches=no
