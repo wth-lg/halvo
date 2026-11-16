@@ -435,7 +435,7 @@ fn first_at_or_after(records: &[Entry], at: Instant, midpoint: Midpoint) -> usiz
     while lo < hi {
         let mid = match midpoint {
             Midpoint::Down => (lo + hi) / 2,
-            Midpoint::Up => ((lo + hi + 1) / 2).min(hi - 1),
+            Midpoint::Up => (lo + hi).div_ceil(2).min(hi - 1),
         };
         if records[mid].record.at() < at {
             lo = mid + 1;
