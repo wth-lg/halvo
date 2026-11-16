@@ -53,6 +53,30 @@ describe("N3: a stored id that sits on another customer", () => {
   });
 });
 
+describe("N2's pace (the coordinator's reading 2): a newly kept first unknown sets the next try at 60 s with the delay back to 60 s", () => {
+  test("tries 1 and 2 under a key of the other mode double the pause; try 3 keeps the first unknown and the next try comes 60 s later, where it asks the stored id again and cancels it", async () => {
+    const { ending, w } = await driven({
+      plans: 0,
+      stored: true,
+      storedElsewhere: true,
+      ...DAY_TRIES,
+      wrongKey: (attempt) => attempt <= 2,
+      storedUnknownAt: (attempt) => attempt === 3,
+    });
+    w.close();
+    expect({ answers: ending.answers, waits: ending.waits, columnsAfter: ending.columnsAfter, live: ending.live }).toEqual({
+      answers: ["failed 0/0", "failed 0/0", "failed 0/0", "cancelled"],
+      waits: [60_000, 120_000, 60_000],
+      columnsAfter: [
+        [null, null],
+        [null, null],
+        [null, "sub_1"],
+      ],
+      live: [],
+    });
+  });
+});
+
 describe("N3: an id that the provider truly does not know", () => {
   test("failed at try 1 with the first unknown kept, settled at try 2 with one cancel-stored-unknown line, and no request for it at try 3", async () => {
     const { ending, w } = await driven({

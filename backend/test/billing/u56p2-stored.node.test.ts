@@ -14,7 +14,7 @@ const sub = (id: string, status: string) => ({ id, object: "subscription", statu
 const page = (data: unknown[], hasMore = false) => ({ object: "list", has_more: hasMore, data });
 
 type Reply = { status: number; body: unknown } | "drop";
-type Provider = (method: string, path: string) => Reply;
+type Provider = (method: string, path: string, query: URLSearchParams) => Reply;
 
 let lines: string[] = [];
 beforeEach(() => {
@@ -37,7 +37,7 @@ async function call(provider: Provider, stored: StoredIdState, o: { subscription
     const method = init?.method ?? "GET";
     asked.push(`${method} ${url.pathname}`);
     now += o.msPerRequest ?? 0;
-    const reply = provider(method, url.pathname);
+    const reply = provider(method, url.pathname, url.searchParams);
     if (reply === "drop") throw new TypeError("fetch failed");
     return new Response(JSON.stringify(reply.body), { status: reply.status });
   }) as typeof fetch;
@@ -220,6 +220,35 @@ describe("N5: a stored id that its own requests left unanswered and that the wal
   ] as const)("its own cancel %s, then the walk ends it and the last whole list does not show it: settled, not unended, and the call still failed", async (_, storedDelete, readAfter) => {
     const run = await call(walkEnds(storedDelete as Reply, readAfter as Reply, false), "unsettled");
     expect(run.answer).toEqual({ kind: "failed", cancelled: 1, unended: 0, stored: "settled" });
+  });
+
+  test("the walk ends it on a list of two pages, and the first page read again after the last whole list faults: not settled, and unended (X6's read decides)", async () => {
+    const entries = [sub("sub_1", "active"), ...Array.from({ length: 150 }, (_, k) => sub(`sub_e${String(k).padStart(3, "0")}`, "incomplete_expired"))];
+    let ended = false;
+    let deletes = 0;
+    let firstPages = 0;
+    const run = await call((method, path, query) => {
+      if (path === "/v1/subscriptions/sub_1" && method === "DELETE") {
+        deletes += 1;
+        if (deletes === 1) return { status: 400, body: REFUSED };
+        ended = true;
+        return { status: 200, body: sub("sub_1", "canceled") };
+      }
+      if (path === "/v1/subscriptions/sub_1") return { status: 200, body: sub("sub_1", ended ? "canceled" : "active") };
+      if (path === `/v1/customers/${CUSTOMER}`) return { status: 200, body: GOES_ON };
+      if (path === "/v1/subscriptions") {
+        const shown = entries.filter((each) => !(ended && each.id === "sub_1"));
+        const after = query.get("starting_after");
+        if (after === null) {
+          firstPages += 1;
+          if (firstPages === 3) return { status: 500, body: { error: { type: "api_error", message: "down" } } };
+        }
+        const rest = after === null ? shown : shown.slice(shown.findIndex((each) => each.id === after) + 1);
+        return { status: 200, body: page(rest.slice(0, 100), rest.length > 100) };
+      }
+      return { status: 500, body: "" };
+    }, "unsettled");
+    expect(run.answer).toEqual({ kind: "failed", cancelled: 1, unended: 1, stored: "unsettled" });
   });
 
   test("the walk ends it but the last whole list still shows it: not settled, and unended", async () => {
