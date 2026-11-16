@@ -2,6 +2,7 @@
 
 use halvo_route::spend::{step, Account, Hold, Move, SpendCause, State};
 use serde_json::{json, Map, Value};
+use std::collections::BTreeSet;
 
 const TRACES: &str = "../../formal/r6-spend/traces.jsonl";
 const MICRO_PER_MINOR: u64 = 10_000;
@@ -226,9 +227,14 @@ fn read_file(text: &str) -> Result<Vec<Trace>, String> {
         }
     }
     let drawn = traces.len().saturating_sub(DIRECTED);
-    if drawn < LEAST_TRACES {
+    let differ = text
+        .lines()
+        .skip(1 + DIRECTED)
+        .collect::<BTreeSet<_>>()
+        .len();
+    if differ < LEAST_TRACES {
         return Err(format!(
-            "the file holds {drawn} drawn traces, fewer than {LEAST_TRACES}"
+            "the file holds {drawn} drawn traces, of which {differ} differ, fewer than {LEAST_TRACES}"
         ));
     }
     if u64::try_from(traces.len()) != Ok(count) {
@@ -710,8 +716,183 @@ fn the_floor_refuses_199_drawn_traces() {
     let fewer = &lines[..lines.len() - 1];
     let fault = check(&with_header(fewer.len(), fewer)).expect_err("199 drawn traces");
     assert!(
-        fault.contains("the file holds 199 drawn traces, fewer than 200"),
+        fault.contains("the file holds 199 drawn traces, of which 199 differ, fewer than 200"),
         "{fault}"
+    );
+}
+
+#[test]
+fn the_floor_counts_the_drawn_traces_that_differ() {
+    let text = committed();
+    let lines: Vec<&str> = text.lines().collect();
+    let mut one_drawn = lines[1..7].to_vec();
+    one_drawn.extend(vec![lines[7]; 200]);
+    let mut last_twice = lines[1..].to_vec();
+    let last = last_twice.len() - 1;
+    last_twice[last] = last_twice[last - 1];
+    let cases = [
+        (
+            "six directed traces and one drawn trace written 200 times",
+            with_header(206, &one_drawn),
+            "the file holds 200 drawn traces, of which 1 differ, fewer than 200",
+        ),
+        (
+            "the last drawn trace a copy of the one before it",
+            with_header(206, &last_twice),
+            "the file holds 200 drawn traces, of which 199 differ, fewer than 200",
+        ),
+    ];
+    let taken: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, text, fragment)| match check(text) {
+            Err(fault) if fault.contains(fragment) => None,
+            Err(fault) => Some(format!("{name}: refused as {fault}")),
+            Ok(_) => Some(format!("{name}: accepted")),
+        })
+        .collect();
+    assert!(
+        taken.is_empty(),
+        "the floor took or refused otherwise: {taken:?}"
+    );
+    let mut one_more = lines[1..].to_vec();
+    one_more.push(lines[7]);
+    assert_eq!(
+        check(&with_header(207, &one_more)).map(|(traces, _)| traces),
+        Ok(207),
+        "200 drawn traces that differ and one written again"
+    );
+}
+
+fn exported(directed: &[String], drawn: &[String]) -> String {
+    let mut text = format!(
+        "{{\"seed\":3,\"count\":{}}}\n",
+        directed.len() + drawn.len()
+    );
+    for line in directed.iter().chain(drawn) {
+        text.push_str(line);
+        text.push('\n');
+    }
+    text
+}
+
+fn committed_parts() -> (Vec<String>, Vec<String>) {
+    let text = committed();
+    assert!(
+        text.ends_with('\n'),
+        "the committed traces end in a line feed"
+    );
+    let mut lines: Vec<String> = text.lines().skip(1).map(str::to_string).collect();
+    let drawn = lines.split_off(DIRECTED);
+    (lines, drawn)
+}
+
+#[test]
+fn the_floor_refuses_exports_with_fewer_than_200_drawn_lines_that_differ() {
+    let (directed, drawn) = committed_parts();
+    let cycled = |kinds: usize, total: usize| -> Vec<String> {
+        (0..total).map(|at| drawn[at % kinds].clone()).collect()
+    };
+    let mut first_again = drawn[..199].to_vec();
+    first_again.push(drawn[0].clone());
+    let mut one_removed = drawn.clone();
+    one_removed.remove(100);
+    let cases = [
+        (
+            "seven drawn traces cycled to 203 lines",
+            exported(&directed, &cycled(7, 203)),
+            "the file holds 203 drawn traces, of which 7 differ, fewer than 200",
+        ),
+        (
+            "199 that differ and a copy of the first at the end",
+            exported(&directed, &first_again),
+            "the file holds 200 drawn traces, of which 199 differ, fewer than 200",
+        ),
+        (
+            "the committed text with one drawn line removed",
+            exported(&directed, &one_removed),
+            "the file holds 199 drawn traces, of which 199 differ, fewer than 200",
+        ),
+        (
+            "150 drawn traces cycled to 1050 lines",
+            exported(&directed, &cycled(150, 1050)),
+            "the file holds 1050 drawn traces, of which 150 differ, fewer than 200",
+        ),
+    ];
+    let taken: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, text, fragment)| match check(text) {
+            Err(fault) if fault.contains(fragment) => None,
+            Err(fault) => Some(format!("{name}: refused as {fault}")),
+            Ok(_) => Some(format!("{name}: accepted")),
+        })
+        .collect();
+    assert!(
+        taken.is_empty(),
+        "the floor took or refused otherwise: {taken:?}"
+    );
+}
+
+#[test]
+fn the_floor_takes_exports_with_200_drawn_lines_that_differ() {
+    let (directed, drawn) = committed_parts();
+    let mut copy_early = drawn.clone();
+    copy_early.insert(100, drawn[0].clone());
+    let inactive = drawn
+        .iter()
+        .position(|line| line.contains("\"active\":\"no\""))
+        .expect("a drawn trace of an account that is not active");
+    let mut account_twin: Value = serde_json::from_str(&drawn[inactive]).expect("a trace line");
+    apply(&mut account_twin, 0, "cap");
+    let mut account = drawn.clone();
+    account[usize::from(inactive == 0)] = form_of(&account_twin);
+    let (base, last_twin) = drawn
+        .iter()
+        .enumerate()
+        .find_map(|(at, line)| {
+            let mut trace: Value = serde_json::from_str(line).expect("a trace line");
+            let last = &trace["moves"][MOST_MOVES - 1];
+            let arg = last["arg"].as_u64().filter(|arg| *arg > 0)?;
+            let answer = last["answer"].as_str()?;
+            let free = answer == "no_hold"
+                || answer == "not_active"
+                || (last["move"] == "settle" && answer == "state");
+            if !free {
+                return None;
+            }
+            trace["moves"][MOST_MOVES - 1]["arg"] = json!(arg + 1);
+            Some((at, form_of(&trace)))
+        })
+        .expect("a drawn trace whose refused last move does not read its argument");
+    let mut last_move = drawn.clone();
+    last_move[usize::from(base == 0)] = last_twin;
+    let cases = [
+        (
+            "200 that differ with a copy before the 200th",
+            exported(&directed, &copy_early),
+            207,
+        ),
+        (
+            "two lines that differ only in the account part",
+            exported(&directed, &account),
+            206,
+        ),
+        (
+            "two lines that differ only in the last move",
+            exported(&directed, &last_move),
+            206,
+        ),
+    ];
+    let refused: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, text, traces)| match check(text) {
+            Ok((read, _)) if read == *traces => None,
+            Ok((read, _)) => Some(format!("{name}: read {read} traces")),
+            Err(fault) => Some(format!("{name}: refused as {fault}")),
+        })
+        .collect();
+    assert!(
+        refused.is_empty(),
+        "the floor refused or read otherwise: {refused:?}"
     );
 }
 

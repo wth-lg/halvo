@@ -24,8 +24,10 @@ Exit status: 0, FILE is written and holds every pair of a state and a move and
 every cause. 1, the write of FILE failed after the script had made it; one line
 says so, and the script, which calls no command that removes a file, leaves what
 stands there. 2, a refusal: one line "REFUSED <cause>: <detail>" on standard
-error and no file. The causes: usage, java, fetch, hash, file, and cover when the
-traces lack a pair or a cause.
+error and no file. The causes: usage, java, fetch, hash, file, cover when the
+traces lack a pair or a cause, and drawn when fewer than 200 of the drawn traces
+differ. COUNT holds the six directed traces, so a COUNT below 206 is always
+refused: with drawn when no earlier check refuses it.
 EOF
 }
 
@@ -171,6 +173,10 @@ facts=$(awk -v count="$count" -v body="$work/body.jsonl" '
             text = text (i > 5 ? "," : "") "{\"move\":\"" part[1] "\",\"arg\":" (part[2] == "-" ? "null" : part[2]) ",\"answer\":\"" part[3] "\",\"state\":\"" part[4] "\",\"spent\":" part[5] ",\"held\":" part[6] ",\"cost\":" part[7] "}"
             before = part[4]
         }
+        if (traces > 6 && !(text in seen)) {
+            seen[text] = 1
+            differ++
+        }
         print text "]}" >>body
     }
     BEGIN {
@@ -194,9 +200,9 @@ facts=$(awk -v count="$count" -v body="$work/body.jsonl" '
         while ((first + 1) in directed) first++
         for (i = 1; i <= first; i++) put(directed[i], 0)
         for (i = 1; i <= draws && traces < count; i++) put(drawn[i], 1)
-        printf "%d %d %d %d %d\n", traces, bad, pairs, found, first
+        printf "%d %d %d %d %d %d\n", traces, bad, pairs, found, first, differ
     }' "$work/tlc.out")
-read -r traces bad pairs found directed more <<EOF
+read -r traces bad pairs found directed differ more <<EOF
 $facts
 EOF
 test -n "$directed" || refuse java "the output of TLC could not be read"
@@ -206,6 +212,8 @@ test "$bad" -eq 0 || refuse java "$bad parts of the traces of TLC are not of the
 if test "$pairs" -ne 30 || test "$found" -ne 8; then
     refuse cover "pairs=$pairs of 30 causes=$found of 8 with seed=$seed count=$count"
 fi
+test "$differ" -ge 200 ||
+    refuse drawn "$differ drawn traces differ, 200 are needed; draw again with a larger --count"
 
 {
     printf '{"seed":%s,"count":%s}\n' "$seed" "$count"

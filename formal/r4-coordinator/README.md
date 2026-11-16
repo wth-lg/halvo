@@ -160,7 +160,7 @@ What each configuration costs. The first three columns are from the development 
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
 runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone.
+configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone. The windows job no longer runs these configurations: with `CI_D_JOB=windows` the check leaves them and the three control copies to the macos job, so the `windows` column is a record of that run.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
@@ -191,9 +191,16 @@ The scripts of this run have a share of each hosted job: 320 s in `macos` and 44
 
 - the check: the small configurations of the table above, the stamp of the traces, the
   export against the committed traces in the jobs that the line `export compared in jobs`
-  names, the three control copies with TLC, and `gate-record.txt` against the tree;
-- its `--self-test`: two fixtures that must pass and one failing fixture for each rule
-  below. A fixture is a whole run of the script on a copy of this directory with one
+  names, the three control copies with TLC, and `gate-record.txt` against the tree. In the
+  windows job (`CI_D_JOB=windows`) the small configurations and the control copies are left to
+  the macos job: the check still reads every row of the table, holds the stamps, the record and
+  the export there, and prints one line that names the runs it left. The jar (its pinned
+  SHA-256), the models and the configurations are the same bytes on both systems, and both jobs
+  printed the same distinct states before this change; no job of CI runs these configurations
+  under the Java 17 of the windows job (the macos job's java is 21);
+- its `--self-test`: seven fixtures that must pass (`good`, `not-compared`, and the runs with
+  `CI_D_JOB` set to `windows`, unset, `macos`, `Windows` and `windows `) and one failing fixture
+  for each rule below, with a windows copy for each part that the windows job keeps. A fixture is a whole run of the script on a copy of this directory with one
   thing wrong, with a stand-in `java` that answers in place of TLC, so that a fixture
   ends in seconds. The three control copies run with the real TLC there as well.
 
@@ -248,6 +255,7 @@ shows in the diff of its pull request.
 | a record whose count is not the count of its lines | `record` | `record-cut` | none |
 | a control copy that does not break its invariant with status 12 | `control` | `control-holds` | `control-other`, `control-status`, `control-one` |
 | a control whose text is not in the model exactly once | `control` | `control-moved` | `control-twice` |
+| a part that the windows job keeps, run with `CI_D_JOB=windows` | that part's cause | `other-bytes-windows`, `java-old-windows`, `line-beside-its-copy-windows`, `days-not-for-ci-windows`, `invariant-twice-windows`, `two-stamps-windows`, `record-one-digit-windows`, `changed-line-windows` | none |
 
 The self-test also holds rules that it reads from what the runs left behind: the scratch
 directory is absolute under a relative `TMPDIR`; TLC ran from the hashed copy of the jar,
@@ -256,10 +264,15 @@ directory of the runs is empty after the fixtures that pass and after those that
 The record adds the three passing runs one by one (`not-compared` as it is, with a `java`
 that reads its input, and under a relative `TMPDIR`) and one run that the stand-in `java`
 ends with the signal TERM, after which the temporary directory is empty as well.
+Five more rules read the calls of the stand-in `java`: with `CI_D_JOB=windows` it ran the
+export alone (`good-windows`); unset and with `macos` it ran every marked configuration and the
+export (`good-without-a-job`, `good-macos`); with `Windows` and with `windows ` it ran every
+marked configuration and no export comparison, since the jobs line names neither value
+(`good-capital-windows`, `good-windows-and-a-blank`).
 
-At the commit of this section the self-test of every push rejected 38 failing fixtures and
-control copies (`PASS self-test:30-r4-formal (38 failing fixtures rejected)`), and the record
-held 88 lines: 75 failing fixtures and control copies, five passing runs and eight held rules.
+At the commit of this section the self-test of every push rejected 46 failing fixtures and
+control copies (`PASS self-test:30-r4-formal (46 failing fixtures rejected)`), and the record
+held 106 lines: 83 failing fixtures and control copies, ten passing runs and 13 held rules.
 
 ## What a property is read from
 

@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Admit.cfg and Small.cfg of formal/r5-admit have the one fixed form of the model's bound and formulas, TLC finds none of Q1 to Q14 violated at the small bound, the model exports the committed table and traces byte for byte, each of two control copies breaks its property, and record.txt holds the full bound, the small run's count of states and every run of runs.txt at the stamp of the model's files.
+# rule: Admit.cfg and Small.cfg of formal/r5-admit have the one fixed form of the model's bound and formulas, the model exports the committed table and traces byte for byte, and record.txt holds the full bound and every run of runs.txt at the stamp of the model's files, in every job; in the macos job (and in a run with no CI_D_JOB) TLC also finds none of Q1 to Q14 violated at the small bound, each of two control copies breaks its property, and record.txt holds the small run's count of states.
+# windows: with CI_D_JOB=windows the run of Small.cfg, the two control copies and the record's small= field are left to the macos job, because the jar (its pinned sha256), the model and the configurations are the same bytes on both systems and both jobs printed the same distinct states; the form checks, the export and the rest of the record run in both jobs.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -47,6 +48,10 @@ fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
   [ -z "$art" ] || advice "$1" >"$art/fix.txt" 2>/dev/null
   exit 1
+}
+
+models_here() {
+  [ "${CI_D_JOB:-}" != windows ]
 }
 
 made=
@@ -273,7 +278,7 @@ small() {
   check formulas-form [ "$odd_q" -eq 0 ] || miss formulas-form
   distinct=0
   violated=0
-  if [ "$result" = ok ]; then
+  if [ "$result" = ok ] && models_here; then
     run=$tmp/small
     mkdir "$run" "$run/jtmp" || fail scratch
     copy_model "$run" || fail invariant
@@ -288,7 +293,7 @@ small() {
     check tlc-status [ "$status" -eq 0 ] || miss status
     check tlc-complete [ "$complete" -eq 1 ] || miss incomplete
   fi
-  printf 'formal states=%s properties=%s violated=%s\n' "$distinct" "$numbers" "$violated"
+  ! models_here || printf 'formal states=%s properties=%s violated=%s\n' "$distinct" "$numbers" "$violated"
   [ "$result" = ok ] || printf 'formal small result=%s\n' "$result"
   detail=$result
   check small-ok [ "$result" = ok ] || fail invariant
@@ -399,7 +404,9 @@ runs_read() {
 }
 
 record_ok() {
-  [ "$stamped:$full:$small_state:$runs_state:$designs_ok:$reach_ok:$lines" = same:ok:same:ok:yes:yes:ok ]
+  want_small=same
+  models_here || want_small=-
+  [ "$stamped:$full:$small_state:$runs_state:$designs_ok:$reach_ok:$lines" = "same:ok:$want_small:ok:yes:yes:ok" ]
 }
 
 record() {
@@ -426,9 +433,13 @@ record() {
   n_full=$(grep -c '^full ' "$r")
   m_full=$(grep -c -E '^full config=Admit\.cfg states=[1-9][0-9]* properties=14 violated=0 workers=[1-9][0-9]* run=(helper|nice19) seconds=[0-9]+$' "$r")
   check record-full [ "$n_full:$m_full" = 1:1 ] || full=miss
-  n_small=$(grep -c '^small ' "$r")
-  m_small=$(grep -c -x -F "small config=Small.cfg states=$distinct" "$r")
-  check record-small [ "$n_small:$m_small" = 1:1 ] || small_state=differ
+  if models_here; then
+    n_small=$(grep -c '^small ' "$r")
+    m_small=$(grep -c -x -F "small config=Small.cfg states=$distinct" "$r")
+    check record-small [ "$n_small:$m_small" = 1:1 ] || small_state=differ
+  else
+    small_state=-
+  fi
   sed -n 's/^design fault=\([a-z0-9_]*\) bound=\([1-9]\)-\([0-9]\)-\([1-9]\) reports=\([A-Za-z0-9]*\) states=[0-9][0-9]*$/design \1 \2 \3 \4 \5/p' \
     "$r" | sort >"$tmp/have-designs.txt"
   sed -n 's/^reach property=\([A-Za-z]*\) bound=\([1-9]\)-\([0-9]\) reached=yes states=[0-9][0-9]*$/reach \1 \2 \3/p' \
@@ -468,9 +479,14 @@ measure() {
   exported
   since
   t_export=$seconds
-  controls
-  since
-  printf 'formal seconds small=%s export=%s control=%s\n' "$t_small" "$t_export" "$seconds"
+  if models_here; then
+    controls
+    since
+    printf 'formal seconds small=%s export=%s control=%s\n' "$t_small" "$t_export" "$seconds"
+  else
+    printf 'formal seconds small=- export=%s control=-\n' "$t_export"
+    printf 'formal left to the macos job: the run of Small.cfg, the controls serve_reverted and no_bar, and the small= field of the record (CI_D_JOB=windows)\n'
+  fi
   record
   printf 'cause: none\n' >"$art/fix.txt" 2>/dev/null
   printf 'PASS %s\n' "$name"
@@ -643,7 +659,7 @@ expect() {
   (
     CI_D_REPO=$work/$1
     CI_D_ARTIFACTS=${art_as:-$work/$1/art}
-    CI_D_JOB=macos
+    CI_D_JOB=${job_as:-macos}
     R5_STUB_MODE=$3
     R5_STUB_FROM=$work/base/formal/r5-admit
     R5_STUB_LOG=$work/$1/java.log
@@ -657,6 +673,7 @@ expect() {
     export CI_D_REPO CI_D_ARTIFACTS CI_D_JOB R5_STUB_MODE R5_STUB_FROM R5_STUB_LOG
     export JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS TMPDIR PATH JAVA_HOME TLA2TOOLS_JAR
     [ -n "$java_as" ] || unset JAVA_HOME
+    [ "${job_as:-macos}" != - ] || unset CI_D_JOB
     if [ -z "$jar_as" ]; then
       unset TLA2TOOLS_JAR
       PATH=$work/stub-curl:$PATH
@@ -696,6 +713,7 @@ expect() {
   jar_as=$work/stub.jar
   art_as=
   tmp_as=
+  job_as=
 }
 
 other_digit() {
@@ -1004,6 +1022,97 @@ CONSTRAINT Bound/'
   fixture record-empty-line
   printf '\n' >>"$work/record-empty-line/$rt" || fail selftest
   expect record-empty-line "$rec" good "stamp=same full=ok small=same runs=ok $whole lines=differ"
+  windows_fixtures
+}
+
+logged_as() {
+  n_small=$(grep -c '^Admit Small\.cfg$' "$work/$1/java.log")
+  n_control=$(grep -c '^Admit Control\.cfg$' "$work/$1/java.log")
+  n_export=$(grep -c '^Export Export\.cfg$' "$work/$1/java.log")
+  n_all=$(grep -c '' "$work/$1/java.log")
+  ran=no
+  [ "$n_small:$n_control:$n_export:$n_all" = "$2" ] && ran=yes
+  printf 'selftest rule=runs fixture=%s calls=%s held=%s\n' "$1" "$n_small:$n_control:$n_export:$n_all" "$ran"
+  [ "$ran" = yes ] || missed=$((missed + 1))
+}
+
+windows_fixtures() {
+  left='formal left to the macos job: the run of Small.cfg, the controls serve_reverted and no_bar, and the small= field of the record (CI_D_JOB=windows)'
+  fixture good-windows
+  real_export good-windows
+  job_as=windows
+  expect good-windows "$passed" good "^$left" "formal record stamp=same full=ok small=- runs=ok $whole lines=ok"
+  logged_as good-windows 0:0:1:1
+  fixture good-without-a-job
+  real_export good-without-a-job
+  job_as=-
+  expect good-without-a-job "$passed" good "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
+  logged_as good-without-a-job 1:2:1:4
+  fixture good-capital-windows
+  real_export good-capital-windows
+  job_as=Windows
+  expect good-capital-windows "$passed" good "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
+  logged_as good-capital-windows 1:2:1:4
+  fixture good-windows-and-a-blank
+  real_export good-windows-and-a-blank
+  job_as='windows '
+  expect good-windows-and-a-blank "$passed" good "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
+  logged_as good-windows-and-a-blank 1:2:1:4
+  fixture small-line-windows
+  edit small-line-windows "$rt" 's/^small config=Small.cfg states=15690$/small config=Small.cfg states=15689/'
+  job_as=windows
+  expect small-line-windows "$passed" good "formal record stamp=same full=ok small=- runs=ok"
+  fixture model-missing-windows
+  away model-missing-windows formal/r5-admit
+  job_as=windows
+  expect model-missing-windows "1:FAIL $name (model)" good
+  fixture attributes-no-eol-windows
+  edit attributes-no-eol-windows formal/r5-admit/.gitattributes 's/ eol=lf$//'
+  job_as=windows
+  expect attributes-no-eol-windows "1:FAIL $name (attributes)" good 'formal attributes files='
+  fixture pin-differs-windows
+  other_digit "$fake_sum"
+  edit pin-differs-windows formal/r3-confirm/README.md "s/sha256=./sha256=$digit/"
+  job_as=windows
+  expect pin-differs-windows "1:FAIL $name (pin)" good '^formal pin=differ'
+  fixture java-old-windows
+  job_as=windows
+  expect java-old-windows "1:FAIL $name (java)" java-old '^formal java major=11'
+  fixture hash-windows
+  jar_as=$work/other.jar
+  job_as=windows
+  expect hash-windows "1:FAIL $name (hash)" good '^formal jar source=given bytes=12 same=no'
+  fixture admit-constant-windows
+  edit admit-constant-windows "$a" 's/^    FurtherA = {a1, a2, a3}$/    FurtherA = {a1}/'
+  job_as=windows
+  expect admit-constant-windows "$invariant" good '^formal small result=admit-form'
+  fixture small-other-windows
+  edit small-other-windows "$s" 's/^    ListMax = 2$/    ListMax = 1/'
+  job_as=windows
+  expect small-other-windows "$invariant" good '^formal small result=small-form'
+  fixture formula-two-spaces-windows
+  edit formula-two-spaces-windows "$t" 's/^Q7Step == /Q7Step  == /'
+  job_as=windows
+  expect formula-two-spaces-windows "$invariant" good '^formal small result=formulas-form'
+  fixture table-56-rows-windows
+  copy_export table-56-rows-windows 0
+  edit table-56-rows-windows formal/r5-admit/edit-table.tsv 9d
+  job_as=windows
+  expect table-56-rows-windows "1:FAIL $name (table)" good '^formal table rows=56 same=no'
+  fixture trace-move-windows
+  real_export trace-move-windows
+  edit trace-move-windows formal/r5-admit/traces.jsonl '9s/"move":"recompile"/"move":"use_ok"/'
+  job_as=windows
+  expect trace-move-windows "1:FAIL $name (traces)" good '^formal table rows=57 same=yes' '^formal traces count=200 same=no'
+  fixture record-one-digit-windows
+  other_digit "$base_stamp"
+  edit record-one-digit-windows "$rt" "s/^stamp=./stamp=$digit/"
+  job_as=windows
+  expect record-one-digit-windows "$rec" good 'formal record stamp=differ'
+  fixture runs-missing-windows
+  away runs-missing-windows "$ru"
+  job_as=windows
+  expect runs-missing-windows "$rec" good 'runs=absent'
 }
 
 selftest() {

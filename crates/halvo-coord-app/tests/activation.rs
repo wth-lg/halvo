@@ -1,0 +1,162 @@
+#[path = "hosted/activation.rs"]
+mod activation;
+#[path = "hosted/reading.rs"]
+mod reading;
+
+use activation::{wait, Waited};
+use std::cell::Cell;
+use std::time::Duration;
+
+const EVERY: Duration = Duration::from_secs(1);
+const LIMIT: Duration = Duration::from_secs(20);
+
+/// Drawn counts of asks before the app reads active, from 0 to 29, by a fixed congruence.
+fn draws(count: usize) -> Vec<u32> {
+    let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+    (0..count)
+        .map(|_| {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((state >> 33) % 30) as u32
+        })
+        .collect()
+}
+
+/// Runs the wait over an app that reads active at its read number `after` (0 for the first read),
+/// or never for `None`: the result, the asks made and the time passed.
+fn run(after: Option<u32>) -> (Waited, u32, Duration) {
+    let asks = Cell::new(0u32);
+    let reads = Cell::new(0u32);
+    let passed = Cell::new(Duration::ZERO);
+    let result = wait(
+        || asks.set(asks.get() + 1),
+        || {
+            let n = reads.get();
+            reads.set(n + 1);
+            after.is_some_and(|after| n >= after)
+        },
+        |d| passed.set(passed.get() + d),
+        EVERY,
+        LIMIT,
+    );
+    (result, asks.get(), passed.get())
+}
+
+#[test]
+fn activation_an_app_active_at_once_is_asked_once_and_waits_nothing() {
+    assert_eq!(
+        run(Some(0)),
+        (Waited::Active { asks: 1 }, 1, Duration::ZERO)
+    );
+}
+
+#[test]
+fn activation_an_app_active_after_n_asks_is_asked_every_second_until_it_is() {
+    for after in draws(200) {
+        let (result, asks, passed) = run(Some(after));
+        if after <= 20 {
+            assert_eq!(result, Waited::Active { asks: after + 1 }, "after {after}");
+            assert_eq!(asks, after + 1, "after {after}");
+            assert_eq!(passed, EVERY * after, "after {after}");
+        } else {
+            assert_eq!(result, Waited::Inactive { asks: 21 }, "after {after}");
+            assert_eq!(passed, LIMIT, "after {after}");
+        }
+    }
+}
+
+#[test]
+fn activation_an_app_never_active_is_inactive_after_twenty_seconds_and_21_asks() {
+    assert_eq!(run(None), (Waited::Inactive { asks: 21 }, 21, LIMIT));
+}
+
+/// Runs the start over an app that reads active at its read number `after`, or never: the result
+/// and the steps in the order in which they came.
+fn started(after: Option<u32>) -> (Waited, Vec<&'static str>) {
+    let steps = std::cell::RefCell::new(Vec::new());
+    let reads = Cell::new(0u32);
+    let result = activation::start(
+        || steps.borrow_mut().push("front"),
+        || steps.borrow_mut().push("ask"),
+        || {
+            steps.borrow_mut().push("read");
+            let n = reads.get();
+            reads.set(n + 1);
+            after.is_some_and(|after| n >= after)
+        },
+        |_| steps.borrow_mut().push("pass"),
+        || steps.borrow_mut().push("out"),
+        EVERY,
+        LIMIT,
+    );
+    (result, steps.into_inner())
+}
+
+#[test]
+fn activation_the_start_brings_the_panel_forward_once_before_the_first_ask_and_out_after_the_last_read(
+) {
+    for after in [Some(0), Some(3), Some(20), None] {
+        let (result, steps) = started(after);
+        let label = format!("{after:?}: {steps:?}");
+        assert_eq!(steps.first(), Some(&"front"), "{label}");
+        assert_eq!(
+            steps.iter().filter(|s| **s == "front").count(),
+            1,
+            "{label}"
+        );
+        assert_eq!(steps.get(1), Some(&"ask"), "{label}");
+        assert_eq!(steps.last(), Some(&"out"), "{label}");
+        assert_eq!(steps.iter().filter(|s| **s == "out").count(), 1, "{label}");
+        let reads = steps.iter().filter(|s| **s == "read").count() as u32;
+        match after {
+            Some(n) => {
+                assert_eq!(result, Waited::Active { asks: n + 1 }, "{label}");
+                assert_eq!(reads, n + 1, "{label}");
+            }
+            None => assert_eq!(result, Waited::Inactive { asks: 21 }, "{label}"),
+        }
+    }
+}
+
+/// Entries of the main run loop's description as this Mac's Foundation prints them, for a timer
+/// of 0.05 s that has fired and for one that never fired; the class is the dialog's.
+const FIRED: &str = "\t0 : <CFRunLoopTimer 0x1032a4670 [0x1f15f8fc8]>{valid = Yes, firing = No, interval = 0.05, tolerance = 0, next fire date = 816400679 (0.0422188044 @ 12520909562612), callout = (NSTimer) [HalvoDialogHold reading:] (0x18ff1f3e8 / 0x102c05450) (/x/guard_hosted), context = <CFRunLoopTimer context 0x1032a4630>}";
+const NEVER: &str = "\t2 : <CFRunLoopTimer 0x1050a84a0 [0x1f15f8fc8]>{valid = Yes, firing = No, interval = 0.05, tolerance = 0, next fire date = 816400687 (-0.960178971 @ 12521092795058), callout = (NSTimer) [HalvoDialogHold reading:] (0x18ff1f3e8 / 0x104bc9420) (/x/guard_hosted), context = <CFRunLoopTimer context 0x1032a4630>}";
+
+#[test]
+fn reading_a_timer_that_fired_has_run_and_one_that_never_fired_has_not() {
+    let text = |entry: &str| {
+        format!("<CFRunLoop 0x1 [0x2]>{{wakeup port = 0x3}}\n\ttimers = <CFArray>{{\n{entry}\n}}\n")
+    };
+    assert_eq!(
+        reading::timer(&text(FIRED), 0.05),
+        reading::Timer::Valid {
+            next: 0.0422188044,
+            run: true
+        }
+    );
+    assert_eq!(
+        reading::timer(&text(NEVER), 0.05),
+        reading::Timer::Valid {
+            next: -0.960178971,
+            run: false
+        }
+    );
+    assert!(reading::words(reading::timer(&text(FIRED), 0.05)).contains("has run"));
+    assert!(reading::words(reading::timer(&text(NEVER), 0.05)).contains("has not run"));
+}
+
+#[test]
+fn reading_no_entry_of_the_dialog_is_absent_and_a_broken_one_is_unread() {
+    assert_eq!(
+        reading::timer("<CFRunLoop 0x1>{}", 0.05),
+        reading::Timer::Absent
+    );
+    let other = FIRED.replace("HalvoDialogHold", "GuardHostedWatch");
+    assert_eq!(reading::timer(&other, 0.05), reading::Timer::Absent);
+    let invalid = FIRED.replace("valid = Yes", "valid = No");
+    assert_eq!(reading::timer(&invalid, 0.05), reading::Timer::Absent);
+    let broken = FIRED.replace(" (0.0422188044 @", " (x @");
+    assert_eq!(reading::timer(&broken, 0.05), reading::Timer::Unread);
+}

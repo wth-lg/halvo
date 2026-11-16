@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: TLC finds no invariant of the coordinator's two models broken in the small configurations that formal/r4-coordinator/README.md names for CI, the committed traces are what the committed models export, and each of three control copies breaks its invariant.
+# rule: The committed traces are what the committed models export, every configuration line of formal/r4-coordinator/README.md has its one form and the gate record matches the models and this script, in every job; in the macos job (and in a run with no CI_D_JOB) TLC also finds no invariant of the coordinator's two models broken in the small configurations that the README names for CI, and each of three control copies breaks its invariant.
+# windows: with CI_D_JOB=windows the eight configurations marked for CI and the controls C1, L5 and L11 are left to the macos job, because the jar (its pinned sha256), the models and the configurations are the same bytes on both systems and both jobs printed the same distinct states; the export comparison, the table, the stamps and the record run in both jobs.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -26,6 +27,10 @@ l11_new='ELSE IF row /\ store = "lost" /\ c # "allow"'
 fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
   exit 1
+}
+
+models_here() {
+  [ "${CI_D_JOB:-}" != windows ]
 }
 
 made=
@@ -312,7 +317,7 @@ models() {
   t1=$(date +%s)
   while read -r model config file want_distinct ci; do
     declared "$model" "$file" "$ci"
-    if [ "$ci" = yes ]; then
+    if [ "$ci" = yes ] && models_here; then
       small "$model" "$config" "$file" "$want_distinct"
     elif [ "$result" != ok ]; then
       printf 'formal run model=%s configuration=%s status=- states=0 generated=0 seconds=0 result=%s\n' \
@@ -320,14 +325,16 @@ models() {
       bad=$((bad + 1))
     fi
   done <"$tmp/configurations.txt"
-  sort -u "$tmp/violated-schedule.txt" >"$tmp/violated-schedule.names" || fail invariant
-  sort -u "$tmp/violated-confirm.txt" >"$tmp/violated-confirm.names" || fail invariant
-  broken_schedule=$(grep -c . "$tmp/violated-schedule.names")
-  broken_confirm=$(grep -c . "$tmp/violated-confirm.names")
-  printf 'formal schedule states=%s invariants=12 violated=%s\n' "$schedule_states" "$broken_schedule"
-  printf 'formal confirm states=%s invariants=11 violated=%s\n' "$confirm_states" "$broken_confirm"
+  if models_here; then
+    sort -u "$tmp/violated-schedule.txt" >"$tmp/violated-schedule.names" || fail invariant
+    sort -u "$tmp/violated-confirm.txt" >"$tmp/violated-confirm.names" || fail invariant
+    broken_schedule=$(grep -c . "$tmp/violated-schedule.names")
+    broken_confirm=$(grep -c . "$tmp/violated-confirm.names")
+    printf 'formal schedule states=%s invariants=12 violated=%s\n' "$schedule_states" "$broken_schedule"
+    printf 'formal confirm states=%s invariants=11 violated=%s\n' "$confirm_states" "$broken_confirm"
+  fi
   [ "$bad" -eq 0 ] || fail invariant
-  if [ "$ran" -ne "$marked" ]; then
+  if models_here && [ "$ran" -ne "$marked" ]; then
     printf 'formal runs=%s marked=%s\n' "$ran" "$marked"
     fail invariant
   fi
@@ -531,7 +538,11 @@ measure() {
   record
   models
   compare
-  controls
+  if models_here; then
+    controls
+  else
+    printf 'formal left to the macos job: the eight configurations marked for CI and the controls C1, L5 and L11 (CI_D_JOB=windows)\n'
+  fi
   printf 'PASS %s\n' "$name"
 }
 
@@ -1051,6 +1062,91 @@ INVARIANT C7/'
   held emptied
 }
 
+windows_calls() {
+  awk '$1 ~ /^module=(Schedule|Confirm4)$/ { bad = 1 } $1 ~ /^module=(ScheduleTrace|Confirm4Trace)$/ { n++ }
+    END { exit (bad || n == 0) }' "$work/good-windows/java-good.log"
+}
+
+every_call() {
+  awk '
+    NR == FNR { if ($5 == "yes") want[$1 " " $3] = 1; next }
+    { seen[substr($1, 8) " " substr($2, 8)] = 1 }
+    $1 ~ /^module=(ScheduleTrace|Confirm4Trace)$/ { n++ }
+    END { for (k in want) if (!(k in seen)) bad = 1; exit (bad || n == 0) }' "$work/counts.txt" "$work/$1/java-good.log"
+}
+
+every_config() {
+  awk '
+    NR == FNR { if ($5 == "yes") want[$1 " " $3] = 1; next }
+    { seen[substr($1, 8) " " substr($2, 8)] = 1 }
+    END { for (k in want) if (!(k in seen)) bad = 1; exit (bad + 0) }' "$work/counts.txt" "$work/$1/java-good.log"
+}
+
+windows_cases() {
+  left='formal left to the macos job: the eight configurations marked for CI and the controls C1, L5 and L11 (CI_D_JOB=windows)'
+  fixture good-windows
+  job_as=windows
+  expect good-windows "0:PASS $name" good '' "$left" ' same=yes'
+  rule=windows-calls-the-export-alone
+  held windows_calls
+  fixture good-without-a-job
+  job_as=none
+  expect good-without-a-job "0:PASS $name" good '' ' same=yes' 'formal record fault=none'
+  rule=no-job-calls-every-run
+  held every_call good-without-a-job
+  fixture good-macos
+  job_as=macos
+  expect good-macos "0:PASS $name" good '' ' same=yes' 'formal record fault=none'
+  rule=macos-calls-every-run
+  held every_call good-macos
+  fixture good-capital-windows
+  job_as=Windows
+  expect good-capital-windows "0:PASS $name" good '' ' same=-' 'formal record fault=none'
+  rule=capital-windows-calls-every-configuration
+  held every_config good-capital-windows
+  fixture good-windows-and-a-blank
+  job_as='windows '
+  expect good-windows-and-a-blank "0:PASS $name" good '' ' same=-' 'formal record fault=none'
+  rule=windows-and-a-blank-calls-every-configuration
+  held every_config good-windows-and-a-blank
+  fixture other-bytes-windows
+  jar_from=$work/other.jar
+  job_as=windows
+  expect other-bytes-windows "1:FAIL $name (hash)" other-bytes
+  fixture java-old-windows
+  job_as=windows
+  expect java-old-windows "1:FAIL $name (java)" java-old
+  fixture line-beside-its-copy-windows
+  edit line-beside-its-copy-windows README.md 's/^\(| .Schedule. | .queue. | .Schedule-queue\.cfg. |\)\(.*\)$/\1\2\
+\1/'
+  job_as=windows
+  expect line-beside-its-copy-windows "1:FAIL $name (invariant)" good
+  fixture days-not-for-ci-windows
+  edit days-not-for-ci-windows README.md "$elsewhere"
+  edit days-not-for-ci-windows README.md 's/\(| .Schedule-days\.cfg. |\) yes |/\1 no |/'
+  job_as=windows
+  expect days-not-for-ci-windows "1:FAIL $name (invariant)" good
+  fixture invariant-twice-windows
+  edit invariant-twice-windows Schedule-queue.cfg 's/^INVARIANT C1$/INVARIANT C10/'
+  job_as=windows
+  expect invariant-twice-windows "1:FAIL $name (invariant)" good '' ' result=invariants'
+  fixture two-stamps-windows
+  edit two-stamps-windows README.md "$elsewhere"
+  edit two-stamps-windows traces-schedule.jsonl '1s/"stamp":"[0-9a-f]\{4\}/"stamp":"0000/'
+  job_as=windows
+  expect two-stamps-windows "1:FAIL $name (traces)" good '' 'formal traces fault=pair'
+  fixture record-one-digit-windows
+  other_digit "$real_stamp"
+  edit record-one-digit-windows gate-record.txt "s/^stamp=./stamp=$digit/"
+  job_as=windows
+  expect record-one-digit-windows "1:FAIL $name (record)" good '' 'formal record fault=stamp'
+  fixture changed-line-windows
+  edit changed-line-windows traces-schedule.jsonl '9s/"r":"ok"/"r":"state"/'
+  traces_from=$dir
+  job_as=windows
+  expect changed-line-windows "1:FAIL $name (traces)" good '' ' same=no'
+}
+
 selftest() {
   kind=$1
   label=$kind:$name
@@ -1101,6 +1197,7 @@ selftest() {
     fail selftest
   fi
   every_push
+  windows_cases
   if [ "$kind" = record ]; then
     for_the_record
   fi
