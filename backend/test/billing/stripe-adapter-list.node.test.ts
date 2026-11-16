@@ -265,9 +265,9 @@ describe("T5 and U2: the read of the customer", () => {
     expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 0 }, lines: ['{"event":"cancel-customer-unknown"}'] });
   });
 
-  test("a key of live mode goes on with a customer of live mode", async () => {
+  test("a key of live mode goes on with a customer of live mode to the list", async () => {
     const run = await cancel({ subs: [], customer: json({ id: CUSTOMER, object: "customer", livemode: true }) }, null, CUSTOMER, { apiKey: "rk_live_halvo" });
-    expect(run.answer).toEqual({ kind: "nothing-to-cancel" });
+    expect({ answer: run.answer, requests: run.requests }).toEqual({ answer: { kind: "nothing-to-cancel" }, requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions"] });
   });
 
   test.each([

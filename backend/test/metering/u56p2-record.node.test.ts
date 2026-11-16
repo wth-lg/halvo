@@ -97,6 +97,7 @@ describe("the record of the call in flight, one per account (P7-117 T6; P7-111 M
     w.endPauses();
     const answer = await unsettled;
     const recordAtTheBound = await callRecord(w);
+    const delayAtTheBound = (await skeleton(w))?.cancel_delay;
     w.at(START + MINUTE + 10_000);
     const second = await destroy(w);
     const beforeTheExpiry = [...ids];
@@ -109,10 +110,11 @@ describe("the record of the call in flight, one per account (P7-117 T6; P7-111 M
     const recordAfterTheLateAnswer = await callRecord(w);
     later.release();
     await third;
-    expect({ answer, unsettled: events(w).filter((each) => each === "cancel-call-unsettled").length, recordAtTheBound, second, beforeTheExpiry, recordAfterTheLateAnswer }).toEqual({
+    expect({ answer, unsettled: events(w).filter((each) => each === "cancel-call-unsettled").length, recordAtTheBound, delayAtTheBound, second, beforeTheExpiry, recordAfterTheLateAnswer }).toEqual({
       answer: { result: "not-finished" },
       unsettled: 1,
       recordAtTheBound: [{ subscription_id: null, began_at: START + MINUTE }],
+      delayAtTheBound: 2 * SYNC_RETRY_MS,
       second: { result: "not-finished" },
       beforeTheExpiry: [null],
       recordAfterTheLateAnswer: [{ subscription_id: null, began_at: START + MINUTE + CALL_IN_FLIGHT_MS }],
