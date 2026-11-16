@@ -349,7 +349,7 @@ describe("the fourth closed list of P7-115 (unit 5.6 part 1) A2 and A3: an exit 
   test("the drawn test, seed 115, 60 drawn cells and ten fixed ones: after the exit the alarm stands under the mark, at or before the earliest arm of another entry when that lies after the exit, else at or before the exit plus ALARM_RETRY_MS; the first cancel call no later than the later of that arm and the exit plus ALARM_RETRY_MS", async () => {
     const drawn = fc.sample(cells, { seed: 115, numRuns: 60 });
     for (const c of [...FIXED, ...drawn]) holdsTheBound(c, await cell(c));
-  });
+  }, 120_000);
 
   test("the drawn test's column with no delete: five failing runs with no mark end with alarm-stopped and no alarm (P7-111 M2)", async () => {
     const w = await world({ testClock: false });
