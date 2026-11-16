@@ -12,12 +12,38 @@ export type Fault =
 export type MeterCall =
   | { kind: "send"; at: Ms; identifier: string; amountMinor: number; timestamp: number; answer: string }
   | { kind: "read"; at: Ms; from: number; to: number; answer: string }
-  | { kind: "cancel"; at: Ms; subscriptionId: string | null; answer: string };
+  | { kind: "cancel"; at: Ms; subscriptionId: string | null; customerId: string | null; answer: string; cancelled?: number };
+
+/**
+ * A fault of one call of the customer model's cancel: `no-answer` reaches nothing; `list-no-answer` makes the stored id's
+ * cancel and then gets no answer to the read of the customer or the list.
+ */
+export type CancelFault = { kind: "none" } | { kind: "no-answer" } | { kind: "list-no-answer" } | { kind: "during"; run: () => Promise<void>; after?: CancelFault };
+
+/**
+ * The provider's customer records behind `cancelSubscription`, by the rule of contract 2: the stored id's cancel, the
+ * customer, the list of the customer's subscriptions that have not ended, each cancelled, and the answer of a whole list
+ * after the last cancel. `customers` maps a customer id to the meter's account; a customer id it does not map is one that
+ * the provider does not know. `refused` names subscriptions whose every cancel is refused while they stay live.
+ * `perCall` is the most listed cancels that one call makes, as the adapter's bound of requests does. A call without the
+ * second argument, as the port of unit 5.6 part 1 made it, is answered by part 1's rule for the stored id alone, so that
+ * a run of these tests over that head's code reads what that head did.
+ */
+export interface CustomerModel {
+  customers: Record<string, string>;
+  deleted?: string[];
+  refused?: string[];
+  perCall?: number;
+  faults?: CancelFault[];
+}
+
+type CancelAnswer = Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
 
 export interface MeterPort {
   port: ProviderPort;
   calls: MeterCall[];
   faults: Fault[];
+  cancelFaults: CancelFault[];
 }
 
 const NONE: Fault = { kind: "none" };
@@ -27,13 +53,71 @@ export function meterPort(o: {
   now: () => Ms;
   faults?: Fault[];
   always?: Fault;
-  cancel?: () => Promise<{ kind: "cancelled" } | { kind: "nothing-to-cancel" } | { kind: "failed" }>;
+  cancel?: () => Promise<{ kind: "cancelled" } | { kind: "nothing-to-cancel" } | { kind: "failed"; cancelled?: number }>;
+  customer?: CustomerModel;
   checkout?: { sessionId: string; url: string };
   session?: CompletedSession;
 }): MeterPort {
   const calls: MeterCall[] = [];
   const faults = o.faults ?? [];
+  const cancelFaults = o.customer?.faults ?? [];
   const seconds = () => Math.floor(o.now() / 1000);
+  async function nextCancelFault(): Promise<CancelFault> {
+    let fault = cancelFaults.shift() ?? { kind: "none" };
+    while (fault.kind === "during") {
+      await fault.run();
+      fault = fault.after ?? { kind: "none" };
+    }
+    return fault;
+  }
+  function storedIdAlone(model: CustomerModel, subscriptionId: string | null): CancelAnswer {
+    const stored = subscriptionId === null ? null : o.meter.plan(subscriptionId);
+    if (subscriptionId === null || stored === null || stored.status !== "active") return { kind: "nothing-to-cancel" };
+    if ((model.refused ?? []).includes(subscriptionId)) return { kind: "failed", cancelled: 0 };
+    o.meter.endSubscription(stored.account, seconds(), subscriptionId);
+    return { kind: "cancelled" };
+  }
+  async function customerCancel(model: CustomerModel, subscriptionId: string | null, customerId: string | null | undefined): Promise<CancelAnswer> {
+    if (customerId === undefined) return storedIdAlone(model, subscriptionId);
+    if (subscriptionId === null && customerId === null) return { kind: "nothing-to-cancel" };
+    const fault = await nextCancelFault();
+    if (fault.kind === "no-answer") return { kind: "failed", cancelled: 0 };
+    const refused = new Set(model.refused ?? []);
+    let counted = 0;
+    let endedOne = false;
+    let storedUnanswered = false;
+    const live = (status: string) => status !== "canceled" && status !== "incomplete_expired";
+    if (subscriptionId !== null) {
+      const stored = o.meter.plan(subscriptionId);
+      if (stored !== null && live(stored.status)) {
+        if (refused.has(subscriptionId)) storedUnanswered = true;
+        else {
+          o.meter.endSubscription(stored.account, seconds(), subscriptionId);
+          endedOne = true;
+        }
+      }
+    }
+    const failed = (): CancelAnswer => ({ kind: "failed", cancelled: counted });
+    const end = (): CancelAnswer => {
+      if (storedUnanswered) return failed();
+      return endedOne ? { kind: "cancelled" } : { kind: "nothing-to-cancel" };
+    };
+    if (fault.kind === "list-no-answer" || customerId === null) return failed();
+    if ((model.deleted ?? []).includes(customerId)) return end();
+    const account = model.customers[customerId];
+    if (account === undefined) return failed();
+    let listed = 0;
+    for (const plan of o.meter.plans(account)) {
+      if (!live(plan.status)) continue;
+      if (listed === (model.perCall ?? Number.POSITIVE_INFINITY)) return failed();
+      listed += 1;
+      if (refused.has(plan.id)) continue;
+      o.meter.endSubscription(account, seconds(), plan.id);
+      counted += 1;
+      endedOne = true;
+    }
+    return o.meter.plans(account).some((plan) => live(plan.status)) ? failed() : end();
+  }
   async function next(): Promise<Fault> {
     let fault = faults.shift() ?? o.always ?? NONE;
     while (fault.kind === "during") {
@@ -57,9 +141,14 @@ export function meterPort(o: {
     async openManagePage() {
       return { kind: "failed" };
     },
-    async cancelSubscription(subscriptionId) {
-      const answer = o.cancel === undefined ? { kind: "nothing-to-cancel" as const } : await o.cancel();
-      calls.push({ kind: "cancel", at: o.now(), subscriptionId, answer: answer.kind });
+    async cancelSubscription(subscriptionId, customerId) {
+      let answer: CancelAnswer;
+      if (o.cancel !== undefined) {
+        const given = await o.cancel();
+        answer = given.kind === "failed" ? { kind: "failed", cancelled: given.cancelled ?? 0 } : given;
+      } else if (o.customer !== undefined) answer = await customerCancel(o.customer, subscriptionId, customerId);
+      else answer = { kind: "nothing-to-cancel" };
+      calls.push({ kind: "cancel", at: o.now(), subscriptionId, customerId: customerId ?? null, answer: answer.kind, ...(answer.kind === "failed" ? { cancelled: answer.cancelled } : {}) });
       return answer;
     },
     async sendUsage(e) {
@@ -98,5 +187,5 @@ export function meterPort(o: {
       return { kind: "total", from: read.widenedFrom, to: read.widenedTo, totalMinor: read.totalMinor };
     },
   };
-  return { port, calls, faults };
+  return { port, calls, faults, cancelFaults };
 }

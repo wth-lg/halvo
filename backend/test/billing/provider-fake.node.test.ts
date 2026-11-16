@@ -224,13 +224,15 @@ describe("events", () => {
     expect(cancelled).toEqual({ result: "cancelled", events: [expect.any(String)] });
     expect((await call(`/test/events/${(cancelled.events as string[])[0]}`)).type).toBe("customer.subscription.deleted");
     expect(await call("/test/cancel", { subscription })).toEqual({ result: "already-ended" });
-    expect(await port.cancelSubscription(subscription)).toEqual({ kind: "nothing-to-cancel" });
-    expect(await port.cancelSubscription("sub_test_not_held")).toEqual({ kind: "nothing-to-cancel" });
+    const customer = String((await call(`/test/subscriptions/${subscription}`)).customer);
+    expect(await port.cancelSubscription(subscription, customer)).toEqual({ kind: "nothing-to-cancel" });
+    expect(await port.cancelSubscription("sub_test_not_held", customer)).toEqual({ kind: "nothing-to-cancel" });
 
     const other = await newSession();
     const otherPaid = await call("/test/pay", { session: other.id });
+    const otherCustomer = String((await call(`/test/subscriptions/${String(otherPaid.subscription)}`)).customer);
     const count = entry.requests.length;
-    expect(await port.cancelSubscription(String(otherPaid.subscription))).toEqual({ kind: "cancelled" });
+    expect(await port.cancelSubscription(String(otherPaid.subscription), otherCustomer)).toEqual({ kind: "cancelled" });
     expect(deliveredSince(count)).toEqual([]);
     expect((await call(`/test/subscriptions/${String(otherPaid.subscription)}`)).status).toBe("canceled");
   });

@@ -118,7 +118,7 @@ interface Mark {
 type Fourth =
   | { kind: "answer"; answer: DeleteAnswer }
   | { kind: "again" }
-  | { kind: "cancel"; subscriptionId: string | null; mark: Ms; unacknowledged: number; began: Ms | null }
+  | { kind: "cancel"; subscriptionId: string | null; customerId: string | null; mark: Ms; unacknowledged: number; began: Ms | null }
   | { kind: "answered"; mark: Ms };
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
@@ -278,25 +278,25 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return row === undefined ? null : Number(row.time);
   };
   const time = (sql: Sql) => testTime(sql) ?? host.clock();
-  const callRecord = (sql: Sql): { subscriptionId: string; beganAt: Ms } | null => {
+  const callRecord = (sql: Sql): { beganAt: Ms } | null => {
     if (!tableExists(sql, CANCEL_CALL)) return null;
     const row = sql.exec("SELECT subscription_id, began_at FROM cancel_call")[0];
-    return row === undefined ? null : { subscriptionId: String(row.subscription_id), beganAt: Number(row.began_at) };
+    return row === undefined ? null : { beganAt: Number(row.began_at) };
   };
-  const callEnds = (sql: Sql, subscriptionId: string | null, now: Ms): Ms | null => {
+  const callEnds = (sql: Sql, now: Ms): Ms | null => {
     const record = callRecord(sql);
-    if (record === null || subscriptionId === null || record.subscriptionId !== subscriptionId) return null;
+    if (record === null) return null;
     const ends = record.beganAt + CALL_IN_FLIGHT_MS;
     return now < ends ? ends : null;
   };
-  const storeCallRecord = (sql: Sql, subscriptionId: string, began: Ms) => {
-    sql.exec("CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT NOT NULL, began_at INTEGER NOT NULL)");
+  const storeCallRecord = (sql: Sql, subscriptionId: string | null, began: Ms) => {
+    sql.exec("CREATE TABLE IF NOT EXISTS cancel_call (subscription_id TEXT, began_at INTEGER NOT NULL)");
     sql.exec("DELETE FROM cancel_call");
     sql.exec("INSERT INTO cancel_call (subscription_id, began_at) VALUES (?, ?)", subscriptionId, began);
   };
   const clearCallRecord = (sql: Sql, subscriptionId: string | null, began: Ms | null) => {
-    if (subscriptionId === null || began === null || !tableExists(sql, CANCEL_CALL)) return;
-    sql.exec("DELETE FROM cancel_call WHERE subscription_id = ? AND began_at = ?", subscriptionId, began);
+    if (began === null || !tableExists(sql, CANCEL_CALL)) return;
+    sql.exec("DELETE FROM cancel_call WHERE subscription_id IS ? AND began_at = ?", subscriptionId, began);
   };
   const isMetered = (sql: Sql) => {
     const subscription = accounts.subscription(sql);
@@ -306,12 +306,12 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   /**
    * The delete term of the due time under the mark, keyed by the subscription id that the account row holds now: with an
    * answer stored for that id, the stored decision's retry, or the removal's bound while no decision is stored; else the end
-   * of a cancel call in flight for that id; else the end of a send in flight, the stored next try, and the mark itself while no hold and no send is open.
+   * of the account's cancel call in flight, whatever id it was made for; else the end of a send in flight, the stored next try, and the mark itself while no hold and no send is open.
    */
   function deleteTerm(sql: Sql, mark: Mark & { since: Ms }, subscriptionId: string | null): Ms | null {
     if (answeredFor(mark, subscriptionId)) return mark.decidedAt === null ? (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS : mark.decidedAt + SYNC_RETRY_MS;
     const now = Math.max(time(sql), lastNow(sql));
-    const callEnd = callEnds(sql, subscriptionId, now);
+    const callEnd = callEnds(sql, now);
     if (callEnd !== null) return callEnd;
     const sendEnd = sendEnds(sql, now);
     if (mark.nextAt !== null) return earliest([sendEnd, mark.nextAt]);
@@ -824,9 +824,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           open.caught(error);
         }
       }
-      const subscriptionId = (accounts.subscription(open.sql) ?? contractBroken()).subscriptionId;
+      const { subscriptionId, customerId } = accounts.subscription(open.sql) ?? contractBroken();
       if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
-      if (callEnds(open.sql, subscriptionId, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
+      if (callEnds(open.sql, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
       if (sendEnds(open.sql, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
       let unacknowledged = 0;
@@ -835,8 +835,9 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       } catch (error) {
         open.caught(error);
       }
-      if (subscriptionId !== null) storeCallRecord(open.sql, subscriptionId, now);
-      return { kind: "cancel", subscriptionId, mark: mark.since, unacknowledged, began: subscriptionId === null ? null : now };
+      const calls = subscriptionId !== null || customerId !== null;
+      if (calls) storeCallRecord(open.sql, subscriptionId, now);
+      return { kind: "cancel", subscriptionId, customerId, mark: mark.since, unacknowledged, began: calls ? now : null };
     }, by);
   }
 
@@ -858,7 +859,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (next.kind === "answer") return next.answer;
     if (next.kind === "again") return contractBroken();
     const mark = next.mark;
-    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId } : null;
+    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId, customerId: next.customerId } : null;
     if (made !== null) {
       for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
       const id = made.subscriptionId;
@@ -874,7 +875,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           log({ event: by.line, error: errorName(clearing) });
         }
       };
-      const settled = (async () => host.port.cancelSubscription(id))().then(
+      const settled = (async () => host.port.cancelSubscription(id, made.customerId))().then(
         (answer) => ({ answer }),
         (error: unknown) => ({ error }),
       );
@@ -884,18 +885,23 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (first === null) {
         log({ event: "cancel-call-unsettled" });
         void settled.then(clear);
-        cancelled = { kind: "failed" };
+        cancelled = { kind: "failed", cancelled: 0 };
       } else if ("error" in first) {
         clear();
         throw first.error;
       } else cancelled = first.answer;
       if (cancelled.kind === "failed") {
+        const progress = cancelled.cancelled > 0;
         const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
           if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
           const now = open.begin();
           if (first !== null) clearCallRecord(open.sql, id, began);
           const current = markOf(open.sql);
           if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, capped: false };
+          if (progress) {
+            open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + SYNC_RETRY_MS, SYNC_RETRY_MS);
+            return { answer: NOT_FINISHED, capped: false };
+          }
           const delay = current.delay ?? SYNC_RETRY_MS;
           open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));
           return { answer: NOT_FINISHED, capped: delay >= RETRY_DELAY_CAP_MS };
@@ -1131,7 +1137,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         { nothing: { result: "no-such-account" }, mismatch: { result: "credential-mismatch" }, pending: { result: "pending" } },
         (open) => {
           const subscription = accounts.subscription(open.sql) ?? contractBroken();
-          if (subscription.customerId === null || host.config.publicOrigin === "") return { result: "unavailable" };
+          if (destroyingSince(open.sql) !== null || subscription.customerId === null || host.config.publicOrigin === "") return { result: "unavailable" };
           return { customerId: subscription.customerId };
         },
       );

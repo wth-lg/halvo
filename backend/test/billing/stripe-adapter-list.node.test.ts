@@ -1,0 +1,416 @@
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { CALL_REQUEST_LIMIT, makeStripePort, REQUEST_START_MARGIN_MS, type StripeConfig } from "../../src/billing/stripe/adapter.ts";
+import { PROVIDER_CALL_TIMEOUT_MS } from "../../src/billing/stripe/timeout.ts";
+import { type Recorded, startRecorder } from "./servers.ts";
+
+const KEY = "sk_test_halvolocal";
+const CUSTOMER = "cus_1";
+const MISSING = JSON.stringify({ error: { type: "invalid_request_error", code: "resource_missing", message: "No such object", param: "id" } });
+const REFUSED = JSON.stringify({ error: { type: "invalid_request_error", message: "refused" } });
+
+type Reply = { status: number; body: string } | "drop" | "hang";
+type Sub = { id: string; status: string; customer: string };
+
+interface Model {
+  subs: Sub[];
+  customer?: Reply;
+  refused?: string[];
+  endsOnRefusal?: string[];
+  dropped?: string[];
+  page?: (index: number, reply: Reply) => Reply;
+  onCancel?: (id: string, subs: Sub[]) => void;
+  tick?: () => void;
+}
+
+function json(value: unknown, status = 200): Reply {
+  return { status, body: JSON.stringify(value) };
+}
+
+function live(id: string, status = "active", customer = CUSTOMER): Sub {
+  return { id, status, customer };
+}
+
+function provider(model: Model): (request: Recorded) => Reply {
+  let pages = 0;
+  return (request) => {
+    model.tick?.();
+    const subscription = /^\/v1\/subscriptions\/([^/]+)$/.exec(request.path);
+    if (subscription !== null) {
+      const id = decodeURIComponent(subscription[1] as string);
+      const found = model.subs.find((each) => each.id === id);
+      if (request.method === "GET") return found === undefined ? { status: 404, body: MISSING } : json(found);
+      if ((model.dropped ?? []).includes(id)) return "drop";
+      if (found === undefined) return { status: 404, body: MISSING };
+      if (found.status === "canceled" || found.status === "incomplete_expired") return { status: 400, body: REFUSED };
+      if ((model.endsOnRefusal ?? []).includes(id)) {
+        found.status = "canceled";
+        return { status: 400, body: REFUSED };
+      }
+      if ((model.refused ?? []).includes(id)) return { status: 400, body: REFUSED };
+      found.status = "canceled";
+      model.onCancel?.(id, model.subs);
+      return json(found);
+    }
+    if (request.path === `/v1/customers/${CUSTOMER}`) return model.customer ?? json({ id: CUSTOMER, object: "customer", livemode: false });
+    if (request.path === "/v1/subscriptions") {
+      const limit = Number(request.values.limit ?? "10");
+      const after = request.values.starting_after;
+      const from = after === undefined ? 0 : model.subs.findIndex((each) => each.id === after) + 1;
+      const status = request.values.status;
+      const shown = model.subs
+        .slice(from)
+        .filter((each) => each.customer === request.values.customer)
+        .filter((each) => (status === undefined ? each.status !== "canceled" : status === "all" || each.status === status));
+      const reply = json({ object: "list", url: "/v1/subscriptions", has_more: shown.length > limit, data: shown.slice(0, limit) });
+      const index = pages;
+      pages += 1;
+      return model.page === undefined ? reply : model.page(index, reply);
+    }
+    return { status: 500, body: "" };
+  };
+}
+
+function config(baseUrl: string, over: Partial<StripeConfig> = {}): StripeConfig {
+  return { baseUrl, apiKey: KEY, signingSecret: "whsec_test", priceId: "price_test", ...over };
+}
+
+function line(request: Recorded): string {
+  const after = request.values.starting_after;
+  return `${request.method} ${request.path}${after === undefined ? "" : ` after ${after}`}`;
+}
+
+let logged: string[] = [];
+beforeEach(() => {
+  logged = [];
+  vi.spyOn(console, "log").mockImplementation((text: string) => {
+    logged.push(text);
+  });
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function cancel(model: Model, subscriptionId: string | null, customerId: string | null = CUSTOMER, over: Partial<StripeConfig> = {}, clock?: () => number) {
+  const server = await startRecorder(provider(model));
+  try {
+    const port = makeStripePort(config(server.url, over), clock);
+    const answer = await port.cancelSubscription(subscriptionId, customerId);
+    return { answer, requests: server.requests.map(line), recorded: [...server.requests], lines: [...logged] };
+  } finally {
+    await server.close();
+  }
+}
+
+describe("the walk of the customer's list (contract 2 from unit 5.6 part 2; P7-86 E, P7-117)", () => {
+  test("a second subscription on the customer: the stored id's cancel, the customer's read, the list, the listed cancel with the same request, and a whole list read after it: cancelled", async () => {
+    const run = await cancel({ subs: [live("sub_1"), live("sub_2")] }, "sub_1");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "cancelled" },
+      requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_2", "GET /v1/subscriptions"],
+    });
+    for (const request of run.recorded.filter((each) => each.method === "DELETE")) {
+      expect({ params: request.params, values: request.values }).toEqual({ params: ["invoice_now"], values: { invoice_now: "true" } });
+    }
+    for (const request of run.recorded.filter((each) => each.path === "/v1/subscriptions")) {
+      expect({ params: request.params, values: request.values }).toEqual({ params: ["customer", "limit"], values: { customer: CUSTOMER, limit: "100" } });
+    }
+  });
+
+  test("an account with a customer and no stored id: the customer's read, the list, the cancel of its subscription and a whole list after it: cancelled", async () => {
+    const run = await cancel({ subs: [live("sub_1")] }, null);
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "cancelled" },
+      requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_1", "GET /v1/subscriptions"],
+    });
+  });
+
+  test("a list in two pages: the first page's cancels come before the second page is asked, which starts after the first page's last entry, and the whole list is read again after the last cancel", async () => {
+    const ended = Array.from({ length: 99 }, (_, index) => live(`sub_ie_${index}`, "incomplete_expired"));
+    const run = await cancel({ subs: [...ended, live("sub_a"), live("sub_b")] }, null);
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "cancelled" },
+      requests: [
+        `GET /v1/customers/${CUSTOMER}`,
+        "GET /v1/subscriptions",
+        "DELETE /v1/subscriptions/sub_a",
+        "GET /v1/subscriptions after sub_a",
+        "DELETE /v1/subscriptions/sub_b",
+        "GET /v1/subscriptions",
+      ],
+    });
+    expect(run.recorded.filter((each) => each.path === "/v1/subscriptions").map((each) => each.params)).toEqual([
+      ["customer", "limit"],
+      ["customer", "limit", "starting_after"],
+      ["customer", "limit"],
+    ]);
+  });
+
+  test("T1: a customer with one incomplete_expired subscription: the list is asked with the customer, limit=100 and no status, nothing is cancelled, and the call ends: nothing-to-cancel", async () => {
+    const run = await cancel({ subs: [live("sub_ie", "incomplete_expired")] }, null);
+    expect({ answer: run.answer, requests: run.requests, list: run.recorded[1]?.values }).toEqual({
+      answer: { kind: "nothing-to-cancel" },
+      requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions"],
+      list: { customer: CUSTOMER, limit: "100" },
+    });
+  });
+
+  test("an entry whose status is outside the spec's list has not ended and is cancelled", async () => {
+    const run = await cancel({ subs: [live("sub_odd", "a_status_of_tomorrow")] }, null);
+    expect({ answer: run.answer, requests: run.requests.slice(2, 3) }).toEqual({ answer: { kind: "cancelled" }, requests: ["DELETE /v1/subscriptions/sub_odd"] });
+  });
+
+  test("S2: a refused cancel of a listed subscription whose read shows it ended: the read follows the refused cancel, nothing counts, and the call ends on the whole list after it", async () => {
+    const run = await cancel({ subs: [live("sub_2")], endsOnRefusal: ["sub_2"] }, null);
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "nothing-to-cancel" },
+      requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_2", "GET /v1/subscriptions/sub_2", "GET /v1/subscriptions"],
+    });
+  });
+
+  test("T8: a listed subscription refused on every try while its read shows it live: the walk goes past it and ends the next one, and the last whole list keeps the answer failed with the count 1", async () => {
+    const run = await cancel({ subs: [live("sub_2"), live("sub_3")], refused: ["sub_2"] }, null);
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "failed", cancelled: 1 },
+      requests: [
+        `GET /v1/customers/${CUSTOMER}`,
+        "GET /v1/subscriptions",
+        "DELETE /v1/subscriptions/sub_2",
+        "GET /v1/subscriptions/sub_2",
+        "DELETE /v1/subscriptions/sub_3",
+        "GET /v1/subscriptions",
+      ],
+    });
+  });
+
+  test("a subscription made at the provider during the call, before the last whole list, is caught by that list: failed with the count of what this call ended", async () => {
+    const run = await cancel(
+      {
+        subs: [live("sub_2")],
+        onCancel: (id, subs) => {
+          if (id === "sub_2") subs.push(live("sub_new"));
+        },
+      },
+      null,
+    );
+    expect({ answer: run.answer, last: run.requests.at(-1) }).toEqual({ answer: { kind: "failed", cancelled: 1 }, last: "GET /v1/subscriptions" });
+  });
+});
+
+const PAGE_FAULTS: [string, Reply][] = [
+  ["a 404", { status: 404, body: MISSING }],
+  ["a 500", { status: 500, body: REFUSED }],
+  ["no answer", "drop"],
+  ["a body that is no JSON", { status: 200, body: "not json" }],
+  ["an object that is not a list", json({ object: "search_result", has_more: false, data: [] })],
+  ["no data array", json({ object: "list", has_more: false })],
+  ["has_more that is not a boolean", json({ object: "list", has_more: "false", data: [] })],
+  ["an entry of another customer", json({ object: "list", has_more: false, data: [live("sub_x", "active", "cus_other")] })],
+  ["an entry with no string id", json({ object: "list", has_more: false, data: [{ id: 7, status: "active", customer: CUSTOMER }] })],
+  ["an entry with no string status", json({ object: "list", has_more: false, data: [{ id: "sub_x", customer: CUSTOMER }] })],
+  ["has_more true on an empty page", json({ object: "list", has_more: true, data: [] })],
+];
+
+describe("T3: a page that is a fault is the answer failed, never the end of the list", () => {
+  test.each(PAGE_FAULTS)("the first page answers %s: failed with the count 0, one cancel-list-fault line and no cancel", async (_, fault) => {
+    const run = await cancel({ subs: [live("sub_1")], page: (index, reply) => (index === 0 ? fault : reply) }, null);
+    expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
+      answer: { kind: "failed", cancelled: 0 },
+      requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions"],
+      lines: ['{"event":"cancel-list-fault"}'],
+    });
+  });
+
+  test.each(PAGE_FAULTS)("the second page answers %s: failed with the count of the first page's cancel, and no whole list is taken", async (_, fault) => {
+    const ended = Array.from({ length: 99 }, (_, index) => live(`sub_ie_${index}`, "incomplete_expired"));
+    const run = await cancel({ subs: [...ended, live("sub_a"), live("sub_b")], page: (index, reply) => (index === 1 ? fault : reply) }, null);
+    expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
+      answer: { kind: "failed", cancelled: 1 },
+      requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_a", "GET /v1/subscriptions after sub_a"],
+      lines: ['{"event":"cancel-list-fault"}'],
+    });
+  });
+
+  test("the whole list after the last cancel answers a fault: failed with the count, and one cancel-list-fault line", async () => {
+    const run = await cancel({ subs: [live("sub_1")], page: (index, reply) => (index === 1 ? { status: 500, body: REFUSED } : reply) }, null);
+    expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 1 }, lines: ['{"event":"cancel-list-fault"}'] });
+  });
+});
+
+describe("T5 and U2: the read of the customer", () => {
+  test("a customer that the provider shows as deleted: the read of the customer, no list, and nothing-to-cancel", async () => {
+    const run = await cancel({ subs: [live("sub_1")], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) }, null);
+    expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({ answer: { kind: "nothing-to-cancel" }, requests: [`GET /v1/customers/${CUSTOMER}`], lines: [] });
+  });
+
+  test("the stored id ended by this call and a customer shown as deleted: cancelled", async () => {
+    const run = await cancel({ subs: [live("sub_1")], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) }, "sub_1");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({ answer: { kind: "cancelled" }, requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`] });
+  });
+
+  test.each([
+    ["a 404 with the provider's error object", { status: 404, body: MISSING }],
+    ["a 404 with no error object", { status: 404, body: "gone" }],
+    ["a customer of live mode under a key of test mode", json({ id: CUSTOMER, object: "customer", livemode: true })],
+  ] as [string, Reply][])("a customer that the provider does not know or shows in the other mode (%s): failed, one cancel-customer-unknown line, no list", async (_, reply) => {
+    const run = await cancel({ subs: [live("sub_1")], customer: reply }, null);
+    expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
+      answer: { kind: "failed", cancelled: 0 },
+      requests: [`GET /v1/customers/${CUSTOMER}`],
+      lines: ['{"event":"cancel-customer-unknown"}'],
+    });
+  });
+
+  test("a key that names no mode shows no customer as its own: failed, one cancel-customer-unknown line", async () => {
+    const run = await cancel({ subs: [live("sub_1")] }, null, CUSTOMER, { apiKey: "halvo_key_of_no_mode" });
+    expect({ answer: run.answer, lines: run.lines }).toEqual({ answer: { kind: "failed", cancelled: 0 }, lines: ['{"event":"cancel-customer-unknown"}'] });
+  });
+
+  test("a key of live mode goes on with a customer of live mode", async () => {
+    const run = await cancel({ subs: [], customer: json({ id: CUSTOMER, object: "customer", livemode: true }) }, null, CUSTOMER, { apiKey: "rk_live_halvo" });
+    expect(run.answer).toEqual({ kind: "nothing-to-cancel" });
+  });
+
+  test.each([
+    ["no answer", "drop"],
+    ["a 500", { status: 500, body: REFUSED }],
+    ["a body that is no JSON", { status: 200, body: "not json" }],
+    ["a body that is a subscription", json({ id: CUSTOMER, object: "subscription", livemode: false })],
+    ["a customer of another id", json({ id: "cus_other", object: "customer", livemode: false })],
+    ["a customer with no livemode", json({ id: CUSTOMER, object: "customer" })],
+    ["a deleted customer of another id", json({ id: "cus_other", object: "customer", deleted: true })],
+  ] as [string, Reply][])("U2: a read of the customer that answers %s is failed, with no line and no list", async (_, reply) => {
+    const run = await cancel({ subs: [live("sub_1")], customer: reply }, null);
+    expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({
+      answer: { kind: "failed", cancelled: 0 },
+      requests: [`GET /v1/customers/${CUSTOMER}`],
+      lines: [],
+    });
+  });
+});
+
+describe("U1, U3, U4 and U6: the stored id and the count", () => {
+  test("U1: a stored id that the provider does not know and a customer that it does not know: failed, after the read of the customer", async () => {
+    const run = await cancel({ subs: [], customer: { status: 404, body: MISSING } }, "sub_gone");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "failed", cancelled: 0 },
+      requests: ["DELETE /v1/subscriptions/sub_gone", "GET /v1/subscriptions/sub_gone", `GET /v1/customers/${CUSTOMER}`],
+    });
+  });
+
+  test("U1: the stored id refused and read as ended, with a second subscription that has not ended on the list: the second is cancelled", async () => {
+    const run = await cancel({ subs: [live("sub_1", "canceled"), live("sub_2")] }, "sub_1");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "cancelled" },
+      requests: [
+        "DELETE /v1/subscriptions/sub_1",
+        "GET /v1/subscriptions/sub_1",
+        `GET /v1/customers/${CUSTOMER}`,
+        "GET /v1/subscriptions",
+        "DELETE /v1/subscriptions/sub_2",
+        "GET /v1/subscriptions",
+      ],
+    });
+  });
+
+  test("U6: a customer whose only subscription is the stored id, ended by this call: cancelled", async () => {
+    const run = await cancel({ subs: [live("sub_1")] }, "sub_1");
+    expect(run.answer).toEqual({ kind: "cancelled" });
+  });
+
+  test("U3: the stored id ended by this call and a fault of the list: failed with the count 0", async () => {
+    const run = await cancel({ subs: [live("sub_1")], page: () => ({ status: 500, body: REFUSED }) }, "sub_1");
+    expect(run.answer).toEqual({ kind: "failed", cancelled: 0 });
+  });
+
+  test("U4: an unanswered cancel of the stored id is failed whatever the list shows, and the walk still ends the listed subscription", async () => {
+    const run = await cancel({ subs: [live("sub_1", "canceled"), live("sub_2")], dropped: ["sub_1"] }, "sub_1");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "failed", cancelled: 1 },
+      requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_2", "GET /v1/subscriptions"],
+    });
+  });
+
+  test("U4: an unanswered cancel of the stored id, with an empty list: failed with the count 0", async () => {
+    const run = await cancel({ subs: [live("sub_1", "canceled")], dropped: ["sub_1"] }, "sub_1");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({
+      answer: { kind: "failed", cancelled: 0 },
+      requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions"],
+    });
+  });
+});
+
+describe("the bound of one call (contract 3.6; P7-117 (d), S7, U5)", () => {
+  const many = (count: number) => Array.from({ length: count }, (_, index) => live(`sub_${String(index).padStart(3, "0")}`));
+
+  test("CALL_REQUEST_LIMIT is 20 and REQUEST_START_MARGIN_MS is 500, 20 x 500 ms = PROVIDER_CALL_TIMEOUT_MS", () => {
+    expect([CALL_REQUEST_LIMIT, REQUEST_START_MARGIN_MS, CALL_REQUEST_LIMIT * REQUEST_START_MARGIN_MS]).toEqual([20, 500, PROVIDER_CALL_TIMEOUT_MS]);
+  });
+
+  test.each([
+    ["no stored id", null, [], 18],
+    ["a stored id whose cancel goes through", "sub_000", [], 17],
+    ["a stored id whose cancel is refused and read", "sub_000", ["sub_000"], 16],
+  ] as [string, string | null, string[], number][])("one page of 30 subscriptions with %s: 20 requests, then failed with the count of the listed cancels", async (_, stored, endedBefore, listed) => {
+    const subs = many(30);
+    for (const each of subs) if (endedBefore.includes(each.id)) each.status = "canceled";
+    const run = await cancel({ subs }, stored);
+    expect({ requests: run.requests.length, deletes: run.requests.filter((each) => each.startsWith("DELETE")).length - (stored === null ? 0 : 1), answer: run.answer }).toEqual({
+      requests: 20,
+      deletes: listed,
+      answer: { kind: "failed", cancelled: listed },
+    });
+  });
+
+  test("REQUEST_START_MARGIN_MS: no request starts with less than 500 ms of the call's deadline left", async () => {
+    let now = 0;
+    const run = await cancel({ subs: many(30), tick: () => (now += 950) }, null, CUSTOMER, {}, () => now);
+    expect({ requests: run.requests.length, answer: run.answer }).toEqual({ requests: 11, answer: { kind: "failed", cancelled: 9 } });
+  });
+
+  test.each([
+    ["with a stored id among them", "sub_000", 16, 13],
+    ["with no stored id", null, 14, 19],
+  ] as [string, string | null, number, number][])("a customer of 250 subscriptions that have not ended, %s, ends in the counted number of calls", async (_, stored, calls, lastRequests) => {
+    const model: Model = { subs: many(250) };
+    const server = await startRecorder(provider(model));
+    try {
+      const port = makeStripePort(config(server.url));
+      const answers: string[] = [];
+      let before = 0;
+      const requestsOfEach: number[] = [];
+      for (let each = 0; each < 40; each += 1) {
+        const answer = await port.cancelSubscription(stored, CUSTOMER);
+        answers.push(answer.kind === "failed" ? `failed ${answer.cancelled}` : answer.kind);
+        requestsOfEach.push(server.requests.length - before);
+        before = server.requests.length;
+        if (answer.kind !== "failed") break;
+      }
+      expect({
+        calls: answers.length,
+        last: answers.at(-1),
+        lastRequests: requestsOfEach.at(-1),
+        most: Math.max(...requestsOfEach),
+        live: model.subs.filter((each) => each.status !== "canceled").length,
+      }).toEqual({ calls, last: "cancelled", lastRequests, most: 20, live: 0 });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe("T4: no address or no key", () => {
+  test("with a customer id every answer is failed and no connection opens; only an account with neither id gets nothing-to-cancel", async () => {
+    const server = await startRecorder(provider({ subs: [live("sub_1")] }));
+    try {
+      for (const over of [{ baseUrl: "" }, { apiKey: "" }]) {
+        const port = makeStripePort(config(server.url, over));
+        expect(await port.cancelSubscription(null, CUSTOMER)).toEqual({ kind: "failed", cancelled: 0 });
+        expect(await port.cancelSubscription("sub_1", CUSTOMER)).toEqual({ kind: "failed", cancelled: 0 });
+        expect(await port.cancelSubscription(null, null)).toEqual({ kind: "nothing-to-cancel" });
+      }
+      expect(server.requests).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+});

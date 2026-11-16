@@ -391,8 +391,9 @@ class World {
       verifyWebhook: async () => ({ kind: "rejected" }),
       readSession: async () => failed,
       openManagePage: async () => failed,
-      cancelSubscription: async (subscriptionId) => {
+      cancelSubscription: async (subscriptionId, customerId) => {
         this.count("call.cancel");
+        if (customerId !== account.customer) this.fail("a cancel for another customer", `${account.id} cancelled for ${String(customerId)}`);
         this.linesAtTheCancel(account);
         if (account.idLate && subscriptionId === null) {
           account.idLate = false;

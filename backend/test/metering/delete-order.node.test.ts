@@ -242,7 +242,7 @@ describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
     w.close();
   });
 
-  test("a stop between the cancel call and the write of its answer: nothing is stored, and the next run of the alarm calls again, reads the end and stores", async () => {
+  test("a stop between the cancel call and the write of its answer: nothing is stored, the record of the call made for no id stands (P7-117 T6), and the run of the alarm at the record's expiry calls again, reads the end and stores", async () => {
     const d = await deleting();
     const w = d.w;
     await w.use("r0", 10_000);
@@ -255,8 +255,11 @@ describe("the stored answer (unit 5.6, ruling P7-82 D2)", () => {
     const afterTheStop = await skeleton(w);
     w.restart();
     await w.clock(START + MINUTE + 1000);
+    const beforeTheExpiry = kinds(w.calls).filter((each) => each.startsWith("cancel"));
+    await w.clock(START + MINUTE + CALL_IN_FLIGHT_MS);
     expect(stopped).toBe("ObjectStoppedError");
     expect(afterTheStop).toEqual(expect.objectContaining({ destroying_since: START + MINUTE, cancel_answered_at: null }));
+    expect(beforeTheExpiry).toEqual(["cancel cancelled"]);
     expect(kinds(w.calls).filter((each) => each.startsWith("cancel"))).toEqual(["cancel cancelled", "cancel nothing-to-cancel"]);
     expect(await holds(w)).toBe(false);
     w.close();

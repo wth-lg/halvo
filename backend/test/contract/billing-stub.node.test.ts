@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { providerPort } from "../../src/billing/index.ts";
 import type { Env } from "../../src/types.ts";
 
-test("the provider port without a provider key answers failed and rejected, nothing-to-cancel only for a null id, and opens no connection", async () => {
+test("the provider port without a provider key answers failed and rejected, nothing-to-cancel only for an account with neither id, and opens no connection", async () => {
   const fetched: unknown[] = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
@@ -15,8 +15,9 @@ test("the provider port without a provider key answers failed and rejected, noth
     expect(await port.verifyWebhook(new Uint8Array([123, 125]), new Headers(), 1)).toEqual({ kind: "rejected" });
     expect(await port.readSession("cs_1")).toEqual({ kind: "failed" });
     expect(await port.openManagePage({ customerId: "cus_1", returnUrl: "http://127.0.0.1:1/v1/done" })).toEqual({ kind: "failed" });
-    expect(await port.cancelSubscription("sub_1")).toEqual({ kind: "failed" });
-    expect(await port.cancelSubscription(null)).toEqual({ kind: "nothing-to-cancel" });
+    expect(await port.cancelSubscription("sub_1", "cus_1")).toEqual({ kind: "failed", cancelled: 0 });
+    expect(await port.cancelSubscription(null, "cus_1")).toEqual({ kind: "failed", cancelled: 0 });
+    expect(await port.cancelSubscription(null, null)).toEqual({ kind: "nothing-to-cancel" });
     expect(await port.sendUsage({ accountId: "a", customerId: "c", identifier: "a:0", amountMinor: 1, timestamp: 0 })).toEqual({ kind: "failed" });
     expect(await port.readUsageTotal({ accountId: "a", customerId: "c", from: 0, to: 1 })).toEqual({ kind: "failed" });
   } finally {
