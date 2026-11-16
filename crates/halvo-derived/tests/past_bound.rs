@@ -193,7 +193,6 @@ impl Handler for Reader {
 
 /// One store with rows of every class and of the workflow run, held open at its clock.
 struct Fixture {
-    scratch: Scratch,
     clock: TestClock,
     store: Store,
     workflow: WorkflowId,
@@ -202,6 +201,7 @@ struct Fixture {
     echo: Rc<Cell<bool>>,
     fixed: Rc<RefCell<Vec<Proposal>>>,
     at: u64,
+    scratch: Scratch,
 }
 
 impl Fixture {
@@ -974,4 +974,15 @@ fn a_handler_s_workflow_read_and_evidence_read_take_the_one_reading_of_its_reque
         vec![("front", 0, 0), ("behind", 0, 0), ("front again", 0, 0)],
         "the next request starts after the day of going"
     );
+}
+
+/// After a `Fixture` is dropped, its directory is gone: the store, which holds files in it, is dropped before the
+/// directory is removed.
+#[test]
+fn a_dropped_fixture_leaves_no_directory() {
+    let fx = Fixture::new("fixture-drop", Bound::Unchanged);
+    let path = fx.scratch.path().to_path_buf();
+    assert!(path.join("derived").join("derived.db").exists());
+    drop(fx);
+    assert!(!path.exists(), "the directory of a dropped fixture");
 }

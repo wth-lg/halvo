@@ -10,9 +10,15 @@ use crate::db::{due_now, require, Now, Progress, Tx};
 use crate::error::OpenError;
 use crate::{sql, Clock, DbKey, Host, IdSource, Store};
 
+/// An in-memory connection of a test, opened after SQLite's start-up has run to its end under the store's guard.
+fn memory() -> Connection {
+    crate::db::initialize_once();
+    Connection::open_in_memory().unwrap()
+}
+
 #[test]
 fn no_catalogued_statement_plans_a_temporary_b_tree() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     assert!(sql::CATALOGUE.len() >= 7);
     for (name, statement) in sql::CATALOGUE {
@@ -35,7 +41,7 @@ fn no_catalogued_statement_plans_a_temporary_b_tree() {
 
 #[test]
 fn the_progress_handler_interrupts_a_statement_past_its_budget() {
-    let mut conn = Connection::open_in_memory().unwrap();
+    let mut conn = memory();
     let progress = Progress::install(&mut conn, Duration::from_secs(30)).unwrap();
     let count = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200000) \
                  SELECT count(*) FROM n";
@@ -52,7 +58,7 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
 
 #[test]
 fn a_setting_that_is_not_in_effect_is_refused() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch("PRAGMA secure_delete = OFF;").unwrap();
     assert_eq!(
         require(&conn, "secure_delete", "1"),
@@ -70,7 +76,7 @@ const NOW: Now = Now {
 
 /// The store's tables in memory, with rows written by hand: kind, class, day and expiry instant.
 fn hand_rows(rows: &[(&str, i64, Option<i64>, Option<i64>)]) -> Connection {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     for (kind, class, day, expires) in rows {
         conn.execute(
@@ -154,19 +160,68 @@ impl IdSource for Counting {
     }
 }
 
+/// A data directory of a unit test, removed when the guard is dropped.
+struct UnitDir(PathBuf);
+
+impl UnitDir {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for UnitDir {
+    fn drop(&mut self) {
+        if let Err(e) = std::fs::remove_dir_all(&self.0) {
+            eprintln!(
+                "the unit directory {} was not removed: {e}",
+                self.0.display()
+            );
+        }
+    }
+}
+
+/// One reading of the clock, in nanoseconds since 1970, taken once for the process at its first unit directory.
+fn process_nanos() -> u128 {
+    static AT: std::sync::OnceLock<u128> = std::sync::OnceLock::new();
+    *AT.get_or_init(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    })
+}
+
+/// The name of a unit directory: the test's name, the process id, the process's one reading of the clock and the
+/// counter, so that a process id that the system hands out again meets no directory of an earlier process.
+fn unit_leaf_name(name: &str, pid: u32, nanos: u128, n: usize) -> String {
+    format!("derived-unit-{name}-{pid}-{nanos}-{n}")
+}
+
+/// Makes `parent` where it is missing and then the new directory `leaf` under it, which must not exist.
+fn make_unit_leaf(parent: &Path, leaf: &str) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(parent)?;
+    let path = parent.join(leaf);
+    std::fs::create_dir(&path)?;
+    Ok(path)
+}
+
 /// A data directory of its own, one per call, under `tmp/` of the target directory beside the integration tests'
 /// scratch: 12-test fails a test run that leaves an entry in its temporary directory. The test binary stands at
-/// `<target>/<profile>/deps/<binary>`.
-fn data_dir(name: &str) -> PathBuf {
+/// `<target>/<profile>/deps/<binary>`. The directory is named by `unit_leaf_name` and made by `make_unit_leaf`: a leaf
+/// that exists already fails the test at once with its path.
+fn data_dir(name: &str) -> UnitDir {
     static COUNT: AtomicUsize = AtomicUsize::new(0);
     let n = COUNT.fetch_add(1, Ordering::Relaxed);
     let exe = std::env::current_exe().unwrap();
-    let target = exe.ancestors().nth(3).unwrap();
-    let path = target
-        .join("tmp")
-        .join(format!("derived-unit-{name}-{}-{n}", std::process::id()));
-    std::fs::create_dir_all(&path).unwrap();
-    path
+    let parent = exe.ancestors().nth(3).unwrap().join("tmp");
+    let leaf = unit_leaf_name(name, std::process::id(), process_nanos(), n);
+    match make_unit_leaf(&parent, &leaf) {
+        Ok(path) => UnitDir(path),
+        Err(e) => panic!(
+            "the unit directory {} cannot be made: {e}",
+            parent.join(&leaf).display()
+        ),
+    }
 }
 
 fn open_unit(dir: &Path) -> Store {
@@ -193,13 +248,36 @@ fn secure_delete(store: &Store) -> i64 {
 #[test]
 fn the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_open() {
     let dir = data_dir("secure-delete");
-    let store = open_unit(&dir);
+    let store = open_unit(dir.path());
     assert_eq!(secure_delete(&store), 1, "after the first open");
     drop(store);
-    let store = open_unit(&dir);
+    let store = open_unit(dir.path());
     assert_eq!(
         secure_delete(&store),
         1,
+        "after a second open of the same files"
+    );
+}
+
+/// `PRAGMA temp_store` is 2, memory, on the store's one connection after a first and after a second open of the same
+/// files, so that no temporary table or index of a statement is written to a file outside `derived/`.
+#[test]
+fn the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_and_a_second_open() {
+    let dir = data_dir("temp-store");
+    let temp_store = |store: &Store| -> i64 {
+        store
+            .db
+            .conn
+            .query_row("PRAGMA temp_store", [], |r| r.get(0))
+            .unwrap()
+    };
+    let store = open_unit(dir.path());
+    assert_eq!(temp_store(&store), 2, "after the first open");
+    drop(store);
+    let store = open_unit(dir.path());
+    assert_eq!(
+        temp_store(&store),
+        2,
         "after a second open of the same files"
     );
 }
@@ -208,7 +286,7 @@ fn the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_op
 /// bounded row with no day is not handed out, and a kept row and a window row with no day are.
 #[test]
 fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_without_one() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     for (body, class, day, gone, expires) in [
         ("bounded without a day", 1, None, None, None),
@@ -248,7 +326,7 @@ fn rows_read_hands_out_a_kept_and_a_window_row_with_no_day_and_no_bounded_row_wi
 
 /// The plan of a statement as `EXPLAIN QUERY PLAN` gives it on the store's schema, one detail per line.
 fn plan_of(statement: sql::Sql) -> Vec<String> {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     let mut plan = conn
         .prepare(&format!("EXPLAIN QUERY PLAN {}", statement.text()))
@@ -275,7 +353,7 @@ fn the_keyed_row_read_plans_the_search_of_the_whole_read_and_sorts_nothing() {
 /// whose column is empty while its text names the workflow, and no row of the family `workflow`.
 #[test]
 fn rows_read_under_hands_out_by_the_reads_condition_and_the_workflow_column_alone() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     let w1 = "10000000000000000000000000000001";
     let w2 = "20000000000000000000000000000002";
@@ -446,7 +524,7 @@ fn the_held_ahead_statement_searches_its_kind_by_day_and_sorts_nothing() {
 /// no row of another workflow or kind, and no row whose workflow column is empty while its text names the workflow.
 #[test]
 fn held_ahead_finds_only_a_row_of_its_kind_and_workflow_more_than_two_days_ahead() {
-    let conn = Connection::open_in_memory().unwrap();
+    let conn = memory();
     conn.execute_batch(sql::SCHEMA).unwrap();
     let w1 = "10000000000000000000000000000001";
     let w2 = "20000000000000000000000000000002";
@@ -540,13 +618,15 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         .handler("test", crate::Takes::Runner, asker())
         .handler("test", crate::Takes::Role("test_role"), asker())
         .handler("test", crate::Takes::Coordinator(&["held"]), asker());
-    let started = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let dir = data_dir(&format!("held-fault-{started}"));
-    let mut store =
-        Store::open(&dir, &DbKey::new([7; 32]), &entries, host, &mut Counting(0)).unwrap();
+    let dir = data_dir("held-fault");
+    let mut store = Store::open(
+        dir.path(),
+        &DbKey::new([7; 32]),
+        &entries,
+        host,
+        &mut Counting(0),
+    )
+    .unwrap();
     store
         .db
         .conn
@@ -565,7 +645,7 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         .execute_batch("ALTER TABLE rows_away RENAME TO rows")
         .unwrap();
     drop(store);
-    std::fs::remove_dir_all(&dir).unwrap();
+    drop(dir);
     let answers = answers.borrow().clone();
     assert_eq!(
         answers[..2],
@@ -576,5 +656,38 @@ fn held_ahead_answers_role_before_any_statement_and_a_fault_of_the_database_neve
         matches!(answers[2], Err(crate::HeldRefusal::Fault(_))),
         "E4: the coordinator_write answered {:?}",
         answers[2]
+    );
+}
+
+/// Two unit directories of one name in one process get two paths, and each is made new.
+#[test]
+fn two_unit_directories_of_one_name_in_one_process_get_two_paths() {
+    let first = data_dir("twice");
+    let second = data_dir("twice");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+}
+
+/// A second making of a unit leaf that exists fails, and leaves the first one's content as it was.
+#[test]
+fn a_second_making_of_a_unit_leaf_that_exists_fails() {
+    let parent = data_dir("leaf-parent");
+    let made = make_unit_leaf(parent.path(), "leaf").unwrap();
+    std::fs::write(made.join("kept"), b"kept").unwrap();
+    assert_eq!(
+        make_unit_leaf(parent.path(), "leaf")
+            .err()
+            .map(|e| e.kind()),
+        Some(std::io::ErrorKind::AlreadyExists)
+    );
+    assert_eq!(std::fs::read(made.join("kept")).unwrap(), b"kept");
+}
+
+/// The name of a unit directory, for one process id and one counter, differs for two readings of the clock.
+#[test]
+fn the_unit_leaf_name_differs_for_two_readings_of_the_clock() {
+    assert_ne!(
+        unit_leaf_name("same", 4242, 1_000, 7),
+        unit_leaf_name("same", 4242, 1_001, 7)
     );
 }

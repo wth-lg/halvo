@@ -51,7 +51,7 @@ esac
 #= tests/propose.rs workflow_ids_are_minted_in_the_order_of_category_and_then_lowest_summary_id
 #= tests/propose.rs a_proposal_that_names_a_summary_of_another_key_is_refused_and_stores_nothing
 #= tests/propose.rs the_support_rows_of_an_updated_workflow_are_those_of_its_latest_proposal_alone
-#= tests/propose.rs a_proposal_that_names_a_stored_summary_outside_its_bound_is_refused_as_built
+#= tests/propose.rs a_proposal_that_names_a_summary_after_the_clock_s_day_or_past_its_bound_is_refused
 #= tests/propose.rs the_recurrence_step_reads_the_summaries_inside_their_bound_by_day_and_then_id
 #= tests/propose.rs the_summary_read_leaves_out_a_summary_whose_stored_day_of_going_has_come
 #= tests/propose.rs of_proposals_of_one_key_in_one_call_the_first_that_passes_stands_and_each_later_one_is_refused
@@ -141,6 +141,38 @@ esac
 #= tests/past_bound.rs the_interface_read_leaves_rows_past_their_bound_out_of_summaries_and_evidence_pages
 #= tests/past_bound.rs a_handler_s_workflow_read_and_evidence_read_take_the_one_reading_of_its_request
 #= tests/startup.rs stores_opened_at_once_on_many_threads_of_a_new_process_all_open
+#= tests/privacy.rs privacy_scrub
+#= tests/privacy.rs privacy_window
+#= tests/privacy.rs privacy_bounded
+#= tests/privacy.rs privacy_kept
+#= tests/privacy.rs privacy_redact
+#= tests/privacy.rs privacy_listed
+#= tests/privacy.rs delete_all_leaves_no_database_file_and_no_key_file
+#= tests/privacy.rs the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes
+#= tests/privacy.rs a_second_process_is_refused_also_with_the_lock_file_unlinked
+#= tests/privacy.rs an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free
+#= tests/cases.rs own_origin_refused
+#= tests/cases.rs a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_rest
+#= tests/cases.rs a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
+#= tests/privacy.rs with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day
+#= tests/privacy.rs a_support_row_goes_with_its_summary_whatever_its_own_day
+#= tests/privacy.rs the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint
+#= tests/privacy.rs the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint
+#= src/lib.rs tests::the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_and_a_second_open
+#= tests/cases.rs a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call
+#= tests/cases.rs a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered
+#= tests/cases.rs two_scratch_directories_of_one_name_in_one_process_get_two_paths
+#= tests/cases.rs the_scratch_leaf_name_differs_for_two_readings_of_the_clock
+#= tests/cases.rs a_second_making_of_a_scratch_leaf_that_exists_fails
+#= src/lib.rs tests::two_unit_directories_of_one_name_in_one_process_get_two_paths
+#= tests/past_bound.rs a_dropped_fixture_leaves_no_directory
+#= tests/privacy.rs the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one
+#= tests/privacy.rs the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed
+#= tests/privacy.rs every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search
+#= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
+#= src/lib.rs tests::a_second_making_of_a_unit_leaf_that_exists_fails
+#= src/lib.rs tests::the_unit_leaf_name_differs_for_two_readings_of_the_clock
+#= tests/privacy.rs removed_rows_leave_no_text_in_the_gap_of_a_page_built_again
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

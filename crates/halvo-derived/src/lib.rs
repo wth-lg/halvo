@@ -72,6 +72,9 @@
 //!   from `Committed::dropped` alone; the commit refuses nothing for it.
 //! - A stop between a batch's transaction and its steps leaves the batch committed with no proposal and no step
 //!   record; the same batch sent again answers `repeated` and runs no step, and the store notes no owed step.
+//! - A request is not one transaction of the database: each typed commit and the state call commits on its own, and a
+//!   stop between two of them leaves the earlier ones stored; so does an error answer or a panic of a handler behind an
+//!   earlier store of the same request.
 //! - An open fails while its entries give a stored kind another retention class, or a workflow key under which a
 //!   stored row names another workflow than its workflow column holds; the crate holds no migration for either.
 //! - A summary one or two days after the clock's day is stored and counted in the report, and no step sees it until
@@ -117,7 +120,7 @@ pub use report::{Counts, Report};
 pub use state::{HeldRefusal, MoveTo};
 pub use typed::Rows;
 
-use db::Db;
+use db::{Db, Keying};
 
 /// The derived store, open. It holds the writer lock of `derived/` and the exclusive lock of its database until it
 /// is dropped.
@@ -157,6 +160,16 @@ impl Store {
         host: Host,
         ids: &mut dyn IdSource,
     ) -> Result<Store, OpenError> {
+        Store::open_keyed(data_dir, Keying::Key(key), entries, host, ids)
+    }
+
+    pub(crate) fn open_keyed(
+        data_dir: &Path,
+        keying: Keying<'_>,
+        entries: &[&'static KindEntry],
+        host: Host,
+        ids: &mut dyn IdSource,
+    ) -> Result<Store, OpenError> {
         let families = host
             .steps
             .iter()
@@ -171,7 +184,7 @@ impl Store {
                 return Err(OpenError::Family(family));
             }
         }
-        let db = Db::open(data_dir, key, entries, host.clock, host.report, ids)?;
+        let db = Db::open(data_dir, keying, entries, host.clock, host.report, ids)?;
         Ok(Store {
             db,
             recurrence: host.recurrence,

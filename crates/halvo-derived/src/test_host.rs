@@ -11,8 +11,51 @@ use halvo_schema_core::record::{Workflow, WorkflowState};
 use halvo_schema_core::request::{InterfaceRead, ReplyResult};
 use serde::Serialize;
 
-use crate::error::Error;
+use halvo_schema_core::kinds::KindEntry;
+
+use crate::db::Keying;
+use crate::error::{Error, OpenError};
+use crate::host::{Host, IdSource};
 use crate::read::ReadHandle;
+use crate::Store;
+
+/// Opens the store under `<data_dir>/derived/` as `Store::open` does, with every setting and every check of the
+/// product, secure delete, the write-ahead log and its truncating checkpoint among them, and with no key: the files
+/// hold the rows as SQLite writes them, so that a test can search their bytes for what a row held. A database that a
+/// key made is refused as `OpenError::Sealed`. Only a build with the cargo feature `test-host` has it.
+pub fn open_keyless(
+    data_dir: &Path,
+    entries: &[&'static KindEntry],
+    host: Host,
+    ids: &mut dyn IdSource,
+) -> Result<Store, OpenError> {
+    Store::open_keyed(data_dir, Keying::Keyless, entries, host, ids)
+}
+
+/// Runs SQLite's start-up, SQLCipher's included, to its end once in the process, as every open of the store does
+/// before it opens its database, and nothing else. A test that opens a connection of its own calls it first, so that
+/// its connection does not start SQLite outside the store's guard, where a store that sets its key in that gap is
+/// refused.
+pub fn start_sqlite() {
+    crate::db::initialize_once();
+}
+
+/// The delete of everything that the derived store holds: it drops `store`, so that the store's connection closes
+/// before its writer lock is released, and then removes the directory `derived/` of the store with every file in
+/// it, the database, its write-ahead log, the writer lock and the key file among them, and a shared-memory file where
+/// another connection left one. It
+/// returns the error of the removal, after which a part of the directory may be left.
+pub fn delete_all(store: Store) -> std::io::Result<()> {
+    let dir = store
+        .db
+        .paths
+        .db
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or(ErrorKind::NotFound)?;
+    drop(store);
+    std::fs::remove_dir_all(dir)
+}
 
 /// One stream of an export: its stream id and a handle of the interface-read role on its database.
 pub struct Stream<'s> {
