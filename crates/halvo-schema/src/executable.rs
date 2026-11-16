@@ -5,6 +5,7 @@
 
 mod address;
 mod json;
+mod senders;
 
 pub mod body;
 pub mod bound;
@@ -32,6 +33,7 @@ pub use record::{
     AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentReply, AgentRun,
     AgentSession, AgentStart,
 };
+pub use senders::{is_sender, reply_senders, same_address, Senders, SendersError};
 pub use step::{ExecutableStep, Playbook};
 pub use text::{
     ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, ProviderId, RunId, WebOrigin,
