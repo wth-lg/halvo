@@ -6,7 +6,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use halvo_control::exit;
 
-use super::batch::BATCH_MAX_AGE;
+use super::batch::BATCH_MAX_EVENTS;
 use super::model_store::{
     foreground_now, key, noon, Harness, ManualClocks, ModelStore, WriteScript,
 };
@@ -1226,10 +1226,29 @@ fn a_refused_hold_after_a_drop_that_a_good_write_followed_gives_the_loss_line() 
     );
 }
 
-struct SetAsideInTheWindow {
+struct SetAsidesInTheWindow {
     inner: ScriptedRun,
     store: ModelStore,
     clocks: ManualClocks,
+    sink: Option<crate::sink::SinkHandle>,
+    batches: usize,
+    good_write_after: bool,
+}
+
+fn set_asides_in_the_window(
+    store: &ModelStore,
+    clocks: &ManualClocks,
+    batches: usize,
+    good_write_after: bool,
+) -> SetAsidesInTheWindow {
+    SetAsidesInTheWindow {
+        inner: ScriptedRun::new(Vec::new()),
+        store: store.clone(),
+        clocks: clocks.clone(),
+        sink: None,
+        batches,
+        good_write_after,
+    }
 }
 
 fn drive(store: &ModelStore, clocks: &ManualClocks, writes: usize, step: Duration) {
@@ -1243,21 +1262,33 @@ fn drive(store: &ModelStore, clocks: &ManualClocks, writes: usize, step: Duratio
     panic!("the owner made no write {writes} within 10 s");
 }
 
-impl RunSources for SetAsideInTheWindow {
+impl RunSources for SetAsidesInTheWindow {
     fn start(
         &mut self,
         ctx: &SourceContext,
         wanted: &[SourceName],
         hold_after: Option<Duration>,
     ) -> Vec<FailedSource> {
+        self.sink = Some(ctx.sink().clone());
         self.inner.start(ctx, wanted, hold_after)
     }
 
     fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
-        drive(&self.store, &self.clocks, 1, BATCH_MAX_AGE);
-        drive(&self.store, &self.clocks, 3, RETRY_FIRST);
-        self.store.fail_every_write(None);
-        self.inner.in_window = vec![foreground_now()];
+        let sink = self.sink.take().expect("the run did not start its sources");
+        for batch in 0..self.batches {
+            for _ in 0..BATCH_MAX_EVENTS {
+                assert_eq!(sink.emit_event(key()), crate::sink::Emitted::Queued);
+            }
+            drive(&self.store, &self.clocks, 3 * batch + 1, Duration::ZERO);
+            drive(&self.store, &self.clocks, 3 * batch + 3, RETRY_FIRST);
+        }
+        if self.good_write_after {
+            self.store.fail_every_write(None);
+            assert_eq!(
+                sink.emit_event(foreground_now()),
+                crate::sink::Emitted::Queued
+            );
+        }
         self.inner.wait(window, stop)
     }
 
@@ -1279,11 +1310,7 @@ fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_
     let store = ModelStore::new();
     store.fail_every_write(Some(WriteFault::Db(19)));
     let clocks = ManualClocks::at(noon());
-    let mut sources = SetAsideInTheWindow {
-        inner: keys(4),
-        store: store.clone(),
-        clocks: clocks.clone(),
-    };
+    let mut sources = set_asides_in_the_window(&store, &clocks, 1, true);
     let stop = AtomicBool::new(false);
     let outcome = run_timed(
         &run_of(5),
@@ -1300,7 +1327,7 @@ fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_
             outcome.report.events_received,
             outcome.report.events_persisted
         ),
-        (5, 1)
+        (513, 1)
     );
     assert_eq!(outcome.status, exit::CLEAN, "{outcome:?}");
     let loss = outcome
@@ -1310,7 +1337,7 @@ fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_
     assert_eq!(loss.cause, None, "{loss}");
     assert!(
         loss.line
-            .starts_with("halvo-capture: lost events=4 first=2"),
+            .starts_with("halvo-capture: lost events=512 first=2"),
         "{loss}"
     );
     assert!(loss.line.ends_with(" error=-"), "{loss}");
@@ -1322,50 +1349,12 @@ fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_
     assert_eq!(String::from_utf8(err).unwrap(), format!("{}\n", loss.line));
 }
 
-struct ThreeSetAsidesInTheWindow {
-    inner: ScriptedRun,
-    store: ModelStore,
-    clocks: ManualClocks,
-}
-
-impl RunSources for ThreeSetAsidesInTheWindow {
-    fn start(
-        &mut self,
-        ctx: &SourceContext,
-        wanted: &[SourceName],
-        hold_after: Option<Duration>,
-    ) -> Vec<FailedSource> {
-        self.inner.start(ctx, wanted, hold_after)
-    }
-
-    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
-        drive(&self.store, &self.clocks, 9, RETRY_FIRST);
-        self.inner.wait(window, stop)
-    }
-
-    fn stop(&mut self) -> Vec<FailedSource> {
-        self.inner.stop()
-    }
-
-    fn figures(&self) -> SourceCounters {
-        self.inner.figures()
-    }
-
-    fn hold_refusal(&self) -> Option<DaemonError> {
-        self.inner.hold_refusal()
-    }
-}
-
 #[test]
 fn a_timed_run_that_ends_after_the_third_set_aside_names_db_in_its_loss_line() {
     let store = ModelStore::new();
     store.fail_every_write(Some(WriteFault::Db(19)));
     let clocks = ManualClocks::at(noon());
-    let mut sources = ThreeSetAsidesInTheWindow {
-        inner: keys(1_200),
-        store: store.clone(),
-        clocks: clocks.clone(),
-    };
+    let mut sources = set_asides_in_the_window(&store, &clocks, 3, false);
     let stop = AtomicBool::new(false);
     let outcome = run_timed(
         &run_of(5),
@@ -1377,13 +1366,20 @@ fn a_timed_run_that_ends_after_the_third_set_aside_names_db_in_its_loss_line() {
     )
     .unwrap();
     assert_eq!(store.write_calls().len(), 9, "{outcome:?}");
-    assert_eq!(outcome.report.events_persisted, 0, "{outcome:?}");
+    assert_eq!(
+        (
+            outcome.report.events_received,
+            outcome.report.events_persisted
+        ),
+        (1_536, 0),
+        "{outcome:?}"
+    );
     assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
     let loss = outcome.loss.as_ref().expect("no loss line");
     assert_eq!(loss.cause, Some(LossCause::LostSinceAcknowledged), "{loss}");
     assert!(
         loss.line
-            .starts_with("halvo-capture: lost events=1200 first=2"),
+            .starts_with("halvo-capture: lost events=1536 first=2"),
         "{loss}"
     );
     assert!(
