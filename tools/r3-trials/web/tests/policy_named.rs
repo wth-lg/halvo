@@ -121,3 +121,13 @@ fn the_kept_proxy_page_reads_as_before() {
     assert!(with.contains("named=yes how=whole"), "{with}");
     assert_eq!(with, without);
 }
+
+/// CP-215 G1: the fence of `r3_web::procs` is on in this test target from its start, so that no
+/// test of the target reaches the real end of a process that it did not admit.
+#[test]
+fn the_fence_is_on_in_this_test_target() {
+    assert!(
+        r3_web::procs::fence::is_on(),
+        "the fence is off in this test target"
+    );
+}
