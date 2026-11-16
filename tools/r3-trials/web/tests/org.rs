@@ -70,7 +70,16 @@ fn a_hang_with_no_policy_is_no_ok_org_run() {
         .find(|l| l.starts_with("run ") && l.contains("step=org_debugging"))
         .unwrap_or("")
         .to_string();
-    assert!(!run.is_empty(), "no run line: {stdout}");
+    let words: std::collections::BTreeSet<String> = String::from_utf8_lossy(&out.stderr)
+        .lines()
+        .filter_map(|l| l.split([' ', '=', ':', '\'']).find(|w| !w.is_empty()))
+        .map(str::to_string)
+        .collect();
+    assert!(
+        !run.is_empty(),
+        "no run line: {stdout} (exit {:?}; the first word of each line of standard error: {words:?})",
+        out.status.code()
+    );
     assert!(
         run.contains("result=miss"),
         "a hang with no policy in force counted as the policy's effect: {run}"
