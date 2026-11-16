@@ -1151,6 +1151,7 @@ own_judge() {
   fi
   printf 'case run-ci-d/%s want=%s got=%s\n' "$case_name" "$want" "$got"
   [ -z "$case_max_s" ] || printf 'case run-ci-d/%s seconds=%s max=%s\n' "$case_name" "$((case_t1 - case_t0))" "$case_max_s"
+  own_clock
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case_name"
   elif [ "$want" = FAIL ]; then
@@ -1185,8 +1186,17 @@ own_tree_case() {
     printf '%s\n' "$got_out" | sed "s|^|case run-ci-d/$case_name limit line: |"
   fi
   printf 'case run-ci-d/%s want=PASS got=%s\n' "$case_name" "$got"
+  own_clock
   [ "$got" = PASS ] || wrong="$wrong $case_name"
   case_reset
+}
+
+own_clock() {
+  [ -z "$nested_word" ] || return 0
+  own_now=$(date +%s)
+  printf 'case run-ci-d/%s case-seconds=%s\n' "$case_name" "$((own_now - own_mark))"
+  own_mark=$own_now
+  own_n=$((own_n + 1))
 }
 
 case_reset() {
@@ -1227,6 +1237,10 @@ case_reset() {
 
 # shellcheck disable=SC2016
 own_self_test() {
+  own_n=0
+  own_start=0
+  [ -n "$nested_word" ] || own_start=$(date +%s)
+  own_mark=$own_start
   good="# jobs: macos windows$nl# rule: A fixture rule."
   seven="#$nl#$nl#$nl#$nl#$nl#$nl#"
   pass_a='[ $# -eq 0 ] || exit 3; printf "PASS 10-a\n"'
@@ -2452,6 +2466,7 @@ own_self_test() {
   case_then='ci.d macos self-test: 2 passed, 0 failed'
   own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
 
+  printf 'run-ci-d own cases: %s cases, %s s\n' "$own_n" "$(($(date +%s) - own_start))"
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
   elif [ "$rejected" -eq 0 ]; then
