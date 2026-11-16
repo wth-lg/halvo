@@ -443,6 +443,11 @@ pub const RESERVED_ENTRY_NAMES: [&str; 2] = ["derived", "agents"];
 pub enum RemovedBy {
     DeleteAll,
     RemoveHalvo,
+    /// The delete of the billing run's account helper, which Remove Halvo calls and a
+    /// delete-all never does: it removes what it holds once the account service has answered
+    /// (that run's P7-104 item 4; contracts.md C17). For the account helper's Keychain row,
+    /// which that run's unit 8.0 adds, and for [`ACCOUNT_HELPER_STORE`].
+    AccountHelperDelete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -495,11 +500,12 @@ const LOCAL_DATA_FOLDER: &[&str] = &[];
 #[cfg(not(windows))]
 const LOCAL_DATA_FOLDER: &[&str] = &["Library", "Application Support"];
 
-/// A saved sign-in stays through a delete-all and goes with Remove Halvo (C17 item 7).
+/// A saved sign-in stays through a delete-all and goes by the account helper's delete once the
+/// account service has answered (C17 item 7; the billing run's P7-104 item 4).
 pub const ACCOUNT_HELPER_STORE: OutsidePlace = OutsidePlace {
     name: ACCOUNT_HELPER_STORE_DIR,
     owner: "the account helper of run 20261109-halvo-r7-billing",
-    removed_by: RemovedBy::RemoveHalvo,
+    removed_by: RemovedBy::AccountHelperDelete,
 };
 
 pub const OUTSIDE_PLACES: [OutsidePlace; 1] = [ACCOUNT_HELPER_STORE];
@@ -2388,8 +2394,13 @@ mod tests {
     }
 
     #[test]
-    fn delete_all_leaves_a_saved_sign_in_and_remove_halvo_takes_it_away() {
-        assert_eq!(ACCOUNT_HELPER_STORE.removed_by(), RemovedBy::RemoveHalvo);
+    fn p7_104_delete_all_leaves_a_saved_sign_in_and_the_account_helper_s_delete_takes_it_away() {
+        assert_eq!(
+            ACCOUNT_HELPER_STORE.removed_by(),
+            RemovedBy::AccountHelperDelete
+        );
+        assert_ne!(RemovedBy::AccountHelperDelete, RemovedBy::RemoveHalvo);
+        assert_ne!(RemovedBy::AccountHelperDelete, RemovedBy::DeleteAll);
         for place in OUTSIDE_PLACES {
             assert!(ENTRIES.iter().all(|entry| entry.name() != place.name()));
             assert!(!RESERVED_ENTRY_NAMES.contains(&place.name()));
