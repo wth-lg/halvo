@@ -189,17 +189,27 @@ impl Connector for UnixConnector {
         self.socket.to_string_lossy().into_owned()
     }
 
-    /// Tries the connect; on each path that finds no daemon it reads the instance lock of the
-    /// data directory. Free, or no data directory: unreachable at once. Held: it waits a step
-    /// and tries again inside `timeout`, and at its end answers that the directory is in use.
+    /// Tries the connect; on each path that finds no daemon, and on an error of the transport, it
+    /// reads the instance lock of the data directory. A cause at the data folder that the read
+    /// carries answers first (ruling CT-15), so a read of the socket's directory never hides it;
+    /// otherwise an error of the transport answers as it is. Free, or no data directory:
+    /// unreachable at once. Held: it waits a step and tries again inside `timeout`, and at its
+    /// end answers that the directory is in use.
     fn connect(&self, timeout: Duration) -> Result<UnixStream, ClientError> {
         let until = std::time::Instant::now() + timeout;
         loop {
-            match self.connect_once() {
-                Err(ClientError::Unreachable { .. }) => {}
+            let missed = match self.connect_once() {
+                Err(missed @ (ClientError::Unreachable { .. } | ClientError::Io(_))) => missed,
                 other => return other,
-            }
-            match crate::instance_lock::read(&self.data_dir).map_err(ClientError::Io)? {
+            };
+            let read = match (crate::instance_lock::read(&self.data_dir), missed) {
+                (Err(e), _) if crate::paths::entry_cause(&e).is_some() => {
+                    return Err(ClientError::Io(e))
+                }
+                (_, missed @ ClientError::Io(_)) => return Err(missed),
+                (read, _) => read.map_err(ClientError::Io)?,
+            };
+            match read {
                 crate::instance_lock::LockRead::Free
                 | crate::instance_lock::LockRead::NoDirectory => return Err(self.unreachable()),
                 crate::instance_lock::LockRead::Held => {}
@@ -839,5 +849,110 @@ mod tests {
         let (_base, dir) = short_data_dir();
         let connector = UnixConnector::for_data_dir(&dir, &crate::paths::SystemAccount).unwrap();
         assert_eq!(connector.socket(), dir.control_socket());
+    }
+
+    /// Sets each path back to mode 0700 when it is dropped, on every path out of the test.
+    struct ModeBack(Vec<PathBuf>);
+
+    impl Drop for ModeBack {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            for path in &self.0 {
+                let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+            }
+        }
+    }
+
+    #[test]
+    fn ct15_ctl_prints_the_cause_at_the_data_folder_and_no_raw_os_error_at_the_name_and_below_it() {
+        use crate::paths::EntryAtDataDir;
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        let mode = |path: &Path, bits: u32| {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).unwrap()
+        };
+        let mut rows = 0;
+        for base_kind in [
+            "a file",
+            "a link to a file",
+            "a link loop",
+            "a link that leads nowhere",
+            "a link behind a closed parent",
+            "a link to a folder of mode 0000",
+            "a folder of mode 0000",
+        ] {
+            for below in [false, true] {
+                let (_root, short) = short_data_dir();
+                let root = short.path().parent().unwrap().to_path_buf();
+                let name = root.join("n");
+                let mut back = ModeBack(Vec::new());
+                let cause = match base_kind {
+                    "a file" => {
+                        std::fs::write(&name, b"x").unwrap();
+                        EntryAtDataDir::NotADirectory
+                    }
+                    "a link to a file" => {
+                        std::fs::write(root.join("f"), b"x").unwrap();
+                        symlink(root.join("f"), &name).unwrap();
+                        EntryAtDataDir::NotADirectory
+                    }
+                    "a link loop" => {
+                        symlink(&name, &name).unwrap();
+                        EntryAtDataDir::LinkLeadsNowhere
+                    }
+                    "a link that leads nowhere" => {
+                        symlink(root.join("unplugged"), &name).unwrap();
+                        EntryAtDataDir::LinkLeadsNowhere
+                    }
+                    "a link behind a closed parent" => {
+                        let closed = root.join("c");
+                        std::fs::create_dir_all(closed.join("t")).unwrap();
+                        symlink(closed.join("t"), &name).unwrap();
+                        back.0.push(closed.clone());
+                        mode(&closed, 0o000);
+                        EntryAtDataDir::CannotBeRead
+                    }
+                    "a link to a folder of mode 0000" => {
+                        let target = root.join("t");
+                        std::fs::create_dir(&target).unwrap();
+                        symlink(&target, &name).unwrap();
+                        back.0.push(target.clone());
+                        mode(&target, 0o000);
+                        EntryAtDataDir::CannotBeRead
+                    }
+                    "a folder of mode 0000" => {
+                        std::fs::create_dir(&name).unwrap();
+                        back.0.push(name.clone());
+                        mode(&name, 0o000);
+                        EntryAtDataDir::CannotBeRead
+                    }
+                    _ => unreachable!(),
+                };
+                if below && base_kind == "a folder of mode 0000" {
+                    continue;
+                }
+                let dir =
+                    DataDir::from_flag(if below { name.join("halvo") } else { name }).unwrap();
+                let answer = client_within(&dir, 300).status();
+                let printed = crate::ctl_text::print(
+                    &crate::ctl_text::Verb::Status { indicator: false },
+                    answer.map(crate::proto::Reply::Status),
+                    &dir,
+                );
+                let row = format!("{base_kind}, below: {below}");
+                assert_eq!(
+                    (printed.stderr.as_str(), printed.status),
+                    (
+                        format!("halvo-capture: {cause}: {}\n", dir.path().display()).as_str(),
+                        1
+                    ),
+                    "{row}"
+                );
+                assert!(!printed.stderr.contains("os error"), "{row}");
+                drop(back);
+                rows += 1;
+            }
+        }
+        assert_eq!(rows, 13);
     }
 }

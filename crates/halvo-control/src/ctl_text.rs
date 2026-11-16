@@ -423,7 +423,8 @@ fn printed(stdout: String, status: i32) -> Printed {
 }
 
 /// What `ctl VERB` prints for the reply or the error of the client, with the exit codes of
-/// contracts.md C2.5 to C2.7.
+/// contracts.md C2.5 to C2.7. An error that carries a cause at the data folder prints the cause
+/// and the folder on one line and no OS error (ruling CT-15).
 pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir) -> Printed {
     let delete = matches!(verb, Verb::DeleteAll(_));
     let reply = match result {
@@ -452,6 +453,16 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                 peer_text(&format!("the reply could not be read: {text}")),
                 crate::exit::ERROR,
             )
+        }
+        Err(ClientError::Io(error)) => {
+            let message = match crate::paths::entry_cause(&error) {
+                Some(cause) => format!(
+                    "{cause}: {}",
+                    crate::paths::one_line(&data_dir.path().to_string_lossy())
+                ),
+                None => ClientError::Io(error).to_string(),
+            };
+            return failed(message, crate::exit::ERROR);
         }
         Err(other) => return failed(other, crate::exit::ERROR),
     };
