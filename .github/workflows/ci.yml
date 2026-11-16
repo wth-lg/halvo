@@ -100,6 +100,40 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Loop of unit 4.12's tests (scratch)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          cd backend || exit 1
+          start=$SECONDS
+          files=(test/ledger/stopped-run.node.test.ts test/ledger/process-group-rules.node.test.ts)
+          slow='stopped half-way|after KILL to a whole run|starts wrangler dev in a group|outlive TERM|outlives TERM|outlives KILL'
+          whole=0
+          fast=0
+          left_total=0
+          for round in $(seq 1 20); do
+            out="$RUNNER_TEMP/loop-whole-$round.json"
+            t0=$SECONDS
+            sh scripts/with-env.sh node_modules/.bin/vitest run --project node "${files[@]}" --reporter=json "--outputFile.json=$out" >"$RUNNER_TEMP/loop-whole-$round.txt" 2>&1
+            code=$?
+            got=$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(r.numTotalTests + " " + r.numPassedTests + " " + r.numFailedTests)' "$out" 2>/dev/null || echo no-report)
+            left=$(pgrep -f -- "$PWD/" | grep -c .)
+            echo "loop 4.12 whole files round $round: exit=$code total-passed-failed=$got left=$left seconds=$((SECONDS - t0))"
+            if [ "$code" = 0 ] && [ "$got" = "38 38 0" ]; then whole=$((whole + 1)); else tail -n 40 "$RUNNER_TEMP/loop-whole-$round.txt"; fi
+            left_total=$((left_total + left))
+          done
+          for round in $(seq 1 180); do
+            out="$RUNNER_TEMP/loop-fast-$round.json"
+            sh scripts/with-env.sh node_modules/.bin/vitest run --project node "${files[@]}" -t "^(?!.*($slow))" --reporter=json "--outputFile.json=$out" >"$RUNNER_TEMP/loop-fast-$round.txt" 2>&1
+            code=$?
+            got=$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(r.numPassedTests + " " + r.numFailedTests)' "$out" 2>/dev/null || echo no-report)
+            if [ "$code" = 0 ] && [ "$got" = "27 0" ]; then fast=$((fast + 1)); else echo "loop 4.12 fast round $round: exit=$code passed-failed=$got"; tail -n 20 "$RUNNER_TEMP/loop-fast-$round.txt"; fi
+          done
+          left=$(pgrep -f -- "$PWD/" | grep -c .)
+          left_total=$((left_total + left))
+          echo "loop 4.12: both files passed 38 of 38 in $whole of 20 rounds; the 27 tests that start no wrangler dev and wait no grace passed 27 of 27 in $fast of 180 more rounds (200 with the whole-file rounds); processes naming the checkout after the rounds: $left_total; seconds=$((SECONDS - start))"
+          [ "$whole" = 20 ] && [ "$fast" = 180 ] && [ "$left_total" = 0 ]
       - name: Build
         shell: bash
         run: npm run tauri build
