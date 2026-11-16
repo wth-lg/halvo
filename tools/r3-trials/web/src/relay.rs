@@ -1232,9 +1232,10 @@ mod tests {
     /// The guard on a built table whose first process (100_001, the program /b/x, with the stand-in
     /// profile) ends when it is asked, beside one adopted process of the same bundle (100_020,
     /// parent 1, begun after the first) with `adopted_args`, which never ends by itself; the
-    /// executor is gone at 1,000 ms. Each end passes the fence only for a process of `admit`, by
-    /// number and start time, and is recorded; any other call sends nothing and fails the test.
-    fn guard_beside_an_adopted_process(
+    /// executor is gone at 1,000 ms. The end is a closure that records and sends nothing, and that
+    /// fails the test at a call for a process outside `admit`, by number and start time;
+    /// `procs::fence` is not on its path.
+    fn guard_beside_an_adopted_process_with_a_recording_end(
         adopted_args: Vec<String>,
         admit: &[(u32, u64)],
     ) -> Vec<u32> {
@@ -1310,20 +1311,23 @@ mod tests {
     fn g1_the_guard_asks_no_adopted_process_near_the_profile() {
         for near in crate::checks::tests::near_the_profile() {
             assert_eq!(
-                guard_beside_an_adopted_process(near.clone(), &[(100_001, 7)]),
+                guard_beside_an_adopted_process_with_a_recording_end(near.clone(), &[(100_001, 7)]),
                 [100_001],
                 "{near:?}"
             );
         }
         assert_eq!(
-            guard_beside_an_adopted_process(
+            guard_beside_an_adopted_process_with_a_recording_end(
                 crate::checks::tests::another_profile(),
                 &[(100_001, 7)]
             ),
             [100_001]
         );
         let crash = crate::checks::tests::the_profile_s_own_forms()[1].clone();
-        let mut asked = guard_beside_an_adopted_process(crash, &[(100_001, 7), (100_020, 20)]);
+        let mut asked = guard_beside_an_adopted_process_with_a_recording_end(
+            crash,
+            &[(100_001, 7), (100_020, 20)],
+        );
         asked.sort_unstable();
         assert_eq!(asked, [100_001, 100_020]);
     }

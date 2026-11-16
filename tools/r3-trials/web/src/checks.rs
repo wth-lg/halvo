@@ -1516,11 +1516,12 @@ pub(crate) mod tests {
 
     /// CP-161 (3) for `end_runs_own`: on a table that the test builds, with its own stand-in of the
     /// run (7, started at 10) and three processes of no run (one of another bundle, one of another
-    /// profile, one begun before the run), the end reaches the stand-in alone through a fence that
-    /// admits it by number and start time in front of a kill that records and sends nothing; any
-    /// other call fails the test at that call.
+    /// profile, one begun before the run), the end reaches the stand-in alone. The kill is a closure
+    /// that records and sends nothing, and that fails the test at a call for any process but the
+    /// stand-in, by number and start time; `procs::fence` is not on its path.
     #[test]
-    fn end_runs_own_on_a_built_table_sends_the_end_to_the_own_stand_in_alone_through_the_fence() {
+    fn end_runs_own_on_a_built_table_sends_the_end_to_the_own_stand_in_alone_through_a_recording_kill(
+    ) {
         let own = (7u32, 10u64);
         let killed = std::cell::RefCell::new(Vec::new());
         let gone = std::cell::Cell::new(false);

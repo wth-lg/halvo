@@ -465,7 +465,11 @@ streams. It never accepts; it reads the process table every 20 ms and exits when
 browser's tree runs. The tree is what its reads found: the first process, the processes that
 `checks::tree_of` adds while the first process runs (the adopted ones that bear the run's profile
 among them), and each process whose parent was a member that still ran at the read that found it,
-also after the first process has ended. Two limits are U2.1's to close (CP-161). A process that a
+also after the first process has ended. A member is taken by its parent and start time alone: the
+guard tests no argument of a descendant of the first process, and when its executor is gone it asks
+and then ends every member; only an adopted process (parent 1) needs to bear the run's profile by
+one of the two exact forms. Whether the trial's guard should take its members by the mark, as the
+product's guard does, is the planner's question (CP-215). Two limits are U2.1's to close (CP-161). A process that a
 member starts after the first process has ended and that loses its parent before the next read,
 20 ms later, is not followed, so the guard can free the port while it runs. When the guard cannot
 be started, the browser's start goes on without one and no line says so (`Relay::start_guard`
@@ -502,16 +506,25 @@ with that test or with the whole suite (CP-161).
 
 Every other way to the real end of a process is fenced too (CP-161 (3), U0.7d): `procs::kill` and
 `procs::ask_end` pass their signal through `procs::fence` at the point where they send it, after
-they have read the process's start time again. In the crate's own test build the fence is on from
-the start and admits nothing; a test admits, for its own thread and while it holds the admission,
-the processes that it started by number and start time, the processes whose line of parents
-reaches one of them, or the processes whose program lies below a directory of its own into which
-it wrote its stand-ins. Any other call sends nothing, prints `fence_refused pid=<n> started_us=<n>
-force=<yes|no>` on standard error and panics at the call. The integration tests turn it on with
-`fence::on`, and the trial's program turns it on when `R3_WEB_FENCE_BELOW` names a directory, which
-`tests/signals.rs` sets to its own; that test fails on a `fence_refused` line of the program. A
-changed copy of `procs::kill`, `procs::ask_end`, `checks::Mark`, `checks::end_runs_own` or the fence
-that could widen who is signalled runs on the hosted runners alone.
+they have read the process's start time again. The fence is on from the start, admitting nothing,
+in every test target of this crate: the library's own test build has `cfg(test)`, and the crate's
+dev-dependency on itself gives the feature `test-fence` to the library that the program's tests and
+the integration tests link (CP-215 G1). Each test target holds the test
+`the_fence_is_on_in_this_test_target`, and a test of the library fails when a target lacks it or the
+manifest loses that dependency. A test admits, for its own thread and while it holds the admission,
+a process that it started, by number and start time, with the processes whose line of parents
+reaches it (`fence::Admits::of_process`), or the processes whose program lies below a directory of
+its own into which it wrote its stand-ins; it never admits the test process or another test's child
+(CP-215 G2). Any other call sends nothing, prints `fence_refused pid=<n> started_us=<n>
+force=<yes|no>` on standard error and panics at the call. A program built without the feature has
+the fence off unless `R3_WEB_FENCE_BELOW` is set: then its fence is on and admits the programs below
+that directory when it lies strictly below the program's own temporary directory or its cargo target
+directory, and for any other value (empty, the root, a directory elsewhere) it stays closed, admits
+nothing and prints `fence_closed cause=<empty|root|outside>` (CP-215 G3). `tests/signals.rs` and
+`tests/org.rs` set it to their own directories and fail on a `fence_refused` line of the program. A
+changed copy of a line that ends a process, or of a guard before it, runs on this Mac only with the
+kill replaced by a recorder (CP-214); a copy that could widen who is signalled runs on the hosted
+runners alone.
 
 ### The checks of a session (CP-89 (c))
 
