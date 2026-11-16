@@ -223,6 +223,60 @@ fn a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_
     }
 }
 
+/// CP-212 V4: the stand-in runner reads `--utc-offset` as the runner does: started by hand without it, or with a value
+/// out of range or not in the form that `i32` writes (`+3600`, `007`, `-0`), it exits with the status 2 before it
+/// plays a line of its script, and with `3600` or `-50400` it plays it, so that no library test can pass on a start
+/// that the real runner refuses.
+#[test]
+fn the_stand_in_runner_refuses_an_offset_as_the_runner_does() {
+    let dir = common::scratch("stand-in-offset");
+    let cases: [(Option<&str>, bool); 7] = [
+        (None, true),
+        (Some("+3600"), true),
+        (Some("007"), true),
+        (Some("-0"), true),
+        (Some("50401"), true),
+        (Some("3600"), false),
+        (Some("-50400"), false),
+    ];
+    for (value, refused) in cases {
+        let script = common::Script::new(&dir, &["log played", "exit 0"]);
+        let mut cmd = std::process::Command::new(common::peer());
+        cmd.arg("--run")
+            .arg("offset")
+            .arg("--browser")
+            .arg(&script.path);
+        if let Some(value) = value {
+            cmd.arg("--utc-offset").arg(value);
+        }
+        let mut child = cmd
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut status = None;
+        assert!(
+            wait_until(SHORT, || {
+                status = child.try_wait().unwrap();
+                status.is_some()
+            }),
+            "{value:?}: the stand-in ended: {}",
+            script.log()
+        );
+        let code = status.and_then(|s| s.code());
+        let log = script.log();
+        if refused {
+            assert_eq!(code, Some(2), "{value:?}: {log}");
+            assert_eq!(log.lines().last(), Some("refused utc-offset"), "{value:?}");
+            assert!(!log.contains("played"), "{value:?}: {log}");
+        } else {
+            assert_eq!(code, Some(0), "{value:?}: {log}");
+            assert!(log.contains("played"), "{value:?}: {log}");
+        }
+    }
+}
+
 #[test]
 fn a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended()
 {

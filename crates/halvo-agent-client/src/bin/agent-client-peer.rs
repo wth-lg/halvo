@@ -1,7 +1,8 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
 //! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`, the value of
 //! `--utc-offset` among it (`none` without the argument); as the runner does, it exits with the status 2 before any
-//! frame when that value is no whole number from -50,400 to 50,400; started as `browser`
+//! frame without that argument or when its value is no whole number from -50,400 to 50,400 in the form that `i32`
+//! writes; started as `browser`
 //! it plays a browser that sleeps, as `child` a process that sleeps, as `child-brief MS` a process that sleeps MS
 //! milliseconds and exits with the status 0, and as `stderr-child MARKER` a process that
 //! prints MARKER on standard error and exits. On macOS `holder-parent LOG [SECONDS]` starts `holder [SECONDS]`, a
@@ -1019,12 +1020,12 @@ fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
     }
 }
 
-/// Whether `value` is an offset that the runner takes from the library, which writes it as `i32` does: a whole
-/// number from -50,400 to 50,400.
+/// Whether `value` is an offset that the runner takes: a whole number from -50,400 to 50,400 in the decimal form that
+/// `i32` writes, with no sign before a positive number and no leading zero (the runner's args.rs).
 fn offset_in_range(value: &str) -> bool {
-    value
-        .parse::<i32>()
-        .is_ok_and(|n| (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(&n))
+    value.parse::<i32>().is_ok_and(|n| {
+        (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(&n) && n.to_string() == value
+    })
 }
 
 fn runner(args: &[String]) {
@@ -1050,7 +1051,7 @@ fn runner(args: &[String]) {
         .map(|t| t.to_string())
         .unwrap_or_default();
     log.line(&format!("runner pid={me} created={created}"));
-    if offset.is_some_and(|value| !offset_in_range(value)) {
+    if !offset.is_some_and(|value| offset_in_range(value)) {
         log.line("refused utc-offset");
         std::process::exit(2);
     }
