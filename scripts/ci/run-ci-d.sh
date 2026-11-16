@@ -2768,7 +2768,8 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
 
   own_list_case lists-of-the-macos-alone-cases-and-of-the-windows-rules
-  printf 'run-ci-d own cases: %s cases, %s s\n' "$own_n" "$(($(date +%s) - own_start))"
+  own_end=$(date +%s)
+  printf 'run-ci-d own cases: %s cases, %s s\n' "$own_n" "$((own_end - own_start))"
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
   elif [ "$rejected" -eq 0 ]; then
