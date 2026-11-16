@@ -421,6 +421,104 @@ fn a_prepare_of_the_run_by_another_spelling_after_a_refused_replace_answers_the_
     assert_eq!(scratch.names(""), listing, "nothing written");
 }
 
+fn refused_then_directory_made_again(move_away: &str) -> (Result<(), Error>, Option<Error>, bool) {
+    let scratch = Scratch::new("replace-refused-dir-again");
+    fs::create_dir(scratch.path("sub")).expect("make sub");
+    fs::copy(corpus(FILE), scratch.path("sub/values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let workbook = Path::new("sub/values.xlsx");
+    let range = Range::parse("B5").expect("a range");
+    let prepared = folder
+        .prepare(
+            workbook,
+            &run,
+            "Values",
+            range,
+            &[vec![Value::Number(77.0)]],
+        )
+        .expect("prepared");
+    let name = match move_away {
+        "checkpoint" => format!("sub/{CHECKPOINT}"),
+        _ => format!("sub/{}", copy_of(&prepared)),
+    };
+    fs::rename(scratch.path(&name), scratch.path("aside.xlsx")).expect("move it away");
+    let replaced = folder.replace(&prepared);
+    drop(prepared);
+    fs::rename(scratch.path("sub"), scratch.path("sub-old")).expect("move sub aside");
+    fs::create_dir(scratch.path("sub")).expect("make sub again");
+    fs::copy(
+        scratch.path("sub-old/values.xlsx"),
+        scratch.path("sub/values.xlsx"),
+    )
+    .expect("copy");
+    let before = scratch.names("sub");
+    let again = folder.prepare(
+        workbook,
+        &run,
+        "Values",
+        range,
+        &[vec![Value::Number(78.0)]],
+    );
+    let answer = again.as_ref().err().cloned();
+    drop(again);
+    (replaced, answer, scratch.names("sub") == before)
+}
+
+#[test]
+fn a_prepare_after_a_refused_replace_in_a_directory_made_again_answers_the_checkpoint_error() {
+    let (replaced, again, unchanged) = refused_then_directory_made_again("checkpoint");
+    assert_eq!(replaced, Err(Error::NotReplaced(Kept::Checkpoint)));
+    assert_eq!(again, Some(Error::Checkpoint));
+    assert!(unchanged, "nothing written");
+}
+
+#[test]
+fn a_prepare_after_a_refused_replace_whose_checkpoint_moved_with_its_directory_answers_the_checkpoint_error(
+) {
+    let (replaced, again, unchanged) = refused_then_directory_made_again("copy");
+    assert_eq!(replaced, Err(Error::NotReplaced(Kept::Copy)));
+    assert_eq!(again, Some(Error::Checkpoint));
+    assert!(unchanged, "nothing written");
+}
+
+#[test]
+fn a_prepare_after_a_refused_replace_answers_the_workbooks_own_refusal_before_the_checkpoint_error()
+{
+    let scratch = Scratch::new("replace-refused-order");
+    let s = setup(&scratch);
+    let theirs = fs::read(corpus("formulas.xlsx")).expect("read");
+    fs::write(scratch.path(FILE), &theirs).expect("the person saves another workbook");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Workbook))
+    );
+    let listing = scratch.names("");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(78.0)]];
+    let first = s
+        .folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(
+        first.as_ref().err(),
+        Some(&Error::NoSheet),
+        "its own refusal first"
+    );
+    drop(first);
+    fs::write(scratch.path(FILE), &s.before).expect("the person goes back");
+    let second = s
+        .folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(
+        second.as_ref().err(),
+        Some(&Error::Checkpoint),
+        "then the checkpoint error"
+    );
+    drop(second);
+    assert_eq!(scratch.names(""), listing, "nothing written");
+}
+
 #[test]
 fn a_folder_that_does_not_hold_the_workbook_touches_nothing_and_is_no_first_replace() {
     let scratch = Scratch::new("replace-folder");

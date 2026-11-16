@@ -309,6 +309,7 @@ struct Made<'a> {
 }
 
 struct Called {
+    path: PathBuf,
     dir: Option<FileId>,
     name: std::ffi::OsString,
     file: Option<FileId>,
@@ -317,6 +318,7 @@ struct Called {
 impl Called {
     fn of(checkpoint: &Path) -> Called {
         Called {
+            path: checkpoint.to_path_buf(),
             dir: FileId::at(directory(checkpoint)).ok(),
             name: checkpoint.file_name().unwrap_or_default().to_os_string(),
             file: FileId::at(checkpoint).ok(),
@@ -328,7 +330,9 @@ impl Called {
             (Some(a), Some(b)) => same_file(a, b),
             _ => false,
         };
-        (self.name == other.name && same(&self.dir, &other.dir)) || same(&self.file, &other.file)
+        self.path == other.path
+            || (self.name == other.name && same(&self.dir, &other.dir))
+            || same(&self.file, &other.file)
     }
 }
 
