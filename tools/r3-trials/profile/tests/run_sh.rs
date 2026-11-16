@@ -23,8 +23,12 @@ struct Places {
     missing: PathBuf,
 }
 
-fn places() -> Places {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("run-sh-reader");
+fn own_root(name: &str) -> PathBuf {
+    halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), name)
+        .unwrap_or_else(|e| panic!("{name}: {e}"))
+}
+
+fn places(root: &Path) -> Places {
     let bin = root.join("bin");
     for d in [&bin, &root.join("plain"), &root.join("program")] {
         std::fs::create_dir_all(d).unwrap_or_else(|e| panic!("{}: {e}", d.display()));
@@ -79,7 +83,7 @@ fn s(p: &Path) -> String {
 
 #[test]
 fn the_argument_reader_follows_the_usage_line_of_a13_3() {
-    let p = places();
+    let p = places(&own_root("run-sh-refusals"));
     let (plain, program, missing) = (s(&p.plain), s(&p.program), s(&p.missing));
     let driver = s(&p.bin.join("driver"));
     let rows: Vec<Row> = vec![
@@ -174,8 +178,8 @@ fn the_argument_reader_follows_the_usage_line_of_a13_3() {
 
 #[test]
 fn the_reader_hands_each_argument_on_to_the_program() {
-    let p = places();
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("run-sh-reader");
+    let root = own_root("run-sh-forward");
+    let p = places(&root);
     let pass = root.join("pass-bin");
     let scratch = root.join("scratch");
     for d in [&pass, &scratch] {

@@ -201,7 +201,8 @@ fn write(path: &Path, text: &str) {
 }
 
 fn stand_in() -> (PathBuf, PathBuf, PathBuf) {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("stand-in-item3");
+    let root = halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), "stand-in-item3")
+        .unwrap_or_else(|e| panic!("{e}"));
     let repo = root.join("repo");
     let scratch = root.join("scratch");
     let browsers = root.join("browser");
