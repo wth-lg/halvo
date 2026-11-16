@@ -185,7 +185,11 @@ fn decision(n: u8, kind: &str, workflow: &WorkflowId) -> InterfaceDecision {
 /// drive. A handler's typed commit, each decision (approve, dismiss and delete), the state call and a checkpointed call
 /// (the expiry call) each make one or more sync calls of the log with the full flag, and each call that ends with the
 /// truncating checkpoint (the dismissal, the delete and the expiry call) one or more of the database file with it,
-/// counted through a layer under the database that counts the sync calls of each file and passes them on.
+/// counted through a layer under the database that counts the sync calls of each file and passes them on. The count
+/// holds `fullfsync`: with it off the test fails. It does not fail with `synchronous` taken off, which the database
+/// crate's build and the read-back hold, nor with `checkpoint_fullfsync` taken off while `fullfsync` is on, because the
+/// database then syncs a checkpoint with the full flag anyway; the settings test and the read-back hold it (ruling
+/// S-100, item 6).
 #[test]
 fn each_answered_commit_and_each_checkpoint_syncs_with_the_full_flag() {
     install();

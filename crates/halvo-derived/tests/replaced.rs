@@ -225,15 +225,15 @@ fn marked(seed: u64, k: u64, j: u64) -> u64 {
     (z ^ (z >> 31)) & 0x0000_ffff_ffff_ffff
 }
 
-/// The first shape of S-80, item 3 (U5.1d, part 9), one drawn keyless store: four workflows whose keys hold a site, each
-/// with an app that is a marker and three summaries, one of them close to its bound, each made between two runs of 15
-/// rows of origin own, of drawn lengths, of a filler workflow of its own, so that its rows stand on pages among the
+/// The first shape of S-80, item 3 (U5.1d, part 9), one drawn keyless store: four workflows whose keys hold a site,
+/// each with an app that is a marker and three summaries, one of them close to its bound, each made between two runs of
+/// 15 rows of origin own, of drawn lengths, of a filler workflow of its own, so that its rows stand on pages among the
 /// filler's. Then for each marked workflow in turn: its filler is deleted, so that the pages that hold the marked rows
 /// are left nearly empty and the database merges them and builds them again; a batch gives the marked workflow another
 /// app of another length and drops the support row of its summary close to its bound; both markers are found in the
 /// files (the control); the expiry call takes that summary past its bound; and every entry of `derived/` is searched
-/// for both markers. After the delete of the marked workflows and after the close every marker of the store is
-/// searched again. It returns each marker found where none may stand.
+/// for both markers. After the delete of the marked workflows and after the close every marker of the store is searched
+/// again. It returns each marker found where none may stand.
 fn large_store(seed: u64) -> Vec<Left> {
     let scratch = Scratch::new(&format!("replaced-large-{seed}"));
     let clock = TestClock::at_day(DAY);

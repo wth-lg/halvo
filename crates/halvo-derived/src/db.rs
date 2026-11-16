@@ -593,11 +593,12 @@ impl Db {
         }
     }
 
-    /// Refuses the open, before anything is written, where stored rows of a kind cannot follow its entry: a row stored
-    /// under another retention class or another family than the entry gives, a row whose workflow column holds an id while its record
-    /// holds no id, or another one, under the entry's workflow key, or, for an entry that gives no workflow key, a row
-    /// whose workflow column holds an id. A row whose workflow column is null is no fault under an entry that gives a
-    /// key: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow run among them.
+    /// Refuses the open, before it changes a row, where stored rows of a kind cannot follow its entry: a row stored
+    /// under another retention class or another family than the entry gives, a row whose workflow column holds an id
+    /// while its record holds no id, or another one, under the entry's workflow key, or, for an entry that gives no
+    /// workflow key, a row whose workflow column holds an id. A row whose workflow column is null is no fault under an
+    /// entry that gives a key: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow
+    /// run among them.
     fn check_stored(&self) -> Result<(), OpenError> {
         for entry in &self.entries {
             let class = one(

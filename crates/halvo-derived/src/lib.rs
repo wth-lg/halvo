@@ -138,32 +138,29 @@ pub struct Store {
 
 impl Store {
     /// Opens the store under `<data_dir>/derived/`, creating the directory and the database where they are missing.
-    ///
-    /// `entries` are the kind entries the store takes: `kinds::registry()` in every host, with the test-only entries
-    /// of a test host beside them. The open fails when `kinds::check_entries` reports a fault for them, when they lack
-    /// one of the four kinds of the workflow run, when another store holds the writer lock or the database, when `key`
-    /// does not open the database, when a setting that the store makes (secure delete, temporary storage in memory,
+    /// `entries` are the kind entries the store takes: `kinds::registry()` in every host, with the test-only entries of
+    /// a test host beside them. The open fails when `kinds::check_entries` reports a fault for them, when they lack one
+    /// of the four kinds of the workflow run, when another store holds the writer lock or the database, when `key` does
+    /// not open the database, when a setting that the store makes (secure delete, temporary storage in memory,
     /// exclusive locking, the write-ahead log, `synchronous` FULL, `fullfsync` and `checkpoint_fullfsync` on, foreign
-    /// keys, the page-cache cap) does not read back as set from the store's one connection,
-    /// the connection of all its writes and reads, after it sets it, when the database's `auto_vacuum` is not 0 or its
-    /// page size is not 4,096, when the linked database is not Halvo's build that zeroes the gap of a page that it
-    /// builds again or edits (`OpenError::Setting("page_gap_mend_linked")`, before any file is touched), and when an
-    /// existing database holds another schema. It also fails, with `OpenError::Stored`, before it writes anything, where
-    /// rows of a kind are stored that the kind's entry cannot follow: rows stored under another retention class or
-    /// another family than the entry gives, rows that the store deletes with one workflow while their record names
-    /// another, or none, under the entry's workflow key, or rows that the store deletes with a workflow while the entry
-    /// gives no
-    /// workflow key; an open with the earlier entry then works as before. The tables and their indexes are created
-    /// only in a database that holds no table. At every open the store reconciles: it runs the truncating checkpoint,
-    /// adds a revision of 0 for each family of `entries` that has none, fills the workflow column of each row of a
-    /// kind whose entry gives a `workflow_key` from the value under that key where the row holds none, removes every
-    /// evidence or support row whose summary is not stored and every row that names a workflow that is not stored,
-    /// brings the day on which each stored bounded row goes to the bound of its kind's entry in `entries` where that
-    /// bound is the shorter, gives a bounded row of a kind of `entries` with a day and no day of going its day plus the
-    /// days of its entry, and then runs the expiry of `Store::expire`, which reads that day as the report's
-    /// deadline does. `ids` gives the key of the site hash when the database is created. It also fails when a step or
-    /// a handler of `host` names the family `workflow` or a family outside the form of 1 to 32 bytes of `a` to `z`,
-    /// `0` to `9` and `_`.
+    /// keys, the page-cache cap) does not read back as set from the store's one connection, the connection of all its
+    /// writes and reads, after it sets it, when the database's `auto_vacuum` is not 0 or its page size is not 4,096,
+    /// when the linked database is not Halvo's build that zeroes the gap of a page that it builds again or edits
+    /// (`OpenError::Setting("page_gap_mend_linked")`, before any file is touched), and when an existing database holds
+    /// another schema. It also fails, with `OpenError::Stored`, before it changes a row, where rows of a kind are
+    /// stored that the kind's entry cannot follow: rows stored under another retention class or another family than the
+    /// entry gives, rows that the store deletes with one workflow while their record names another, or none, under the
+    /// entry's workflow key, or rows that the store deletes with a workflow while the entry gives no workflow key; an
+    /// open with the earlier entry then works as before. The tables and their indexes are created only in a database
+    /// that holds no table. At every open the store reconciles: it runs the truncating checkpoint, adds a revision of 0
+    /// for each family of `entries` that has none, fills the workflow column of each row of a kind whose entry gives a
+    /// `workflow_key` from the value under that key where the row holds none, removes every evidence or support row
+    /// whose summary is not stored and every row that names a workflow that is not stored, brings the day on which each
+    /// stored bounded row goes to the bound of its kind's entry in `entries` where that bound is the shorter, gives a
+    /// bounded row of a kind of `entries` with a day and no day of going its day plus the days of its entry, and then
+    /// runs the expiry of `Store::expire`, which reads that day as the report's deadline does. `ids` gives the key of
+    /// the site hash when the database is created. It also fails when a step or a handler of `host` names the family
+    /// `workflow` or a family outside the form of 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`.
     pub fn open(
         data_dir: &Path,
         key: &DbKey,

@@ -888,9 +888,10 @@ static PAIR_NONE: KindEntry = KindEntry {
 };
 
 /// C3.9 (inbox entry 85 (a); U5.1d, part 2): an entry that gives no workflow key for a kind whose stored rows name the
-/// workflow that they go with makes the open fail by name before it writes anything: with the clock past every bound,
-/// the rows, the revisions and meta are as they were, and an open with the earlier entry opens as before. The control:
-/// the same entry opens over stored rows of the kind that it stored itself, which name no workflow.
+/// workflow that they go with makes the open fail by name and change no row, no revision and no value of meta (a
+/// refused open is no promise about the files' bytes): with the clock past every bound, the rows, the revisions and
+/// meta are as they were, and an open with the earlier entry opens as before. The control: the same entry opens over
+/// stored rows of the kind that it stored itself, which name no workflow.
 #[test]
 fn an_open_refuses_an_entry_that_drops_the_workflow_key_of_stored_rows_and_changes_nothing() {
     let scratch = Scratch::new("pair-dropped-key");
@@ -942,8 +943,9 @@ static PAIR_FAMILY: KindEntry = KindEntry {
 };
 
 /// C3.9 (the review of U5.1b, its P5; U5.1d, part 5): an entry that gives a stored kind another family makes the open
-/// fail by name before it writes anything: with the clock past every bound, the rows, the revisions (no revision of
-/// the new family among them) and meta are as they were, and an open with the earlier entry opens as before.
+/// fail by name and change no row, no revision and no value of meta (a refused open is no promise about the files'
+/// bytes): with the clock past every bound, the rows, the revisions (no revision of the new family among them) and meta
+/// are as they were, and an open with the earlier entry opens as before.
 #[test]
 fn an_open_refuses_an_entry_that_gives_a_stored_kind_another_family_and_changes_nothing() {
     let scratch = Scratch::new("pair-other-family");

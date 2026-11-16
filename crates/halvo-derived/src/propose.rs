@@ -184,13 +184,13 @@ pub(crate) fn set_support(
 /// `unchanged`, and that row, its support rows and the revision stay as they are, so that the plan of a workflow that
 /// an agent does moves by a decision alone; one whose key a full workflow with no agent holds changes that row, which
 /// keeps its id, its state and its agent and takes the proposal's app, trigger, recurrence and confidence, and its
-/// support rows become those of the proposal's summaries. A proposal that names a summary stored under another key than its own is refused, so
-/// every summary that supports a workflow, or once did, holds the workflow's key. A step returns at most one proposal
-/// for a key in one call: where it returns more, the first that passes its checks is the call's proposal for that key,
-/// and each later one with that key is refused whole and counted in `refused`, with no workflow row, support row or
-/// revision of it; a proposal that another cause refuses holds no key. The five counts sum to the proposals. The ids
-/// of the new workflows are drawn from `ids` in the order of their category and then of their lowest supporting
-/// summary id.
+/// support rows become those of the proposal's summaries. A proposal that names a summary stored under another key than
+/// its own is refused, so every summary that supports a workflow, or once did, holds the workflow's key. A step returns
+/// at most one proposal for a key in one call: where it returns more, the first that passes its checks is the call's
+/// proposal for that key, and each later one with that key is refused whole and counted in `refused`, with no workflow
+/// row, support row or revision of it; a proposal that another cause refuses holds no key. The five counts sum to the
+/// proposals. The ids of the new workflows are drawn from `ids` in the order of their category and then of their lowest
+/// supporting summary id.
 pub(crate) fn apply(
     tx: &Tx<'_>,
     now: Now,

@@ -1990,7 +1990,8 @@ impl Removal {
 }
 
 /// What one drawn store showed: the removals made, the taken markers found after their removal, the stored markers
-/// found in more places than their row and its index entry, and the rows in which the store differs from the model.
+/// found in more places than their row and its index entries hold (`OWN_ROW_PLACES` for a row of origin own), and the
+/// rows in which the store differs from the model.
 #[derive(Default)]
 struct GapCount {
     removals: u64,
@@ -2458,13 +2459,10 @@ fn page_gap_store(removal: Removal, seed: u64) -> GapCount {
     count
 }
 
-/// The seeds of the page-gap test, for each removal: chosen so that, at a head whose build of the database leaves the
-/// gap of a rebuilt page as it was, each removal leaves at least one marker (9087f2d7 on this Mac: a drawn search over
-/// seeds 1 to 24 for the dismissal and 1 to 16 for the others).
-/// The places in the files of a stored marker of a row of origin own, whose family is not `workflow`: the row, its entry
-/// in the index rows_read (kind, body) and its entry in the index rows_read_workflow (kind, workflow, body) of U5.1d,
-/// part 3 (ruling S-67). The test `the_indexes_over_the_body_are_rows_read_and_rows_read_workflow` holds that no other
-/// index carries the body, so that a later index over it fails that test and its writer raises this number by a
+/// The places in the files of a stored marker of a row of origin own, whose family is not `workflow`: the row, its
+/// entry in the index rows_read (kind, body) and its entry in the index rows_read_workflow (kind, workflow, body) of
+/// U5.1d, part 3 (ruling S-67). The test `the_indexes_over_the_body_are_rows_read_and_rows_read_workflow` holds that no
+/// other index carries the body, so that a later index over it fails that test and its writer raises this number by a
 /// ruling.
 const OWN_ROW_PLACES: u64 = 3;
 
@@ -2503,6 +2501,9 @@ fn the_indexes_over_the_body_are_rows_read_and_rows_read_workflow() {
     assert_eq!(over_the_body, ["rows_read", "rows_read_workflow"]);
 }
 
+/// The seeds of the page-gap test, for each removal: chosen so that, at a head whose build of the database leaves the
+/// gap of a rebuilt page as it was, each removal leaves at least one marker (9087f2d7 on this Mac: a drawn search over
+/// seeds 1 to 24 for the dismissal and 1 to 16 for the others).
 const PAGE_GAP_SEEDS: &[(Removal, &[u64])] = &[
     (Removal::Delete, &[1, 2, 3, 4, 5, 6, 7, 8]),
     (Removal::Dismissal, &[1, 2, 3, 4, 5, 6, 7, 8]),
@@ -2514,14 +2515,16 @@ const PAGE_GAP_SEEDS: &[(Removal, &[u64])] = &[
 
 /// Removed rows leave no text in the gap of a page that the database built again (rulings S-80, item 5, S-81, F3, and
 /// S-82, item 4, written from the verifier's probe evidence/verifier-37/v37r.rs). For each of the six calls of the
-/// checkpointed write that `every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search` lists (the
-/// delete of a workflow, the dismissal, the expiry of an open, the expiry call, the purge and the purge below the first
-/// live ordinal), drawn keyless stores with fixed seeds, 8 for the delete and the dismissal and 4 for each of the
-/// others, each as `page_gap_store` builds it, four stores at a time on threads of their own. The test prints one line per removal with its counts: the stores, the
-/// removals, the taken markers and bodies found in an entry of `derived/` after their removal, the stored markers found
-/// in more places than their row and its index entry, and the stored rows that differ from the model. It fails when one
-/// count but the first two is above 0. At a head whose build of the database leaves the gap of a rebuilt page as it
-/// was, it fails: that is the finding of ruling S-82, which the mend of the database's build closes.
+/// checkpointed write that `every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search` lists (the delete
+/// of a workflow, the dismissal, the expiry of an open, the expiry call, the purge and the purge below the first live
+/// ordinal), drawn keyless stores with fixed seeds, 8 for the delete and the dismissal and 4 for each of the others,
+/// each as `page_gap_store` builds it, four stores at a time on threads of their own. The test prints one line per
+/// removal with its counts: the stores, the removals, the taken markers and bodies found in an entry of `derived/`
+/// after their removal, the stored markers found in more places than their row and its index entries hold (three for a
+/// row of origin own, `OWN_ROW_PLACES`: the row, rows_read and rows_read_workflow; one for an evidence row), and the
+/// stored rows that differ from the model. It fails when one count but the first two is above 0. At a head whose build
+/// of the database leaves the gap of a rebuilt page as it was, it fails: that is the finding of ruling S-82, which the
+/// mend of the database's build closes.
 #[test]
 fn removed_rows_leave_no_text_in_the_gap_of_a_page_built_again() {
     let mut lines = Vec::new();
