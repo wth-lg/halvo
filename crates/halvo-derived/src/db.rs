@@ -125,9 +125,10 @@ impl<'c> Tx<'c> {
     }
 }
 
-/// The writer that `Db::write_checkpointed` hands out to its closure: the writer of the transaction, with the removal
-/// of rows, which no other writer has, so that a removal under a plain write does not compile and every removal ends
-/// with the truncating checkpoint that follows the commit.
+/// The writer that `Db::write_checkpointed` hands out to its closure: the writer of the transaction with the function
+/// that removes rows by a selection, `Removes::remove`, which stands on this writer alone, so that a call of it under a
+/// plain write does not compile, and the rows that it removes go before the truncating checkpoint that follows the
+/// commit. A support row that a new proposal drops is removed under the plain write, as ruling S-80 allows.
 pub(crate) struct Checkpointed<'t, 'c>(&'t Tx<'c>);
 
 impl<'c> std::ops::Deref for Checkpointed<'_, 'c> {
@@ -138,7 +139,7 @@ impl<'c> std::ops::Deref for Checkpointed<'_, 'c> {
     }
 }
 
-/// The removal of rows, which the checkpointed writer alone implements.
+/// The removal of rows by a selection, which the checkpointed writer alone implements.
 pub(crate) trait Removes {
     /// Removes the rows that `select` names by their id and family, and returns how many went.
     fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault>;
