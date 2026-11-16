@@ -163,17 +163,13 @@ range_of_the_push() {
     *) before_form=other ;;
   esac
   [ "$before_form" = hexadecimal ] || fail "the event file that GITHUB_EVENT_PATH names gives no before commit of 40 or 64 lower-case hexadecimal characters for this push to $default_branch, so the check cannot read which commits the push added; run the job again"
-  case $event_before in
-    *[!0]*)
-      if has_commit "$event_before"; then
-        kind=the-push
-        range=$event_before..HEAD
-        return 0
-      fi
-      ;;
-  esac
-  kind=every-commit-of-the-head
-  range=HEAD
+  if has_commit "$event_before"; then
+    kind=the-push
+    range=$event_before..HEAD
+  else
+    kind=every-commit-of-the-head
+    range=HEAD
+  fi
 }
 
 counts_of() {
@@ -429,18 +425,19 @@ no_event() {
 }
 
 case_branch_scanner_that_prints_counts_and_finds_nothing() {
-  c=branch-scanner-that-prints-counts-and-finds-nothing
+  c='branch-scanner-that-prints-counts-and-finds-nothing'
   fixture "$c"
   git -C "$scratch/$c" update-ref refs/remotes/origin/trunk HEAD || exit 2
+  add_commit "$c" "see /$u/zoe/x" 'second'
   weak_scanner >"$scratch/$c/scripts/check-home-paths.sh" || exit 2
-  add_commit "$c" "see /$u/zoe/x" 'weaken the scanner'
+  add_commit "$c" 'plain again' 'weaken the scanner'
   event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false trunk
   expect FAIL "$c" 'the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that refs/remotes/origin/trunk holds finds'
   no_event
 }
 
 case_branch_range_file_that_leaves_out_the_commit_with_the_path() {
-  c=branch-range-file-that-leaves-out-the-commit-with-the-path
+  c='branch-range-file-that-leaves-out-the-commit-with-the-path'
   fixture "$c"
   git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
   add_commit "$c" "see /$u/zoe/x" 'second'
@@ -450,7 +447,7 @@ case_branch_range_file_that_leaves_out_the_commit_with_the_path() {
 }
 
 case_list_entry_of_the_branch_holds_for_both_copies() {
-  c=list-entry-of-the-branch-holds-for-both-copies
+  c='list-entry-of-the-branch-holds-for-both-copies'
   fixture "$c"
   git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
   printf 'notes.txt\t/%s/zoe\tmade up\n' "$u" >>"$scratch/$c/scripts/home-path-allow.txt" || exit 2
@@ -459,7 +456,7 @@ case_list_entry_of_the_branch_holds_for_both_copies() {
 }
 
 case_default_branch_missing_from_a_full_clone_of_a_workflow_run() {
-  c=default-branch-missing-from-a-full-clone-of-a-workflow-run
+  c='default-branch-missing-from-a-full-clone-of-a-workflow-run'
   fixture "$c"
   add_commit "$c" 'more plain text' 'second'
   event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false main
@@ -468,7 +465,7 @@ case_default_branch_missing_from_a_full_clone_of_a_workflow_run() {
 }
 
 case_default_branch_without_the_range_file() {
-  c=default-branch-without-the-range-file
+  c='default-branch-without-the-range-file'
   fixture "$c"
   mv "$scratch/$c/scripts/commit-range.sh" "$scratch/$c.commit-range.sh" || exit 2
   add_commit "$c" 'more plain text' 'take the range file out'
@@ -479,7 +476,7 @@ case_default_branch_without_the_range_file() {
 }
 
 case_shallow_clone_without_the_default_branch() {
-  c=shallow-clone-without-the-default-branch
+  c='shallow-clone-without-the-default-branch'
   fixture "$c-source"
   add_commit "$c-source" 'more plain text' 'second'
   add_commit "$c-source" 'plain again' 'third'
@@ -493,6 +490,77 @@ case_shallow_clone_without_the_default_branch() {
   no_event
 }
 
+case_event_without_a_default_branch() {
+  c='event-without-a-default-branch'
+  fixture "$c"
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  add_commit "$c" 'more plain text' 'second'
+  event_of_a_run "$c" pull_request refs/pull/1/merge 0000000000000000000000000000000000000000 false ''
+  expect FAIL "$c" 'gives no default branch that git reads as a branch name'
+  no_event
+}
+
+default_branch_whose_copy_differs() {
+  fixture "$1"
+  mv "$scratch/$1/scripts/$2" "$scratch/$1.kept" || exit 2
+  printf '%s\n' "$3" >"$scratch/$1/scripts/$2" || exit 2
+  add_commit "$1" 'more plain text' 'change the copy of the default branch'
+  git -C "$scratch/$1" update-ref refs/remotes/origin/main HEAD || exit 2
+  mv "$scratch/$1.kept" "$scratch/$1/scripts/$2" || exit 2
+  add_commit "$1" 'plain again' 'take the copy of the repository again'
+}
+
+case_default_branch_scanner_that_prints_no_count() {
+  c='default-branch-scanner-that-prints-no-count'
+  default_branch_whose_copy_differs "$c" check-home-paths.sh 'exit 0'
+  expect FAIL "$c" 'that refs/remotes/origin/main holds exited 0 and printed no count'
+}
+
+case_default_branch_range_file_that_lists_nothing() {
+  c='default-branch-range-file-that-lists-nothing'
+  default_branch_whose_copy_differs "$c" commit-range.sh 'commit_range_default_ref() { :; }
+commit_range() { return 0; }'
+  expect FAIL "$c" 'that refs/remotes/origin/main holds read 0 commits, and git lists 1 for that range'
+}
+
+case_default_branch_scanner_that_cannot_check() {
+  c='default-branch-scanner-that-cannot-check'
+  default_branch_whose_copy_differs "$c" check-home-paths.sh 'exit 2'
+  expect FAIL "$c" 'that refs/remotes/origin/main holds could not check the range (exit 2)'
+}
+
+case_push_to_the_default_branch_in_a_shallow_clone() {
+  c='push-to-the-default-branch-in-a-shallow-clone'
+  push_of_three_commits "$c-source" 'more plain text'
+  git clone -q --no-local --depth 2 "$scratch/$c-source" "$scratch/$c" || exit 2
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  event_of_a_run "$c" push refs/heads/main "$below" false main
+  expect PASS "$c" 'copy-of-the-default-branch commits=1 lines=0 exit=0'
+  no_event
+}
+
+case_scheduled_run_on_the_default_branch() {
+  c='scheduled-run-on-the-default-branch'
+  fixture "$c"
+  add_commit "$c" 'more plain text' 'second'
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  event_of_a_run "$c" schedule refs/heads/main '' false main
+  expect PASS "$c" 'copy-of-the-default-branch commits=1 lines=0 exit=0'
+  no_event
+}
+
+case_push_to_another_branch() {
+  c='push-to-another-branch'
+  fixture "$c"
+  git -C "$scratch/$c" update-ref refs/remotes/origin/main HEAD || exit 2
+  add_commit "$c" 'more plain text' 'second'
+  below=$(git -C "$scratch/$c" rev-parse HEAD) || exit 2
+  add_commit "$c" 'plain again' 'third'
+  event_of_a_run "$c" push refs/heads/feature "$below" false main
+  expect PASS "$c" 'copy-of-the-default-branch commits=2 lines=0 exit=0'
+  no_event
+}
+
 push_of_three_commits() {
   fixture "$1"
   below=$(git -C "$scratch/$1" rev-parse HEAD) || exit 2
@@ -503,7 +571,7 @@ push_of_three_commits() {
 }
 
 case_push_of_three_commits_to_the_default_branch() {
-  c=push-of-three-commits-to-the-default-branch
+  c='push-of-three-commits-to-the-default-branch'
   push_of_three_commits "$c" "see /$u/zoe/x"
   event_of_a_run "$c" push refs/heads/main "$below" false main
   expect FAIL "$c" 'range=the-push tag=not-a-tag-run commits=3 lines=1 '
@@ -511,7 +579,7 @@ case_push_of_three_commits_to_the_default_branch() {
 }
 
 case_clean_push_of_three_commits_to_the_default_branch() {
-  c=clean-push-of-three-commits-to-the-default-branch
+  c='clean-push-of-three-commits-to-the-default-branch'
   push_of_three_commits "$c" 'more plain text'
   event_of_a_run "$c" push refs/heads/main "$below" false main
   expect PASS "$c" 'range=the-push tag=not-a-tag-run commits=3 lines=0 '
@@ -519,7 +587,7 @@ case_clean_push_of_three_commits_to_the_default_branch() {
 }
 
 case_push_that_creates_the_default_branch() {
-  c=push-that-creates-the-default-branch
+  c='push-that-creates-the-default-branch'
   push_of_three_commits "$c" "see /$u/zoe/x"
   event_of_a_run "$c" push refs/heads/main 0000000000000000000000000000000000000000 false main
   expect FAIL "$c" 'range=every-commit-of-the-head tag=not-a-tag-run commits=4 lines=1 '
@@ -527,7 +595,7 @@ case_push_that_creates_the_default_branch() {
 }
 
 case_forced_push_whose_old_tip_is_not_in_the_clone() {
-  c=forced-push-whose-old-tip-is-not-in-the-clone
+  c='forced-push-whose-old-tip-is-not-in-the-clone'
   push_of_three_commits "$c" "see /$u/zoe/x"
   event_of_a_run "$c" push refs/heads/main abababababababababababababababababababab true main
   expect FAIL "$c" 'range=every-commit-of-the-head tag=not-a-tag-run commits=4 lines=1 '
@@ -535,7 +603,7 @@ case_forced_push_whose_old_tip_is_not_in_the_clone() {
 }
 
 case_push_to_the_default_branch_with_an_event_that_is_no_json() {
-  c=push-to-the-default-branch-with-an-event-that-is-no-json
+  c='push-to-the-default-branch-with-an-event-that-is-no-json'
   push_of_three_commits "$c" 'more plain text'
   event_of_a_run "$c" push refs/heads/main "$below" false main
   printf '{"before": "made-up-marker-of-the-event-file\n' >"$GITHUB_EVENT_PATH" || exit 2
@@ -551,7 +619,7 @@ case_push_to_the_default_branch_with_an_event_that_is_no_json() {
 }
 
 case_push_whose_before_holds_upper_case_letters() {
-  c=push-whose-before-holds-upper-case-letters
+  c='push-whose-before-holds-upper-case-letters'
   push_of_three_commits "$c" 'more plain text'
   event_of_a_run "$c" push refs/heads/main ABABABABABABABABABABABABABABABABABABABAB false main
   expect FAIL "$c" 'gives no before commit of 40 or 64 lower-case hexadecimal characters'
@@ -559,7 +627,7 @@ case_push_whose_before_holds_upper_case_letters() {
 }
 
 case_push_whose_before_is_39_characters_long() {
-  c=push-whose-before-is-39-characters-long
+  c='push-whose-before-is-39-characters-long'
   push_of_three_commits "$c" 'more plain text'
   short_before=$(printf '%.39s' "$below") || exit 2
   event_of_a_run "$c" push refs/heads/main "$short_before" false main
@@ -568,7 +636,7 @@ case_push_whose_before_is_39_characters_long() {
 }
 
 case_push_to_the_default_branch_without_an_event_file() {
-  c=push-to-the-default-branch-without-an-event-file
+  c='push-to-the-default-branch-without-an-event-file'
   push_of_three_commits "$c" 'more plain text'
   GITHUB_EVENT_NAME=push
   GITHUB_REF=refs/heads/main
@@ -611,14 +679,14 @@ after_the_remote_that_never_answers() {
 }
 
 case_tag_ask_that_never_answers() {
-  c=tag-ask-that-never-answers
+  c='tag-ask-that-never-answers'
   remote_that_never_answers "$c" no
   clone_unchanged_by expect_within_the_case_limit FAIL "$c" 'tag=remote-could-not-be-asked: git ls-remote did not answer within 2 s'
   after_the_remote_that_never_answers
 }
 
 case_tag_fetch_that_never_answers() {
-  c=tag-fetch-that-never-answers
+  c='tag-fetch-that-never-answers'
   remote_that_never_answers "$c" yes
   clone_unchanged_by expect_within_the_case_limit FAIL "$c" 'tag=remote-could-not-be-asked: git fetch did not answer within 2 s'
   after_the_remote_that_never_answers
@@ -641,6 +709,13 @@ push-whose-before-holds-upper-case-letters
 push-whose-before-is-39-characters-long
 tag-ask-that-never-answers
 tag-fetch-that-never-answers
+event-without-a-default-branch
+default-branch-scanner-that-prints-no-count
+default-branch-range-file-that-lists-nothing
+default-branch-scanner-that-cannot-check
+push-to-the-default-branch-in-a-shallow-clone
+scheduled-run-on-the-default-branch
+push-to-another-branch
 '
 
 run_new_case() {
