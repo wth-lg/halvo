@@ -228,13 +228,14 @@ pub fn run(w: u32, n: u32, day: u32, mode: &str, state: &str) -> LearnRun {
 
 #[test]
 fn newest_of_two_rows_of_one_rev_is_the_row_of_the_later_day_in_either_order() {
-    let early = fresh(1, DAY);
-    let late = fresh(1, DAY + 1);
+    let early = fresh(1, 9_999);
+    let late = fresh(1, 10_000);
+    assert!(late.to_json().expect("a row") < early.to_json().expect("a row"));
     for rows in [[&early, &late], [&late, &early]] {
         let mut store = Store::default();
         for row in rows {
             store.put_routine(row);
         }
-        assert_eq!(store.newest(1).day.get(), DAY + 1);
+        assert_eq!(store.newest(1).day.get(), 10_000);
     }
 }
