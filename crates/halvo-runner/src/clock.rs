@@ -7,19 +7,27 @@ use halvo_schema::Instant;
 
 #[cfg(test)]
 thread_local! {
-    static WALL: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
+    static WALL: std::cell::Cell<Option<(Instant, i64)>> = const { std::cell::Cell::new(None) };
 }
 
-/// Makes `now` on this thread answer `at`, or the system's clock again for `None`.
+/// Makes `now` on this thread answer `at` at every read, or the system's clock again for `None`.
 #[cfg(test)]
 pub(crate) fn hold_wall(at: Option<Instant>) {
-    WALL.with(|wall| wall.set(at));
+    WALL.with(|wall| wall.set(at.map(|at| (at, 0))));
+}
+
+/// Makes `now` on this thread answer `first`, and at each later read `step` nanoseconds more than at the read
+/// before; `hold_wall(None)` gives the system's clock back.
+#[cfg(test)]
+pub(crate) fn step_wall(first: Instant, step: i64) {
+    WALL.with(|wall| wall.set(Some((first, step))));
 }
 
 /// The instant now, in nanoseconds since 1970-01-01T00:00:00Z.
 pub(crate) fn now() -> Instant {
     #[cfg(test)]
-    if let Some(at) = WALL.with(std::cell::Cell::get) {
+    if let Some((at, step)) = WALL.with(std::cell::Cell::get) {
+        WALL.with(|wall| wall.set(Some((Instant(at.0.saturating_add(step)), step))));
         return at;
     }
     let nanos = SystemTime::now()

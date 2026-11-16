@@ -19,7 +19,7 @@ use halvo_schema::{Category, Instant};
 
 use super::suite::{run_fill, run_many_path, run_path, Plan, Record};
 use super::{Left, MakerFacts, Paused, Replied};
-use crate::clock::hold_wall;
+use crate::clock::{hold_wall, step_wall};
 
 #[derive(Default)]
 struct Fake {
@@ -432,6 +432,68 @@ fn a_fill_runs_checkpoint_rows_take_the_day_of_their_instant_at_the_runs_offset_
         let finish = record.finish().expect("the finish").day;
         if finish != day {
             wrong.push(format!("{offset}: finish day {finish}, not {day}"));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+/// CP-212 V3: with a wall clock that moves a day and an hour at each read, so that any two reads fall on two local
+/// days at every offset, each log line, effect row and checkpoint row of a confirmed delete and of a fill run
+/// carries the day of its own `at` and not of another read of the clock.
+#[test]
+fn each_row_takes_the_day_of_its_own_instant_when_the_clock_moves_between_reads() {
+    const DAY: i64 = 86_400 * 1_000_000_000;
+    const HOUR: i64 = 3_600 * 1_000_000_000;
+    let first = Instant(20_404 * DAY + DAY / 2);
+    let mut wrong = Vec::new();
+    for offset in [UTC_OFFSET_S_MAX, 0, -UTC_OFFSET_S_MAX] {
+        let plan = || Plan {
+            utc_offset_s: offset,
+            ..Plan::plain()
+        };
+        step_wall(first, DAY + HOUR);
+        let (delete_run, released) = run(vec![delete("a", Source::Extract)], plan());
+        let fill_run = run_fill(plan());
+        hold_wall(None);
+        assert_eq!(released, 1, "{offset}");
+        assert_eq!(fill_run.done(), Some(Outcome::Completed), "{offset}");
+        let mut rows = Vec::new();
+        for record in [&delete_run, &fill_run] {
+            rows.extend(record.effects().iter().map(|e| ("effect", e.day, e.at)));
+            rows.extend(record.logs().iter().map(|l| ("log", l.day, l.at)));
+            rows.extend(
+                record
+                    .checkpoints()
+                    .iter()
+                    .map(|c| ("checkpoint", c.day, c.at)),
+            );
+        }
+        assert!(
+            rows.iter().filter(|(what, _, _)| *what == "effect").count() >= 7
+                && rows.iter().any(|(what, _, _)| *what == "log")
+                && rows
+                    .iter()
+                    .filter(|(what, _, _)| *what == "checkpoint")
+                    .count()
+                    == 2,
+            "{offset}: {rows:?}"
+        );
+        let mut instants: Vec<i64> = rows.iter().map(|(_, _, at)| at.0).collect();
+        instants.sort_unstable();
+        instants.dedup();
+        assert_eq!(
+            instants.len(),
+            rows.len(),
+            "{offset}: one read of the clock per row"
+        );
+        for (what, row, at) in rows {
+            if row != day_of(at, offset) {
+                wrong.push(format!(
+                    "{offset}: {what} at {} day {row}, not {}",
+                    at.0,
+                    day_of(at, offset)
+                ));
+            }
         }
     }
     assert_eq!(wrong, Vec::<String>::new());
