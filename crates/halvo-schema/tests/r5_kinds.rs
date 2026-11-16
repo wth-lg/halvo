@@ -6,7 +6,7 @@ use halvo_schema::learning::names::EDIT_STATES;
 use halvo_schema::learning::record::{LearnEdit, LearnRoutine, LearnRun};
 use halvo_schema::learning::{ERROR_NAMES, KINDS};
 use halvo_schema::request::{decode_reply, write_reply, ErrorName};
-use halvo_schema::RequestId;
+use halvo_schema::{RequestId, SiteDomain};
 
 use FieldType::{App, Count, Day, Id, Name, Site, Version};
 
@@ -366,7 +366,7 @@ const WITNESS_HOMES: [(&str, &str, &str, &str); 9] = [
     ),
     (A_TEXT, "learn_edit", r#""value":"a.pay""#, r#""value":@"#),
     (A_SITE, "learn_routine", r#""site":null"#, r#""site":@"#),
-    (ONE, "learn_edit", r#""rev":3"#, r#""rev":@"#),
+    (ONE, "learn_edit", r#""v":1"#, r#""v":@"#),
     (TWO, "learn_edit", r#""n":7"#, r#""n":@"#),
     (
         MINUS_ONE,
@@ -395,6 +395,7 @@ fn a_value_of_another_field_type_under_each_key_of_an_edit_row_is_refused_by_the
         A_NAME, AN_ID, A_HASH, A_TEXT, A_SITE, ONE, TWO, MINUS_ONE, ABOVE_U32,
     ];
     assert_eq!(WITNESS_HOMES.map(|(value, ..)| value), witnesses);
+    SiteDomain::parse(A_TEXT.trim_matches('"')).unwrap();
     for (value, kind, from, to) in WITNESS_HOMES {
         let row = match kind {
             "learn_edit" => OTHER_EDITS[1],
