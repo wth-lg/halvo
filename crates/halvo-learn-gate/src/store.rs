@@ -211,13 +211,13 @@ impl MemoryStore {
         expired
     }
 
-    /// Deletes a workflow and every row of both families that names it under its kind's workflow key; answers
-    /// whether the workflow was stored.
+    /// Deletes a workflow and every row of both families kept under its key, the key that the commit set beside the
+    /// row, as the derived store deletes by its workflow column; answers whether the workflow was stored.
     pub fn delete_workflow(&mut self, id: &WorkflowId) -> bool {
         let stored = self.workflows.remove(id).is_some();
         for rows in [&mut self.agent, &mut self.learn] {
-            for (kind, list) in rows.by_kind.iter_mut() {
-                list.retain(|row| workflow_of(kind, &row.json).as_ref() != Some(id));
+            for list in rows.by_kind.values_mut() {
+                list.retain(|row| row.key.as_ref() != Some(id));
             }
         }
         stored

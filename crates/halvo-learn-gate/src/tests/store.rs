@@ -216,3 +216,36 @@ fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_n
     assert!(under(&one, "agent_run").is_empty());
     assert_eq!(visited(LearnHost::rows(&host), "learn_run").len(), 5);
 }
+
+#[test]
+fn delete_workflow_takes_the_rows_kept_under_its_key_whatever_their_text_names() {
+    let mut store = store_with(&[1, 2]);
+    let one = WorkflowId::parse(&wf(1)).expect("a workflow id");
+    let two = WorkflowId::parse(&wf(2)).expect("a workflow id");
+    let under_one_naming_two = record("learn_run", &wf(2), Some(20_769)).json;
+    let under_two_naming_one = record("learn_run", &wf(1), Some(20_768)).json;
+    let rows = store.learn_rows_mut().entry("learn_run").or_default();
+    rows.push(Held {
+        key: Some(one.clone()),
+        json: under_one_naming_two.clone(),
+    });
+    rows.push(Held {
+        key: Some(two.clone()),
+        json: under_two_naming_one.clone(),
+    });
+    let under = |store: &MemoryStore, workflow: &WorkflowId| {
+        let mut seen = Vec::new();
+        store
+            .rows(Family::Learn)
+            .for_each_under("learn_run", workflow, &mut |row| seen.push(row.to_owned()));
+        seen
+    };
+    assert!(store.delete_workflow(&one));
+    assert!(
+        under(&store, &one).is_empty(),
+        "a row kept under A's key outlived A's delete"
+    );
+    assert_eq!(under(&store, &two), [under_two_naming_one]);
+    assert!(store.delete_workflow(&two));
+    assert!(visited(store.rows(Family::Learn), "learn_run").is_empty());
+}
