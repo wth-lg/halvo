@@ -152,9 +152,6 @@ impl Report {
     }
 }
 
-/// The UTC second that holds a capture instant in signed unix nanoseconds,
-/// written `YYYY-MM-DDTHH:MM:SSZ`, as the drop line and the loss line print
-/// it; `-` when there is no instant.
 pub(crate) fn capture_second(at: Option<i64>) -> String {
     at.and_then(|nanos| UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok())
         .map_or_else(|| "-".to_owned(), |second| second.to_string())
@@ -262,9 +259,6 @@ impl Drop for SpilledRecord {
 
 enum Drain {
     Healthy,
-    /// Since the set-aside that stopped the setting aside, no batch is held:
-    /// the drain reads failing with that batch's cause and time until a write
-    /// is acknowledged.
     Stopped {
         cause: DrainCause,
         since: SystemTime,
@@ -886,7 +880,6 @@ fn counts_toward_tries(fault: WriteFault) -> bool {
     }
 }
 
-/// The one of the eight codes that ended a write, if one did.
 fn batch_code(fault: WriteFault) -> Option<BatchCode> {
     match fault {
         WriteFault::Db(code) => BatchCode::of(code),
@@ -897,8 +890,6 @@ fn batch_code(fault: WriteFault) -> Option<BatchCode> {
     }
 }
 
-/// Whether a try that ends with `fault` goes on the run of due tries whose
-/// last ended with `last`: the same fault, or any two of the eight codes.
 fn one_run(last: WriteFault, fault: WriteFault) -> bool {
     last == fault || (batch_code(last).is_some() && batch_code(fault).is_some())
 }
@@ -2827,8 +2818,6 @@ mod tests {
 
     use crate::daemon::counters::BatchCode;
 
-    /// An owner that took `events` events and tried them once at a settle,
-    /// with every report before the try read.
     fn tried_once(store: ModelStore, events: usize) -> Harness {
         let mut harness = Harness::over(store, open_floor(), 2048);
         resumed(&mut harness);
@@ -2840,7 +2829,6 @@ mod tests {
         harness
     }
 
-    /// The due tries at 1 s and 3 s after the first try.
     fn two_due_tries(harness: &mut Harness) {
         harness.clocks.advance(RETRY_FIRST);
         harness.pass();
@@ -2856,10 +2844,6 @@ mod tests {
             .collect()
     }
 
-    /// Contracts.md C11.3, D1, D2, D6 and D8: three due tries that each end
-    /// with `code` set the batch aside, counted lost and by its code, with
-    /// the drain failing with db between the tries, and the next batch is
-    /// written.
     fn three_due_tries_set_the_batch_aside(code: i32) {
         let fault = WriteFault::Db(code);
         let store = ModelStore::new();
@@ -2946,8 +2930,6 @@ mod tests {
         three_due_tries_set_the_batch_aside(25);
     }
 
-    /// D1: a mix of the eight among the due tries counts, and the batch is
-    /// reported and counted by the code of its last try.
     #[test]
     fn three_due_tries_answered_19_20_and_19_set_the_batch_aside() {
         let store = ModelStore::new();
@@ -2971,8 +2953,6 @@ mod tests {
         ));
     }
 
-    /// D1 with the extended codes of SQLite: 2067 (unique) and 275 (check)
-    /// are read as 19, constraint, by their primary code.
     #[test]
     fn extended_codes_of_one_of_the_eight_are_read_as_that_code() {
         let unique = WriteFault::Db(19 | (8 << 8));
@@ -2994,8 +2974,6 @@ mod tests {
         ));
     }
 
-    /// Contracts.md C11.3: a code outside the eight, I/O (10) and one that
-    /// this build does not know (99), is still held and never counted.
     #[test]
     fn three_due_tries_answered_10_or_an_unknown_code_leave_the_batch_held() {
         for code in [10, 99] {
@@ -3027,9 +3005,6 @@ mod tests {
         }
     }
 
-    /// D1 and DM-5 items 1 and 2: early tries that settles make and that meet
-    /// one of the eight are made and leave the run as it was, so the batch is
-    /// set aside at its third due try, after more than three tries.
     #[test]
     fn early_tries_that_meet_one_of_the_eight_do_not_count() {
         let store = ModelStore::new();
@@ -3059,9 +3034,6 @@ mod tests {
         assert_eq!(set_aside_counts(&snapshot), [(21, 1)]);
     }
 
-    /// D1 and DM-5 item 2: an early try whose fault is outside the eight,
-    /// between two due tries with the eight, ends the run, and the batch is
-    /// held at the due try after it.
     #[test]
     fn an_early_try_outside_the_eight_ends_the_run_and_leaves_the_batch_held() {
         let store = ModelStore::new();
@@ -3087,9 +3059,6 @@ mod tests {
         assert!(rejected(&harness).is_empty());
     }
 
-    /// The entry of 2026-11-16T09:24:35Z: a batch that the store refuses with
-    /// one of the eight at its first try and takes at its second is stored
-    /// once, under the id of its first try.
     #[test]
     fn a_batch_that_the_second_try_stores_after_19_is_written_once() {
         let store = ModelStore::new();
@@ -3121,9 +3090,6 @@ mod tests {
         );
     }
 
-    /// D7 and the fourth mend of the brief: a batch that the store kept and
-    /// answered with one of the eight is acknowledged by its next try, which
-    /// reads AlreadyWritten, and is never set aside.
     #[test]
     fn a_batch_kept_and_answered_19_is_acknowledged_by_its_next_try() {
         let store = ModelStore::new();
@@ -3142,9 +3108,6 @@ mod tests {
         assert!(rejected(&harness).is_empty());
     }
 
-    /// D8 and the fourth mend of the brief: a batch set aside after every due
-    /// try failed with one of the eight leaves nothing of it in the store and
-    /// its payload wiped in memory.
     #[test]
     fn a_batch_set_aside_leaves_nothing_of_it_in_the_store_or_in_memory() {
         let store = ModelStore::new();
@@ -3169,8 +3132,6 @@ mod tests {
         assert_eq!(harness.store.records().len(), 1);
     }
 
-    /// Emits `events` events and makes the try of a settle and the two due
-    /// tries after it.
     fn batch_through_three_tries(harness: &mut Harness, events: usize) {
         for _ in 0..events {
             harness.emit(foreground_now());
@@ -3179,8 +3140,6 @@ mod tests {
         two_due_tries(harness);
     }
 
-    /// The report after the BatchRejected of a batch of 2 events whose first
-    /// try reported the drain failing with db.
     fn after_the_set_aside(reports: &[Report]) -> Option<Report> {
         match reports {
             [Report::DrainFailing {
@@ -3201,9 +3160,6 @@ mod tests {
         )
     }
 
-    /// An owner whose store answers `fault` to every write, past its third
-    /// set-aside in a row, and the time that the stop's DrainFailing names:
-    /// the time at which the third batch's drain began failing.
     fn stopped_by(fault: WriteFault) -> (Harness, SystemTime) {
         let store = ModelStore::new();
         store.fail_every_write(Some(fault));
@@ -3234,10 +3190,6 @@ mod tests {
         (harness, since)
     }
 
-    /// D4 and D5: at the third set-aside in a row the owner reports
-    /// DrainFailing with db and not DrainHealthy, holds the fourth batch
-    /// through ten due tries and sets it aside never, and one good write
-    /// ends the hold with DrainHealthy and starts the count again.
     fn three_set_asides_in_a_row_hold_the_next_batch_until_a_good_write(
         fault: WriteFault,
     ) -> Vec<(i32, u64)> {
@@ -3291,7 +3243,6 @@ mod tests {
         assert!(counts.is_empty(), "{counts:?}");
     }
 
-    /// D5: an acknowledged write between set-asides starts the count again.
     #[test]
     fn a_good_write_between_set_asides_starts_the_count_again() {
         let store = ModelStore::new();
@@ -3323,9 +3274,6 @@ mod tests {
         assert!(is_the_stop(after_the_set_aside(&harness.reports())));
     }
 
-    /// D5: batches given up as Sealed or Refused neither count toward the
-    /// three in a row nor start the count again: three of them after two
-    /// set-asides start no hold, and the next set-aside is the third.
     #[test]
     fn sealed_or_refused_batches_neither_count_toward_the_hold_nor_end_its_count() {
         for answer in [WriteFault::Sealed, WriteFault::Refused] {
@@ -3362,8 +3310,6 @@ mod tests {
         }
     }
 
-    /// D5: a new life of the owner over the same store starts the count of
-    /// set-asides in a row at 0.
     #[test]
     fn a_new_owner_over_the_same_store_starts_the_count_of_set_asides_at_0() {
         let store = ModelStore::new();
@@ -3392,10 +3338,6 @@ mod tests {
         assert!(is_the_stop(after_the_set_aside(&second.reports())));
     }
 
-    /// The fifth mend of the brief with DM-4 item 1 and DM-5 items 3 and 4:
-    /// in the hold a batch answered Refused or Sealed is given up as today,
-    /// BatchRejected then DrainHealthy, and is no set-aside; the hold goes on,
-    /// so the next batch answered 19 is held and never set aside.
     #[test]
     fn a_batch_given_up_in_the_hold_ends_no_hold() {
         for answer in [WriteFault::Refused, WriteFault::Sealed] {
@@ -3431,11 +3373,6 @@ mod tests {
         }
     }
 
-    /// D6 and contracts.md C11.3 (DM-4 item 4): one function builds the line
-    /// of a dropped batch with its count, the UTC second of its first and
-    /// last capture instant and the kind of its last fault; an instant before
-    /// the epoch reads the second that holds it, and no other report has a
-    /// line.
     #[test]
     fn the_drop_line_names_the_count_the_two_seconds_and_the_kind() {
         let noon_nanos = 1_794_571_200_i64 * 1_000_000_000;
@@ -3490,7 +3427,6 @@ mod tests {
         }
     }
 
-    /// D6: the BatchRejected of a set-aside batch gives its drop line.
     #[test]
     fn a_batch_set_aside_gives_its_drop_line() {
         let store = ModelStore::new();
@@ -3514,10 +3450,6 @@ mod tests {
         );
     }
 
-    /// D4 and D5: after the third set-aside in a row no batch is held and the
-    /// owner waits for an event, not for a retry; a batch that the store
-    /// takes at its first try ends the hold with DrainHealthy and starts the
-    /// count again.
     #[test]
     fn the_first_batch_that_the_store_takes_after_the_stop_ends_the_hold() {
         let (mut harness, _) = stopped_by(WriteFault::Db(19));
@@ -3539,9 +3471,6 @@ mod tests {
         );
     }
 
-    /// D4: in the hold a batch whose fault is of the class of Io is held; its
-    /// DrainFailing names io with the time at which the drain began failing
-    /// before the stop, and it is never set aside.
     #[test]
     fn an_io_fault_in_the_hold_reports_io_since_the_stop() {
         let (mut harness, since) = stopped_by(WriteFault::Db(19));

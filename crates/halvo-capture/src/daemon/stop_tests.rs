@@ -1193,10 +1193,6 @@ fn refused_hold(scripted: &mut ScriptedRun, store: ModelStore) -> Vec<String> {
     error.to_string().lines().map(str::to_owned).collect()
 }
 
-/// Contracts.md C4 item 10 with ruling PR-32 R1 and D3: a refused hold whose
-/// drain still fails ends the run with an error whose first line is the
-/// refusal's and whose second is the loss line; the binary prints the error
-/// after its prefix and exits 1.
 #[test]
 fn a_refused_hold_with_a_failed_drain_gives_the_refusal_and_then_the_loss_line() {
     let store = ModelStore::new();
@@ -1211,8 +1207,6 @@ fn a_refused_hold_with_a_failed_drain_gives_the_refusal_and_then_the_loss_line()
     );
 }
 
-/// Ruling PR-32 R1: a refused hold whose life lost events while a good write
-/// followed prints the loss line too, with no kind.
 #[test]
 fn a_refused_hold_after_a_drop_that_a_good_write_followed_gives_the_loss_line() {
     let store = ModelStore::new();
@@ -1232,16 +1226,12 @@ fn a_refused_hold_after_a_drop_that_a_good_write_followed_gives_the_loss_line() 
     );
 }
 
-/// Sources whose window moves the owner's clock through the three due tries
-/// of the batch of their keys, which the store answers with 19, then lets the
-/// store take writes and emits one more event.
 struct SetAsideInTheWindow {
     inner: ScriptedRun,
     store: ModelStore,
     clocks: ManualClocks,
 }
 
-/// Moves `clocks` by `step` until the owner has made `writes` writes.
 fn drive(store: &ModelStore, clocks: &ManualClocks, writes: usize, step: Duration) {
     for _ in 0..2_000 {
         if store.write_calls().len() >= writes {
@@ -1284,9 +1274,6 @@ impl RunSources for SetAsideInTheWindow {
     }
 }
 
-/// Ruling PR-32 Addition 1, D3 (contracts.md C5.2): a timed run whose batch
-/// was set aside after three due tries and whose next write was acknowledged
-/// exits 0 with the loss line, error=-, which the binary prints.
 #[test]
 fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_line_and_exits_0() {
     let store = ModelStore::new();
@@ -1335,9 +1322,6 @@ fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_
     assert_eq!(String::from_utf8(err).unwrap(), format!("{}\n", loss.line));
 }
 
-/// Sources whose window moves the owner's clock until three batches of their
-/// keys are set aside, each after three due tries answered with 19, and that
-/// then emit nothing more (the review's case text-1).
 struct ThreeSetAsidesInTheWindow {
     inner: ScriptedRun,
     store: ModelStore,
@@ -1372,10 +1356,6 @@ impl RunSources for ThreeSetAsidesInTheWindow {
     }
 }
 
-/// Ruling PR-32 R3 and its Addition 1, D2 and D4: a timed run that ends
-/// after the third set-aside in a row, while the owner's drain reads failing
-/// with db, exits 1 and names db in its loss line, as a run that stops on a
-/// held batch names its fault.
 #[test]
 fn a_timed_run_that_ends_after_the_third_set_aside_names_db_in_its_loss_line() {
     let store = ModelStore::new();
@@ -1412,8 +1392,6 @@ fn a_timed_run_that_ends_after_the_third_set_aside_names_db_in_its_loss_line() {
     );
 }
 
-/// D2: a timed run whose final flush still fails with one of the eight names
-/// db, not io, in its loss line.
 #[test]
 fn a_timed_run_whose_final_flush_fails_with_19_names_db_in_its_loss_line() {
     let store = ModelStore::new();

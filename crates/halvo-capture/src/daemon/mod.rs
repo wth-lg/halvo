@@ -623,11 +623,6 @@ fn unstored_bound(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) 
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
-/// The loss of a stop whose last answer is `answered`: the count and the
-/// cause of status 1 of contracts.md C3.2 from the last settle's snapshot
-/// `settled` and the one read before the first settle, `before`, and the loss
-/// line whenever the life lost events or a cause holds (ruling PR-32 R1 and
-/// its Addition 1, D3).
 fn stop_loss(
     answered: Result<(), LossCause>,
     settled: &counters::Snapshot,
