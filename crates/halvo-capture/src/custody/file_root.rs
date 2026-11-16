@@ -692,7 +692,7 @@ fn make_writable(dir: &Dir, name: &OsStr, kept: &std::fs::File) {
             reason = "a root file that the store destroys has to be writable for its zero-fill"
         )]
         permissions.set_readonly(false);
-        let _ = std::fs::set_permissions(dir.path().join(name), permissions);
+        let _ = std::fs::set_permissions(dir.entry_path(name), permissions);
     }
 }
 

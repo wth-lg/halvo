@@ -759,6 +759,21 @@ mod windows_dir {
     }
 
     impl Dir {
+        /// The path of the entry `name` of this directory: joined onto the
+        /// verbatim form of the directory's path when the name ends in a dot
+        /// or a space, which Win32 trims on a path that is not verbatim, so
+        /// that a call reaches that entry and never a sibling without its
+        /// last character (ruling ST-47 T1).
+        pub(crate) fn entry_path(&self, name: &OsStr) -> PathBuf {
+            let text = name.to_string_lossy();
+            if text.ends_with('.') || text.ends_with(' ') {
+                if let Some(verbatim) = super::verbatim_form(&self.path) {
+                    return verbatim.join(name);
+                }
+            }
+            self.path.join(name)
+        }
+
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
             let given = held_dir(&std::path::absolute(path)?)?;
             let path = without_verbatim_prefix(std::fs::canonicalize(path)?);
@@ -778,7 +793,7 @@ mod windows_dir {
         }
 
         pub(crate) fn open_dir(&self, name: &OsStr) -> io::Result<Dir> {
-            let path = self.path.join(name);
+            let path = self.entry_path(name);
             Ok(Dir {
                 _held: held_dir(&path)?,
                 path,
@@ -786,7 +801,7 @@ mod windows_dir {
         }
 
         pub(crate) fn create_dir(&self, name: &OsStr) -> io::Result<()> {
-            match std::fs::create_dir(self.path.join(name)) {
+            match std::fs::create_dir(self.entry_path(name)) {
                 Err(e) if e.kind() != io::ErrorKind::AlreadyExists => Err(e),
                 _ => Ok(()),
             }
@@ -797,7 +812,7 @@ mod windows_dir {
         }
 
         pub(crate) fn entry(&self, name: &OsStr) -> io::Result<Entry> {
-            let meta = std::fs::symlink_metadata(self.path.join(name))?;
+            let meta = std::fs::symlink_metadata(self.entry_path(name))?;
             Ok(Entry {
                 name: name.to_os_string(),
                 kind: kind_of(&meta),
@@ -809,7 +824,7 @@ mod windows_dir {
             let mut entries = Vec::new();
             for entry in std::fs::read_dir(&self.path)? {
                 let entry = entry?;
-                let meta = match std::fs::symlink_metadata(entry.path()) {
+                let meta = match std::fs::symlink_metadata(self.entry_path(&entry.file_name())) {
                     Ok(meta) => meta,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
                     Err(_) => match entry.metadata() {
@@ -829,13 +844,13 @@ mod windows_dir {
 
         pub(crate) fn open_file(&self, name: &OsStr) -> io::Result<File> {
             held_file(
-                &self.path.join(name),
+                &self.entry_path(name),
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             )
         }
 
         pub(crate) fn hold_file(&self, name: &OsStr) -> io::Result<File> {
-            held_file(&self.path.join(name), FILE_SHARE_READ | FILE_SHARE_WRITE)
+            held_file(&self.entry_path(name), FILE_SHARE_READ | FILE_SHARE_WRITE)
         }
 
         pub(crate) fn create_new(&self, name: &OsStr) -> io::Result<File> {
@@ -843,19 +858,19 @@ mod windows_dir {
                 .write(true)
                 .create_new(true)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))
+                .open(self.entry_path(name))
         }
 
         pub(crate) fn rename(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
-            std::fs::rename(self.path.join(from), self.path.join(to))
+            std::fs::rename(self.entry_path(from), self.entry_path(to))
         }
 
         pub(crate) fn remove_file(&self, name: &OsStr) -> io::Result<()> {
-            std::fs::remove_file(self.path.join(name))
+            std::fs::remove_file(self.entry_path(name))
         }
 
         pub(crate) fn remove_dir(&self, name: &OsStr) -> io::Result<()> {
-            std::fs::remove_dir(self.path.join(name))
+            std::fs::remove_dir(self.entry_path(name))
         }
 
         /// Opens the regular file `name` for reading and writing, following
@@ -866,7 +881,7 @@ mod windows_dir {
                 .write(true)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))?;
+                .open(self.entry_path(name))?;
             match kind_of(&file.metadata()?) {
                 EntryKind::File => Ok(file),
                 _ => Err(refused(Refused::NotARegularFile)),
@@ -878,7 +893,7 @@ mod windows_dir {
                 .write(true)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))?;
+                .open(self.entry_path(name))?;
             match kind_of(&file.metadata()?) {
                 EntryKind::File => Ok(file),
                 _ => Err(refused(Refused::NotARegularFile)),
@@ -886,7 +901,7 @@ mod windows_dir {
         }
 
         pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
-            std::fs::hard_link(self.path.join(from), self.path.join(to))
+            std::fs::hard_link(self.entry_path(from), self.entry_path(to))
         }
 
         pub(crate) fn open_lock_file(&self, name: &OsStr) -> io::Result<File> {
@@ -897,7 +912,7 @@ mod windows_dir {
                 .truncate(false)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))?;
+                .open(self.entry_path(name))?;
             match kind_of(&file.metadata()?) {
                 EntryKind::File => Ok(file),
                 EntryKind::Link => Err(refused(Refused::Link)),
@@ -916,7 +931,7 @@ mod windows_dir {
 
         pub(crate) fn names_file(&self, name: &OsStr, file: &File) -> io::Result<bool> {
             match held_file(
-                &self.path.join(name),
+                &self.entry_path(name),
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             ) {
                 Ok(named) => Ok(file_id(&named)? == file_id(file)?),
@@ -929,7 +944,7 @@ mod windows_dir {
         /// entry of another kind is refused.
         pub(crate) fn file_identity_at(&self, name: &OsStr) -> io::Result<FileIdentity> {
             identity_of(&held_file(
-                &self.path.join(name),
+                &self.entry_path(name),
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             )?)
         }
