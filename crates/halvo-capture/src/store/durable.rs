@@ -276,7 +276,13 @@ mod unix_dir {
     const LINK_THE_ENTRY_NOT_ITS_TARGET: libc::c_int = 0;
 
     impl Dir {
+        /// Opens the directory at `path` as a handle, following no link at
+        /// its last part. The path is opened as its components spell it
+        /// (ruling ST-47 T3): with no separator after its last part, so that
+        /// `link/`, `link/.` and `link//` are refused as `link` is and
+        /// `dir/` opens as `dir` does.
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
+            let path = super::by_its_components(path);
             let c = c_name(path.as_os_str())?;
             // SAFETY: c is NUL-terminated and outlives the call.
             let fd = opened(
@@ -774,7 +780,13 @@ mod windows_dir {
             self.path.join(name)
         }
 
+        /// Opens the directory at `path` as a handle, following no reparse
+        /// point at its last part. The path is opened as its components
+        /// spell it (ruling ST-47 T3): with no separator after its last
+        /// part, so that `link\`, `link\.` and `link/` are refused as `link`
+        /// is and `dir\` opens as `dir` does.
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
+            let path = &super::by_its_components(path);
             let given = held_dir(&std::path::absolute(path)?)?;
             let path = without_verbatim_prefix(std::fs::canonicalize(path)?);
             let held = held_dir(&path)?;
@@ -1030,6 +1042,16 @@ pub(crate) fn has_a_part_that_windows_trims(path: &Path) -> bool {
 /// separator and a `.` part dropped (ruling ST-45 H6 (a)); nothing for a
 /// relative path, a path on a drive with no root and a path with a `..`
 /// part.
+/// `path` rebuilt from its components: no separator after its last part and
+/// no `.` part after its first, so that the last part of the path that an
+/// open is given is the last name that the caller wrote, and an open that
+/// follows no link at its last part follows none in any spelling of that
+/// name (ruling ST-47 T3). A path whose last component is no name (a root,
+/// a prefix, `.` or `..`) keeps what it names.
+fn by_its_components(path: &Path) -> std::path::PathBuf {
+    path.components().collect()
+}
+
 #[cfg(windows)]
 pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
     use std::path::{Component, Prefix};
