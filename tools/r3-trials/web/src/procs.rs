@@ -349,20 +349,68 @@ pub mod fence {
         })
     }
 
-    /// Turns the fence on when `VAR` names a directory, and admits for every thread of this process
-    /// the processes whose program lies below it. Returns whether it did.
+    /// Turns the fence on when `VAR` is set. When its value is a directory strictly below one of
+    /// the caller's own places, its temporary directory or the cargo target directory that holds
+    /// this program (`program_dir`), the fence admits for every thread of this process the
+    /// processes whose program lies below it; any other value (empty, the root, a directory
+    /// elsewhere) leaves the fence on and closed, admitting nothing, and prints the line
+    /// `fence_closed cause=<empty|root|outside>` on standard error (CP-215 G3). Returns whether
+    /// the variable was set.
     pub fn from_env() -> bool {
-        let Some(dir) = std::env::var_os(VAR).filter(|d| !d.is_empty()) else {
+        let Some(value) = std::env::var_os(VAR) else {
             return false;
         };
-        let dir = PathBuf::from(dir);
+        let given = PathBuf::from(&value);
+        let dir = std::fs::canonicalize(&given).unwrap_or(given);
+        let mut bases: Vec<PathBuf> = vec![std::env::temp_dir()];
+        if let Ok(exe) = std::env::current_exe() {
+            bases.extend(
+                exe.ancestors()
+                    .find(|a| a.file_name().is_some_and(|n| n == "target"))
+                    .map(Path::to_path_buf),
+            );
+        }
+        let bases: Vec<PathBuf> = bases
+            .into_iter()
+            .map(|b| std::fs::canonicalize(&b).unwrap_or(b))
+            .collect();
+        let admitted = program_dir(&dir, &bases);
         let mut s = state();
         s.on = true;
-        s.program = Some(Admits {
-            pairs: Vec::new(),
-            dirs: vec![std::fs::canonicalize(&dir).unwrap_or(dir)],
-        });
+        match admitted {
+            Ok(dir) => {
+                s.program = Some(Admits {
+                    pairs: Vec::new(),
+                    dirs: vec![dir],
+                });
+            }
+            Err(cause) => {
+                s.program = None;
+                eprintln!("fence_closed cause={cause}");
+            }
+        }
         true
+    }
+
+    /// The directory that the program's fence may admit for `dir`, the value of `VAR` as the
+    /// system resolved it: `dir` itself when it lies strictly below one of `bases`, compared by
+    /// path components; `Err("empty")` for an empty value, `Err("root")` for a path with no parent and
+    /// `Err("outside")` for any other.
+    pub fn program_dir(dir: &Path, bases: &[PathBuf]) -> Result<PathBuf, &'static str> {
+        if dir.as_os_str().is_empty() {
+            return Err("empty");
+        }
+        if dir.parent().is_none() {
+            return Err("root");
+        }
+        let below = bases
+            .iter()
+            .any(|b| b.parent().is_some() && dir != b && dir.starts_with(b));
+        if below {
+            Ok(dir.to_path_buf())
+        } else {
+            Err("outside")
+        }
     }
 
     /// The calls that the fence refused in this process so far.
@@ -976,6 +1024,33 @@ pub(crate) mod tests {
             "another test's child is admitted"
         );
         assert!(!of_a.admits(&me, &table), "the test process is admitted");
+    }
+
+    /// CP-215 G3 (pr-review-40 N2): the program's fence takes a directory strictly below the
+    /// caller's own temporary or target directory and nothing else: not an empty value, not the
+    /// root, not a base itself, not a directory elsewhere, compared by path components.
+    #[test]
+    fn the_program_s_fence_takes_a_directory_below_the_caller_s_own_places_alone() {
+        let bases = [PathBuf::from("/t/tmp"), PathBuf::from("/t/web/target")];
+        let take = |d: &str| fence::program_dir(Path::new(d), &bases);
+        assert_eq!(take("/t/tmp/r3-run"), Ok(PathBuf::from("/t/tmp/r3-run")));
+        assert_eq!(
+            take("/t/web/target/tmp/x"),
+            Ok(PathBuf::from("/t/web/target/tmp/x"))
+        );
+        assert_eq!(take(""), Err("empty"));
+        assert_eq!(take("/"), Err("root"));
+        assert_eq!(take("/usr"), Err("outside"));
+        assert_eq!(take("/usr/bin"), Err("outside"));
+        assert_eq!(take("/t/tmp"), Err("outside"));
+        assert_eq!(take("/t/tmpx/a"), Err("outside"));
+        assert_eq!(take("/t"), Err("outside"));
+        assert_eq!(take("r3-run"), Err("outside"));
+        let root_base = [PathBuf::from("/")];
+        assert_eq!(
+            fence::program_dir(Path::new("/usr"), &root_base),
+            Err("outside")
+        );
     }
 
     /// CP-161 (3): the fence never admits this process itself, also when a test admits it.
