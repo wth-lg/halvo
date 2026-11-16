@@ -119,7 +119,7 @@ pub struct Report {
     /// For a creation, the agents that it created.
     pub created: Vec<AgentId>,
     /// For a tick, the agents of the workflows that are gone whose queued start or open item it
-    /// dropped.
+    /// dropped; for a skip, the agent whose queued start it dropped (ruling RD-102 item 2).
     pub dropped: Vec<AgentId>,
 }
 
@@ -494,6 +494,21 @@ fn own(doing: &Doing, kind: OwnItemKind) -> Option<ItemId> {
         Doing::Idle(Some(o)) | Doing::Queued(Some(o)) if o.kind == kind => Some(o.item.clone()),
         _ => None,
     }
+}
+
+/// The queued start of the agent of member `i`, whose card the person skipped, leaves the queue
+/// in the same move with nothing stored, also where the skip is answered `stale` because the
+/// owner stored the start's answer with a lost acknowledgement (ruling RD-102 item 2): the agent
+/// whose start it dropped, or none.
+fn drop_skipped_start<C>(board: &mut Board<C>, i: usize) -> Vec<AgentId> {
+    let agent = board.members[i].facts.agent.clone();
+    if !board.queue.remove(&agent) {
+        return Vec::new();
+    }
+    if let Doing::Queued(_) = board.members[i].facts.doing {
+        board.members[i].facts.doing = Doing::Idle(None);
+    }
+    vec![agent]
 }
 
 fn without_item(doing: &Doing) -> Doing {
@@ -1520,11 +1535,17 @@ where
             };
             let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
             match log_or_reread_once(cx, board, i, whats, day, at, Some(&pressed)) {
-                Ok(Stored::RedecidedFails(c)) => refused(c),
+                Ok(Stored::RedecidedFails(c)) => Report {
+                    dropped: drop_skipped_start(board, i),
+                    ..refused(c)
+                },
                 Ok(_) => {
                     let doing = without_item(&board.members[i].facts.doing);
                     board.members[i].facts.doing = doing;
-                    Report::default()
+                    Report {
+                        dropped: drop_skipped_start(board, i),
+                        ..Report::default()
+                    }
                 }
                 Err(e) => refused(port_cause(&e)),
             }

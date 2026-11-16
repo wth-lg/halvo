@@ -6534,6 +6534,41 @@ fn rd52d_a_read_that_first_shows_the_hold_of_a_queued_agent_drops_its_start() {
     assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
 }
 
+fn queued_with_its_ready_item(c: &Coordinator<Both>) -> ItemId {
+    start(c, 0);
+    c.tick();
+    let (item, kind) = open_item(c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.answer(&item, Choice::Start, None, 0);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.queued(), vec![(agent(1), false)], "queued with its item");
+    item
+}
+
+#[test]
+fn rd102_a_skip_on_the_card_of_a_queued_agent_drops_its_start() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[MANUAL, slotted], one);
+    let item = queued_with_its_ready_item(&c);
+    let skipped = c.answer(
+        &item,
+        Choice::Skip,
+        None,
+        shown_step_mark_or_zero(&c, &item),
+    );
+    assert_eq!(skipped, Ok(()), "the skip is stored");
+    assert_eq!(c.queued(), vec![], "the skip drops the queued start");
+    assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
+}
+
 #[test]
 fn rd99_an_end_whose_read_first_shows_a_stored_switch_off_stops_nothing_and_sends_no_state() {
     use halvo_coord::types::Control;

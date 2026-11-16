@@ -2127,18 +2127,23 @@ fn a_skip_after_a_queued_start_whose_answer_the_owner_stored_with_a_lost_acknowl
         Move::Skip { agent: agent(0) },
     );
     assert_eq!(skip.answer, Err(Cause::Stale), "the skip is stale");
+    assert_eq!(
+        skip.dropped,
+        vec![agent(0)],
+        "the skip drops the queued start of the card the person saw (RD-102 item 2)"
+    );
     assert!(
         acknowledged_bodies_from(&w, 0, from).is_empty() && skips(&w, 0) == 0,
         "the skip stores nothing"
     );
     assert_eq!(
         w.facts(0).doing,
-        Doing::Queued(None),
-        "the board holds the queued agent with no item"
+        Doing::Idle(None),
+        "the board holds the agent idle with no item"
     );
     assert!(
-        w.board.queue.holds(&agent(0)),
-        "the queue still holds the start"
+        !w.board.queue.holds(&agent(0)),
+        "the queue no longer holds the start"
     );
     assert_eq!(
         closes(&w, &ready),
