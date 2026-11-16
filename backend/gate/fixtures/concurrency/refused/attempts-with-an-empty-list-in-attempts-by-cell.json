@@ -1,0 +1,94 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "an attempts record whose list of attempts for one cell is empty; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "cells": [
+    {
+      "name": "usage-last@20",
+      "kind": "matrix",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "attemptsByCell": {
+    "usage-last@20": [],
+    "rollover@20": [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      }
+    ]
+  },
+  "cfgAttempts": 6,
+  "expect": {
+    "runs": [
+      {
+        "key": "attempt-1",
+        "rigUnbuilt": false,
+        "discarded": 0
+      },
+      {
+        "key": "attempt-6",
+        "rigUnbuilt": true,
+        "discarded": 5,
+        "countedAtTheDraw": 0
+      }
+    ]
+  },
+  "refusal": "its list attemptsByCell.usage-last@20 is empty"
+}

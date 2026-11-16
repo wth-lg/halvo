@@ -69,11 +69,13 @@ function defaultReplies() {
     capture_status: () => fixture("capture_status-running"),
     inventory: () => fixture("inventory-empty"),
     onboarding_state: () => fixture("onboarding_state-none"),
+    last_delete: () => fixture("last_delete-none"),
     "plugin:app|version": () => "0.0.0",
   };
 }
 
-async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
+async function openPage(options = {}) {
+  const { dir = APP, replies = {}, globalTauri = false, timezoneOffset } = options;
   const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
   const { document, scripts } = parse(html);
   const clock = new Clock();
@@ -100,10 +102,32 @@ async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
     clearInterval: (id) => clock.clear(id),
     __TAURI_INTERNALS__: { invoke },
   };
+  const loads = { again: 0 };
+  context.location = {
+    hash: options.hash || "",
+    pathname: "/",
+    search: "",
+    reload: () => {
+      loads.again += 1;
+    },
+  };
+  context.history = {
+    replaceState: (state, title, url) => {
+      context.location.hash = String(url).includes("#") ? String(url).slice(String(url).indexOf("#")) : "";
+    },
+  };
   if (globalTauri) context.__TAURI__ = { core: { invoke } };
   context.window = context;
   context.self = context;
   vm.createContext(context);
+  const nowMs = options.nowMs === undefined ? KEPT_AT_MS + 60000 : options.nowMs;
+  vm.runInContext(
+    `(function () { var D = Date; var NOW = ${Number(nowMs)}; globalThis.Date = class extends D { constructor(...a) { if (a.length === 0) super(NOW); else super(...a); } static now() { return NOW; } }; })()`,
+    context,
+  );
+  if (timezoneOffset !== undefined) {
+    vm.runInContext(`(function () { var D = Date; globalThis.Date = class extends D { getTimezoneOffset() { return ${Number(timezoneOffset)}; } }; })()`, context);
+  }
   const loaded = [];
   for (const script of scripts) {
     const src = script.getAttribute("src");
@@ -115,10 +139,10 @@ async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
   document.readyState = "interactive";
   document.dispatchEvent(makeEvent("DOMContentLoaded"));
   await settle();
-  return makePage({ document, clock, sent, context, loaded, dir });
+  return makePage({ document, clock, sent, context, loaded, dir, loads, reopen: () => openPage({ ...options, hash: context.location.hash }) });
 }
 
-function makePage({ document, clock, sent, context, loaded, dir }) {
+function makePage({ document, clock, sent, context, loaded, dir, loads, reopen }) {
   const byId = (id) => {
     const el = document.getElementById(id);
     if (!el) throw new Error(`the page has no element #${id}`);
@@ -139,6 +163,8 @@ function makePage({ document, clock, sent, context, loaded, dir }) {
     text: (id) => byId(id).textContent,
     visible: (target) => !hiddenBy(typeof target === "string" ? byId(target) : target),
     calls: (cmd) => sent.filter((c) => c.cmd === cmd),
+    loadsAgain: () => loads.again,
+    reopen,
     settle,
     async click(target, init) {
       const el = typeof target === "string" ? byId(target) : target;
@@ -147,6 +173,13 @@ function makePage({ document, clock, sent, context, loaded, dir }) {
     },
     async press(target, init) {
       const el = typeof target === "string" ? byId(target) : target;
+      await el.press(init);
+      await settle();
+    },
+    /** A press as a web view makes it: the pressed control takes the focus first (AP-17 G4). */
+    async pressWithFocus(target, init) {
+      const el = typeof target === "string" ? byId(target) : target;
+      el.focus();
       await el.press(init);
       await settle();
     },
@@ -171,4 +204,37 @@ function makePage({ document, clock, sent, context, loaded, dir }) {
   };
 }
 
-module.exports = { openPage, fixture, calls, settle, Clock, UI, APP, FIXTURES };
+/** The app's side of a delete for a page test: the answer is kept with its time, and last_delete
+ * gives it to the page that loads again, as the app does (ruling AP-14 L4). */
+const KEPT_AT_MS = Date.UTC(2026, 10, 14, 9, 30);
+
+function keptDelete(replies = {}, atMs = KEPT_AT_MS) {
+  let kept = { state: "none" };
+  const answer = replies.delete_all;
+  return {
+    ...replies,
+    delete_all: (args) => {
+      kept = { state: "in_flight" };
+      return Promise.resolve()
+        .then(() => (typeof answer === "function" ? answer(args) : answer))
+        .then(
+          (value) => {
+            kept = { state: "answered", at_ms: atMs, answer: JSON.parse(JSON.stringify(value)) };
+            return value;
+          },
+          (error) => {
+            kept = { state: "none" };
+            throw error;
+          },
+        );
+    },
+    last_delete: () => kept,
+  };
+}
+
+async function loadedAgain(page) {
+  if (page.loadsAgain() !== 1) throw new Error(`the page loaded again ${page.loadsAgain()} times after the delete`);
+  return page.reopen();
+}
+
+module.exports = { openPage, fixture, calls, settle, Clock, UI, APP, FIXTURES, keptDelete, loadedAgain, KEPT_AT_MS };

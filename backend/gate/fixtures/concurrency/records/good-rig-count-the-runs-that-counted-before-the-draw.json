@@ -1,0 +1,107 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-83 (7) (c), the two word points of the last readings (reports/verifier-21.md, Addition 2, points 1 and 2)",
+  "about": "the first run of the rollover cell counted after three draws and the second after two, and the third needed a sixth draw: the driver keeps with the third run that 2 runs of the cell had counted when that draw was needed",
+  "source": "by hand",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 3
+  },
+  "attemptsByRun": [
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": true,
+        "facts": {
+          "crossed": true,
+          "crossingBuilt": true,
+          "firstAdmissionMs": -30
+        }
+      }
+    ],
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": true,
+        "facts": {
+          "crossed": true,
+          "crossingBuilt": true,
+          "firstAdmissionMs": -30
+        }
+      }
+    ],
+    [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      }
+    ]
+  ],
+  "cfgAttempts": 6,
+  "expect": {
+    "runs": [
+      {
+        "key": "attempt-4",
+        "rigUnbuilt": false,
+        "discarded": 3
+      },
+      {
+        "key": "attempt-3",
+        "rigUnbuilt": false,
+        "discarded": 2
+      },
+      {
+        "key": "attempt-1",
+        "rigUnbuilt": true,
+        "discarded": 0,
+        "countedAtTheDraw": 2
+      }
+    ]
+  }
+}

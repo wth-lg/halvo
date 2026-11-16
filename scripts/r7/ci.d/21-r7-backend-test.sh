@@ -1,11 +1,12 @@
 #!/bin/sh
 # jobs: macos
-# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt of the commit C (HEAD, read before the tests; the list read from C's objects after them) lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; then check 50's records run from C's objects, backend/ at C exported by git archive into a new directory under TMPDIR with one link to the checkout's backend/node_modules and records.mjs run there through the export's scripts/with-env.sh with GATE_STATE and its lines under the artifacts, every .json path under backend/gate/fixtures/concurrency/records/ at C is a record named good-<name>.json or bad-<name>.json directly in that directory with no line break and in UTF-8, C holds at least one, and the output holds each record's own line as expected once, by name, no problem line whatever the exit code, no other line, and the summary "concurrency: records: N of N as expected" once as its last line; no tracked file differs from C or carries an index flag other than H (git diff and git ls-files -v with core.fsmonitor and core.untrackedCache off) before the node tests, after them and after the records' run; trusted and not checked, by ruling P7-101 and its Addition 1: backend/node_modules, the tools on the PATH (node, git, tar, sh), code that a node test starts or arranges to run after the tests end (it can write the export, the lines under the artifacts and backend/node_modules), the clone's .git, the index against a change that is staged and put back, and records.mjs as C holds it; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
+# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt of the commit C (HEAD, read before the tests; the list read from C's objects after them) lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; then check 50's records run from C's objects, backend/ at C exported by git archive into a new directory under TMPDIR with one link to the checkout's backend/node_modules and records.mjs run there through the export's scripts/with-env.sh with GATE_STATE and its lines under the artifacts, every .json path under backend/gate/fixtures/concurrency/records/ at C is a record named good-<name>.json or bad-<name>.json directly in that directory with no line break and in UTF-8, C holds at least one, and the output holds each record's own line as expected once, by name, no problem line whatever the exit code, no other line, and the summary "concurrency: records: N of N as expected" once as its last line, and before the records' lines each .json fixture directly under backend/gate/fixtures/concurrency/refused/ at C, at least one and each named by the same rules, has its one line "self-test concurrency: refused record-<name>: refused as expected: <the cause that the fixture names>" and the tally "concurrency: refused records: N of N refused as expected" stands once, no other line stands there, and a line that says that a fixture was not refused fails the run whatever the exit code; no tracked file differs from C or carries an index flag other than H (git diff and git ls-files -v with core.fsmonitor and core.untrackedCache off) before the node tests, after them and after the records' run; trusted and not checked, by ruling P7-101 and its Addition 1 and ruling P7-107: backend/node_modules, the tools on the PATH (node, git, tar, sh), code that a node test starts or arranges to run after the tests end (it can write the export, the lines under the artifacts and backend/node_modules), the clone's .git, the index against a change that is staged and put back, and records.mjs as C holds it; the windows job does not run them, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
 # lane: alone
 set -u
 name=21-r7-backend-test
 list=scripts/r7/backend-tests.txt
 records_dir=backend/gate/fixtures/concurrency/records
+refused_dir=backend/gate/fixtures/concurrency/refused
 records_script=backend/gate/fixtures/concurrency/records.mjs
 
 compare_report() {
@@ -88,38 +89,111 @@ const names = (listFile, dir, wantedFile, causeFile) => {
   fs.writeFileSync(wantedFile, wanted.map((line) => `${line}\n`).join(""));
   console.log(wanted.length);
 };
-const lines = (wantedFile, outputFile, code, script, causeFile) => {
+const refused = (listFile, dir, wantedFile, causeFile) => {
+  const raw = fs.readFileSync(listFile);
+  const paths = [];
+  let start = 0;
+  for (let at = 0; at < raw.length; at++) {
+    if (raw[at] === 0) {
+      paths.push(raw.subarray(start, at));
+      start = at + 1;
+    }
+  }
+  if (start < raw.length) paths.push(raw.subarray(start));
+  paths.sort(Buffer.compare);
+  const prefix = Buffer.from(`${dir}/`);
+  const json = Buffer.from(".json");
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const wanted = [];
+  for (const path of paths) {
+    if (path.length < json.length || !path.subarray(path.length - json.length).equals(json)) continue;
+    if (path.length <= prefix.length || !path.subarray(0, prefix.length).equals(prefix)) fail(causeFile, `git listed a path outside ${dir}/: ${show(path)}`);
+    const rest = path.subarray(prefix.length);
+    if (rest.includes(0x2f)) fail(causeFile, `a refused fixture in a sub-directory of ${dir}/ at the commit, which records.mjs does not read: ${show(path)}`);
+    if (rest.includes(0x0a) || rest.includes(0x0d)) fail(causeFile, `the name of a refused fixture at the commit holds a line break: ${show(path)}`);
+    let name;
+    try {
+      name = decoder.decode(rest);
+    } catch {
+      fail(causeFile, `the name of a refused fixture at the commit is no UTF-8: ${show(path)}`);
+    }
+    wanted.push(JSON.stringify([name.slice(0, -json.length), `${dir}/${name}`]));
+  }
+  fs.writeFileSync(wantedFile, wanted.map((line) => `${line}\n`).join(""));
+  console.log(wanted.length);
+};
+const lines = (wantedFile, outputFile, code, script, causeFile, refusedFile, exportDir) => {
   const wanted = fs.readFileSync(wantedFile, "utf8").split("\n").filter((line) => line !== "").map((line) => JSON.parse(line));
   const paths = new Map(wanted);
   const count = wanted.length;
+  const refusedWanted = [];
+  for (const [fixture, path] of fs.readFileSync(refusedFile, "utf8").split("\n").filter((line) => line !== "").map((line) => JSON.parse(line))) {
+    let cause;
+    try {
+      cause = JSON.parse(fs.readFileSync(`${exportDir}/${path}`, "utf8")).refusal;
+    } catch {
+      cause = undefined;
+    }
+    if (typeof cause !== "string" || cause === "") fail(causeFile, `the refused fixture ${path} at the commit names no cause of its refusal`);
+    refusedWanted.push([`self-test concurrency: refused record-${fixture}: refused as expected: ${cause}`, path]);
+  }
+  const refusedPaths = new Map(refusedWanted);
+  const tally = `concurrency: refused records: ${refusedWanted.length} of ${refusedWanted.length} refused as expected`;
   const output = fs.readFileSync(outputFile, "utf8").split("\n");
   if (output.length > 0 && output[output.length - 1] === "") output.pop();
   const summary = `concurrency: records: ${count} of ${count} as expected`;
   const problems = output.filter((line) => line.startsWith("self-test concurrency: record "));
   const lastOk = output.length > 0 && output[output.length - 1] === summary && output.filter((line) => line === summary).length === 1;
   const seen = new Set();
+  const seenRefused = new Set();
+  let tallies = 0;
+  let notRefused = "";
+  let afterTheRecords = "";
+  let recordsBegan = false;
   let other = "";
   for (const line of lastOk ? output.slice(0, -1) : output) {
-    if (paths.has(line)) {
+    if (refusedPaths.has(line) || line === tally) {
+      if (line === tally) tallies++;
+      else if (seenRefused.has(line)) other ||= `the records' output line ${quote(line)} stands a second time`;
+      seenRefused.add(line);
+      if (recordsBegan) afterTheRecords ||= line;
+    } else if (line.startsWith("self-test concurrency: refused record-")) {
+      if (line.includes(": not refused as expected")) notRefused ||= line;
+      else other ||= `the records' output line ${quote(line)} names no refused fixture of the commit`;
+      if (recordsBegan) afterTheRecords ||= line;
+    } else if (line.startsWith("concurrency: refused records: ")) {
+      other ||= `the records' output line ${quote(line)} is not the refused tally ${quote(tally)}`;
+      if (recordsBegan) afterTheRecords ||= line;
+    } else if (paths.has(line)) {
+      recordsBegan = true;
       if (seen.has(line)) other ||= `the records' output line ${quote(line)} stands a second time`;
       seen.add(line);
     } else if (/^self-test concurrency: (good|bad) record-.*: (PASS|FAIL) as expected$/.test(line)) {
+      recordsBegan = true;
       other ||= `the records' output line ${quote(line)} names no record of the commit`;
-    } else if (!line.startsWith("self-test concurrency: record ") && line !== summary) {
+    } else if (line.startsWith("self-test concurrency: record ")) {
+      recordsBegan = true;
+    } else if (line !== summary) {
       other ||= `the records' output line ${quote(line)} has another form`;
     }
   }
   const missing = wanted.find(([line]) => !seen.has(line));
+  const missingRefused = refusedWanted.find(([line]) => !seenRefused.has(line));
   console.log(`exit=${code} at-commit=${count} as-expected=${seen.size} problems=${problems.length} last-line=${lastOk ? "ok" : "other"}`);
+  if (notRefused) fail(causeFile, `check 50's records printed that a refused fixture was not refused: ${quote(notRefused)}`);
   if (problems.length > 0 && code !== "0") fail(causeFile, `check 50's records exited ${code}; the first problem line: ${quote(problems[0])}`);
   if (problems.length > 0) fail(causeFile, `check 50's records printed a problem line with exit 0: ${quote(problems[0])}`);
   if (code !== "0") fail(causeFile, `check 50's records exited ${code}; the lines are records.txt among the artifacts`);
   if (!lastOk) fail(causeFile, `the last line of ${script} is not ${quote(summary)}, once, for the ${count} records of the commit; the lines are records.txt among the artifacts`);
   if (missing) fail(causeFile, `record ${missing[1]} of the commit has no line ${quote(missing[0])} in the records' output`);
+  if (missingRefused) fail(causeFile, `refused fixture ${missingRefused[1]} of the commit has no line ${quote(missingRefused[0])} in the records' output`);
+  if (tallies !== 1) fail(causeFile, `the refused tally ${quote(tally)} for the ${refusedWanted.length} refused fixtures of the commit stands ${tallies} times in the records' output, not once`);
+  if (afterTheRecords) fail(causeFile, `the records' output line ${quote(afterTheRecords)} of the refused pass stands after the records' lines`);
   if (other) fail(causeFile, other);
 };
 try {
   if (mode === "names") names(...args);
+  else if (mode === "refused") refused(...args);
   else if (mode === "lines") lines(...args);
   else process.exit(3);
 } catch (error) {
@@ -207,6 +281,19 @@ records_in() {
     records_cause="the commit holds no record under $records_dir/"
     return 1
   fi
+  if ! git -C "$r_repo" ls-tree -r -z --name-only "$r_commit" -- "$refused_dir/" >"$r_out/refused-at-commit.z" 2>>"$r_out/records-git.err.txt"; then
+    records_cause="git could not list $refused_dir/ at the commit"
+    return 1
+  fi
+  if ! r_refused=$(records_check refused "$r_out/refused-at-commit.z" "$refused_dir" "$r_out/refused-wanted.txt" "$r_out/records-cause.txt"); then
+    records_cause=$(cat "$r_out/records-cause.txt")
+    [ -n "$records_cause" ] || records_cause="the check of the refused fixtures' names stopped"
+    return 1
+  fi
+  if [ "$r_refused" = 0 ]; then
+    records_cause="the commit holds no refused fixture under $refused_dir/"
+    return 1
+  fi
   r_top=$(cd "$r_repo" && pwd -P) || return 2
   r_arts=$(cd "$r_out" && pwd -P) || return 2
   r_export=$(mktemp -d "${TMPDIR:-/tmp}/$name-records.XXXXXX") || return 2
@@ -228,7 +315,7 @@ records_in() {
   mkdir -p "$r_arts/records-state" || return 2
   (cd "$r_export/backend" && GATE_STATE=$r_arts/records-state sh scripts/with-env.sh node gate/fixtures/concurrency/records.mjs) >"$r_arts/records.txt" 2>"$r_arts/records.err.txt"
   r_code=$?
-  r_seen=$(records_check lines "$r_out/records-wanted.txt" "$r_arts/records.txt" "$r_code" "$records_script" "$r_out/records-cause.txt")
+  r_seen=$(records_check lines "$r_out/records-wanted.txt" "$r_arts/records.txt" "$r_code" "$records_script" "$r_out/records-cause.txt" "$r_out/refused-wanted.txt" "$r_export")
   r_matched=$?
   records_counts="records ${r_seen:-exit=$r_code lines=unread}"
   if [ "$r_matched" != 0 ]; then
@@ -481,11 +568,25 @@ exec "$@"
 EOF
   printf '{}\n' >"$dir/$records_dir/good-a.json" || exit 2
   printf '{}\n' >"$dir/$records_dir/bad-b.json" || exit 2
+  stub_refused_fixture "$dir"
   {
+    stub_prelude_lines
     for line in "$@"; do printf 'console.log("%s");\n' "$line"; done
     printf 'process.exit(%s);\n' "$records_exit"
   } >"$dir/$records_script"
   git -C "$dir" init -q >/dev/null 2>&1 || exit 2
+}
+
+stub_refused_fixture() {
+  [ "${stub_refused:-one}" = one ] || return 0
+  mkdir -p "$1/$refused_dir" || exit 2
+  printf '{"refusal": "%s"}\n' "$refused_cause" >"$1/$refused_dir/r.json" || exit 2
+}
+
+stub_prelude_lines() {
+  printf '%s\n' "${stub_prelude-$refused_prelude}" | while IFS= read -r line; do
+    [ -z "$line" ] || printf 'console.log("%s");\n' "$line"
+  done
 }
 
 commit_stub_records() {
@@ -496,6 +597,13 @@ commit_record_name() {
   n_dir=$scratch/$1
   n_blob=$(git -C "$n_dir" hash-object -w "$n_dir/$records_dir/good-a.json") || exit 2
   printf '100644 %s\t%s/%s\000' "$n_blob" "$records_dir" "$2" | git -C "$n_dir" update-index -z --add --index-info || exit 2
+  git -C "$n_dir" -c maintenance.auto=false commit -q -m "$1" >/dev/null || exit 2
+}
+
+commit_refused_name() {
+  n_dir=$scratch/$1
+  n_blob=$(git -C "$n_dir" hash-object -w "$n_dir/$refused_dir/r.json") || exit 2
+  printf '100644 %s\t%s/%s\000' "$n_blob" "$refused_dir" "$2" | git -C "$n_dir" update-index -z --add --index-info || exit 2
   git -C "$n_dir" -c maintenance.auto=false commit -q -m "$1" >/dev/null || exit 2
 }
 
@@ -527,9 +635,11 @@ measure_fixture() {
   mkdir -p "$dir/$records_dir" "$dir/docs" "$scratch/tmp-$case_name" || exit 2
   printf '{}\n' >"$dir/$records_dir/good-a.json" || exit 2
   printf 'a tracked file outside backend/\n' >"$dir/docs/note.txt" || exit 2
+  stub_refused_fixture "$dir"
   {
     printf 'import { appendFileSync, existsSync, writeFileSync } from "node:fs";\nwriteFileSync(process.env.GATE_STATE + "/written", "");\n'
     printf 'if (existsSync(process.env.STUB_STATE + "/records-write")) appendFileSync(process.env.STUB_CHECKOUT + "/docs/note.txt", "written by the records\\n");\n'
+    stub_prelude_lines
     for line in "$@"; do printf 'console.log("%s");\n' "$line"; done
     printf 'console.error("a line on standard error");\nprocess.exit(%s);\n' "$records_exit"
   } >"$dir/$records_script"
@@ -584,6 +694,11 @@ self_test() {
   checkout=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   rejected=0
   wrong=
+  refused_cause='its list cases is empty'
+  refused_line="self-test concurrency: refused record-r: refused as expected: $refused_cause"
+  refused_tally='concurrency: refused records: 1 of 1 refused as expected'
+  refused_prelude="$refused_line
+$refused_tally"
 
   fixture good
   expect PASS good
@@ -702,9 +817,9 @@ self_test() {
   expect_records FAIL a-record-in-a-sub-directory 'a record in a sub-directory'
 
   records_fixture records-mjs-prints-only-the-last-line
-  edit_file "$scratch/records-mjs-prints-only-the-last-line/$records_script" 'let failed = 0;' 'console.log("concurrency: records: " + files.length + " of " + files.length + " as expected");
+  edit_file "$scratch/records-mjs-prints-only-the-last-line/$records_script" 'const failedRefusals = failed;' 'console.log("concurrency: records: " + files.length + " of " + files.length + " as expected");
 process.exit(0);
-let failed = 0;'
+const failedRefusals = failed;'
   commit_fixture records-mjs-prints-only-the-last-line
   expect_records FAIL records-mjs-prints-only-the-last-line 'of the commit has no line'
 
@@ -843,6 +958,88 @@ let failed = 0;'
   printf 'a file of the commit\n' >"$scratch/the-commit-holds-backend-node-modules/backend/node_modules/tracked.txt" || exit 2
   git_commit "$scratch/the-commit-holds-backend-node-modules" the-commit-holds-backend-node-modules backend/scripts/with-env.sh backend/gate backend/node_modules/tracked.txt
   expect_records FAIL the-commit-holds-backend-node-modules 'the commit holds backend/node_modules'
+
+  stub_prelude="$refused_line
+self-test concurrency: refused record-z: refused as expected: $refused_cause
+$refused_tally"
+  stub_records a-refused-line-that-names-no-fixture-of-the-commit 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-line-that-names-no-fixture-of-the-commit
+  expect_records FAIL a-refused-line-that-names-no-fixture-of-the-commit 'names no refused fixture of the commit'
+
+  stub_prelude=$refused_tally
+  stub_records a-refused-fixture-with-no-line 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-fixture-with-no-line
+  expect_records FAIL a-refused-fixture-with-no-line "refused fixture $refused_dir/r.json of the commit has no line"
+
+  stub_prelude='self-test concurrency: refused record-r: not refused as expected: accepted
+concurrency: refused records: 0 of 1 refused as expected'
+  stub_records a-refused-fixture-that-was-accepted 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-fixture-that-was-accepted
+  expect_records FAIL a-refused-fixture-that-was-accepted 'printed that a refused fixture was not refused: "self-test concurrency: refused record-r: not refused as expected: accepted"'
+
+  stub_records a-refused-fixture-that-was-accepted-with-exit-1 1 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-fixture-that-was-accepted-with-exit-1
+  expect_records FAIL a-refused-fixture-that-was-accepted-with-exit-1 'printed that a refused fixture was not refused'
+
+  stub_prelude="$refused_line
+concurrency: refused records: 1 of 2 refused as expected"
+  stub_records a-wrong-refused-tally 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-wrong-refused-tally
+  expect_records FAIL a-wrong-refused-tally "stands 0 times in the records' output, not once"
+
+  stub_prelude="$refused_line
+$refused_line
+$refused_tally"
+  stub_records a-refused-line-twice 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-line-twice
+  expect_records FAIL a-refused-line-twice 'stands a second time'
+
+  stub_prelude="$refused_line
+$refused_tally
+$refused_tally"
+  stub_records the-refused-tally-twice 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records the-refused-tally-twice
+  expect_records FAIL the-refused-tally-twice "stands 2 times in the records' output, not once"
+
+  stub_prelude="$refused_line
+self-test concurrency: refused record r: not refused, where it pins nothing
+$refused_tally"
+  stub_records a-refused-line-of-the-earlier-second-form 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-line-of-the-earlier-second-form
+  expect_records FAIL a-refused-line-of-the-earlier-second-form 'has another form'
+
+  stub_prelude=''
+  stub_records refused-lines-after-the-records 0 "$good_line" "$bad_line" "$refused_line" "$refused_tally" "$summary_line"
+  commit_stub_records refused-lines-after-the-records
+  expect_records FAIL refused-lines-after-the-records "of the refused pass stands after the records' lines"
+
+  stub_prelude='concurrency: refused records: 0 of 0 refused as expected'
+  stub_refused=none
+  stub_records no-refused-fixture-at-the-commit 1 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records no-refused-fixture-at-the-commit
+  expect_records FAIL no-refused-fixture-at-the-commit "holds no refused fixture under $refused_dir/"
+  unset stub_refused stub_prelude
+
+  stub_records a-refused-fixture-that-names-no-cause 0 "$good_line" "$bad_line" "$summary_line"
+  printf '{}\n' >"$scratch/a-refused-fixture-that-names-no-cause/$refused_dir/r.json" || exit 2
+  commit_stub_records a-refused-fixture-that-names-no-cause
+  expect_records FAIL a-refused-fixture-that-names-no-cause "the refused fixture $refused_dir/r.json at the commit names no cause"
+
+  stub_records a-refused-fixture-in-a-sub-directory 0 "$good_line" "$bad_line" "$summary_line"
+  mkdir -p "$scratch/a-refused-fixture-in-a-sub-directory/$refused_dir/kept" || exit 2
+  cp "$scratch/a-refused-fixture-in-a-sub-directory/$refused_dir/r.json" "$scratch/a-refused-fixture-in-a-sub-directory/$refused_dir/kept/s.json" || exit 2
+  commit_stub_records a-refused-fixture-in-a-sub-directory
+  expect_records FAIL a-refused-fixture-in-a-sub-directory 'a refused fixture in a sub-directory'
+
+  stub_records a-refused-fixture-name-with-a-newline 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-fixture-name-with-a-newline
+  commit_refused_name a-refused-fixture-name-with-a-newline "$(printf 'r\ns.json')"
+  expect_records FAIL a-refused-fixture-name-with-a-newline 'the name of a refused fixture at the commit holds a line break'
+
+  stub_records a-refused-fixture-name-that-is-no-utf-8 0 "$good_line" "$bad_line" "$summary_line"
+  commit_stub_records a-refused-fixture-name-that-is-no-utf-8
+  commit_refused_name a-refused-fixture-name-that-is-no-utf-8 "$(printf 'r\377.json')"
+  expect_records FAIL a-refused-fixture-name-that-is-no-utf-8 'the name of a refused fixture at the commit is no UTF-8'
 
   passed_records='concurrency: records: 1 of 1 as expected'
   measure_fixture measure-runs-the-tests-and-the-records 0 'self-test concurrency: good record-a: PASS as expected' "$passed_records"

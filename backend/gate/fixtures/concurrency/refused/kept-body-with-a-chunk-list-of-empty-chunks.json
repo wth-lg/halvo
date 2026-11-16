@@ -1,0 +1,16 @@
+{
+  "kind": "kept-body",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "a kept-body record whose one chunk list holds empty chunks alone: it pins only that nothing gives an empty body; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "chunks": [
+    [
+      "",
+      ""
+    ]
+  ],
+  "expect": {
+    "body": ""
+  },
+  "refusal": "a list of its chunks is empty or holds only empty chunks"
+}

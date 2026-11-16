@@ -204,5 +204,40 @@ export function keepsPromise(dir, read) {
   return forced;
 }
 
+/**
+ * True when `bytes` hold the head of a final HTTP/1.1 answer, after any 100 Continue, and as many body bytes as its
+ * content-length names. The answer to HEAD has no body, so for it count status lines with answersIn.
+ */
+export function holdsAnswer(bytes) {
+  let start = 0;
+  for (;;) {
+    const end = bytes.indexOf("\r\n\r\n", start);
+    if (end < 0) return false;
+    const head = parse(bytes.subarray(start, end + 4));
+    if (head.status !== 100) return bytes.length >= end + 4 + Number(head.headers.get("content-length") ?? 0);
+    start = end + 4;
+  }
+}
+
+/**
+ * Waits until `holds()` is true, looking every 10 ms for at most `ms`, and resolves to the ms from the start to the end
+ * of the look that held; when a look that ends `ms` or more after the start fails, fails with the sentence that `what`
+ * did not arrive, those ms and `detail()`.
+ */
+export async function waitFor(holds, what, { ms = 2000, detail = () => "" } = {}) {
+  const started = performance.now();
+  for (;;) {
+    const held = holds();
+    const waited = Math.round(performance.now() - started);
+    if (held) return waited;
+    if (waited >= ms) assert.fail(`${what} did not arrive within ${waited} ms${detail() === "" ? "" : `; ${detail()}`}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** Waits for at most 2,000 ms until `client` (with `got()`) holds a whole final answer; a failure names the bytes read and `more()`. */
+export const answerIn = (client, what = "the answer", more = () => "") =>
+  waitFor(() => holdsAnswer(client.got()), what, { detail: () => [`the client had read ${client.got().length} bytes`, more()].filter((part) => part !== "").join("; ") });
+
 /** Resolves to the exit code of a child once it has exited. */
 export const exited = (child) => new Promise((resolve) => (child.exitCode !== null ? resolve(child.exitCode) : child.on("exit", (code) => resolve(code))));

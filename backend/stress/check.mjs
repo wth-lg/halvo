@@ -93,9 +93,8 @@ export function lineOf({ selected, runs, halted, attempts }) {
       const gap = gaps.length === 0 ? "none, as no attempt admitted a request" : `${Math.min(...gaps)} ms`;
       const rolloverRuns = runs.filter((run) => run.kind === "rollover");
       const builtOnce = rolloverRuns.some((run) => attemptsOf(run).some((attempt) => attempt.crossingBuilt === true));
-      const countedRuns = rolloverRuns.filter(good).length;
       failure = builtOnce
-        ? `the rollover cell spent its ${redrawn} draws on attempts that admitted no request before the period boundary (ruling P7-72); ${countedRuns} of its ${rolloverRuns.length} runs had counted when another draw was needed; the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`
+        ? `the rollover cell spent its ${redrawn} draws on attempts that admitted no request before the period boundary (ruling P7-72); ${rigUnbuilt[0].countedAtTheDraw} of its ${rolloverRuns.length} runs had counted when another draw was needed; the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`
         : `the rollover cell built no crossing: ${redrawn} attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72); the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`;
     } else if (failedToRun) failure = `${failedToRun.key} failed to run in ${attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
     else if (neverCounted && attemptsOf(neverCounted).some((attempt) => attempt.slow === true)) {
@@ -106,6 +105,13 @@ export function lineOf({ selected, runs, halted, attempts }) {
         .map(([bound, waits]) => `${nearestRank(waits, 0.5)} ms, over the bound of ${bound} ms`)
         .join(", and ");
       failure = `${slowAttempts.length} attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was ${medians}; ${neverCounted.key} did not count in ${attempts} attempts`;
+    } else if (neverCounted && attemptsOf(neverCounted).every((attempt) => attempt.held === false || Boolean(attempt.error))) {
+      const end = neverCounted.facts.firstEndBeforeTheLastAnswer;
+      const cause =
+        end === null
+          ? "no reserve of the wave was answered"
+          : `the first hold of the wave to end, ${end.state}, ended ${end.ms} ms before the last reserve of the wave was answered`;
+      failure = `${neverCounted.key} did not count in ${attemptsOf(neverCounted).length} attempts because its wave was held in none of them (ruling B-37); in the last attempt ${cause}`;
     } else if (neverCounted) {
       const facts = neverCounted.facts ?? {};
       failure = `${neverCounted.key} did not count in ${attempts} attempts (admitted ${facts.admitted ?? "unmeasured"}, holds open at the kill ${facts.openAtKill ?? "unmeasured"}, a stream in flight at the kill ${facts.streamAtKill ?? "unmeasured"}, voided ${facts.voided ?? "unmeasured"})`;

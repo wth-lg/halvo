@@ -13,7 +13,7 @@ use halvo_agent_client::marks::{self, Mark, ProcLine};
 use halvo_agent_client::process;
 use halvo_agent_client::{
     Config, Confirmer, Human, IssueRefused, LinkError, MarkSink, OriginAnswer, OwnerLink, Parts,
-    RunEnd, RunSpec, Secrets, Supervisor,
+    RunEnd, RunSpec, Secrets, Supervisor, SystemValue,
 };
 use halvo_schema::executable::body::{CoordinatorCall, RunnerCall};
 use halvo_schema::executable::frame::{
@@ -33,12 +33,20 @@ pub fn peer() -> PathBuf {
 }
 
 pub fn scratch(name: &str) -> PathBuf {
-    let n = COUNT.fetch_add(1, Ordering::SeqCst);
-    let d = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("agent-client")
-        .join(format!("{name}-{}-{n}-{}", std::process::id(), nanos()));
-    fs::create_dir_all(&d).unwrap();
-    d
+    halvo_test_dir::make(
+        &Path::new(env!("CARGO_TARGET_TMPDIR")).join("agent-client"),
+        name,
+    )
+    .unwrap()
+}
+
+#[test]
+fn two_scratches_of_one_name_are_two_directories_and_the_second_is_empty() {
+    let first = scratch("one-name");
+    fs::write(first.join("mine"), b"first").unwrap();
+    let second = scratch("one-name");
+    assert_ne!(first, second);
+    assert_eq!(fs::read_dir(&second).unwrap().count(), 0);
 }
 
 fn nanos() -> u128 {
@@ -159,6 +167,9 @@ pub struct Store {
     pub rows: Mutex<HashMap<RunId, Rows>>,
     pub rev: AtomicU32,
     pub fail_add_origin: AtomicUsize,
+    pub garbage_add_origin: AtomicUsize,
+    pub error_add_origin: AtomicUsize,
+    pub hold_add_origin: Mutex<bool>,
     pub fail_all: AtomicUsize,
     pub load_origins: Mutex<Vec<String>>,
     pub check: Mutex<Option<Check>>,
@@ -299,6 +310,15 @@ impl Store {
         let body = CoordinatorCall::parse(raw.body().get().as_bytes()).unwrap();
         match body {
             CoordinatorCall::AddOrigin(_) => {
+                while *self.hold_add_origin.lock().unwrap() {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                if take_one(&self.garbage_add_origin) {
+                    return Ok(b"not a reply".to_vec());
+                }
+                if take_one(&self.error_add_origin) {
+                    return Ok(Store::error(&id, "internal"));
+                }
                 if self
                     .fail_add_origin
                     .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
@@ -406,6 +426,7 @@ pub struct People {
     pub progress: Mutex<Vec<(u32, u32)>>,
     pub hold_answers: Mutex<bool>,
     pub asked_confirms: AtomicUsize,
+    pub hold_allow: Mutex<bool>,
 }
 
 impl Default for People {
@@ -420,6 +441,7 @@ impl Default for People {
             progress: Mutex::new(Vec::new()),
             hold_answers: Mutex::new(false),
             asked_confirms: AtomicUsize::new(0),
+            hold_allow: Mutex::new(false),
         }
     }
 }
@@ -453,6 +475,9 @@ impl Human for People {
 
     fn allow_origin(&self, _run: &RunId, origin: &WebOrigin) -> OriginAnswer {
         self.asked_origins.lock().unwrap().push(origin.clone());
+        while *self.hold_allow.lock().unwrap() {
+            thread::sleep(Duration::from_millis(10));
+        }
         *self.allow.lock().unwrap()
     }
 
@@ -461,11 +486,12 @@ impl Human for People {
     }
 }
 
-/// The secret store: one answer for every name.
-pub struct Vault(pub Mutex<SecretReply>);
+/// The secret store: one answer for every name, and the count of its reads.
+pub struct Vault(pub Mutex<SecretReply>, pub AtomicUsize);
 
 impl Secrets for Vault {
     fn read(&self, _name: &Name) -> SecretReply {
+        self.1.fetch_add(1, Ordering::SeqCst);
         self.0.lock().unwrap().clone()
     }
 }
@@ -493,10 +519,22 @@ impl Rig {
     }
 
     pub fn configured(name: &str, set: impl FnOnce(&mut Config)) -> Rig {
+        Rig::built(name, set, None)
+    }
+
+    pub fn reading(name: &str, read: fn(SystemValue) -> Option<std::ffi::OsString>) -> Rig {
+        Rig::built(name, |_| {}, Some(read))
+    }
+
+    fn built(
+        name: &str,
+        set: impl FnOnce(&mut Config),
+        read: Option<fn(SystemValue) -> Option<std::ffi::OsString>>,
+    ) -> Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
         let people = Arc::new(People::default());
-        let vault = Arc::new(Vault(Mutex::new(SecretReply::None)));
+        let vault = Arc::new(Vault(Mutex::new(SecretReply::None), AtomicUsize::new(0)));
         let rec = Arc::new(Recorder::default());
         let parts = Parts {
             link: store.clone(),
@@ -508,7 +546,12 @@ impl Rig {
         let mut config = Config::new(dir.join("data"), peer());
         config.start_wait = Duration::from_secs(10);
         set(&mut config);
-        let sup = Supervisor::new(CoordinatorRole::claim(), config, parts);
+        let sup = match read {
+            Some(read) => {
+                Supervisor::with_system_reader(CoordinatorRole::claim(), config, parts, read)
+            }
+            None => Supervisor::new(CoordinatorRole::claim(), config, parts),
+        };
         Rig {
             dir,
             sup,
@@ -624,6 +667,14 @@ pub fn effect(effect: &str, seq: u32, state: &str) -> String {
         .replace("STATE", state)
         .replace("APPROVAL", approval);
     r#"{"op":"effect","agent":"{agent}","run":"{run}","record":RECORD}"#.replace("RECORD", &record)
+}
+
+pub const RUN_RECORD: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":2,"handbacks":1,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":41,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}"#;
+
+pub fn ask_finish() -> String {
+    let finish = r#"{"op":"finish","agent":"{agent}","run":"{run}","record":RECORD}"#
+        .replace("RECORD", RUN_RECORD);
+    ask_store(&id(0x51), &finish)
 }
 
 pub fn id(n: u8) -> String {

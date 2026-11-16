@@ -1,0 +1,107 @@
+{
+  "kind": "judge",
+  "ruling": "P7-83 (7) (c) N4, on B-37 as P7-69 F1 reads it",
+  "about": "every request of the wave ended with the dev proxy's 500, which answers no reserve: no reserve of the wave was answered, the wave is not held, and no hold ended before an answer, so the cause is the missing answer",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 3,
+      "switch": "usage-last",
+      "k": 2
+    },
+    "requests": [
+      {
+        "id": "w0",
+        "index": 0,
+        "status": 500,
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 1100,
+        "headersAt": 1200,
+        "endedAt": 1201,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [
+          {
+            "why": "500",
+            "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+            "sentAt": 1000
+          }
+        ],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "w1",
+        "index": 1,
+        "status": 500,
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 1100,
+        "headersAt": 1200,
+        "endedAt": 1201,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [
+          {
+            "why": "500",
+            "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+            "sentAt": 1000
+          }
+        ],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "w2",
+        "index": 2,
+        "status": 500,
+        "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+        "sentAt": 1100,
+        "headersAt": 1200,
+        "endedAt": 1201,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [
+          {
+            "why": "500",
+            "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+            "sentAt": 1000
+          }
+        ],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "mockEvents": [],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "held": false,
+      "firstEndBeforeTheLastAnswer": null
+    }
+  }
+}

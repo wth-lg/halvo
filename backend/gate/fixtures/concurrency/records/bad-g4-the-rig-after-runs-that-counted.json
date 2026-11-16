@@ -243,7 +243,8 @@
       },
       "discarded": [],
       "ms": 1,
-      "rigUnbuilt": true
+      "rigUnbuilt": true,
+      "countedAtTheDraw": 2
     }
   ],
   "expect": {
