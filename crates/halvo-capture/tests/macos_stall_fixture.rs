@@ -870,6 +870,7 @@ struct Round {
     case: Option<Case>,
     verdict: Option<Verdict>,
     not_driven: Option<NoReply>,
+    markers_at: Option<u64>,
 }
 
 fn return_start(stamps: &[Stamp]) -> u64 {
@@ -947,11 +948,20 @@ fn round(
 }
 
 fn not_driven_verdict(round: &Round) -> Verdict {
-    let excused =
-        !round.stamps.is_empty() && round.verdict == Some(Verdict::NotCounted(NOT_DRIVEN));
-    let recorded = round.verdict == Some(Verdict::Recorded)
-        || round.ahead > 0 && !excused
-        || round.markers > MARKERS.len();
+    let recorded = if round.stamps.is_empty() {
+        let released = released_keys(&round.entries);
+        round.ahead > 0
+            || released.len() > MARKERS.len()
+            || released
+                .iter()
+                .any(|&(arrival, _)| match (arrival, round.markers_at) {
+                    (Some(arrival), Some(posted)) => arrival < posted,
+                    _ => true,
+                })
+    } else {
+        let excused = round.verdict == Some(Verdict::NotCounted(NOT_DRIVEN));
+        round.verdict == Some(Verdict::Recorded) || round.ahead > 0 && !excused
+    } || round.markers > MARKERS.len();
     if recorded {
         Verdict::Recorded
     } else {
@@ -991,6 +1001,7 @@ fn round_inner(
         case: None,
         verdict: None,
         not_driven: None,
+        markers_at: None,
     };
     let drive = Drive {
         how,
@@ -1161,6 +1172,7 @@ impl Drive {
         }
         let markers_from = SystemTime::now();
         window.markers_from = Some(markers_from);
+        round.markers_at = Some(raw_ns());
         fixture.try_keys(Duration::from_millis(30), &codes(&MARKERS))?;
         std::thread::sleep(bound + MARGIN);
         let state = fixture.try_state()?;
@@ -1469,7 +1481,7 @@ fn judge_mended_in(
     let recorded = of(|verdict| verdict == Verdict::Recorded);
     assert!(
         recorded.is_empty(),
-        "{name}: recorded keys beside the markers in rounds that counted: {}",
+        "{name}: recorded keys beside the markers in rounds that counted or were not driven: {}",
         recorded.join(", ")
     );
     assert_some_round_driven(name, rounds);
@@ -1629,7 +1641,7 @@ fn judge(name: &str, rounds: &[Round]) {
         .collect();
     assert!(
         leaked.is_empty(),
-        "{name}: recorded keys beside the markers in rounds that counted: {}",
+        "{name}: recorded keys beside the markers in rounds that counted or were not driven: {}",
         leaked.join(", ")
     );
     assert_some_round_driven(name, rounds);
@@ -2237,6 +2249,7 @@ fn stand_in_round(counted: bool, ahead: usize) -> Round {
         case: None,
         verdict: None,
         not_driven: None,
+        markers_at: None,
     }
 }
 
@@ -4575,7 +4588,7 @@ fn each_judge_reads_a_round_not_driven_by_its_rule_on_a_table() {
         (
             "a round not driven with a recorded key, beside held rounds",
             held_but_at(2, vec![not_driven_round(600, 2)]),
-            Some("recorded keys beside the markers in rounds that counted: wait 600 ms: ahead 2 (not driven: late_reply_left_secure_within_3000_ms)"),
+            Some("recorded keys beside the markers in rounds that counted or were not driven: wait 600 ms: ahead 2 (not driven: late_reply_left_secure_within_3000_ms)"),
         ),
         (
             "a round not driven is no round that did not count",
@@ -4924,5 +4937,164 @@ fn the_late_reply_of_one_round_is_not_taken_as_the_reply_of_the_next() {
         second_line.ends_with(" not_driven=late_reply_cleared_within_300_ms"),
         "the second round took the first round's late 'cleared' as its own reply to 'clear' and \
          named the reply after it: {second_line}"
+    );
+}
+
+const MARKERS_POSTED_AT: u64 = 4_000_000;
+
+fn after_its_markers(
+    no_reply: NoReply,
+    ahead: usize,
+    held_before: &[u64],
+    marker_releases: usize,
+) -> Round {
+    let mut entries = vec![
+        RawEntry::Arrival {
+            at: 1_000,
+            admission: Arrived::Held,
+        },
+        RawEntry::Dropped {
+            at: 2_000,
+            cause: Cause::On,
+            keys: 1,
+            unread: false,
+        },
+    ];
+    for &at in held_before {
+        entries.push(RawEntry::Arrival {
+            at,
+            admission: Arrived::Held,
+        });
+    }
+    for index in 0..marker_releases as u64 {
+        entries.push(RawEntry::Arrival {
+            at: 5_000_000 + index,
+            admission: Arrived::Held,
+        });
+    }
+    for index in 0..(held_before.len() + marker_releases) as u64 {
+        entries.push(RawEntry::Released {
+            at: 1_005_000_000 + index,
+        });
+    }
+    let found = evidence(&[], &entries, since_of(Move::Tab, &[]));
+    let mut round = Round {
+        counted: false,
+        why_not: NOT_DRIVEN,
+        markers: MARKERS.len(),
+        plain: MARKERS.len(),
+        entries,
+        not_driven: Some(no_reply),
+        markers_at: Some(MARKERS_POSTED_AT),
+        ..stand_in_round(false, ahead)
+    };
+    round.verdict = Some(mended_verdict(
+        false,
+        Some(NOT_DRIVEN),
+        ahead,
+        &found,
+        Duration::from_secs(1),
+    ));
+    round.verdict = Some(not_driven_verdict(&round));
+    round
+}
+
+fn late_stamps() -> NoReply {
+    NoReply::Late {
+        reply: String::from("stamps n="),
+        wait: ASK_WAIT,
+    }
+}
+
+fn ended_stamps() -> NoReply {
+    NoReply::Ended {
+        reply: String::from("stamps n="),
+    }
+}
+
+fn records_nothing_after_its_markers(name: &str, no_reply: NoReply) {
+    let round = after_its_markers(no_reply, 0, &[], MARKERS.len());
+    let line = stand_in_line(name, &round, Keep::Mended);
+    assert_eq!(
+        round.verdict,
+        Some(Verdict::NotDriven),
+        "the only keys released are the two markers of the plain field: {line}"
+    );
+    assert!(line.contains(" rv=notdriven "), "{line}");
+    let mut beside = held_at_each_wait();
+    beside.push(round);
+    assert_eq!(
+        judged_mended(&beside),
+        None,
+        "a round not driven after its markers fails no phase"
+    );
+}
+
+#[test]
+fn a_round_whose_last_stamps_reply_comes_late_after_its_markers_records_nothing() {
+    records_nothing_after_its_markers("stand-in-late-stamps", late_stamps());
+}
+
+#[test]
+fn a_round_whose_output_ended_before_its_last_stamps_reply_records_nothing() {
+    records_nothing_after_its_markers("stand-in-ended-stamps", ended_stamps());
+}
+
+#[test]
+fn a_round_not_driven_after_its_markers_reads_recorded_by_its_own_keys_alone() {
+    let mut wrong = Vec::new();
+    for (what, round, want) in [
+        (
+            "a key ahead",
+            after_its_markers(late_stamps(), 1, &[], MARKERS.len()),
+            Verdict::Recorded,
+        ),
+        (
+            "a letter released that arrived before the markers were posted",
+            after_its_markers(ended_stamps(), 0, &[3_000_000], MARKERS.len()),
+            Verdict::Recorded,
+        ),
+        (
+            "more releases than markers",
+            after_its_markers(late_stamps(), 0, &[], MARKERS.len() + 1),
+            Verdict::Recorded,
+        ),
+        (
+            "a release with no markers posted",
+            Round {
+                markers_at: None,
+                verdict: Some(Verdict::NotCounted(NOT_DRIVEN)),
+                ..after_its_markers(late_stamps(), 0, &[3_000_000], 0)
+            },
+            Verdict::Recorded,
+        ),
+        (
+            "the markers alone",
+            after_its_markers(ended_stamps(), 0, &[], MARKERS.len()),
+            Verdict::NotDriven,
+        ),
+    ] {
+        let got = if round.markers_at.is_none() {
+            not_driven_verdict(&round)
+        } else {
+            round.verdict.unwrap_or(Verdict::NoProof)
+        };
+        println!("after-markers row: {what}: want={want:?} got={got:?}");
+        if got != want {
+            wrong.push(what);
+        }
+    }
+    let mut beside = held_at_each_wait();
+    beside.push(after_its_markers(late_stamps(), 1, &[], MARKERS.len()));
+    let found = judged_mended(&beside);
+    assert!(
+        found.as_deref().is_some_and(|text| text.contains(
+            "recorded keys beside the markers in rounds that counted or were not driven"
+        )),
+        "{found:?}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "rows that gave another verdict: {wrong:?}"
     );
 }
