@@ -260,6 +260,52 @@ describe("U1, U3, U4 and U6: the stored id and the count", () => {
     });
   });
 
+  const UNREAD_BODIES = [
+    ["a body that is no JSON", "not json"],
+    ["an empty body", ""],
+    ["a JSON array", "[]"],
+    ["JSON null", "null"],
+  ] as const;
+  const twoHundredWith = (model: Model, id: string, body: string) => {
+    const inner = provider(model);
+    return (request: Parameters<typeof inner>[0]): Reply => {
+      if (request.method === "DELETE" && request.path === `/v1/subscriptions/${id}`) {
+        const found = model.subs.find((each) => each.id === id);
+        if (found !== undefined) found.status = "canceled";
+        return { status: 200, body };
+      }
+      return inner(request);
+    };
+  };
+
+  test.each(UNREAD_BODIES)("the stored id's cancel answers 2xx with %s: an answer the adapter does not know, unanswered with no read of the id, and failed whatever the list shows", async (_, body) => {
+    const model: Model = { subs: [live("sub_1")], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) };
+    const server = await startRecorder(twoHundredWith(model, "sub_1", body));
+    try {
+      const answer = await makeStripePort(config(server.url)).cancelSubscription("sub_1", CUSTOMER);
+      expect({ answer, requests: server.requests.map(line) }).toEqual({
+        answer: { kind: "failed", cancelled: 0 },
+        requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`],
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  test.each(UNREAD_BODIES)("a listed cancel answers 2xx with %s: no read of the id follows a 2xx, it counts nothing, and the last whole list decides", async (_, body) => {
+    const model: Model = { subs: [live("sub_2")] };
+    const server = await startRecorder(twoHundredWith(model, "sub_2", body));
+    try {
+      const answer = await makeStripePort(config(server.url)).cancelSubscription(null, CUSTOMER);
+      expect({ answer, requests: server.requests.map(line) }).toEqual({
+        answer: { kind: "nothing-to-cancel" },
+        requests: [`GET /v1/customers/${CUSTOMER}`, "GET /v1/subscriptions", "DELETE /v1/subscriptions/sub_2", "GET /v1/subscriptions"],
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   test("U4: an unanswered cancel of the stored id, with an empty list: failed with the count 0", async () => {
     const run = await cancel({ subs: [live("sub_1", "canceled")], dropped: ["sub_1"] }, "sub_1");
     expect({ answer: run.answer, requests: run.requests }).toEqual({

@@ -149,7 +149,7 @@ export function makeStripePort(config: StripeConfig, clock: () => number = () =>
       const cancelled = await ask("DELETE", path, [["invoice_now", "true"]]);
       if (cancelled === "stopped") return "stopped";
       if (cancelled === null) return "unanswered";
-      if (succeeded(cancelled)) return endedSubscription(cancelled, id) ? "ended" : "unanswered";
+      if (cancelled.status >= 200 && cancelled.status < 300) return endedSubscription(cancelled, id) ? "ended" : "unanswered";
       const read = await ask("GET", path, null);
       if (read === "stopped") return "stopped";
       return isUnknownId(read) || endedSubscription(read, id) ? "needs-no-cancel" : "unanswered";
