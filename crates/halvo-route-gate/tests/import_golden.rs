@@ -128,7 +128,7 @@ fn golden_cases_hold_what_the_contract_names() {
         .expect("no_driver");
     assert_eq!(
         no_driver,
-        "freeze rows=1 models=1 sources=2 date=2026-11-10\non_device driver=none writer=none\n"
+        "freeze rows=5 models=1 sources=2 date=2026-11-10\non_device driver=none writer=none\n"
     );
     let failed = |case: &str| -> Vec<String> {
         std::fs::read_to_string(case_dir(case).join("expected/recorded.tsv"))
@@ -151,7 +151,13 @@ fn golden_cases_hold_what_the_contract_names() {
     );
     assert_eq!(
         failed("no_driver"),
-        ["bill utility_bill_payment recover on_device m_tiny hosted-win 3 held 1"]
+        [
+            "bill utility_bill_payment compile on_device m_tiny hosted-win 3 held 1",
+            "bill utility_bill_payment recover on_device m_tiny hosted-win 3 held 1",
+            "bill utility_bill_payment replay on_device m_tiny hosted-win 3 held 1",
+            "bill utility_bill_payment replay on_device m_tiny hosted-win 3 held 2",
+            "bill utility_bill_payment replay on_device m_tiny hosted-win 3 held 3"
+        ]
     );
     let block = |case: &str, name: &str| -> Vec<String> {
         std::fs::read_to_string(case_dir(case).join(name))

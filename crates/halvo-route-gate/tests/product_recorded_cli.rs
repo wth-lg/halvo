@@ -172,7 +172,7 @@ fn the_tool_refuses_a_freeze_file_that_does_not_fit() {
         (
             "other.txt",
             Some(case_file("no_driver", "freeze.txt").into_bytes()),
-            "REFUSED file: --freeze counts 1 rows and --table holds 132",
+            "REFUSED file: --freeze counts 5 rows and --table holds 132",
         ),
     ];
     for (name, bytes, line) in cases {

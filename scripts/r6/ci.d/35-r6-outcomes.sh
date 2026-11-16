@@ -267,7 +267,7 @@ PASS $name"
   fixture no-writer-holds no_writer
   check no-writer-holds PASS "outcomes rows=132 models=6 sources=2 same=yes stale=0"
   fixture no-driver-holds no_driver
-  check no-driver-holds PASS "outcomes rows=1 models=1 sources=2 same=yes stale=0"
+  check no-driver-holds PASS "outcomes rows=5 models=1 sources=2 same=yes stale=0"
   fixture full-imported-with-two-days-holds full
   edit "$outcomes/sources.tsv" "2s/${tab}2026-11-10${tab}/${tab}2026-11-09${tab}/"
   check full-imported-with-two-days-holds PASS "outcomes rows=132 models=6 sources=2 same=yes stale=0"
@@ -304,7 +304,7 @@ FAIL $name (differs)"
   check import-refused FAIL "outcomes rows=132 models=6 sources=2 same=no stale=0
 FAIL $name (import)"
   fixture stale-and-the-import-ran full
-  edit "$driver_path" '/^attempt model=m_tiny machine=mac task=bill seed=1 kind=replay i=3 /d'
+  edit "$driver_path" '/^reply model=m_tiny machine=mac seed=1 /d;/^attempt model=m_tiny machine=mac task=reply seed=1 kind=write i=1 /d'
   check stale-and-the-import-ran FAIL "outcomes rows=131 models=6 sources=2 same=no stale=1
 FAIL $name (stale)"
   fixture stale-and-the-import-refused full

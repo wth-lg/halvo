@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use halvo_route::tier::CallKind;
 
-use super::lines::{self, AttemptKey, Drive, Verdict};
+use super::lines::{self, AttemptKey, Cell, Drive, Verdict};
 use crate::table::{Machine, Model, Seed, Task};
 
 /// Each attempt line of the driver block by its row key, with its `pass`.
@@ -25,10 +25,13 @@ const DRIVE_RUNS: [(CallKind, u32); 5] = [
 ];
 
 /// The line number of the first replay line, in file order, whose `i` less one has no line in its
-/// model, machine, task and seed. `replays` holds the replay lines in file order.
-pub fn gap(replays: &[(usize, AttemptKey)], attempts: &Attempts) -> Option<usize> {
-    replays.iter().find_map(|(number, key)| {
+/// model, machine, task and seed. `keyed` holds the attempt lines in file order.
+pub fn gap(keyed: &[(usize, AttemptKey)], attempts: &Attempts) -> Option<usize> {
+    keyed.iter().find_map(|(number, key)| {
         let (task, kind, model, machine, seed, i) = key.clone();
+        if kind != CallKind::Replay {
+            return None;
+        }
         let below = NonZeroU32::new(i.get() - 1)?;
         (!attempts.contains_key(&(task, kind, model, machine, seed, below))).then_some(*number)
     })
@@ -85,6 +88,58 @@ pub fn holds(verdict: &Verdict, attempts: &Attempts) -> bool {
         of(attempts, model, &[Task::Reply]) == want
     });
     driver && writer
+}
+
+/// The cell of an attempt line: a `compile`, `replay` or `recover` line is of the `drive` cell of
+/// its model, machine, task and seed, and a `write` line of the `reply` cell of its model, machine
+/// and seed.
+fn cell_of(key: &AttemptKey) -> Cell {
+    let (task, kind, model, machine, seed, _) = key.clone();
+    match kind {
+        CallKind::Write => Cell::Reply(model, machine, seed),
+        CallKind::Compile | CallKind::Replay | CallKind::Recover => {
+            Cell::Drive(model, machine, task, seed)
+        }
+    }
+}
+
+#[derive(Default)]
+struct Tally {
+    lines: usize,
+    first_line: Option<usize>,
+    attempts: usize,
+    first_attempt: Option<usize>,
+}
+
+/// The count of T5.4 (U0.2c), for every model: each `drive` cell holds five attempt lines for
+/// each counted `drive` line and none without one, and each `reply` cell one `write` line for each
+/// counted `reply` line and none without one. `attempts` holds the attempt lines and `counted`
+/// the counted lines, each in file order with its line number. Of the cells that break the count,
+/// the smallest line number of a cell's first counted line, or of its first attempt line when it
+/// has none.
+pub fn count(attempts: &[(usize, AttemptKey)], counted: &[(usize, Cell)]) -> Option<usize> {
+    let mut cells: HashMap<Cell, Tally> = HashMap::new();
+    for (number, cell) in counted {
+        let tally = cells.entry(cell.clone()).or_default();
+        tally.lines += 1;
+        tally.first_line.get_or_insert(*number);
+    }
+    for (number, key) in attempts {
+        let tally = cells.entry(cell_of(key)).or_default();
+        tally.attempts += 1;
+        tally.first_attempt.get_or_insert(*number);
+    }
+    cells
+        .iter()
+        .filter(|(cell, tally)| {
+            let each = match cell {
+                Cell::Drive(..) => DRIVE_RUNS.len(),
+                Cell::Reply(..) => 1,
+            };
+            tally.attempts != each * tally.lines
+        })
+        .filter_map(|(_, tally)| tally.first_line.or(tally.first_attempt))
+        .min()
 }
 
 /// Why the lines of the verdict's driver and writer do not hold.
