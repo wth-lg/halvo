@@ -9,6 +9,7 @@ mod json;
 pub mod body;
 pub mod bound;
 pub mod config;
+pub mod day;
 pub mod frame;
 pub mod names;
 pub mod record;

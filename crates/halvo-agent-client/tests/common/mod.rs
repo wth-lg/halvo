@@ -579,6 +579,7 @@ impl Rig {
             browser: script.path.clone(),
             model: None,
             headed: false,
+            utc_offset_s: 0,
         }
     }
 

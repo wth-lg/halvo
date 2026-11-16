@@ -302,6 +302,7 @@ pub fn run(args: &[String]) {
         browser: PathBuf::from(script),
         model: None,
         headed: false,
+        utc_offset_s: 0,
     };
     let run = spec.run.clone();
     match sup.start(spec) {
