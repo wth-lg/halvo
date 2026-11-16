@@ -222,7 +222,12 @@ impl Folder {
     /// [`Locks`] opened the same data directory.
     ///
     /// One `replace` of a workbook per run: after it, the run's checkpoint is no longer the
-    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]. `replace` holds
+    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]; and after a
+    /// `replace` that this process called for the run's checkpoint of that workbook and that
+    /// was refused, a later `prepare` of the run on the workbook answers [`Error::Checkpoint`]
+    /// too, before it takes the lock and with nothing written, and the checkpoint stays. The
+    /// process remembers each such call for its life, the directory compared by
+    /// [`halvo_checkpoint::same_file`]: a runner is one process for one run. `replace` holds
     /// the same lock from its compare to its rename, so of two runs that prepared one workbook
     /// from the same file, the `replace` that comes second finds the workbook changed and
     /// leaves it: no edit is lost.
@@ -284,6 +289,7 @@ impl Folder {
         prepared
             .answer
             .get_or_init(|| {
+                write::note_replace_called(prepared);
                 let held = self.locks.hold(write::directory(&prepared.workbook));
                 let done = held
                     .as_ref()

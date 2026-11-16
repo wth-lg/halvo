@@ -164,7 +164,9 @@ pub enum Error {
     /// would hold a sheet part or another entry of more than 32 MiB, entries of more than
     /// 128 MiB in all, or more than 64 MiB as a file. Refused before any write.
     FillSize,
-    /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
+    /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is, or
+    /// this process called a `replace` of the run's copy of the workbook already (one `replace`
+    /// of a workbook per run).
     Checkpoint,
     /// `prepare` could not take the lock of the workbook's directory, which another call held
     /// for the whole wait ([`LockError::Busy`]) or which could not be opened; it wrote nothing.

@@ -4,7 +4,7 @@ use std::fs::{self, File, OpenOptions, Permissions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 use halvo_checkpoint::{
     checkpoint_name, name_units, names_fit, open_regular, own_name, regular, same_entry, same_file,
@@ -200,6 +200,9 @@ pub(crate) fn prepare(
     drop(entries);
     book::readable(&original, sheet)?;
     let checkpoint = workbook.with_file_name(checkpoint_name(&workbook, run).unwrap_or_default());
+    if replace_called(&checkpoint) {
+        return Err(Error::Checkpoint);
+    }
     let held = locks.hold(directory(&workbook)).map_err(Error::Lock)?;
     if root.file(&workbook)? != workbook {
         return Err(Error::Path(PathRefusal::Link));
@@ -290,6 +293,34 @@ struct Made<'a> {
     book: &'a File,
     workbook: &'a Path,
     permissions: Permissions,
+}
+
+static REPLACE_CALLED: Mutex<Vec<(FileId, std::ffi::OsString)>> = Mutex::new(Vec::new());
+
+fn checkpoint_key(checkpoint: &Path) -> Option<(FileId, std::ffi::OsString)> {
+    let dir = FileId::at(directory(checkpoint)).ok()?;
+    Some((dir, checkpoint.file_name()?.to_os_string()))
+}
+
+pub(crate) fn note_replace_called(prepared: &Prepared) {
+    if let Some(key) = checkpoint_key(&prepared.checkpoint) {
+        let mut called = REPLACE_CALLED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        called.push(key);
+    }
+}
+
+fn replace_called(checkpoint: &Path) -> bool {
+    let Some((dir, name)) = checkpoint_key(checkpoint) else {
+        return false;
+    };
+    let called = REPLACE_CALLED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    called
+        .iter()
+        .any(|(seen, noted)| *noted == name && same_file(seen, &dir))
 }
 
 pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {

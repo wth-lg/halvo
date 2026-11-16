@@ -282,6 +282,41 @@ fn a_replace_that_misses_leaves_a_file_put_at_the_copys_name_after_the_write() {
 }
 
 #[test]
+fn a_prepare_of_the_run_after_a_refused_replace_of_the_workbook_answers_the_checkpoint_error() {
+    let scratch = Scratch::new("replace-refused-again");
+    let s = setup(&scratch);
+    fs::rename(scratch.path(&s.copy), scratch.path("elsewhere.xlsx")).expect("move the copy");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Copy))
+    );
+    let listing = scratch.names("");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(78.0)]];
+    let again = s
+        .folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(again.as_ref().err(), Some(&Error::Checkpoint));
+    drop(again);
+    let fresh = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
+    let again = fresh.prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(
+        again.as_ref().err(),
+        Some(&Error::Checkpoint),
+        "a new folder"
+    );
+    drop(again);
+    assert_eq!(Error::Checkpoint.cause(), Cause::StepFailed);
+    assert_eq!(scratch.names(""), listing, "nothing written");
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+    assert_eq!(fs::read(scratch.path(CHECKPOINT)).expect("read"), s.before);
+    let other = RunId::parse("fedcba9876543210fedcba9876543210").expect("a run id");
+    let theirs = fresh.prepare(Path::new(FILE), &other, "Values", range, &values);
+    assert!(theirs.is_ok(), "another run prepares: {theirs:?}");
+}
+
+#[test]
 fn a_folder_that_does_not_hold_the_workbook_touches_nothing_and_is_no_first_replace() {
     let scratch = Scratch::new("replace-folder");
     let s = setup(&scratch);
