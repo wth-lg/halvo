@@ -373,15 +373,16 @@ pub(crate) fn destroy_roots_through(
             continue;
         }
         let at = match file {
-            RootFile::Root(_) if of_named(file) && own_file.is_none() => EntryName::OwnRoot,
+            RootFile::Root(_) if of_named(file) => EntryName::OwnRoot,
             RootFile::Root(_) => EntryName::OtherRoot,
             RootFile::Partial(_) => EntryName::Partial,
         };
         let fate = destroy_root_entry(dir, &entry.name, at);
-        if of_named(file) && at != EntryName::OtherRoot && fate != EntryFate::Gone {
+        let decided_by_identity = own_file.is_some() && at == EntryName::OwnRoot;
+        if of_named(file) && !decided_by_identity && fate != EntryFate::Gone {
             every_named_entry_destroyed = false;
         }
-        if at == EntryName::OwnRoot && fate == EntryFate::Gone {
+        if at == EntryName::OwnRoot && !decided_by_identity && fate == EntryFate::Gone {
             own_root_file_removed = true;
         }
     }
@@ -454,6 +455,9 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity) -> EntryFate {
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
         Ok(entry) if entry.kind != EntryKind::File => return EntryFate::Absent,
         Ok(_) => {}
+    }
+    if !matches!(dir.file_identity_at(name), Ok(identity) if identity == own) {
+        return EntryFate::Absent;
     }
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
@@ -684,10 +688,9 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
     let mut fates = Vec::new();
     match root.file {
         Some(own) => {
-            if let Ok(entries) = dir.entries() {
-                for name in files_of(dir, &entries, own) {
-                    fates.push(destroy_identified(dir, &name, own));
-                }
+            let entries = dir.entries().map_err(root_io)?;
+            for name in files_of(dir, &entries, own) {
+                fates.push(destroy_identified(dir, &name, own));
             }
         }
         None => {

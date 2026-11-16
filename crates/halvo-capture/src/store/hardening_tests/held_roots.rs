@@ -512,3 +512,280 @@ fn an_abandoned_create_whose_root_cannot_be_destroyed_keeps_its_made_mark() {
         "the abandoned create removed its made mark beside a root that stays"
     );
 }
+
+#[test]
+fn delete_all_removes_a_short_file_at_the_roots_name_unwritten() {
+    use std::io::{Read, Seek, SeekFrom};
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let own_name = roots_dir.join(format!("{root_id}.root"));
+    let moved = roots_dir.join("moved-inside-the-roots");
+    std::fs::rename(&own_name, &moved).unwrap();
+    std::fs::write(&own_name, [0x77u8; 100]).unwrap();
+    let mut planted = std::fs::File::open(&own_name).unwrap();
+
+    let answer = store.delete_all();
+    drop(store);
+
+    let mut bytes = Vec::new();
+    planted.seek(SeekFrom::Start(0)).unwrap();
+    planted.read_to_end(&mut bytes).unwrap();
+    let planted_unwritten = bytes.len() == 100 && bytes.iter().all(|&b| b == 0x77);
+    let planted_zeroed = bytes.len() == 100 && bytes.iter().all(|&b| b == 0);
+    let moved_root_gone = no_root_bytes_at(&moved);
+    println!(
+        "REVIEW-H1H5-01 {} moved_root_gone={moved_root_gone} planted_unwritten={planted_unwritten} \
+         planted_zeroed={planted_zeroed}",
+        answer_line(&answer)
+    );
+    assert!(
+        moved_root_gone,
+        "the held root file, moved inside the roots directory, kept its bytes: {}",
+        answer_line(&answer)
+    );
+    assert!(
+        planted_unwritten,
+        "H4: a 100-byte file at the root's own name, which cannot be the root's file, was \
+         written through (zero-filled) by delete_all once the identity was known, instead of \
+         removed as the entry that it is: {}",
+        answer_line(&answer)
+    );
+}
+
+#[test]
+fn the_tail_removes_a_short_file_at_the_marks_root_name_unwritten() {
+    use std::io::{Read, Seek, SeekFrom};
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    let own_name = roots_dir.join(format!("{root_id}.root"));
+    let moved = roots_dir.join("moved-inside-the-roots");
+    std::fs::rename(&own_name, &moved).unwrap();
+    std::fs::write(&own_name, [0x77u8; 100]).unwrap();
+    let mut planted = std::fs::File::open(&own_name).unwrap();
+
+    let answer = tail(&store_dir, &roots_dir);
+
+    let mut bytes = Vec::new();
+    planted.seek(SeekFrom::Start(0)).unwrap();
+    planted.read_to_end(&mut bytes).unwrap();
+    let planted_unwritten = bytes.len() == 100 && bytes.iter().all(|&b| b == 0x77);
+    let planted_zeroed = bytes.len() == 100 && bytes.iter().all(|&b| b == 0);
+    let moved_root_gone = no_root_bytes_at(&moved);
+    println!(
+        "REVIEW-H1H5-02 {} moved_root_gone={moved_root_gone} planted_unwritten={planted_unwritten} \
+         planted_zeroed={planted_zeroed}",
+        answer_line(&answer)
+    );
+    assert!(
+        moved_root_gone,
+        "the mark's root file, moved inside the roots directory, kept its bytes: {}",
+        answer_line(&answer)
+    );
+    assert!(
+        planted_unwritten,
+        "H4: the tail's sweep by a made mark zero-filled a 100-byte file at the mark's root \
+         name, which cannot be the root's file, instead of removing it unwritten: {}",
+        answer_line(&answer)
+    );
+}
+
+#[test]
+fn an_abandoned_create_beside_unlistable_roots_keeps_what_names_its_root() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let at_the_seam = roots_dir.clone();
+    let created = {
+        let _seam = crate::store::failpoint::at(crate::store::db::SEAM_AFTER_THE_ROOT, move || {
+            std::fs::set_permissions(&at_the_seam, std::fs::Permissions::from_mode(0o300)).unwrap()
+        });
+        crate::store::failpoint::arm("create_after_the_key_file");
+        EncryptedStore::create(
+            &store_dir,
+            Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )),
+            DEFAULT_RETENTION,
+        )
+        .map(drop)
+    };
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+    let root_bytes_stay = !no_root_bytes_at(&root_file);
+    let mark: Option<serde_json::Value> = std::fs::read(store_dir.join("create.pending"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    let mark_reads_made =
+        mark.as_ref().map(|m| m["reading"].clone()) == Some(serde_json::Value::from("made"));
+    let key_file_stays = store_dir.join("store.key").exists();
+    println!(
+        "REVIEW-H1H5-03 create_is_err={} root_bytes_stay={root_bytes_stay} \
+         mark_reads_made={mark_reads_made} key_file_stays={key_file_stays}",
+        created.is_err()
+    );
+    assert!(
+        created.is_err(),
+        "the create answered Ok past its failpoint"
+    );
+    assert!(
+        !root_bytes_stay || mark_reads_made || key_file_stays,
+        "the abandoned create's cleanup by identity (destroy_root_through) answered Ok on a \
+         roots directory that it could not list, so the made mark was removed while the root \
+         file keeps its bytes and nothing names it"
+    );
+}
+
+#[test]
+fn no_mode_change_on_a_file_of_another_identity() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let moved_inside = roots_dir.join("moved-inside");
+    let other = dir.path().join("another-partys-file");
+    std::fs::write(&other, [0x44u8; 32]).unwrap();
+    std::fs::set_permissions(&other, std::fs::Permissions::from_mode(0o400)).unwrap();
+    let ran = std::rc::Rc::new(std::cell::Cell::new(0u32));
+    let seam = {
+        let (ran, root_file, moved_inside, other) = (
+            ran.clone(),
+            root_file.clone(),
+            moved_inside.clone(),
+            other.clone(),
+        );
+        crate::store::failpoint::at(
+            crate::custody::file_root::SEAM_AFTER_THE_LISTING,
+            move || {
+                ran.set(ran.get() + 1);
+                if ran.get() == 1 {
+                    std::fs::rename(&root_file, &moved_inside).unwrap();
+                    std::fs::hard_link(&other, &root_file).unwrap();
+                }
+            },
+        )
+    };
+    crate::store::failpoint::arm("tail_lock");
+
+    let answer = tail(&store_dir, &roots_dir);
+    drop(seam);
+
+    let mode = std::fs::metadata(&other).unwrap().permissions().mode() & 0o777;
+    let bytes_kept = std::fs::read(&other).ok().as_deref() == Some(&[0x44u8; 32][..]);
+    let own_destroyed = no_root_bytes_at(&moved_inside);
+    println!(
+        "IDENT01 seam_runs={} {} other_mode={mode:o} other_bytes_kept={bytes_kept} \
+         own_root_destroyed={own_destroyed}",
+        ran.get(),
+        answer_line(&answer)
+    );
+    assert_eq!(ran.get(), 1, "the root step's seam did not run once");
+    assert!(
+        own_destroyed,
+        "the store's own root file, moved inside, kept its bytes"
+    );
+    assert!(
+        bytes_kept,
+        "the root step wrote into a file of another identity"
+    );
+    assert_eq!(
+        mode, 0o400,
+        "the root step set the mode of a file of another identity, which it met at the root's \
+         name after its listing, before it compared the identity"
+    );
+}
+
+#[test]
+fn an_opens_cleanup_beside_an_unlistable_held_directory_keeps_its_mark() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let marked = RootId::fresh().unwrap();
+    let marked_file = roots_dir.join(format!("{marked}.root"));
+    std::fs::write(&marked_file, [0x77u8; 32]).unwrap();
+    write_made_mark(&store_dir, marked, Some(marked_file.as_path()));
+    let ran = std::rc::Rc::new(std::cell::Cell::new(0u32));
+    let seam = {
+        let (ran, roots) = (ran.clone(), roots_dir.clone());
+        crate::store::failpoint::at(crate::store::db::SEAM_BEFORE_THE_FIRST_READ, move || {
+            ran.set(ran.get() + 1);
+            std::fs::set_permissions(&roots, std::fs::Permissions::from_mode(0o300)).unwrap();
+        })
+    };
+
+    let opened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    drop(seam);
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+    let mark_stays = store_dir.join("create.pending").exists();
+    let marked_bytes_stay = std::fs::read(&marked_file).ok().as_deref() == Some(&[0x77u8; 32][..]);
+    println!(
+        "IDENT02 seam_runs={} open={opened:?} mark_stays={mark_stays} \
+         marked_root_keeps_its_bytes={marked_bytes_stay}",
+        ran.get()
+    );
+    assert!(ran.get() >= 1, "the database open's seam did not run");
+    assert!(
+        mark_stays || !marked_bytes_stay,
+        "the open's cleanup removed the made mark while the file of the mark's identity keeps its \
+         bytes: its listing of the held roots directory failed and the cleanup answered Ok"
+    );
+}
+
+#[test]
+fn an_abandoned_create_with_an_unlistable_held_directory_keeps_its_mark() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let ran = std::rc::Rc::new(std::cell::Cell::new(0u32));
+    let seam = {
+        let (ran, roots) = (ran.clone(), roots_dir.clone());
+        crate::store::failpoint::at(crate::store::db::SEAM_AFTER_THE_ROOT, move || {
+            ran.set(ran.get() + 1);
+            std::fs::set_permissions(&roots, std::fs::Permissions::from_mode(0o300)).unwrap();
+        })
+    };
+    crate::store::failpoint::arm("create_after_the_key_file");
+
+    let created = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+    drop(seam);
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+    let mark: Option<serde_json::Value> = std::fs::read(store_dir.join("create.pending"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    let root_keeps_its_bytes = !no_root_bytes_at(&root_file);
+    println!(
+        "IDENT03 seam_runs={} create={created:?} root_keeps_its_bytes={root_keeps_its_bytes} mark={}",
+        ran.get(),
+        mark.as_ref()
+            .map_or("none".to_string(), |m| m["reading"].to_string())
+    );
+    assert_eq!(
+        ran.get(),
+        1,
+        "the create's seam after its root did not run once"
+    );
+    assert!(created.is_err(), "the create answered Ok");
+    assert!(
+        !root_keeps_its_bytes
+            || mark.as_ref().map(|m| m["reading"].clone()) == Some(serde_json::Value::from("made")),
+        "the abandoned create removed its made mark while its root file keeps its bytes: the \
+         listing of the held roots directory failed and the cleanup by identity answered Ok"
+    );
+}
