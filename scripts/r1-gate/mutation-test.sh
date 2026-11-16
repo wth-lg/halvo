@@ -211,6 +211,10 @@ stop_check() {
   [ -z "$stop_signal" ] || stop_now "$stop_row" "${stop_note:-no test was running}"
 }
 
+stop_quiet() {
+  [ -z "$stop_signal" ] || exit "$stop_status"
+}
+
 step_check() {
   step_check_status=$1; step_check_name=$2
   stop_check
@@ -1669,22 +1673,26 @@ no_git_add_after() {
 selftest_after_an_early_signal() {
   early_dir=$gate_scratch/selftest-after-an-early-signal
   mkdir -p "$early_dir"
-  ( cases() { : > "$early_dir/ran"; }
-    gate_scratch=''; stop_signal=TERM; stop_status=143
-    main --self-test ) > "$early_dir.out" 2>&1
+  # shellcheck disable=SC2016
+  sh -c 'set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT; early_ran=$1
+    cases() { : > "$early_ran"; }
+    stop_signal=TERM; stop_status=143
+    main --self-test' "$DIR/mutation-test.sh" "$early_dir/ran" > "$early_dir.out" 2>&1
   early_status=$?
   [ ! -e "$early_dir/ran" ] || { printf 'the self-test ran its cases after a recorded signal\n'; return 1; }
   [ "$early_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$early_status"; return 1; }
-  ! grep -q '^STOPPED ' "$early_dir.out" || { printf 'the self-test printed %s\n' "$(grep -m 1 '^STOPPED ' "$early_dir.out")"; return 1; }
+  early_line=$(grep -m 1 '^STOPPED ' "$early_dir.out")
+  [ -z "$early_line" ] || { printf 'the self-test printed %s\n' "$early_line"; return 1; }
 }
 
 selftest_after_a_signal() {
   after_dir=$gate_scratch/selftest-after-a-signal
   mkdir -p "$after_dir"
-  ( cases() { : > "$after_dir/ran"; }
-    stop_check() { :; }
-    gate_scratch=''; stop_signal=TERM; stop_status=143
-    main --self-test ) > "$after_dir.out" 2>&1
+  # shellcheck disable=SC2016
+  sh -c 'set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT; after_ran=$1
+    cases() { : > "$after_ran"; }
+    gate_traps() { trap gate_exit EXIT; stop_signal=TERM; stop_status=143; }
+    main --self-test' "$DIR/mutation-test.sh" "$after_dir/ran" > "$after_dir.out" 2>&1
   after_status=$?
   [ ! -e "$after_dir/ran" ] || { printf 'the self-test ran its cases after a recorded signal\n'; return 1; }
   [ "$after_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$after_status"; return 1; }
@@ -2630,9 +2638,8 @@ main() {
     shift
   done
   if [ "$mode" = self-test ] && [ "$main_help" = no ] && [ -z "$main_bad" ]; then
-    [ -z "$stop_signal" ] || exit "$stop_status"
     gate_traps
-    [ -z "$stop_signal" ] || exit "$stop_status"
+    stop_quiet
     selftest_run
     return
   fi
