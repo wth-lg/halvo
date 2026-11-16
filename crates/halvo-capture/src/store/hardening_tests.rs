@@ -4683,6 +4683,7 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
     let mut replaced = 0;
     let mut refused = 0;
     let mut destroyed_by_a_refused_create = Vec::new();
+    let mut winner_root_not_listed = Vec::new();
     for round in 0..ROUNDS {
         let dir = tempfile::tempdir().unwrap();
         let roots_dir = dir.path().join("roots");
@@ -4718,6 +4719,16 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
                 }
                 continue;
             }
+            let root_name = format!("{root_id}.root");
+            let listed = std::fs::read_dir(&roots_dir).is_ok_and(|entries| {
+                entries.filter_map(Result::ok).any(|entry| {
+                    entry.file_name().to_str() == Some(root_name.as_str())
+                        && entry.file_type().is_ok_and(|kind| kind.is_file())
+                })
+            });
+            if !listed {
+                winner_root_not_listed.push(round);
+            }
             let reopened = EncryptedStore::open_with(
                 &store_dir,
                 &crate::store::roots::roots_for_store(&store_dir),
@@ -4743,6 +4754,12 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
          did not make: {} of {refused} refused creates in {ROUNDS} rounds (round, answer, calls): \
          {destroyed_by_a_refused_create:?}",
         destroyed_by_a_refused_create.len()
+    );
+    assert!(
+        winner_root_not_listed.is_empty(),
+        "in {} of {ROUNDS} rounds the roots directory, read itself, holds no root file of the \
+         create that returned Ok (rounds {winner_root_not_listed:?}; ruling S-96 item 4)",
+        winner_root_not_listed.len()
     );
     assert!(
         missing.is_empty(),
