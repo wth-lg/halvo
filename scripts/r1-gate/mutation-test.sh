@@ -87,10 +87,12 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   for s), and a row outside the kept build on a file that a build decides: the
   build script that the build key of a Cargo.toml names, a file that a build
   script names by a literal rerun-if-changed path, or native code (C, C++,
-  Objective-C, assembly, a linker script, a definition or a resource file).
-  A row outside the kept build that it applies is refused when a line that
-  the substitution changes is in an extern block or is a link, link_name,
-  no_mangle, export_name, link_section or used attribute. Limits: a build
+  Objective-C, assembly, a linker script, a definition or a resource file),
+  each matched in any ASCII case; a retired row is not refused. A row
+  outside the kept build that it applies is refused when a line that the
+  substitution changes is in an extern block (its brace on the same or the
+  next line) or in an attribute, over one or more lines, that names link,
+  link_name, no_mangle, export_name, link_section or used (cfg_attr too). Limits: a build
   script that computes its rerun-if-changed path, an include! of a file that a
   build script generates, and a fault that only monomorphization or code
   generation finds are not seen.
