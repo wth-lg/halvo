@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,66 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 35-r6-outcomes 30-r6-table 15-r3-test-dirs 16-shell-lint
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 35-r6-outcomes 30-r6-table 15-r3-test-dirs 16-shell-lint
+      - name: Count loop of U0.2c (scratch)
+        shell: bash
+        run: |
+          set +e -u
+          runs=${LOOP_RUNS:-200}
+          set -- another_models_cell_short_of_an_attempt_line_is_refused_at_its_drive_line \
+            another_models_attempt_lines_with_no_drive_line_are_refused_at_the_first_of_them \
+            another_models_drive_line_with_no_attempt_line_is_refused_at_it \
+            a_cell_with_two_drive_lines_is_refused_at_the_first_and_of_two_broken_cells_the_smaller_line_is_named \
+            another_models_write_line_with_no_reply_line_is_refused_at_it \
+            another_models_reply_line_with_no_write_line_is_refused_at_it \
+            a_drive_line_after_a_space_or_with_its_keys_in_another_order_is_no_counted_line \
+            a_model_that_is_neither_driver_nor_writer_with_compile_lines_alone_is_refused_at_the_first \
+            the_count_comes_after_the_gap_the_set_and_the_verdicts_lines \
+            the_order_cases_with_their_earlier_fault_mended_and_a_bad_cells_file_are_refused_at_the_count \
+            the_reply_count_holds_per_model_machine_and_seed \
+            a_writer_with_a_bill_compile_line_and_no_drive_line_is_refused_at_that_line
+          built=$(cargo test --locked -p halvo-route-gate --test import_rules --no-run 2>&1)
+          echo "cargo exit=$?"
+          bin=$(printf '%s\n' "$built" | sed -n 's/^ *Executable tests.import_rules\.rs (\(.*\))$/\1/p' | tr '\134' '/')
+          if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+            printf '%s\n' "$built"
+            echo "loop: no import_rules test binary"
+            exit 1
+          fi
+          total=$("$bin" --list 2>/dev/null | grep -c ': test$')
+          echo "loop: import_rules holds $total tests"
+          start=$(date +%s)
+          count=0
+          failing=0
+          for name in "$@"; do
+            count=$((count + 1))
+            passes=0
+            i=0
+            while [ "$i" -lt "$runs" ]; do
+              i=$((i + 1))
+              out=$("$bin" --exact "$name" --test-threads 1 2>&1)
+              case $out in
+                *"running 1 test"*"test $name ... ok"*"test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; $((total - 1)) filtered out"*)
+                  passes=$((passes + 1)) ;;
+                *) printf 'loop: run %s of %s did not pass:\n%s\n' "$i" "$name" "$out" ;;
+              esac
+            done
+            printf 'loop %s passes=%s of %s\n' "$name" "$passes" "$runs"
+            if [ "$passes" -ne "$runs" ]; then
+              failing=$((failing + 1))
+            fi
+          done
+          printf 'loop names=%s failing=%s runs=%s seconds=%s\n' "$count" "$failing" "$runs" "$(($(date +%s) - start))"
+          if [ "$count" -ne 12 ] || [ "$failing" -ne 0 ]; then
+            exit 1
+          fi
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +202,66 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 35-r6-outcomes 30-r6-table 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 35-r6-outcomes 30-r6-table 15-r3-test-dirs
+      - name: Count loop of U0.2c (scratch)
+        shell: bash
+        run: |
+          set +e -u
+          runs=${LOOP_RUNS:-200}
+          set -- another_models_cell_short_of_an_attempt_line_is_refused_at_its_drive_line \
+            another_models_attempt_lines_with_no_drive_line_are_refused_at_the_first_of_them \
+            another_models_drive_line_with_no_attempt_line_is_refused_at_it \
+            a_cell_with_two_drive_lines_is_refused_at_the_first_and_of_two_broken_cells_the_smaller_line_is_named \
+            another_models_write_line_with_no_reply_line_is_refused_at_it \
+            another_models_reply_line_with_no_write_line_is_refused_at_it \
+            a_drive_line_after_a_space_or_with_its_keys_in_another_order_is_no_counted_line \
+            a_model_that_is_neither_driver_nor_writer_with_compile_lines_alone_is_refused_at_the_first \
+            the_count_comes_after_the_gap_the_set_and_the_verdicts_lines \
+            the_order_cases_with_their_earlier_fault_mended_and_a_bad_cells_file_are_refused_at_the_count \
+            the_reply_count_holds_per_model_machine_and_seed \
+            a_writer_with_a_bill_compile_line_and_no_drive_line_is_refused_at_that_line
+          built=$(cargo test --locked -p halvo-route-gate --test import_rules --no-run 2>&1)
+          echo "cargo exit=$?"
+          bin=$(printf '%s\n' "$built" | sed -n 's/^ *Executable tests.import_rules\.rs (\(.*\))$/\1/p' | tr '\134' '/')
+          if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+            printf '%s\n' "$built"
+            echo "loop: no import_rules test binary"
+            exit 1
+          fi
+          total=$("$bin" --list 2>/dev/null | grep -c ': test$')
+          echo "loop: import_rules holds $total tests"
+          start=$(date +%s)
+          count=0
+          failing=0
+          for name in "$@"; do
+            count=$((count + 1))
+            passes=0
+            i=0
+            while [ "$i" -lt "$runs" ]; do
+              i=$((i + 1))
+              out=$("$bin" --exact "$name" --test-threads 1 2>&1)
+              case $out in
+                *"running 1 test"*"test $name ... ok"*"test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; $((total - 1)) filtered out"*)
+                  passes=$((passes + 1)) ;;
+                *) printf 'loop: run %s of %s did not pass:\n%s\n' "$i" "$name" "$out" ;;
+              esac
+            done
+            printf 'loop %s passes=%s of %s\n' "$name" "$passes" "$runs"
+            if [ "$passes" -ne "$runs" ]; then
+              failing=$((failing + 1))
+            fi
+          done
+          printf 'loop names=%s failing=%s runs=%s seconds=%s\n' "$count" "$failing" "$runs" "$(($(date +%s) - start))"
+          if [ "$count" -ne 12 ] || [ "$failing" -ne 0 ]; then
+            exit 1
+          fi
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
