@@ -970,10 +970,6 @@ fn debt_refused<C>(
             }
             true
         }
-        Some(Class::One | Class::Whole) => {
-            board.refused(agent);
-            false
-        }
         _ => false,
     }
 }
