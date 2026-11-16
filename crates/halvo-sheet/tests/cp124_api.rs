@@ -75,7 +75,7 @@ fn a_name_over_the_bound_is_refused_as_too_long_and_the_bound_reads_the_builders
         "the checkpoint and its removing name"
     );
     let checkpoint = OsStr::new("x.halvo-checkpoint-0123456789abcdef0123456789abcdef.xlsx");
-    let moved = removing_name(checkpoint, u64::MAX);
+    let moved = removing_name(checkpoint);
     assert_eq!(name_units(&moved), name_units(checkpoint) + 32);
     assert_eq!(NAME_MAX, 255);
 }

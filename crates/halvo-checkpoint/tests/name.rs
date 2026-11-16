@@ -4,7 +4,9 @@ use std::ffi::OsString;
 use std::path::Path;
 
 use common::RUN;
-use halvo_checkpoint::{checkpoint_name, own_name, RunId, Sha256, FILE_MAX};
+use halvo_checkpoint::{
+    checkpoint_name, name_units, own_name, removing_name, RunId, Sha256, FILE_MAX,
+};
 
 fn run() -> RunId {
     RunId::parse(RUN).expect("a run id")
@@ -105,4 +107,21 @@ fn a_digest_is_the_sha256_of_the_bytes_and_its_hex_reads_back() {
 #[test]
 fn the_bound_of_a_file_is_64_mib() {
     assert_eq!(FILE_MAX, 67_108_864);
+}
+
+/// U2.4 (2): one removing name for each checkpoint, built from its name alone, 32 units longer.
+#[test]
+fn the_removing_name_is_the_checkpoints_name_and_16_hex_digits_of_its_sha256() {
+    let checkpoint = checkpoint_name(Path::new("values.xlsx"), &run()).expect("a name");
+    let other = checkpoint_name(Path::new("budget.xlsx"), &run()).expect("a name");
+    let digest = Sha256::of(checkpoint.as_encoded_bytes()).hex();
+    let mut want = checkpoint.clone();
+    want.push(format!(".halvo-removing-{}", &digest[..16]));
+    assert_eq!(removing_name(&checkpoint), want);
+    assert_eq!(removing_name(&checkpoint), removing_name(&checkpoint));
+    assert_ne!(removing_name(&checkpoint), removing_name(&other));
+    assert_eq!(
+        name_units(&removing_name(&checkpoint)),
+        name_units(&checkpoint) + 32
+    );
 }

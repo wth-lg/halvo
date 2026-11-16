@@ -570,7 +570,7 @@ mod tests {
         for units in 168..=180usize {
             let workbook = PathBuf::from(format!("dir/{}.xlsx", "a".repeat(units - 5)));
             let checkpoint = checkpoint_name(&workbook, &run).expect("a checkpoint name");
-            let removing = halvo_checkpoint::removing_name(&checkpoint, u64::MAX);
+            let removing = halvo_checkpoint::removing_name(&checkpoint);
             let prepared = prepared_name(&workbook, &run, &own_part(u64::MAX), &Sha256::of(&[]));
             let longest = [
                 name_units(&checkpoint),

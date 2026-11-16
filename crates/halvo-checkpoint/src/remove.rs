@@ -2,7 +2,6 @@ use std::ffi::OsStr;
 use std::fs::{File, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::at::Dir;
 use crate::identity::{same_file, unchanged, FileId};
@@ -125,12 +124,17 @@ pub enum Undecided {
 /// is a link, and the copy is a regular file and no link; the directory holds an entry whose
 /// own name is the built name byte for byte; and the copy's length and SHA-256, read under the
 /// bound of a file, are the row's ([`Expect::Made`]) or the workbook's as it stands
-/// ([`Expect::Planned`]). It then moves the copy aside under [`removing_name`], checks that the
-/// moved entry is the file that it read with the same SHA-256, and removes it; when that check
-/// misses or the removal fails, it puts the file back under its own name. A copy that is
-/// absent counts as removed. Every other miss leaves the file and answers its reason, which is
-/// never a run's failure. It removes no checkpoint of a run that has not ended: the caller
-/// calls it only for a run whose end is stored.
+/// ([`Expect::Planned`]). It then moves the copy aside under [`removing_name`], one name for
+/// each checkpoint, checks that the moved entry is the file that it read with the same SHA-256,
+/// and removes it; when that check misses or the removal fails, it puts the file back under its
+/// own name. Before it looks at the copy, it deals with what a call killed between the move
+/// aside and the removal left under that name: a file that passes every check of the copy
+/// goes, and so does a second name of the copy itself; any other entry stays, and when the
+/// copy's own name then holds no entry, the answer is that entry's reason as `left`, so that no
+/// answer is `gone` while the bytes lie in the folder. A copy that is absent counts as
+/// removed. Every other miss leaves the file and answers its reason, which is never a run's
+/// failure. It removes no checkpoint of a run that has not ended: the caller calls it only for
+/// a run whose end is stored.
 pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
     let (dir, last) = match place(row.folder, row.workbook) {
         Ok(place) => place,
@@ -139,19 +143,76 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
     let Some(name) = checkpoint_name(Path::new(last), row.run) else {
         return Ok(Removal::Left(Left::NotFile));
     };
+    let moved = removing_name(&name);
     let held = locks.hold(&dir).map_err(Undecided::Lock)?;
     let answer = match opened_dir(row, &dir) {
-        Ok(at) => match checked(&at, &name, last, row.expect) {
-            Ok((file, seen, read)) => {
-                drop(file);
-                aside(&at, &name, &seen, read)
-            }
+        Ok(at) => match leftover(&at, &name, &moved, last, row.expect) {
             Err(answer) => Ok(answer),
+            Ok(finished) => match checked(&at, &name, last, row.expect) {
+                Ok((file, seen, read)) => {
+                    drop(file);
+                    aside(&at, &name, &moved, &seen, read)
+                }
+                Err(Removal::Absent) if finished => Ok(Removal::Removed),
+                Err(answer) => Ok(answer),
+            },
         },
         Err(answer) => Ok(answer),
     };
     drop(held);
     answer
+}
+
+/// What a pass killed between the move aside and the removal left under the removing name
+/// `moved`, dealt with before the pass looks at the copy. Nothing there, or a second name of the
+/// copy (the file that stands under the copy's own name, which a put back killed after its
+/// link leaves), which goes: `Ok(false)`. A file that passes every check of the copy goes, and
+/// `Ok(true)` says that the pass removed the copy. Any other entry stays: when no entry stands
+/// under the copy's own name, the answer is that entry's reason as `left`, so that no row says
+/// `gone` while its bytes lie in the folder; when one stands, the pass goes on with `Ok(false)`
+/// and its move aside meets the entry.
+fn leftover(
+    at: &Dir,
+    name: &OsStr,
+    moved: &OsStr,
+    workbook: &OsStr,
+    expect: Expect,
+) -> Result<bool, Removal> {
+    let found = match opened(at, moved) {
+        Err(Removal::Absent) => return Ok(false),
+        Err(answer) => return stays(at, name, answer),
+        Ok((_, _, found)) => found,
+    };
+    match own_entry(at, moved) {
+        Ok(true) => {}
+        Ok(false) => return stays(at, name, Removal::Left(Left::Name)),
+        Err(answer) => return stays(at, name, answer),
+    }
+    if let Ok((_, _, copy)) = opened(at, name) {
+        if same_file(&found, &copy) {
+            let _ = at.unlink(moved);
+            return Ok(false);
+        }
+    }
+    match checked(at, moved, workbook, expect) {
+        Ok((file, seen, _)) if same_file(&found, &seen) => {
+            drop(file);
+            match at.unlink(moved) {
+                Ok(()) => Ok(true),
+                Err(_) => stays(at, name, Removal::Left(Left::Unreadable)),
+            }
+        }
+        Ok(_) => stays(at, name, Removal::Left(Left::Changed)),
+        Err(Removal::Absent) => Ok(false),
+        Err(answer) => stays(at, name, answer),
+    }
+}
+
+fn stays(at: &Dir, name: &OsStr, answer: Removal) -> Result<bool, Removal> {
+    match opened(at, name) {
+        Err(Removal::Absent) => Err(answer),
+        _ => Ok(false),
+    }
 }
 
 fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Removal> {
@@ -236,28 +297,29 @@ fn checked(
     Ok((file, id, (sha256, bytes)))
 }
 
-static ASIDE: AtomicU64 = AtomicU64::new(0);
-
-fn aside(at: &Dir, name: &OsStr, seen: &FileId, held: (Sha256, u64)) -> Result<Removal, Undecided> {
-    let count = ASIDE.fetch_add(1, Ordering::Relaxed) & 0xffff_ffff;
-    let own = (u64::from(std::process::id()) << 32) | count;
-    let moved = removing_name(name, own);
-    match at.rename_new(name, &moved) {
+fn aside(
+    at: &Dir,
+    name: &OsStr,
+    moved: &OsStr,
+    seen: &FileId,
+    held: (Sha256, u64),
+) -> Result<Removal, Undecided> {
+    match at.rename_new(name, moved) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Removal::Absent),
         Err(error) => return Err(Undecided::Remove(error.kind())),
     }
-    let still = opened(at, &moved).is_ok_and(|(file, _, now)| {
+    let still = opened(at, moved).is_ok_and(|(file, _, now)| {
         same_file(seen, &now) && digest::read(&file, FILE_MAX).is_ok_and(|read| read == held)
     });
     if !still {
-        put_back(at, &moved, name);
+        put_back(at, moved, name);
         return Ok(Removal::Left(Left::Changed));
     }
-    match at.unlink(&moved) {
+    match at.unlink(moved) {
         Ok(()) => Ok(Removal::Removed),
         Err(error) => {
-            put_back(at, &moved, name);
+            put_back(at, moved, name);
             Err(Undecided::Remove(error.kind()))
         }
     }
@@ -334,7 +396,7 @@ mod tests {
         fs::write(dir.join("person.xlsx"), bytes).expect("a file of the same bytes");
         fs::rename(dir.join("person.xlsx"), dir.join(name)).expect("swap it in");
         let held = (Sha256::of(bytes), bytes.len() as u64);
-        let answer = aside(&at, name, &seen, held);
+        let answer = aside(&at, name, &removing_name(name), &seen, held);
         assert_eq!(answer, Ok(Removal::Left(Left::Changed)));
         assert_eq!(
             fs::read(dir.join(name)).expect("the swapped file stays"),
@@ -365,7 +427,8 @@ mod tests {
         let (file, _, seen) = opened(&at, name).expect("opened");
         drop(file);
         let held = (Sha256::of(bytes), bytes.len() as u64);
-        assert_eq!(aside(&at, name, &seen, held), Ok(Removal::Removed));
+        let moved = removing_name(name);
+        assert_eq!(aside(&at, name, &moved, &seen, held), Ok(Removal::Removed));
         assert_eq!(
             fs::read(outside.join(name)).expect("the outside file stays"),
             bytes

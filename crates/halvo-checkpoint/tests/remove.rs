@@ -100,6 +100,62 @@ fn an_absent_file_counts_as_removed() {
     assert_eq!(Removal::Removed.state(), "gone");
 }
 
+/// The removing name of the checkpoint `checkpoint` as the crate documents it: the name, then
+/// `.halvo-removing-` and the first 16 hex digits of the SHA-256 of the name.
+fn removing(checkpoint: &str) -> String {
+    let digest = Sha256::of(checkpoint.as_bytes()).hex();
+    format!("{checkpoint}.halvo-removing-{}", &digest[..16])
+}
+
+/// U2.4 (2): a kill between the move aside and the unlink leaves the copy under its removing
+/// name. A later pass finishes the removal when the file there holds the row's bytes, removes
+/// that name alone when it is a second name of the copy, and otherwise leaves the file and
+/// answers `left`: no answer is `gone` while the bytes lie in the folder.
+#[test]
+fn a_copy_that_a_killed_pass_left_under_its_removing_name_is_finished_or_reported() {
+    let scratch = Scratch::new("remove-killed-aside");
+    let workbook = scratch.path("folder/values.xlsx");
+    let name = copy_name("values.xlsx");
+    let moved = scratch.path("folder").join(removing(&name));
+    let only_the_workbook = vec!["values.xlsx".to_string()];
+
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    fs::rename(&copy, &moved).expect("the state that a kill after the move aside leaves");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Removed), "the later pass finishes it");
+    assert_eq!(scratch.names("folder"), only_the_workbook);
+
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    fs::hard_link(&copy, &moved).expect("the second name that a kill in the put back leaves");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Removed), "a second name of the copy");
+    assert_eq!(scratch.names("folder"), only_the_workbook);
+
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    fs::copy(&copy, &moved).expect("a file of the row's bytes under the removing name");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Removed), "both files of the row's bytes");
+    assert_eq!(scratch.names("folder"), only_the_workbook);
+
+    let theirs = b"other bytes than the row's";
+    fs::write(&moved, theirs).expect("other bytes under the removing name");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Left(Left::Changed)), "other bytes");
+    assert_eq!(fs::read(&moved).expect("the file stays"), theirs);
+
+    let outside = scratch.write("outside/kept.xlsx", COPY);
+    fs::rename(&moved, scratch.path("folder/theirs.xlsx")).expect("move it away");
+    link_file(&outside, &moved);
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(
+        got,
+        Ok(Removal::Left(Left::Link)),
+        "a link under the removing name"
+    );
+    assert_eq!(fs::read(&outside).expect("the file outside stays"), COPY);
+    assert!(fs::symlink_metadata(&moved).is_ok(), "the link stays");
+}
+
 #[test]
 fn a_link_on_the_way_or_in_the_place_of_the_checkpoint_leaves_the_file() {
     let scratch = Scratch::new("remove-link");
