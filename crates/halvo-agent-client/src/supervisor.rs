@@ -348,7 +348,9 @@ impl Supervisor {
             .arg("--mode")
             .arg(spec.mode.as_str())
             .arg("--browser")
-            .arg(&spec.browser);
+            .arg(&spec.browser)
+            .arg("--utc-offset")
+            .arg(spec.utc_offset_s.to_string());
         if let Some(model) = &spec.model {
             cmd.arg("--model").arg(model);
         }
@@ -1070,6 +1072,7 @@ mod tests {
                 browser: root.join("script"),
                 model: None,
                 headed: false,
+                utc_offset_s: 0,
             };
             let answer = sup.start(spec);
             assert!(
