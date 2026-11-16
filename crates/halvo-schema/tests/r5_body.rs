@@ -475,6 +475,12 @@ fn filled(len: usize, entry: &str) -> (String, usize) {
     (line, entries)
 }
 
+fn outside(line: &str) -> [String; 2] {
+    let pad: String = line.chars().filter(|c| WHITE_SPACE.contains(c)).collect();
+    let compact = line.replace(WHITE_SPACE, "");
+    [format!("{pad}{compact}"), format!("{compact}{pad}")]
+}
+
 fn read(line: &str) -> Result<usize, Want> {
     Refinements::parse(line.as_bytes())
         .map(|reply| reply.refinements.len())
@@ -491,6 +497,14 @@ fn a_reply_that_white_space_takes_past_the_bound_is_refused_before_it_is_read() 
     assert_eq!(read(&line), Err(("Refinements", None, "reply_bytes")));
     let unread = format!("{}x", &line[..CHECKPOINTS_REPLY_MAX]);
     assert_eq!(read(&unread), Err(("Refinements", None, "reply_bytes")));
+    for moved in outside(&line) {
+        assert_eq!(moved.len(), CHECKPOINTS_REPLY_MAX + 1);
+        assert_eq!(read(&moved), Err(("Refinements", None, "reply_bytes")));
+    }
+    let wide = String::from(char::from(0xe9_u8)).repeat(CHECKPOINTS_REPLY_MAX / 2 + 1);
+    assert!(wide.len() > CHECKPOINTS_REPLY_MAX);
+    assert!(wide.chars().count() <= CHECKPOINTS_REPLY_MAX);
+    assert_eq!(read(&wide), Err(("Refinements", None, "reply_bytes")));
 }
 
 #[test]
@@ -520,5 +534,9 @@ fn a_reply_of_exactly_the_bound_with_white_space_or_escapes_is_read() {
         let refinements = reply.unwrap().refinements;
         assert_eq!(refinements.len(), entries);
         assert!(refinements.iter().all(|r| *r == learned), "{entry}");
+        for moved in outside(&line) {
+            assert_eq!(moved.len(), CHECKPOINTS_REPLY_MAX);
+            assert_eq!(read(&moved), Ok(entries), "{entry}");
+        }
     }
 }
