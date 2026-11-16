@@ -910,9 +910,9 @@ fn rd116_r4_only_rejected_and_committed_effects_give_entries() {
     with_cause.cause = Some(Name::parse("ended").unwrap());
     let c = beside_a_good_run(with_cause);
     assert_eq!(
-        keys(&c, 0)[1],
-        "run.effect.payment",
-        "a committed row with a cause"
+        keys(&c, 0),
+        ["run.effect.payment"; 3],
+        "a committed row with a cause keeps its entry"
     );
 }
 
