@@ -4440,11 +4440,21 @@ fn a_round_whose_reply_comes_after_its_wait_is_not_driven() {
         "{line}"
     );
     assert!(line.contains(" rv=notdriven "), "{line}");
-    let (verdict, held, failed, not_driven) = three_way_verdict(&[round]);
+    let rounds = [round];
+    let (verdict, held, failed, not_driven) = three_way_verdict(&rounds);
     assert_eq!(
         (verdict, held, failed, not_driven),
         ("failed", 0, 0, 1),
         "a return phase whose every round was not driven fails"
+    );
+    let judged = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+        || judge_three_ways("stand-in-late", &rounds),
+    )));
+    assert!(
+        judged
+            .as_deref()
+            .is_some_and(|text| text.contains("every round of the phase was not driven")),
+        "{judged:?}"
     );
 }
 
