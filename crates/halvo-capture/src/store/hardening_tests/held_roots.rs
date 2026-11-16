@@ -208,3 +208,193 @@ fn a_root_file_renamed_inside_the_held_roots_directory_is_destroyed_where_it_lie
         assert_eq!(delete_report(&answer).root, RootReading::Destroyed);
     }
 }
+
+fn identity_json(path: &Path) -> String {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::symlink_metadata(path).unwrap();
+    format!("{{\"volume\":{},\"file\":{}}}", meta.dev(), meta.ino())
+}
+
+fn write_made_mark(store_dir: &Path, root_id: RootId, root_file: Option<&Path>) {
+    let identity = root_file.map_or_else(String::new, |path| {
+        format!(",\"root_file\":{}", identity_json(path))
+    });
+    std::fs::write(
+        store_dir.join("create.pending"),
+        format!(
+            "{{\"custody_kind\":\"dpapi\",\"root_id\":\"{root_id}\",\"reading\":\"made\"{identity}}}"
+        ),
+    )
+    .unwrap();
+}
+
+/// A create in `dir` stopped after the second write of its mark and before
+/// its key file, as a process that stops there.
+fn a_create_stopped_after_its_made_mark(dir: &Path) -> (PathBuf, PathBuf, RootId) {
+    let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _seam = crate::store::failpoint::at(crate::store::db::SEAM_AFTER_THE_ROOT, || {
+            panic!("STOP the create stops after its made mark, before its key file")
+        });
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).map(drop)
+    }));
+    assert!(stopped.is_err(), "the create did not stop at its seam");
+    assert!(!store_dir.join("store.key").exists());
+    assert!(roots_dir.join(format!("{root_id}.root")).exists());
+    (store_dir, roots_dir, root_id)
+}
+
+/// The root file of a stopped create moved out of the roots directory, and a
+/// file of another identity, of the root file's length, put at its name.
+fn replace_the_root_file(dir: &Path, roots_dir: &Path, root_id: RootId) -> PathBuf {
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    std::fs::rename(&root_file, dir.join("moved-out-of-the-roots")).unwrap();
+    std::fs::write(&root_file, [0x44u8; 32]).unwrap();
+    root_file
+}
+
+#[test]
+fn an_opens_cleanup_leaves_the_root_that_store_key_names_under_the_name_of_the_marks_root() {
+    for mark in ["no identity", "the identity of the live root file"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+        let root_id = RootId::fresh().unwrap();
+        let mut store = EncryptedStore::create(
+            &store_dir,
+            Box::new(DevFallbackCustody::new(root_id, roots_dir.clone())),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        let (segment, _) = store
+            .write_segment(&mut Cursor::new(b"typed errors"))
+            .unwrap();
+        drop(store);
+        let marked = RootId::fresh().unwrap();
+        let live = roots_dir.join(format!("{root_id}.root"));
+        std::fs::hard_link(&live, roots_dir.join(format!("{marked}.root"))).unwrap();
+        write_made_mark(
+            &store_dir,
+            marked,
+            (mark != "no identity").then_some(live.as_path()),
+        );
+
+        let opened = EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION).map(drop);
+        let reads = EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION).map(|store| {
+            store
+                .read_segment(segment.segment_id, &mut Vec::new())
+                .is_ok()
+        });
+        println!("PERSON14 mark={mark:?} first_open={opened:?} reopen_reads={reads:?}");
+        assert!(opened.is_ok(), "{mark}: {opened:?}");
+        assert!(
+            matches!(reads, Ok(true)),
+            "{mark}: the open's cleanup destroyed the root that store.key names, which stood \
+             under the name of the mark's root: {reads:?}"
+        );
+    }
+}
+
+#[test]
+fn a_made_mark_records_the_identity_of_the_root_file_that_the_create_made() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    let mark: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(store_dir.join("create.pending")).unwrap()).unwrap();
+    let expected: serde_json::Value =
+        serde_json::from_str(&identity_json(&roots_dir.join(format!("{root_id}.root")))).unwrap();
+    println!(
+        "MARK reading={} records_the_root_file={}",
+        mark["reading"],
+        mark["root_file"] == expected
+    );
+    assert_eq!(mark["reading"], "made");
+    assert_eq!(
+        mark["root_file"], expected,
+        "the made mark records no identity of its root file"
+    );
+}
+
+#[test]
+fn a_tail_without_the_lock_leaves_a_file_of_another_identity_at_the_marks_root_name_and_names_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    let root_file = replace_the_root_file(dir.path(), &roots_dir, root_id);
+    crate::store::failpoint::arm("tail_lock");
+
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+
+    let stands = std::fs::read(&root_file).ok().as_deref() == Some(&[0x44u8; 32][..]);
+    let report = delete_report(&answer);
+    let named = report.roots.names.contains(&format!("{root_id}.root"));
+    println!(
+        "MARK-TAIL-NO-LOCK {} other_identity_stands={stands} named={named}",
+        answer_line(&answer)
+    );
+    assert!(
+        stands,
+        "the mark destroyed a file of another identity at its root's name: {}",
+        answer_line(&answer)
+    );
+    assert!(answer.is_err() && named, "{}", answer_line(&answer));
+    assert_eq!(report.root, RootReading::Left(Some(root_id)));
+}
+
+#[test]
+fn a_tail_reads_the_marks_root_left_when_only_a_file_of_another_identity_stands_at_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    replace_the_root_file(dir.path(), &roots_dir, root_id);
+
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let next = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+
+    println!(
+        "MARK-TAIL-SWEEP {} next={}",
+        answer_line(&answer),
+        answer_line(&next)
+    );
+    assert!(
+        answer.is_err(),
+        "Ok over the mark's root file, which was moved out of the roots directory: {}",
+        answer_line(&answer)
+    );
+    assert_eq!(
+        delete_report(&answer).root,
+        RootReading::Left(Some(root_id))
+    );
+    assert!(
+        root_files_in(&roots_dir).is_empty(),
+        "the sweep left a root file"
+    );
+    assert!(next.is_ok(), "{}", answer_line(&next));
+    assert_eq!(delete_report(&next).root, RootReading::Unnamed);
+}
+
+#[test]
+fn a_creates_cleanup_by_a_made_mark_leaves_a_file_of_another_identity_at_the_marks_root_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    let root_file = replace_the_root_file(dir.path(), &roots_dir, root_id);
+    let next_id = RootId::fresh().unwrap();
+
+    let created = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            next_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+
+    let stands = std::fs::read(&root_file).ok().as_deref() == Some(&[0x44u8; 32][..]);
+    println!("MARK-CREATE created={created:?} other_identity_stands={stands}");
+    assert!(created.is_ok(), "{created:?}");
+    assert!(
+        stands,
+        "the create's cleanup by the mark destroyed a file of another identity at its root's name"
+    );
+}

@@ -1026,15 +1026,33 @@ fn the_tail_beside_a_key_file_of_version_1_sweeps_the_roots_and_the_next_tail_re
 
 /// H1: for the tail a mark that reads owed names no root, and the sweep
 /// destroys that root file with the rest; a mark that reads made names its
-/// root, which reads destroyed.
+/// root, which reads destroyed; from store-3b a made mark without the
+/// identity of its root file reads owed.
 #[test]
 fn the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_destroyed() {
-    for (reading, expected) in [("owed", "unknown"), ("made", "yes")] {
+    for (reading, expected) in [
+        ("owed", "unknown"),
+        ("made", "yes"),
+        ("made without the identity of its root file", "unknown"),
+    ] {
         let dir = tempfile::tempdir().unwrap();
         let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
         std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
         let marked = put_a_root(&roots_dir);
-        write_mark(&store_dir, marked, reading);
+        write_mark(&store_dir, marked, reading.split(' ').next().unwrap());
+        if reading == "made" {
+            use std::os::unix::fs::MetadataExt;
+            let meta = std::fs::metadata(roots_dir.join(format!("{marked}.root"))).unwrap();
+            std::fs::write(
+                store_dir.join("create.pending"),
+                format!(
+                    "{{\"custody_kind\":\"dev_fallback\",\"root_id\":\"{marked}\",\"reading\":\"made\",\"root_file\":{{\"volume\":{},\"file\":{}}}}}",
+                    meta.dev(),
+                    meta.ino()
+                ),
+            )
+            .unwrap();
+        }
         let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
         println!("ST45 H1 mark={reading} {}", report_line(&answer));
         assert!(answer.is_ok(), "{reading}: {}", report_line(&answer));
