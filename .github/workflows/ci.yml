@@ -100,6 +100,38 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Unit 5.6 tests in a loop (P7-115 Addition 1, 21-r7-backend-test through the driver, 40 rounds by the coordinator, with the drawn test's seconds)
+        if: always()
+        shell: bash
+        env:
+          LOOP_N: "40"
+        run: |
+          set +e
+          title="${DRAWN_TITLE:-the drawn test, seed 115}"
+          start=$(date +%s)
+          pass=0
+          failed=0
+          round=0
+          secs_file=$(mktemp)
+          while [ "$round" -lt "$LOOP_N" ]; do
+            round=$((round + 1))
+            out=$(sh scripts/ci/run-ci-d.sh macos 21-r7-backend-test 2>&1)
+            drawn=$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));let f=null;for(const t of r.testResults)for(const a of t.assertionResults)if(t.name.endsWith("test/metering/p7-115.node.test.ts")&&a.title.startsWith(process.argv[2]))f=a;console.log(f===null?"missing -":f.status+" "+(f.duration/1000).toFixed(3))' target/ci-artifacts/21-r7-backend-test/vitest.json "$title" 2>/dev/null || echo "unreadable -")
+            status=${drawn% *}
+            seconds=${drawn#* }
+            if printf '%s\n' "$out" | grep -qx 'PASS 21-r7-backend-test' && [ "$status" = passed ]; then
+              pass=$((pass + 1))
+              echo "round $round passed: drawn test $seconds s"
+            else
+              failed=$((failed + 1))
+              echo "round $round failed: drawn test $status $seconds s; $(printf '%s\n' "$out" | grep -E '^(FAIL|exit=)' | head -n 2 | tr '\n' ' ')"
+            fi
+            [ "$seconds" = - ] || printf '%s\n' "$seconds" >> "$secs_file"
+          done
+          summary=$(sort -n "$secs_file" | awk 'NF { v[++n] = $1; if ($1 > 20) over++ } END { if (n == 0) { print "measured=0"; exit } m = (n % 2) ? v[(n + 1) / 2] : (v[n / 2] + v[n / 2 + 1]) / 2; printf "measured=%d largest=%.3f median=%.3f over-20s=%d\n", n, v[n], m, over + 0 }')
+          echo "unit 5.6 loop: 21-r7-backend-test runs=$LOOP_N passed=$pass failed=$failed seconds=$(($(date +%s) - start))"
+          echo "unit 5.6 loop: the drawn test's seconds (the test runner's own duration, from vitest.json of each round): $summary"
+          [ "$pass" = "$LOOP_N" ] && case "$summary" in *" over-20s=0") true ;; *) false ;; esac
       - name: Build
         shell: bash
         run: npm run tauri build
