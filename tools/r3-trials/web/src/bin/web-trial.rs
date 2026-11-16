@@ -322,6 +322,7 @@ fn port_free(port: u16) -> bool {
 }
 
 fn main() -> ExitCode {
+    r3_web::procs::fence::from_env();
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if let Some(spec) = argv.iter().find_map(|a| a.strip_prefix(EGRESS_WRAP_FLAG)) {
         return egress_wrap(spec, &argv);
@@ -1551,6 +1552,24 @@ mod driver {
     #[cfg(test)]
     mod org_tests {
         use super::*;
+
+        /// CP-190 (4), `sh_path`: the path that the egress check's shell is given, with `/` for
+        /// `\` and, on Windows, a drive letter as a root directory of its own.
+        #[test]
+        fn sh_path_maps_a_drive_letter_to_a_root_directory() {
+            if cfg!(windows) {
+                assert_eq!(
+                    sh_path(Path::new(r"C:\Program Files\x\y.exe")),
+                    "/c/Program Files/x/y.exe"
+                );
+                assert_eq!(sh_path(Path::new(r"D:\a")), "/d/a");
+                assert_eq!(sh_path(Path::new(r"rel\x")), "rel/x");
+                assert_eq!(sh_path(Path::new("C:")), "C:");
+            } else {
+                assert_eq!(sh_path(Path::new("/a/b c")), "/a/b c");
+                assert_eq!(sh_path(Path::new(r"C:\a")), "C:/a");
+            }
+        }
 
         fn ctx() -> (Ctx, tokio::sync::watch::Sender<bool>) {
             ctx_of("chrome", "mac")

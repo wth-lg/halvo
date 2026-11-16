@@ -400,11 +400,18 @@ uses them, and `hard_kill` in start.rs rests on that no runtime holds a child of
   row that runs), a start that a signal cut off, and a kill row's run after its watch. A process is the run's own (`checks::Mark`)
   when it began at or after the run's start less 1 s, its program lies inside the browser's app
   bundle on macOS or its install directory on Windows (`StartOptions.program`, the browser itself
-  under the egress wrap), and one of its arguments names the run's profile as a whole path
-  (`names_profile`). Each pass reads the process table, records each such process by number and
+  under the egress wrap), and it bears the run's profile (`bears_profile`, CP-189 G1): one of its
+  arguments is exactly `--user-data-dir=<profile>` or `--database=<profile>/Crashpad` and nothing
+  more, the value compared as a path, on macOS component by component with the letters as they
+  stand, on Windows with `/` and `\` as one and the letter case ignored, a separator at the end
+  ignored, no link followed and no `..` resolved; on Windows the one command line is split by the
+  system's rule (`split_command_line`). No bare argument and no occurrence inside an argument bears
+  it, so a process whose arguments name the profile in another form, such as a crash handler whose
+  database path names the profile through a link, is not the run's own and is left. Each pass reads
+  the process table, records each such process by number and
   creation time and ends it by `procs::kill`, which reads the creation time again just before the
   kill and leaves a number that another process took alone; the routine stops on a pass that finds
-  none (only a process that names the profile can make another one that names it), or after 100
+  none (only a process of the run starts another one that bears its profile), or after 100
   passes. Each run line prints `left_before` (the first pass) and `left_after` (the last), and a run
   with `left_after` above 0 is no ok run. When its first pass finds any, the routine prints
   `left_found n=<count> programs=<file names of their programs>` on standard error. The egress check's shell, its runner and its `log stream`
@@ -456,7 +463,7 @@ seconds later. The executor therefore starts a guard for each browser: the trial
 (a handle list on Windows) with the relay's listener as its one descriptor beside its standard
 streams. It never accepts; it reads the process table every 20 ms and exits when no process of the
 browser's tree runs. The tree is what its reads found: the first process, the processes that
-`checks::tree_of` adds while the first process runs (the adopted ones that name the run's profile
+`checks::tree_of` adds while the first process runs (the adopted ones that bear the run's profile
 among them), and each process whose parent was a member that still ran at the read that found it,
 also after the first process has ended. Two limits are U2.1's to close (CP-161). A process that a
 member starts after the first process has ended and that loses its parent before the next read,
@@ -492,6 +499,19 @@ browser by number and start time: any other call sends nothing and fails the tes
 both of its stand-ins on every way out. A changed copy of the guard's loop, its member rule, the ask,
 the forced end or the fence runs by the exact names of the tests on stand-in tables alone, never
 with that test or with the whole suite (CP-161).
+
+Every other way to the real end of a process is fenced too (CP-161 (3), U0.7d): `procs::kill` and
+`procs::ask_end` pass their signal through `procs::fence` at the point where they send it, after
+they have read the process's start time again. In the crate's own test build the fence is on from
+the start and admits nothing; a test admits, for its own thread and while it holds the admission,
+the processes that it started by number and start time, the processes whose line of parents
+reaches one of them, or the processes whose program lies below a directory of its own into which
+it wrote its stand-ins. Any other call sends nothing, prints `fence_refused pid=<n> started_us=<n>
+force=<yes|no>` on standard error and panics at the call. The integration tests turn it on with
+`fence::on`, and the trial's program turns it on when `R3_WEB_FENCE_BELOW` names a directory, which
+`tests/signals.rs` sets to its own; that test fails on a `fence_refused` line of the program. A
+changed copy of `procs::kill`, `procs::ask_end`, `checks::Mark`, `checks::end_runs_own` or the fence
+that could widen who is signalled runs on the hosted runners alone.
 
 ### The checks of a session (CP-89 (c))
 

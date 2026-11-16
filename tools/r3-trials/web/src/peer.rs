@@ -434,6 +434,45 @@ mod sys {
 mod tests {
     use super::*;
 
+    /// CP-190 (5) and (4), peer.rs `pipe_holders`: each handle value of the process is duplicated
+    /// into this process and compared with `CompareObjectHandles`, which makes no request of the
+    /// object, so the read answers within its bound while the holder has a read pending on the
+    /// pipe (here `cmd`'s `set /p` on its standard input, the read end of a pipe whose copy this
+    /// process keeps). The child ends on every way out: through its handle, and by the end of its
+    /// input when this process is gone.
+    #[cfg(windows)]
+    #[test]
+    fn pipe_holders_answers_while_the_pipe_has_a_pending_read_in_the_holder() {
+        use crate::start::Start;
+        use std::os::windows::io::AsRawHandle;
+        let (reader, writer) = std::io::pipe().expect("pipe");
+        let ours = reader.try_clone().expect("copy of the read end");
+        let child = std::process::Command::new("cmd")
+            .args(["/C", "set /p x="])
+            .stdin(reader)
+            .stdout(std::process::Stdio::null())
+            .start()
+            .expect("cmd");
+        let own = crate::procs::tests::OwnChild(child);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let pid = own.0.id();
+        let value = ours.as_raw_handle() as usize;
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let values: Vec<usize> = (1..16384).map(|i| i * 4).collect();
+            let _ = tx.send(pipe_holders(pid, &values, &[value]));
+        });
+        let found = rx.recv_timeout(std::time::Duration::from_secs(20));
+        drop(writer);
+        drop(own);
+        let found = found.expect("pipe_holders gave no answer within 20 s");
+        assert!(
+            found.is_some_and(|f| !f.is_empty()),
+            "the child's copy of the read end was not found"
+        );
+        drop(ours);
+    }
+
     #[test]
     fn the_table_names_this_process_as_the_one_owner_of_its_own_connection() {
         let held = crate::start::lock();
