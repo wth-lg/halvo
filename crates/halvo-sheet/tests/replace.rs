@@ -352,6 +352,27 @@ fn a_copy_that_cannot_be_read_is_answered_as_left_and_stays() {
     assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
 }
 
+#[cfg(unix)]
+#[test]
+fn a_file_of_another_party_that_cannot_be_read_at_the_copys_name_is_no_copy_left() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("replace-unreadable-theirs");
+    let s = setup(&scratch);
+    let copy = scratch.path(&s.copy);
+    fs::rename(&copy, scratch.path("elsewhere.xlsx")).expect("move the copy");
+    fs::write(&copy, b"a file of another party").expect("their file");
+    let mode = |m: u32| fs::set_permissions(&copy, fs::Permissions::from_mode(m)).expect("chmod");
+    mode(0o000);
+    let got = s.folder.replace(&s.prepared);
+    drop(s.prepared);
+    mode(0o600);
+    assert_eq!(got, Err(Error::NotReplaced(Kept::Copy)));
+    assert_eq!(
+        fs::read(&copy).expect("their file"),
+        b"a file of another party"
+    );
+}
+
 #[test]
 fn a_prepare_of_the_run_by_another_spelling_after_a_refused_replace_answers_the_checkpoint_error() {
     let scratch = Scratch::new("replace-refused-spelling");
