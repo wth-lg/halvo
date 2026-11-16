@@ -67,10 +67,19 @@ set_policy() {
 take_away() {
   [ -n "$pending" ] || return 0
   p="$dir/$pending.plist"
-  sudo mv "$p" "$work/removed-$pending_tag.plist" 2>/dev/null
+  aside="$work/earlier-$pending_tag.plist"
+  if [ "$earlier" != yes ] || [ -e "$aside" ]; then
+    sudo mv "$p" "$work/removed-$pending_tag.plist" 2>/dev/null
+  fi
   back=-
   if [ "$earlier" = yes ]; then
-    if sudo mv "$work/earlier-$pending_tag.plist" "$p"; then back=yes; else back=no; fi
+    if [ -e "$aside" ]; then
+      if sudo mv "$aside" "$p"; then back=yes; else back=no; fi
+    elif [ -e "$p" ]; then
+      back=yes
+    else
+      back=no
+    fi
   fi
   prefs_flush
   sleep 1

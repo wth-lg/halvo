@@ -425,6 +425,21 @@ kill -TERM $$; sleep 5; echo not_ended
 CASE
   verdict mac_a_term_puts_the_policy_file_back \
     "$(holds test "$(cat "$c/managed/com.google.Chrome.plist")" = earlier)$(has "$c/out" not_ended && echo _not_ended)$(has "$c/out" not_set && echo _not_set)" "-"
+  c="$work/m-term-put-back"
+  mkdir -p "$c/managed" "$c/work"
+  printf 'earlier\n' >"$c/managed/com.google.Chrome.plist"
+  R3_CASE_SH=$(posix_sh) in_stand_ins "$c" <<'CASE'
+. "$here/mac.sh"; dir="$RUNNER_TEMP/managed"; work="$RUNNER_TEMP/work"
+PREFS_DAEMON="$RUNNER_TEMP/none"; arm_undo; nf=0
+prefs_flush() { nf=$((nf + 1)); echo "prefs_daemon found=0 ended=0"; [ "$nf" = 2 ] && kill -TERM $$; return 0; }
+set_policy com.google.Chrome chrome ProxyMode "<string>direct</string>"
+grep -q ProxyMode "$dir/com.google.Chrome.plist" || echo not_set
+take_away
+sleep 5; echo not_ended
+CASE
+  verdict mac_a_term_in_take_away_leaves_the_earlier_file \
+    "$(holds test "$(cat "$c/managed/com.google.Chrome.plist" 2>/dev/null)" = earlier)$(has "$c/out" not_ended && echo _not_ended)$(has "$c/out" not_set && echo _not_set)" \
+    "out=$(tr ' \n' '_;' <"$c/out" | cut -c1-240)"
   c="$work/m-daemon"
   mkdir -p "$c/bin"
   ln -s /bin/sleep "$c/bin/r3prefsd"
