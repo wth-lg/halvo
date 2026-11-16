@@ -1676,17 +1676,13 @@ where
         let Ok(names) = roster::names(&shown, self.label) else {
             return (Vec::new(), Vec::new(), None);
         };
-        let now = (!still.is_empty()).then(|| self.ports.now().ok()).flatten();
         let mut placed: Vec<(Placed, Option<Item>)> = Vec::new();
         for (facts, name) in shown.iter().zip(&names) {
             if still.iter().any(|f| f.agent == facts.agent) {
-                let due = |s: &schedule::Stop| s.at + self.limits.cancel_grace_s * 1000;
                 let stuck = board
                     .runs
                     .iter()
-                    .filter(|r| r.agent == facts.agent)
-                    .filter_map(|r| r.stop)
-                    .any(|s| now.is_some_and(|t| t >= due(&s)));
+                    .any(|r| r.agent == facts.agent && r.kill_refused);
                 if let Ok(row) = roster::gone_row(*facts, stuck, name) {
                     placed.push((Placed { row, raised: None }, None));
                 }

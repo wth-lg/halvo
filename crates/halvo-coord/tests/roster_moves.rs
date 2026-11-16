@@ -631,3 +631,45 @@ fn rd116_a_second_request_of_a_stopping_run_is_refused_with_state_for_every_orig
         }
     }
 }
+
+fn kills_tried(c: &Coordinator<Both>) -> usize {
+    c.ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Kill(_)))
+        .count()
+}
+
+#[test]
+fn rd116_no_kill_stuck_line_before_any_kill_even_at_the_due_instant() {
+    let (c, _) = gone_while_live();
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    assert_eq!(
+        c.control(&agent(0), Action::Stop),
+        Err(halvo_coord::types::Cause::UnknownAgent),
+        "a move that publishes and is no tick"
+    );
+    assert_eq!(kills_tried(&c), 0, "no kill was sent yet");
+    let row = row_of(&c).expect("the row stays");
+    assert_eq!(row.line, line("line.working.stopping"));
+}
+
+#[test]
+fn rd116_kill_stuck_after_a_refused_kill_when_the_clock_stepped_back() {
+    let (c, _) = gone_while_live();
+    c.ports().ports.refuse(
+        halvo_coord::mem::Method::Kill,
+        halvo_coord::ports::PortError::Busy,
+    );
+    c.ports().ports.set_clock(T0 - 1_000, DAY);
+    c.tick();
+    assert_eq!(kills_tried(&c), 1, "the tick tried the kill");
+    assert_eq!(c.live(), 1, "the kill did not end the run");
+    let row = row_of(&c).expect("the row stays");
+    assert_eq!(row.line, line("line.working.kill_stuck"));
+    assert!(row.controls.is_empty());
+}

@@ -668,6 +668,7 @@ where
         defer_ms: go.defer_ms,
         rank,
         stop: None,
+        kill_refused: false,
     });
     board.members[i].facts.doing = Doing::Live(Live::Starting);
     served(Ok(Answer::Ok), Some(run))
@@ -1146,6 +1147,9 @@ where
     board.gone.extend(plan.seen.iter().cloned());
     for run in &plan.kill {
         if cx.ports.kill(run).is_err() {
+            if let Some(r) = board.runs.iter_mut().find(|r| &r.run == run) {
+                r.kill_refused = true;
+            }
             continue;
         }
         let cause = board

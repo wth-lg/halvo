@@ -19,7 +19,7 @@ pub enum StatusLine {
     /// `working.stopping`: a live run in the phase `stopping`.
     Stopping,
     /// `working.kill_stuck`: the live run of an agent whose workflow a tick saw gone, whose kill
-    /// came due and did not end it (I5.7, ruling RD-54 (g)).
+    /// was refused, so that the run outlived it (I5.7, ruling RD-54 (g)).
     KillStuck,
     /// `waiting_turn.queued`: a queued start.
     Queued,

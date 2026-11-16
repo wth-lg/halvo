@@ -85,6 +85,9 @@ pub struct LiveRun {
     pub rank: u64,
     /// Its stop, or none.
     pub stop: Option<Stop>,
+    /// Whether its last `Runs::kill` was refused, so that the run outlived a kill (I5.7, ruling
+    /// RD-54 (g)); false before any kill.
+    pub kill_refused: bool,
 }
 
 /// A run that was stopped and whose runner ended before the kill: the first tick at which
