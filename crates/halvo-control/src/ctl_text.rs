@@ -359,9 +359,35 @@ pub const ALREADY_DELETED_NOT_TAKEN_TEXT: &str = "the capture service answered a
 /// is unknown, so it says neither that this request deleted nothing nor that nothing was
 /// deleted (contracts.md C2.6 and C2.7).
 pub fn delete_deadline_line(seconds: u64) -> String {
-    format!(
-        "no reply within {seconds} s; whether this request deleted anything is not known; read the status"
-    )
+    format!("no reply within {seconds} s; {DELETE_OUTCOME_NOT_KNOWN}")
+}
+
+/// What ctl says first on standard error for any error of a delete after its request was sent,
+/// with the cause after it on the same line: its outcome is unknown (ruling CT-16 C3).
+pub const DELETE_OUTCOME_NOT_KNOWN: &str =
+    "whether this request deleted anything is not known; read the status";
+
+/// `message` behind [`DELETE_OUTCOME_NOT_KNOWN`] for a delete, and as it is for any other verb.
+fn after_the_request(verb: &Verb, message: impl std::fmt::Display) -> String {
+    match verb {
+        Verb::DeleteAll(_) => format!("{DELETE_OUTCOME_NOT_KNOWN}; {message}"),
+        _ => message.to_string(),
+    }
+}
+
+/// Whether the client's io error came from the connect, before any byte of the request was sent.
+fn before_the_request(error: &std::io::Error) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        error
+            .get_ref()
+            .is_some_and(|inner| inner.is::<crate::client_unix::BeforeTheRequest>())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = error;
+        false
+    }
 }
 
 /// What ctl says on standard error for a delete whose root reads unknown (contracts.md C2.6).
@@ -450,7 +476,10 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         }
         Err(ClientError::Protocol(text)) => {
             return failed(
-                peer_text(&format!("the reply could not be read: {text}")),
+                after_the_request(
+                    verb,
+                    peer_text(&format!("the reply could not be read: {text}")),
+                ),
                 crate::exit::ERROR,
             )
         }
@@ -460,10 +489,17 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                     "{cause}: {}",
                     crate::paths::one_line(&data_dir.path().to_string_lossy())
                 ),
-                None => ClientError::Io(error).to_string(),
+                None if before_the_request(&error) => ClientError::Io(error).to_string(),
+                None => after_the_request(verb, ClientError::Io(error)),
             };
             return failed(message, crate::exit::ERROR);
         }
+        Err(
+            other @ (ClientError::ReplyOfAnotherVersion { .. }
+            | ClientError::ValueUnknownToV1(_)
+            | ClientError::StateDoesNotHoldTogether(_)
+            | ClientError::UnexpectedReply { .. }),
+        ) => return failed(after_the_request(verb, other), crate::exit::ERROR),
         Err(other) => return failed(other, crate::exit::ERROR),
     };
     match (verb, reply) {
@@ -570,7 +606,10 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         },
         (Verb::SetCap(_), Reply::CapSet(set)) => printed(cap_set_text(&set), crate::exit::CLEAN),
         (_, other) => failed(
-            format!("the daemon answered {} to this verb", other.kind()),
+            after_the_request(
+                verb,
+                format!("the daemon answered {} to this verb", other.kind()),
+            ),
             crate::exit::ERROR,
         ),
     }
@@ -1573,6 +1612,45 @@ mod tests {
         );
         assert_eq!(printed.stderr, "halvo-capture: no reply within 20 s\n");
         assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn ct16_c3_an_error_of_a_delete_after_its_request_prints_the_clause_of_an_unknown_outcome_and_its_cause(
+    ) {
+        const CLAUSE: &str =
+            "halvo-capture: whether this request deleted anything is not known; read the status; ";
+        for (case, error, cause) in [
+            (
+                "a broken pipe",
+                ClientError::Io(std::io::Error::from_raw_os_error(32)),
+                "the control channel failed: Broken pipe (os error 32)",
+            ),
+            (
+                "a reply that ends inside its frame",
+                ClientError::Protocol("the stream ended inside a frame".into()),
+                "the reply could not be read: the stream ended inside a frame",
+            ),
+        ] {
+            let printed = print(&Verb::DeleteAll(None), Err(error), &data_dir());
+            assert_eq!(
+                (
+                    printed.stdout.as_str(),
+                    printed.stderr.as_str(),
+                    printed.status
+                ),
+                ("", format!("{CLAUSE}{cause}\n").as_str(), 1),
+                "{case}"
+            );
+        }
+        let stop = print(
+            &Verb::Stop,
+            Err(ClientError::Io(std::io::Error::from_raw_os_error(32))),
+            &data_dir(),
+        );
+        assert_eq!(
+            stop.stderr,
+            "halvo-capture: the control channel failed: Broken pipe (os error 32)\n"
+        );
     }
 
     #[test]

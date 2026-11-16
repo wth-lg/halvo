@@ -82,16 +82,24 @@ pub fn entry_cause(error: &std::io::Error) -> Option<EntryAtDataDir> {
         .copied()
 }
 
+/// The error that carries `cause`, with the io kind that goes beside it (ruling CT-15 G3 (a)).
+#[cfg(target_os = "macos")]
+pub(crate) fn cause_error(cause: EntryAtDataDir) -> std::io::Error {
+    match cause {
+        EntryAtDataDir::NotADirectory => {
+            std::io::Error::new(std::io::ErrorKind::NotADirectory, cause)
+        }
+        EntryAtDataDir::LinkLeadsNowhere => std::io::Error::other(cause),
+        EntryAtDataDir::CannotBeRead => {
+            std::io::Error::new(std::io::ErrorKind::PermissionDenied, cause)
+        }
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Error {
     match entry_fault(dir) {
-        Some(cause @ EntryAtDataDir::NotADirectory) => {
-            std::io::Error::new(std::io::ErrorKind::NotADirectory, cause)
-        }
-        Some(cause @ EntryAtDataDir::LinkLeadsNowhere) => std::io::Error::other(cause),
-        Some(cause @ EntryAtDataDir::CannotBeRead) => {
-            std::io::Error::new(std::io::ErrorKind::PermissionDenied, cause)
-        }
+        Some(cause) => cause_error(cause),
         None if error.kind() == std::io::ErrorKind::PermissionDenied => {
             std::io::Error::new(error.kind(), EntryAtDataDir::CannotBeRead)
         }
