@@ -862,3 +862,67 @@ fn a_read_only_root_file_moved_inside_the_held_roots_directory_is_destroyed_wher
         "delete_all did not destroy a read-only root file found by its identity: {line}"
     );
 }
+
+/// Ruling ST-47 T1 on Windows (M8): a root file renamed through its verbatim
+/// path to a name that ends in a dot, once while a store holds the roots
+/// folder and once before an open with a copy put at its name. No delete
+/// answers Ok while that file unwraps, and while it stands the report names
+/// it.
+#[test]
+fn st47_t1_a_root_renamed_to_a_name_that_ends_in_a_dot_is_seen_by_the_delete() {
+    let mut problems = Vec::new();
+    for case in ["while held", "before the open, with a copy at its name"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let wrapped = wrapped_of(&store_dir);
+        let root_file = roots_dir.join(format!("{root_id}.root"));
+        let verbatim_roots = crate::store::durable::verbatim_form(&roots_dir)
+            .expect("the verbatim form of an absolute path");
+        let dotted = verbatim_roots.join("kept-aside.");
+        let mut answers = Vec::new();
+        if case == "while held" {
+            let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+            std::fs::rename(&root_file, &dotted).unwrap();
+            answers.push(("held delete_all", store.delete_all()));
+            drop(store);
+        } else {
+            std::fs::rename(&root_file, &dotted).unwrap();
+            std::fs::copy(&dotted, &root_file).unwrap();
+            if let Ok(mut store) = open_over_file_root(&store_dir, &roots_dir, root_id) {
+                answers.push(("the open's delete_all", store.delete_all()));
+            }
+        }
+        answers.push(("tail 1", tail(&store_dir, &roots_dir)));
+        answers.push(("tail 2", tail(&store_dir, &roots_dir)));
+        for (n, (what, answer)) in answers.iter().enumerate() {
+            let check = dir.path().join(format!("check-{n}"));
+            std::fs::create_dir_all(&check).unwrap();
+            let unwraps = match std::fs::read(&dotted) {
+                Ok(bytes) => {
+                    std::fs::write(check.join(format!("{root_id}.root")), bytes).unwrap();
+                    unwraps(&check, root_id, &wrapped)
+                }
+                Err(_) => false,
+            };
+            let stands = std::fs::symlink_metadata(&dotted).is_ok();
+            let named = match answer {
+                Ok(report) => report.roots.names.contains(&"kept-aside.".to_string()),
+                Err(StoreError::DeleteIncomplete(report)) => {
+                    report.roots.names.contains(&"kept-aside.".to_string())
+                }
+                Err(_) => true,
+            };
+            println!(
+                "WIN-ST47-T1 case={case} {what}: {} dotted_stands={stands} dotted_unwraps={unwraps} named={named}",
+                report_line(answer)
+            );
+            if answer.is_ok() && unwraps {
+                problems.push(format!("{case}, {what}: Ok while the dotted root unwraps"));
+            }
+            if stands && !named {
+                problems.push(format!("{case}, {what}: the dotted file stands unnamed"));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
