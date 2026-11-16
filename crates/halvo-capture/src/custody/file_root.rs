@@ -1244,6 +1244,39 @@ mod tests {
         assert!(path.join("occupied").exists());
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_cleanup_whose_partial_root_file_cannot_be_destroyed_answers_an_error() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh().unwrap();
+        roots.create_root(root_id).unwrap();
+        let partial = dir
+            .path()
+            .join("roots")
+            .join(format!("{root_id}.0123456789abcdef.{PARTIAL_EXT}"));
+        std::fs::write(&partial, [0x5au8; 32]).unwrap();
+        let immutable = |on: bool| {
+            let c = std::ffi::CString::new(partial.as_os_str().as_bytes()).unwrap();
+            let flags = if on { libc::UF_IMMUTABLE } else { 0 };
+            // SAFETY: c is NUL-terminated and outlives the call, which reads only it.
+            assert_eq!(unsafe { libc::chflags(c.as_ptr(), flags) }, 0);
+        };
+        immutable(true);
+        let destroyed = roots.destroy_root(root_id);
+        immutable(false);
+        let bytes = std::fs::read(&partial).ok();
+        println!(
+            "N7 destroy={destroyed:?} partial_keeps_its_bytes={}",
+            bytes.as_deref() == Some(&[0x5au8; 32][..])
+        );
+        assert!(
+            destroyed.is_err(),
+            "the cleanup answered Ok while a partial root file of its id holds the root's bytes"
+        );
+    }
+
     #[test]
     fn destroying_a_root_also_removes_a_partial_root_file_that_a_failed_write_left() {
         let dir = tempfile::tempdir().unwrap();
