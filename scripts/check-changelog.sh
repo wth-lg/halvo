@@ -27,8 +27,8 @@ Checks CHANGELOG.md, so that an entry cannot sit in the wrong place.
     and no other line holds that text: release.toml replaces it and allows it once.
   - Below it are entries and blank lines only. An entry is one line,
     "- <Type>: <text>", with Type one of Added, Changed, Deprecated, Removed,
-    Fixed, Security. No entry text is there twice, and no entry is above the
-    heading.
+    Fixed, Security. No entry text is there twice, no entry text starts with
+    a type word and a colon, and no entry is above the heading.
   - A release section, "## [x.y.z] - YYYY-MM-DD", holds such entries, or
     "- <text>" entries under "### <Type>" headings, each heading at most once.
     No version has two release headings.
@@ -127,6 +127,7 @@ changelog_verdict() {
       if ($0 ~ typed_entry) {
         text = $0
         sub(/^- [A-Za-z]+: /, "", text)
+        if (text ~ ("^" type ":")) report(line_number, "the text of this entry starts with a type word and a colon, which the release would read as a second type.", "reword the entry so that its text does not start with a type word and a colon.")
         if (text in entry_line) report(line_number, "the text of this entry is already on line " entry_line[text] ".", "delete one of the two lines.")
         else entry_line[text] = line_number
         unreleased_entries++
@@ -247,6 +248,8 @@ self_test() {
 
   expect 'a flat list of typed entries is accepted' '' '' '' "$flat_list"
   expect 'an entry of each of the six types is accepted' '' '' '' "${unreleased}- Added: A${nl}- Changed: B${nl}- Deprecated: C${nl}- Removed: D${nl}- Fixed: E${nl}- Security: F"
+  expect 'an entry whose text starts with another type word and a colon is refused' 7 '' '' "${unreleased}- Changed: Deprecated: the old flag now prints a warning${nl}- Fixed: Close the race"
+  expect 'an entry whose text names a type word later is accepted' '' '' '' "${unreleased}- Changed: Mark the old flag Deprecated: it prints a warning"
   expect 'a line of spaces between two entries is accepted' '' '' '' "${unreleased}- Added: Add the store${nl}   ${nl}- Fixed: Close the race"
   expect 'a release section of typed entries, as release.toml writes it, is accepted' '' '' '' "${unreleased}- Changed: Name the constants${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race"
   expect 'an empty Unreleased section above a release section with ### headings is accepted' '' '' '' "$unreleased$release### Added${nl}${nl}- Add the store${nl}${nl}### Fixed${nl}${nl}- Close the race"
