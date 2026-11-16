@@ -180,11 +180,11 @@ check of the copy:
   constant of the runner, for the test to end; or
   `... the running case did not end within 60 s and was killed`, and what that
   case made may be left. During a gate check or the cargo build or type check
-  of the copy that does not end within 60 s of the signal:
-  `STOPPED mutation:<row> (signal <name>; the running check-<name> did not end within 60 s and was killed)`,
-  or `... the running build of the copy did not end ...`, or
-  `... the running type check of the copy did not end ...`, and what that step
-  made may be left. A KILL of the runner itself leaves its scratch, the
+  of the copy that the bound ended, because it did not end within 60 s of the
+  signal, the fifth form:
+  `STOPPED mutation:<row> (signal <name>; the running <step> did not end within 60 s and was killed)`,
+  where `<step>` is `check-<name>`, `build of the copy` or
+  `type check of the copy`, and what that step made may be left. A KILL of the runner itself leaves its scratch, the
   throwaway copy and its build directory, as well. A shielded step or test
   that was running then goes on with TERM, INT and HUP ignored; a step that
   the kill at the bound had already stopped stays stopped while its process
@@ -222,7 +222,12 @@ check of the copy:
   verify child past its deadline ends by the check's KILL 5 s later.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM
   lets a case end only when the case ends within those seconds: give a run of
-  rows a time limit above the time of its rows.
+  rows a time limit above the time of its rows. The helper for timed runs
+  sends TERM and then KILL 5 s later, so under it a shielded step, a gate check
+  or the cargo build or type check of the copy, gets at most 5 s and not the
+  runner's 60 s. Whether check-store ends within 5 s is not known, because no
+  real check has run under a stop, so a check-store that needs longer is
+  killed and leaves its root.
 
 ## What a run changes on a Mac
 
