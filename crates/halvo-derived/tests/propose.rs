@@ -927,6 +927,7 @@ fn the_summary_read_visits_a_summary_of_a_day_after_the_clock_s_day_only_once_th
 #[test]
 fn a_proposal_with_the_key_of_a_site_keyed_workflow_that_an_agent_does_leaves_it_as_it_was() {
     let agent = "4".repeat(32);
+    let mut seen = Vec::new();
     for (name, site) in [
         ("guard-domain", domain("qzguard-site.test")),
         ("guard-title", token("qzguard-title")),
@@ -991,18 +992,18 @@ fn a_proposal_with_the_key_of_a_site_keyed_workflow_that_an_agent_does_leaves_it
             .unwrap()
             .proposals;
         drop(store);
-        assert_eq!(
-            outcome,
-            ProposalOutcome {
-                unchanged: 1,
-                ..ProposalOutcome::default()
-            },
-            "{name}"
-        );
-        assert_eq!(
-            held(&scratch),
-            before,
-            "{name}: (the workflow, the support rows, the revision) stay as they were"
-        );
+        seen.push((name, outcome, held(&scratch) == before));
     }
+    let guarded = ProposalOutcome {
+        unchanged: 1,
+        ..ProposalOutcome::default()
+    };
+    assert_eq!(
+        seen,
+        [
+            ("guard-domain", guarded.clone(), true),
+            ("guard-title", guarded, true)
+        ],
+        "(case, outcome, the workflow, the support rows and the revision as they were)"
+    );
 }
