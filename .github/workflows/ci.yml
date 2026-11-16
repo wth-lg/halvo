@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,69 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 54-tag-needs-store4 60-release-dry-run 61-version 16-shell-lint 17-workflow-lint 19-home-paths
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 54-tag-needs-store4 60-release-dry-run 61-version 16-shell-lint 17-workflow-lint 19-home-paths
+      - name: Loop of the self-tests of release-4
+        if: always()
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+          LOOP_RUNS: '200'
+          LOOP_LANES: '4'
+        run: |
+          set +e
+          [ -n "${LOOP_JOB:-}" ] || case "${RUNNER_OS:-}" in macOS) LOOP_JOB=macos ;; *) LOOP_JOB=windows ;; esac
+          loop() {
+            name=$1 total=$2 lanes=$3 budget=$4 want_cases=$5
+            dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/loop-$name.XXXXXX") || return 1
+            end=$(($(date +%s) + budget))
+            lane=1
+            while [ "$lane" -le "$lanes" ]; do
+              (
+                i=$lane
+                while [ "$i" -le "$total" ] && [ "$(date +%s)" -lt "$end" ]; do
+                  mkdir "$dir/tmp-$i"
+                  TMPDIR="$dir/tmp-$i" CI_D_REPO="$PWD" CI_D_JOB="$LOOP_JOB" CI_D_ARTIFACTS="$dir/tmp-$i" LC_ALL=C sh "scripts/r1/ci.d/$name.sh" --self-test >"$dir/run-$i.txt" 2>&1
+                  printf '%s\n' "$?" >"$dir/exit-$i"
+                  i=$((i + lanes))
+                done
+              ) &
+              lane=$((lane + 1))
+            done
+            wait
+            ran=0
+            passed=0
+            for f in "$dir"/run-*.txt; do
+              [ -e "$f" ] || continue
+              i=${f##*/run-}
+              i=${i%.txt}
+              ran=$((ran + 1))
+              code=$(cat "$dir/exit-$i")
+              cases=$(grep -c "^case $name/" "$f")
+              last=$(awk 'NF { last = $0 } END { print last }' "$f")
+              case $code:$cases:$last in
+                "0:$want_cases:PASS self-test:$name ("*) passed=$((passed + 1)) ;;
+                *) printf 'loop %s run %s: exit %s, cases %s, last line: %s\n' "$name" "$i" "$code" "$cases" "$last" ;;
+              esac
+            done
+            printf 'loop %s: runs %s of %s, passed %s, cases in each run %s, lanes %s, budget %s s\n' "$name" "$ran" "$total" "$passed" "$want_cases" "$lanes" "$budget"
+            [ "$ran" -gt 0 ] && [ "$passed" = "$ran" ]
+          }
+          status=0
+          loop 54-tag-needs-store4 "$LOOP_RUNS" "$LOOP_LANES" 2400 23 || status=1
+          if [ "$LOOP_JOB" = macos ]; then
+            loop 60-release-dry-run "$LOOP_RUNS" "$LOOP_LANES" 2400 135 || status=1
+          fi
+          exit "$status"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +205,69 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 54-tag-needs-store4 61-version 19-home-paths
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 54-tag-needs-store4 61-version 19-home-paths
+      - name: Loop of the self-tests of release-4
+        if: always()
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+          LOOP_RUNS: '200'
+          LOOP_LANES: '4'
+        run: |
+          set +e
+          [ -n "${LOOP_JOB:-}" ] || case "${RUNNER_OS:-}" in macOS) LOOP_JOB=macos ;; *) LOOP_JOB=windows ;; esac
+          loop() {
+            name=$1 total=$2 lanes=$3 budget=$4 want_cases=$5
+            dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/loop-$name.XXXXXX") || return 1
+            end=$(($(date +%s) + budget))
+            lane=1
+            while [ "$lane" -le "$lanes" ]; do
+              (
+                i=$lane
+                while [ "$i" -le "$total" ] && [ "$(date +%s)" -lt "$end" ]; do
+                  mkdir "$dir/tmp-$i"
+                  TMPDIR="$dir/tmp-$i" CI_D_REPO="$PWD" CI_D_JOB="$LOOP_JOB" CI_D_ARTIFACTS="$dir/tmp-$i" LC_ALL=C sh "scripts/r1/ci.d/$name.sh" --self-test >"$dir/run-$i.txt" 2>&1
+                  printf '%s\n' "$?" >"$dir/exit-$i"
+                  i=$((i + lanes))
+                done
+              ) &
+              lane=$((lane + 1))
+            done
+            wait
+            ran=0
+            passed=0
+            for f in "$dir"/run-*.txt; do
+              [ -e "$f" ] || continue
+              i=${f##*/run-}
+              i=${i%.txt}
+              ran=$((ran + 1))
+              code=$(cat "$dir/exit-$i")
+              cases=$(grep -c "^case $name/" "$f")
+              last=$(awk 'NF { last = $0 } END { print last }' "$f")
+              case $code:$cases:$last in
+                "0:$want_cases:PASS self-test:$name ("*) passed=$((passed + 1)) ;;
+                *) printf 'loop %s run %s: exit %s, cases %s, last line: %s\n' "$name" "$i" "$code" "$cases" "$last" ;;
+              esac
+            done
+            printf 'loop %s: runs %s of %s, passed %s, cases in each run %s, lanes %s, budget %s s\n' "$name" "$ran" "$total" "$passed" "$want_cases" "$lanes" "$budget"
+            [ "$ran" -gt 0 ] && [ "$passed" = "$ran" ]
+          }
+          status=0
+          loop 54-tag-needs-store4 "$LOOP_RUNS" "$LOOP_LANES" 2400 23 || status=1
+          if [ "$LOOP_JOB" = macos ]; then
+            loop 60-release-dry-run "$LOOP_RUNS" "$LOOP_LANES" 2400 135 || status=1
+          fi
+          exit "$status"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
