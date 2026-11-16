@@ -173,13 +173,15 @@ impl RootReading {
 /// What a delete-all, or the delete tail on a directory, did: each step was
 /// attempted. `keyed_segments` is the count of keyed segments read before the
 /// root step, `None` when it could not be read. `root` reads the store's own
-/// root. `roots` lists the root files that stay under the roots directory
-/// after the root step; `root_not_handled` names the root of a key file that
+/// root. `roots` names every entry that stays in the roots directory after the
+/// root step, a root file or a file of any other name, and counts the ones at
+/// a name that is no root name; `root_not_handled` names the root of a key file that
 /// this build cannot destroy (a key file of another version, or of a custody
 /// that keeps no root file under the roots directory). `not_followed` counts
 /// the store names, the store directory's own name among them, at which the
 /// delete met a link, an entry of another kind or a directory that was not
-/// the handle's.
+/// the handle's, and the data directory given to the tail when it is a link
+/// in any spelling, which the tail does not follow.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteReport {
     pub keyed_segments: Option<u64>,
@@ -200,9 +202,9 @@ impl DeleteReport {
         self.root == RootReading::Destroyed
     }
 
-    /// The root reads destroyed or unnamed, no root file that the step
-    /// counted stays, the roots directory that the step went through still
-    /// stands at its path, and the delete left nothing of the store: the
+    /// The root reads destroyed or unnamed, the roots directory was listed and
+    /// no entry that the step counted stays in it at any name, that directory
+    /// still stands at its path, and the delete left nothing of the store: the
     /// report of an `Ok`. A root that reads left never gives `Ok`.
     pub(in crate::store) fn complete(&self) -> bool {
         matches!(self.root, RootReading::Destroyed | RootReading::Unnamed)

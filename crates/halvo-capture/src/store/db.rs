@@ -2416,37 +2416,44 @@ impl EncryptedStore {
     }
 
     /// The delete tail on a data directory `dir` of the closed `layout`, which
-    /// no handle holds. It opens `dir` as a handle, opens the store directory
-    /// and the roots directory from the handle of the directory that holds
-    /// each by their fixed names, never by a path and following no link, takes
-    /// the writer lock, runs the root step, and removes the key file, the
-    /// database files and the segments tree through the store's handle in every
-    /// case; it never opens the database. A root is named by `store.key`, by
-    /// its name, or by a `create.pending` that reads made, by the identity of
-    /// its root file, never by one that reads owed. With the lock held, with
-    /// nothing at the store's name, and after it removed a link or an entry of
-    /// another kind at the store's name (counted as not followed), the root
-    /// step sweeps the roots directory: it destroys every root file and partial
-    /// root file there, named or not; in the scratch layout nothing is swept
-    /// where no store directory stands, because its roots lie inside it. A
-    /// link, or an entry of another kind, at the roots directory's name is not
-    /// followed: the roots read as not listed. A data directory that is a link
-    /// is not followed and nothing is removed. A store directory that it
-    /// cannot open leaves its root unread; a lock that it cannot take for a
-    /// reason other than a holder, and on Windows a data directory of which a
-    /// part ends in a dot or a space (read through its verbatim form, with no
-    /// removal and `not_followed` 1), get the root step for the named root
-    /// alone, with the witness; these answer [`StoreError::DeleteIncomplete`]
-    /// with the files as left. The root reads destroyed only when this call
-    /// destroyed a named root's file, left when a named root was not
-    /// destroyed, and unnamed when nothing names one; a key file of another
-    /// version, or of a custody that keeps no root file under the roots
-    /// directory, is removed with the rest, and its root is reported as not
-    /// handled and never as destroyed. Answers as
-    /// [`EncryptedStore::delete_all`] does, `Ok` only with no root file or
-    /// partial root file left in the roots directory or nothing there, and
-    /// [`StoreError::Locked`] while another process holds the store directory
-    /// (ruling ST-45 H1; store-3b).
+    /// no handle holds. It opens `dir` as a handle by the components of its
+    /// path, following no link at its last part in any spelling (`dir/`,
+    /// `dir/.`), opens the store directory and the roots directory from the
+    /// handle of the directory that holds each by their fixed names, never by
+    /// a path and following no link, takes the writer lock and runs the root
+    /// step; when it holds the writer lock it removes the key file, the
+    /// database files and the segments tree through the store's handle, and
+    /// without it it removes none of them. It never opens the database. A root
+    /// is named by `store.key`, by its name, or by a `create.pending` that
+    /// reads made, by the identity of its root file, never by one that reads
+    /// owed. With the lock held, with nothing at the store's name, and in the
+    /// data layout after it removed a link or an entry of another kind at the
+    /// store's name (counted as not followed), the root step sweeps the roots
+    /// directory: it destroys every regular file there at any name, named or
+    /// not, writing through none that cannot be a root file or that has a
+    /// second name, removes a link or an entry of another kind as the entry
+    /// that it is, and enters no directory; in the scratch layout nothing is
+    /// swept where no store directory stands, because its roots lie inside it.
+    /// A link, or an entry of another kind, at the roots directory's name is
+    /// not followed: the roots read as not listed. A data directory that is a
+    /// link, in either layout and in any spelling, is not followed and nothing
+    /// is removed: the root is left unread, the roots are not listed and
+    /// `not_followed` is 1. A store directory that it cannot open leaves its
+    /// root unread; a lock that it cannot take for a reason other than a
+    /// holder, and on Windows a data directory of which a part ends in a dot
+    /// or a space (read through its verbatim form, with no removal and
+    /// `not_followed` 1), get the root step for the named root alone, with the
+    /// witness; these answer [`StoreError::DeleteIncomplete`] with the files as
+    /// left. The root reads destroyed only when this call destroyed a named
+    /// root's file, left when a named root was not destroyed, and unnamed when
+    /// nothing names one; a key file of another version, or of a custody that
+    /// keeps no root file under the roots directory, is removed with the rest,
+    /// and its root is reported as not handled and never as destroyed. Answers
+    /// as [`EncryptedStore::delete_all`] does, `Ok` only when the roots
+    /// directory was listed after the step and nothing stays in it at any name,
+    /// or nothing stands at the roots path, and [`StoreError::Locked`] while
+    /// another process holds the store directory (ruling ST-45 H1; store-3b;
+    /// ruling ST-47 T1 to T3).
     pub fn delete_data_dir(dir: &Path, layout: Layout) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
         if durable::has_a_part_that_windows_trims(dir) {

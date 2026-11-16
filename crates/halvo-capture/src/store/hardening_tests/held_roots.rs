@@ -476,7 +476,6 @@ fn an_abandoned_create_whose_root_cannot_be_destroyed_keeps_its_made_mark() {
     let immutable = move |path: &Path, on: bool| {
         let c = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
         let flags = if on { libc::UF_IMMUTABLE } else { 0 };
-        // SAFETY: c is NUL-terminated and outlives the call, which reads only it.
         assert_eq!(unsafe { libc::chflags(c.as_ptr(), flags) }, 0);
     };
     let at_the_seam = root_file.clone();
