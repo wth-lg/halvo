@@ -1657,6 +1657,7 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   else
     own_not_run fail-does-not-stop-the-run "macos alone: $own_gate_reason"
   fi
+  new_repo && add_script r1 10-a.sh "$good" "$fail_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case name-selects-one 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos 20-b
   if own_gate skip-outside-ci; then
   new_repo && add_script r1 10-a.sh "$good" "$skip_a" && add_script r1 20-b.sh "$good" "$pass_b"
@@ -2294,6 +2295,9 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   else
     own_not_run refusal-keeps-its-place-in-the-recap "macos alone: $own_gate_reason"
   fi
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 1; $passes" &&
+    add_script r1 20-x.sh '# rule: A fixture rule.' "$prelude; $passes" &&
+    add_script r1 30-c.sh "$good" "$prelude; $passes"
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=fail
   own_case own-cases-that-fail-in-a-nested-run 1 'ci.d macos self-test: 0 passed, 1 failed' macos --self-test run-ci-d
