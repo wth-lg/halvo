@@ -130,7 +130,8 @@ impl TimedRunReport {
 }
 
 /// What a timed run ends with: its report, the exit status of
-/// `halvo_control::exit`, and its loss when the status is 1.
+/// `halvo_control::exit`, and its loss whenever its life lost events or a
+/// cause of status 1 holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunOutcome {
     pub report: TimedRunReport,
@@ -138,10 +139,13 @@ pub struct RunOutcome {
     pub loss: Option<Loss>,
 }
 
-/// Why a timed run ends with status 1, and its loss line of contracts.md C3.2.
+/// The loss line of contracts.md C3.2 and the cause of status 1 that holds,
+/// if one does. With no cause the life lost events while a good write
+/// followed the last loss, and the run exits by its other causes, 0, 2 or 3
+/// (contracts.md C5.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Loss {
-    pub cause: LossCause,
+    pub cause: Option<LossCause>,
     pub line: String,
 }
 
@@ -151,7 +155,8 @@ impl std::fmt::Display for Loss {
     }
 }
 
-/// The causes of a timed run's status 1, the first that holds in this order.
+/// The causes of a timed run's status 1, the first that holds in this order;
+/// status 1 follows from a cause alone, never from a loss line alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LossCause {
     /// The owner did not answer the pause with Paused inside the bound.
