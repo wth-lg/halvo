@@ -1,15 +1,21 @@
+use std::num::NonZeroUsize;
+
 use serde_json::{json, Value};
 
-use super::{kept, Draft, DraftToSend, Drafts, Message, Messages, ReplyRule};
+use super::{kept, Draft, DraftToSend, Drafts, Message, Messages, ReplyRule, Senders};
 use crate::error::{AnswerFault, CallError};
-use crate::same_address;
+use crate::{reply_senders, same_address, SendersError};
 
 const FORM: Result<Vec<String>, CallError> = Err(CallError::Answer(AnswerFault::Form));
+
+fn senders(slot: &str) -> Senders {
+    reply_senders(slot).expect("senders that the reader takes")
+}
 
 fn rule() -> ReplyRule {
     ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned(), "Bob@People.test".to_owned()],
+        senders("ann@people.test, Bob@People.test"),
     )
 }
 
@@ -40,12 +46,28 @@ fn the_rule_takes_unread_mail_to_the_account_from_a_sender_of_the_slot() {
     assert!(!r.selects(false, "ann@people.test", &["x@home.test".to_owned()]));
     assert!(!r.selects(false, "ann@people.test", &[]));
     assert!(!r.selects(false, "ann@people.test.x", &to));
-    let none = ReplyRule::new("me@home.test".to_owned(), Vec::new());
-    assert!(!none.selects(false, "ann@people.test", &to));
+}
+
+#[test]
+fn a_sender_that_holds_a_space_makes_no_rule() {
+    let second = NonZeroUsize::MIN.saturating_add(1);
+    let rows = [
+        ("ann berg@people.test", NonZeroUsize::MIN),
+        ("me@home.test, ann berg@people.test", second),
+        ("me@home.test, ann@people.test bob@people.test", second),
+    ];
+    for (slot, piece) in rows {
+        assert_eq!(
+            reply_senders(slot).err(),
+            Some(SendersError::NotAnAddress(piece)),
+            "{slot}"
+        );
+    }
 }
 
 #[test]
 fn two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too() {
+    let mut as_sender = 0;
     for (a, b, same) in [
         ("ann@people.test", "ann@people.test", true),
         ("ann@people.test", "ANN@People.TEST", true),
@@ -59,19 +81,26 @@ fn two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too() {
     ] {
         assert_eq!(same_address(a, b), same, "{a} {b}");
         assert_eq!(same_address(b, a), same, "{b} {a}");
-        let as_sender = ReplyRule::new("me@home.test".to_owned(), vec![a.to_owned()]);
-        assert_eq!(
-            as_sender.selects(false, b, &["me@home.test".to_owned()]),
-            same,
-            "sender {a} {b}"
-        );
-        let as_account = ReplyRule::new(a.to_owned(), vec!["ann@people.test".to_owned()]);
+        match reply_senders(a) {
+            Ok(listed) => {
+                as_sender += 1;
+                let rule = ReplyRule::new("me@home.test".to_owned(), listed);
+                assert_eq!(
+                    rule.selects(false, b, &["me@home.test".to_owned()]),
+                    same,
+                    "sender {a} {b}"
+                );
+            }
+            Err(fault) => assert_eq!(fault, SendersError::NotAscii(NonZeroUsize::MIN), "{a}"),
+        }
+        let as_account = ReplyRule::new(a.to_owned(), senders("ann@people.test"));
         assert_eq!(
             as_account.selects(false, "ann@people.test", &[b.to_owned()]),
             same,
             "account {a} {b}"
         );
     }
+    assert_eq!(as_sender, 7);
 }
 
 #[test]
