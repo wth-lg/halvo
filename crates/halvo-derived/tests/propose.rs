@@ -490,7 +490,7 @@ fn held(scratch: &Scratch) -> (Vec<String>, Vec<String>, i64) {
 }
 
 /// C2.4, the row of a kept workflow whose `agent` is not null (the coordinator's ruling S-64, point 1, item 2): a
-/// proposal with the key of a workflow that is `active` with an agent, or `paused` with an agent, leaves the row, its
+/// proposal with the key of a workflow that is `active`, `paused` or `approved` with an agent leaves the row, its
 /// support rows and the revision as they are, and is counted in `unchanged`; the same proposal for the same workflow
 /// with `agent` null, `approved` with no agent or `approved` after its agent was cleared, changes the row and its
 /// support rows and raises the revision by one, as before. In each case the five counts sum to the two proposals of
@@ -500,9 +500,10 @@ fn a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_suppo
 ) {
     let agent = "4".repeat(32);
     type Moves = &'static [(&'static str, bool)];
-    let cases: [(&str, Moves, bool); 4] = [
+    let cases: [(&str, Moves, bool); 5] = [
         ("guard-active", &[("active", true)], true),
         ("guard-paused", &[("active", true), ("paused", true)], true),
+        ("guard-approved-agent", &[("approved", true)], true),
         ("guard-approved", &[], false),
         (
             "guard-cleared",
