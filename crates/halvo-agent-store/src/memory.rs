@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::kinds::{check_record, registry};
 use halvo_schema::{
@@ -60,11 +61,8 @@ pub struct MemoryStore {
     workflows: BTreeMap<WorkflowId, Workflow>,
     rows: BTreeMap<&'static str, Vec<String>>,
     steps: Vec<Box<dyn WriterStep>>,
-    utc_offset: i64,
+    utc_offset: i32,
 }
-
-const NANOS_PER_SECOND: i64 = 1_000_000_000;
-const SECONDS_PER_DAY: i64 = 86_400;
 
 impl MemoryStore {
     /// A store with no workflow, no row and no step.
@@ -75,7 +73,7 @@ impl MemoryStore {
     /// The store whose local time is UTC plus `seconds`, a time zone with no change of offset: the day of an instant
     /// is the day of the calendar of that zone.
     pub fn with_utc_offset(mut self, seconds: i32) -> MemoryStore {
-        self.utc_offset = i64::from(seconds);
+        self.utc_offset = seconds;
         self
     }
 
@@ -208,7 +206,6 @@ impl Host for MemoryStore {
     }
 
     fn day(&self, at: Instant) -> u32 {
-        let local = at.0.div_euclid(NANOS_PER_SECOND) + self.utc_offset;
-        u32::try_from(local.div_euclid(SECONDS_PER_DAY)).unwrap_or(0)
+        day_of(at, self.utc_offset)
     }
 }

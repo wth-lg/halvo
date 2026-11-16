@@ -843,3 +843,60 @@ fn after_a_clock_set_back_one_day_a_repeat_of_an_effect_a_checkpoint_and_a_finis
         ended
     );
 }
+
+#[test]
+fn a_row_stamped_by_day_of_at_the_store_s_offset_is_taken_and_its_utc_stamp_is_refused() {
+    use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+    use halvo_schema::Instant;
+    for offset in [WEST, -UTC_OFFSET_S_MAX] {
+        let night = local(TODAY, 21 * 3600 + 30 * 60, offset);
+        let local_day = day_of(Instant(night), offset);
+        let utc_day = day_of(Instant(night), 0);
+        assert_eq!((local_day, utc_day), (TODAY, TODAY + 1), "{offset}");
+        let mut store = unstarted("utility_bill_payment").with_utc_offset(offset);
+        assert_eq!(
+            start_at(&mut store, at(night), 1, 1, 1),
+            Ok(accepted()),
+            "{offset}"
+        );
+        let log = |day| json!({"op": "log", "agent": agent(1), "run": run(1), "records": [dated(log_line(2), day, night)]});
+        assert_eq!(
+            runner_at(&mut store, at(night), log(utc_day)),
+            Err(declared("day")),
+            "{offset}"
+        );
+        assert_eq!(
+            runner_at(&mut store, at(night), log(local_day)),
+            Ok(stored(1)),
+            "{offset}"
+        );
+        let held = |day| dated(row(1, 1, 1, "held", "payment", 1, None, None), day, night);
+        assert_eq!(
+            put_at(&mut store, at(night), held(utc_day)),
+            Err(declared("day")),
+            "{offset}"
+        );
+        assert_eq!(
+            put_at(&mut store, at(night), held(local_day)),
+            Ok(stored(1)),
+            "{offset}"
+        );
+        let finish = |day| {
+            let mut record = run_record(1, Some("replay"), "failed");
+            record["day"] = json!(day);
+            json!({"op": "finish", "agent": agent(1), "run": run(1), "record": record})
+        };
+        assert_eq!(
+            runner_at(&mut store, at(night), finish(utc_day)),
+            Err(declared("day")),
+            "{offset}"
+        );
+        assert!(rows(&store, "agent_run").is_empty(), "{offset}");
+        assert_eq!(
+            runner_at(&mut store, at(night), finish(local_day)),
+            Ok(stored(1)),
+            "{offset}"
+        );
+        assert_eq!(rows(&store, "agent_run").len(), 1, "{offset}");
+    }
+}

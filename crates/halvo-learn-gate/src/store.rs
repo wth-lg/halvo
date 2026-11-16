@@ -247,6 +247,6 @@ impl Host for MemoryStore {
     }
 
     fn day(&self, at: halvo_schema::Instant) -> u32 {
-        u32::try_from(at.0.div_euclid(86_400_000_000_000)).unwrap_or(0)
+        halvo_schema::executable::day::day_of(at, 0)
     }
 }

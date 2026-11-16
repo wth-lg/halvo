@@ -314,3 +314,45 @@ fn the_day_of_an_instant_is_the_day_of_the_store_s_calendar() {
     assert_eq!(east.day(Instant(20_770 * day - 3600 * second - 1)), 20_769);
     assert_eq!(utc.day(Instant(-1)), 0);
 }
+
+#[test]
+fn the_store_s_day_is_day_of_at_the_very_offset_that_with_utc_offset_took() {
+    use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+    let second = 1_000_000_000_i64;
+    let day = 86_400 * second;
+    let max = UTC_OFFSET_S_MAX;
+    for offset in [
+        i32::MIN,
+        -max - 1,
+        -max,
+        -5 * 3600,
+        -1,
+        0,
+        1,
+        3600,
+        max,
+        max + 1,
+        i32::MAX,
+    ] {
+        let store = MemoryStore::new().with_utc_offset(offset);
+        let midnight = 20_769 * day - i64::from(offset) * second;
+        for at in [
+            i64::MIN,
+            -day,
+            -1,
+            0,
+            midnight - 1,
+            midnight,
+            midnight + 12 * 3600 * second,
+            i64::MAX,
+        ] {
+            assert_eq!(
+                store.day(Instant(at)),
+                day_of(Instant(at), offset),
+                "offset {offset}, at {at}"
+            );
+        }
+        assert_eq!(store.day(Instant(midnight)), 20_769, "{offset}");
+        assert_eq!(store.day(Instant(midnight - 1)), 20_768, "{offset}");
+    }
+}
