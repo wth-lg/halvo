@@ -1139,6 +1139,7 @@ pub(crate) mod tests {
             r#"b.exe a"""b"""c d"#,
             r#"b.exe "--user-data-dir=C:\t\p" --type=gpu"#,
             r#"b.exe \\"x y" z\"#,
+            r#"b.exe a\ "x y""#,
             r#""""#,
             "b.exe",
         ];
@@ -1167,6 +1168,191 @@ pub(crate) mod tests {
             unsafe { LocalFree(argv.cast()) };
             assert_eq!(split_command_line(line), system, "{line}");
         }
+    }
+
+    /// CP-215 G4 (pr-review-40 B3 (a)): the count of backslashes ends at an unquoted space, so a
+    /// run of backslashes before it does not make the next argument's opening quote a literal one.
+    #[test]
+    fn g4_a_run_of_backslashes_ends_at_an_unquoted_space() {
+        assert_eq!(
+            split_command_line(r#"b.exe a\ "x y""#),
+            strings(&["b.exe", r"a\", "x y"])
+        );
+        assert_eq!(
+            split_command_line(r#"b.exe a\\\ "--user-data-dir=C:\t\p 2""#),
+            strings(&["b.exe", r"a\\\", r"--user-data-dir=C:\t\p 2"])
+        );
+    }
+
+    /// CP-215 G4 (pr-review-40 B3 (b)): an empty profile bears nothing, so a mark of an empty
+    /// profile takes no crash handler whose database is `/Crashpad`.
+    #[test]
+    fn g4_an_empty_profile_bears_nothing() {
+        assert!(!bears_profile_on(
+            &strings(&["--database=/Crashpad"]),
+            "",
+            false
+        ));
+        assert!(!bears_profile_on(
+            &strings(&[r"b.exe --database=\Crashpad"]),
+            "",
+            true
+        ));
+        assert!(!bears_profile_on(
+            &strings(&["--user-data-dir="]),
+            "",
+            false
+        ));
+        let mark = Mark {
+            profile: String::new(),
+            since_us: 0,
+            root: std::path::PathBuf::from("/b"),
+        };
+        assert!(!mark.owns(&bundle_row(7, 1, 10), &|_| Some(strings(&[
+            "--database=/Crashpad"
+        ]))));
+    }
+
+    /// CP-215 G4 (verifier-52 v02): `--database=` inside another argument bears nothing.
+    #[test]
+    fn g4_a_database_form_inside_another_argument_bears_nothing() {
+        assert!(!bears_profile_on(
+            &strings(&["--x=--database=/t/p/Crashpad"]),
+            "/t/p",
+            false
+        ));
+        assert!(!bears_profile_on(
+            &strings(&[r"b.exe --x=--database=C:\t\p\Crashpad"]),
+            r"C:\t\p",
+            true
+        ));
+        assert!(bears_profile_on(
+            &strings(&["--database=/t/p/Crashpad"]),
+            "/t/p",
+            false
+        ));
+    }
+
+    /// The arguments of the stand-in table of the tree tests below: the first process (100) with
+    /// the stand-in profile; every other process with `others`.
+    fn tree_args(
+        root: Option<Vec<String>>,
+        others: Vec<String>,
+    ) -> impl Fn(u32) -> Option<Vec<String>> {
+        move |pid| {
+            if pid == 100 {
+                root.clone()
+            } else {
+                Some(others.clone())
+            }
+        }
+    }
+
+    fn own_profile_args() -> Vec<String> {
+        if cfg!(windows) {
+            strings(&[r"b.exe --user-data-dir=C:\t\p"])
+        } else {
+            strings(&["--user-data-dir=/t/p"])
+        }
+    }
+
+    /// CP-215 G4 (verifier-52 s05): a first process that the table no longer holds is no member
+    /// of the tree that `tree_of` reads.
+    #[test]
+    fn g4_a_first_process_that_the_table_no_longer_holds_is_no_member() {
+        let root = bundle_row(100, 50, 10);
+        let table = vec![bundle_row(200, 1, 20)];
+        let args = tree_args(Some(own_profile_args()), own_profile_args());
+        let tree: Vec<u32> = tree_of_with(&table, &root, &args)
+            .iter()
+            .map(|p| p.pid)
+            .collect();
+        assert!(!tree.contains(&100), "{tree:?}");
+    }
+
+    /// CP-215 G4 (verifier-52 s08): a process of the bundle that bears the profile but whose
+    /// parent is a living process outside the tree (not 1) is no adopted member.
+    #[test]
+    fn g4_a_process_of_the_bundle_with_another_parent_is_not_adopted() {
+        let table = vec![
+            bundle_row(100, 50, 10),
+            bundle_row(77, 1, 5),
+            bundle_row(200, 77, 20),
+        ];
+        let args = tree_args(Some(own_profile_args()), own_profile_args());
+        let tree: Vec<u32> = tree_of_with(&table, &table[0], &args)
+            .iter()
+            .map(|p| p.pid)
+            .collect();
+        assert_eq!(tree, vec![100]);
+    }
+
+    /// CP-215 G4 (verifier-52 s09): when the first process's arguments cannot be read, no adopted
+    /// process joins the tree, also one that names the root directory as its profile.
+    #[test]
+    fn g4_an_unread_first_process_takes_no_adopted_process() {
+        let table = vec![bundle_row(100, 50, 10), bundle_row(200, 1, 20)];
+        let slash = if cfg!(windows) {
+            strings(&[r"b.exe --user-data-dir=\"])
+        } else {
+            strings(&["--user-data-dir=/"])
+        };
+        let args = tree_args(None, slash);
+        let tree: Vec<u32> = tree_of_with(&table, &table[0], &args)
+            .iter()
+            .map(|p| p.pid)
+            .collect();
+        assert_eq!(tree, vec![100]);
+    }
+
+    /// CP-215 G4 (pr-review-40 N1): the mark never takes this process itself.
+    #[test]
+    fn g4_the_mark_never_takes_this_process() {
+        let me = bundle_row(std::process::id(), 1, 10);
+        assert!(!stand_in_mark().owns(&me, &|_| Some(own_profile_args())));
+        assert!(stand_in_mark().owns(&bundle_row(7, 1, 10), &|_| Some(own_profile_args())));
+    }
+
+    /// CP-215 G4 (pr-review-40 N1): a process begun at the run's start bears the mark, one begun a
+    /// microsecond before it does not.
+    #[test]
+    fn g4_a_process_begun_at_the_start_is_the_run_s_and_one_before_it_is_not() {
+        let mark = Mark {
+            since_us: 10,
+            ..stand_in_mark()
+        };
+        assert!(mark.owns(&bundle_row(7, 1, 10), &|_| Some(own_profile_args())));
+        assert!(!mark.owns(&bundle_row(7, 1, 9), &|_| Some(own_profile_args())));
+    }
+
+    /// CP-215 G4 (pr-review-40 N1): the program's place is compared with the bundle as a path, by
+    /// components: `/bx/y` is not inside `/b`.
+    #[test]
+    fn g4_the_program_s_place_is_compared_as_a_path() {
+        let beside = Proc {
+            exe: Some(std::path::PathBuf::from("/bx/y")),
+            ..bundle_row(7, 1, 10)
+        };
+        assert!(!stand_in_mark().owns(&beside, &|_| Some(own_profile_args())));
+        assert!(stand_in_mark().owns(&bundle_row(7, 1, 10), &|_| Some(own_profile_args())));
+    }
+
+    /// CP-215 G4 (pr-review-40 N1): `end_runs_own` sends the end only to a process that still runs.
+    #[test]
+    fn g4_end_runs_own_ends_only_what_runs() {
+        let killed = std::cell::RefCell::new(Vec::new());
+        let ended = end_runs_own_with(
+            &stand_in_mark(),
+            &|| Ok(vec![bundle_row(7, 1, 10)]),
+            &|_| Some(own_profile_args()),
+            &|_| false,
+            &|p| {
+                killed.borrow_mut().push(p.pid);
+                true
+            },
+        );
+        assert!(killed.borrow().is_empty(), "{:?}", killed.borrow());
+        assert_eq!((ended.before, ended.ended), (0, 0));
     }
 
     /// Hosted run 43741794346 (windows): `tree_of` read the first process's profile from the one
