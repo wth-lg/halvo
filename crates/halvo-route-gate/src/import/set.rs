@@ -25,13 +25,11 @@ const DRIVE_RUNS: [(CallKind, u32); 5] = [
 ];
 
 /// The line number of the first replay line, in file order, whose `i` less one has no line in its
-/// model, machine, task and seed. `keyed` holds the attempt lines in file order.
+/// model, machine, task and seed. `keyed` holds the attempt lines in file order, each with an `i`
+/// that `lines::numbered` has passed, so only a replay line has an `i` above 1.
 pub fn gap(keyed: &[(usize, AttemptKey)], attempts: &Attempts) -> Option<usize> {
     keyed.iter().find_map(|(number, key)| {
         let (task, kind, model, machine, seed, i) = key.clone();
-        if kind != CallKind::Replay {
-            return None;
-        }
         let below = NonZeroU32::new(i.get() - 1)?;
         (!attempts.contains_key(&(task, kind, model, machine, seed, below))).then_some(*number)
     })
