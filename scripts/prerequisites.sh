@@ -377,7 +377,11 @@ EOF
 }
 
 pnpm_dir_id() {
-  /usr/bin/stat -L -f '%d:%i' "$1" 2>/dev/null || /usr/bin/stat -L -c '%d:%i' "$1" 2>/dev/null
+  dir_id=$(/usr/bin/stat -L -c '%d:%i' "$1" 2>/dev/null) || dir_id=$(/usr/bin/stat -L -f '%d:%i' "$1" 2>/dev/null) || return 1
+  case $dir_id in
+    '' | *[!0-9:]*) return 1 ;;
+  esac
+  printf '%s\n' "$dir_id"
 }
 
 pnpm_same_dir() {
