@@ -2521,10 +2521,8 @@ impl EncryptedStore {
                 RootsLeft::none_counted(true),
             )),
             Err(e) if durable::refusal(&e).is_some() => {
-                let gone = remove_what_stands_at(dir);
                 let mut report =
-                    nothing_of_a_store(RootReading::Unnamed, RootsLeft::none_counted(gone));
-                report.files_left = u64::from(!gone);
+                    not_opened(RootReading::Left(None), RootsLeft::none_counted(false));
                 report.not_followed = 1;
                 finished(report)
             }
@@ -2698,20 +2696,6 @@ fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
         database_left: true,
         files_left: 1,
         not_followed: 0,
-    }
-}
-
-/// Removes a link or an entry of another kind at the store name as the
-/// entry that it is: whether it is gone.
-fn remove_what_stands_at(store_dir: &Path) -> bool {
-    match (store_dir.parent(), store_dir.file_name()) {
-        (Some(parent), Some(name)) => Dir::open(parent)
-            .and_then(|parent| {
-                parent.remove_entry(name)?;
-                parent.sync()
-            })
-            .is_ok(),
-        _ => false,
     }
 }
 
