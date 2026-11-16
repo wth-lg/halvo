@@ -641,3 +641,111 @@ fn rd48c_the_coordinators_own_row_decides_the_line_only_for_an_end_that_the_coor
         assert_eq!(c.runs[0].text, line(want), "{own:?} {store:?}");
     }
 }
+
+fn no_piece_over_1024_bytes(c: &halvo_coord::types::Card) {
+    for run in &c.runs {
+        for e in &run.effects {
+            for f in e.fields() {
+                for piece in &f.value {
+                    assert!(
+                        piece.len() <= 1024,
+                        "{}: a piece of {} bytes",
+                        e.key(),
+                        piece.len()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn i34_a_committed_kept_piece_over_1024_bytes_gives_the_unshown_entry() {
+    let long = "Q".repeat(1025);
+    let mut p = payment();
+    p.kept[0].value = vec![long.clone()];
+    let c = beside_a_good_run(p);
+    no_piece_over_1024_bytes(&c);
+    assert_eq!(keys(&c, 0)[1], "run.effect.payment.unshown");
+    assert!(!serde_json::to_string(&c).unwrap().contains(&long));
+}
+
+#[test]
+fn i34_a_local_edit_file_name_longer_than_1024_bytes_gives_the_unshown_entry() {
+    let bad = committed(
+        Class::LocalEdit,
+        vec![
+            Kept {
+                name: Name::parse("file").unwrap(),
+                value: vec![format!("Books/{}", "x".repeat(700)), "y".repeat(700)],
+            },
+            one_kept("range", "lines 1 to 2"),
+        ],
+    );
+    let c = beside_a_good_run(bad);
+    no_piece_over_1024_bytes(&c);
+    assert_eq!(keys(&c, 0)[1], "run.effect.local_edit.unshown");
+}
+
+#[test]
+fn i34_a_not_done_entry_shows_no_first_field_over_1024_bytes() {
+    let f = facts(State::Card).remove(0);
+    let long = "Q".repeat(1025);
+    let mut p = rejected(0xe1, "ab");
+    p.class = Class::Payment;
+    p.kept = vec![one_kept("payee", &long)];
+    let mut file = rejected(0xe3, "ab");
+    file.class = Class::LocalEdit;
+    file.kept = vec![Kept {
+        name: Name::parse("file").unwrap(),
+        value: vec![format!("Books/{}", "x".repeat(700)), "y".repeat(700)],
+    }];
+    let (keys, _, fields) = declined_card(&f, vec![p, file]);
+    assert_eq!(
+        keys,
+        [
+            "run.effect.payment.not_done",
+            "run.effect.local_edit.not_done"
+        ]
+    );
+    assert_eq!(fields, [Vec::<String>::new(), Vec::new()], "no field");
+}
+
+#[test]
+fn rd101i_a_lapse_after_a_switch_off_that_still_stands_has_the_line_of_a_stopped_run() {
+    let stop = |order: &[&str]| {
+        let mut f = facts(State::Card).remove(0);
+        for step in order {
+            let what = match *step {
+                "off" => What::HoldSet {
+                    cause: halvo_coord::types::HoldSetCause::Person,
+                },
+                "on" => What::HoldCleared {
+                    cause: halvo_coord::types::Cleared::Person,
+                },
+                _ => What::RunEnded {
+                    run: run_of(2),
+                    cause: RunEnd::Lapsed,
+                },
+            };
+            row(&mut f, what);
+        }
+        let mut h = history(2, Outcome::Declined);
+        h.effects = vec![];
+        card(&f, "N", &[h], &Limits::PRODUCT).unwrap().runs[0]
+            .text
+            .clone()
+    };
+    assert_eq!(stop(&["off", "end"]), line("line.run.cancelled"));
+    assert_eq!(
+        stop(&["end", "off"]),
+        line("line.run.lapsed"),
+        "a lapse before the switch-off"
+    );
+    assert_eq!(
+        stop(&["off", "end", "on"]),
+        line("line.run.lapsed"),
+        "the switch-off no longer stands"
+    );
+    assert_eq!(stop(&["end"]), line("line.run.lapsed"));
+}

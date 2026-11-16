@@ -285,17 +285,22 @@ fn file_name(kept: &[String]) -> Result<String, Cause> {
 
 /// The kept field `k` of an effect of `class` as a field of I3.4: the label
 /// `field.<class>.<name>`, the value as the row keeps it, an `origin` as the site's name and the
-/// `file` of a `local_edit` as the name of the file alone, and the `from` that A-A9.3 admits.
+/// `file` of a `local_edit` as the name of the file alone, and the `from` that A-A9.3 admits;
+/// `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
 fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
     let name = k.name.as_str();
     let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
+    let value = match (class, name) {
+        (_, "origin") => vec![site_name(&k.value)?],
+        (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
+        _ => k.value.clone(),
+    };
+    if value.iter().any(|piece| piece.len() > 1024) {
+        return Err(Cause::Malformed);
+    }
     Ok(Field {
         label: words::text(&format!("field.{}.{name}", class.name()), &[])?,
-        value: match (class, name) {
-            (_, "origin") => vec![site_name(&k.value)?],
-            (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
-            _ => k.value.clone(),
-        },
+        value,
         from,
         from_text: words::text(&format!("from.{}", from.name()), &[])?,
     })

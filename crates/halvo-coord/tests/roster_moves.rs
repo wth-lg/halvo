@@ -487,3 +487,78 @@ fn rd54g_a_gone_workflows_run_whose_kill_does_not_end_it_shows_kill_stuck() {
     assert_eq!(c.live(), 0);
     assert!(row_of(&c).is_none());
 }
+
+#[test]
+fn rd54g_a_gone_workflows_row_names_no_next_day() {
+    let slotted = support::A {
+        person: false,
+        slotted: true,
+    };
+    let c = coordinator(&[slotted], Limits::PRODUCT);
+    if started(&c).is_empty() {
+        start(&c, 0);
+    } else {
+        let run = started(&c).last().cloned().unwrap();
+        assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    }
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(0));
+    c.tick();
+    assert_eq!(c.live(), 1, "the run is stopping");
+    let row = row_of(&c).expect("the row stays while the run lives");
+    assert_eq!(row.line, line("line.working.stopping"));
+    assert_eq!(row.next, None, "a gone workflow has no next slot");
+}
+
+/// A run whose one item of `items_per_run` 1 was raised and answered.
+fn items_spent() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(
+        &[MANUAL],
+        Limits {
+            items_per_run: 1,
+            ..Limits::PRODUCT
+        },
+    );
+    let run = start(&c, 0);
+    assert_eq!(
+        c.on_run(&run, link(&run, "https://pay.site1.example:443")),
+        Ok(())
+    );
+    let item = c.snapshot().items[0].item().clone();
+    press(&c, &item, Choice::Done);
+    assert!(c.snapshot().items.is_empty());
+    (c, run)
+}
+
+#[test]
+fn i14_an_insecure_second_step_is_declined_also_after_the_runs_items_were_spent() {
+    let (c, run) = items_spent();
+    let (m, before) = (mark(&c), raised(&c));
+    let _ = c.on_run(&run, bind(&run, "http://pay.site1.example:80"));
+    assert_eq!(
+        calls_since(&c, m)
+            .into_iter()
+            .filter(|call| matches!(call, Call::AnswerBind(..) | Call::Cancel(..)))
+            .collect::<Vec<_>>(),
+        [Call::AnswerBind(run.clone(), BindResult::Decline)]
+    );
+    assert_eq!(raised(&c), before);
+}
+
+#[test]
+fn i14_an_insecure_account_link_is_declined_also_after_the_runs_items_were_spent() {
+    let (c, run) = items_spent();
+    let (m, before) = (mark(&c), raised(&c));
+    let _ = c.on_run(&run, link(&run, "http://10.0.0.1:80"));
+    assert_eq!(
+        calls_since(&c, m)
+            .into_iter()
+            .filter(|call| matches!(call, Call::AnswerHandback(..) | Call::Cancel(..)))
+            .collect::<Vec<_>>(),
+        [Call::AnswerHandback(run.clone(), HandbackResult::Declined)]
+    );
+    assert_eq!(raised(&c), before);
+}

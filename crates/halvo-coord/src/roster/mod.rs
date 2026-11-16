@@ -6,10 +6,10 @@ use crate::guard::EffectState;
 use crate::items::ConfirmState;
 use crate::schedule::{holds, next_slot, Hold};
 use crate::types::{
-    Answered, Card, CardEffect, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing,
-    EffectAnswer, Event, Facts, FullWorkflow, ItemId, ItemKind, Limits, LineKey, LivePhase,
-    PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory, RunId, Runtime, StatusLine,
-    Tier, What,
+    Answered, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
+    ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
+    Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
+    RunId, Runtime, StatusLine, Tier, What,
 };
 use crate::words;
 
@@ -226,7 +226,7 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
 
 /// The row of an agent whose workflow a tick saw gone while its run lives (I5.7, ruling RD-54
 /// (g)): `working.stopping`, or `working.kill_stuck` where `stuck`, the run's kill having come
-/// due without ending it, and no control.
+/// due without ending it, no control and no next day, since a gone workflow has no slot.
 pub fn gone_row<C: ConfigView>(facts: &Facts<C>, stuck: bool, name: &str) -> Result<Row, Cause> {
     let line = if stuck {
         StatusLine::KillStuck
@@ -235,6 +235,7 @@ pub fn gone_row<C: ConfigView>(facts: &Facts<C>, stuck: bool, name: &str) -> Res
     };
     Ok(Row {
         controls: Vec::new(),
+        next: None,
         ..row(facts, line, name)?
     })
 }
@@ -294,13 +295,36 @@ fn said_no(events: &[Event], run: &RunId, effect: &PastEffect) -> bool {
 
 /// The end that a run's line says (I2.6, rulings RD-48 (c), RD-65 (e), RD-85 item 3): the cause
 /// of the coordinator's own newest `run_ended` row of the run where that cause is one that only
-/// the coordinator gives, and the agent store's outcome otherwise.
+/// the coordinator gives, and the agent store's outcome otherwise; a run that ended `lapsed`
+/// after the switch-off that still stands has the line of a stopped run (ruling RD-101 (i)).
 fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
-    let own = events.iter().rev().find_map(|e| match &e.what {
-        What::RunEnded { run: r, cause } if *r == run.run => Some(*cause),
+    let ended = events
+        .iter()
+        .rposition(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run.run));
+    let own = ended.and_then(|k| match &events[k].what {
+        What::RunEnded { cause, .. } => Some(*cause),
         _ => None,
     });
+    let set = events.iter().rposition(|e| {
+        matches!(
+            e.what,
+            What::HoldSet {
+                cause: HoldSetCause::Person
+            }
+        )
+    });
+    let cleared = events.iter().rposition(|e| {
+        matches!(
+            e.what,
+            What::HoldCleared {
+                cause: Cleared::Person
+            }
+        )
+    });
+    let switched_off_before = matches!((set, ended), (Some(s), Some(n)) if s < n)
+        && set.is_some_and(|s| cleared.is_none_or(|c| c < s));
     match own {
+        Some(RunEnd::Lapsed) if switched_off_before => RunEnd::Cancelled,
         Some(
             end @ (RunEnd::Cancelled
             | RunEnd::Lapsed
