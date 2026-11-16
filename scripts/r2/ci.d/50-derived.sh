@@ -165,16 +165,12 @@ esac
 #= tests/cases.rs a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call
 #= tests/cases.rs a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered
 #= tests/cases.rs two_scratch_directories_of_one_name_in_one_process_get_two_paths
-#= tests/cases.rs the_scratch_leaf_name_differs_for_two_readings_of_the_clock
-#= tests/cases.rs a_second_making_of_a_scratch_leaf_that_exists_fails
 #= src/lib.rs tests::two_unit_directories_of_one_name_in_one_process_get_two_paths
 #= tests/past_bound.rs a_dropped_fixture_leaves_no_directory
 #= tests/privacy.rs the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one
 #= tests/privacy.rs the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed
 #= tests/privacy.rs every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search
 #= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
-#= src/lib.rs tests::a_second_making_of_a_unit_leaf_that_exists_fails
-#= src/lib.rs tests::the_unit_leaf_name_differs_for_two_readings_of_the_clock
 #= tests/privacy.rs removed_rows_leave_no_text_in_the_gap_of_a_page_built_again
 #= tests/page_gap_check.rs small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check
 #= tests/page_gap_check.rs the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check

@@ -18,3 +18,4 @@ sha2 = "0.10"
 [dev-dependencies]
 halvo-derived = { path = ".", features = ["test-host"] }
 halvo-redact = { path = "../halvo-redact" }
+halvo-test-dir = { path = "../halvo-test-dir" }

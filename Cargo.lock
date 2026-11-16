@@ -1704,6 +1704,7 @@ dependencies = [
  "halvo-redact",
  "halvo-schema-core",
  "halvo-sqlcipher",
+ "halvo-test-dir",
  "rusqlite",
  "serde",
  "serde_json",
