@@ -454,6 +454,7 @@ fn the_layers_refusal_names_the_tier_or_layers_argument_alone() {
     assert!(!dir.join("o").exists());
 }
 
+#[cfg(target_os = "macos")]
 fn long_dir(base: &Path, total: usize) -> PathBuf {
     let mut dir = base.to_path_buf();
     while s(&dir).len() + 1 < total {
