@@ -2194,8 +2194,58 @@ fn rd96_5b_a_raise_that_a_read_shows_switched_off_leaves_no_lapse_waiting() {
     assert_eq!(whats_from(&p, 2), vec![]);
 }
 
+#[test]
+fn rd96_5b_a_raise_writes_no_second_close_of_an_item_that_the_ledger_stored_closed() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Stuck(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    let lapse = What::ItemLapsed {
+        item: support::item_id(9),
+        lapsed: Lapsed::Stuck(OtherLapse::RunEnded),
+    };
+    store(&p, &mut l, &LIMITS, vec![lapse.clone()]).unwrap();
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            lapse,
+            What::ItemRaised {
+                item: open.item,
+                raised: Raised::Stuck(run_id(1)),
+            },
+        ],
+        "the acknowledged lapse closes the item: no second lapse"
+    );
+}
+
+#[test]
+fn rd96_5b_a_raise_leaves_an_earlier_item_that_the_events_close() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Stuck(run_id(9)));
+    let mut closed = earlier_raise(2, 9, Raised::Stuck(run_id(9)));
+    closed.what = What::ItemLapsed {
+        item: support::item_id(9),
+        lapsed: Lapsed::Stuck(OtherLapse::AppEnded),
+    };
+    let events = vec![earlier, closed];
+    p.events.borrow_mut().extend(events.iter().cloned());
+    let mut l = Ledger::new(workflow_id(1), agent_id(1), 2);
+    l.take(&events);
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        whats_from(&p, 2),
+        vec![What::ItemRaised {
+            item: open.item,
+            raised: Raised::Stuck(run_id(1)),
+        }],
+        "a ledger made at the agent's last event: the events' own close counts"
+    );
+}
+
 mod schedule_raises {
     use super::run_world::{self, agent, flow, World, A, DAY, MANUAL};
+    use halvo_coord::mem::Method;
+    use halvo_coord::ports::PortError;
     use halvo_coord::run::Act;
     use halvo_coord::schedule::{drive as schedule_drive, Move, Owed, Owing};
     use halvo_coord::types::{
@@ -2421,6 +2471,99 @@ mod schedule_raises {
                     raised: Raised::Check(None),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn rd96_5b_a_raise_writes_no_second_close_of_an_owed_item_that_the_events_close() {
+        let mut w = run_world::world(&[MANUAL]);
+        w.board.members[0].facts.workflow.category = Category::UtilityBillPayment;
+        let lapsed = Lapsed::Setup(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7304, Raised::Setup, lapsed);
+        let close = event(
+            0,
+            last_seq(&w, 0) + 1,
+            What::ItemLapsed {
+                item: item(0x7304),
+                lapsed,
+            },
+        );
+        w.ports.events.borrow_mut().push(close.clone());
+        w.board.members[0].facts.events.push(close);
+        let before = last_seq(&w, 0);
+        let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+        let raised = open_of(&w, 0, is_setup);
+        assert_eq!(raised.len(), 1);
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![What::ItemRaised {
+                item: raised[0].clone(),
+                raised: Raised::Setup,
+            }],
+            "the debt's item is closed already: the raise goes alone"
+        );
+        assert_eq!(closing_rows(&w, 0, &item(0x7304)).len(), 1);
+    }
+
+    #[test]
+    fn rd96_5b_a_raise_leaves_the_owed_item_of_another_agent() {
+        let mut w = run_world::world(&[PERSON, MANUAL]);
+        let lapsed = Lapsed::Ready(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 1, 0x7305, Raised::Ready, lapsed);
+        another_writers_event(&w, 1);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        assert_eq!(tick.report.raised, vec![agent(0)]);
+        let raised = open_of(&w, 0, is_ready);
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![What::ItemRaised {
+                item: raised[0].clone(),
+                raised: Raised::Ready,
+            }],
+            "agent 0's raise writes nothing of agent 1's debt"
+        );
+        assert_eq!(w.board.owed.len(), 1, "agent 1's debt stays owed");
+    }
+
+    #[test]
+    fn rd96_5b_a_check_raise_that_meets_seq_lapses_the_owed_check_item_in_its_second_body() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7306, Raised::Check(None), lapsed);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+        w.ports.refuse(Method::Log, PortError::NoService);
+        let first = w.act(Act::Tick);
+        w.ports.clear_refusals();
+        assert!(first.checked.is_empty(), "no log is acknowledged");
+        assert_eq!(w.board.owed.len(), 1);
+        w.ports.refuse(Method::Workflows, PortError::NoService);
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        w.ports.clear_refusals();
+        assert_eq!(tick.checked, vec![agent(0)], "the second body is logged");
+        let raised = open_of(&w, 0, is_check);
+        assert_eq!(raised.len(), 1, "one open check item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: item(0x7306),
+                    lapsed,
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Check(None),
+                },
+            ],
+            "the body made again after the read lapses the earlier check item first"
         );
     }
 }
