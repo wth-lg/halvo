@@ -516,6 +516,22 @@ impl<C: KeyCustody> KeyCustody for Adv1StopsAtItsRoot<C> {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.0.destroy_root()
     }
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        self.0.wrap_store_key_in(roots, key, label)
+    }
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.0.unwrap_store_key_in(roots, wrapped, label)
+    }
 }
 
 /// A create that stopped after its pending mark and before its root, a second
@@ -623,6 +639,23 @@ impl<C: KeyCustody> KeyCustody for Adv1AnotherPartyWritesStoreKey<C> {
     }
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.inner.destroy_root()
+    }
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        std::fs::write(&self.at, vec![7u8; 200]).unwrap();
+        self.inner.wrap_store_key_in(roots, key, label)
+    }
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.inner.unwrap_store_key_in(roots, wrapped, label)
     }
 }
 
@@ -773,8 +806,8 @@ fn delete_all_of_a_moved_store_keeps_the_root_of_the_store_made_at_its_old_name(
         "delete-all of the moved store destroyed the root of the store made at its old name: {line}; the store at its old name: {second_reads}"
     );
     assert!(
-        answer.is_err() && !delete_report(&answer).root_destroyed(),
-        "delete-all of the moved store must answer DeleteIncomplete with its root not destroyed, while that root stays in the moved directory (unwraps: {first_root}): {line}"
+        answer.is_err() && delete_report(&answer).root_destroyed() && first_root != "Ok",
+        "delete-all of the moved store must destroy its root in the moved directory, where its held handle reaches it, and answer DeleteIncomplete because that directory left its path (unwraps: {first_root}): {line}"
     );
 }
 
@@ -1234,8 +1267,8 @@ fn delete_all_after_the_data_directory_moved_keeps_the_root_of_a_store_made_at_t
         ver12_report_line(&answer)
     );
     assert!(
-        answer.is_err() && !delete_report(&answer).root_destroyed(),
-        "delete-all of the moved store must answer DeleteIncomplete with its root not destroyed (unwraps: {first_root}): {}",
+        answer.is_err() && delete_report(&answer).root_destroyed() && first_root != "Ok",
+        "delete-all of the moved store must destroy its root in the moved directory, where its held handle reaches it, and answer DeleteIncomplete because that directory left its path (unwraps: {first_root}): {}",
         ver12_report_line(&answer)
     );
 }

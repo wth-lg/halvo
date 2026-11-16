@@ -14,10 +14,10 @@ use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::custody::file_root::{self, RootStepForm, RootsLeft};
+use crate::custody::file_root::{self, NamedRoot, RootStepForm, RootsLeft};
 use crate::custody::{
-    custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, KeyCustody, KeyLabel, RootId,
-    StoreKey, WrappedKey,
+    custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, FileIdentity, KeyCustody,
+    KeyLabel, RootId, RootsHandle, StoreKey, WrappedKey,
 };
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
@@ -1080,7 +1080,15 @@ fn remove_pending(store_dir: &Dir) -> StoreResult<()> {
     store_dir.sync().map_err(io_error)
 }
 
-fn clear_pending(store_dir: &Dir, roots: &Path, keyed: KeyNames) -> StoreResult<()> {
+/// Where a cleanup of a stopped create reaches the roots: the directory that
+/// the store holds, or, before a create took its handle, the path.
+#[derive(Clone, Copy)]
+enum CleanupRoots<'a> {
+    Path(&'a Path),
+    Held(&'a RootsHandle),
+}
+
+fn clear_pending(store_dir: &Dir, roots: CleanupRoots<'_>, keyed: KeyNames) -> StoreResult<()> {
     let present = store_dir.entry(OsStr::new(CREATE_PENDING)).is_ok()
         || store_dir.entry(OsStr::new(CREATE_PENDING_TEMP)).is_ok();
     if !present || keyed == KeyNames::Unknown {
@@ -1088,7 +1096,12 @@ fn clear_pending(store_dir: &Dir, roots: &Path, keyed: KeyNames) -> StoreResult<
     }
     if let Some(pending) = read_pending(store_dir).filter(|p| p.reading == PendingReading::Made) {
         if keyed != KeyNames::Root(pending.root_id) {
-            file_root::destroy_root_at(roots, pending.root_id)?;
+            match roots {
+                CleanupRoots::Path(roots) => file_root::destroy_root_at(roots, pending.root_id)?,
+                CleanupRoots::Held(held) => {
+                    file_root::destroy_root_through(&held.dir, NamedRoot::by_id(pending.root_id))?
+                }
+            }
         }
     }
     remove_pending(store_dir)
@@ -1811,6 +1824,29 @@ pub(in crate::store) struct RootStep {
     roots: RootsLeft,
 }
 
+/// How the store reaches its root: through the roots directory that it holds,
+/// with the identity of its root file, or through a custody that keeps no
+/// root file.
+enum RootKeeping {
+    Held {
+        roots: RootsHandle,
+        root_file: FileIdentity,
+    },
+    NoRootFile,
+}
+
+impl RootKeeping {
+    fn named(&self, id: RootId) -> NamedRoot {
+        match self {
+            RootKeeping::Held { root_file, .. } => NamedRoot {
+                id,
+                file: Some(*root_file),
+            },
+            RootKeeping::NoRootFile => NamedRoot::by_id(id),
+        }
+    }
+}
+
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
@@ -1831,6 +1867,7 @@ pub struct EncryptedStore {
     /// The roots listing of the call on this handle that read its root
     /// destroyed; a later call reports from it and opens no roots path.
     root_destroyed_with: Option<RootsLeft>,
+    roots: RootKeeping,
     _writer_lock: DirLock,
 }
 
@@ -1878,7 +1915,7 @@ impl EncryptedStore {
             Err(e) => return Err(e),
         }
         if let Some(roots) = custody.roots() {
-            clear_pending(dir, roots, key_file.names())?;
+            clear_pending(dir, CleanupRoots::Path(roots), key_file.names())?;
             if file_root::root_file_may_be_present(roots, custody.root_id()) {
                 return Err(StoreError::Custody(
                     custody
@@ -1900,6 +1937,25 @@ impl EncryptedStore {
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
+        let (wrapped, roots) = match Self::wrap_under_the_new_root(custody.as_ref(), &store_key) {
+            Ok(wrapped) => wrapped,
+            Err((e, held)) => {
+                drop(db);
+                let own_root = held.as_ref().map(|roots| (roots, custody.root_id()));
+                return Err(Self::abandon_create(
+                    dir,
+                    &key_file,
+                    None,
+                    custody.as_ref(),
+                    own_root.map(|(roots, id)| (roots, NamedRoot::by_id(id))),
+                    e,
+                ));
+            }
+        };
+        let own_root = match &roots {
+            RootKeeping::Held { roots: held, .. } => Some((held, roots.named(custody.root_id()))),
+            RootKeeping::NoRootFile => None,
+        };
         if let Err(e) = write_pending(dir, custody.as_ref(), PendingReading::Made) {
             drop(db);
             return Err(Self::abandon_create(
@@ -1907,12 +1963,14 @@ impl EncryptedStore {
                 &key_file,
                 None,
                 custody.as_ref(),
+                own_root,
                 e,
             ));
         }
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_ROOT);
-        let (written, published) = Self::write_key_file(&key_file, custody.as_ref(), &store_key);
+        let (written, published) =
+            key_file.publish_keeping(&KeyFile::new(custody.as_ref(), KeyLabel::STORE, &wrapped));
         match written
             .and_then(|()| failpoint::hit("create_after_the_key_file"))
             .and_then(|()| remove_pending(dir))
@@ -1926,6 +1984,7 @@ impl EncryptedStore {
                 unwrap_time: Duration::ZERO,
                 pending_left: false,
                 root_destroyed_with: None,
+                roots,
                 _writer_lock,
             }),
             Err(e) => {
@@ -1933,11 +1992,33 @@ impl EncryptedStore {
                 Err(Self::abandon_create(
                     dir,
                     &key_file,
-                    published.as_ref(),
+                    Some(&published),
                     custody.as_ref(),
+                    own_root,
                     e,
                 ))
             }
+        }
+    }
+
+    /// The wrap of a create, after its create_root answered Ok: through the
+    /// roots directory, held from here on, for a custody that keeps a root
+    /// file, with the identity of the root file that the wrap read. On a
+    /// failure, the error and the held directory when it was taken.
+    fn wrap_under_the_new_root(
+        custody: &dyn KeyCustody,
+        store_key: &StoreKey,
+    ) -> Result<(WrappedKey, RootKeeping), (StoreError, Option<RootsHandle>)> {
+        let Some(path) = custody.roots() else {
+            return custody
+                .wrap_store_key(store_key, KeyLabel::STORE)
+                .map(|wrapped| (wrapped, RootKeeping::NoRootFile))
+                .map_err(|e| (StoreError::Custody(e), None));
+        };
+        let roots = RootsHandle::open(path).map_err(|e| (StoreError::Custody(e), None))?;
+        match custody.wrap_store_key_in(&roots, store_key, KeyLabel::STORE) {
+            Ok((wrapped, root_file)) => Ok((wrapped, RootKeeping::Held { roots, root_file })),
+            Err(e) => Err((StoreError::Custody(e), Some(roots))),
         }
     }
 
@@ -1948,21 +2029,6 @@ impl EncryptedStore {
                 drop(db);
                 Err(Self::without_database(dir, StoreError::Custody(e)))
             }
-        }
-    }
-
-    fn write_key_file(
-        key_file: &KeyFilePlace,
-        custody: &dyn KeyCustody,
-        store_key: &StoreKey,
-    ) -> (StoreResult<()>, Option<Published>) {
-        match custody.wrap_store_key(store_key, KeyLabel::STORE) {
-            Ok(wrapped) => {
-                let (written, published) =
-                    key_file.publish_keeping(&KeyFile::new(custody, KeyLabel::STORE, &wrapped));
-                (written, Some(published))
-            }
-            Err(e) => (Err(StoreError::Custody(e)), None),
         }
     }
 
@@ -1980,6 +2046,7 @@ impl EncryptedStore {
         key_file: &KeyFilePlace,
         published: Option<&Published>,
         custody: &dyn KeyCustody,
+        own_root: Option<(&RootsHandle, NamedRoot)>,
         cause: StoreError,
     ) -> StoreError {
         let own_name = match published {
@@ -1991,7 +2058,11 @@ impl EncryptedStore {
         let root = if kept_for_the_entry_there {
             Ok(())
         } else {
-            custody.destroy_root().map_err(StoreError::Custody)
+            match own_root {
+                Some((roots, root)) => file_root::destroy_root_through(&roots.dir, root),
+                None => custody.destroy_root(),
+            }
+            .map_err(StoreError::Custody)
         };
         let key_file = own_name.map(drop).map_err(io_error);
         let database = Db::destroy_in(dir);
@@ -2055,11 +2126,33 @@ impl EncryptedStore {
         Db::require_file(&store)?;
         Db::refuse_a_live_holder(&store)?;
         let custody = custody_for(&key_file.locator(roots))?;
+        let held = custody.roots().map(RootsHandle::open).transpose()?;
         let started = Instant::now();
-        let store_key = custody.unwrap_store_key(&wrapped, KeyLabel::STORE)?;
+        let (store_key, kept) = match held {
+            Some(held) => {
+                let (store_key, root_file) =
+                    custody.unwrap_store_key_in(&held, &wrapped, KeyLabel::STORE)?;
+                (
+                    store_key,
+                    RootKeeping::Held {
+                        roots: held,
+                        root_file,
+                    },
+                )
+            }
+            None => (
+                custody.unwrap_store_key(&wrapped, KeyLabel::STORE)?,
+                RootKeeping::NoRootFile,
+            ),
+        };
         let unwrap_time = started.elapsed();
         let db = Db::open_existing(&store, store_key.expose())?;
-        let pending_left = clear_pending(&store, roots, KeyNames::Root(key_file.root_id)).is_err();
+        let cleanup_roots = match &kept {
+            RootKeeping::Held { roots: held, .. } => CleanupRoots::Held(held),
+            RootKeeping::NoRootFile => CleanupRoots::Path(roots),
+        };
+        let pending_left =
+            clear_pending(&store, cleanup_roots, KeyNames::Root(key_file.root_id)).is_err();
         Ok(Self {
             dir: store,
             retention,
@@ -2069,6 +2162,7 @@ impl EncryptedStore {
             unwrap_time,
             pending_left,
             root_destroyed_with: None,
+            roots: kept,
             _writer_lock,
         })
     }
@@ -2195,18 +2289,18 @@ impl EncryptedStore {
             };
         }
         let named = self.custody.root_id();
-        let (reading, roots) = match self.custody.roots() {
-            Some(roots) => file_root::destroy_roots_in(roots, Some(named), RootStepForm::Witness),
-            None => (
+        let (reading, roots) = match &self.roots {
+            RootKeeping::Held { roots, .. } => file_root::destroy_roots_through(
+                &roots.dir,
+                Some(self.roots.named(named)),
+                RootStepForm::Witness,
+            ),
+            RootKeeping::NoRootFile => (
                 match self.custody.destroy_root() {
                     Ok(()) => RootReading::Destroyed,
                     Err(_) => RootReading::Left(Some(named)),
                 },
-                RootsLeft {
-                    left: Vec::new(),
-                    names: Vec::new(),
-                    listed: true,
-                },
+                RootsLeft::none_counted(true),
             ),
         };
         RootStep { reading, roots }
@@ -2216,11 +2310,7 @@ impl EncryptedStore {
         DeleteReport {
             keyed_segments: None,
             root: RootReading::Left(Some(self.custody.root_id())),
-            roots: RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: true,
-            },
+            roots: RootsLeft::none_counted(true),
             root_not_handled: None,
             key_file_gone: false,
             database_left: true,
@@ -2325,14 +2415,7 @@ impl EncryptedStore {
                 let (root, roots) = if gone {
                     sweep_where_no_store_stands(store_dir, roots)
                 } else {
-                    (
-                        RootReading::Unnamed,
-                        RootsLeft {
-                            left: Vec::new(),
-                            names: Vec::new(),
-                            listed: false,
-                        },
-                    )
+                    (RootReading::Unnamed, RootsLeft::none_counted(false))
                 };
                 return finished(DeleteReport {
                     keyed_segments: None,
@@ -2352,11 +2435,7 @@ impl EncryptedStore {
             Err(_) => {
                 return finished(not_opened(
                     RootReading::Left(None),
-                    RootsLeft {
-                        left: Vec::new(),
-                        names: Vec::new(),
-                        listed: false,
-                    },
+                    RootsLeft::none_counted(false),
                 ))
             }
         };
@@ -2400,11 +2479,7 @@ impl EncryptedStore {
         let unread = || {
             (
                 RootReading::Left(None),
-                RootsLeft {
-                    left: Vec::new(),
-                    names: Vec::new(),
-                    listed: false,
-                },
+                RootsLeft::none_counted(false),
                 None,
             )
         };
@@ -2454,13 +2529,9 @@ fn tail_root_step(
         ),
         Some(root_id) => (
             RootReading::Left(Some(root_id)),
-            RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: false,
-            },
+            RootsLeft::none_counted(false),
         ),
-        None => file_root::destroy_roots_in(roots, named, form),
+        None => file_root::destroy_roots_in(roots, named.map(NamedRoot::by_id), form),
     };
     (reading, roots, root_not_handled)
 }
@@ -2471,24 +2542,10 @@ fn tail_root_step(
 /// nothing stands there (ruling ST-45 H1).
 fn sweep_where_no_store_stands(store_dir: &Path, roots: &Path) -> (RootReading, RootsLeft) {
     if a_roots_path_that_the_sweep_refuses(store_dir, roots) {
-        return (
-            RootReading::Unnamed,
-            RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: false,
-            },
-        );
+        return (RootReading::Unnamed, RootsLeft::none_counted(false));
     }
     if roots.starts_with(store_dir) {
-        return (
-            RootReading::Unnamed,
-            RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: true,
-            },
-        );
+        return (RootReading::Unnamed, RootsLeft::none_counted(true));
     }
     file_root::destroy_roots_in(roots, None, RootStepForm::Sweep)
 }

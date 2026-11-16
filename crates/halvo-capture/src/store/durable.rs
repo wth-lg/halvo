@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
+pub(crate) use crate::custody::FileIdentity;
+
 pub(crate) trait DurableFs: Send + Sync {
     fn create_new(&self, dir: &Dir, name: &OsStr) -> io::Result<File>;
     fn sync_file(&self, file: &File, dir: &Dir, name: &OsStr) -> io::Result<()>;
@@ -167,7 +169,7 @@ mod unix_dir {
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refusal, refused, Dir, Entry, EntryKind, Refused};
+    use super::{refusal, refused, Dir, Entry, EntryKind, FileIdentity, Refused};
 
     fn c_name(name: &OsStr) -> io::Result<CString> {
         CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
@@ -527,6 +529,19 @@ mod unix_dir {
             Ok((st.st_dev as u64, st.st_ino))
         }
 
+        /// The identity of the regular file at `name`, following no link; an
+        /// entry of another kind is refused.
+        pub(crate) fn file_identity_at(&self, name: &OsStr) -> io::Result<FileIdentity> {
+            let st = stat_at(self.fd.as_raw_fd(), name)?;
+            if kind(&st) != EntryKind::File {
+                return Err(refused(Refused::NotARegularFile));
+            }
+            Ok(FileIdentity {
+                volume: st.st_dev as u64,
+                file: st.st_ino,
+            })
+        }
+
         pub(crate) fn raw_descriptor(&self) -> RawFd {
             self.fd.as_raw_fd()
         }
@@ -606,7 +621,10 @@ mod windows_dir {
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refusal, refused, Dir, Entry, EntryKind, Refused, FILE_FLAG_OPEN_REPARSE_POINT};
+    use super::{
+        refusal, refused, Dir, Entry, EntryKind, FileIdentity, Refused,
+        FILE_FLAG_OPEN_REPARSE_POINT,
+    };
 
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
@@ -664,6 +682,14 @@ mod windows_dir {
         // zeroed start was already a valid value of the structure.
         let information = unsafe { information.assume_init() };
         Ok(u64::from(information.links))
+    }
+
+    pub(crate) fn identity_of(file: &File) -> io::Result<FileIdentity> {
+        let (volume, file) = file_id(file)?;
+        Ok(FileIdentity {
+            volume: u64::from(volume),
+            file,
+        })
     }
 
     fn file_id(file: &File) -> io::Result<(u32, u64)> {
@@ -899,6 +925,15 @@ mod windows_dir {
             }
         }
 
+        /// The identity of the regular file at `name`, following no link; an
+        /// entry of another kind is refused.
+        pub(crate) fn file_identity_at(&self, name: &OsStr) -> io::Result<FileIdentity> {
+            identity_of(&held_file(
+                &self.path.join(name),
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            )?)
+        }
+
         pub(crate) fn names(&self, name: &OsStr, _child: &Dir) -> io::Result<bool> {
             match self.entry(name) {
                 Ok(entry) => Ok(entry.kind == EntryKind::Dir),
@@ -1018,7 +1053,18 @@ pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
 }
 
 #[cfg(windows)]
-pub(crate) use windows_dir::file_link_count;
+pub(crate) use windows_dir::{file_link_count, identity_of};
+
+/// The identity of the file that `file` holds.
+#[cfg(unix)]
+pub(crate) fn identity_of(file: &File) -> io::Result<FileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = file.metadata()?;
+    Ok(FileIdentity {
+        volume: meta.dev(),
+        file: meta.ino(),
+    })
+}
 
 #[cfg(unix)]
 pub(crate) fn file_link_count(file: &File) -> io::Result<u64> {

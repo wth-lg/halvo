@@ -5,9 +5,33 @@ use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
-use super::{associated_data, CustodyError, KeyLabel, RootId, StoreKey, WrappedKey};
+use super::{associated_data, CustodyError, FileIdentity, KeyLabel, RootId, StoreKey, WrappedKey};
 use crate::store::durable::{self, Dir, EntryKind};
 use crate::store::RootReading;
+
+/// The root that a root step names: its id and, when the store read it, the
+/// identity of its root file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct NamedRoot {
+    pub(crate) id: RootId,
+    pub(crate) file: Option<FileIdentity>,
+}
+
+impl NamedRoot {
+    pub(crate) fn by_id(id: RootId) -> Self {
+        Self { id, file: None }
+    }
+}
+
+/// Opens the roots directory at `roots` as a handle, following no link at
+/// its last part.
+pub(crate) fn hold(roots: &Path) -> Result<Dir, CustodyError> {
+    Dir::open(roots).map_err(|e| match e.kind() {
+        ErrorKind::NotFound => CustodyError::RootMissing,
+        _ if durable::refusal(&e).is_some() => CustodyError::RootCorrupt,
+        _ => root_io(e),
+    })
+}
 
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
@@ -40,6 +64,9 @@ fn can_be_the_root_file(entry: &durable::Entry) -> bool {
 fn can_be_the_root_len(len: u64) -> bool {
     len > 0 && ROOT_FILE_LEN.is_none_or(|fixed| len == fixed)
 }
+
+/// A root as read from its file, with the identity of that file.
+type ReadRoot = (Zeroizing<[u8; 32]>, FileIdentity);
 
 pub(crate) trait Protector {
     fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError>;
@@ -154,16 +181,29 @@ fn seal(
 /// What the destruction of every root file under a roots directory left: the
 /// ids of the root files and partial root files that stay, their names as
 /// they stand, and whether the directory could be listed.
+/// `at_its_path` is false when the roots directory that the step went through
+/// no longer stood at the path that it was opened by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootsLeft {
     pub left: Vec<RootId>,
     pub names: Vec<String>,
     pub listed: bool,
+    pub at_its_path: bool,
 }
 
 impl RootsLeft {
     pub fn none_left(&self) -> bool {
         self.listed && self.left.is_empty()
+    }
+
+    /// Nothing counted, listed or not, with no directory that left its path.
+    pub(crate) fn none_counted(listed: bool) -> Self {
+        Self {
+            left: Vec::new(),
+            names: Vec::new(),
+            listed,
+            at_its_path: true,
+        }
     }
 }
 
@@ -183,77 +223,128 @@ pub(crate) enum RootStepForm {
     Sweep,
 }
 
-/// The root step through one opened handle of the roots location. `named`
-/// is the root that the handle, the key file or a mark that reads made names.
-/// The step lists, destroys and reads again through that one handle. In the
-/// forms with the witness it destroys there only when the directory holds, at
-/// the named root's own name in any letter case, a file that can be the
-/// root's file; a partial name, a link, an empty file or an entry of another
-/// kind is no witness, and without the witness the step destroys nothing in
-/// that directory, also not the entry that it met, and the root reads left
-/// (ruling ST-45 Addition 2 (a)): a directory put at the old name is not
-/// touched, a roots directory that left its name is not read as destroyed,
-/// and with nothing named it opens nothing. The sweep destroys every root file and
-/// partial root file, named or not, and reads nothing at the roots path as
-/// an answer: listed and empty when nothing names a root, the root left and
-/// not listed when one is named. The root reads destroyed only when one is
-/// named and this call removed, at the root's own name in any letter case, a
-/// file that can be the root's file (a partial name alone is no witness),
-/// as `destroy_root_entry` met it at its own look and never as the listing
-/// saw it, and no entry of the root stays; a name of the root that is absent
-/// at that look reads the root left (ruling ST-46 K1); left when one is named and not removed;
-/// unnamed when nothing names one. An entry at the root's own name that
-/// cannot be its file (a link, an entry of another kind, an empty file, or
-/// off Windows a file of another length) is removed as the entry that it
-/// is, with no zero-fill and no write through it (ruling ST-45 H4); so is, in
-/// every form, a regular file at another root's name that cannot be a root
-/// file and has more than one name, or a count that cannot be read (ruling
-/// ST-45 Addition 2 (b)); a partial name is zero-filled. A roots path that
-/// stands and cannot be opened or listed reads not listed. A later call on
-/// a handle whose root read destroyed does not come here (ruling ST-45 H3).
+/// The root step through the roots location at `roots`, opened here, for a
+/// tail that holds no roots handle: the step of [`destroy_roots_through`]
+/// on that directory. A roots path that stands and cannot be opened or listed
+/// reads not listed; in the sweep nothing at the path reads listed and empty.
 pub(crate) fn destroy_roots_in(
     roots: &Path,
-    named: Option<RootId>,
+    named: Option<NamedRoot>,
     form: RootStepForm,
 ) -> (RootReading, RootsLeft) {
-    let none_counted = |listed: bool| RootsLeft {
-        left: Vec::new(),
-        names: Vec::new(),
-        listed,
-    };
-    let unread_reading = named.map_or(RootReading::Unnamed, |id| RootReading::Left(Some(id)));
+    let unread_reading = named.map_or(RootReading::Unnamed, |n| RootReading::Left(Some(n.id)));
     if named.is_none() && form != RootStepForm::Sweep {
-        return (RootReading::Unnamed, none_counted(false));
+        return (RootReading::Unnamed, RootsLeft::none_counted(false));
     }
-    let unread = (unread_reading, none_counted(false));
+    let unread = (unread_reading, RootsLeft::none_counted(false));
     #[cfg(windows)]
     if durable::has_a_part_that_windows_trims(roots) {
         return unread;
     }
-    let dir = match Dir::open(roots) {
-        Ok(dir) => dir,
+    match Dir::open(roots) {
+        Ok(dir) => destroy_roots_through(&dir, named, form),
         Err(e) if e.kind() == ErrorKind::NotFound && form == RootStepForm::Sweep => {
-            return (unread_reading, none_counted(named.is_none()));
+            (unread_reading, RootsLeft::none_counted(named.is_none()))
         }
-        Err(_) => return unread,
+        Err(_) => unread,
+    }
+}
+
+/// The root step through one opened handle of the roots location. `named`
+/// is the root that the handle, the key file or a mark that reads made names,
+/// with the identity of its root file when the store read it. The step lists,
+/// destroys and reads again through that one handle. In the forms with the
+/// witness it destroys there only when the directory holds the named root's
+/// file: with the identity known, a regular file of that identity at any
+/// name of the directory, so that a root moved inside the directory is
+/// destroyed where it lies; without it, at the named root's own name in any
+/// letter case, a file that can be the root's file. A partial name, a link,
+/// an empty file or an entry of another kind is no witness, and without the
+/// witness the step destroys nothing in that directory, also not the entry
+/// that it met, and the root reads left (ruling ST-45 Addition 2 (a)). With
+/// the identity known, the form for the named root alone leaves an entry of
+/// another identity at the root's own name, which then stays and is named.
+/// The sweep destroys every root file and partial root file, named or not.
+/// The root reads destroyed only when one is named and this call destroyed
+/// its file: with the identity known, a file of that identity, met through a
+/// kept handle of that identity at its own look, wherever it lies in the
+/// directory, found again by one more listing when the name that the first
+/// listing gave was absent at that look; without it, a file at the root's own
+/// name in any letter case that can be the root's file, as
+/// `destroy_root_entry` met it at its own look and never as the listing saw
+/// it; and no entry of the root stays; a name of the root that is absent at
+/// that look reads the root left (ruling ST-46 K1); left when one is named
+/// and not destroyed; unnamed when nothing names one. An entry at the root's
+/// own name that cannot be its file (a link, an entry of another kind, an
+/// empty file, or off Windows a file of another length) is removed as the
+/// entry that it is, with no zero-fill and no write through it (ruling ST-45
+/// H4); so is, in every form, a regular file at another root's name that
+/// cannot be a root file and has more than one name, or a count that cannot
+/// be read (ruling ST-45 Addition 2 (b)); a partial name is zero-filled. A
+/// directory that cannot be listed reads not listed. The result says whether
+/// the directory still stood at the path that it was opened by after the
+/// step. A later call on a handle whose root read destroyed does not come
+/// here (ruling ST-45 H3).
+pub(crate) fn destroy_roots_through(
+    dir: &Dir,
+    named: Option<NamedRoot>,
+    form: RootStepForm,
+) -> (RootReading, RootsLeft) {
+    let unread_reading = named.map_or(RootReading::Unnamed, |n| RootReading::Left(Some(n.id)));
+    let at_its_path = || matches!(dir.still_named(), Ok(true));
+    let unread = || {
+        (
+            unread_reading,
+            RootsLeft {
+                at_its_path: at_its_path(),
+                ..RootsLeft::none_counted(false)
+            },
+        )
     };
+    if named.is_none() && form != RootStepForm::Sweep {
+        return (RootReading::Unnamed, RootsLeft::none_counted(false));
+    }
     let Ok(entries) = dir.entries() else {
-        return unread;
+        return unread();
     };
+    let named_id = named.map(|n| n.id);
+    let own_file = named.and_then(|n| n.file);
+    let of_named = |file: &RootFile| Some(file.id()) == named_id;
     let mut found: Vec<(RootFile, durable::Entry)> = entries
-        .into_iter()
-        .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry)))
+        .iter()
+        .filter_map(|entry| {
+            RootFile::named_in_any_case(&entry.name).map(|file| (file, entry.clone()))
+        })
         .collect();
-    let of_named = |file: &RootFile| Some(file.id()) == named;
+    let mut identified = own_file.map_or_else(Vec::new, |own| files_of(dir, &entries, own));
     if form != RootStepForm::Sweep {
-        let witness = found.iter().any(|(file, entry)| {
-            matches!(file, RootFile::Root(_)) && of_named(file) && can_be_the_root_file(entry)
-        });
+        let witness = match own_file {
+            Some(own) => {
+                if identified.is_empty() {
+                    identified = dir
+                        .entries()
+                        .map(|again| files_of(dir, &again, own))
+                        .unwrap_or_default();
+                }
+                !identified.is_empty()
+            }
+            None => found.iter().any(|(file, entry)| {
+                matches!(file, RootFile::Root(_)) && of_named(file) && can_be_the_root_file(entry)
+            }),
+        };
         if !witness {
-            return (unread_reading, none_counted(true));
+            return (
+                unread_reading,
+                RootsLeft {
+                    at_its_path: at_its_path(),
+                    ..RootsLeft::none_counted(true)
+                },
+            );
         }
         if form == RootStepForm::NamedAlone {
-            found.retain(|(file, _)| of_named(file));
+            found.retain(|(file, _)| {
+                of_named(file) && (own_file.is_none() || matches!(file, RootFile::Partial(_)))
+            });
         }
     }
     found.sort_by_key(|(file, _)| !of_named(file));
@@ -261,14 +352,39 @@ pub(crate) fn destroy_roots_in(
     crate::store::failpoint::seam(SEAM_AFTER_THE_LISTING);
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
+    let mut handled: Vec<OsString> = Vec::new();
+    if let Some(own) = own_file {
+        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own) {
+            EntryFate::Absent => false,
+            fate => {
+                handled.push(name.to_os_string());
+                fate == EntryFate::Gone
+            }
+        };
+        for name in &identified {
+            own_root_file_removed |= destroy_at(name);
+        }
+        if !own_root_file_removed {
+            let again = dir
+                .entries()
+                .map(|again| files_of(dir, &again, own))
+                .unwrap_or_default();
+            for name in again {
+                own_root_file_removed |= destroy_at(&name);
+            }
+        }
+    }
     for (file, entry) in &found {
+        if handled.contains(&entry.name) {
+            continue;
+        }
         let at = match file {
-            RootFile::Root(_) if of_named(file) => EntryName::OwnRoot,
+            RootFile::Root(_) if of_named(file) && own_file.is_none() => EntryName::OwnRoot,
             RootFile::Root(_) => EntryName::OtherRoot,
             RootFile::Partial(_) => EntryName::Partial,
         };
-        let fate = destroy_root_entry(&dir, &entry.name, at);
-        if of_named(file) && fate != EntryFate::Gone {
+        let fate = destroy_root_entry(dir, &entry.name, at);
+        if of_named(file) && at != EntryName::OtherRoot && fate != EntryFate::Gone {
             every_named_entry_destroyed = false;
         }
         if at == EntryName::OwnRoot && fate == EntryFate::Gone {
@@ -286,7 +402,7 @@ pub(crate) fn destroy_roots_in(
                 })
                 .collect();
             stays.sort_by(|a, b| a.1.cmp(&b.1));
-            let reading = match named {
+            let reading = match named_id {
                 None => RootReading::Unnamed,
                 Some(named)
                     if own_root_file_removed
@@ -306,10 +422,80 @@ pub(crate) fn destroy_roots_in(
                     left,
                     names,
                     listed: true,
+                    at_its_path: at_its_path(),
                 },
             )
         }
-        Err(_) => unread,
+        Err(_) => unread(),
+    }
+}
+
+/// The names in `entries` of regular files whose identity, read through
+/// `dir` without following a link, is `own`.
+fn files_of(dir: &Dir, entries: &[durable::Entry], own: FileIdentity) -> Vec<OsString> {
+    entries
+        .iter()
+        .filter(|entry| entry.kind == EntryKind::File)
+        .filter(
+            |entry| matches!(dir.file_identity_at(&entry.name), Ok(identity) if identity == own),
+        )
+        .map(|entry| entry.name.clone())
+        .collect()
+}
+
+/// Destroys the root file of identity `own` at `name`, wherever in the
+/// directory it lies. Nothing is removed or written unless the handle kept
+/// at this call's own look holds a file of that identity; then the file is
+/// zero-filled through that handle, which reaches every name of it, and the
+/// name is removed while it still leads to that file. `Gone` when the
+/// zero-fill went through, or when the count read through the kept handle
+/// after the removal of its one name is 0; `Absent` when no file of that
+/// identity stood at the name at the look.
+fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity) -> EntryFate {
+    match dir.entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+        Ok(entry) if entry.kind != EntryKind::File => return EntryFate::Absent,
+        Ok(_) => {}
+    }
+    #[cfg(unix)]
+    let _ = dir.set_file_mode(name, 0o600);
+    let kept = match dir
+        .open_file_for_update(name)
+        .or_else(|_| dir.open_file(name))
+        .or_else(|_| dir.open_file_for_write(name))
+    {
+        Ok(kept) => kept,
+        Err(e) if e.kind() == ErrorKind::NotFound || durable::refusal(&e).is_some() => {
+            return EntryFate::Absent
+        }
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+    };
+    if !matches!(durable::identity_of(&kept), Ok(identity) if identity == own) {
+        return EntryFate::Absent;
+    }
+    #[cfg(windows)]
+    make_writable(dir, name, &kept);
+    let remove = || match dir.remove_entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+        other => other,
+    };
+    if zero_fill_through(dir, name, &kept).is_ok() {
+        if !matches!(dir.names_file(name, &kept), Ok(true)) {
+            return EntryFate::Gone;
+        }
+        return match remove() {
+            Ok(()) => EntryFate::Gone,
+            Err(_) => EntryFate::ZeroedAndNamed,
+        };
+    }
+    match durable::file_link_count(&kept) {
+        Ok(1) if matches!(dir.names_file(name, &kept), Ok(true)) => match remove() {
+            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
+            Ok(()) => EntryFate::KeyMayStay(None),
+            Err(e) => EntryFate::KeyMayStay(Some(e)),
+        },
+        _ => EntryFate::KeyMayStay(None),
     }
 }
 
@@ -481,25 +667,49 @@ pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), Custo
         Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
         Err(e) => return Err(root_io(e)),
     };
+    destroy_root_through(&dir, NamedRoot::by_id(root_id))
+}
+
+/// The destruction of one root through `dir`, for a cleanup and for the
+/// custody's destroy. With the identity of its root file known it destroys
+/// the file of that identity alone, wherever it lies in the directory, and
+/// nothing else; without it, every entry of the id at its root name in any
+/// letter case and at its partial names, each partial counted as the root
+/// file is (the review's N7). Answers Ok when no entry of the root stands at
+/// its look, so that a cleanup that runs again ends.
+pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), CustodyError> {
     let mut fates = Vec::new();
-    if let Ok(entries) = dir.entries() {
-        for entry in entries {
-            match RootFile::named_in_any_case(&entry.name) {
-                Some(RootFile::Partial(id)) if id == root_id => {
-                    let _ = destroy_root_entry(&dir, &entry.name, EntryName::Partial);
+    match root.file {
+        Some(own) => {
+            if let Ok(entries) = dir.entries() {
+                for name in files_of(dir, &entries, own) {
+                    fates.push(destroy_identified(dir, &name, own));
                 }
-                Some(RootFile::Root(id)) if id == root_id && entry.name != root_name(root_id) => {
-                    fates.push(destroy_root_entry(&dir, &entry.name, EntryName::OwnRoot));
-                }
-                _ => {}
             }
         }
+        None => {
+            if let Ok(entries) = dir.entries() {
+                for entry in entries {
+                    match RootFile::named_in_any_case(&entry.name) {
+                        Some(RootFile::Partial(id)) if id == root.id => {
+                            fates.push(destroy_root_entry(dir, &entry.name, EntryName::Partial));
+                        }
+                        Some(RootFile::Root(id))
+                            if id == root.id && entry.name != root_name(root.id) =>
+                        {
+                            fates.push(destroy_root_entry(dir, &entry.name, EntryName::OwnRoot));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            fates.push(destroy_root_entry(
+                dir,
+                &root_name(root.id),
+                EntryName::OwnRoot,
+            ));
+        }
     }
-    fates.push(destroy_root_entry(
-        &dir,
-        &root_name(root_id),
-        EntryName::OwnRoot,
-    ));
     let _ = dir.sync();
     for fate in fates {
         match fate {
@@ -542,16 +752,31 @@ impl<P: Protector> FileRoots<P> {
             Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
             Err(e) => return Err(root_io(e)),
         };
+        Ok(self.existing_root_in(&dir, root_id)?.map(|(root, _)| root))
+    }
+
+    /// The root of `root_id` read through `dir`, with the identity of the
+    /// file that was read; `None` for no file, an empty one or an all-zero
+    /// one.
+    fn existing_root_in(
+        &self,
+        dir: &Dir,
+        root_id: RootId,
+    ) -> Result<Option<ReadRoot>, CustodyError> {
         let mut blob = Zeroizing::new(Vec::new());
         let read = dir
             .open_file(&root_name(root_id))
             .map_err(read_error)
-            .and_then(|mut file| file.read_to_end(&mut blob).map_err(read_error));
-        match read {
-            Ok(_) => {}
+            .and_then(|mut file| {
+                let identity = durable::identity_of(&file).map_err(root_io)?;
+                file.read_to_end(&mut blob).map_err(read_error)?;
+                Ok(identity)
+            });
+        let identity = match read {
+            Ok(identity) => identity,
             Err(CustodyError::RootMissing) => return Ok(None),
             Err(e) => return Err(e),
-        }
+        };
         if blob.iter().all(|&b| b == 0) {
             return Ok(None);
         }
@@ -561,7 +786,39 @@ impl<P: Protector> FileRoots<P> {
         }
         let mut root = Zeroizing::new([0u8; 32]);
         root.copy_from_slice(&plain);
-        Ok(Some(root))
+        Ok(Some((root, identity)))
+    }
+
+    /// Wraps `key` under the root of `root_id` read through `dir`: the wrap
+    /// and the identity of the root file that it read.
+    pub(crate) fn wrap_in(
+        &self,
+        dir: &Dir,
+        root_id: RootId,
+        label: KeyLabel,
+        key: &StoreKey,
+    ) -> Result<(WrappedKey, FileIdentity), CustodyError> {
+        let (root, identity) = self
+            .existing_root_in(dir, root_id)?
+            .ok_or(CustodyError::RootMissing)?;
+        Ok((seal(root_id, label, root, key)?, identity))
+    }
+
+    /// Unwraps `wrapped` under the root of `root_id` read through `dir`: the
+    /// key and the identity of the root file that it read.
+    pub(crate) fn unwrap_in(
+        &self,
+        dir: &Dir,
+        root_id: RootId,
+        label: KeyLabel,
+        wrapped: &WrappedKey,
+    ) -> Result<(StoreKey, FileIdentity), CustodyError> {
+        let (root, identity) = self
+            .existing_root_in(dir, root_id)?
+            .ok_or(CustodyError::RootMissing)?;
+        let plain = aead_open(&root, &wrapped.0, &associated_data(root_id, label))
+            .map_err(|_| CustodyError::WrapAuthFailed)?;
+        Ok((store_key_from(plain)?, identity))
     }
 
     pub(crate) fn create_root(&self, root_id: RootId) -> Result<(), CustodyError> {
@@ -826,6 +1083,25 @@ pub(crate) mod test_support {
 
         fn destroy_root(&self) -> Result<(), CustodyError> {
             self.roots.destroy_root(self.root_id)
+        }
+
+        fn wrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            key: &StoreKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+            self.roots.wrap_in(&roots.dir, self.root_id, label, key)
+        }
+
+        fn unwrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            wrapped: &WrappedKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+            self.roots
+                .unwrap_in(&roots.dir, self.root_id, label, wrapped)
         }
     }
 }
