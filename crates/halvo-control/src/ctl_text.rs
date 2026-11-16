@@ -1586,7 +1586,7 @@ mod tests {
         let armed = AlreadyDeleted {
             current: crate::testing::FIXTURE_STORE_ID,
         };
-        let cases: Vec<(&str, Verb, Result<Reply, ClientError>, &str, i32)> = vec![
+        let cases = [
             (
                 "the plain busy to a delete with an id",
                 Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
