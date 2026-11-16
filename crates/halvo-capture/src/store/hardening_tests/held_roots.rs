@@ -460,3 +460,55 @@ fn a_link_put_at_the_store_name_after_the_tails_look_leads_its_sweep_nowhere_els
         "the other store's root file is gone"
     );
 }
+
+/// The verifier's copy L30 (ruling ST-46 K4 (g)): an abandoned create whose
+/// root file cannot be destroyed (here the user's immutable flag, set after
+/// the root was made) answers an error and keeps its made mark, so that the
+/// next cleanup finds the root that stays.
+#[cfg(target_os = "macos")]
+#[test]
+fn an_abandoned_create_whose_root_cannot_be_destroyed_keeps_its_made_mark() {
+    use std::os::unix::ffi::OsStrExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let immutable = move |path: &Path, on: bool| {
+        let c = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        let flags = if on { libc::UF_IMMUTABLE } else { 0 };
+        // SAFETY: c is NUL-terminated and outlives the call, which reads only it.
+        assert_eq!(unsafe { libc::chflags(c.as_ptr(), flags) }, 0);
+    };
+    let at_the_seam = root_file.clone();
+    let _seam = crate::store::failpoint::at(crate::store::db::SEAM_AFTER_THE_ROOT, move || {
+        immutable(&at_the_seam, true)
+    });
+    crate::store::failpoint::arm("create_after_the_key_file");
+    let created = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+    immutable(&root_file, false);
+    let mark: Option<serde_json::Value> = std::fs::read(store_dir.join("create.pending"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    println!(
+        "L30 create={created:?} root_stands={} mark={}",
+        root_file.exists(),
+        mark.as_ref()
+            .map_or("none".to_string(), |m| m["reading"].to_string())
+    );
+    assert!(created.is_err(), "the create answered Ok");
+    assert!(root_file.exists(), "the root file did not stay");
+    assert_eq!(
+        mark.as_ref().map(|m| m["reading"].clone()),
+        Some(serde_json::Value::from("made")),
+        "the abandoned create removed its made mark beside a root that stays"
+    );
+}
