@@ -761,6 +761,8 @@ self_test() {
 
   twice=$wrong
   lm77_fixtures twice- ''
+  grep -q zqtreeword "$self_art/twice-changed-file-with-a-word-of-its-own/tree-before.txt" 2>/dev/null || wrong="$wrong twice-first-round-unwritten"
+  grep -q zqmadeupcase "$self_art/twice-changed-file-under-heldout/tree-before.txt" 2>/dev/null || wrong="$wrong twice-first-round-unwritten"
   lm77_fixtures twice- -unread
   if [ "${wrong#"$twice"}" = ' twice-changed-file-with-a-word-of-its-own:artifacts twice-changed-file-under-heldout:artifacts' ]; then
     wrong=$twice
