@@ -95,9 +95,9 @@ fn every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset() {
     }
 }
 
-/// CP-212 V2: at instants drawn over a whole UTC day, the helper's offset gives a local day that differs from the
-/// UTC day from the call until the end that its doc names (14:00 UTC for -50,400 s, the next 00:00 UTC for
-/// +50,400 s) and no longer at that end.
+/// CP-212 V2: at instants drawn over a whole UTC day, the helper gives +50,400 s from 12:00 UTC on and -50,400 s
+/// before, and that offset gives a local day that differs from the UTC day from the call until the end that its doc
+/// names (14:00 UTC for -50,400 s, the next 00:00 UTC for +50,400 s) and no longer at that end.
 #[test]
 fn the_offset_helper_differs_from_the_utc_day_until_the_end_that_its_doc_names() {
     const SECOND: i64 = 1_000_000_000;
@@ -120,6 +120,15 @@ fn the_offset_helper_differs_from_the_utc_day_until_the_end_that_its_doc_names()
     for into_day in draws {
         let call = midnight + into_day;
         let offset = offset_of_another_day_at(call);
+        assert_eq!(
+            offset,
+            if into_day >= 12 * 3_600 * SECOND {
+                50_400
+            } else {
+                -50_400
+            },
+            "a call {into_day} ns into the day: +50,400 s from 12:00 UTC on, else -50,400 s"
+        );
         let end = if offset > 0 {
             midnight + DAY
         } else {
