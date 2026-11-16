@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=47
+failing_fixtures=52
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -149,9 +149,12 @@ EOF
 
 macos_only_paths() {
   cat <<'EOF'
-crates/halvo-capture/src/macos	src/lib.rs #[cfg(target_os = "macos")] pub mod macos;
-crates/halvo-capture/src/secure_input_macos.rs	src/secure_input.rs #[cfg(target_os = "macos")] #[path = "secure_input_macos.rs"] pub mod macos;
-crates/halvo-capture/src/custody/macos.rs	src/custody/mod.rs #[cfg(target_os = "macos")] pub mod macos;
+crates/halvo-capture/src/macos	src/lib.rs	cfg-mod macos
+crates/halvo-capture/src/secure_input_macos.rs	src/secure_input.rs	cfg-mod macos
+crates/halvo-capture/src/custody/macos.rs	src/custody/mod.rs	cfg-mod macos
+crates/halvo-capture/src/secure_input_macos_hold.rs	src/secure_input_macos.rs	path-mod hold
+crates/halvo-capture/tests/macos_stall_fixture.rs	tests/macos_stall_fixture.rs	inner-cfg
+crates/halvo-capture/tests/macos_stall_fixture	-	no-build
 EOF
 }
 
@@ -236,13 +239,63 @@ ledger_check() {
       fail "the measured run $run ran on another $path than the head's ($recorded against $head_id): $fix"
   done <"$work/listed-paths"
   macos_only_paths >"$work/macos-only-lines" || fail "the list of the crate's macOS-only paths cannot be read"
-  while IFS="$(printf '\t')" read -r path where; do
-    file=${where%% *}
-    git show "HEAD:crates/halvo-capture/$file" 2>/dev/null | tr -d '\r' | awk '
-      /^[[:space:]]*(pub )?mod macos;/ && (above1 ~ /#\[cfg\(target_os = "macos"\)\]/ || above2 ~ /#\[cfg\(target_os = "macos"\)\]/) { held = 1 }
-      { above2 = above1; above1 = $0 }
-      END { exit held ? 0 : 1 }' ||
-      fail "crates/halvo-capture/$file no longer declares mod macos under the macOS cfg that leaves $path out of the ledger's tree: read the crate's cfg lines and mend the list"
+  macos_only_paths | cut -f 1 >"$work/macos-only" || fail "the list of the crate's macOS-only paths cannot be read"
+  while IFS="$(printf '\t')" read -r path file kind; do
+    case $kind in
+      "cfg-mod "*)
+        module=${kind#cfg-mod }
+        git show "HEAD:crates/halvo-capture/$file" 2>/dev/null | tr -d '\r' | awk -v module="$module" '
+          $0 ~ "^[[:space:]]*(pub )?mod " module ";" && (above1 ~ /#\[cfg\(target_os = "macos"\)\]/ || above2 ~ /#\[cfg\(target_os = "macos"\)\]/) { held = 1 }
+          { above2 = above1; above1 = $0 }
+          END { exit held ? 0 : 1 }' ||
+          fail "crates/halvo-capture/$file no longer declares mod $module under the macOS cfg that leaves $path out of the ledger's tree: read the crate's cfg lines and mend the list"
+        ;;
+      "path-mod "*)
+        module=${kind#path-mod }
+        grep -q -x -F "crates/halvo-capture/$file" "$work/macos-only" ||
+          fail "crates/halvo-capture/$file, which declares $path, is not itself a macOS-only path of the list: read the crate's cfg lines and mend the list"
+        git show "HEAD:crates/halvo-capture/$file" 2>/dev/null | tr -d '\r' | awk -v module="$module" -v target="${path##*/}" '
+          $0 ~ "^[[:space:]]*(pub )?mod " module ";" && (index(above1, "#[path = \"" target "\"]") || index(above2, "#[path = \"" target "\"]")) { held = 1 }
+          { above2 = above1; above1 = $0 }
+          END { exit held ? 0 : 1 }' ||
+          fail "crates/halvo-capture/$file no longer declares mod $module by #[path = \"${path##*/}\"], which leaves $path out of the ledger's tree as a module of a macOS-only file: read the crate's cfg lines and mend the list"
+        ;;
+      inner-cfg)
+        first=$(git show "HEAD:crates/halvo-capture/$file" 2>/dev/null | tr -d '\r' | sed -n 1p)
+        [ "$first" = '#![cfg(target_os = "macos")]' ] ||
+          fail "crates/halvo-capture/$file no longer starts with the line #![cfg(target_os = \"macos\")] that leaves $path out of the ledger's tree: read the crate's cfg lines and mend the list"
+        ;;
+      no-build)
+        if git cat-file -e HEAD:crates/halvo-capture/build.rs 2>/dev/null ||
+          git show HEAD:crates/halvo-capture/Cargo.toml | tr -d '\r' | grep -q '^[[:space:]]*build[[:space:]]*='; then
+          fail "crates/halvo-capture has a build script, which can compile what $path holds: read the crate's build and mend the list"
+        fi
+        rust=$(git ls-tree -r --name-only HEAD -- "$path" | grep '\.rs$' | tr '\n' ' ')
+        [ -z "$rust" ] ||
+          fail "$path holds Rust files, which a test target can compile: ${rust% }: read the crate's tests and mend the list"
+        ;;
+      *) fail "the list of the crate's macOS-only paths names no kind that the check knows for $path: $kind" ;;
+    esac
+    case $kind in
+      "cfg-mod "*) continue ;;
+    esac
+    base=${path##*/}
+    stem=${base%.rs}
+    quoted=$(printf '%s\n' "$base" | sed 's/\./\\./g') || fail "the name $base cannot be read"
+    pattern="(#\\[path|include(_str|_bytes)?!)[^\"]*\"[^\"]*${quoted}|mod[[:space:]]+${stem}[[:space:]]*;"
+    set -- 'crates/halvo-capture/*.rs'
+    while read -r listed; do
+      set -- "$@" ":(exclude)$listed"
+    done <"$work/macos-only"
+    git grep -l -E "$pattern" HEAD -- "$@" >"$work/namers"
+    case $? in
+      0)
+        namers=$(awk '{ sub(/^HEAD:/, ""); printf "%s ", $0 }' "$work/namers") || fail "the files that name $path cannot be read"
+        fail "a file that the Windows target can build names $path, which the list leaves out of the ledger's tree: ${namers% }"
+        ;;
+      1) ;;
+      *) fail "the crate's files cannot be searched for what names $path" ;;
+    esac
   done <"$work/macos-only-lines"
   recorded=$(sed -n 's/^measured view path=crates\/halvo-capture without=macos-only id=\([0-9a-f]*\)$/\1/p' "$work/ledger")
   head_id=$(crate_view_id HEAD) || fail "the tree of crates/halvo-capture cannot be read"
@@ -948,9 +1001,17 @@ make_ledger_repo() {
   printf '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "windows"\nversion = "0.62.2"\n' \
     >"$repo/Cargo.lock" || exit 2
   mkdir -p "$repo/crates/halvo-capture/src/custody" || exit 2
-  macos_only_paths | while IFS="$(printf '\t')" read -r path where; do
-    file=${where%% *}
-    printf '// a line above\n#[cfg(target_os = "macos")]\npub mod macos;\n' >"$repo/crates/halvo-capture/$file"
+  mkdir -p "$repo/crates/halvo-capture/tests/macos_stall_fixture" || exit 2
+  macos_only_paths | while IFS="$(printf '\t')" read -r path file kind; do
+    case $kind in
+      "cfg-mod "*) printf '// a line above\n#[cfg(target_os = "macos")]\npub mod %s;\n' "${kind#cfg-mod }" >"$repo/crates/halvo-capture/$file" ;;
+      "path-mod "*)
+        printf '#[path = "%s"]\npub mod %s;\n' "${path##*/}" "${kind#path-mod }" >"$repo/crates/halvo-capture/$file"
+        printf 'fn h() {}\n' >"$repo/$path"
+        ;;
+      inner-cfg) printf '#![cfg(target_os = "macos")]\nfn f() {}\n' >"$repo/crates/halvo-capture/$file" ;;
+      no-build) printf 'int main(void) { return 0; }\n' >"$repo/$path/fixture.m" ;;
+    esac || exit 2
   done || exit 2
   (
     cd "$repo" || exit 2
@@ -995,6 +1056,28 @@ make_ledger_repo() {
     git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
       -c commit.gpgsign=false commit -q -m "the macOS cfg line moved" || exit 2
   ) || exit 2
+  for case_repo in mac-unit-changed hold-without-path hold-named-elsewhere inner-cfg-gone build-script rust-in-fixture; do
+    git clone -q "$repo" "$work/repo-$case_repo" || exit 2
+    mkdir -p "$work/repo-$case_repo/docs/baseline/ledger.d" || exit 2
+    cp "$right_ledger" "$work/repo-$case_repo/docs/baseline/ledger.d/win-3.txt" || exit 2
+    (
+      cd "$work/repo-$case_repo/crates/halvo-capture" || exit 2
+      case $case_repo in
+        mac-unit-changed)
+          printf 'fn h() { let _ = 3; }\n' >src/secure_input_macos_hold.rs &&
+            printf '#![cfg(target_os = "macos")]\nfn f() { let _ = 3; }\n' >tests/macos_stall_fixture.rs &&
+            printf 'int main(void) { return 3; }\n' >tests/macos_stall_fixture/fixture.m
+          ;;
+        hold-without-path) printf 'pub mod hold;\n' >src/secure_input_macos.rs ;;
+        hold-named-elsewhere) printf '#[path = "secure_input_macos_hold.rs"]\nmod hold_too;\n' >>src/source.rs ;;
+        inner-cfg-gone) printf 'fn f() {}\n' >tests/macos_stall_fixture.rs ;;
+        build-script) printf 'fn main() {}\n' >build.rs ;;
+        rust-in-fixture) printf 'fn g() {}\n' >tests/macos_stall_fixture/more.rs ;;
+      esac || exit 2
+      git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+        -c commit.gpgsign=false commit -q -m "$case_repo" || exit 2
+    ) || exit 2
+  done
   sed 's/^measured attempt=2 /measured attempt=3 /' "$right_ledger" >"$work/ledger-out-of-order" || exit 2
   sed 's/^\(measured attempt=2 .*\) form=long /\1 form=short /' "$right_ledger" >"$work/ledger-short" || exit 2
   sed 's/^\(measured attempt=2 .*\) result=pass /\1 result=fail /' "$right_ledger" >"$work/ledger-newest-failed" || exit 2
@@ -1204,6 +1287,24 @@ fixtures() {
   check a-macos-module-without-its-cfg-is-refused FAIL "$right" "crates/halvo-capture/src/lib.rs no longer declares mod macos under the macOS cfg that leaves crates/halvo-capture/src/macos out"
   ledger_knob=$work/ledger-macos-changed
   check a-changed-file-under-src-macos-is-not-refused PASS "$right" "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture without its macOS-only paths" "${nl}PASS $name"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-mac-unit-changed
+  check the-mac-unit-s-hold-file-and-stall-fixture-changed-are-not-refused PASS "$right" "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture without its macOS-only paths" "${nl}PASS $name"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-hold-without-path
+  check a-hold-module-without-its-path-attribute-is-refused FAIL "$right" "crates/halvo-capture/src/secure_input_macos.rs no longer declares mod hold by #[path = \"secure_input_macos_hold.rs\"]"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-hold-named-elsewhere
+  check a-windows-built-file-that-names-the-hold-file-is-refused FAIL "$right" "a file that the Windows target can build names crates/halvo-capture/src/secure_input_macos_hold.rs, which the list leaves out of the ledger's tree: crates/halvo-capture/src/source.rs"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-inner-cfg-gone
+  check a-stall-fixture-without-its-inner-cfg-is-refused FAIL "$right" "crates/halvo-capture/tests/macos_stall_fixture.rs no longer starts with the line #![cfg(target_os = \"macos\")]"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-build-script
+  check a-build-script-of-the-crate-is-refused FAIL "$right" "crates/halvo-capture has a build script, which can compile what crates/halvo-capture/tests/macos_stall_fixture holds"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-rust-in-fixture
+  check a-rust-file-under-the-stall-fixture-is-refused FAIL "$right" "crates/halvo-capture/tests/macos_stall_fixture holds Rust files, which a test target can compile: crates/halvo-capture/tests/macos_stall_fixture/more.rs"
   ledger_knob=$work/ledger-lock
   check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 6 ran on other windows lines of Cargo.lock than the head's"
   ledger_knob=$work/ledger-paths
