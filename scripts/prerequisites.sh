@@ -2371,11 +2371,11 @@ EOF
   [ "$fetched" = 0 ] || problems="$problems; the licences were fetched after the failed fetch of the tools"
   verdict "$name"
 
-  name='with CDPATH set, a relative entry of the PATH that names the bin directory of the prefix from the directory of the step is taken out, and the reader prints one line'
+  name='with CDPATH set, a relative entry of the PATH that names the bin directory of the prefix from the directory of the step is taken out, another relative entry is read from the directory of the step and kept, and the reader prints one line'
   new_case path-without-cdpath
-  mkdir -p "$case_dir/step/p/bin" "$case_dir/cdp/p/bin"
-  got=$(cd "$case_dir/step" && CDPATH="$case_dir/cdp" pnpm_path_without "$case_dir/step/p" "p/bin:/usr/bin") || got="the reader failed"
-  [ "$got" = /usr/bin ] || problems="$problems; the reader gave: $(printf '%s' "$got" | tr '\n' '|')"
+  mkdir -p "$case_dir/step/p/bin" "$case_dir/cdp/p/bin" "$case_dir/step/q/bin" "$case_dir/cdp/q/bin"
+  got=$(cd "$case_dir/step" && CDPATH="$case_dir/cdp" pnpm_path_without "$case_dir/step/p" "p/bin:q/bin:/usr/bin") || got="the reader failed"
+  [ "$got" = q/bin:/usr/bin ] || problems="$problems; the reader gave: $(printf '%s' "$got" | tr '\n' '|')"
   [ "$(printf '%s\n' "$got" | wc -l | tr -d ' ')" = 1 ] || problems="$problems; the reader printed more than one line"
   verdict "$name"
 
