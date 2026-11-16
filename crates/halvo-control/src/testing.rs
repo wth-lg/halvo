@@ -133,6 +133,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         started_at: at("2026-11-12T09:00:00Z"),
         rss_peak_bytes: 25_264_128,
         parent: Parent::Watched,
+        data_dir_resolved: None,
         desired: CaptureState::Running,
         capture: Capture::Running,
         capture_reason: None,

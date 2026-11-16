@@ -1566,6 +1566,10 @@ pub struct StatusFields {
     pub started_at: UtcSecond,
     pub rss_peak_bytes: u64,
     pub parent: Parent,
+    /// The folder of a data directory reached through a link, absent otherwise; a Mac's alone
+    /// in R1 (ruling CT-13 point 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_dir_resolved: Option<crate::paths::ResolvedFolder>,
     pub desired: CaptureState,
     pub capture: Capture,
     #[serde(deserialize_with = "required")]
@@ -1700,6 +1704,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
             }
             if !f.permissions.is_empty() {
                 return fail("Windows reports no permission");
+            }
+            if f.data_dir_resolved.is_some() {
+                return fail("Windows reports no resolved data folder");
             }
         }
     }
@@ -3125,6 +3132,31 @@ stopped/kind body
         assert_eq!(mac["custody"], "root_file");
         assert_eq!(win["custody"], "dpapi");
         assert_eq!(mac["screen_filter_excludes_app"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn ct13_a_mac_status_carries_the_resolved_folder_only_when_linked_and_a_windows_status_never() {
+        let folder = crate::paths::ResolvedFolder::of(std::path::Path::new("/Volumes/Daten/Halvo"));
+        assert!(status_json(Platform::Macos)
+            .get("data_dir_resolved")
+            .is_none());
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.data_dir_resolved = Some(folder.clone());
+        let linked = DaemonStatus::new(fields).unwrap();
+        let json = serde_json::to_value(&linked).unwrap();
+        assert_eq!(json["data_dir_resolved"], "/Volumes/Daten/Halvo");
+        assert_eq!(
+            serde_json::from_value::<DaemonStatus>(json).unwrap(),
+            linked
+        );
+        let mut fields = sample_status(Platform::Windows).into_fields();
+        fields.data_dir_resolved = Some(folder);
+        let json = serde_json::to_value(&fields).unwrap();
+        assert_eq!(
+            DaemonStatus::new(fields).map(|_| ()),
+            Err(StatusError("Windows reports no resolved data folder"))
+        );
+        assert!(serde_json::from_value::<DaemonStatus>(json).is_err());
     }
 
     fn refused(edit: impl Fn(&mut StatusFields)) {

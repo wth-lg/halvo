@@ -111,18 +111,42 @@ pub enum DataDirCheck {
 
 #[cfg(target_os = "macos")]
 impl DataDirCheck {
-    /// The line with the resolved folder, for the person's eyes and no path to open, and no
-    /// second spelling for `--data-dir` (ruling ST-36 (f)); `None` unless the directory was
-    /// reached through a link. It is one line: each control character and U+2028 and U+2029 of
-    /// the folder's name reads "?" (ruling CT-14 K5); `resolved` keeps the true path.
-    pub fn resolved_line(&self) -> Option<String> {
+    /// The folder of [`DataDirCheck::Linked`] as the status carries it; `None` unless the
+    /// directory was reached through a link.
+    pub fn resolved_folder(&self) -> Option<ResolvedFolder> {
         match self {
-            DataDirCheck::Linked { resolved } => Some(format!(
-                "data_dir_resolved={}",
-                one_line(&resolved.display().to_string())
-            )),
+            DataDirCheck::Linked { resolved } => Some(ResolvedFolder::of(resolved)),
             DataDirCheck::Missing | DataDirCheck::Own { .. } => None,
         }
+    }
+
+    /// [`ResolvedFolder::line`] of the resolved folder; `None` unless the directory was reached
+    /// through a link. `resolved` keeps the true path.
+    pub fn resolved_line(&self) -> Option<String> {
+        self.resolved_folder().map(|folder| folder.line())
+    }
+}
+
+/// The folder that a data directory reached through a link resolves to, as a person reads it:
+/// each part of the path that is not UTF-8 reads U+FFFD. It is for the person's eyes and no path
+/// to open, and no second spelling for `--data-dir` (rulings ST-36 (f), CT-13 point 2 and
+/// CT-15).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct ResolvedFolder(String);
+
+impl ResolvedFolder {
+    pub fn of(path: &Path) -> Self {
+        Self(path.to_string_lossy().into_owned())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// `data_dir_resolved=<folder>` on one line, through [`one_line`] (ruling CT-14 K5).
+    pub fn line(&self) -> String {
+        format!("data_dir_resolved={}", one_line(&self.0))
     }
 }
 
@@ -1746,6 +1770,29 @@ mod tests {
             let long = format!("/Volumes/{}", "x".repeat(240));
             assert_eq!(line(&long), format!("data_dir_resolved={long}"));
             assert_eq!(line("/a\nb").lines().count(), 1);
+        }
+
+        #[test]
+        fn ct15_the_resolved_folder_and_its_line_read_a_name_that_is_not_utf_8_with_a_replacement_character(
+        ) {
+            use std::os::unix::ffi::OsStrExt;
+            let path = PathBuf::from(std::ffi::OsStr::from_bytes(b"/Volumes/a\xffb"));
+            let check = DataDirCheck::Linked {
+                resolved: path.clone(),
+            };
+            assert_eq!(
+                check.resolved_folder().map(|f| f.as_str().to_string()),
+                Some("/Volumes/a\u{fffd}b".to_string())
+            );
+            assert_eq!(
+                check.resolved_line(),
+                Some("data_dir_resolved=/Volumes/a\u{fffd}b".to_string())
+            );
+            assert_eq!(DataDirCheck::Missing.resolved_folder(), None);
+            assert_eq!(
+                DataDirCheck::Own { set_to_0700: false }.resolved_folder(),
+                None
+            );
         }
 
         /// Sets each path back to mode 0700, in the order given, when it is dropped, so that a

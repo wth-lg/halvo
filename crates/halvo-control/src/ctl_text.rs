@@ -159,6 +159,9 @@ pub fn status_text(status: &DaemonStatus) -> String {
     line(format!("started_at={}", f.started_at));
     line(format!("rss_peak_bytes={}", f.rss_peak_bytes));
     line(format!("parent={}", f.parent.as_str()));
+    if let Some(folder) = &f.data_dir_resolved {
+        line(folder.line());
+    }
     line(format!("desired={}", f.desired.as_str()));
     line(format!("capture={}", f.capture.as_str()));
     line(format!(
@@ -799,6 +802,63 @@ mod tests {
         assert_eq!(
             status_text(&sample_status(Platform::Windows)),
             status_fixture(STATUS_WINDOWS)
+        );
+    }
+
+    fn with_resolved_line(fixture: &str, folder: &str) -> String {
+        let text = status_fixture(fixture);
+        let at = text.find("\nparent=").unwrap() + 1;
+        let end = at + text[at..].find('\n').unwrap() + 1;
+        format!(
+            "{}data_dir_resolved={folder}\n{}",
+            &text[..end],
+            &text[end..]
+        )
+    }
+
+    #[test]
+    fn ct13_a_linked_data_directory_prints_its_resolved_folder_after_parent_and_a_plain_one_none() {
+        let linked = edited(Platform::Macos, |f| {
+            f.data_dir_resolved = Some(crate::paths::ResolvedFolder::of(std::path::Path::new(
+                "/Volumes/Daten/Halvo",
+            )));
+        });
+        assert_eq!(
+            status_text(&linked),
+            with_resolved_line(STATUS_MACOS, "/Volumes/Daten/Halvo")
+        );
+        for platform in [Platform::Macos, Platform::Windows] {
+            assert!(
+                !status_text(&sample_status(platform)).contains("data_dir_resolved"),
+                "{platform:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ct13_the_resolved_line_of_a_folder_with_a_line_break_is_one_line() {
+        let linked = edited(Platform::Macos, |f| {
+            f.data_dir_resolved = Some(crate::paths::ResolvedFolder::of(std::path::Path::new(
+                "/Volumes/a\nb\u{2028}c",
+            )));
+        });
+        assert_eq!(
+            status_text(&linked),
+            with_resolved_line(STATUS_MACOS, "/Volumes/a?b?c")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ct15_a_resolved_folder_whose_name_is_not_utf_8_prints_a_replacement_character() {
+        use std::os::unix::ffi::OsStrExt;
+        let path = std::path::Path::new(std::ffi::OsStr::from_bytes(b"/Volumes/a\xffb/Halvo"));
+        let linked = edited(Platform::Macos, |f| {
+            f.data_dir_resolved = Some(crate::paths::ResolvedFolder::of(path));
+        });
+        assert_eq!(
+            status_text(&linked),
+            with_resolved_line(STATUS_MACOS, "/Volumes/a\u{fffd}b/Halvo")
         );
     }
 
