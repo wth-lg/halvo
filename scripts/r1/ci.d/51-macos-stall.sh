@@ -428,21 +428,26 @@ measure() {
     cp "$log" "$artifacts/tests/$test.txt" || fail "the output of $test cannot be kept in $artifacts/tests"
     tr -d '\r' <"$log" >"$work/lines-$index" || fail "the output of $test cannot be read"
     awk -v test="$test" -v panics="$((code == 101))" '
-      panics && !after && /^thread .* panicked at / { after = 1 }
+      panics && !after && /thread .* panicked at / { after = 1 }
       after { print "    | " $0; next }
       index($0, test ": ") == 1 { print "    | " $0; next }
       index($0, test " ") == 1 && substr($0, length(test) + 2) ~ /^(session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=)/ { print "    | " $0 }
     ' "$work/lines-$index" || fail "the output of $test cannot be read"
     awk -v test="$test" '
       index($0, test " round=") == 1 || index($0, test " control=") == 1 {
-        lines++
+        kind = index($0, test " round=") == 1 ? "round" : "control"
+        lines[kind]++
         if ($0 ~ / counted=1( |$)/) counted++
-        if ($0 ~ / not_driven=[^- ]/) { not_driven++; if ($0 ~ / rv=recorded( |$)/) recorded++ }
+        if ($0 ~ / not_driven=[^- ]/) { not_driven[kind]++; if ($0 ~ / rv=recorded( |$)/) recorded++ }
       }
-      END { printf "%d %d %d %d\n", lines, counted, not_driven, recorded }' "$work/lines-$index" >"$work/rounds-$index" ||
+      END {
+        printf "%d %d %d %d %d %d\n", lines["round"], lines["control"], counted,
+          not_driven["round"], not_driven["control"], recorded
+      }' "$work/lines-$index" >"$work/rounds-$index" ||
       fail "the round lines of $test cannot be read"
-    read -r round_lines counted_here not_driven_here recorded_here <"$work/rounds-$index" ||
-      fail "the round lines of $test cannot be read"
+    read -r round_lines control_lines counted_here not_driven_rounds not_driven_controls recorded_here \
+      <"$work/rounds-$index" || fail "the round lines of $test cannot be read"
+    not_driven_here=$((not_driven_rounds + not_driven_controls))
     rounds_counted=$((rounds_counted + counted_here))
     rounds_not_driven=$((rounds_not_driven + not_driven_here))
     found=$(tr -d '\r' <"$log" | grep -c -E "^$test (late_click |drops .* sleep=[1-9])")
@@ -455,9 +460,12 @@ measure() {
         if [ "$kind" != known-fault ] && [ "$recorded_here" -gt 0 ]; then
           verdict=FAIL
           cause="a key was recorded in a round not driven ($recorded_here rounds)"
-        elif [ "$round_lines" -gt 0 ] && [ "$not_driven_here" -eq "$round_lines" ]; then
+        elif [ "$round_lines" -gt 0 ] && [ "$not_driven_rounds" -eq "$round_lines" ]; then
           verdict=FAIL
           cause="every round of the phase was not driven ($round_lines rounds)"
+        elif [ "$control_lines" -gt 0 ] && [ "$not_driven_controls" -eq "$control_lines" ]; then
+          verdict=FAIL
+          cause="every round of the control was not driven ($control_lines rounds)"
         fi
         ;;
     esac
@@ -668,6 +676,8 @@ fi
 [ -x "$HALVO_STALL_FIXTURE" ] || exit 98
 [ -n "${HALVO_STALL_GAP_MS:-}" ] && [ -n "${HALVO_STALL_FORM:-}" ] || exit 99
 handed=$(env | sed -n 's/^\(HALVO_STALL_[A-Z_]*\)=.*/\1/p' | sort | tr '\n' ' ')
+spec "prefixed-panic-$test" && { printf "test %s ... thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:101:5:\nthe session dictionary could not be read\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
+spec "prefixed-panic-$test" && { printf "test %s ... thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:101:5:\nthe session dictionary could not be read\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
 printf '%s gap_ms=%s form=%s handed=%s\n' "$test" "$HALVO_STALL_GAP_MS" "$HALVO_STALL_FORM" "$handed"
 spec "late-click-$test" && printf '%s late_click wait_ms=150 ahead=8\n' "$test"
 spec "sleep-$test" && printf '%s drops round=0 on=1 gap=0 sleep=1 stop=0\n' "$test"
@@ -686,6 +696,8 @@ else
   printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0\n' "$test"
 fi
 spec "one-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=0 markers=0 plain=0 secure=8 rv=notdriven not_driven=late_reply_left_secure_within_3000_ms phase_counted=1 phase_not_driven=1\n' "$test"
+spec "control-line-$test" && printf '%s control=0 bound_ms=1000 counted=1 landed_plain=5 landed_secure=0 plain_records=5 secure_records=0 after_records=3 rv=- not_driven=- phase_counted=1 phase_not_driven=0\n' "$test"
+spec "control-not-driven-$test" && printf '%s control=0 bound_ms=1000 counted=0 landed_plain=0 landed_secure=0 plain_records=0 secure_records=0 after_records=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
 spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
 spec "long-output-$test" && printf 'a line that the check does not print\n  and a second one\n'
 spec "panic-$test" && {
@@ -835,6 +847,11 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   check three-way-without-a-verdict FAIL 'printed no verdict line of held, notdriven or notkept' 'silent-three_one'
   check panic-line FAIL "    | thread 'phase_one' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:500:27:
     | the fixture gave no line that starts with left_secure within 3000 ms" 'panic-phase_one'
+  check panic-line-after-the-test-name FAIL '    | the session dictionary could not be read' 'prefixed-panic-phase_one'
+  check every-phase-round-not-driven-beside-a-control FAIL 'three_one: every round of the phase was not driven' 'all-not-driven-three_one
+control-line-three_one'
+  check every-control-round-not-driven FAIL 'phase_two: every round of the control was not driven' 'control-not-driven-phase_two'
+  check panic-line-after-the-test-name FAIL '    | the session dictionary could not be read' 'prefixed-panic-phase_one'
   check one-round-not-driven PASS 'MS phase_one result=pass counted=1 not_driven=1 seconds=' 'one-not-driven-phase_one'
   check known-fault-recorded-in-a-round-not-driven PASS 'MS known_one result=known-fault counted=1 not_driven=1 seconds=' 'recorded-not-driven-known_one'
   check rounds-not-driven-in-the-total PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0 rounds_counted=4 rounds_not_driven=1' 'one-not-driven-phase_one'
