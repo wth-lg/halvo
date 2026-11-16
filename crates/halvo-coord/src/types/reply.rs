@@ -481,10 +481,35 @@ impl Item {
     /// The item with `say_new` and `say_gone`, the sentences of `say.item.new` and
     /// `say.item.gone` with `{name}`, the agent's name of I2.3, which the needs view adds to its
     /// status region when a reply brings the item and when a reply drops it (I3.4, I9.2).
+    /// A confirmation's `text` names the agent that asks, the sentence of `confirm.asked_by`
+    /// with `{name}` (I3.4).
     pub fn said_by(self, name: &str) -> Result<Item, Cause> {
+        let text = if self.kind == ItemKind::Confirm {
+            words::text("confirm.asked_by", &[("name", name)])?
+        } else {
+            self.text
+        };
         Ok(Item {
             say_new: words::text("say.item.new", &[("name", name)])?,
             say_gone: words::text("say.item.gone", &[("name", name)])?,
+            text,
+            ..self
+        })
+    }
+
+    /// A page confirmation, where the reply holds `count` of them, with the `text` of
+    /// `confirm.asked_by_place`: the agent's name and its place `n` among them in the reply's
+    /// order (I3.4, ruling RD-17); any other item as it is.
+    pub fn placed(self, name: &str, n: usize, count: usize) -> Result<Item, Cause> {
+        if self.kind != ItemKind::Confirm || self.presenter != Some(Presenter::Page) {
+            return Ok(self);
+        }
+        let (n, count) = (n.to_string(), count.to_string());
+        Ok(Item {
+            text: words::text(
+                "confirm.asked_by_place",
+                &[("name", name), ("n", &n), ("count", &count)],
+            )?,
             ..self
         })
     }

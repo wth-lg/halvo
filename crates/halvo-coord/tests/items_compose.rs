@@ -710,6 +710,33 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
     }
 }
 
+#[test]
+fn i34_a_confirmation_said_by_its_agent_names_the_agent_that_asks_in_its_text() {
+    for is_armed in [false, true] {
+        let ask = ConfirmAsk::new(
+            run_id(1),
+            agent_id(1),
+            vec![effect(1, Class::Payment, bound(Class::Payment, &PAYMENT))],
+        )
+        .unwrap();
+        let confirmation = if !is_armed { shown(&ask) } else { armed(&ask) };
+        let confirm = compose_confirm(&item_id(1), &ask, &confirmation, &Table::new())
+            .unwrap()
+            .said_by(NAME)
+            .unwrap();
+        assert_eq!(
+            confirm.text(),
+            words::text("confirm.asked_by", &[("name", NAME)]).unwrap()
+        );
+    }
+    let plain = compose_plain(&item_id(1), &agent_id(1), Plain::Stuck, NAME).unwrap();
+    assert_eq!(
+        plain.clone().said_by(NAME).unwrap().text(),
+        plain.text(),
+        "another kind keeps its text"
+    );
+}
+
 /// Every item that a compose function makes with the agent's name says it arrives and that it
 /// goes with that name, in the place of I3.4, after `armed` and before `title`; a confirmation
 /// gets both from `said_by`; a typed parameter says when its answer is full, and a parameter

@@ -157,6 +157,8 @@ fn expected_keys() -> BTreeSet<String> {
         "choice.sign_in.bind_decline",
         "choice.sign_in.bind_allow",
         "item.setup.not_taken",
+        "confirm.asked_by",
+        "confirm.asked_by_place",
     ] {
         k.insert(key.to_owned());
     }
@@ -274,7 +276,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 239);
+    assert_eq!(seen.len(), 241);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -310,6 +312,8 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     want.insert("item.sign_in.bind".into(), vec!["origin"]);
     want.insert("say.item.new".into(), vec!["name"]);
     want.insert("say.item.gone".into(), vec!["name"]);
+    want.insert("confirm.asked_by".into(), vec!["name"]);
+    want.insert("confirm.asked_by_place".into(), vec!["count", "n", "name"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
         let expect: Vec<String> = want
@@ -418,6 +422,21 @@ fn fixed_texts_stand_word_for_word() {
     }
     let classes: Vec<&str> = Class::ALL.iter().map(|c| c.name()).collect();
     assert!(classes.contains(&"payment"));
+}
+
+/// The two choices of a second step (ruling RD-24 (b)): the one that allows says that the site
+/// stays allowed when the agent runs again, and the one that refuses says that the task ends.
+#[test]
+fn rd24b_the_second_steps_two_choices_say_what_follows_each() {
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    assert_eq!(
+        t("choice.sign_in.bind_allow"),
+        "Allow this site now and whenever this agent runs again"
+    );
+    assert_eq!(
+        t("choice.sign_in.bind_decline"),
+        "Don't allow this site, and end this task"
+    );
 }
 
 #[test]

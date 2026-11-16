@@ -303,6 +303,11 @@ pub const KEYS: &[(&str, &str)] = &[
         "Something changed after you said yes, so it has not done this yet and asks you again.",
     ),
     ("confirm.present", "See the details and answer"),
+    ("confirm.asked_by", "“{name}” asks for this."),
+    (
+        "confirm.asked_by_place",
+        "Question {n} of {count}: “{name}” asks for this.",
+    ),
     ("from.you", "You gave this"),
     ("from.site", "From the site"),
     ("from.agent", "Written by the agent"),
@@ -333,8 +338,14 @@ pub const KEYS: &[(&str, &str)] = &[
         "item.sign_in.bind",
         "This agent will now work on {origin}. Allow this site only if you know it.",
     ),
-    ("choice.sign_in.bind_decline", "Don't allow this site"),
-    ("choice.sign_in.bind_allow", "Allow this site"),
+    (
+        "choice.sign_in.bind_decline",
+        "Don't allow this site, and end this task",
+    ),
+    (
+        "choice.sign_in.bind_allow",
+        "Allow this site now and whenever this agent runs again",
+    ),
     (
         "item.setup.not_taken",
         "Halvo could not use those answers, so choose them again.",

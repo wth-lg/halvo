@@ -1690,13 +1690,31 @@ where
         }
         let mut rows: Vec<Placed> = placed.iter().map(|(p, _)| p.clone()).collect();
         roster::order(&mut rows);
-        let items = rows
+        let named: Vec<(&str, Item)> = rows
             .iter()
             .filter_map(|p| {
                 placed
                     .iter()
                     .find(|(q, _)| q.row.agent == p.row.agent)
                     .and_then(|(_, item)| item.clone())
+                    .map(|item| (p.row.name.as_str(), item))
+            })
+            .collect();
+        let pages = named
+            .iter()
+            .filter(|(_, i)| {
+                i.kind() == ItemKind::Confirm && i.presenter() == Some(Presenter::Page)
+            })
+            .count();
+        let mut n = 0;
+        let items = named
+            .into_iter()
+            .map(|(name, item)| {
+                if pages < 2 || item.presenter() != Some(Presenter::Page) {
+                    return item;
+                }
+                n += 1;
+                item.clone().placed(name, n, pages).unwrap_or(item)
             })
             .collect();
         let note = board

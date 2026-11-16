@@ -116,10 +116,14 @@ fn an_account_link_handback_for_an_http_site_outside_127_is_declined_and_raises_
 }
 
 fn ask(run: &RunId, effects: &[(u32, &str)]) -> RunEvent {
+    ask_of(run, 0, effects)
+}
+
+fn ask_of(run: &RunId, n: usize, effects: &[(u32, &str)]) -> RunEvent {
     RunEvent::Confirm(
         ConfirmAsk::new(
             run.clone(),
-            agent(0),
+            agent(n),
             effects
                 .iter()
                 .map(|(n, d)| AskedEffect {
@@ -358,4 +362,61 @@ fn an_account_link_handback_for_127_0_0_1_or_an_https_site_raises_its_item() {
         assert_eq!(s.items.len(), 1, "{origin}: {s:?}");
         assert_eq!(s.items[0].kind(), ItemKind::LinkAccount);
     }
+}
+
+fn name_of(s: &halvo_coord::types::Snapshot, agent: &halvo_coord::types::AgentId) -> String {
+    s.rows
+        .iter()
+        .find(|r| &r.agent == agent)
+        .map(|r| r.name.clone())
+        .unwrap()
+}
+
+#[test]
+fn i34_one_confirmation_names_the_agent_that_asks() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 1);
+    assert_eq!(c.on_run(&run, ask_of(&run, 1, &[(0xe1, "ab")])), Ok(()));
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 1);
+    let name = name_of(&s, &agent(1));
+    assert_eq!(
+        s.items[0].text(),
+        words::text("confirm.asked_by", &[("name", &name)]).unwrap()
+    );
+}
+
+#[test]
+fn i34_two_page_confirmations_name_their_agent_and_their_place_in_the_replys_order() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let first = start(&c, 0);
+    let second = start(&c, 1);
+    assert_eq!(
+        c.on_run(&second, ask_of(&second, 1, &[(0xe2, "ab")])),
+        Ok(())
+    );
+    assert_eq!(c.on_run(&first, ask_of(&first, 0, &[(0xe1, "ab")])), Ok(()));
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 2);
+    let mut texts = Vec::new();
+    for (k, item) in s.items.iter().enumerate() {
+        assert_eq!(item.presenter(), Some(halvo_coord::types::Presenter::Page));
+        let name = name_of(&s, item.agent());
+        let (n, count) = ((k + 1).to_string(), "2".to_owned());
+        assert_eq!(
+            item.text(),
+            words::text(
+                "confirm.asked_by_place",
+                &[("name", &name), ("n", &n), ("count", &count)]
+            )
+            .unwrap(),
+            "item {k}"
+        );
+        texts.push(item.text().to_owned());
+    }
+    assert_ne!(texts[0], texts[1], "two confirmations do not read the same");
 }
