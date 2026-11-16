@@ -42,8 +42,8 @@ pub enum Expect {
 pub enum Removal {
     /// Every check held and the copy is removed: `gone`.
     Removed,
-    /// No file stood in the copy's place, or the folder or a directory on the way is absent:
-    /// `gone`.
+    /// No file stood in the copy's place, or a directory on the way below the folder is
+    /// absent: `gone`. An absent folder is never this answer but [`Undecided::Folder`].
     Absent,
     /// A check missed and the file is left: `left` with the reason.
     Left(Left),
@@ -76,7 +76,9 @@ pub enum Left {
     NotFile,
     /// `name`: the directory holds no entry whose own name is the built name byte for byte,
     /// though the system answered for it, as a file system that folds case does for a name in
-    /// another case; or a part of the path holds a colon, which on Windows names a stream.
+    /// another case; or a part of the path holds a colon, which on Windows names a stream; or,
+    /// between the move aside and the removal, the entry under the removing name stopped being
+    /// the file that the call moved there, which then stays, and the call removes nothing.
     Name,
     /// `unreadable`: the copy or its directory cannot be read, or the row's length is over the
     /// bound of a file ([`FILE_MAX`]), which the call never reads past.
@@ -141,7 +143,14 @@ enum Leftover {
 /// ([`Expect::Planned`]). It then moves the copy aside under [`removing_name`], one name for
 /// each checkpoint, checks that the moved entry is the file that it read with the same SHA-256,
 /// and removes it; when that check misses or the removal fails, it puts the file back under its
-/// own name. Before it looks at the copy, it deals with what a call killed between the move
+/// own name. Right before the removal it reads the entry under the removing name again, and
+/// removes it only while it is the file that the call moved there, compared by
+/// [`crate::same_file`]; otherwise it answers `left` with the reason `name` and removes
+/// nothing. A limit of A11.3 stays: a second party that, inside one call, gives the moved copy
+/// another name in the folder between the move aside and the removal, a hard link at the
+/// copy's own name among them, keeps that name and its bytes while the call answers `gone`,
+/// because the call removes only the name that it moved the copy to. Before it looks at the
+/// copy, it deals with what a call killed between the move
 /// aside and the removal left under that name: a file that passes every check of the copy
 /// goes, and so does a second name of the copy itself; any other entry stays, and when the
 /// copy's own name then holds no entry, the answer is that entry's reason as `left`, so that no
@@ -380,6 +389,9 @@ fn aside(
     }
     #[cfg(test)]
     crate::seam::reach(crate::seam::Moment::Aside);
+    if !opened(at, moved).is_ok_and(|(_, _, now)| same_file(seen, &now)) {
+        return Ok(Removal::Left(Left::Name));
+    }
     match at.unlink(moved) {
         Ok(()) => Ok(Removal::Removed),
         Err(error) => {
@@ -656,5 +668,36 @@ mod tests {
         assert_eq!(fs::read(case.moved()).expect("the moved copy"), COPY);
         assert_eq!(case.remove(), Ok(Removal::Removed));
         assert_eq!(case.names(), vec!["values.xlsx".to_string()]);
+    }
+
+    fn renamed_onto_the_removing_name(theirs: &[u8]) -> (Pass, Option<Vec<u8>>, Vec<String>) {
+        let case = Case::new("seam-onto-removing");
+        let staged = case.folder.join("staged.xlsx");
+        fs::write(&staged, theirs).expect("a file of another party");
+        let (from, to) = (staged, case.moved());
+        let got = seam::with(
+            move |moment| {
+                if moment == Moment::Aside {
+                    fs::rename(&from, &to).expect("put it under the removing name");
+                }
+            },
+            || case.remove(),
+        );
+        (got, fs::read(case.moved()).ok(), case.names())
+    }
+
+    #[test]
+    fn a_file_of_other_bytes_renamed_onto_the_removing_name_after_the_move_aside_stays() {
+        let theirs = b"a file of another party";
+        let (got, kept, names) = renamed_onto_the_removing_name(theirs);
+        assert_eq!(got, Ok(Removal::Left(Left::Name)), "{names:?}");
+        assert_eq!(kept.as_deref(), Some(&theirs[..]), "{names:?}");
+    }
+
+    #[test]
+    fn a_file_of_the_rows_bytes_renamed_onto_the_removing_name_after_the_move_aside_stays() {
+        let (got, kept, names) = renamed_onto_the_removing_name(COPY);
+        assert_eq!(got, Ok(Removal::Left(Left::Name)), "{names:?}");
+        assert_eq!(kept.as_deref(), Some(COPY), "{names:?}");
     }
 }
