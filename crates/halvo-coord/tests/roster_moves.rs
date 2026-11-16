@@ -562,3 +562,72 @@ fn i14_an_insecure_account_link_is_declined_also_after_the_runs_items_were_spent
     );
     assert_eq!(raised(&c), before);
 }
+
+const EVERY_ORIGIN: [&str; 3] = [
+    "http://pay.site1.example:80",
+    "http://127.0.0.1:8080",
+    "https://pay.site1.example:443",
+];
+
+fn answers_and_cancels(c: &Coordinator<Both>, m: usize) -> Vec<Call> {
+    calls_since(c, m)
+        .into_iter()
+        .filter(|call| {
+            matches!(
+                call,
+                Call::AnswerBind(..) | Call::AnswerHandback(..) | Call::Cancel(..)
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn rd116_a_second_request_while_a_card_is_open_ends_the_run_with_kind_for_every_origin() {
+    for origin in EVERY_ORIGIN {
+        for second in [bind as fn(&RunId, &str) -> RunEvent, link] {
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            armed(&c, &run, &[(0xe1, "ab")]);
+            let (m, before) = (mark(&c), raised(&c));
+            assert_eq!(
+                c.on_run(&run, second(&run, origin)),
+                Err(halvo_coord::types::Cause::State),
+                "{origin}"
+            );
+            assert_eq!(
+                answers_and_cancels(&c, m),
+                [Call::Cancel(run.clone())],
+                "the kind stop and no answer: {origin}"
+            );
+            assert_eq!(raised(&c), before, "nothing raised: {origin}");
+            assert!(c.snapshot().items.is_empty(), "{origin}");
+        }
+    }
+}
+
+#[test]
+fn rd116_a_second_request_of_a_stopping_run_is_refused_with_state_for_every_origin() {
+    for origin in EVERY_ORIGIN {
+        for second in [bind as fn(&RunId, &str) -> RunEvent, link] {
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+            assert_eq!(
+                c.snapshot().rows[0].line,
+                line("line.working.stopping"),
+                "{origin}"
+            );
+            let (m, before) = (mark(&c), raised(&c));
+            assert_eq!(
+                c.on_run(&run, second(&run, origin)),
+                Err(halvo_coord::types::Cause::State),
+                "{origin}"
+            );
+            assert!(
+                answers_and_cancels(&c, m).is_empty(),
+                "nothing sent: {origin}"
+            );
+            assert_eq!(raised(&c), before, "{origin}");
+        }
+    }
+}

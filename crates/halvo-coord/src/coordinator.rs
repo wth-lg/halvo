@@ -577,31 +577,33 @@ where
                 )
             }
             RunEvent::Confirm(_) | RunEvent::Handback(_) | RunEvent::Bind(_) | RunEvent::Other => {
-                match event {
-                    RunEvent::Bind(ask) if ask.origin.insecure() => {
-                        return self
-                            .ports
-                            .answer_bind(run, crate::types::BindResult::Decline)
-                            .map_err(|e| cause_of(&e));
-                    }
-                    RunEvent::Handback(HandbackAsk {
-                        reason: crate::types::HandbackReason::AccountLink,
-                        origin: Some(origin),
-                        ..
-                    }) if origin.insecure() => {
-                        return items::answer_from_check(
-                            &self.ports,
-                            run,
-                            crate::types::HandbackResult::Declined,
-                        );
-                    }
-                    _ => {}
-                }
                 let facts = &board.members[i].facts;
                 let raise = match event {
                     RunEvent::Confirm(ask) => raise_confirm(facts, &st.table, ask, &self.limits),
                     _ => raise_step(facts, Source::of(event).ok_or(Cause::State)?, &self.limits),
                 };
+                if matches!(raise, Raise::Run(_) | Raise::End(RunEnd::Budget)) {
+                    match event {
+                        RunEvent::Bind(ask) if ask.origin.insecure() => {
+                            return self
+                                .ports
+                                .answer_bind(run, crate::types::BindResult::Decline)
+                                .map_err(|e| cause_of(&e));
+                        }
+                        RunEvent::Handback(HandbackAsk {
+                            reason: crate::types::HandbackReason::AccountLink,
+                            origin: Some(origin),
+                            ..
+                        }) if origin.insecure() => {
+                            return items::answer_from_check(
+                                &self.ports,
+                                run,
+                                crate::types::HandbackResult::Declined,
+                            );
+                        }
+                        _ => {}
+                    }
+                }
                 match raise {
                     Raise::Run(RunItemKind::Confirm) => self.issue(st, i, run, event),
                     Raise::Run(RunItemKind::SignIn) if matches!(event, RunEvent::Bind(_)) => {
