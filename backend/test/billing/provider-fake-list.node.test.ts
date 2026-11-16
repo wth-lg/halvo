@@ -124,7 +124,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
     const before = await requestCount();
     const answer = await port.cancelSubscription(null, "cus_test_000000000000000000000000", false);
     expect({ answer, requests: await requestsSince(before) }).toEqual({
-      answer: { kind: "failed", cancelled: 0 },
+      answer: { kind: "failed", cancelled: 0, unended: 0, storedSettled: false },
       requests: [{ method: "GET", path: "/v1/customers/{id}", params: [] }],
     });
   });
@@ -134,13 +134,16 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
     const second = String(((await call("/test/subscribe", { customer: paid.customer })).subscriptions as string[])[0]);
     expect((await call("/test/refuse-cancel", { subscription: second })).result).toBe("refusing");
     const answer = await port.cancelSubscription(paid.subscription, paid.customer, false);
-    expect({ answer, statuses: await statuses(paid.customer) }).toEqual({ answer: { kind: "failed", cancelled: 0 }, statuses: { active: 1, canceled: 1 } });
+    expect({ answer, statuses: await statuses(paid.customer) }).toEqual({
+      answer: { kind: "failed", cancelled: 0, unended: 1, storedSettled: true },
+      statuses: { active: 1, canceled: 1 },
+    });
   });
 });
 
 describe("a customer of 250 subscriptions that have not ended, deleted through the object (contract 3.6, P7-117 (d) and U5)", () => {
   test.each([
-    ["with the stored id among them", true, 16],
+    ["with the stored id among them", true, 14],
     ["with no stored id", false, 14],
   ] as const)("%s: the delete ends in the counted number of runs, each after a failed run with progress at the first pause", async (_, stored, runs) => {
     const paid = await paidCustomer();

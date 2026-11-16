@@ -289,7 +289,7 @@ describe("what the adapter sends", () => {
     ["a refusal, then a read that says active", [{ status: 400, body: ERROR() }, { status: 200, body: JSON.stringify({ id: "sub_1", status: "active" }) }], "failed"],
     ["a refusal, then a read that fails", [{ status: 400, body: ERROR() }, { status: 500, body: ERROR("api_error") }], "failed"],
     ["a refusal, then a 404 without the error object", [{ status: 400, body: ERROR() }, { status: 404, body: "gone" }], "failed"],
-  ] as const)("cancelSubscription of the stored id, with the customer read and an empty list: %s answers %s", async (_, replies, want) => {
+  ] as const)("cancelSubscription of the stored id, with the customer read and an empty list: %s answers %s", async (name, replies, want) => {
     let at = 0;
     const server = await startRecorder((request) => {
       if (request.path === "/v1/customers/cus_1") return CUSTOMER_REPLY;
@@ -297,7 +297,9 @@ describe("what the adapter sends", () => {
       return replies[Math.min(at++, replies.length - 1)] ?? { status: 500, body: "" };
     });
     try {
-      expect(await makeStripePort(config(server.url)).cancelSubscription("sub_1", "cus_1", false)).toEqual(want === "failed" ? { kind: want, cancelled: 0 } : { kind: want });
+      expect(await makeStripePort(config(server.url)).cancelSubscription("sub_1", "cus_1", false)).toEqual(
+        want === "failed" ? { kind: want, cancelled: 0, unended: name === "a refusal, then a read that says active" ? 1 : 0, storedSettled: false } : { kind: want },
+      );
       expect(server.requests.map((each) => `${each.method} ${each.path}`)).toEqual([
         ...(replies.length === 1 ? ["DELETE /v1/subscriptions/sub_1"] : ["DELETE /v1/subscriptions/sub_1", "GET /v1/subscriptions/sub_1"]),
         "GET /v1/customers/cus_1",

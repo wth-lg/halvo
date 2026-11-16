@@ -107,6 +107,16 @@ describe("X3: an id that cannot be sent unchanged", () => {
   });
 });
 
+describe("X5 in the adapter: the second count", () => {
+  test("a stored id refused while its read shows it live, and a customer's read that fails: the failed answer holds the stored id in its second count", async () => {
+    const run = await call({ subs: [live("sub_1")], refused: ["sub_1"], customer: { status: 500, body: "" } }, "sub_1", CUSTOMER);
+    expect({ answer: run.answer, asked: run.asked }).toEqual({
+      answer: { kind: "failed", cancelled: 0, unended: 1, storedSettled: false },
+      asked: ["DELETE /v1/subscriptions/sub_1", "GET /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`],
+    });
+  });
+});
+
 describe("X4 and X6 in the adapter", () => {
   test("X4: a listed cancel answered 2xx canceled that the same call's last whole list still shows: the count drops it, and the second count holds it", async () => {
     const model: Model = {
