@@ -145,7 +145,26 @@ type Pass = Result<Removal, Undecided>;
 /// while its volume is not mounted, is [`Undecided::Folder`]. Every other miss leaves the file
 /// and answers its reason, which is never a run's failure. It removes no checkpoint of a run
 /// that has not ended: the caller calls it only for a run whose end is stored.
+///
+/// One call makes at most three passes (the coordinator's ruling CP-135 (6)): a pass in which
+/// the system refused a step of the removal ([`Undecided::Remove`]) is made again, three in
+/// all, and the answer of the last is the call's; a lock that it cannot take within the wait
+/// ([`Undecided::Lock`]) and an absent folder ([`Undecided::Folder`]) are answered at once. The
+/// caller writes no row for an [`Undecided`] answer and calls again at its next start.
 pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
+    let mut answer = pass(locks, row);
+    for _ in 1..PASSES {
+        if !matches!(answer, Err(Undecided::Remove(_))) {
+            break;
+        }
+        answer = pass(locks, row);
+    }
+    answer
+}
+
+const PASSES: usize = 3;
+
+fn pass(locks: &Locks, row: &Row<'_>) -> Pass {
     let (dir, last) = match place(row.folder, row.workbook) {
         Ok(place) => place,
         Err(answer) => return answer,
@@ -602,6 +621,27 @@ mod tests {
         assert_eq!(fs::read(&case.copy).expect("the checkpoint"), written);
         let left = vec![Case::name(&case.copy), "values.xlsx".to_string()];
         assert_eq!(case.names(), left);
+    }
+
+    #[test]
+    fn a_removal_whose_every_pass_finds_the_removing_name_is_undecided_after_the_third_pass() {
+        let case = Case::new("seam-passes");
+        let theirs = b"a file of the person's own under the removing name";
+        fs::write(case.moved(), theirs).expect("a file at the removing name");
+        let passes = std::rc::Rc::new(std::cell::Cell::new(0));
+        let counted = passes.clone();
+        let got = seam::with(
+            move |moment| {
+                if moment == Moment::Checked {
+                    counted.set(counted.get() + 1);
+                }
+            },
+            || case.remove(),
+        );
+        assert_eq!(got, Err(Undecided::Remove(io::ErrorKind::AlreadyExists)));
+        assert_eq!(passes.get(), 3, "the passes of one call");
+        assert_eq!(fs::read(case.moved()).expect("the person's file"), theirs);
+        assert_eq!(fs::read(&case.copy).expect("the checkpoint"), COPY);
     }
 
     #[test]

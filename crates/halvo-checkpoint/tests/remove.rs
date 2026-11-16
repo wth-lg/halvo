@@ -270,6 +270,24 @@ fn a_copy_that_a_killed_pass_left_under_its_removing_name_is_finished_or_reporte
 }
 
 #[test]
+fn a_removal_whose_every_pass_finds_the_removing_name_is_undecided_and_leaves_both_files() {
+    let scratch = Scratch::new("remove-passes");
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    let moved = scratch
+        .path("folder")
+        .join(removing(&copy_name("values.xlsx")));
+    let theirs = b"a file of the person's own under the removing name";
+    fs::write(&moved, theirs).expect("a file at the removing name");
+    let got = answer(&scratch, &scratch.path("folder/values.xlsx"), made(COPY));
+    assert_eq!(
+        got,
+        Err(Undecided::Remove(std::io::ErrorKind::AlreadyExists))
+    );
+    assert_eq!(fs::read(&moved).expect("the person's file stays"), theirs);
+    assert_eq!(fs::read(&copy).expect("the checkpoint stays"), COPY);
+}
+
+#[test]
 fn a_link_on_the_way_or_in_the_place_of_the_checkpoint_leaves_the_file() {
     let scratch = Scratch::new("remove-link");
     let real = with_checkpoint(&scratch, "real/values.xlsx");
