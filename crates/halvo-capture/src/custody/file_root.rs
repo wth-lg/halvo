@@ -164,8 +164,8 @@ pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
 
 fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     let mut file = dir.open_file_for_write(name)?;
-    let len = file.metadata()?.len() as usize;
-    file.write_all(&vec![0u8; len])?;
+    let len = file.metadata()?.len();
+    write_zeros(&mut file, len)?;
     file.sync_all()
 }
 
@@ -180,22 +180,28 @@ fn seal(
     Ok(WrappedKey(sealed))
 }
 
-/// What the destruction of every root file under a roots directory left: the
-/// ids of the root files and partial root files that stay, their names as
-/// they stand, and whether the directory could be listed.
-/// `at_its_path` is false when the roots directory that the step went through
-/// no longer stood at the path that it was opened by.
+/// What a root step left in the roots directory that it went through: the
+/// ids of the root files and partial root files that stay, the names of
+/// every entry that stays as they stand (each a possible root, a root-file
+/// path under C0.3), the count of the entries that stay at a name that is no
+/// root name and no partial name (a file that could not be removed, a
+/// directory), and whether the directory could be listed. `at_its_path` is
+/// false when the roots directory that the step went through no longer stood
+/// at the path that it was opened by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootsLeft {
     pub left: Vec<RootId>,
     pub names: Vec<String>,
+    pub others_left: u64,
     pub listed: bool,
     pub at_its_path: bool,
 }
 
 impl RootsLeft {
+    /// The directory was listed and no entry stays in it: no root file, no
+    /// partial root file and nothing at any other name.
     pub fn none_left(&self) -> bool {
-        self.listed && self.left.is_empty()
+        self.listed && self.left.is_empty() && self.others_left == 0
     }
 
     /// Nothing counted, listed or not, with no directory that left its path.
@@ -203,6 +209,7 @@ impl RootsLeft {
         Self {
             left: Vec::new(),
             names: Vec::new(),
+            others_left: 0,
             listed,
             at_its_path: true,
         }
@@ -374,6 +381,7 @@ pub(crate) fn destroy_roots_through(
         if handled.contains(&entry.name) {
             continue;
         }
+        handled.push(entry.name.clone());
         let at = match file {
             RootFile::Root(_) if of_named(file) => EntryName::OwnRoot,
             RootFile::Root(_) => EntryName::OtherRoot,
@@ -386,6 +394,14 @@ pub(crate) fn destroy_roots_through(
         }
         if at == EntryName::OwnRoot && !decided_by_identity && fate == EntryFate::Gone {
             own_root_file_removed = true;
+        }
+    }
+    if form != RootStepForm::NamedAlone {
+        for entry in entries
+            .iter()
+            .filter(|entry| entry.kind != EntryKind::Dir && !handled.contains(&entry.name))
+        {
+            let _ = destroy_root_entry(dir, &entry.name, EntryName::OtherName);
         }
     }
     let _ = dir.sync();
@@ -409,21 +425,25 @@ pub(crate) fn destroy_roots_through(
     }
 }
 
-/// The root files and partial root files of a listing, by their names as
-/// they stand, sorted by name.
+/// Every entry of a listing, by its name as it stands, sorted by name: the
+/// ids of the root files and partial root files among them, and the count of
+/// the entries at any other name.
 fn roots_that_stand(entries: &[durable::Entry], at_its_path: bool) -> RootsLeft {
-    let mut stays: Vec<(RootId, String)> = entries
+    let mut stays: Vec<(Option<RootId>, String)> = entries
         .iter()
-        .filter_map(|entry| {
-            RootFile::named_in_any_case(&entry.name)
-                .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
+        .map(|entry| {
+            (
+                RootFile::named_in_any_case(&entry.name).map(RootFile::id),
+                entry.name.to_string_lossy().into_owned(),
+            )
         })
         .collect();
     stays.sort_by(|a, b| a.1.cmp(&b.1));
-    let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
+    let mut left: Vec<RootId> = stays.iter().filter_map(|(id, _)| *id).collect();
     left.dedup();
     RootsLeft {
         left,
+        others_left: stays.iter().filter(|(id, _)| id.is_none()).count() as u64,
         names: stays.into_iter().map(|(_, name)| name).collect(),
         listed: true,
         at_its_path,
@@ -511,6 +531,8 @@ enum EntryName {
     OtherRoot,
     /// A partial name.
     Partial,
+    /// A name that is no root name and no partial name (ruling ST-47 T1).
+    OtherName,
 }
 
 /// What the destruction of one entry of a roots directory met and left.
@@ -594,7 +616,11 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
             .metadata()
             .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
         let one_name = matches!(durable::file_link_count(&kept), Ok(1));
-        if !root_len && (at == EntryName::OwnRoot || !one_name) {
+        let unwritten = match at {
+            EntryName::OtherName => !root_len || !one_name,
+            _ => !root_len && (at == EntryName::OwnRoot || !one_name),
+        };
+        if unwritten {
             return removed_unwritten(dir);
         }
     }
@@ -634,11 +660,27 @@ fn zero_fill_through(dir: &Dir, name: &OsStr, kept: &std::fs::File) -> std::io::
 
 fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
     use std::io::{Seek, SeekFrom};
-    let len = file.metadata()?.len() as usize;
+    let len = file.metadata()?.len();
     let mut writer = file;
     writer.seek(SeekFrom::Start(0))?;
-    writer.write_all(&vec![0u8; len])?;
+    write_zeros(&mut writer, len)?;
     file.sync_all()
+}
+
+/// The size of one write of zeros: a zero-fill writes a file's length in
+/// blocks of this size and never allocates that length (ruling ST-47 T1).
+const ZERO_BLOCK: usize = 64 * 1024;
+
+/// Writes `len` zero bytes to `out` in blocks of at most [`ZERO_BLOCK`].
+fn write_zeros(out: &mut impl Write, len: u64) -> std::io::Result<()> {
+    let block = [0u8; ZERO_BLOCK];
+    let mut left = len;
+    while left > 0 {
+        let now = left.min(ZERO_BLOCK as u64) as usize;
+        out.write_all(&block[..now])?;
+        left -= now as u64;
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -1188,6 +1230,39 @@ mod tests {
         let root_id = RootId::fresh().unwrap();
         assert!(roots.create_root(root_id).is_ok());
         assert!(roots.root_exists(root_id).unwrap());
+    }
+
+    #[test]
+    fn a_zero_fill_writes_in_blocks_of_a_fixed_size_and_never_the_whole_length_at_once() {
+        struct Recorder {
+            writes: Vec<usize>,
+            zeros: bool,
+        }
+        impl Write for Recorder {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.writes.push(bytes.len());
+                self.zeros &= bytes.iter().all(|&b| b == 0);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let len = 3 * ZERO_BLOCK as u64 + 5;
+        let mut out = Recorder {
+            writes: Vec::new(),
+            zeros: true,
+        };
+        write_zeros(&mut out, len).unwrap();
+        let largest = out.writes.iter().copied().max().unwrap_or(0);
+        println!(
+            "ZERO-BLOCKS writes={} largest={largest} total={}",
+            out.writes.len(),
+            out.writes.iter().sum::<usize>()
+        );
+        assert!(out.zeros);
+        assert!(largest <= ZERO_BLOCK, "a write of {largest} bytes");
+        assert_eq!(out.writes.iter().sum::<usize>() as u64, len);
     }
 
     #[test]
