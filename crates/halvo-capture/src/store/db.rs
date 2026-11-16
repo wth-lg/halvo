@@ -1923,11 +1923,11 @@ pub struct EncryptedStore {
 
 impl EncryptedStore {
     /// Create a fresh store in `dir` under `custody`, whose roots directory
-    /// holds the new root. It takes the writer lock, finishes what a stopped
-    /// create left in `create.pending`, and answers
-    /// [`StoreError::AlreadyExists`] when any entry stands at `store.key` and
+    /// holds the new root. It takes the writer lock and answers
     /// [`StoreError::Locked`] while another process holds the lock or the
-    /// database, with nothing removed. Otherwise it removes the keyless
+    /// database and [`StoreError::AlreadyExists`] when any entry stands at
+    /// `store.key`, with nothing removed; then it finishes what a stopped
+    /// create left in `create.pending`. Otherwise it removes the keyless
     /// leftovers (a segment that it cannot remove stays for the open-time
     /// sweep), records the custody kind and root id in `create.pending`, opens
     /// a new database under a random store key, makes the root, publishes the
@@ -1964,6 +1964,9 @@ impl EncryptedStore {
             Ok(()) | Err(StoreError::Obstructed { .. }) => {}
             Err(e) => return Err(e),
         }
+        if key_file.present()? {
+            return Err(StoreError::AlreadyExists);
+        }
         if let Some(roots) = custody.roots() {
             clear_pending(dir, CleanupRoots::Path(roots), key_file.names())?;
             if file_root::root_file_may_be_present(roots, custody.root_id()) {
@@ -1971,9 +1974,6 @@ impl EncryptedStore {
                 failpoint::seam(SEAM_IN_THE_REFUSAL_ARM);
                 return Err(StoreError::Custody(a_root_that_stands(custody.as_ref())));
             }
-        }
-        if key_file.present()? {
-            return Err(StoreError::AlreadyExists);
         }
         failpoint::hit("create_before_the_database_step")?;
         #[cfg(test)]
