@@ -345,6 +345,25 @@ pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
 /// What ctl says on standard error for `delete_refused` (ruling PL-8 part (4)(c)).
 pub const DELETE_REFUSED_TEXT: &str = "this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again";
 
+/// What ctl says on standard error for the plain busy of a delete, which also answers while
+/// another delete runs, so it never says that nothing was deleted (contracts.md C2.6; ruling
+/// CT-14).
+pub const DELETE_BUSY_TEXT: &str =
+    "the capture service is busy; this request deleted nothing; read the status and ask again";
+
+/// What ctl says on standard error for an `already_deleted` that the client does not take for a
+/// delete: one to a delete with no id, or one that names the armed id (contracts.md C2.6).
+pub const ALREADY_DELETED_NOT_TAKEN_TEXT: &str = "the capture service answered already_deleted, which does not answer this request; this request deleted nothing; read the status and ask again";
+
+/// What ctl says on standard error when a delete got no reply within its deadline: its outcome
+/// is unknown, so it says neither that this request deleted nothing nor that nothing was
+/// deleted (contracts.md C2.6 and C2.7).
+pub fn delete_deadline_line(seconds: u64) -> String {
+    format!(
+        "no reply within {seconds} s; whether this request deleted anything is not known; read the status"
+    )
+}
+
 /// What ctl says on standard error for a delete whose root reads unknown (contracts.md C2.6).
 pub const ROOTS_NOT_LISTED_TEXT: &str =
     "the roots of this custody cannot be listed; a root may survive";
@@ -406,9 +425,16 @@ fn printed(stdout: String, status: i32) -> Printed {
 /// What `ctl VERB` prints for the reply or the error of the client, with the exit codes of
 /// contracts.md C2.5 to C2.7.
 pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir) -> Printed {
+    let delete = matches!(verb, Verb::DeleteAll(_));
     let reply = match result {
         Ok(reply) => reply,
         Err(ClientError::Daemon(error) | ClientError::ServiceEnding(error)) => Reply::Error(error),
+        Err(ClientError::AlreadyDeletedToThisRequest(already)) if delete => {
+            Reply::AlreadyDeleted(already)
+        }
+        Err(ClientError::Deadline { seconds }) if delete => {
+            return failed(delete_deadline_line(seconds), crate::exit::ERROR)
+        }
         Err(ClientError::Unreachable { endpoint }) => {
             return failed(
                 format!("capture service not running at {endpoint}"),
@@ -431,6 +457,9 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
     };
     match (verb, reply) {
         (_, Reply::Error(error)) if error.ending() => failed(ending_line(verb), crate::exit::BUSY),
+        (Verb::DeleteAll(_), Reply::Error(error)) if error.code() == ErrorCode::Busy => {
+            failed(DELETE_BUSY_TEXT, crate::exit::BUSY)
+        }
         (_, Reply::Error(error)) => {
             let status = match error.code() {
                 ErrorCode::Busy => crate::exit::BUSY,
@@ -519,6 +548,9 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
             if crate::client::already_deleted_answers(*armed, &already) =>
         {
             printed(already_deleted_text(&already), crate::exit::CLEAN)
+        }
+        (Verb::DeleteAll(_), Reply::AlreadyDeleted(_)) => {
+            failed(ALREADY_DELETED_NOT_TAKEN_TEXT, crate::exit::ERROR)
         }
         (Verb::DeleteAll(_), Reply::DeleteRefused) => Printed {
             stdout: "delete_refused\n".to_string(),
@@ -1524,12 +1556,99 @@ mod tests {
     #[test]
     fn a_deadline_prints_no_reply_within_its_seconds_and_exits_1() {
         let printed = print(
-            &Verb::DeleteAll(None),
-            Err(ClientError::Deadline { seconds: 120 }),
+            &Verb::Stop,
+            Err(ClientError::Deadline { seconds: 20 }),
             &data_dir(),
         );
-        assert_eq!(printed.stderr, "halvo-capture: no reply within 120 s\n");
+        assert_eq!(printed.stderr, "halvo-capture: no reply within 20 s\n");
         assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn ct14_a_plain_busy_an_already_deleted_not_taken_and_the_deadline_of_a_delete_say_what_did_not_happen(
+    ) {
+        const BUSY: &str = "halvo-capture: the capture service is busy; this request deleted nothing; read the status and ask again\n";
+        const NOT_TAKEN: &str = "halvo-capture: the capture service answered already_deleted, which does not answer this request; this request deleted nothing; read the status and ask again\n";
+        const DEADLINE: &str = "halvo-capture: no reply within 120 s; whether this request deleted anything is not known; read the status\n";
+        let busy = || ErrorReply::new(ErrorCode::Busy, "another mutation is in flight");
+        let other = AlreadyDeleted { current: FRESH };
+        let armed = AlreadyDeleted {
+            current: crate::testing::FIXTURE_STORE_ID,
+        };
+        let cases: Vec<(&str, Verb, Result<Reply, ClientError>, &str, i32)> = vec![
+            (
+                "the plain busy to a delete with an id",
+                Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
+                Ok(Reply::Error(busy())),
+                BUSY,
+                75,
+            ),
+            (
+                "the plain busy to a delete with no id, through the client",
+                Verb::DeleteAll(None),
+                Err(ClientError::Daemon(busy())),
+                BUSY,
+                75,
+            ),
+            (
+                "already_deleted to a delete with no id",
+                Verb::DeleteAll(None),
+                Ok(Reply::AlreadyDeleted(other)),
+                NOT_TAKEN,
+                1,
+            ),
+            (
+                "already_deleted that names the armed id",
+                Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
+                Ok(Reply::AlreadyDeleted(armed)),
+                NOT_TAKEN,
+                1,
+            ),
+            (
+                "already_deleted that the client did not take",
+                Verb::DeleteAll(None),
+                Err(ClientError::AlreadyDeletedToThisRequest(other)),
+                NOT_TAKEN,
+                1,
+            ),
+            (
+                "the deadline of a delete",
+                Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
+                Err(ClientError::Deadline { seconds: 120 }),
+                DEADLINE,
+                1,
+            ),
+        ];
+        for (case, verb, result, stderr, status) in cases {
+            let printed = print(&verb, result, &data_dir());
+            assert_eq!(
+                (
+                    printed.stdout.as_str(),
+                    printed.stderr.as_str(),
+                    printed.status
+                ),
+                ("", stderr, status),
+                "{case}"
+            );
+            assert!(!printed.stderr.contains("nothing was deleted"), "{case}");
+        }
+        assert!(!DEADLINE.contains("deleted nothing"));
+        let ending = print(
+            &Verb::DeleteAll(None),
+            Err(ClientError::ServiceEnding(
+                ErrorReply::busy_of_an_ending_life(),
+            )),
+            &data_dir(),
+        );
+        assert_eq!(
+            ending.stderr,
+            format!("halvo-capture: {}\n", ending_line(&Verb::DeleteAll(None)))
+        );
+        let pause = print(&Verb::Pause, Ok(Reply::Error(busy())), &data_dir());
+        assert_eq!(
+            pause.stderr,
+            "halvo-capture: another mutation is in flight\n"
+        );
     }
 
     #[test]
