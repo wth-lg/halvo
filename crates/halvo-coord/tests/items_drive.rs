@@ -2273,7 +2273,7 @@ fn rd96_5b_a_raise_whose_handed_read_brings_an_open_item_of_its_kind_closes_it()
         l.take(&events);
         Read::Taken
     };
-    raise_run_item_reading(
+    let open = raise_run_item_reading(
         &p,
         &mut l,
         &LIMITS,
@@ -2287,6 +2287,20 @@ fn rd96_5b_a_raise_whose_handed_read_brings_an_open_item_of_its_kind_closes_it()
         vec![Raised::Stuck(run_id(1))],
         "the review's case: the read after seq brings the earlier item: {:?}",
         whats_from(&p, 0)
+    );
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Stuck(OtherLapse::AppEnded),
+            },
+            What::ItemRaised {
+                item: open.item,
+                raised: Raised::Stuck(run_id(1)),
+            },
+        ],
+        "the lapse goes before the raise"
     );
 }
 
