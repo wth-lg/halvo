@@ -5,7 +5,7 @@ use halvo_schema::{RowRead, TypedRecord, Workflow, WorkflowId};
 use serde_json::{json, Value};
 
 use crate::host::GateHost;
-use crate::store::{Family, MemoryStore};
+use crate::store::{Family, Held, MemoryStore};
 
 pub fn wf(n: u32) -> String {
     format!("3{n:031x}")
@@ -158,4 +158,57 @@ fn store_delete_takes_every_row_of_one_workflow() {
     assert!(store
         .workflow_item(&WorkflowId::parse(&wf(2)).expect("an id"))
         .is_some());
+}
+
+#[test]
+fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none(
+) {
+    let mut host = GateHost::new(store_with(&[1, 2]), 20_771);
+    let rows = vec![
+        record("learn_run", &wf(1), Some(20_771)),
+        record("learn_run", &wf(2), Some(20_771)),
+        record("learn_run", &wf(1), Some(20_770)),
+        record("learn_edit", &wf(1), None),
+    ];
+    LearnHost::commit(&mut host, rows.clone()).expect("a commit");
+    let planted = [
+        (None, record("learn_run", &wf(1), Some(20_769)).json),
+        (Some(wf(2)), record("learn_run", &wf(1), Some(20_768)).json),
+    ];
+    for (key, json) in &planted {
+        let key = key
+            .as_ref()
+            .map(|k| WorkflowId::parse(k).expect("a workflow id"));
+        host.store
+            .learn_rows_mut()
+            .get_mut("learn_run")
+            .expect("run rows")
+            .push(Held {
+                key,
+                json: json.clone(),
+            });
+    }
+    let one = WorkflowId::parse(&wf(1)).expect("a workflow id");
+    let two = WorkflowId::parse(&wf(2)).expect("a workflow id");
+    let under = |workflow: &WorkflowId, kind: &str| {
+        let mut seen = Vec::new();
+        LearnHost::for_each_under(&host, kind, workflow, &mut |row| seen.push(row.to_owned()));
+        let mut direct = Vec::new();
+        host.store
+            .rows(Family::Learn)
+            .for_each_under(kind, workflow, &mut |row| direct.push(row.to_owned()));
+        assert_eq!(seen, direct);
+        seen
+    };
+    let mut want_one = vec![rows[0].json.clone(), rows[2].json.clone()];
+    want_one.sort();
+    assert_ne!(want_one[0], rows[0].json);
+    assert_eq!(under(&one, "learn_run"), want_one);
+    let mut want_two = vec![rows[1].json.clone(), planted[1].1.clone()];
+    want_two.sort();
+    assert_eq!(under(&two, "learn_run"), want_two);
+    assert_eq!(under(&one, "learn_edit"), [rows[3].json.clone()]);
+    assert!(under(&two, "learn_edit").is_empty());
+    assert!(under(&one, "agent_run").is_empty());
+    assert_eq!(visited(LearnHost::rows(&host), "learn_run").len(), 5);
 }

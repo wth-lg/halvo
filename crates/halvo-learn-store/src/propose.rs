@@ -165,7 +165,7 @@ impl LearnHandlers {
             (None, Some(row)) => row.workflow.clone(),
             (None, None) => return None,
         };
-        let readable = matches!(rows::runs(host.rows(), &workflow), Read::Rows(_));
+        let readable = matches!(rows::runs(host, &workflow), Read::Rows(_));
         let mode = row.map(|r| r.mode).or(start.map(|s| s.mode))?;
         Some((mode, workflow, readable))
     }
@@ -205,7 +205,7 @@ impl LearnHandlers {
         let Some(facts) = self.facts.get(&b.run) else {
             return Ok(refused(&changed));
         };
-        let mode = match rows::runs(host.rows(), &facts.workflow) {
+        let mode = match rows::runs(host, &facts.workflow) {
             Read::Rows(runs) => {
                 convert::run_mode(rows::newest_run(&runs, b.run.as_str()).map(|r| r.mode))
             }
@@ -217,7 +217,7 @@ impl LearnHandlers {
             return Ok(refused(&changed));
         };
         let compiled = agent::compiled(host, &b.agent, &b.run, number)?;
-        let Read::Rows(edits) = Edits::read(host.rows(), &facts.workflow) else {
+        let Read::Rows(edits) = Edits::read(host, &facts.workflow) else {
             return Ok(refused(&changed));
         };
         let reader = Facts {
@@ -247,7 +247,7 @@ impl LearnHandlers {
 }
 
 fn withdraw(host: &mut dyn LearnHost, workflow: &WorkflowId, b: &PutPlaybook) -> Result<(), Fault> {
-    let Read::Rows(stored) = Edits::read(host.rows(), workflow) else {
+    let Read::Rows(stored) = Edits::read(host, workflow) else {
         return Ok(());
     };
     let mut edits = stored.clone();

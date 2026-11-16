@@ -28,11 +28,29 @@ impl Family {
     }
 }
 
-/// The rows of one family, each kind's rows as serialized records. A read visits a kind's rows in ascending
-/// byte order and nothing for a kind of another family (W-C2.11).
+/// A stored row: the workflow key that the store keeps beside it, as the derived store keeps its workflow column,
+/// none where its commit gave none, and the serialized record.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Held {
+    pub key: Option<WorkflowId>,
+    pub json: String,
+}
+
+impl Held {
+    /// The row of a record, under the workflow that its text names under its kind's workflow key.
+    pub fn of(kind: &str, json: String) -> Held {
+        Held {
+            key: workflow_of(kind, &json),
+            json,
+        }
+    }
+}
+
+/// The rows of one family, each kind's rows as serialized records with the workflow key beside each. A read visits
+/// a kind's rows in ascending byte order and nothing for a kind of another family (W-C2.11).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Rows {
-    by_kind: BTreeMap<&'static str, Vec<String>>,
+    by_kind: BTreeMap<&'static str, Vec<Held>>,
 }
 
 impl Rows {
@@ -40,24 +58,39 @@ impl Rows {
     pub fn all(&self) -> impl Iterator<Item = (&'static str, &str)> {
         self.by_kind
             .iter()
-            .flat_map(|(k, rows)| rows.iter().map(move |r| (*k, r.as_str())))
+            .flat_map(|(k, rows)| rows.iter().map(move |r| (*k, r.json.as_str())))
     }
 
     pub fn count(&self, kind: &str) -> usize {
         self.by_kind.get(kind).map_or(0, Vec::len)
     }
-}
 
-impl RowRead for Rows {
-    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+    /// Visits the rows of the kind that the store keeps under the workflow key `workflow`, each once, in ascending
+    /// byte order, and no row kept under another key or under none: the stand-in of the keyed read of halvo-derived
+    /// (contracts.md L4.4, L10.1; the coordinator's ruling LM-58 (c)).
+    pub fn for_each_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        self.visit(kind, Some(workflow), visit);
+    }
+
+    fn visit(&self, kind: &str, workflow: Option<&WorkflowId>, visit: &mut dyn FnMut(&str)) {
         let Some(rows) = self.by_kind.get(kind) else {
             return;
         };
-        let mut sorted: Vec<&String> = rows.iter().collect();
+        let mut sorted: Vec<&String> = rows
+            .iter()
+            .filter(|row| workflow.is_none_or(|w| row.key.as_ref() == Some(w)))
+            .map(|row| &row.json)
+            .collect();
         sorted.sort();
         for row in sorted {
             visit(row);
         }
+    }
+}
+
+impl RowRead for Rows {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        self.visit(kind, None, visit);
     }
 }
 
@@ -155,7 +188,10 @@ impl MemoryStore {
             Family::Learn => &mut self.learn,
         };
         for (kind, json) in checked {
-            rows.by_kind.entry(kind).or_default().push(json);
+            rows.by_kind
+                .entry(kind)
+                .or_default()
+                .push(Held::of(kind, json));
         }
         Ok(())
     }
@@ -166,7 +202,7 @@ impl MemoryStore {
         for rows in [&mut self.agent, &mut self.learn] {
             for (kind, list) in rows.by_kind.iter_mut() {
                 let before = list.len();
-                list.retain(|json| stays(kind, json, today));
+                list.retain(|row| stays(kind, &row.json, today));
                 if list.len() < before {
                     *expired.by_kind.entry(kind).or_default() += before - list.len();
                 }
@@ -181,15 +217,16 @@ impl MemoryStore {
         let stored = self.workflows.remove(id).is_some();
         for rows in [&mut self.agent, &mut self.learn] {
             for (kind, list) in rows.by_kind.iter_mut() {
-                list.retain(|json| workflow_of(kind, json).as_ref() != Some(id));
+                list.retain(|row| workflow_of(kind, &row.json).as_ref() != Some(id));
             }
         }
         stored
     }
 
-    /// The rows of the family `learn` by kind, for a test that stands in for a wrong cascade.
+    /// The rows of the family `learn` by kind, each with its workflow key, for a test that stands in for a wrong
+    /// cascade.
     #[cfg(test)]
-    pub fn learn_rows_mut(&mut self) -> &mut BTreeMap<&'static str, Vec<String>> {
+    pub fn learn_rows_mut(&mut self) -> &mut BTreeMap<&'static str, Vec<Held>> {
         &mut self.learn.by_kind
     }
 

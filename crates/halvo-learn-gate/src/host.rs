@@ -52,6 +52,12 @@ impl LearnHost for GateHost {
         self.store.rows(Family::Learn)
     }
 
+    fn for_each_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        self.store
+            .rows(Family::Learn)
+            .for_each_under(kind, workflow, visit);
+    }
+
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
         self.store.workflow_item(id)
     }
