@@ -5,7 +5,7 @@ test/billing/provider-fake-list.node.test.ts	8
 test/billing/provider-fake-unknown.node.test.ts	1
 test/billing/provider-fake.node.test.ts	16
 test/billing/routes.node.test.ts	4
-test/billing/stripe-adapter-list.node.test.ts	59
+test/billing/stripe-adapter-list.node.test.ts	60
 test/billing/stripe-adapter.node.test.ts	39
 test/billing/stripe-read-session.node.test.ts	1
 test/contract/billing-stub.node.test.ts	2

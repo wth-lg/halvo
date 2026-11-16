@@ -242,6 +242,11 @@ describe("T5 and U2: the read of the customer", () => {
     expect({ answer: run.answer, requests: run.requests, lines: run.lines }).toEqual({ answer: { kind: "nothing-to-cancel" }, requests: [`GET /v1/customers/${CUSTOMER}`], lines: [] });
   });
 
+  test("U4: an unanswered cancel of the stored id and a customer shown as deleted: failed, and the next try decides", async () => {
+    const run = await cancel({ subs: [live("sub_1")], dropped: ["sub_1"], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) }, "sub_1");
+    expect({ answer: run.answer, requests: run.requests }).toEqual({ answer: { kind: "failed", cancelled: 0 }, requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`] });
+  });
+
   test("the stored id ended by this call and a customer shown as deleted: cancelled", async () => {
     const run = await cancel({ subs: [live("sub_1")], customer: json({ id: CUSTOMER, object: "customer", deleted: true }) }, "sub_1");
     expect({ answer: run.answer, requests: run.requests }).toEqual({ answer: { kind: "cancelled" }, requests: ["DELETE /v1/subscriptions/sub_1", `GET /v1/customers/${CUSTOMER}`] });
@@ -361,10 +366,10 @@ describe("the bound of one call (contract 3.6; P7-117 (d), S7, U5)", () => {
     });
   });
 
-  test("REQUEST_START_MARGIN_MS: no request starts with less than 500 ms of the call's deadline left", async () => {
+  test("REQUEST_START_MARGIN_MS: no request starts with less than 500 ms of the call's deadline left (980 ms a request: the eleventh would start with 200 ms left)", async () => {
     let now = 0;
-    const run = await cancel({ subs: many(30), tick: () => (now += 950) }, null, CUSTOMER, {}, () => now);
-    expect({ requests: run.requests.length, answer: run.answer }).toEqual({ requests: 11, answer: { kind: "failed", cancelled: 9 } });
+    const run = await cancel({ subs: many(30), tick: () => (now += 980) }, null, CUSTOMER, {}, () => now);
+    expect({ requests: run.requests.length, answer: run.answer }).toEqual({ requests: 10, answer: { kind: "failed", cancelled: 8 } });
   });
 
   test.each([
