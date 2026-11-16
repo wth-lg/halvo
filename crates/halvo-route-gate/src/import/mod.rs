@@ -36,10 +36,11 @@
 //! or a tab, such as a no-break space or a form feed, or by a letter outside ASCII; a `limits`
 //! line in another form; and a value typed by hand, which only a rebuild from the trial's raw
 //! files tells (T5.4). A cell missing whole, its `drive` or `reply` line with its attempt lines,
-//! imports with its rows fewer and no refusal unless it is of the verdict's driver or writer,
-//! whose set refuses it. A cell that ends `notrun` after its compile and leaves its attempt lines
-//! with no `drive` line is refused, until the agent-setup run answers whether its harness writes
-//! such a cell (its pass inbox, 2026-11-15T00:50:19Z, question 3).
+//! is refused by the set when it is a `drive` cell of the verdict's driver or a `reply` cell of
+//! its writer; any other cell missing whole imports with its rows fewer and no refusal. A cell
+//! that ends `notrun` after its compile and leaves its attempt lines with no `drive` line is
+//! refused, until the agent-setup run answers whether its harness writes such a cell (its pass
+//! inbox, 2026-11-15T00:50:19Z, question 3).
 
 mod blob;
 mod block;
