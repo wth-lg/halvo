@@ -34,7 +34,7 @@ seam_manifests() {
   [ -f "$own" ] || fail "$own is missing"
   lines=$(grep -c 'test-seam' "$own")
   features=$(grep -c '^test-seam = \[\]$' "$own")
-  itself=$(grep -c '^halvo-capture = { path = "\.", features = \["test-seam"\] }$' "$own")
+  itself=$(grep -c -E '^halvo-capture = \{ path = "\.", features = \[("[a-z0-9-]+", )*"test-seam"(, "[a-z0-9-]+")*\] \}$' "$own")
   [ "$lines" -eq 2 ] && [ "$features" -eq 1 ] && [ "$itself" -eq 1 ] ||
     fail "$own names test-seam on $lines lines, and not on its features line and its own dev-dependency line alone"
   printf 'manifests that name test-seam: 1 (%s, %s lines)\n' "$own" "$lines"
@@ -221,6 +221,18 @@ EOF
   cp -R "$work/repo/." "$repo/"
   printf '[dependencies]\nhalvo-capture = { path = "../crates/halvo-capture", features = ["test-seam"] }\n' >"$repo/src-tauri/Cargo.toml"
   check seam-in-another-manifest FAIL 'the feature test-seam stands in another manifest: src-tauri/Cargo.toml)'
+  trees seam-beside-another-feature-on-the-dev-dependency
+  repo=$work/seam-beside-repo
+  mkdir -p "$repo" || exit 2
+  cp -R "$work/repo/." "$repo/"
+  printf '[features]\nr2 = []\nstall-seam = []\ntest-seam = []\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam", "test-seam"] }\n' >"$repo/crates/halvo-capture/Cargo.toml"
+  check seam-beside-another-feature-on-the-dev-dependency PASS 'manifests that name test-seam: 1 (crates/halvo-capture/Cargo.toml, 2 lines)'
+  trees seam-in-another-dependency-of-the-crate
+  repo=$work/seam-other-dependency-repo
+  mkdir -p "$repo" || exit 2
+  cp -R "$work/repo/." "$repo/"
+  printf '[features]\nr2 = []\ntest-seam = []\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\nother = { path = "../other", features = ["test-seam"] }\n' >"$repo/crates/halvo-capture/Cargo.toml"
+  check seam-in-another-dependency-of-the-crate FAIL 'crates/halvo-capture/Cargo.toml names test-seam on 2 lines, and not on its features line and its own dev-dependency line alone)'
   trees seam-as-a-default-feature
   repo=$work/seam-default-repo
   mkdir -p "$repo" || exit 2
