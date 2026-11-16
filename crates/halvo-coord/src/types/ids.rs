@@ -130,7 +130,10 @@ impl Origin {
     /// Reads an origin as `WebOrigin::parse` of the agent-setup run's schema reads it at b8e367e:
     /// the scheme `http` or `https`; a host of 1 to 253 bytes of labels split by `.`, each of 1 to
     /// 63 bytes of `a` to `z`, `0` to `9` and `-` that neither begins nor ends with `-`; and a port
-    /// from 1 to 65,535 with no leading zero. Anything else is `malformed`.
+    /// from 1 to 65,535 with no leading zero. A host whose last label is a number, all digits or
+    /// `0x` and hex digits, is taken only as four decimal labels of 0 to 255 with no leading zero,
+    /// the form in which a browser writes an IPv4 address (the agent-setup run's A7.4 and CP-111).
+    /// Anything else is `malformed`.
     pub fn parse(text: &str) -> Result<Origin, Cause> {
         let (scheme, rest) = text.split_once("://").ok_or(Cause::Malformed)?;
         let (host, port) = rest.rsplit_once(':').ok_or(Cause::Malformed)?;
@@ -147,7 +150,19 @@ impl Origin {
             && port.len() <= 5
             && port.bytes().all(|b| b.is_ascii_digit())
             && port.parse::<u32>().is_ok_and(|p| (1..=65_535).contains(&p));
-        if matches!(scheme, "http" | "https") && host_ok && port_ok {
+        let octet = |l: &str| {
+            (1..=3).contains(&l.len())
+                && l.bytes().all(|b| b.is_ascii_digit())
+                && (l == "0" || !l.starts_with('0'))
+                && l.parse::<u8>().is_ok()
+        };
+        let last = host.rsplit('.').next().unwrap_or_default();
+        let number = last.bytes().all(|b| b.is_ascii_digit())
+            || last
+                .strip_prefix("0x")
+                .is_some_and(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()));
+        let ipv4 = host.split('.').count() == 4 && host.split('.').all(octet);
+        if matches!(scheme, "http" | "https") && host_ok && port_ok && (!number || ipv4) {
             Ok(Origin(text.to_owned()))
         } else {
             Err(Cause::Malformed)
