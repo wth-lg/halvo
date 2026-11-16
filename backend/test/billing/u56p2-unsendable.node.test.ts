@@ -112,8 +112,10 @@ describe("X4 and X6 in the adapter", () => {
     const model: Model = {
       subs: [live("sub_2")],
       onCancel: (_, subs) => {
-        const shown = subs.find((each) => each.id === "sub_2");
-        if (shown !== undefined) shown.status = "active";
+        // A new object in the list, so the DELETE's own reply still shows the subscription canceled.
+        const index = subs.findIndex((each) => each.id === "sub_2");
+        const shown = subs[index];
+        if (shown !== undefined) subs[index] = { ...shown, status: "active" };
       },
     };
     const run = await call(model, null, CUSTOMER);
