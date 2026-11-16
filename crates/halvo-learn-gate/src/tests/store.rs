@@ -169,6 +169,8 @@ fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_n
         record("learn_run", &wf(2), Some(20_771)),
         record("learn_run", &wf(1), Some(20_770)),
         record("learn_edit", &wf(1), None),
+        record("learn_routine", &wf(1), Some(20_771)),
+        record("learn_routine", &wf(2), Some(20_771)),
     ];
     LearnHost::commit(&mut host, rows.clone()).expect("a commit");
     let planted = [
@@ -209,6 +211,8 @@ fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_n
     assert_eq!(under(&two, "learn_run"), want_two);
     assert_eq!(under(&one, "learn_edit"), [rows[3].json.clone()]);
     assert!(under(&two, "learn_edit").is_empty());
+    assert_eq!(under(&one, "learn_routine"), [rows[4].json.clone()]);
+    assert_eq!(under(&two, "learn_routine"), [rows[5].json.clone()]);
     assert!(under(&one, "agent_run").is_empty());
     assert_eq!(visited(LearnHost::rows(&host), "learn_run").len(), 5);
 }
