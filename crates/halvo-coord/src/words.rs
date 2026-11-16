@@ -346,6 +346,82 @@ pub const KEYS: &[(&str, &str)] = &[
     ("run.effect.submit", "It sent this form."),
     ("run.effect.sign", "It signed this document."),
     ("run.effect.local_edit", "It changed this file."),
+    (
+        "run.effect.payment.unshown",
+        "It made a payment, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.purchase.unshown",
+        "It placed an order, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.send.unshown",
+        "It sent a message, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.delete.unshown",
+        "It removed something, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.submit.unshown",
+        "It sent a form, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.sign.unshown",
+        "It signed a document, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.local_edit.unshown",
+        "It changed a file, but Halvo cannot show its details.",
+    ),
+    (
+        "run.effect.unshown",
+        "It did one thing that Halvo cannot show.",
+    ),
+    ("run.effect.payment.not_done", "This payment was not made."),
+    ("run.effect.purchase.not_done", "This order was not placed."),
+    ("run.effect.send.not_done", "This message was not sent."),
+    (
+        "run.effect.delete.not_done",
+        "Something it was going to remove was not removed.",
+    ),
+    ("run.effect.submit.not_done", "This form was not sent."),
+    ("run.effect.sign.not_done", "This document was not signed."),
+    ("run.effect.local_edit.not_done", "This file was not changed."),
+    ("run.effect.not_done", "One step of this task was not done."),
+    (
+        "run.effect.payment.refused",
+        "You said no, so this payment was not made.",
+    ),
+    (
+        "run.effect.purchase.refused",
+        "You said no, so this order was not placed.",
+    ),
+    (
+        "run.effect.send.refused",
+        "You said no, so this message was not sent.",
+    ),
+    (
+        "run.effect.delete.refused",
+        "You said no, so something it was going to remove was not removed.",
+    ),
+    (
+        "run.effect.submit.refused",
+        "You said no, so this form was not sent.",
+    ),
+    (
+        "run.effect.sign.refused",
+        "You said no, so this document was not signed.",
+    ),
+    (
+        "run.effect.local_edit.refused",
+        "You said no, so this file was not changed.",
+    ),
+    (
+        "run.effect.refused",
+        "You said no, so one step of this task was not done.",
+    ),
+    ("line.run.stopped", "It stopped before the task was done."),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
     (

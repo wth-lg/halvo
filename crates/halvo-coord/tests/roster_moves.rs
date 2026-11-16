@@ -1,13 +1,15 @@
 #[path = "coordinator_support.rs"]
 mod support;
 
+use halvo_coord::guard::EffectState;
 use halvo_coord::mem::Call;
 use halvo_coord::types::{
-    Action, BindAsk, BindResult, HandbackAsk, HandbackReason, HandbackResult, ItemKind, Limits,
-    Origin, RunEvent, RunId, What,
+    Action, AskedEffect, BindAsk, BindResult, BoundField, BoundFrom, Choice, Class, ConfirmAsk,
+    Digest, EffectId, HandbackAsk, HandbackReason, HandbackResult, ItemId, ItemKind, Kept, Limits,
+    Name, Origin, Outcome, PastEffect, PastRun, RunEnd, RunEvent, RunHistory, RunId, What,
 };
 use halvo_coord::{words, Coordinator};
-use support::{agent, calls_since, coordinator, mark, started, Both, MANUAL};
+use support::{agent, calls_since, coordinator, mark, started, Both, DAY, MANUAL, T0};
 
 fn start(c: &Coordinator<Both>, n: usize) -> RunId {
     assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()));
@@ -111,6 +113,235 @@ fn an_account_link_handback_for_an_http_site_outside_127_is_declined_and_raises_
         assert_eq!(raised(&c), before, "no item_raised for {origin}");
         assert!(c.snapshot().items.is_empty(), "{origin}");
     }
+}
+
+fn ask(run: &RunId, effects: &[(u32, &str)]) -> RunEvent {
+    RunEvent::Confirm(
+        ConfirmAsk::new(
+            run.clone(),
+            agent(0),
+            effects
+                .iter()
+                .map(|(n, d)| AskedEffect {
+                    effect: EffectId::parse(&format!("{n:032x}")).unwrap(),
+                    class: Class::Send,
+                    digest: Digest::parse(&d.repeat(32)).unwrap(),
+                    digest_ok: true,
+                    fields: ["to", "subject", "body"]
+                        .iter()
+                        .map(|name| BoundField {
+                            name: Name::parse(name).unwrap(),
+                            from: BoundFrom::Extract,
+                            value: vec!["Ann Lee".into()],
+                        })
+                        .collect(),
+                    new_origin: None,
+                })
+                .collect(),
+        )
+        .unwrap(),
+    )
+}
+
+/// Raises a page confirmation of `effects` for `run`, shows it and arms it at `T0 + 1_000`.
+fn armed(c: &Coordinator<Both>, run: &RunId, effects: &[(u32, &str)]) -> ItemId {
+    assert_eq!(c.on_run(run, ask(run, effects)), Ok(()));
+    let item = c.snapshot().items[0].item().clone();
+    c.on_screen(&item);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    item
+}
+
+fn press(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
+    let step = c
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.item() == item)
+        .map_or(0, |i| i.step());
+    assert_eq!(c.answer(item, choice, None, step), Ok(()));
+}
+
+fn end(c: &Coordinator<Both>, run: &RunId, outcome: Outcome) {
+    c.ports().ports.end_runner(run);
+    let _ = c.on_run(run, RunEvent::Ended(Some(outcome)));
+    c.tick();
+}
+
+fn lapse_at_wait_limit(c: &Coordinator<Both>) {
+    let limits = Limits::PRODUCT;
+    c.ports()
+        .ports
+        .set_clock(T0 + 1_000 + limits.wait_limit_s * 1000, DAY);
+    c.tick();
+}
+
+fn send(n: u32, d: &str) -> PastEffect {
+    PastEffect {
+        effect: EffectId::parse(&format!("{n:032x}")).unwrap(),
+        digest: Digest::parse(&d.repeat(32)).unwrap(),
+        class: Class::Send,
+        state: EffectState::Rejected,
+        cause: None,
+        kept: vec![Kept {
+            name: Name::parse("to").unwrap(),
+            value: vec!["Ann Lee".into()],
+        }],
+    }
+}
+
+/// The card of agent 0 after the store gives `run` with `outcome` and `effects`, with the
+/// run's line and the keys of its entries.
+fn card_of(
+    c: &Coordinator<Both>,
+    run: &RunId,
+    outcome: Outcome,
+    effects: Vec<PastEffect>,
+) -> (String, Vec<String>) {
+    c.ports().ports.histories.borrow_mut().push((
+        agent(0),
+        RunHistory {
+            run: PastRun {
+                run: run.clone(),
+                day: DAY,
+                outcome,
+                unknown: 0,
+            },
+            effects,
+        },
+    ));
+    let card = c.card(&agent(0)).unwrap();
+    let keys = card.runs[0].effects.iter().map(|e| e.key()).collect();
+    (card.runs[0].text.clone(), keys)
+}
+
+fn line(key: &str) -> String {
+    words::text(key, &[]).unwrap()
+}
+
+fn own_end(c: &Coordinator<Both>, run: &RunId) -> Option<RunEnd> {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .rev()
+        .find_map(|e| match &e.what {
+            What::RunEnded { run: r, cause } if r == run => Some(*cause),
+            _ => None,
+        })
+}
+
+#[test]
+fn rd85_a_no_on_the_card_shows_the_refused_entry_and_the_line_that_you_said_no() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let item = armed(&c, &run, &[(0xe1, "ab")]);
+    press(&c, &item, Choice::Reject);
+    end(&c, &run, Outcome::Declined);
+    let (text, keys) = card_of(&c, &run, Outcome::Declined, vec![send(0xe1, "ab")]);
+    assert_eq!(keys, ["run.effect.send.refused"]);
+    assert_eq!(text, line("line.run.declined"));
+}
+
+#[test]
+fn rd85_two_cards_a_no_on_the_first_and_a_lapse_of_the_second_at_the_coordinator() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let first = armed(&c, &run, &[(0xe1, "ab")]);
+    press(&c, &first, Choice::Reject);
+    assert_eq!(c.on_run(&run, ask(&run, &[(0xe3, "ab")])), Ok(()));
+    assert_eq!(c.snapshot().items.len(), 1, "the second card");
+    lapse_at_wait_limit(&c);
+    end(&c, &run, Outcome::Declined);
+    assert_eq!(own_end(&c, &run), Some(RunEnd::Lapsed));
+    let (text, keys) = card_of(
+        &c,
+        &run,
+        Outcome::Declined,
+        vec![send(0xe1, "ab"), send(0xe3, "ab")],
+    );
+    assert_eq!(
+        keys,
+        ["run.effect.send.refused", "run.effect.send.not_done"]
+    );
+    assert_eq!(text, line("line.run.lapsed"));
+}
+
+#[test]
+fn rd85_a_stop_on_an_open_card_is_no_refusal_and_the_line_says_that_you_stopped_it() {
+    for store in [Outcome::Declined, Outcome::Completed, Outcome::Failed] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        armed(&c, &run, &[(0xe1, "ab")]);
+        assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+        end(&c, &run, store);
+        assert_eq!(own_end(&c, &run), Some(RunEnd::Cancelled), "{store:?}");
+        let (text, keys) = card_of(&c, &run, store, vec![send(0xe1, "ab")]);
+        assert_eq!(keys, ["run.effect.send.not_done"], "{store:?}");
+        assert_eq!(text, line("line.run.cancelled"), "{store:?}");
+    }
+}
+
+#[test]
+fn rd85_a_stop_after_an_allow_is_no_refusal() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let item = armed(&c, &run, &[(0xe1, "ab")]);
+    press(&c, &item, Choice::Allow);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    end(&c, &run, Outcome::Declined);
+    let (text, keys) = card_of(&c, &run, Outcome::Declined, vec![send(0xe1, "ab")]);
+    assert_eq!(keys, ["run.effect.send.not_done"]);
+    assert_eq!(text, line("line.run.cancelled"));
+}
+
+#[test]
+fn rd48c_a_run_that_lapsed_at_wait_limit_shows_the_lapsed_line_whatever_the_store_says() {
+    for store in [Outcome::Declined, Outcome::Completed, Outcome::Failed] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        armed(&c, &run, &[(0xe1, "ab")]);
+        lapse_at_wait_limit(&c);
+        end(&c, &run, store);
+        assert_eq!(own_end(&c, &run), Some(RunEnd::Lapsed), "{store:?}");
+        let (text, keys) = card_of(&c, &run, store, vec![send(0xe1, "ab")]);
+        assert_eq!(keys, ["run.effect.send.not_done"], "{store:?}");
+        assert_eq!(text, line("line.run.lapsed"), "{store:?}");
+    }
+}
+
+#[test]
+fn rd85_a_run_that_failed_after_a_no_keeps_its_refused_entry_and_its_failed_line() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let item = armed(&c, &run, &[(0xe1, "ab")]);
+    press(&c, &item, Choice::Reject);
+    end(&c, &run, Outcome::Failed);
+    let (text, keys) = card_of(&c, &run, Outcome::Failed, vec![send(0xe1, "ab")]);
+    assert_eq!(keys, ["run.effect.send.refused"]);
+    assert_eq!(text, line("line.run.failed"));
+}
+
+#[test]
+fn rd85_a_no_whose_release_never_came_is_a_refusal() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let item = armed(&c, &run, &[(0xe1, "ab")]);
+    c.ports().drop_decision.set(true);
+    let step = c.snapshot().items[0].step();
+    let _ = c.answer(&item, Choice::Reject, None, step);
+    let released = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .any(|e| matches!(e.what, What::ItemReleased { .. }));
+    assert!(!released, "no item_released row");
+    let (_, keys) = card_of(&c, &run, Outcome::Declined, vec![send(0xe1, "ab")]);
+    assert_eq!(keys, ["run.effect.send.refused"]);
 }
 
 #[test]

@@ -237,7 +237,14 @@ fn expected_keys() -> BTreeSet<String> {
         "local_edit",
     ] {
         k.insert(format!("run.effect.{class}"));
+        for end in ["unshown", "not_done", "refused"] {
+            k.insert(format!("run.effect.{class}.{end}"));
+        }
     }
+    for end in ["unshown", "not_done", "refused"] {
+        k.insert(format!("run.effect.{end}"));
+    }
+    k.insert("line.run.stopped".to_owned());
     for n in ["file", "range"] {
         k.insert(format!("field.local_edit.{n}"));
     }
@@ -267,7 +274,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 214);
+    assert_eq!(seen.len(), 239);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
