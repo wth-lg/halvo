@@ -76,6 +76,8 @@ fn forms(marker: &str) -> [Vec<u8>; 3] {
 
 /// The name and the bytes of every entry of `derived/` under `scratch`, in the order of their names, from a listing
 /// of the directory with no list of names of its own. An entry that is no regular file fails the test with its name.
+/// An empty file holds no marker and is not read: the open store holds its empty writer.lock under a lock of the whole
+/// file, which Windows refuses a read of.
 fn entries_of(scratch: &Scratch) -> Vec<(String, Vec<u8>)> {
     let mut entries: Vec<std::fs::DirEntry> = std::fs::read_dir(scratch.path().join("derived"))
         .unwrap()
@@ -84,13 +86,11 @@ fn entries_of(scratch: &Scratch) -> Vec<(String, Vec<u8>)> {
     entries.sort_by_key(|entry| entry.file_name());
     entries
         .into_iter()
-        .map(|entry| {
+        .filter_map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
-            assert!(
-                entry.metadata().unwrap().is_file(),
-                "{name} is no regular file"
-            );
-            (name, std::fs::read(entry.path()).unwrap())
+            let metadata = entry.metadata().unwrap();
+            assert!(metadata.is_file(), "{name} is no regular file");
+            (metadata.len() > 0).then(|| (name, std::fs::read(entry.path()).unwrap()))
         })
         .collect()
 }
