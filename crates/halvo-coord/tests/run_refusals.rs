@@ -5,11 +5,12 @@ use halvo_coord::items::drive::{flush, store, Ledger};
 use halvo_coord::mem::{Call, Method};
 use halvo_coord::ports::Owner;
 use halvo_coord::ports::PortError;
+use halvo_coord::roster::status_of;
 use halvo_coord::run::recover;
 use halvo_coord::run::Act;
 use halvo_coord::schedule::Answer;
 use halvo_coord::schedule::{Owed, Owing};
-use halvo_coord::types::{Event, Limits, Name, Outcome, RunEnd, RunId, Trigger, What};
+use halvo_coord::types::{Event, Limits, Name, Outcome, RunEnd, RunId, StatusLine, Trigger, What};
 use std::num::NonZeroU32;
 use support::{agent, flow, world_with, World, A, DAY, MANUAL, T0};
 
@@ -68,9 +69,10 @@ fn a_start_refused_with_store_asks_for_no_further_defer_over_100_ticks() {
         2,
         "one defer for each agent's first start, and none for the 100 ticks after"
     );
-    assert!(
-        count(&calls, "log run_started refused") >= 100,
-        "the start is tried again at each tick"
+    assert_eq!(
+        count(&calls, "log run_started refused"),
+        Limits::PRODUCT.record_stuck_ticks as usize,
+        "the start is tried again at each tick until the record is stuck"
     );
 }
 
@@ -298,7 +300,8 @@ fn class_d_the_body_stays_whole_and_first_and_goes_again() {
 }
 
 fn owed_run_ended(w: &mut World, day_back: u32) -> RunId {
-    let run = RunId::parse(&format!("{:032x}", 0x0e00)).unwrap();
+    let n = w.board.owed.len() + w.ports.events.borrow().len();
+    let run = RunId::parse(&format!("{:032x}", 0x0e00 + n)).unwrap();
     let at = (T0 - u64::from(day_back) * DAY_MS) as i64 * 1_000_000;
     w.board.owed.push(Owed {
         agent: agent(0),
@@ -489,4 +492,80 @@ fn a_stored_row_is_the_senders_own_by_its_instant_and_event_whatever_its_day() {
     flush(&w.ports, &mut l, &w.limits).unwrap();
     assert!(l.waiting().is_empty());
     assert_eq!(stored_slots(&w), vec![1], "stored once, with its first day");
+}
+
+#[test]
+fn the_limits_hold_record_stuck_ticks_and_the_models_file_reads_it() {
+    assert_eq!(Limits::PRODUCT.record_stuck_ticks, 3);
+    let model = Limits::from_json(include_str!("../../../formal/r4-coordinator/limits.json"))
+        .expect("limits.json");
+    assert_eq!(model.record_stuck_ticks, 3);
+}
+
+fn line(w: &World, n: usize) -> StatusLine {
+    status_of(
+        w.facts(n),
+        &w.limits,
+        None,
+        w.board.record_stuck(&agent(n), &w.limits),
+    )
+}
+
+#[test]
+fn after_record_stuck_ticks_ticks_in_a_row_with_a_refusal_the_agent_shows_the_stuck_line() {
+    let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("store"));
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    assert_ne!(line(&w, 0), StatusLine::Record, "two ticks");
+    w.ports.refuse(Method::Workflows, PortError::NoService);
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("store"));
+    assert_ne!(
+        line(&w, 0),
+        StatusLine::Record,
+        "a tick that sent nothing does not count"
+    );
+    w.act(Act::Tick);
+    assert_eq!(line(&w, 0), StatusLine::Record, "nor end the count");
+    w.calls();
+    w.act(Act::Tick);
+    assert!(
+        !w.calls().iter().any(|c| c.starts_with("log run_started")),
+        "no tick starts the agent while the line stands"
+    );
+}
+
+#[test]
+fn an_acknowledged_store_ends_the_count() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    owed_run_ended(&mut w, 0);
+    w.ports.refuse(Method::Log, refused("internal"));
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(w.board.owed.is_empty());
+    w.ports.refuse(Method::Log, refused("internal"));
+    owed_run_ended(&mut w, 0);
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    assert_ne!(line(&w, 0), StatusLine::Record, "the count began again");
+    w.act(Act::Tick);
+    assert_eq!(line(&w, 0), StatusLine::Record);
+}
+
+#[test]
+fn an_agent_set_aside_shows_the_stuck_line_from_the_first_tick() {
+    let mut w = world_with(&[MANUAL, MANUAL], Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    w.ports.new_life();
+    let life = recover(&w.ports, &w.limits).expect("recovery");
+    w.board = life.board;
+    assert_eq!(line(&w, 0), StatusLine::Record);
+    assert_ne!(line(&w, 1), StatusLine::Record);
 }

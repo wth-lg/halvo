@@ -50,6 +50,14 @@ pub struct Owed {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Stuck {
+    ticks: u32,
+    refused: bool,
+    acked: bool,
+    held: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Dropped {
     count: u32,
     event: String,
@@ -135,6 +143,7 @@ pub struct Board<C> {
     aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
     defer_held: Vec<AgentId>,
     dropped: Vec<(AgentId, Dropped)>,
+    stuck: Vec<(AgentId, Stuck)>,
 }
 
 impl<C> Board<C> {
@@ -159,6 +168,7 @@ impl<C> Board<C> {
             aside: Vec::new(),
             defer_held: Vec::new(),
             dropped: Vec::new(),
+            stuck: Vec::new(),
         }
     }
 
@@ -201,6 +211,63 @@ impl<C> Board<C> {
     /// A store of the agent was acknowledged.
     pub fn acknowledged(&mut self, agent: &AgentId) {
         self.defer_held.retain(|a| a != agent);
+        self.stuck_of(agent).acked = true;
+    }
+
+    fn stuck_of(&mut self, agent: &AgentId) -> &mut Stuck {
+        let k = match self.stuck.iter().position(|(a, _)| a == agent) {
+            Some(k) => k,
+            None => {
+                self.stuck.push((agent.clone(), Stuck::default()));
+                self.stuck.len() - 1
+            }
+        };
+        &mut self.stuck[k].1
+    }
+
+    /// A store or a read of the agent was refused with a name of class C or D, or with `seq` a
+    /// second time for one log after its read, in this tick (ruling RD-64 2.5).
+    pub fn refused(&mut self, agent: &AgentId) {
+        self.stuck_of(agent).refused = true;
+    }
+
+    /// Whether a record or a body of the agent's items' list keeps its place under class D or as
+    /// an early record, in which case no tick starts the agent or raises an item for it (I5.7,
+    /// ruling RD-64 2.5).
+    pub fn hold_place(&mut self, agent: &AgentId, held: bool) {
+        self.stuck_of(agent).held = held;
+    }
+
+    /// Whether no tick starts the agent or raises an item for it: it is set aside, or a record of
+    /// its items' list keeps its place (I5.7, I5.8; ruling RD-64 1.4, 2.5).
+    pub fn place_held(&self, agent: &AgentId) -> bool {
+        self.aside(agent) || self.stuck.iter().any(|(a, s)| a == agent && s.held)
+    }
+
+    /// Ends the count of one tick (ruling RD-64 2.5): an agent for which such a refusal came at
+    /// the tick counts one more tick in a row, one of which a store was acknowledged and none was
+    /// refused ends its count, and an agent of which nothing was sent neither counts nor ends it.
+    pub fn count_tick(&mut self) {
+        for (_, s) in &mut self.stuck {
+            if s.refused {
+                s.ticks = s.ticks.saturating_add(1);
+            } else if s.acked {
+                s.ticks = 0;
+            }
+            s.refused = false;
+            s.acked = false;
+        }
+    }
+
+    /// Whether the agent's record is stuck, for the line `line.problem.record` (I5.7, I1.3): it is
+    /// set aside, or `record_stuck_ticks` ticks in a row had such a refusal (ruling RD-64 1.4,
+    /// 2.5).
+    pub fn record_stuck(&self, agent: &AgentId, limits: &crate::types::Limits) -> bool {
+        self.aside(agent)
+            || self
+                .stuck
+                .iter()
+                .any(|(a, s)| a == agent && s.ticks >= limits.record_stuck_ticks)
     }
 
     /// The number of the agent's records taken off in this life, with the event name and the

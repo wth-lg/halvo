@@ -37,13 +37,16 @@ pub struct Limits {
     pub request_bytes: u32,
     /// Runs that a card shows.
     pub history_runs: u32,
+    /// Ticks in a row with a refusal of class C or D, or a second `seq` for one log after its
+    /// read, after which the agent's record is stuck (I5.7, I7.2; ruling RD-64 2.5).
+    pub record_stuck_ticks: u32,
     /// Parameters of one setup.
     pub setup_params: u32,
     /// Candidates of one parameter.
     pub setup_candidates: u32,
 }
 
-const FIELDS: [&str; 18] = [
+const FIELDS: [&str; 19] = [
     "max_live_runs",
     "queue_max",
     "wait_limit_s",
@@ -60,6 +63,7 @@ const FIELDS: [&str; 18] = [
     "request_records",
     "request_bytes",
     "history_runs",
+    "record_stuck_ticks",
     "setup_params",
     "setup_candidates",
 ];
@@ -83,11 +87,12 @@ impl Limits {
         request_records: 8,
         request_bytes: 4096,
         history_runs: 5,
+        record_stuck_ticks: 3,
         setup_params: 8,
         setup_candidates: 8,
     };
 
-    /// Reads a JSON object with exactly the eighteen field names of I0.10, each once and a
+    /// Reads a JSON object with exactly the nineteen field names of I0.10, each once and a
     /// whole number that fits its type, as `formal/r4-coordinator/limits.json` holds them; any
     /// other text, a doubled key among it, is `malformed`.
     pub fn from_json(text: &str) -> Result<Limits, Cause> {
@@ -115,6 +120,7 @@ impl Limits {
             request_records: c("request_records")?,
             request_bytes: c("request_bytes")?,
             history_runs: c("history_runs")?,
+            record_stuck_ticks: c("record_stuck_ticks")?,
             setup_params: c("setup_params")?,
             setup_candidates: c("setup_candidates")?,
         })

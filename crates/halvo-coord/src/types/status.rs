@@ -35,6 +35,9 @@ pub enum StatusLine {
     Nothing,
     /// `all_set.stopped_early`: the last run had any other end.
     StoppedEarly,
+    /// `problem.record`: the agent's record cannot be read or saved right now (I5.7, I5.8;
+    /// ruling RD-64 1.5, 2.5). Its words are U2.4d's, and `all` lists it once they stand.
+    Record,
 }
 
 impl StatusLine {
@@ -71,7 +74,7 @@ impl StatusLine {
             StatusLine::NeedsYou(_) => Status::NeedsYou,
             StatusLine::NotYet => Status::NotYet,
             StatusLine::Off => Status::Off,
-            StatusLine::Failures | StatusLine::Problem(_) => Status::Problem,
+            StatusLine::Failures | StatusLine::Problem(_) | StatusLine::Record => Status::Problem,
             StatusLine::Starting | StatusLine::Working | StatusLine::Stopping => Status::Working,
             StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
             StatusLine::TriedToday
@@ -100,6 +103,7 @@ impl StatusLine {
             StatusLine::Done => "done",
             StatusLine::Nothing => "nothing",
             StatusLine::StoppedEarly => "stopped_early",
+            StatusLine::Record => "record",
         };
         format!("line.{}.{}", self.status().name(), case)
     }

@@ -711,7 +711,7 @@ fn product_limits_are_the_values_of_i0_10() {
     assert_eq!(l.setup_candidates, 8);
 }
 
-const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"setup_params\":8,\"setup_candidates\":8}";
+const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
 
 #[test]
 fn limits_write_and_read_the_field_names_of_i0_10() {
@@ -720,7 +720,7 @@ fn limits_write_and_read_the_field_names_of_i0_10() {
         PRODUCT_JSON
     );
     assert_eq!(Limits::from_json(PRODUCT_JSON), Ok(Limits::PRODUCT));
-    let model = "{\"max_live_runs\":2,\"queue_max\":2,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":2,\"items_per_run\":8,\"fails_to_pause\":2,\"catch_up_days\":0,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"setup_params\":8,\"setup_candidates\":8}";
+    let model = "{\"max_live_runs\":2,\"queue_max\":2,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":2,\"items_per_run\":8,\"fails_to_pause\":2,\"catch_up_days\":0,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
     let l = Limits::from_json(model).unwrap();
     assert_eq!((l.max_live_runs, l.queue_max, l.catch_up_days), (2, 2, 0));
 }

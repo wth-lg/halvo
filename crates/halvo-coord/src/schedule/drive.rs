@@ -320,7 +320,12 @@ fn log_or_reread_once<P: Owner, C: ConfigView>(
     if rest.is_empty() {
         return Ok(Stored::LoggedOrFound);
     }
-    log_at(cx, board, i, &rest, day, at).map(|()| Stored::LoggedOrFound)
+    let logged = log_at(cx, board, i, &rest, day, at);
+    if matches!(&logged, Err(e) if seq_refusal(e)) {
+        let agent = board.members[i].facts.agent.clone();
+        board.refused(&agent);
+    }
+    logged.map(|()| Stored::LoggedOrFound)
 }
 
 /// Closes each `run_started` of the agent among its events from `from` on whose
@@ -412,9 +417,14 @@ fn log_at<P: Owner, C>(
             what: what.clone(),
         })
         .collect();
-    cx.ports.log(&events)?;
-    facts.events.extend(events);
     let agent = facts.agent.clone();
+    if let Err(e) = cx.ports.log(&events) {
+        if matches!(class_of(&e, false), Some(Class::One | Class::Whole)) {
+            board.refused(&agent);
+        }
+        return Err(e);
+    }
+    facts.events.extend(events);
     board.acknowledged(&agent);
     Ok(())
 }
@@ -960,6 +970,10 @@ fn debt_refused<C>(
             }
             true
         }
+        Some(Class::One | Class::Whole) => {
+            board.refused(agent);
+            false
+        }
         _ => false,
     }
 }
@@ -1373,7 +1387,9 @@ where
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
-        let on_list = listed.contains(&facts.workflow.id) && !board.aside(&agent);
+        let on_list = listed.contains(&facts.workflow.id)
+            && !board.place_held(&agent)
+            && !board.record_stuck(&agent, cx.limits);
         match tick_step(facts, on_list, cx.limits) {
             Ask::Ready if starts => {
                 let still = |f: &Facts<C>| {
@@ -1400,6 +1416,7 @@ where
             Ask::Nothing => {}
         }
     }
+    board.count_tick();
     report
 }
 

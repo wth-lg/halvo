@@ -266,6 +266,13 @@ where
                 continue;
             }
             let _ = items::flush(&self.ports, l, &self.limits);
+            if l.refused() {
+                board.refused(agent);
+            }
+            if l.take_acked() {
+                board.acknowledged(agent);
+            }
+            board.hold_place(agent, l.holds_place());
             if let Some(i) = index(board, agent) {
                 self.read_back(board, i);
             }

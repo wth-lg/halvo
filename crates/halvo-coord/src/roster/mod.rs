@@ -24,6 +24,22 @@ pub fn status<C: ConfigView>(
     limits: &Limits,
     confirm: Option<&ConfirmState>,
 ) -> StatusLine {
+    status_of(facts, limits, confirm, false)
+}
+
+/// The status of the agent of `facts` as `status` gives it, where `stuck` says whether the
+/// board holds the agent's record stuck (`Board::record_stuck`): such a record's line
+/// `problem.record` stands first, so that no row invites a press that is known to fail (I5.7;
+/// ruling RD-64 1.5, 2.5).
+pub fn status_of<C: ConfigView>(
+    facts: &Facts<C>,
+    limits: &Limits,
+    confirm: Option<&ConfirmState>,
+    stuck: bool,
+) -> StatusLine {
+    if stuck {
+        return StatusLine::Record;
+    }
     if let Some(open) = facts.doing.item() {
         let waits =
             open.kind != ItemKind::Confirm || confirm.is_none_or(ConfirmState::waits_for_person);
