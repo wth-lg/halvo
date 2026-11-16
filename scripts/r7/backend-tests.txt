@@ -40,7 +40,7 @@ test/ledger/gateway.node.test.ts	4
 test/ledger/ledger.node.test.ts	22
 test/ledger/model.node.test.ts	2
 test/ledger/money.node.test.ts	2
-test/ledger/process-group-rules.node.test.ts	30
+test/ledger/process-group-rules.node.test.ts	34
 test/ledger/rollback.node.test.ts	22
 test/ledger/rollback.test.ts	22
 test/ledger/rule.node.test.ts	12

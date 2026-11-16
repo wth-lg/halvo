@@ -1,5 +1,5 @@
 import { type Child, execFileSync, spawn } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 declare module "node:child_process" {
@@ -13,6 +13,7 @@ declare module "node:child_process" {
 
 declare module "node:fs" {
   export function unlinkSync(path: string): void;
+  export function realpathSync(path: string): string;
 }
 
 type Options = { env?: Record<string, string | undefined>; stdio: ("ignore" | "pipe" | "inherit" | number)[] };
@@ -43,6 +44,7 @@ interface Mark {
   started: string | null;
   spawned: number;
   owner: Id;
+  checkout: string;
 }
 
 interface Row {
@@ -217,11 +219,12 @@ export function startGroup(command: string, args: string[], options: Options): G
   const owner = state.owner;
   const dir = marksDir();
   mkdirSync(dir, { recursive: true });
+  const checkout = realpathSync(process.cwd());
   const spawned = Math.floor(Date.now() / 1000);
   const child = state.processes.spawn(command, args, options);
   if (child.pid === undefined) throw new Error(`${command} did not start`);
   const mark = join(dir, `group-${child.pid}.json`);
-  const record: Mark = { pid: child.pid, started: null, spawned, owner };
+  const record: Mark = { pid: child.pid, started: null, spawned, owner, checkout };
   try {
     writeFileSync(mark, JSON.stringify(record));
     const own = table().find((row) => row.pid === child.pid);
@@ -273,9 +276,9 @@ function readMark(path: string): Mark | null {
     const pid = (each: unknown): boolean => Number.isSafeInteger(each) && (each as number) > 1;
     const id = (each: unknown): each is Id => typeof each === "object" && each !== null && pid((each as Id).pid) && typeof (each as Id).started === "string";
     if (typeof value !== "object" || value === null) return null;
-    const { pid: marked, started, spawned, owner } = value as Record<string, unknown>;
-    if (!pid(marked) || !id(owner) || !(typeof started === "string" || (started === null && Number.isSafeInteger(spawned)))) return null;
-    return { pid: marked as number, started: started as string | null, spawned: Number(spawned), owner: { pid: owner.pid, started: owner.started } };
+    const { pid: marked, started, spawned, owner, checkout } = value as Record<string, unknown>;
+    if (!pid(marked) || !id(owner) || typeof checkout !== "string" || !(typeof started === "string" || (started === null && Number.isSafeInteger(spawned)))) return null;
+    return { pid: marked as number, started: started as string | null, spawned: Number(spawned), owner: { pid: owner.pid, started: owner.started }, checkout };
   } catch {
     return null;
   }
@@ -298,6 +301,7 @@ export function sweepMarks(): string[] {
   } catch {
     return [];
   }
+  const here = realpathSync(process.cwd());
   const lines: string[] = [];
   for (const name of names.filter((each) => /^group-\d+\.json$/.test(each)).sort()) {
     const path = join(dir, name);
@@ -306,18 +310,29 @@ export function sweepMarks(): string[] {
       lines.push(`process-group: skipped the mark ${name}, which is no group with an owner`);
       continue;
     }
+    if (mark.checkout !== here) {
+      lines.push(`process-group: left the mark ${name}, which a run of another checkout wrote`);
+      continue;
+    }
     const rows = table();
     if (rows.some((row) => row.pid === mark.owner.pid && row.started === mark.owner.started)) continue;
+    const self = rows.find((row) => row.pid === process.pid);
     const leader = rows.find((row) => row.pid === mark.pid && row.pgid === mark.pid);
     const at = leader === undefined ? null : epoch(leader.started);
     const started =
       mark.started ?? (leader !== undefined && at !== null && at >= mark.spawned - 1 && at <= mark.spawned + 2 ? leader.started : "no start time");
     const group = { pid: mark.pid, started };
     const count = members(group, rows).length;
+    const born = epoch(started);
+    const ownerBorn = epoch(mark.owner.started);
     if (count === 0) {
       unmark(path);
+    } else if (self !== undefined && mark.pid === self.pgid) {
+      lines.push(`process-group: left group ${mark.pid}: it is the group of the sweeping process`);
     } else if (!leads(group, rows)) {
       lines.push(`process-group: left group ${mark.pid} (started ${started}): its leader is gone and ${count} processes have its id as their group`);
+    } else if (born === null || ownerBorn === null || born < ownerBorn) {
+      lines.push(`process-group: left group ${mark.pid} (started ${started}): its leader started before the run that marked it`);
     } else if (stopNow([group]).length === 0) {
       unmark(path);
       lines.push(`process-group: ended group ${mark.pid} (started ${started}), which a run of this checkout left: ${count} processes`);
