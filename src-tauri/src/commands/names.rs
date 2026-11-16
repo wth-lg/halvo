@@ -3,9 +3,7 @@ pub struct Names {
     pub module: &'static str,
     pub commands: &'static [&'static str],
     /// The commands that the page calls at load and whose replies
-    /// `--check-page` waits for. The list promises nothing on writes:
-    /// `onboarding_state` saves the settings file when it records a permission
-    /// that was granted and not recorded yet.
+    /// `--check-page` waits for.
     pub reads: &'static [&'static str],
 }
 
@@ -21,8 +19,14 @@ pub const CAPTURE: Names = Names {
         "onboarding_state",
         "request_permission",
         "open_permission_pane",
+        "last_delete",
     ],
-    reads: &["capture_status", "inventory", "onboarding_state"],
+    reads: &[
+        "capture_status",
+        "inventory",
+        "onboarding_state",
+        "last_delete",
+    ],
 };
 
 pub const MODULES: &[&Names] = &[&CAPTURE];

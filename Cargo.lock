@@ -1544,11 +1544,18 @@ dependencies = [
 name = "halvo"
 version = "0.0.0"
 dependencies = [
- "halvo-capture",
+ "block2",
+ "halvo-control",
+ "halvo-test-dir",
+ "objc2",
+ "objc2-foundation",
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]
@@ -1556,6 +1563,7 @@ name = "halvo-agent-client"
 version = "0.0.0"
 dependencies = [
  "halvo-schema",
+ "halvo-test-dir",
 ]
 
 [[package]]
@@ -1598,6 +1606,7 @@ dependencies = [
  "core-graphics",
  "dispatch2",
  "getrandom 0.2.17",
+ "halvo-capture",
  "halvo-control",
  "halvo-sqlcipher",
  "libc",
@@ -1627,6 +1636,7 @@ dependencies = [
 name = "halvo-checkpoint"
 version = "0.0.0"
 dependencies = [
+ "halvo-test-dir",
  "sha2",
  "windows-sys 0.61.2",
 ]
@@ -1827,6 +1837,7 @@ version = "0.0.0"
 dependencies = [
  "calamine",
  "halvo-checkpoint",
+ "halvo-test-dir",
  "quick-xml",
  "zip",
 ]
@@ -1836,9 +1847,15 @@ name = "halvo-sqlcipher"
 version = "0.0.0"
 dependencies = [
  "cc",
+ "halvo-test-dir",
+ "memchr",
  "rusqlite",
  "sqlcipher-src",
 ]
+
+[[package]]
+name = "halvo-test-dir"
+version = "0.0.0"
 
 [[package]]
 name = "halvo-web"

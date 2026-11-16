@@ -1,6 +1,9 @@
 (function () {
   "use strict";
+  var w = Halvo.words;
   var onboarding = Halvo.feed("onboarding");
+  var SOURCE_OF = { input_monitoring: ["input"], accessibility: ["foreground"], screen_and_system_audio_recording: ["screen"] };
+  var sources = [];
   var section;
   var banner;
   var list;
@@ -32,7 +35,17 @@
           return p.pane_name;
         })
         .join(", ");
-      banner.textContent = "macOS removed Halvo's access to: " + names + ". Capture of those signals has stopped until you turn it back on below.";
+      var lost = o.permissions.filter(function (p) {
+        return p.lost;
+      });
+      var stillRunning = lost.some(function (p) {
+        return (SOURCE_OF[p.permission] || []).some(function (name) {
+          return sources.some(function (src) {
+            return src.name === name && (src.state === "running" || src.state === "impaired");
+          });
+        });
+      });
+      banner.textContent = (stillRunning ? w.LOST_RUNNING : w.LOST_STOPPED).replace("{names}", names);
       banner.classList.remove("hidden");
     } else {
       banner.classList.add("hidden");
@@ -43,14 +56,14 @@
         var granted = p.grant === "granted";
         var badge = Halvo.el("span", {
           class: "badge " + (granted ? "granted" : "missing"),
-          text: granted ? "On" : p.lost ? "Lost" : p.grant === "not_determined" ? "Not asked yet" : "Off",
+          text: granted ? w.GRANT_ON : p.lost ? w.GRANT_LOST : p.grant === "not_determined" ? w.GRANT_NOT_ASKED : w.GRANT_OFF,
         });
         var row = Halvo.el("div", { class: "row" }, [
           badge,
           Halvo.el("strong", { text: p.pane_name }),
           Halvo.el("span", { class: "muted why", text: p.why }),
         ]);
-        if (!granted) row.appendChild(button("Open System Settings", openPane(p.permission)));
+        if (!granted) row.appendChild(button(w.OPEN_SETTINGS, openPane(p.permission)));
         return row;
       }),
     );
@@ -61,12 +74,12 @@
         var li = Halvo.el("li", { text: s.text + " " });
         if (s.action === "request_from_system") {
           li.appendChild(
-            button("Ask now", function () {
+            button(w.ASK_NOW, function () {
               return Halvo.ipc.call("request_permission", { permission: s.permission }).then(refresh).catch(Halvo.showError);
             }),
           );
         } else if (s.action === "open_settings_pane") {
-          li.appendChild(button("Open System Settings", openPane(s.permission)));
+          li.appendChild(button(w.OPEN_SETTINGS, openPane(s.permission)));
         }
         return li;
       }),
@@ -80,7 +93,7 @@
   Halvo.views.add({
     id: "permissions",
     order: 3,
-    heading: "Permissions",
+    heading: w.PERMISSIONS_HEADING,
     mount: function (el) {
       section = el.parentNode;
       section.classList.add("hidden");
@@ -88,11 +101,14 @@
       list = Halvo.el("div", { id: "permissions" });
       steps = Halvo.el("ol", { id: "walkback-steps" });
       walkback = Halvo.el("div", { id: "walkback", class: "hidden" }, [
-        Halvo.el("p", { class: "muted walkback-intro", text: "To get capture working again:" }),
+        Halvo.el("p", { class: "muted walkback-intro", text: w.WALKBACK_INTRO }),
         steps,
       ]);
       el.append(banner, list, walkback);
       onboarding.on(render);
+      Halvo.feed("status").on(function (s) {
+        sources = s.sources || [];
+      });
       onboarding.source(refresh);
       refresh();
       setInterval(refresh, 3000);

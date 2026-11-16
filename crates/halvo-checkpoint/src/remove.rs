@@ -306,15 +306,18 @@ mod tests {
     fn scratch(name: &str) -> PathBuf {
         let exe = std::env::current_exe().expect("the test binary");
         let target = exe.ancestors().nth(3).expect("the target directory");
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let dir = target
-            .join("tmp")
-            .join("halvo-checkpoint-unit")
-            .join(format!("{name}-{}-{nanos}", std::process::id()));
-        fs::create_dir_all(&dir).expect("make the scratch directory");
+        let dir = halvo_test_dir::make(&target.join("tmp").join("halvo-checkpoint-unit"), name)
+            .expect("make the scratch directory");
         dir.canonicalize().expect("the canonical directory")
+    }
+
+    #[test]
+    fn two_scratches_of_one_name_are_two_directories_and_the_second_is_empty() {
+        let first = scratch("one-name");
+        fs::write(first.join("mine"), b"first").expect("write into the first");
+        let second = scratch("one-name");
+        assert_ne!(first, second);
+        assert_eq!(fs::read_dir(&second).expect("list").count(), 0);
     }
 
     /// The review's patch aside-no-same-file: a file with the same bytes that took the copy's
