@@ -492,7 +492,14 @@ where
         .map(|r| r.run.clone())
         .collect();
     for run in runs {
-        let stopped = stop_as(ports, board, table, &run, StopBy::Person, false);
+        let stopped = stop_as(
+            ports,
+            board,
+            table,
+            &run,
+            StopBy::Person,
+            ItemLapse::LapsedByQuit,
+        );
         done.report.stopped.extend(stopped.report.stopped);
     }
     while let Some(waiting) = board.queue.pop() {
@@ -611,20 +618,31 @@ fn stop<P>(
 where
     P: Runs + Clock + Owner,
 {
-    let lapsed_first = matches!(by, StopBy::Person | StopBy::WaitLimit);
-    stop_as(ports, board, table, run, by, lapsed_first)
+    let lapse = match by {
+        StopBy::Person | StopBy::WaitLimit => ItemLapse::MustHaveLapsed,
+        StopBy::Kind | StopBy::Budget => ItemLapse::NoOpenItem,
+    };
+    stop_as(ports, board, table, run, by, lapse)
 }
 
-/// The stop of a live run; `lapsed_first` makes a `waiting` run whose item has not lapsed in
-/// the guard's table `state`, which the quit's stop-all does not ask, because the quit lapses
-/// every open item with `app_ended` first (I4.5).
+/// Where the lapse of a stopped run's open item stands at its stop: a stop by the person or at
+/// the wait limit answers `state` for a `waiting` run whose item has not lapsed in the guard's
+/// table; the quit lapses every open item with `app_ended` before its stop-all (I4.5); a stop for
+/// a request's kind or budget finds the run working, with no open item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ItemLapse {
+    MustHaveLapsed,
+    LapsedByQuit,
+    NoOpenItem,
+}
+
 fn stop_as<P>(
     ports: &P,
     board: &mut Board<P::Config>,
     table: &mut Table,
     run: &RunId,
     by: StopBy,
-    lapsed_first: bool,
+    lapse: ItemLapse,
 ) -> Done
 where
     P: Runs + Clock + Owner,
@@ -640,7 +658,10 @@ where
     if run_step(Some(&phase), RunMove::Stop(by.cause())).is_err() {
         return answer(Some(Cause::State));
     }
-    if lapsed_first && matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
+    if lapse == ItemLapse::MustHaveLapsed
+        && matches!(phase, Phase::Waiting(_))
+        && !table.is_stopped(run)
+    {
         return answer(Some(Cause::State));
     }
     let send = !table.is_stopped(run);

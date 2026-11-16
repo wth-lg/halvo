@@ -201,15 +201,16 @@ fn closed_item(what: &What) -> Option<&ItemId> {
 fn closes(rows: &[Event], item: &ItemId) -> bool {
     rows.iter().any(|e| match &e.what {
         What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
-        What::ItemAnswered { item: i, answer } => {
-            i == item
-                && !matches!(
-                    answer,
-                    Answered::Confirm(_) | Answered::SignIn(SignInAnswer::Second(_))
-                )
-        }
+        What::ItemAnswered { item: i, answer } => i == item && answer_row_closes_item(answer),
         _ => false,
     })
+}
+
+fn answer_row_closes_item(answer: &Answered) -> bool {
+    !matches!(
+        answer,
+        Answered::Confirm(_) | Answered::SignIn(SignInAnswer::Second(_))
+    )
 }
 
 /// The compact text of a `coord_log` body of `events` for `workflow` and `agent` (I7.2): `op`
