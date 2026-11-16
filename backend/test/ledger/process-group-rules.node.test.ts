@@ -255,7 +255,7 @@ test("a group that ended by itself, whose id another program's leaderless group 
   rows.push({ pid: 90_002, pgid: b.pid, stat: "S", started: OTHER });
   fire("exit");
   expect(record).toEqual([]);
-  expect(rows.filter((each) => each.pid >= 90_001)).toHaveLength(2);
+  expect(rows.filter((each) => each.pid === 90_001 || each.pid === 90_002)).toHaveLength(2);
   expect(marksIn()).toEqual([`group-${a.pid}.json`, `group-${b.pid}.json`]);
 });
 
