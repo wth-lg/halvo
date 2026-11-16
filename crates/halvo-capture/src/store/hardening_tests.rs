@@ -3793,6 +3793,37 @@ fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages_when_rows_expire_o
     );
 }
 
+#[test]
+fn a_shred_keeps_the_key_row_with_a_null_key_and_a_later_segment_takes_another_key_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (shredded, shredded_key_id) = store
+        .write_segment_with_expiry(&mut Cursor::new(b"expired before the next write"), 0, 1)
+        .unwrap();
+    assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+    let row = match store.db().unwrap().connection().query_row(
+        "SELECT id, wrapped_key FROM segment_keys WHERE segment_id = ?1",
+        [shredded.segment_id.simple().to_string()],
+        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<Vec<u8>>>(1)?)),
+    ) {
+        Ok(row) => Some(row),
+        Err(halvo_sqlcipher::rusqlite::Error::QueryReturnedNoRows) => None,
+        Err(other) => panic!("the key row of the shredded segment could not be read: {other}"),
+    };
+    let (_, later_key_id) = store
+        .write_segment(&mut Cursor::new(b"written after the shred"))
+        .unwrap();
+    assert!(
+        row == Some((shredded_key_id.0, None)) && later_key_id != shredded_key_id,
+        "ADR 0005 (RD-21): a shred keeps the key row of its segment with a NULL key, and a later segment takes another key id; \
+         the key row of shredded segment {} with key id {}: {:?} (none: no row); the key id of the segment written after the shred: {}",
+        shredded.segment_id,
+        shredded_key_id.0,
+        row.map(|(id, key)| (id, key.map(|k| k.len()))),
+        later_key_id.0
+    );
+}
+
 fn tamper_pattern(len: usize, seed: u8) -> Vec<u8> {
     (0..len)
         .map(|i| ((i as u64 * 31 + seed as u64 * 7) % 251) as u8)
@@ -4593,9 +4624,48 @@ fn a_create_whose_custody_cannot_read_the_root_of_its_id_destroys_no_root() {
 
 #[test]
 fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_made() {
+    /// The creator's own custody, with its calls of destroy_root counted.
+    struct CountedDestroys<P> {
+        inner: FileRootCustody<P>,
+        destroy_calls: Arc<AtomicUsize>,
+    }
+    impl<P: Protector> KeyCustody for CountedDestroys<P> {
+        fn kind(&self) -> CustodyKind {
+            self.inner.kind()
+        }
+        fn root_id(&self) -> RootId {
+            self.inner.root_id()
+        }
+        fn roots(&self) -> Option<&std::path::Path> {
+            self.inner.roots()
+        }
+        fn wrap_store_key(
+            &self,
+            key: &StoreKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<WrappedKey, CustodyError> {
+            self.inner.wrap_store_key(key, label)
+        }
+        fn create_root(&self) -> Result<(), CustodyError> {
+            self.inner.create_root()
+        }
+        fn unwrap_store_key(
+            &self,
+            wrapped: &WrappedKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<StoreKey, CustodyError> {
+            self.inner.unwrap_store_key(wrapped, label)
+        }
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            self.destroy_calls.fetch_add(1, Ordering::SeqCst);
+            self.inner.destroy_root()
+        }
+    }
     const ROUNDS: usize = 64;
     let mut missing = Vec::new();
     let mut replaced = 0;
+    let mut refused = 0;
+    let mut destroyed_by_a_refused_create = Vec::new();
     for round in 0..ROUNDS {
         let dir = tempfile::tempdir().unwrap();
         let roots_dir = dir.path().join("roots");
@@ -4608,19 +4678,27 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
                 let roots_dir = roots_dir.clone();
                 let barrier = Arc::clone(&barrier);
                 std::thread::spawn(move || {
-                    let custody =
-                        file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+                    let destroy_calls = Arc::new(AtomicUsize::new(0));
+                    let custody = CountedDestroys {
+                        inner: file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id),
+                        destroy_calls: Arc::clone(&destroy_calls),
+                    };
                     barrier.wait();
-                    let made =
-                        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION)
-                            .is_ok();
-                    (store_dir, made)
+                    let created =
+                        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
+                    let answer = created.as_ref().err().map(|e| format!("{e:?}"));
+                    drop(created);
+                    (store_dir, answer, destroy_calls.load(Ordering::SeqCst))
                 })
             })
             .collect();
         for creator in creators {
-            let (store_dir, made) = creator.join().unwrap();
-            if !made {
+            let (store_dir, answer, destroyed) = creator.join().unwrap();
+            if let Some(answer) = answer {
+                refused += 1;
+                if destroyed != 0 {
+                    destroyed_by_a_refused_create.push((round, answer, destroyed));
+                }
                 continue;
             }
             let reopened = EncryptedStore::open_with(
@@ -4642,6 +4720,13 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
             }
         }
     }
+    assert!(
+        destroyed_by_a_refused_create.is_empty() && refused > 0,
+        "a create that answered an error called destroy_root, so it destroyed a root that it \
+         did not make: {} of {refused} refused creates in {ROUNDS} rounds (round, answer, calls): \
+         {destroyed_by_a_refused_create:?}",
+        destroyed_by_a_refused_create.len()
+    );
     assert!(
         missing.is_empty(),
         "in {} of {ROUNDS} rounds a store whose create returned Ok answers that its root is \
