@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file, the self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash.
+# rule: The last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file, the self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash in the weekly run, when the range of the push or the pull request changes a file under scripts/r1-gate or this script, and when that range cannot be read.
 # lane: alone
 # limit: 1800
 set -u
@@ -55,6 +55,8 @@ fixture_commit() {
   fixture_parent=''
   if git -C "$1" rev-parse -q --verify HEAD >/dev/null 2>&1; then fixture_parent="parent $(git -C "$1" rev-parse HEAD)
 "; fi
+  [ -z "${2:-}" ] || fixture_parent="${fixture_parent}parent $2
+"
   fixture_new=$(printf 'tree %s\n%sauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_tree" "$fixture_parent" | git -C "$1" hash-object -t commit -w --stdin) || exit 2
   git -C "$1" update-ref HEAD "$fixture_new" || exit 2
 }
@@ -85,15 +87,67 @@ record_case() {
   if [ "$got" != "$2" ]; then wrong="$wrong record-$1"; elif [ "$2" = FAIL ]; then rejected=$((rejected + 1)); fi
 }
 
+event_value() {
+  values=$(grep -o -E "\"$1\": *\"[^\"]*\"" "$GITHUB_EVENT_PATH" | sed 's/^[^:]*: *"//; s/"$//')
+  case $values in
+    '' | *"$nl"*) return 1 ;;
+  esac
+  printf '%s\n' "$values"
+}
+
+unreadable() {
+  printf 'range: unreadable: %s\n' "$1"
+  dash_reason='range unreadable'
+}
+
+push_base() {
+  [ -f "${GITHUB_EVENT_PATH:-}" ] || { unreadable 'GITHUB_EVENT_PATH names no file'; return 1; }
+  before=$(event_value before) || { unreadable 'the push event holds no one value of before'; return 1; }
+  base=$before
+  case $before in
+    *[!0-9a-f]*) ;;
+    *) git -C "$CI_D_REPO" rev-parse -q --verify "$before^{commit}" >/dev/null && return 0 ;;
+  esac
+  default=$(event_value default_branch) || { unreadable "before $before names no commit here, and the push event holds no one value of default_branch"; return 1; }
+  base=$(git -C "$CI_D_REPO" merge-base HEAD "refs/remotes/origin/$default") || { unreadable "before $before names no commit here, and HEAD has no merge base with refs/remotes/origin/$default"; return 1; }
+  printf 'range: before %s names no commit here, so the base is the merge base with refs/remotes/origin/%s\n' "$before" "$default"
+}
+
+dash_decision() {
+  dash_reason=
+  case ${GITHUB_EVENT_NAME:-} in
+    schedule) dash_reason='weekly run'; return ;;
+    push) push_base || return ;;
+    pull_request)
+      git -C "$CI_D_REPO" rev-parse -q --verify 'HEAD^2^{commit}' >/dev/null || { unreadable 'the pull request checkout is no merge commit'; return; }
+      base=$(git -C "$CI_D_REPO" rev-parse 'HEAD^1') || { unreadable 'git rev-parse HEAD^1 failed'; return; }
+      ;;
+    '') unreadable 'GITHUB_EVENT_NAME is not set'; return ;;
+    *) unreadable "the event $GITHUB_EVENT_NAME has no range"; return ;;
+  esac
+  head=$(git -C "$CI_D_REPO" rev-parse HEAD) || { unreadable 'git rev-parse HEAD failed'; return; }
+  changed=$(git -C "$CI_D_REPO" diff --name-only "$base" "$head" -- scripts/r1-gate "scripts/r1/ci.d/$name.sh") || { unreadable "git diff could not read $base..$head"; return; }
+  [ -n "$changed" ] || return
+  printf '%s\n' "$changed" | sed 's/^/gate file changed: /'
+  dash_reason='gate file changed'
+}
+
 measure() {
   found=$(record_defect "$CI_D_REPO") || fail "$found"
   printf 'record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file\n'
   gate=$CI_D_REPO/scripts/r1-gate
-  if ! command -v dash >/dev/null 2>&1; then
-    printf 'SKIP %s (dash is not installed)\n' "$name"
-    exit 77
+  dash_decision
+  if [ -z "$dash_reason" ]; then
+    printf 'dash pass: not run: no gate file changed in %s..%s\n' "$base" "$head"
+  else
+    printf 'dash pass: run (%s)\n' "$dash_reason"
+    if ! command -v dash >/dev/null 2>&1; then
+      printf 'SKIP %s (dash is not installed)\n' "$name"
+      exit 77
+    fi
   fi
   self_tested 'run.sh --self-test' '' sh "$gate/run.sh" --self-test
+  [ -n "$dash_reason" ] || { printf 'PASS %s\n' "$name"; return; }
   for script in "$gate"/check-*.sh; do
     [ -f "$script" ] || fail "scripts/r1-gate holds no check-*.sh"
     group=${script##*/check-}
@@ -103,7 +157,12 @@ measure() {
 }
 
 check() {
-  out=$(PATH=$path CI_D_REPO=$work/$1 "$shell" "$0" 2>&1)
+  out=$(
+    unset GITHUB_EVENT_NAME GITHUB_EVENT_PATH
+    [ -z "$event" ] || export GITHUB_EVENT_NAME="$event"
+    [ -z "$event_path" ] || export GITHUB_EVENT_PATH="$event_path"
+    PATH=$path CI_D_REPO=$work/$1 "$shell" "$0" 2>&1
+  )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -123,6 +182,37 @@ check() {
     rejected=$((rejected + 1))
   fi
   path=$PATH
+  event=
+  event_path=
+}
+
+ranged() {
+  gate "$1" "${5:-$pass}" store '[[ a == a ]] && printf "PASS self-test:store (1 cases)\n"'
+  mkdir -p "$work/$1/scripts/r1/ci.d" || exit 2
+  printf 'check\n' >"$work/$1/scripts/r1/ci.d/$name.sh"
+  fixture_commit "$work/$1"
+  from=$(git -C "$work/$1" rev-parse HEAD) || exit 2
+  case $2 in
+    other) printf 'notes\n' >"$work/$1/README.md"; fixture_commit "$work/$1" ;;
+    gate) printf '# a change\n' >>"$work/$1/scripts/r1-gate/check-store.sh"; fixture_record "$work/$1" ;;
+    check) printf '# a change\n' >>"$work/$1/scripts/r1/ci.d/$name.sh"; fixture_commit "$work/$1" ;;
+  esac
+  to=$(git -C "$work/$1" rev-parse HEAD) || exit 2
+  event=${3:-}
+  [ -z "${4:-}" ] || {
+    event_path=$work/$1.json
+    printf '%s\n' "$4" | sed "s/@from@/$from/g; s/@to@/$to/g" >"$event_path"
+  }
+}
+
+merged() {
+  git -C "$work/$1" update-ref HEAD "$from" || exit 2
+  fixture_commit "$work/$1" "$to"
+  to=$(git -C "$work/$1" rev-parse HEAD) || exit 2
+}
+
+unread() {
+  want="range: unreadable: $1${nl}dash pass: run (range unreadable)"
 }
 
 gate() {
@@ -147,6 +237,9 @@ self_test() {
   planned='printf "FAIL self-test:store (planned)\n"; exit 1'
   rejected=0
   wrong=
+  event=
+  event_path=
+  zero=0000000000000000000000000000000000000000
 
   gate gate-passes "$pass" store "$pass" timed-run "$pass"
   check gate-passes PASS
@@ -200,13 +293,75 @@ self_test() {
   record_case other-file-changed PASS
   record_case stale FAIL
   record_case bounds-changed FAIL
+  run_changed="gate file changed: scripts/r1-gate/check-store.sh${nl}dash pass: run (gate file changed)"
+  new_branch="{\"before\": \"$zero\", \"repository\": {\"default_branch\": \"trunk\"}}"
+  ranged push-no-gate-file-changed other push '{"before": "@from@", "after": "@to@"}'
+  check push-no-gate-file-changed PASS "dash pass: not run: no gate file changed in $from..$to"
+  ranged push-gate-file-changed gate push '{"before": "@from@", "after": "@to@"}'
+  check push-gate-file-changed FAIL "$run_changed"
+  ranged push-check-changed check push '{"before": "@from@", "after": "@to@"}'
+  check push-check-changed FAIL "gate file changed: scripts/r1/ci.d/$name.sh${nl}dash pass: run (gate file changed)"
+  ranged new-branch-no-gate-file-changed other push "$new_branch"
+  git -C "$work/new-branch-no-gate-file-changed" update-ref refs/remotes/origin/trunk "$from" || exit 2
+  check new-branch-no-gate-file-changed PASS "range: before $zero names no commit here, so the base is the merge base with refs/remotes/origin/trunk${nl}dash pass: not run: no gate file changed in $from..$to"
+  ranged new-branch-gate-file-changed gate push "$new_branch"
+  git -C "$work/new-branch-gate-file-changed" update-ref refs/remotes/origin/trunk "$from" || exit 2
+  check new-branch-gate-file-changed FAIL "$run_changed"
+  ranged new-branch-without-default-branch other push "{\"before\": \"$zero\"}"
+  git -C "$work/new-branch-without-default-branch" update-ref refs/remotes/origin/trunk "$from" || exit 2
+  unread "before $zero names no commit here, and the push event holds no one value of default_branch"
+  check new-branch-without-default-branch FAIL "$want"
+  ranged new-branch-without-origin-ref other push "$new_branch"
+  unread "before $zero names no commit here, and HEAD has no merge base with refs/remotes/origin/trunk"
+  check new-branch-without-origin-ref FAIL "$want"
+  ranged push-before-not-hex other push '{"before": "HEAD~1"}'
+  unread 'before HEAD~1 names no commit here, and the push event holds no one value of default_branch'
+  check push-before-not-hex FAIL "$want"
+  ranged push-before-twice other push '{"before": "@from@", "x": {"before": "@from@"}}'
+  unread 'the push event holds no one value of before'
+  check push-before-twice FAIL "$want"
+  ranged push-without-before other push '{"after": "@to@", "repository": {"default_branch": "trunk"}}'
+  git -C "$work/push-without-before" update-ref refs/remotes/origin/trunk "$from" || exit 2
+  unread 'the push event holds no one value of before'
+  check push-without-before FAIL "$want"
+  ranged push-without-event-file other push ""
+  unread 'GITHUB_EVENT_PATH names no file'
+  check push-without-event-file FAIL "$want"
+  ranged push-diff-fails other push ""
+  broken=$(printf 'tree 1111111111111111111111111111111111111111\nauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' | git -C "$work/push-diff-fails" hash-object -t commit -w --stdin) || exit 2
+  event_path=$work/push-diff-fails.json
+  printf '{"before": "%s"}\n' "$broken" >"$event_path"
+  unread "git diff could not read $broken..$to"
+  check push-diff-fails FAIL "$want"
+  ranged pull-request-no-gate-file-changed other pull_request
+  merged pull-request-no-gate-file-changed
+  check pull-request-no-gate-file-changed PASS "dash pass: not run: no gate file changed in $from..$to"
+  ranged pull-request-gate-file-changed gate pull_request
+  merged pull-request-gate-file-changed
+  check pull-request-gate-file-changed FAIL "$run_changed"
+  ranged pull-request-head-not-a-merge other pull_request
+  unread 'the pull request checkout is no merge commit'
+  check pull-request-head-not-a-merge FAIL "$want"
+  ranged weekly-run other schedule
+  check weekly-run FAIL "record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file${nl}dash pass: run (weekly run)"
+  ranged no-event other
+  unread 'GITHUB_EVENT_NAME is not set'
+  check no-event FAIL "$want"
+  ranged event-without-a-range other workflow_dispatch
+  unread 'the event workflow_dispatch has no range'
+  check event-without-a-range FAIL "$want"
+  ranged run-fails-dash-not-run other push '{"before": "@from@"}' "$planned"
+  check run-fails-dash-not-run FAIL 'run.sh --self-test exited 1)'
   gate dash-missing "$pass" store "$pass"
-  for tool in sh git sed tail cut awk; do
+  for tool in sh git sed tail cut awk grep; do
     tool_path=$(command -v "$tool") || exit 2
     ln -s "$tool_path" "$work/no-tools/$tool" || exit 2
   done
   path=$work/no-tools
   check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
+  ranged dash-missing-not-run other push '{"before": "@from@"}'
+  path=$work/no-tools
+  check dash-missing-not-run PASS "dash pass: not run: no gate file changed in $from..$to"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
