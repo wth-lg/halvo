@@ -1,10 +1,11 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in an order that the commit decides, starts no row after budget_s seconds, prints how many rows ran and how many of those it built a mutant for (a row that fails before its build, or whose mutant does not build, is not built), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
+# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in the sorted order of the row names rotated to start at the first-parent commit count of main times the stride, modulo the row count, prints within how many pushes every row starts while each push runs at least the stride's number of rows, starts no row after budget_s seconds, prints how many rows ran and how many of those it built a mutant for (a row that fails before its build, or whose mutant does not build, is not built), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
 # lane: alone
 set -u
 name=30-mutants
 budget_s=240
+stride=6
 nl='
 '
 
@@ -54,19 +55,20 @@ budget_run() {
     fail "mutation-test.sh --list exited $?"
   printf '%s\n' "$rows" >"$scratch/list" || exit 2
   awk -F '\t' 'sub(/^mutation:/, "", $1) { print $1 }' "$scratch/list" >"$scratch/listed" || exit 2
-  sort -u -o "$scratch/names" "$scratch/listed" || exit 2
-  mkdir "$scratch/order" || exit 2
-  m=0
-  while IFS= read -r row; do
-    m=$((m + 1))
-    printf '%s %s' "$commit" "$row" >"$scratch/order/$m" || exit 2
-  done <"$scratch/names"
+  LC_ALL=C sort -u -o "$scratch/names" "$scratch/listed" || exit 2
+  m=$(awk 'END { print NR }' "$scratch/names") || exit 2
   [ "$m" -gt 0 ] || fail "mutation-test.sh --list printed no row"
-  (cd "$scratch/order" && shasum -a 256 -- *) >"$scratch/hashes" || fail "shasum failed"
-  awk 'NR == FNR { row[FNR] = $0; next } { print $1, row[$2] }' "$scratch/names" "$scratch/hashes" >"$scratch/keyed" || exit 2
-  sort -o "$scratch/ordered" "$scratch/keyed" || exit 2
+  pushes=$(git rev-list --count --first-parent "$commit" 2>/dev/null)
+  case $pushes in '' | *[!0-9]*) fail "git could not count the first-parent commits of $commit" ;; esac
+  start=$((pushes * stride % m))
+  within=$(((m + stride - 1) / stride))
+  plural=es
+  [ "$within" -ne 1 ] || plural=
+  awk -v s="$start" 'NR > s' "$scratch/names" >"$scratch/ordered" || exit 2
+  awk -v s="$start" 'NR <= s' "$scratch/names" >>"$scratch/ordered" || exit 2
+  printf 'order: from row %d of %d at %d first-parent commits; every row starts within %d push%s while each push runs at least %d rows\n' "$((start + 1))" "$m" "$pushes" "$within" "$plural" "$stride"
   set --
-  while read -r _ row; do
+  while IFS= read -r row; do
     set -- "$@" --only "$row"
   done <"$scratch/ordered"
   label="mutation-test.sh --budget $budget_s"
@@ -126,6 +128,10 @@ check() {
       GITHUB_REF=$ref
       export GITHUB_EVENT_NAME GITHUB_REF
     fi
+    if [ "$sha" = auto ]; then
+      sha=
+      [ ! -f "$work/$1/head.id" ] || read -r sha <"$work/$1/head.id"
+    fi
     if [ -n "$sha" ]; then
       GITHUB_SHA=$sha
       export GITHUB_SHA
@@ -162,7 +168,7 @@ check() {
   fi
   event=push
   ref=refs/heads/a-branch
-  sha=$commit1
+  sha=auto
   script=$0
   dates=
 }
@@ -208,22 +214,30 @@ real_runner() {
   done >"$dir/scripts/r1-gate/mutants.rows"
   printf 'later-row\ttarget.sh\ts/echo beta/echo b/\tleak\tpending X-2\tX-2\n' >>"$dir/scripts/r1-gate/mutants.rows"
   : >"$dir/scripts/r1-gate/mutants.expected"
-  real_commit "$1"
+  chain "$1" 1
 }
 
-# shellcheck disable=SC2016
-real_commit() {
+chain() {
   dir=$work/$1
   git -C "$dir" init -q && git -C "$dir" add -A || exit 2
   tree=$(git -C "$dir" write-tree) || exit 2
-  head=$(printf 'tree %s\nauthor 30-mutants fixture <fixture@example.invalid> 1 +0000\ncommitter 30-mutants fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$tree" | git -C "$dir" hash-object -t commit -w --stdin) || exit 2
+  head=
+  i=0
+  while [ "$i" -lt "$2" ]; do
+    i=$((i + 1))
+    parent=
+    [ -z "$head" ] || parent="parent $head$nl"
+    head=$(printf 'tree %s\n%sauthor 30-mutants fixture <fixture@example.invalid> %s +0000\ncommitter 30-mutants fixture <fixture@example.invalid> %s +0000\n\nfixture %s\n' "$tree" "$parent" "$i" "$i" "$i" | git -C "$dir" hash-object -t commit -w --stdin) || exit 2
+  done
   git -C "$dir" update-ref HEAD "$head" || exit 2
+  printf '%s\n' "$head" >"$dir/head.id" || exit 2
 }
 
 # shellcheck disable=SC2016
 runner() {
   mkdir -p "$work/$1/scripts/r1-gate" "$work/$1/tmp" || exit 2
   printf 'printf "call %%s\\n" "$*" >>"$STUB_CALLS"\nmkdir -p "$TMPDIR/r1-gate-mutation.stub"\n%s\n' "$2" >"$work/$1/scripts/r1-gate/mutation-test.sh"
+  chain "$1" 1
 }
 
 # shellcheck disable=SC2016
@@ -244,16 +258,17 @@ self_test() {
   only='[ "${1:-}" = --apply-only ] || exit 9'
   applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and type-checks)\n"; exit 0 ;; esac'
   apply_only='call --apply-only --remove-scratch'
-  commit1=1111111111111111111111111111111111111111
-  commit2=2222222222222222222222222222222222222222
-  commit3=3333333333333333333333333333333333333333
   listing='case ${1:-} in --list) printf "mutation:%s\\trequired\\tleak\\trows\\n" shredded-key-survives checkpoint-not-verified key-row-deleted segment-roundtrip-broken delete-all-destroys-nothing; exit 0 ;; esac'
   twice='case ${1:-} in --list) printf "mutation:%s\\trequired\\tleak\\trows\\n" shredded-key-survives checkpoint-not-verified key-row-deleted segment-roundtrip-broken delete-all-destroys-nothing; printf "mutation:shredded-key-survives\\ttransitional\\tleak\\tother\\n"; exit 0 ;; esac'
   lists="call --apply-only --remove-scratch${nl}call --list --remove-scratch"
   budgeted="$lists${nl}call --remove-scratch --budget 240"
-  order1="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only shredded-key-survives --only checkpoint-not-verified --only key-row-deleted"
-  order2="$budgeted --only key-row-deleted --only delete-all-destroys-nothing --only checkpoint-not-verified --only shredded-key-survives --only segment-roundtrip-broken"
-  order3="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only checkpoint-not-verified --only shredded-key-survives --only key-row-deleted"
+  order1="$budgeted --only delete-all-destroys-nothing --only key-row-deleted --only segment-roundtrip-broken --only shredded-key-survives --only checkpoint-not-verified"
+  order2="$budgeted --only key-row-deleted --only segment-roundtrip-broken --only shredded-key-survives --only checkpoint-not-verified --only delete-all-destroys-nothing"
+  order3="$budgeted --only segment-roundtrip-broken --only shredded-key-survives --only checkpoint-not-verified --only delete-all-destroys-nothing --only key-row-deleted"
+  order4="$budgeted --only shredded-key-survives --only checkpoint-not-verified --only delete-all-destroys-nothing --only key-row-deleted --only segment-roundtrip-broken"
+  order5="$budgeted --only checkpoint-not-verified --only delete-all-destroys-nothing --only key-row-deleted --only segment-roundtrip-broken --only shredded-key-survives"
+  thirteen='case ${1:-} in --list) for r in r09 r02 r13 r05 r11 r01 r07 r12 r03 r10 r06 r08 r04; do printf "mutation:%s\\trequired\\tleak\\trows\\n" "$r"; done; exit 0 ;; esac'
+  order13="$budgeted --only r07 --only r08 --only r09 --only r10 --only r11 --only r12 --only r13 --only r01 --only r02 --only r03 --only r04 --only r05 --only r06"
   caught='built mutation:segment-roundtrip-broken\nPASS mutation:segment-roundtrip-broken (test store::x: the one test failed)\nseconds mutation:segment-roundtrip-broken 31\nNOT-RUN mutation:delete-all-destroys-nothing (the budget of 240 s is used)'
   counted='mutation rows: 1 caught, 0 failed, 0 open, 0 transitional, 0 for the measuring Mac not run, 0 expected names with no row'
   rejected=0
@@ -261,7 +276,7 @@ self_test() {
   dates=
   event=push
   ref=refs/heads/a-branch
-  sha=$commit1
+  sha=auto
   script=$0
 
   runner rows-apply "$applies; exit 9"
@@ -314,15 +329,26 @@ self_test() {
   check push-to-main-control-row-is-not-built PASS "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}PASS $name" "$order1"
   runner push-to-main-same-commit-same-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-same-commit-same-rows PASS 'ran 1 of 5 rows' "$order1"
+  check push-to-main-same-commit-same-rows PASS 'order: from row 2 of 5 at 1 first-parent commits; every row starts within 1 push while each push runs at least 6 rows' "$order1"
   runner push-to-main-second-commit-other-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  sha=$commit2
+  chain push-to-main-second-commit-other-rows 2
   check push-to-main-second-commit-other-rows PASS 'ran 1 of 5 rows' "$order2"
   runner push-to-main-third-commit-other-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  sha=$commit3
+  chain push-to-main-third-commit-other-rows 3
   check push-to-main-third-commit-other-rows PASS 'ran 1 of 5 rows' "$order3"
+  runner push-to-main-consecutive-counts-start-at-different-rows-4 "$applies; $listing; printf \"$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  chain push-to-main-consecutive-counts-start-at-different-rows-4 4
+  check push-to-main-consecutive-counts-start-at-different-rows-4 PASS 'order: from row 5 of 5 at 4 first-parent commits;' "$order4"
+  runner push-to-main-consecutive-counts-start-at-different-rows-5 "$applies; $listing; printf \"$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  chain push-to-main-consecutive-counts-start-at-different-rows-5 5
+  check push-to-main-consecutive-counts-start-at-different-rows-5 PASS 'order: from row 1 of 5 at 5 first-parent commits;' "$order5"
+  runner push-to-main-prints-within-how-many-pushes-every-row-starts "$applies; $thirteen; printf \"built mutation:r07\\nPASS mutation:r07 (test store::x: the one test failed)\\nseconds mutation:r07 3\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-prints-within-how-many-pushes-every-row-starts PASS "${nl}order: from row 7 of 13 at 1 first-parent commits; every row starts within 3 pushes while each push runs at least 6 rows${nl}" "$order13"
   runner push-to-main-name-in-two-row-files "$applies; $twice; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-name-in-two-row-files PASS 'ran 1 of 5 rows' "$order1"
@@ -337,7 +363,7 @@ self_test() {
   sed 's/^budget_s=.*/budget_s=1/' "$0" >"$work/real-runner-first-row-only/30-mutants.sh" || exit 2
   script=$work/real-runner-first-row-only/30-mutants.sh
   ref=refs/heads/main
-  sha=$commit3
+  chain real-runner-first-row-only 2
   check real-runner-first-row-only PASS "PASS $name" '' "row mutation:alpha-gone PASS N s${nl}ran 1 of 4 rows"
   runner push-to-main-row-that-fails-before-its-build-is-not-built "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (the substitution did not apply)\\nseconds mutation:segment-roundtrip-broken 3\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
@@ -347,7 +373,7 @@ self_test() {
   check push-to-main-built-line-of-a-row-that-did-not-run-is-not-counted PASS "ran 1 of 5 rows${nl}built 1 of 5 rows${nl}PASS $name" "$order1"
   real_runner real-runner-counts-the-rows-it-built
   printf 'delta-gone\ttarget.sh\ts/echo alpha/echo alpha2/\ttest selftest:fx/delta\trequired\tX-1\n' >>"$work/real-runner-counts-the-rows-it-built/scripts/r1-gate/mutants.rows"
-  real_commit real-runner-counts-the-rows-it-built
+  chain real-runner-counts-the-rows-it-built 1
   ref=refs/heads/main
   check real-runner-counts-the-rows-it-built FAIL "ran 4 of 5 rows${nl}built 3 of 5 rows${nl}FAIL $name" ''
   runner push-to-main-row-not-caught "$applies; $listing; printf \"built mutation:segment-roundtrip-broken\\nFAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
