@@ -18,6 +18,7 @@ const WRITE: &str = write_line!();
 const REPLY: &str = reply_line!();
 const ATTEMPT: &str = concat!(write_line!(), "\n", reply_line!());
 const VERDICT: &str = "verdict driver=none path=B writer=none";
+const COUNT_FAULT: &str = "drive model=m_z machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=3 wall_s=10 model_tokens=11 typed_credential=0 effects_without_confirm=0";
 const BOUND: &str = "bound model=m_a machine=mac bound_bytes=100 fits=yes";
 const CANDIDATES: &str = "verdict candidates=-";
 const ROW: &str =
@@ -337,8 +338,8 @@ fn an_i_of_4294967295_and_above_is_refused_at_its_line() {
     for i in ["4294967295", "4294967296", "4294967297"] {
         for kind in ["compile", "replay"] {
             let line = line_of("m_b", "bill", 1, kind, i);
-            let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
-            assert_eq!(got.refused(), "REFUSED source: driver:5", "{line}");
+            let got = run(&[ATTEMPT, COUNT_FAULT, &line, VERDICT], &[BOUND]);
+            assert_eq!(got.refused(), "REFUSED source: driver:6", "{line}");
         }
     }
 }
@@ -1532,8 +1533,8 @@ fn a_task_and_kind_other_than_the_seven_pairs_of_the_trial_is_refused() {
                 run(&refs(&with(cell, VERDICT)), &[BOUND]).passed();
                 continue;
             }
-            let got = run(&[&line, VERDICT], &[BOUND]);
-            if got.code != Some(2) || got.stderr != "REFUSED source: driver:3\n" {
+            let got = run(&[COUNT_FAULT, &line, VERDICT], &[BOUND]);
+            if got.code != Some(2) || got.stderr != "REFUSED source: driver:4\n" {
                 wrong.push(format!("{task} {kind}: {:?} {:?}", got.code, got.stderr));
             } else {
                 got.refused();
@@ -1617,8 +1618,8 @@ fn an_i_outside_the_numbering_is_refused_at_its_line() {
         ("order", "replay", "7"),
     ] {
         let line = line_of("m_b", task, 1, kind, i);
-        let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
-        assert_eq!(got.refused(), "REFUSED source: driver:5", "{line}");
+        let got = run(&[ATTEMPT, COUNT_FAULT, &line, VERDICT], &[BOUND]);
+        assert_eq!(got.refused(), "REFUSED source: driver:6", "{line}");
     }
     for further in [
         line_of("m_d", "bill", 1, "replay", "4"),
