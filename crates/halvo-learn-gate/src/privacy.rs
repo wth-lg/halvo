@@ -302,7 +302,6 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicU32, Ordering};
 
     use halvo_schema::WorkflowId;
 
@@ -313,7 +312,6 @@ mod tests {
     use crate::stub::id;
 
     fn scratch(name: &str) -> PathBuf {
-        static NEXT: AtomicU32 = AtomicU32::new(0);
         let exe = std::env::current_exe().expect("the test binary");
         let root = exe
             .ancestors()
@@ -321,16 +319,7 @@ mod tests {
             .expect("the target directory")
             .join("tmp")
             .join("r5-privacy");
-        std::fs::create_dir_all(&root).expect("the tests' directory");
-        loop {
-            let n = NEXT.fetch_add(1, Ordering::Relaxed);
-            let dir = root.join(format!("{name}-{}-{n}", std::process::id()));
-            match std::fs::create_dir(&dir) {
-                Ok(()) => return dir,
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => panic!("a test directory: {e}"),
-            }
-        }
+        halvo_test_dir::make(&root, name).expect("a test directory")
     }
 
     fn store_cascade(store: &mut MemoryStore, id: &WorkflowId) -> bool {
