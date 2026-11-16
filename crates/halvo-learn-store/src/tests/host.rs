@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use halvo_agent_store::{Host, MemoryStore, Now};
 use halvo_schema::executable::{CoordinatorReply, RunnerReply};
@@ -109,6 +109,8 @@ pub struct TestHost {
     learn: Vec<Held>,
     pub day: u32,
     pub commits: Cell<u32>,
+    /// The key of every row of the family `learn` that a read handed out, in the order of the reads.
+    pub visited: RefCell<Vec<Option<String>>>,
     pub run_workflow: Option<String>,
     pub refuse: bool,
     pub fault_first_agent_call: bool,
@@ -127,6 +129,7 @@ impl TestHost {
             learn: Vec::new(),
             day: DAY,
             commits: Cell::new(0),
+            visited: RefCell::new(Vec::new()),
             run_workflow: None,
             refuse: false,
             fault_first_agent_call: false,
@@ -232,13 +235,17 @@ impl TestHost {
     }
 
     fn visit(&self, kind: &str, workflow: Option<&WorkflowId>, visit: &mut dyn FnMut(&str)) {
-        let mut rows: Vec<String> = self
+        let held: Vec<&Held> = self
             .learn
             .iter()
             .filter(|row| row.kind == kind && !withheld(kind, &row.json, self.day))
             .filter(|row| workflow.is_none_or(|w| row.key.as_ref() == Some(w)))
-            .map(|row| row.json.clone())
             .collect();
+        self.visited.borrow_mut().extend(
+            held.iter()
+                .map(|row| row.key.as_ref().map(|k| k.as_str().to_owned())),
+        );
+        let mut rows: Vec<String> = held.iter().map(|row| row.json.clone()).collect();
         if let (Some(other), "learn_run") = (&self.run_workflow, kind) {
             for row in &mut rows {
                 let mut value: Value = serde_json::from_str(row).expect("a stored row");

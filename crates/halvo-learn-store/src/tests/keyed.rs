@@ -4,7 +4,7 @@ use halvo_schema::{ErrorName, WorkflowId};
 use serde_json::{json, Value};
 
 use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, World, DAY};
-use crate::{CoordinatorAnswer, LearnHost, Refused};
+use crate::{CoordinatorAnswer, LearnHandlers, LearnHost, Refused};
 
 const KINDS: [&str; 3] = ["learn_edit", "learn_run", "learn_routine"];
 
@@ -369,6 +369,38 @@ fn while_a_run_of_a_is_held_a_refused_learn_edit_row_under_the_key_of_a_stops_no
     w.log(10, &[(2, "step_ok", 2, None)]);
     assert_eq!(w.finish(10, "replay", "completed"), Ok(stored(1)));
     assert_eq!(of_run(&w, 10), [(1, None), (2, Some(0))]);
+}
+
+#[test]
+fn a_replay_put_playbook_of_a_run_whose_start_is_held_reads_no_row_of_another_workflow() {
+    let mut w = two_workflows();
+    let served = w.replay(10);
+    let proposal = with_locators(
+        served[2].clone(),
+        "button Next step",
+        vec![loc("C"), next()],
+    );
+    w.host.visited.borrow_mut().clear();
+    assert_eq!(w.put(10, w.loaded, vec![proposal.clone()]), Ok(stored(1)));
+    let visited = w.host.visited.borrow().clone();
+    assert!(!visited.is_empty());
+    assert!(
+        visited
+            .iter()
+            .all(|key| key.as_deref() == Some(wf(1).as_str())),
+        "the put of a run of workflow A read rows of another key: {visited:?}"
+    );
+    w.handlers = LearnHandlers::new();
+    w.host.visited.borrow_mut().clear();
+    assert_eq!(w.put(10, w.loaded, vec![proposal]), Ok(stored(0)));
+    assert!(
+        w.host
+            .visited
+            .borrow()
+            .iter()
+            .any(|key| key.as_deref() == Some(wf(2).as_str())),
+        "with no start held, the run row is found by its id among the rows of every workflow"
+    );
 }
 
 #[test]

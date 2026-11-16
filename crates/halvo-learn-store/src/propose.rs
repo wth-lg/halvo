@@ -159,7 +159,14 @@ impl LearnHandlers {
 
     fn mode_of(&self, host: &dyn LearnHost, b: &PutPlaybook) -> Option<(Mode, WorkflowId, bool)> {
         let start = self.starts.get(&b.run).filter(|s| s.agent == b.agent);
-        let row = rows::run_row(host.rows(), b.run.as_str()).filter(|r| r.agent == b.agent);
+        let row = match start {
+            Some(start) => match rows::runs(host, &start.workflow) {
+                Read::Rows(runs) => rows::newest_run(&runs, b.run.as_str()).cloned(),
+                Read::Stopped => None,
+            },
+            None => rows::run_row(host.rows(), b.run.as_str()),
+        }
+        .filter(|r| r.agent == b.agent);
         let workflow = match (start, &row) {
             (Some(start), _) => start.workflow.clone(),
             (None, Some(row)) => row.workflow.clone(),
