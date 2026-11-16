@@ -6,7 +6,7 @@ LC_ALL=C
 export LC_ALL
 name=10-r3-layout
 layout=scripts/r3/layout.txt
-roots='docs/r3/ scripts/r3/ scripts/r3-gate/ formal/r3-confirm/ tools/r3-trials/ tools/fixture-server/variants/ crates/halvo-policy/ crates/halvo-web/ crates/halvo-connect/ crates/halvo-sheet/ crates/halvo-agent-store/ crates/halvo-agent-gate/ crates/halvo-runner/ crates/halvo-agent-client/ crates/halvo-model/ crates/halvo-checkpoint/'
+roots='docs/r3/ scripts/r3/ scripts/r3-gate/ formal/r3-confirm/ tools/r3-trials/ tools/fixture-server/variants/ crates/halvo-policy/ crates/halvo-web/ crates/halvo-connect/ crates/halvo-sheet/ crates/halvo-agent-store/ crates/halvo-agent-gate/ crates/halvo-runner/ crates/halvo-agent-client/ crates/halvo-model/ crates/halvo-checkpoint/ crates/halvo-test-dir/'
 built_targets='aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc aarch64-pc-windows-msvc'
 case $0 in
   /*) self=$0 ;;
@@ -443,7 +443,7 @@ EOF
   make_repo d docs/r3/x scripts/r3/x scripts/r3-gate/x formal/r3-confirm/x tools/r3-trials/x \
     tools/fixture-server/variants/x crates/halvo-policy/x crates/halvo-web/x crates/halvo-connect/x \
     crates/halvo-sheet/x crates/halvo-agent-store/x crates/halvo-agent-gate/x crates/halvo-runner/x \
-    crates/halvo-agent-client/x crates/halvo-model/x crates/halvo-checkpoint/x \
+    crates/halvo-agent-client/x crates/halvo-model/x crates/halvo-checkpoint/x crates/halvo-test-dir/x \
     tools/fixture-server/x crates/halvo-schema/x docs/r3/y/docs/r3/x
   d_layout=
   d_rest=
@@ -452,9 +452,9 @@ EOF
     [ "$r" = docs/r3/ ] || d_rest="$d_rest$r** U1.4\n"
   done
   lay d "$d_layout"
-  check every-root-counts d PASS 'layout patterns=16 files=17 outside=0' --all
+  check every-root-counts d PASS 'layout patterns=17 files=18 outside=0' --all
   lay d 'docs/r3/** U1.4\n'
-  check every-root-is-checked d outside 'layout patterns=1 files=17 outside=15'
+  check every-root-is-checked d outside 'layout patterns=1 files=18 outside=16'
   lay d "docs/r3/x U1.4\n$d_rest"
   check pattern-is-anchored-at-the-start d outside 'layout outside=docs/r3/y/docs/r3/x'
 
