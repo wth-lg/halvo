@@ -170,3 +170,33 @@ fn the_task_shape_reads_a_start_that_never_answers_as_browser_start() {
     assert!(task.contains(" result=miss "), "{task}");
     assert!(task.ends_with(" cause=browser_start"), "{task}");
 }
+
+#[test]
+fn items_1_and_2_read_a_start_that_never_answers_as_browser_start() {
+    let root = own_root("stand-in-session");
+    let scratch = root.join("scratch");
+    let browsers = root.join("browser");
+    for d in [scratch.clone(), browsers.clone()] {
+        std::fs::create_dir_all(&d).unwrap_or_else(|e| panic!("{}: {e}", d.display()));
+    }
+    let browser = browsers.join("Google Chrome");
+    write(&browser, "#!/bin/sh\nexec 3<&- 4>&-\nexec sleep 20\n");
+    let port = std::net::TcpListener::bind(("127.0.0.1", 0))
+        .expect("a port")
+        .local_addr()
+        .expect("its address")
+        .port();
+    let mut cmd = Command::new(PROGRAM);
+    cmd.args(["--item", "1", "--browser"])
+        .arg(&browser)
+        .args(["--port", &port.to_string(), "--machine", "mac", "--repo"])
+        .arg(real_repo())
+        .arg("--scratch")
+        .arg(&scratch);
+    let out = run(cmd);
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        stdout.contains("notrun item=1 machine=mac browser=chrome cause=browser_start"),
+        "{stdout}"
+    );
+}
