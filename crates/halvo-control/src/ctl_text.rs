@@ -1619,16 +1619,17 @@ mod tests {
     ) {
         const CLAUSE: &str =
             "halvo-capture: whether this request deleted anything is not known; read the status; ";
+        let pipe = || std::io::Error::from(std::io::ErrorKind::BrokenPipe);
         for (case, error, cause) in [
             (
                 "a broken pipe",
-                ClientError::Io(std::io::Error::from_raw_os_error(32)),
-                "the control channel failed: Broken pipe (os error 32)",
+                ClientError::Io(pipe()),
+                format!("the control channel failed: {}", pipe()),
             ),
             (
                 "a reply that ends inside its frame",
                 ClientError::Protocol("the stream ended inside a frame".into()),
-                "the reply could not be read: the stream ended inside a frame",
+                "the reply could not be read: the stream ended inside a frame".to_string(),
             ),
         ] {
             let printed = print(&Verb::DeleteAll(None), Err(error), &data_dir());
@@ -1642,14 +1643,10 @@ mod tests {
                 "{case}"
             );
         }
-        let stop = print(
-            &Verb::Stop,
-            Err(ClientError::Io(std::io::Error::from_raw_os_error(32))),
-            &data_dir(),
-        );
+        let stop = print(&Verb::Stop, Err(ClientError::Io(pipe())), &data_dir());
         assert_eq!(
             stop.stderr,
-            "halvo-capture: the control channel failed: Broken pipe (os error 32)\n"
+            format!("halvo-capture: the control channel failed: {}\n", pipe())
         );
     }
 
