@@ -205,3 +205,13 @@ fn a_server_of_a_trial_that_panics_is_gone_when_the_panic_has_unwound() {
     assert!(trial.join().is_err(), "the trial thread panicked");
     assert!(!procs::running(&p), "the server runs after the panic");
 }
+
+/// CP-215 G1: the fence of `r3_web::procs` is on in this test target from its start, so that no
+/// test of the target reaches the real end of a process that it did not admit.
+#[test]
+fn the_fence_is_on_in_this_test_target() {
+    assert!(
+        r3_web::procs::fence::is_on(),
+        "the fence is off in this test target"
+    );
+}

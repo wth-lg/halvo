@@ -1463,6 +1463,12 @@ mod driver {
                 std::path::Path::new("/usr/bin/perl"),
                 since,
             );
+            let own_row = r3_web::procs::table()
+                .unwrap()
+                .into_iter()
+                .find(|p| p.pid == children.id(own))
+                .expect("the row of the process that names p-1");
+            let _admitted = r3_web::procs::fence::admit_process(&own_row);
             let ended = r3_web::checks::end_runs_own(&mark);
             let alive = children.alive(other);
             let own_alive = children.alive(own);
@@ -4402,4 +4408,17 @@ fn out(line: &str) {
     let mut stdout = std::io::stdout().lock();
     let _ = writeln!(stdout, "{line}");
     let _ = stdout.flush();
+}
+
+#[cfg(test)]
+mod fence_probe {
+    /// CP-215 G1: the fence of `r3_web::procs` is on in this test target from its start, so that no
+    /// test of the target reaches the real end of a process that it did not admit.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            r3_web::procs::fence::is_on(),
+            "the fence is off in the test target of the trial program"
+        );
+    }
 }

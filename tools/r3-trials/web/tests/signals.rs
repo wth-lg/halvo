@@ -209,3 +209,13 @@ fn the_program_s_fence_refuses_an_end_outside_its_directory() {
         "the program printed no fence_refused line for the browser"
     );
 }
+
+/// CP-215 G1: the fence of `r3_web::procs` is on in this test target from its start, so that no
+/// test of the target reaches the real end of a process that it did not admit.
+#[test]
+fn the_fence_is_on_in_this_test_target() {
+    assert!(
+        r3_web::procs::fence::is_on(),
+        "the fence is off in this test target"
+    );
+}

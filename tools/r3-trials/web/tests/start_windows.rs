@@ -63,3 +63,13 @@ fn a_start_closes_its_own_handle_of_the_child_s_error_file() {
     assert!(path.exists(), "the start made no error file");
     std::fs::remove_file(&path).expect("this process still holds the error file");
 }
+
+/// CP-215 G1: the fence of `r3_web::procs` is on in this test target from its start, so that no
+/// test of the target reaches the real end of a process that it did not admit.
+#[test]
+fn the_fence_is_on_in_this_test_target() {
+    assert!(
+        r3_web::procs::fence::is_on(),
+        "the fence is off in this test target"
+    );
+}

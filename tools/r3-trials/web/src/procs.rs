@@ -194,8 +194,11 @@ pub fn ask_end(_p: &Proc) -> bool {
 /// (3)). While it is on, `kill` and `ask_end` send a signal only to a process that it admits, by the
 /// number and the start time that they have just read again, and every other call sends nothing,
 /// is recorded with a line `fence_refused pid=<n> started_us=<n> force=<yes|no>` on standard error,
-/// and panics at the call. It is on from the start in the crate's own test build; another test
-/// build turns it on with `on`, and the trial's program with `from_env`. It never turns off. A
+/// and panics at the call. It is on from the start in every test target of this crate: the
+/// library's own test build has `cfg(test)`, and the crate's dev-dependency on itself gives the
+/// feature `test-fence` to the library that its program's tests and its integration tests link
+/// (CP-215 G1); each test target holds a test that the fence is on at its start. Another build
+/// turns it on with `on`, and the trial's program with `from_env`. It never turns off. A
 /// test admits its own processes for the thread that holds the returned `Admitted`, so that one
 /// test's admission opens nothing for another test.
 pub mod fence {
@@ -276,7 +279,7 @@ pub mod fence {
     }
 
     static STATE: Mutex<State> = Mutex::new(State {
-        on: cfg!(test),
+        on: cfg!(any(test, feature = "test-fence")),
         program: None,
         refused: Vec::new(),
     });
@@ -912,6 +915,53 @@ pub(crate) mod tests {
         };
         assert!(!of_unknown.admits(&unknown[0], &unknown));
         assert!(!of_unknown.admits(&unknown[1], &unknown));
+    }
+
+    /// CP-215 G1: the fence is on in this test target from its start.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            fence::is_on(),
+            "the fence is off in the library's test target"
+        );
+    }
+
+    /// CP-215 G1: every test target of the crate other than the library's own (the programs of
+    /// src/bin and the files of tests) holds the test `the_fence_is_on_in_this_test_target`, and the
+    /// manifest gives the crate's own tests the feature `test-fence` through its dev-dependency on
+    /// itself, so that no test target can reach `kill` or `ask_end` with the fence off unseen.
+    #[test]
+    fn every_test_target_holds_the_test_that_its_fence_is_on() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut targets = Vec::new();
+        for dir in ["src/bin", "tests"] {
+            for entry in std::fs::read_dir(root.join(dir)).expect("the directory of test targets") {
+                let path = entry.expect("an entry").path();
+                if path.extension().is_some_and(|e| e == "rs") {
+                    targets.push(path);
+                }
+            }
+        }
+        assert!(targets.len() >= 7, "{targets:?}");
+        let missing: Vec<&PathBuf> = targets
+            .iter()
+            .filter(|p| {
+                !std::fs::read_to_string(p)
+                    .unwrap_or_default()
+                    .contains("fn the_fence_is_on_in_this_test_target()")
+            })
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "test targets without the test: {missing:?}"
+        );
+        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
+        assert!(
+            manifest.contains(
+                r#"r3-web = { path = ".", default-features = false, features = ["test-fence"] }"#
+            ),
+            "the manifest does not give the crate's own tests the feature test-fence"
+        );
     }
 
     /// CP-161 (3): the fence never admits this process itself, also when a test admits the
