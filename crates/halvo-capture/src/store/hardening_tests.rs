@@ -7858,6 +7858,17 @@ fn the_golden_key_file_of_version_2_holds_five_fields_and_reads_with_the_store_l
     let read = KeyFile::read(dir.path()).unwrap();
     assert_eq!(read.root_id.to_string(), json["root_id"].as_str().unwrap());
     assert_eq!(read.wrapped_store_key().unwrap().0.len(), 72);
+    assert_eq!(
+        read.root_id.to_string(),
+        "0123456789abcdef0123456789abcdef",
+        "the root id of the golden key file changed"
+    );
+    assert_eq!(json["custody_kind"], "dev_fallback");
+    assert_eq!(
+        read.wrapped_store_key().unwrap().0,
+        (0u8..72).collect::<Vec<u8>>(),
+        "the bytes of the golden key file's wrap changed"
+    );
 }
 
 #[cfg(unix)]
