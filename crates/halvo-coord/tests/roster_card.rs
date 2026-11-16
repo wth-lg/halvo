@@ -4,8 +4,8 @@ use halvo_coord::ports::{Owner, PortError};
 use halvo_coord::roster::{card, names, plain_site};
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{
-    Agent, AgentId, AgentState, Body, Class, Event, Kept, Limits, Name, Outcome, PastEffect,
-    PastRun, Reply, RunHistory, RunId, Workflow, WorkflowId,
+    Agent, AgentId, AgentState, Body, Class, Digest, EffectId, Event, Kept, Limits, Name, Outcome,
+    PastEffect, PastRun, Reply, RunHistory, RunId, Workflow, WorkflowId,
 };
 use serde_json::Value;
 
@@ -19,6 +19,8 @@ fn payment() -> PastEffect {
         value: vec![value.into()],
     };
     PastEffect {
+        effect: EffectId::parse(&format!("{:032x}", 0xe1)).unwrap(),
+        digest: Digest::parse(&"ab".repeat(32)).unwrap(),
         class: Class::Payment,
         state: EffectState::Committed,
         cause: None,
@@ -88,7 +90,7 @@ fn the_card_of_the_fixture_is_its_lines_and_the_runs_that_agent_history_gives() 
     let all = facts(State::Card);
     let refs: Vec<_> = all.iter().collect();
     let name = &names(&refs, |w| w.site.as_deref().and_then(plain_site)).unwrap()[0];
-    let got = card(&agent, &f.config, name, &read, &Limits::PRODUCT).unwrap();
+    let got = card(&f, name, &read, &Limits::PRODUCT).unwrap();
     assert_eq!(serde_json::to_value(got).unwrap(), file["card"]);
 }
 
@@ -110,7 +112,7 @@ fn the_memory_owner_gives_the_newest_runs_first_and_at_most_the_count_asked() {
         ..Limits::PRODUCT
     };
     let all = ports.agent_history(&workflow, &agent, 7).unwrap();
-    let c = card(&agent, &f.config, "N", &all, &limits).unwrap();
+    let c = card(&f, "N", &all, &limits).unwrap();
     assert_eq!(c.runs.len(), 3);
     assert_eq!(c.runs[0].day, halvo_coord::words::day(20_706));
 }
@@ -178,6 +180,8 @@ fn an_owner_that_does_not_read_agent_history_answers_no_service() {
 fn rd48h_a_card_holds_the_entries_of_two_classes_in_the_order_of_the_reply() {
     let f = facts(State::Card).remove(0);
     let send = PastEffect {
+        effect: EffectId::parse(&format!("{:032x}", 0xe2)).unwrap(),
+        digest: Digest::parse(&"cd".repeat(32)).unwrap(),
         class: Class::Send,
         state: EffectState::Committed,
         cause: None,
@@ -191,7 +195,7 @@ fn rd48h_a_card_holds_the_entries_of_two_classes_in_the_order_of_the_reply() {
         let wanted = [keys(&first), keys(&second)];
         let mut h = history(1, Outcome::Completed);
         h.effects = vec![first, second];
-        let c = card(&f.agent, &f.config, "N", &[h], &Limits::PRODUCT).unwrap();
+        let c = card(&f, "N", &[h], &Limits::PRODUCT).unwrap();
         let effects = serde_json::to_value(&c.runs[0].effects).unwrap();
         let got: Vec<&str> = effects
             .as_array()
@@ -210,7 +214,7 @@ fn a_card_run_shows_its_committed_effects_alone_in_the_order_of_the_reply() {
     let mut refused = payment();
     refused.state = EffectState::Refused;
     h.effects = vec![refused, payment(), payment()];
-    let c = card(&f.agent, &f.config, "N", &[h], &Limits::PRODUCT).unwrap();
+    let c = card(&f, "N", &[h], &Limits::PRODUCT).unwrap();
     let effects = serde_json::to_value(&c.runs[0].effects).unwrap();
     assert_eq!(effects.as_array().map(Vec::len), Some(2), "{effects}");
     assert_eq!(effects[0]["key"], "run.effect.payment");
@@ -219,7 +223,7 @@ fn a_card_run_shows_its_committed_effects_alone_in_the_order_of_the_reply() {
     let mut h = history(2, Outcome::Completed);
     h.effects = vec![bad];
     assert_eq!(
-        card(&f.agent, &f.config, "N", &[h], &Limits::PRODUCT),
+        card(&f, "N", &[h], &Limits::PRODUCT),
         Err(halvo_coord::types::Cause::Malformed)
     );
 }

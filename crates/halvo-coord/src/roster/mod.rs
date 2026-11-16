@@ -5,8 +5,8 @@
 use crate::items::ConfirmState;
 use crate::schedule::{holds, next_slot, Hold};
 use crate::types::{
-    AgentId, Card, CardEffect, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing,
-    Facts, FullWorkflow, ItemKind, Limits, LineKey, LivePhase, Permission, Row, RunEnd, RunHistory,
+    Card, CardEffect, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing, Facts,
+    FullWorkflow, ItemKind, Limits, LineKey, LivePhase, Permission, Row, RunEnd, RunHistory,
     Runtime, StatusLine, Tier, What,
 };
 use crate::words;
@@ -256,16 +256,15 @@ pub fn order(rows: &mut [Placed]) {
 /// reply, by `CardEffect::committed` (ruling H-8, filled at this unit's join with U3.2, ruling
 /// RD-28 (k)); a committed effect whose kept fields are not those of its class is `malformed`.
 pub fn card<C: ConfigView>(
-    agent: &AgentId,
-    config: &C,
+    facts: &Facts<C>,
     name: &str,
     history: &[RunHistory],
     limits: &Limits,
 ) -> Result<Card, Cause> {
     Ok(Card {
-        agent: agent.clone(),
+        agent: facts.agent.clone(),
         name: name.to_owned(),
-        lines: lines(config),
+        lines: lines(&facts.config),
         runs: history
             .iter()
             .take(limits.history_runs as usize)

@@ -1625,7 +1625,7 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        roster::card(agent, &facts.config, &name, &history, &self.limits)
+        roster::card(facts, &name, &history, &self.limits)
     }
 
     /// The reply of `agents_snapshot` (I8.1).
