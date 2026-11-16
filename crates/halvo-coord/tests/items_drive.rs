@@ -5,8 +5,9 @@ mod support;
 
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Refusal, Table};
 use halvo_coord::items::drive::{
-    answer, answer_bind, answer_handback, due, flush, issue, lapse, log_bytes, log_text, on_screen,
-    raise_bind, raise_run_item, raise_run_item_reading, store, tick, BindState, Held, Ledger, Read,
+    answer, answer_bind, answer_handback, body_len, due, flush, issue, lapse, log_bytes, log_text,
+    on_screen, raise_bind, raise_run_item, raise_run_item_reading, store, tick, BindState, Held,
+    Ledger, Read,
 };
 use halvo_coord::items::{ConfirmAnswer, ConfirmMove, ConfirmState};
 use halvo_coord::mem::{Call, Config, Method, Ports};
@@ -1443,20 +1444,24 @@ fn logged_bodies(p: &Ports<Config>) -> Vec<Vec<Event>> {
 
 #[test]
 fn eight_rows_with_long_origins_are_cut_into_bodies_under_request_bytes() {
+    let limits = Limits {
+        request_bytes: 4096,
+        ..LIMITS
+    };
     let p = ports();
     let mut l = ledger();
     p.refuse(Method::Log, PortError::NoService);
     for n in 1..=8 {
-        assert!(store(&p, &mut l, &LIMITS, vec![long_link(n)]).is_err());
+        assert!(store(&p, &mut l, &limits, vec![long_link(n)]).is_err());
     }
     assert_eq!(l.waiting().len(), 8);
-    let bytes = LIMITS.request_bytes as usize;
+    let bytes = limits.request_bytes as usize;
     assert!(
         log_bytes(l.waiting()) > bytes,
         "eight such rows break the bound"
     );
     p.clear_refusals();
-    flush(&p, &mut l, &LIMITS).unwrap();
+    flush(&p, &mut l, &limits).unwrap();
     assert!(l.waiting().is_empty());
     assert_eq!(l.last(), 8);
     let bodies = logged_bodies(&p);
@@ -1466,7 +1471,7 @@ fn eight_rows_with_long_origins_are_cut_into_bodies_under_request_bytes() {
     let stored: Vec<u32> = p.events.borrow().iter().map(|e| e.seq.get()).collect();
     assert_eq!(stored, seqs);
     for (i, body) in bodies.iter().enumerate() {
-        assert!(body.len() <= LIMITS.request_records as usize);
+        assert!(body.len() <= limits.request_records as usize);
         assert!(
             log_bytes(body) <= bytes,
             "body {i}: {} bytes",
@@ -1519,16 +1524,21 @@ fn a_body_is_cut_at_request_records_and_at_request_bytes_whichever_comes_first()
 
 #[test]
 fn the_memory_owner_refuses_a_body_over_request_bytes_and_stores_none_of_it() {
-    let p = ports();
+    let limits = Limits {
+        request_bytes: 4096,
+        ..LIMITS
+    };
+    let p: Ports<Config> = Ports::with_limits(NOW, TODAY, limits);
+    p.workflows.borrow_mut().extend(ports().workflows.take());
     let rows: Vec<Event> = (1..=8).map(|n| row(n, long_link(n))).collect();
-    assert!(log_bytes(&rows) > LIMITS.request_bytes as usize);
+    assert!(log_bytes(&rows) > limits.request_bytes as usize);
     assert_eq!(
         p.log(&rows),
         Err(PortError::Refused(Name::parse("malformed").unwrap()))
     );
     assert!(p.events.borrow().is_empty());
     let fit = (1..=rows.len())
-        .take_while(|&k| log_bytes(&rows[..k]) <= LIMITS.request_bytes as usize)
+        .take_while(|&k| log_bytes(&rows[..k]) <= limits.request_bytes as usize)
         .last()
         .unwrap();
     assert!(fit < 8);
@@ -1561,6 +1571,43 @@ fn request_records_rows_of_a_confirmation_fit_one_body() {
         .collect();
     let bytes = log_bytes(&rows);
     assert!(bytes <= LIMITS.request_bytes as usize, "{bytes} bytes");
+    assert_eq!(rows.len(), 20);
+    assert_eq!(
+        body_len(&rows, &LIMITS),
+        rows.len(),
+        "the flush takes them in one body"
+    );
+}
+
+#[test]
+fn request_records_released_rows_of_a_confirmation_fit_one_body() {
+    let rows: Vec<Event> = (0..LIMITS.request_records)
+        .map(|n| Event {
+            seq: std::num::NonZeroU32::MAX,
+            day: u32::MAX,
+            at: i64::MAX,
+            ..row(
+                1,
+                What::ItemReleased {
+                    item: support::item_id(1),
+                    entry: DecisionEntry {
+                        approval: support::approval(n),
+                        effect: support::effect_id(n),
+                        digest: support::digest(n),
+                        answer: EffectAnswer::RejectOnce,
+                    },
+                },
+            )
+        })
+        .collect();
+    let bytes = log_bytes(&rows);
+    assert!(bytes <= LIMITS.request_bytes as usize, "{bytes} bytes");
+    assert_eq!(rows.len(), 20);
+    assert_eq!(
+        body_len(&rows, &LIMITS),
+        rows.len(),
+        "the flush takes them in one body"
+    );
 }
 
 fn row(seq: u32, what: What) -> Event {

@@ -569,3 +569,12 @@ fn an_agent_set_aside_shows_the_stuck_line_from_the_first_tick() {
     assert_eq!(line(&w, 0), StatusLine::Record);
     assert_ne!(line(&w, 1), StatusLine::Record);
 }
+#[test]
+fn recoverys_body_under_the_products_limits_is_one_body() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    nine_open_runs(&w);
+    w.ports.new_life();
+    let life = recover(&w.ports, &w.limits).expect("recovery");
+    w.board = life.board;
+    assert_eq!(recovery_bodies(&w), vec![(9, true)]);
+}

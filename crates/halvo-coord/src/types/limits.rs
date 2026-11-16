@@ -84,17 +84,26 @@ impl Limits {
         coalesce_ms: 250,
         owner_wait_s: 5,
         roster_max: 256,
-        request_records: 8,
-        request_bytes: 4096,
+        request_records: 20,
+        request_bytes: 16_384,
         history_runs: 5,
         record_stuck_ticks: 3,
         setup_params: 8,
         setup_candidates: 8,
     };
 
+    /// The most records of one body that a limits file may give, the bound of halvo-schema's
+    /// reader (ruling RD-73 7.2).
+    pub const MOST_REQUEST_RECORDS: u32 = 20;
+    /// The most bytes of one body that a limits file may give, the bound of halvo-schema's reader
+    /// (ruling RD-73 7.2).
+    pub const MOST_REQUEST_BYTES: u32 = 16_384;
+
     /// Reads a JSON object with exactly the nineteen field names of I0.10, each once and a
-    /// whole number that fits its type, as `formal/r4-coordinator/limits.json` holds them; any
-    /// other text, a doubled key among it, is `malformed`.
+    /// whole number that fits its type, as `formal/r4-coordinator/limits.json` holds them, with
+    /// `request_records` and `request_bytes` at most `MOST_REQUEST_RECORDS` and
+    /// `MOST_REQUEST_BYTES`, so that a limits file cannot raise them; any other text, a doubled
+    /// key among it, is `malformed`.
     pub fn from_json(text: &str) -> Result<Limits, Cause> {
         let value = super::strict::parse(text)?;
         let object = value.as_object().ok_or(Cause::Malformed)?;
@@ -103,6 +112,11 @@ impl Limits {
         }
         let n = |key: &str| object[key].as_u64().ok_or(Cause::Malformed);
         let c = |key: &str| u32::try_from(n(key)?).map_err(|_| Cause::Malformed);
+        if c("request_records")? > Limits::MOST_REQUEST_RECORDS
+            || c("request_bytes")? > Limits::MOST_REQUEST_BYTES
+        {
+            return Err(Cause::Malformed);
+        }
         Ok(Limits {
             max_live_runs: c("max_live_runs")?,
             queue_max: c("queue_max")?,

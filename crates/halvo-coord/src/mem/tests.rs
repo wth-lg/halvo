@@ -545,11 +545,12 @@ fn log_refuses_an_agent_that_is_not_the_workflow_s() {
 fn log_refuses_more_than_request_records_records_in_one_body() {
     let p: Ports<Config> = Ports::new(0, 0);
     listed(&p, 1, Some(2));
-    let nine: Vec<Event> = (1..=9).map(|s| event(s, 2)).collect();
-    assert_eq!(p.log(&nine), refused("malformed"));
+    let most = Limits::PRODUCT.request_records;
+    let over: Vec<Event> = (1..=most + 1).map(|s| event(s, 2)).collect();
+    assert_eq!(p.log(&over), refused("malformed"));
     assert!(p.events.borrow().is_empty());
-    p.log(&nine[..8]).unwrap();
-    assert_eq!(p.events.borrow().len(), 8);
+    p.log(&over[..most as usize]).unwrap();
+    assert_eq!(p.events.borrow().len(), most as usize);
 }
 
 #[test]

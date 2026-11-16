@@ -704,14 +704,47 @@ fn product_limits_are_the_values_of_i0_10() {
     assert_eq!(l.coalesce_ms, 250);
     assert_eq!(l.owner_wait_s, 5);
     assert_eq!(l.roster_max, 256);
-    assert_eq!(l.request_records, 8);
-    assert_eq!(l.request_bytes, 4096);
+    assert_eq!(l.request_records, 20);
+    assert_eq!(l.request_bytes, 16_384);
     assert_eq!(l.history_runs, 5);
     assert_eq!(l.setup_params, 8);
     assert_eq!(l.setup_candidates, 8);
 }
 
-const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
+const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":20,\"request_bytes\":16384,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
+
+#[test]
+fn the_products_body_bounds_equal_the_schemas() {
+    assert_eq!(
+        Limits::PRODUCT.request_records as usize,
+        halvo_schema::coordinator::REQUEST_RECORDS
+    );
+    assert_eq!(
+        Limits::PRODUCT.request_bytes as usize,
+        halvo_schema::coordinator::REQUEST_BYTES
+    );
+    assert_eq!(
+        Limits::MOST_REQUEST_RECORDS as usize,
+        halvo_schema::coordinator::REQUEST_RECORDS
+    );
+    assert_eq!(
+        Limits::MOST_REQUEST_BYTES as usize,
+        halvo_schema::coordinator::REQUEST_BYTES
+    );
+}
+
+#[test]
+fn limits_refuse_body_bounds_above_the_schemas() {
+    for (key, most) in [("request_records", 20), ("request_bytes", 16_384)] {
+        let at = PRODUCT_JSON.replace(&format!("\"{key}\":{most}"), &format!("\"{key}\":{most}"));
+        assert!(Limits::from_json(&at).is_ok(), "{key} at its bound");
+        let above = PRODUCT_JSON.replace(
+            &format!("\"{key}\":{most}"),
+            &format!("\"{key}\":{}", most + 1),
+        );
+        assert_eq!(Limits::from_json(&above), Err(Cause::Malformed), "{above}");
+    }
+}
 
 #[test]
 fn limits_write_and_read_the_field_names_of_i0_10() {
