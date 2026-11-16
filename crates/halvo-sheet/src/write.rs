@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
 use halvo_checkpoint::{
-    checkpoint_name, name_units, names_fit, open_regular, own_name, regular, same_entry, LockError,
-    Locks, Mark, Marked, Root, RunId, Sha256, NAME_MAX,
+    checkpoint_name, name_units, names_fit, open_regular, own_name, regular, same_entry, same_file,
+    FileId, LockError, Locks, Mark, Marked, Root, RunId, Sha256, NAME_MAX,
 };
 
 use crate::book::{self, guarded};
@@ -32,8 +32,10 @@ use crate::xml;
 /// dropped, and the copy's mark in `agents/locks/` (a shared lock of the system on a file of
 /// Halvo's own, no handle on a file of the person's folder), so that the sweep of another
 /// `prepare` leaves the copy. Dropping one that no `replace` put in place removes its prepared
-/// copy when no link stands on the way to it and it still holds the bytes that `prepare`
-/// checked, also when the access list that it carried forbids that on macOS. It never
+/// copy when no link stands on the way to it, the file at the copy's name is the file that
+/// `prepare` made (compared by [`halvo_checkpoint::same_file`]) and it still holds the bytes
+/// that `prepare` checked, also when the access list that it carried forbids that on macOS; a
+/// file that another party put at that name, of any bytes, stays. It never
 /// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it;
 /// `remove` of the crate halvo-checkpoint removes it once the run has ended.
 pub struct Prepared {
@@ -41,6 +43,7 @@ pub struct Prepared {
     pub(crate) workbook: PathBuf,
     pub(crate) checkpoint: PathBuf,
     pub(crate) copy: PathBuf,
+    pub(crate) made: FileId,
     pub(crate) original: Vec<u8>,
     pub(crate) changed: Vec<u8>,
     pub(crate) sha256: Sha256,
@@ -98,6 +101,16 @@ impl Prepared {
     pub fn unmarked(&self) -> usize {
         self.unmarked
     }
+
+    /// The prepared copy opened without following a link, with its full path, when no link
+    /// stands on the way to it, the file is the one that `prepare` made and it holds the bytes
+    /// that `prepare` checked: the one file that a call of this crate removes as the copy.
+    pub(crate) fn own_copy(&self) -> Option<(File, PathBuf)> {
+        let copy = self.root.file(&self.copy).ok()?;
+        let file = open_regular(&copy).ok()?;
+        let made = FileId::of(&file).is_ok_and(|id| same_file(&id, &self.made));
+        (made && same_bytes(&file, &self.changed)).then_some((file, copy))
+    }
 }
 
 impl Drop for Prepared {
@@ -105,13 +118,8 @@ impl Drop for Prepared {
         if self.answer.get() == Some(&Ok(())) {
             return;
         }
-        let Ok(copy) = self.root.file(&self.copy) else {
-            return;
-        };
-        if let Ok(file) = open_regular(&copy) {
-            if same_bytes(&file, &self.changed) {
-                let _ = remove_made(&file, &copy);
-            }
+        if let Some((file, copy)) = self.own_copy() {
+            let _ = remove_made(&file, &copy);
         }
     }
 }
@@ -211,16 +219,18 @@ pub(crate) fn prepare(
     let (copy, mark, mut file) = write_copy(&made, run, &changed, locks)?;
     drop(held);
     drop(changed);
-    let checked = read_back(&mut file).map_err(Error::from).and_then(|disk| {
+    let checked = FileId::of(&file).map_err(Error::from).and_then(|id| {
+        let disk = read_back(&mut file)?;
         check(&original, &disk, (&part, &book_part), sheet, range, values)?;
-        Ok(disk)
+        Ok((id, disk))
     });
     match checked {
-        Ok(disk) => Ok(Prepared {
+        Ok((id, disk)) => Ok(Prepared {
             root: root.clone(),
             workbook,
             checkpoint,
             copy,
+            made: id,
             sha256: Sha256::of(&original),
             original,
             changed: disk,

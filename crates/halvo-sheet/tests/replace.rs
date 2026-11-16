@@ -219,17 +219,66 @@ fn a_checkpoint_gone_or_changed_keeps_the_workbook() {
 fn a_prepared_copy_gone_or_changed_keeps_the_workbook() {
     let scratch = Scratch::new("replace-copy");
     let s = setup(&scratch);
-    fs::write(
-        scratch.path(&s.copy),
-        fs::read(corpus("formulas.xlsx")).expect("read"),
-    )
-    .expect("write");
-    kept(&scratch, &s, Kept::Copy, &s.before);
-    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
+    let theirs = fs::read(corpus("formulas.xlsx")).expect("read");
+    fs::write(scratch.path(&s.copy), &theirs).expect("write");
+    let want = Err(Error::NotReplaced(Kept::Copy));
+    assert_eq!(s.folder.replace(&s.prepared), want);
+    assert_eq!(s.folder.replace(&s.prepared), want, "the second answer");
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+    assert_eq!(
+        fs::read(scratch.path(&s.copy)).expect("the copy written in place stays"),
+        theirs
+    );
+    drop(s.prepared);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, &s.copy]));
     let scratch = Scratch::new("replace-copy-gone");
     let s = setup(&scratch);
     fs::rename(scratch.path(&s.copy), scratch.path("elsewhere.xlsx")).expect("move");
     kept(&scratch, &s, Kept::Copy, &s.before);
+}
+
+/// U2.4 (1): a `replace` that misses removes only the prepared copy that its own `prepare` made
+/// and that still holds the bytes that `prepare` checked. A file that another party put at the
+/// copy's name after the write stays, whether it holds other bytes, the copy's own bytes, or is
+/// the copy written in place with other bytes; and the drop leaves it too.
+#[test]
+fn a_replace_that_misses_leaves_a_file_put_at_the_copys_name_after_the_write() {
+    let theirs = fs::read(corpus("formulas.xlsx")).expect("read");
+    for put in ["other bytes", "the copy's bytes", "written in place"] {
+        let scratch = Scratch::new("replace-miss-put");
+        let s = setup(&scratch);
+        let copy = scratch.path(&s.copy);
+        let placed = match put {
+            "other bytes" => b"a file of the person's own".to_vec(),
+            "the copy's bytes" => fs::read(&copy).expect("read the copy"),
+            _ => theirs.clone(),
+        };
+        if put == "written in place" {
+            fs::write(&copy, &placed).expect("write into the copy");
+        } else {
+            let mine = scratch.path("mine.xlsx");
+            fs::write(&mine, &placed).expect("write the person's file");
+            fs::rename(&mine, &copy).expect("move it to the copy's name");
+        }
+        fs::write(scratch.path(FILE), &theirs).expect("the person saves the workbook");
+        assert_eq!(
+            s.folder.replace(&s.prepared),
+            Err(Error::NotReplaced(Kept::Workbook)),
+            "{put}"
+        );
+        assert_eq!(
+            fs::read(&copy).ok(),
+            Some(placed.clone()),
+            "{put}: the file at the copy's name stays"
+        );
+        drop(s.prepared);
+        assert_eq!(
+            fs::read(&copy).ok(),
+            Some(placed),
+            "{put}: the drop leaves it"
+        );
+        assert_eq!(fs::read(scratch.path(CHECKPOINT)).expect("read"), s.before);
+    }
 }
 
 #[test]
