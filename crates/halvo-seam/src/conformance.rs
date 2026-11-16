@@ -855,7 +855,9 @@ fn at_the_watermark<S: Subject>(
 /// below that of the line before it, or that serves such an entry whose `at` equals the end, or that drops an
 /// entry whose `at` is below that of an entry that it served before, or under a kinds filter below that of the
 /// last line of a kind that the filter names, or that finds the first line of a range, or the end of a read, by
-/// a binary search over `at`, or that checks the start only until the first `at` at or after it.
+/// a half-open lower-bound binary search over the `at`s of the lines from the cursor's position, whichever way
+/// its midpoint rounds, or that checks the start only until the first `at` at or after it. A binary search over
+/// the `at`s of a whole segment passes the reads of D as C5.13 item 3 fixes D.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
