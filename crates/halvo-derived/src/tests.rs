@@ -57,7 +57,10 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
 
 /// S-85, item 5: the open refuses by name a process whose linked database does not answer that it is Halvo's mended
 /// build, and this build is that one. No test build links another library, so the call in `Db::open` is held by the
-/// text of src/db.rs: the call stands there once, in the function `open`. Its limit: it reads text.
+/// text of src/db.rs: the call stands once on a line of code, a line that is no comment, and that line lies in the
+/// function `open`. Its limit: it reads text, so a call that stands on a line of code and never runs, as one behind a
+/// condition that is false, passes it; a test by behaviour would need a test-only switch in src/db.rs (ruling S-98,
+/// item 2).
 #[test]
 fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
     assert_eq!(
@@ -74,11 +77,29 @@ fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
     .unwrap()
     .replace("\r\n", "\n");
     let call = "require_mend(halvo_sqlcipher::page_gap_mend_linked())?;";
-    assert_eq!(source.matches(call).count(), 1, "the call in src/db.rs");
-    let open = source.find("pub(crate) fn open(").unwrap();
-    let end = open + source[open..].find("\n    }\n").unwrap();
+    let code: Vec<(usize, &str)> = source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim_start().starts_with("//"))
+        .collect();
+    let calls: Vec<usize> = code
+        .iter()
+        .filter(|(_, line)| line.contains(call))
+        .map(|(n, _)| *n)
+        .collect();
+    assert_eq!(calls.len(), 1, "the call on a line of code of src/db.rs");
+    let lines: Vec<&str> = source.lines().collect();
+    let open = lines
+        .iter()
+        .position(|line| line.contains("pub(crate) fn open("))
+        .unwrap();
+    let end = open
+        + lines[open..]
+            .iter()
+            .position(|line| *line == "    }")
+            .unwrap();
     assert!(
-        source[open..end].contains(call),
+        (open..end).contains(&calls[0]),
         "the call stands in Db::open"
     );
 }
