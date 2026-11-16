@@ -900,6 +900,7 @@ stub_gate() {
   cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
 #!/bin/sh
 here=${0%/*}
+printf '%s\n' "${GATE_ROOT:-unset}" >> "$here/../../bin/store-roots"
 if grep -q three "$here/b.sh"; then cat "$here/store.mutated"; exit 1; fi
 printf 'PASS store\n'
 STUB
@@ -940,8 +941,12 @@ read -r hold < "$here/hold"
 printf 'cargo\n' >> "$here/starts"
 printf '%s\n' "$*" >> "$here/args"
 printf '%s\n' "${CARGO_TARGET_DIR:-unset}" >> "$here/target-dirs"
+printf '%s\n' "${GATE_ROOT:-unset}" >> "$here/gate-roots"
 case $hold in
   0) ;;
+  second)
+    calls=$(wc -l < "$here/starts" | tr -d ' ')
+    if [ "$calls" -eq 2 ]; then : > "$here/marker"; sleep 1; mv "$here/marker" "$here/marker.released"; fi ;;
   refuse)
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'error[E0308]: mismatched types\n'; exit 101; fi ;;
   warn-refuse)
@@ -1545,6 +1550,40 @@ cases() {
   built_cases
   lint_cases
   stop_order_cases
+  root_cases
+}
+
+root_cases() {
+  t cargo-and-the-gate-checks-get-the-copy-as-gate-root PASS with_cargo_home form-lib gate_roots_are_the_copy form-lib 4
+  fixture_tree stop-mutant-build
+  mkdir -p "$gate_scratch/stop-mutant-build/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-mutant-build/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-mutant-build/scripts/r1-gate/lib.sh"
+  stub_cargo stop-mutant-build second
+  stub_gate stop-mutant-build 'PASS store'
+  row stop-mutant-build/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'measured rows' required X-1
+  t stop-during-the-build-of-a-mutant-starts-no-gate-check PASS with_cargo_home stop-mutant-build store_checks_after stop-mutant-build 1 stopped_by stop-mutant-build TERM runner 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+gate_roots_are_the_copy() {
+  : > "$gate_scratch/$1/bin/gate-roots"
+  : > "$gate_scratch/$1/bin/store-roots"
+  fixture_run "$1" no > "$gate_scratch/$1.out"
+  roots_got=$(cat "$gate_scratch/$1/bin/gate-roots" "$gate_scratch/$1/bin/store-roots" | sort -u)
+  roots_calls=$(cat "$gate_scratch/$1/bin/gate-roots" "$gate_scratch/$1/bin/store-roots" | wc -l | tr -d ' ')
+  [ "$roots_got" = "$gate_scratch/$1" ] && [ "$roots_calls" -eq "$2" ] && return 0
+  printf 'GATE_ROOT of %s calls: %s\n' "$roots_calls" "$roots_got" | tr '\n' '|'
+  return 1
+}
+
+store_checks_after() {
+  store_fixture=$gate_scratch/$1; store_wanted=$2; shift 2
+  "$@" || return 1
+  store_got=0
+  [ ! -f "$store_fixture/bin/store-roots" ] || store_got=$(wc -l < "$store_fixture/bin/store-roots" | tr -d ' ')
+  [ "$store_got" -eq "$store_wanted" ] && return 0
+  printf 'the stand-in check-store ran %s times, not %s\n' "$store_got" "$store_wanted"
+  return 1
 }
 
 stop_order_cases() {
