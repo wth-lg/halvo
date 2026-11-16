@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, expect, test } from "vitest";
-import { endGroup, type Processes, startGroup, sweepMarks, useProcesses } from "./process-group.ts";
+import { endGroup, marksDir, type Processes, startGroup, sweepMarks, useProcesses } from "./process-group.ts";
 
 interface FRow {
   pid: number;
@@ -133,6 +133,13 @@ test("startGroup marks the group with its owner before it reads ps, adds the sta
   }
 });
 
+test("an empty HALVO_GROUP_MARKS means .tmp/groups under the working directory", () => {
+  process.env.HALVO_GROUP_MARKS = "";
+  expect(marksDir()).toBe(join(ROOT, ".tmp", "groups"));
+  process.env.HALVO_GROUP_MARKS = marks;
+  expect(marksDir()).toBe(marks);
+});
+
 test("startGroup sends KILL to the group, removes the mark and throws when its read of ps fails after the spawn", () => {
   const spawnOf = world.spawn;
   let pid = 0;
@@ -249,6 +256,7 @@ test("a group that ended by itself, whose id another program's leaderless group 
   fire("exit");
   expect(record).toEqual([]);
   expect(rows.filter((each) => each.pid >= 90_001)).toHaveLength(2);
+  expect(marksIn()).toEqual([`group-${a.pid}.json`, `group-${b.pid}.json`]);
 });
 
 test("endGroup ends the members that a group's exited leader left, since its caller started that group", async () => {
