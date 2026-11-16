@@ -9921,6 +9921,7 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
         roots: super::RootsLeft {
             left: vec![left],
             names: vec![format!("{left}.root")],
+            others_left: 0,
             listed: true,
             at_its_path: true,
         },
