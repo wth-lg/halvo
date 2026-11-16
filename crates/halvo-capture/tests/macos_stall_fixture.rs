@@ -5113,6 +5113,11 @@ fn a_round_not_driven_after_its_markers_reads_recorded_by_its_own_keys_alone() {
             Verdict::Recorded,
         ),
         (
+            "a letter released before the markers and one marker released, as many releases as markers",
+            after_its_markers(late_stamps(), 0, &[3_000_000], MARKERS.len() - 1),
+            Verdict::Recorded,
+        ),
+        (
             "more releases than markers",
             after_its_markers(late_stamps(), 0, &[], MARKERS.len() + 1),
             Verdict::Recorded,
