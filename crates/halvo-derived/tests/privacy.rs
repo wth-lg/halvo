@@ -2406,7 +2406,7 @@ fn page_gap_store(removal: Removal, seed: u64) -> GapCount {
             }
             for (marker, places) in &found {
                 let allowed = if model.own.contains_key(marker) {
-                    2
+                    OWN_ROW_PLACES
                 } else if model.evidence.contains_key(marker) {
                     1
                 } else {
@@ -2461,6 +2461,48 @@ fn page_gap_store(removal: Removal, seed: u64) -> GapCount {
 /// The seeds of the page-gap test, for each removal: chosen so that, at a head whose build of the database leaves the
 /// gap of a rebuilt page as it was, each removal leaves at least one marker (9087f2d7 on this Mac: a drawn search over
 /// seeds 1 to 24 for the dismissal and 1 to 16 for the others).
+/// The places in the files of a stored marker of a row of origin own, whose family is not `workflow`: the row, its entry
+/// in the index rows_read (kind, body) and its entry in the index rows_read_workflow (kind, workflow, body) of U5.1d,
+/// part 3 (ruling S-67). The test `the_indexes_over_the_body_are_rows_read_and_rows_read_workflow` holds that no other
+/// index carries the body, so that a later index over it fails that test and its writer raises this number by a
+/// ruling.
+const OWN_ROW_PLACES: u64 = 3;
+
+/// The indexes of the store's schema whose keys carry the column `body` are rows_read and rows_read_workflow and no
+/// other, read from a new keyless store through the test's own connection: the places that `OWN_ROW_PLACES` counts.
+#[test]
+fn the_indexes_over_the_body_are_rows_read_and_rows_read_workflow() {
+    let scratch = Scratch::new("indexes-over-the-body");
+    let host = Host::new(Box::new(TestClock::at_day(DAY)), Box::new(NoProposals));
+    drop(keyless(&scratch, &with(&[]), host));
+    let conn = plain(&scratch);
+    let names: Vec<String> = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert!(names.len() >= 2, "the store's indexes: {names:?}");
+    let over_the_body: Vec<String> = names
+        .into_iter()
+        .filter(|name| {
+            let columns: Vec<String> = conn
+                .prepare(&format!("PRAGMA index_info('{name}')"))
+                .unwrap()
+                .query_map([], |r| r.get::<_, Option<String>>(2))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .into_iter()
+                .flatten()
+                .collect();
+            columns.iter().any(|column| column == "body")
+        })
+        .collect();
+    assert_eq!(over_the_body, ["rows_read", "rows_read_workflow"]);
+}
+
 const PAGE_GAP_SEEDS: &[(Removal, &[u64])] = &[
     (Removal::Delete, &[1, 2, 3, 4, 5, 6, 7, 8]),
     (Removal::Dismissal, &[1, 2, 3, 4, 5, 6, 7, 8]),

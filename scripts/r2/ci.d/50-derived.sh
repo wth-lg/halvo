@@ -185,6 +185,7 @@ esac
 #= tests/replaced.rs a_replaced_app_and_a_dropped_support_row_leave_no_marker_on_pages_built_again
 #= tests/replaced.rs single_drops_of_small_support_rows_each_with_its_checkpoint_leave_no_marker
 #= tests/privacy.rs removed_rows_leave_no_text_in_the_gap_of_a_page_built_again
+#= tests/privacy.rs the_indexes_over_the_body_are_rows_read_and_rows_read_workflow
 #= tests/page_gap_check.rs small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check
 #= tests/page_gap_check.rs the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check
 
