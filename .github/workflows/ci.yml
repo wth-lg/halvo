@@ -1,3 +1,4 @@
+# scratch: driver-2 PL-31, both jobs trimmed to the own cases, with a loop of the new case on macos (never merged)
 name: ci
 
 on:
@@ -17,193 +18,223 @@ jobs:
   macos:
     runs-on: macos-15
     timeout-minutes: 120
+    env:
+      GIT_AUTHOR_NAME: Halvo CI
+      GIT_AUTHOR_EMAIL: ci@halvo.invalid
+      GIT_COMMITTER_NAME: Halvo CI
+      GIT_COMMITTER_EMAIL: ci@halvo.invalid
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
+      - name: ci.d self-test of the own cases
         shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        run: sh scripts/ci/run-ci-d.sh macos --self-test run-ci-d
+      - name: driver-2 loop, the case of the index read under a home of its own, 20 times
         if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+        shell: bash
+        env:
+          OWN_ONLY: global-check-stat-of-a-script-in-a-home-of-its-own-leaves-the-index-read-of-the-driver
+        run: |
+          set +e
+          tmp="$RUNNER_TEMP"
+          ws="$GITHUB_WORKSPACE"
+          if command -v cygpath >/dev/null 2>&1; then tmp=$(cygpath -u "$tmp"); ws=$(cygpath -u "$ws"); fi
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          cat >"$tmp/loop-extract.py" <<'PYEOF'
+          import re, sys
+
+          # usage: python loop-extract.py <driver> <copy> <case names...>
+          # Writes a copy of the driver for the hosted loop of round 3 (PL-25). The loop copy of round 2 (loop-copy.py) skipped
+          # the fixture helpers of a block that OWN_ONLY does not name, but it still ran every block inside a loop or an if and
+          # every plain line, about 60 fixture repos and a wait of 10 s in each run; on the windows runner one run of four cases
+          # took 151 s under eight batches (run 43673862484). This copy keeps, in own_self_test, only:
+          #   - each block whose own_case names one of the given cases (a block is the statements after the previous own_case
+          #     statement up to and including the next one; a statement is a line of indent 2 with its deeper lines, and an
+          #     if, for, while, until or case of indent 2 runs to its closing line of indent 2);
+          #   - from every other block, each statement that names no fixture ($fixture) and is no own_case, no fixture helper
+          #     (new_repo, track_file, add_script, fixture_commit) and no one-line setting of a variable that case_reset resets:
+          #     the global settings, the stand-in directories under $tmp and the probes; then case_reset, as the dropped
+          #     own_case would have run it;
+          #   - the statements after the last own_case.
+          # A name in an own_case line with an expansion ($spelling) matches any text there. own_case gets the filter line of
+          # loop-copy.py, so a kept block that holds other cases (a loop over spellings) still reports only the named ones.
+          # A nested run of the copy (nested_word set, as in the cases that stop the own cases of a nested driver) runs the
+          # whole own_self_test, kept as own_self_test_whole. Nothing outside own_self_test changes. Prints what it kept.
+          src, dst = sys.argv[1], sys.argv[2]
+          wanted = sys.argv[3:]
+          if not wanted:
+              sys.exit('no case names')
+          lines = open(src, encoding='utf-8').read().split('\n')
+          start = lines.index('own_self_test() {')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '}')
+          body = lines[start + 1:end]
+          # The entries of the two lists of PL-29 point 4 (own_macos_alone, own_windows_rules) stand at column 0 inside their
+          # double-quoted strings; they belong to the statement of their assignment, so the check skips them.
+          in_list = False
+          for l in body:
+              if re.match(r'^  own_(macos_alone|windows_rules)="$', l):
+                  in_list = True
+                  continue
+              if in_list:
+                  if l == '"':
+                      in_list = False
+                  continue
+              if l.strip() and not l.startswith('  '):
+                  sys.exit('a line of own_self_test has an indent below 2')
+          if in_list:
+              sys.exit('a list of own_self_test has no closing line')
+
+          openers = re.compile(r'^  (if|for|while|until|case)\b')
+          closers = re.compile(r'^  (fi|done|esac)\b')
+          stmts = []
+          depth = 0
+          for l in body:
+              top = re.match(r'^  \S', l) is not None
+              if top and depth == 0 and not closers.match(l) and not re.match(r'^  (else|elif)\b', l):
+                  stmts.append([l])
+              else:
+                  if not stmts:
+                      stmts.append([])
+                  stmts[-1].append(l)
+              if top:
+                  if openers.match(l) and not re.search(r'\b(fi|done|esac)\s*$', l):
+                      depth += 1
+                  elif closers.match(l):
+                      depth -= 1
+          if depth != 0:
+              sys.exit('unbalanced statements: depth %d' % depth)
+
+          def names(stmt):
+              out = []
+              for l in stmt:
+                  m = re.match(r'^\s*own_(?:case|tree_case|list_case) ("[^"]*"|\S+)', l)
+                  if m:
+                      out.append(m.group(1).strip('"'))
+              return out
+
+          def matches(pattern, name):
+              rx = '^' + ''.join('.*' if part.startswith('$') else re.escape(part)
+                                 for part in re.split(r'(\$\{[^}]*\}|\$[A-Za-z_][A-Za-z_0-9]*)', pattern)) + '$'
+              return re.match(rx, name) is not None
+
+          r0 = lines.index('case_reset() {')
+          r1 = next(i for i in range(r0 + 1, len(lines)) if lines[i] == '}')
+          per_case = set(l[2:-1] for l in lines[r0 + 1:r1] if re.match(r'^  [A-Za-z_][A-Za-z_0-9]*=$', l))
+          if len(per_case) != r1 - r0 - 1:
+              sys.exit('case_reset holds a line that is not a reset')
+          blocks = []
+          cur = []
+          for st in stmts:
+              cur.append(st)
+              if names(st):
+                  blocks.append(cur)
+                  cur = []
+          tail = cur
+          found = set()
+          dropped_vars = set()
+          kept_text = []
+          kept_names = []
+          for b in blocks:
+              ns = [n for st in b for n in names(st)]
+              hit = [w for w in wanted if any(matches(n, w) for n in ns)]
+              if hit:
+                  found.update(hit)
+                  kept_names.append(ns)
+                  for st in b:
+                      kept_text.extend(st)
+              else:
+                  for st in b:
+                      m = re.match(r'^  ([A-Za-z_][A-Za-z_0-9]*)=', st[0])
+                      joined = '\n'.join(st)
+                      if names(st) or re.match(r'^  (new_repo|track_file|add_script|fixture_commit)\b', st[0]):
+                          continue
+                      if len(st) == 1 and m and m.group(1) in per_case:
+                          continue
+                      # A statement that names a fixture, or a variable whose assignment was dropped, is dropped too (and its
+                      # own assignment then counts as dropped): e1_real=$fixture, then a line that uses $e1_real.
+                      if '$fixture' in joined or '${fixture' in joined or any(('$' + v) in joined or ('${' + v) in joined for v in dropped_vars):
+                          if m:
+                              dropped_vars.add(m.group(1))
+                          continue
+                      kept_text.extend(st)
+                  kept_text.append('  case_reset')
+          for st in tail:
+              kept_text.extend(st)
+          missing = [w for w in wanted if w not in found]
+          if missing:
+              sys.exit('cases not found: %s' % ' '.join(missing))
+          whole = ['own_self_test_whole() {'] + body + ['}', '']
+          text = '\n'.join(lines[:start] + whole + [lines[start], '  [ -z "${nested_word:-}" ] || { own_self_test_whole; return; }'] + kept_text + lines[end:])
+          anchor = 'own_case() {\n  case_name=$1\n'
+          if text.count(anchor) != 1:
+              sys.exit('own_case anchor')
+          text = text.replace(anchor, 'own_case() {\n  if [ -n "${OWN_ONLY:-}" ] && [ -z "${nested_word:-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return ;; esac; fi\n  case_name=$1\n')
+          open(dst, 'w', encoding='utf-8', newline='\n').write(text)
+          print('statements %d, blocks %d, kept blocks %d, body lines %d of %d' % (len(stmts), len(blocks), len(kept_names), len(kept_text), len(body)))
+          for ns in kept_names:
+              print('  kept block:', ' '.join(ns)[:200])
+          PYEOF
+          copy="$tmp/run-ci-d-loop.sh"
+          "$py" "$tmp/loop-extract.py" scripts/ci/run-ci-d.sh "$copy" global-check-stat-of-a-script-in-a-home-of-its-own-leaves-the-index-read-of-the-driver || exit 1
+          out="$tmp/loop-runs"
+          mkdir -p "$out"
+          runs=20
+          now=$(date +%s)
+          made=$(perl -e 'my @s = stat($ARGV[0]); print @s ? $s[9] : ""' "$ws/.git/description")
+          if [ -n "$made" ] && [ "$made" -le "$now" ]; then
+            job_start=$((made - 30))
+            echo "the job's start: .git/description written at $made, less 30 s"
+          else
+            job_start=$((now - 5200))
+            echo "the job's start: no .git/description; taken as 5200 s before this step"
+          fi
+          deadline=$((job_start + 6700))
+          echo "this step starts $((now - job_start)) s after the job's start; planned runs: $runs; no run starts after $((deadline - now)) s from now (6700 s after the job's start)"
+          batch() {
+            n=$1
+            while [ "$n" -lt "$runs" ]; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then echo "batch $1: deadline reached before run $n"; break; fi
+              t0=$(date +%s)
+              sh "$copy" macos --self-test run-ci-d >"$out/run-$n.txt" 2>&1
+              echo "run $n: $(( $(date +%s) - t0 )) s: $(grep -E '^(PASS|FAIL) self-test:run-ci-d' "$out/run-$n.txt")"
+              n=$((n + 8))
+            done
+          }
+          start=$(date +%s)
+          batch 0 & batch 1 & batch 2 & batch 3 & batch 4 & batch 5 & batch 6 & batch 7 &
+          wait
+          end=$(date +%s)
+          set -- "$out"/run-*.txt
+          [ -e "$1" ] || set --
+          echo "runs: $# of $runs, seconds: $((end - start)), ended $((end - job_start)) s after the job's start"
+          bad=0
+          [ "$#" -eq "$runs" ] || bad=1
+          for c in $OWN_ONLY; do
+            total=$(cat "$out"/run-*.txt 2>/dev/null | grep -cE "^case run-ci-d/$c want=[A-Z]+ got=[^ ]+\$")
+            pass=$(cat "$out"/run-*.txt 2>/dev/null | grep -E "^case run-ci-d/$c want=[A-Z]+ got=[^ ]+\$" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] == g[2]) n++ } END { print n + 0 }')
+            echo "case $c: $pass of $total as wanted"
+            [ "$pass" -eq "$runs" ] && [ "$total" -eq "$runs" ] || bad=1
+          done
+          for f in "$out"/run-*.txt; do
+            [ -e "$f" ] || continue
+            grep -E "^case run-ci-d/[^ ]+ want=[A-Z]+ got=[^ ]+\$" "$f" | awk '{ split($3, w, "="); split($4, g, "="); if (w[2] != g[2]) print }'
+          done | sort | uniq -c
+          for f in "$out"/run-*.txt; do
+            [ -e "$f" ] || continue
+            grep -E "^case run-ci-d/.* process left: " "$f" | sed "s|^|${f##*/}: |"
+          done
+          exit "$bad"
 
   windows:
     runs-on: windows-2025
     timeout-minutes: 120
+    env:
+      GIT_AUTHOR_NAME: Halvo CI
+      GIT_AUTHOR_EMAIL: ci@halvo.invalid
+      GIT_COMMITTER_NAME: Halvo CI
+      GIT_COMMITTER_EMAIL: ci@halvo.invalid
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+      - name: ci.d self-test of the own cases
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf' and '/scripts/r3/egress/fixtures.txt text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+        run: sh scripts/ci/run-ci-d.sh windows --self-test run-ci-d
