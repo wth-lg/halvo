@@ -846,3 +846,17 @@ fn rd116_r4_a_refused_kill_of_one_gone_agent_shows_kill_stuck_on_its_row_alone()
         "no kill of its own yet"
     );
 }
+
+#[test]
+fn rd116_r4_a_kill_refused_at_the_quit_shows_kill_stuck_on_the_gone_row() {
+    let (c, _) = gone_while_live();
+    c.ports().ports.refuse(
+        halvo_coord::mem::Method::Kill,
+        halvo_coord::ports::PortError::Busy,
+    );
+    c.quit_stop();
+    c.quit_kill();
+    assert_eq!(c.live(), 1, "the quit's kill was refused");
+    let row = row_of(&c).expect("the row stays");
+    assert_eq!(row.line, line("line.working.kill_stuck"));
+}
