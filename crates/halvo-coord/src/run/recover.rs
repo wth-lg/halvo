@@ -125,7 +125,12 @@ fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError
 /// Stores recovery's body for one agent: `run_ended` with `interrupted` for each run that ends
 /// and `item_lapsed` with `app_ended` for each open item, after the agent's last event, which
 /// the agent's events take once the owner acknowledged them. An empty body calls no port.
-fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Result<(), PortError> {
+fn log_recovery_body<P: Owner, C>(
+    ports: &P,
+    f: &mut Found<C>,
+    day: u32,
+    at: i64,
+) -> Result<(), PortError> {
     let mut whats: Vec<What> = f
         .step
         .ended
@@ -164,7 +169,7 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
 /// full shape as it is, and the dismissed shape with its id, its category and its site, the
 /// state `paused`, the trigger `manual` and no period, so that no tick starts its agent or
 /// sends `active` for it.
-fn known(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
+fn full_or_paused_manual(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
     match workflow {
         Workflow::Full(f) => f.clone(),
         Workflow::Dismissed(d) => FullWorkflow {
@@ -241,7 +246,7 @@ where
         let Some(workflow) = workflows
             .iter()
             .find(|w| w.id() == &agent.workflow)
-            .map(|w| known(w, &agent.agent, day))
+            .map(|w| full_or_paused_manual(w, &agent.agent, day))
         else {
             continue;
         };
@@ -277,12 +282,12 @@ where
     let mut owed: Vec<Owed> = Vec::new();
     let mut ended: Vec<Ended> = Vec::new();
     for f in &mut found {
-        let mut logged = log_body(ports, f, day, at);
+        let mut logged = log_recovery_body(ports, f, day, at);
         if matches!(&logged, Err(e) if seq_refusal(e))
             && resync(ports, &f.agent.agent, &mut f.events).is_ok()
         {
             f.step = f.step(&reaped);
-            logged = log_body(ports, f, day, at);
+            logged = log_recovery_body(ports, f, day, at);
         }
         ended.extend(f.step.ended.iter().map(|run| Ended {
             run: run.clone(),

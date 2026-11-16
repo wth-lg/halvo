@@ -78,7 +78,7 @@ impl Ledger {
     /// gave them, that closes `item`: an answer whose acknowledgement was lost, or a lapse (ruling
     /// RD-40), or the decline that a `link_account` item stored after its `done` (ruling RD-46
     /// (4) B4). One decision for both orders in which the coordinator learns of such a row.
-    fn closing(&self, item: &ItemId) -> Option<&Event> {
+    fn newest_closing_row(&self, item: &ItemId) -> Option<&Event> {
         self.closing
             .iter()
             .filter(|e| closed_item(&e.what) == Some(item) && closes(std::slice::from_ref(e), item))
@@ -86,7 +86,7 @@ impl Ledger {
     }
 
     /// Keeps the rows that close an item among `events`, which the owner acknowledged.
-    fn kept(&mut self, events: &[Event]) {
+    fn keep_acknowledged_closing_rows(&mut self, events: &[Event]) {
         for e in events {
             if closed_item(&e.what).is_some_and(|item| closes(std::slice::from_ref(e), item)) {
                 self.closing.push(e.clone());
@@ -393,7 +393,7 @@ pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Resul
             Ok(()) => {
                 ledger.last = ledger.waiting[n - 1].seq.get();
                 let sent: Vec<Event> = ledger.waiting.drain(..n).collect();
-                ledger.kept(&sent);
+                ledger.keep_acknowledged_closing_rows(&sent);
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resync(ports, ledger)?;
@@ -418,7 +418,7 @@ fn flush_reading<P: Owner>(
             Ok(()) => {
                 ledger.last = ledger.waiting[n - 1].seq.get();
                 let sent: Vec<Event> = ledger.waiting.drain(..n).collect();
-                ledger.kept(&sent);
+                ledger.keep_acknowledged_closing_rows(&sent);
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resynced = true;
@@ -488,7 +488,7 @@ fn store_at<P: Owner>(
 fn queue_at(ledger: &mut Ledger, whats: Vec<What>, at: Stamp) {
     let whats: Vec<What> = whats
         .into_iter()
-        .filter(|w| closed_item(w).is_none_or(|item| ledger.closing(item).is_none()))
+        .filter(|w| closed_item(w).is_none_or(|item| ledger.newest_closing_row(item).is_none()))
         .collect();
     let events = ledger.number(whats, at);
     ledger.waiting.extend(events);
@@ -499,7 +499,7 @@ fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
     Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
-fn store_once_reading<P: Owner>(
+fn store_unqueued_reading<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
@@ -516,7 +516,7 @@ fn store_once_reading<P: Owner>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
-                ledger.kept(&events);
+                ledger.keep_acknowledged_closing_rows(&events);
                 return Ok(true);
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
@@ -535,7 +535,7 @@ fn store_once_reading<P: Owner>(
 
 /// Stores the events in one body once the waiting ones are stored, and keeps none of them
 /// waiting: rows that get no acknowledgement count as not stored (I4.5).
-fn store_once<P: Owner>(
+fn store_unqueued<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
@@ -549,7 +549,7 @@ fn store_once<P: Owner>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
-                ledger.kept(&events);
+                ledger.keep_acknowledged_closing_rows(&events);
                 return Ok(());
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
@@ -630,7 +630,7 @@ fn log_press<P: Owner>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
-                ledger.kept(&events);
+                ledger.keep_acknowledged_closing_rows(&events);
                 return Ok(Decided::Own(press.result));
             }
             Err(e) => {
@@ -643,7 +643,7 @@ fn log_press<P: Owner>(
                     Read::Taken => {}
                 }
                 once = true;
-                let newest = ledger.closing(press.item).map(|e| &e.what);
+                let newest = ledger.newest_closing_row(press.item).map(|e| &e.what);
                 match press.decide(newest) {
                     Decided::LogOwnRow if refused_with(&e, "seq") || newest.is_some() => {
                         events = ledger.number(vec![row.clone()], stamp);
@@ -894,7 +894,7 @@ pub fn answer<P: Owner + Runs + Clock>(
                 answer: Answered::Confirm(entry.clone()),
             })
             .collect();
-        store_once(ports, ledger, limits, rows, stamp)?;
+        store_unqueued(ports, ledger, limits, rows, stamp)?;
         recorded = Some(next);
         Ok(())
     });
@@ -1260,13 +1260,13 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     let decided = if ledger.unsure.contains(item) {
         Decided::LogOwnRow
     } else {
-        press.decide(ledger.closing(item).map(|e| &e.what))
+        press.decide(ledger.newest_closing_row(item).map(|e| &e.what))
     };
     let decided = match decided {
         Decided::Own(_) | Decided::Other(_) if !made.get() => match reading(ledger) {
             Read::Off => return Err(Cause::UnknownItem),
             Read::Failed => return Err(Cause::NoService),
-            Read::Taken => press.decide(ledger.closing(item).map(|e| &e.what)),
+            Read::Taken => press.decide(ledger.newest_closing_row(item).map(|e| &e.what)),
         },
         decided => decided,
     };
@@ -1462,7 +1462,7 @@ pub fn answer_bind_reading<P: Owner + Runs + Clock>(
                     origin: held.ask.origin.clone(),
                 })),
             };
-            match store_once_reading(ports, ledger, limits, vec![row], stamp, read) {
+            match store_unqueued_reading(ports, ledger, limits, vec![row], stamp, read) {
                 Ok(true) => {}
                 Ok(false) => return Err(Cause::UnknownItem),
                 Err(e) => {
@@ -1607,7 +1607,7 @@ fn closed_row<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits, setup: 
 /// body among its newest bindings: sends `set_state` `active` where `wants_active` gives it and
 /// drops the answer, which the tick's own rule sends again until the owner's list shows the
 /// agent `active` (ruling IG-6a).
-fn activate<P: Owner, C: ConfigView + Clone>(
+fn send_active_if_wanted<P: Owner, C: ConfigView + Clone>(
     ports: &P,
     facts: &Facts<C>,
     body: &SetupBody,
@@ -1647,7 +1647,7 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
             *setup = setup_step(setup, SetupMove::Acknowledged)?;
             closed_row(ports, ledger, limits, setup, at);
             Ok(SetupDone::Closed {
-                active: activate(ports, facts, &body),
+                active: send_active_if_wanted(ports, facts, &body),
             })
         }
         Err(e) => {

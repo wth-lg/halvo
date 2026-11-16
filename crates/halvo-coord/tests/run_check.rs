@@ -684,7 +684,7 @@ fn a_read_whose_later_events_raise_and_close_an_item_takes_up_no_item() {
 }
 
 /// The end of the local day `DAY` in the zone of `world`.
-const MIDNIGHT: u64 = T0 + 6_400_000;
+const END_OF_LOCAL_DAY: u64 = T0 + 6_400_000;
 
 /// The `item_raised` row of a check that a start raises, with the clock from 8 ms before local
 /// midnight to 3 ms after it and moving on 1 ms at each read, carries the local day of its `at`
@@ -692,7 +692,7 @@ const MIDNIGHT: u64 = T0 + 6_400_000;
 #[test]
 fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     let mut days = Vec::new();
-    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+    for start in END_OF_LOCAL_DAY - 8..END_OF_LOCAL_DAY + 4 {
         let mut w = world(&[MANUAL]);
         let run = ended_unknown(&mut w, 0);
         w.store_end(0, &run, Outcome::Failed, 1);
@@ -738,7 +738,7 @@ fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
             days.push(e.day);
         }
     };
-    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+    for start in END_OF_LOCAL_DAY - 8..END_OF_LOCAL_DAY + 4 {
         let mut w = world(&[MANUAL]);
         let before = w.ports.events.borrow().len();
         w.ports.set_now(start);

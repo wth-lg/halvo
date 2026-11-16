@@ -177,16 +177,27 @@ fn phase_of(phase: &Phase) -> Live {
 }
 
 /// The ports as the schedule's tick and switch-off see them, with the runs whose kill the
-/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in `sent`,
-/// whose cancel the lapse of its item sent when it stopped the run in the guard's table (I5.7).
-/// Every other `cancel` marks the run stopped in the guard's table before the port's call, so
-/// that a panic in the call leaves the run's effect records refused (ruling RD-34 (e)).
+/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in
+/// `cancel_already_sent`, whose cancel the lapse of its item sent when it stopped the run in the
+/// guard's table (I5.7). Every other `cancel` marks the run stopped in the guard's table before
+/// the port's call, so that a panic in the call leaves the run's effect records refused (ruling
+/// RD-34 (e)).
 struct Watch<'a, P> {
     ports: &'a P,
-    unknown: RefCell<Vec<RunId>>,
+    kill_refused_unknown_run: RefCell<Vec<RunId>>,
     listed: RefCell<Option<Vec<WorkflowId>>>,
-    sent: Vec<RunId>,
+    cancel_already_sent: Vec<RunId>,
     table: RefCell<&'a mut Table>,
+}
+
+impl<P: Runs> Watch<'_, P> {
+    fn mark_stopped_then_cancel(&self, run: &RunId) -> Result<(), PortError> {
+        {
+            let mut table = self.table.borrow_mut();
+            **table = table.stop(run);
+        }
+        self.ports.cancel(run)
+    }
 }
 
 impl<P: Owner> Owner for Watch<'_, P> {
@@ -240,21 +251,17 @@ impl<P: Runs> Runs for Watch<'_, P> {
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
-        if self.sent.contains(run) {
+        if self.cancel_already_sent.contains(run) {
             return Ok(());
         }
-        {
-            let mut table = self.table.borrow_mut();
-            **table = table.stop(run);
-        }
-        self.ports.cancel(run)
+        self.mark_stopped_then_cancel(run)
     }
 
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
         let killed = self.ports.kill(run);
         if let Err(e) = &killed {
             if refused_with(e, "unknown_run") {
-                self.unknown.borrow_mut().push(run.clone());
+                self.kill_refused_unknown_run.borrow_mut().push(run.clone());
             }
         }
         killed
@@ -294,7 +301,12 @@ impl<P: Rng> Rng for Watch<'_, P> {
 /// Ends the `stopping` run whose kill the library refused with `unknown_run`, in the tick of
 /// that kill and with the cause `interrupted` (I5.7, I5.8): its `run_ended` is stored, no
 /// `end_run` is sent for it, and its end takes one start from the queue.
-fn lose<P>(ports: &P, board: &mut Board<P::Config>, limits: &Limits, run: &RunId) -> Option<Report>
+fn end_interrupted_after_unknown_run_kill<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    limits: &Limits,
+    run: &RunId,
+) -> Option<Report>
 where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
@@ -332,15 +344,15 @@ where
 {
     let watch = Watch {
         ports,
-        unknown: RefCell::new(Vec::new()),
+        kill_refused_unknown_run: RefCell::new(Vec::new()),
         listed: RefCell::new(None),
-        sent: Vec::new(),
+        cancel_already_sent: Vec::new(),
         table: RefCell::new(table),
     };
     let before = board.clone();
     let mut report = schedule::drive(&watch, board, limits, Move::Tick);
     let Watch {
-        unknown,
+        kill_refused_unknown_run,
         listed,
         table,
         ..
@@ -354,8 +366,8 @@ where
         *table = table.stop(run);
     }
     let mut lost = Vec::new();
-    for run in unknown.into_inner() {
-        if let Some(end) = lose(ports, board, limits, &run) {
+    for run in kill_refused_unknown_run.into_inner() {
+        if let Some(end) = end_interrupted_after_unknown_run_kill(ports, board, limits, &run) {
             report.ended.extend(end.ended);
             lost.push(run);
         }
@@ -428,9 +440,9 @@ where
                 .collect();
             let watch = Watch {
                 ports,
-                unknown: RefCell::new(Vec::new()),
+                kill_refused_unknown_run: RefCell::new(Vec::new()),
                 listed: RefCell::new(None),
-                sent,
+                cancel_already_sent: sent,
                 table: RefCell::new(table),
             };
             let report = schedule::drive(&watch, board, limits, Move::SwitchOff { agent });
@@ -510,7 +522,7 @@ where
     trees.sort();
     let mut done = answer(None);
     for (_, run) in trees {
-        if kill_tree(ports, board, &run) {
+        if quit_kill_tree(ports, board, &run) {
             done.killed.push(run);
         }
     }
@@ -519,7 +531,7 @@ where
 
 /// `Runs::kill` for the tree of `run`, which leaves the board when the kill succeeded, with
 /// nothing stored or sent: the quit's kill.
-fn kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
+fn quit_kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
 where
     P: Runs,
 {
@@ -568,7 +580,7 @@ where
     trees.sort();
     let mut done = answer(None);
     for (_, run) in trees {
-        if kill_tree(ports, board, &run) {
+        if quit_kill_tree(ports, board, &run) {
             done.killed.push(run);
         }
     }
