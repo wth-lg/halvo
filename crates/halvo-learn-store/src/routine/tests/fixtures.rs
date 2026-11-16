@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use halvo_learn::{Mark as RuleMark, RoutineState};
 use halvo_schema::learning::names::Mark;
 use halvo_schema::learning::record::{Day, LearnRoutine, LearnRun};
-use halvo_schema::{RowRead, Summary, SummaryRead, TypedRecord, WriterStep};
+use halvo_schema::{AgentId, RowRead, Summary, SummaryRead, TypedRecord, WorkflowId, WriterStep};
 use serde_json::{json, Value};
 
 use crate::routine::LearnStep;
@@ -43,10 +43,14 @@ impl Store {
     }
 
     pub fn newest(&self, w: u32) -> LearnRoutine {
-        self.routines()
-            .into_iter()
-            .filter(|r| r.workflow.as_str() == wf(w))
-            .max_by_key(|r| r.rev)
+        let mut routines = Vec::new();
+        RowRead::for_each(self, "learn_routine", &mut |row| {
+            routines.push(LearnRoutine::parse(row.as_bytes()).expect("a stored row"));
+        });
+        let workflow = WorkflowId::parse(&wf(w)).expect("a workflow id");
+        let agent = AgentId::parse(&agent(w)).expect("an agent id");
+        crate::newest_routine(&routines, &workflow, &agent)
+            .cloned()
             .expect("a routine row of the workflow")
     }
 
@@ -220,4 +224,17 @@ pub fn run_of(w: u32, a: u32, n: u32, day: u32, mode: &str, state: &str) -> Lear
 
 pub fn run(w: u32, n: u32, day: u32, mode: &str, state: &str) -> LearnRun {
     run_of(w, w, n, day, mode, state)
+}
+
+#[test]
+fn newest_of_two_rows_of_one_rev_is_the_row_of_the_later_day_in_either_order() {
+    let early = fresh(1, DAY);
+    let late = fresh(1, DAY + 1);
+    for rows in [[&early, &late], [&late, &early]] {
+        let mut store = Store::default();
+        for row in rows {
+            store.put_routine(row);
+        }
+        assert_eq!(store.newest(1).day.get(), DAY + 1);
+    }
 }
