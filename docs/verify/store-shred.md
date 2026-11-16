@@ -17,10 +17,10 @@ compile only under `cfg(test)`, and need only the `proptest` dev-dependency.
 ## When to run it
 
 Run the checks when a change touches `crates/halvo-capture/src/store/`,
-`crates/halvo-capture/src/custody/` or `crates/halvo-sqlcipher/`. The crate
-`halvo-sqlcipher` builds SQLCipher for the store: the page layout, the AES
-code and the entropy hook that the store and the page reader of check 1
-link come from it. A change elsewhere in the workspace does not need them.
+`crates/halvo-capture/src/custody/` or `crates/halvo-sqlcipher/`. The crate `halvo-sqlcipher`
+builds SQLCipher for the store: the page layout, the zeroing of the gap of a page built again or
+edited in place (ADR 0013), the AES code and the entropy hook that the store and the page reader
+of check 1 link come from it. A change elsewhere in the workspace does not need them.
 
 ## The properties
 
@@ -148,7 +148,7 @@ checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
-| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `EncryptedStore::delete_all` (the root step before every other step, and its steps on a handle that a delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-delete-all-returns-before-its-root-step`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
+| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, the commit of its transaction, and the checkpoint after that commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `EncryptedStore::delete_all` (the root step before every other step, and its steps on a handle that a delete-all sealed) | `formal-shredded-key-survives`, `formal-shred-never-committed`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-delete-all-returns-before-its-root-step`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
 | 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint), `open_database` (the mode that it sets on `store.db` before the connection opens), `Db::require_file` with its two calls in `EncryptedStore::open_with` and `Db::open_file`, and the one place where `Db::open_file` makes `store.db`, for a create alone, `write_pending` (how it makes `create.pending`) | `formal-secure-delete-off`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row`, `formal-store-db-keeps-a-wider-mode`, `formal-open-makes-a-missing-database`, `formal-create-pending-takes-the-umask` |
 | 1 | `crates/halvo-capture/src/store/segment.rs` | `remove_entry_below`, which `remove_segments_through` calls for a delete-all (the kind of entry that it lists as a directory) | `formal-delete-walk-takes-a-link-for-a-directory` |
 | 1 | `crates/halvo-capture/src/custody/file_root.rs` | the root files of both systems: `FileRoots::wrap` and `FileRoots::unwrap` (the `aead_seal` and `aead_open` calls under the root), and `FileRoots::make_root` (the random fill of a new root), which `FileRoots::create_root` calls | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
@@ -500,8 +500,8 @@ spawns no child, so nothing else shares its descriptor.
 | The fixed order | 80 moves on macOS, 68 on Windows | each move that fails or is refused at least once, in the state that it needs, and each fault of `ArmFault` once before a `ShredAll`; the rows of these moves are judged by it. The two faults that set a mode and the move that makes a link exist on macOS alone |
 | Faults | one for each `ShredAll` | one step of a delete-all fails, so the harness knows what may stay |
 | Segment sizes | 0 to 512 bytes, one chunk and one byte either side of it, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
-| Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | the size at which a key row that is deleted, not set to NULL, leaves keys in `store.db`: 3 of 900 after the one pass |
-| Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | with deleted key rows a key is left after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50 |
+| Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | chosen as the size at which a key row that is deleted, not set to NULL, left keys in `store.db` under the build before ADR 0013: 3 of 900 after the one pass. Under the build of ADR 0013 a deleted key row left none in this case (one hosted run; Not covered), and no row of today needs the size: the row of this case is `formal-secure-delete-off`, which needs two due writes before one shred, not 1,200 segments. The size stays as a probe for leftovers that the build's own tests do not draw. |
+| Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | chosen when, under the build before ADR 0013, deleted key rows left a key after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50. Its row is `formal-shred-never-committed`, which fails it after pass 1; no row of today needs the 50 passes |
 | Check 2 cases | 30 (`RACE_CASES`) | each case spawns processes, and a row of check 2 fails only in a case in which two contenders meet; 30 follows from the measured share of such cases, under Break proofs |
 | Contenders | 2 to 5 (`MAX_CONTENDERS`) | two is the minimal race; five covers a queue of waiters |
 | Acquisitions per contender | 1 to 3 | re-acquisition after a release, with the lock file possibly recreated |
@@ -704,9 +704,8 @@ row cannot go stale unseen.
 | Row | What it breaks | Test | Message |
 |---|---|---|---|
 | `formal-shredded-key-survives` | `destroy_segment_keys` writes each key back to itself and sets none to NULL | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
-| `formal-key-row-deleted` | `destroy_segment_keys` deletes the key row, where it must set the key to NULL in place | the one-pass scaled case | "the wrapped key of shredded segment ... is still in the store files", in a page of `store.db` |
-| `formal-key-row-deleted-oldest-first` | the same | the oldest-first scaled case | "after pass 17 of 50", then the same |
-| `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | the same, in a frame of `store.db-wal` |
+| `formal-shred-never-committed` | `destroy_segment_keys` rolls its transaction back where it must commit it, so no key of the pass is set to NULL | the oldest-first scaled case | "after pass 1 of 50", then "the wrapped key of shredded segment ... is still in the store files", in a page of `store.db` |
+| `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | "the wrapped key of shredded segment ... is still in the store files", in a frame of `store.db-wal` |
 | `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames; the checkpoint of an open (`Db::log_drained`) stays | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-secure-delete-off` | `Db::open_file` switches `secure_delete` off and does not read it back | the one-pass scaled case | the same, in a page of `store.db` |
 | `formal-wrapped-key-in-a-side-file` | `write_segment_with_expiry` also writes the wrapped key into `keys.log` in the store directory | the random test of check 1 | "the store directory holds keys.log, which is no file of a store" |
@@ -743,10 +742,10 @@ The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
 `[Write { len: 0, expiry: Past }, ShredExpired]`.
 
-Thirteen rows share their substitution with a `formal-` row of the same file
-that has another verdict: `shredded-key-survives`, `key-row-deleted`,
+Eleven rows share their substitution with a `formal-` row of the same file
+that has another verdict: `shredded-key-survives`,
 `checkpoint-not-verified`, `raw-store-key-in-key-file`,
-`delete-all-destroys-nothing`, `custody-wrap-under-constant-key`,
+`custody-wrap-under-constant-key`,
 `custody-root-is-all-zero`, `store-db-mode-not-narrowed`,
 `directory-lock-never-refuses`, `live-holder-busy-not-mapped-to-locked`,
 and the three rows of the hardening tests on a create that destroys a
@@ -754,8 +753,7 @@ root, `create-destroys-a-root-it-cannot-read`,
 `create-destroys-a-root-file-it-cannot-read` and
 `create-destroys-the-root-of-a-create-at-the-same-instant`. A row has
 one verdict, and the covered table needs the formal check to fail, so each
-of these substitutions stands under more than one name: that of
-`key-row-deleted` under three, once for each scaled case, and that of the
+of these substitutions stands under more than one name, and that of the
 three rows on a create under four, with
 `formal-refused-create-destroys-the-root`. The sixth formal step gave
 `checkpoint-not-verified` and the three rows on a create the text of their
@@ -1087,7 +1085,7 @@ When a change to covered code is intended:
 3. If the change moves the text that a row's substitution matches, change
    the `formal-` row, and the row of the same substitution with another
    verdict, in the same pull request.
-4. Run the rows: `sh scripts/r1-gate/mutation-test.sh --only <row>` for each
+4. Run the rows on hosted jobs: `sh scripts/r1-gate/mutation-test.sh --only <row>` for each
    row of the changed file, or every row with no argument. Each must print
    `PASS mutation`. For new covered code, add a row that breaks it, see the
    check fail, and name the row on the code's line of the covered table.
@@ -1645,6 +1643,41 @@ set, and the root's own volume name answers the root.
   same user and revives the key of its store.
 - A part of a wrapped key that is shorter than its middle 32 bytes. The
   file scan looks for the whole key and for that middle.
+- A shred that deletes the key row where it must set the key to NULL in
+  place. Under the build of ADR 0013 such a shred leaves neither the whole
+  wrapped key nor its middle 32 bytes in the files that the file scan
+  reads, on the inputs of the three tests named next: hosted run
+  43654678132 applied that substitution under three names, and the
+  hardening test `a_shredded_wrapped_key_is_gone_from_the_raw_database_pages`,
+  the one-pass scaled case and the oldest-first scaled case each passed on it.
+  So no row of check 1 stands on it, and the two rows of check 1 that
+  stood on it are gone. What removes the copies of the deleted row's cell
+  that a balance left in the gap of a page built again or edited in place is
+  the build's zeroing of that gap; the cell itself is zeroed by secure
+  delete under either build. The
+  rows `rebuilt-page-gap-not-zeroed` and `edited-page-gap-not-zeroed` of
+  `crates/halvo-sqlcipher/mutants.rows` judge that zeroing on that crate's
+  own tables. That crate's structural check (`tests/page_gap/rules.rs`)
+  reads an image as given and takes the page count from its length, so an
+  image cut by its last pages can read clean: who hands it an image answers
+  for its length, by comparing `Checked.pages` with the file's own page
+  count. No row of a store file can take it out, because a row
+  mutates files under the directory of its rows file alone. The checks of
+  this file do not show the zeroing either: on main, before the build of
+  ADR 0013, the store's `UPDATE` passed them. A deleted key row still breaks
+  ADR 0005's rule that a shred keeps the key row of its segment (RD-21),
+  and a later segment can then take the key id of the shredded one, since
+  the id of a key row has no `AUTOINCREMENT`. The row `key-row-deleted`
+  holds that rule, judged by the hardening test
+  `a_shred_keeps_the_key_row_with_a_null_key_and_a_later_segment_takes_another_key_id`.
+  No row is judged by `a_shredded_wrapped_key_is_gone_from_the_raw_database_pages`
+  since that change. That a deleted key row leaves no key on other inputs
+  rests on the reading of ADR 0013, which cannot show that the database has
+  no third place that keeps a copy. Two places are the same for the
+  `UPDATE` and the `DELETE`, and no test reads either: the frame that
+  stored the live key stays in `store.db-wal` from the commit until the
+  checkpoint (see the crash above), and the volume or the drive may keep the
+  old bytes of a page that a write replaced.
 - What the event rows of a shredded segment leave in the store files. The
   file scan looks for wrapped keys only; check 1 counts the event rows
   through SQL.
@@ -2037,11 +2070,13 @@ rows that start within its budget, in an order that the commit id decides. It st
 seconds (`budget_s`) has passed since the first row started, lets the row
 in progress end, and fails when a row that ran is not caught by its
 verdict; another commit takes the rows in another order. The whole list,
-which requires that the test of every `formal-` row fails, runs on a
-person's machine as a line of the phase's gate and of the verifier gates of
-the units that name `mutation-test.sh`.
+which requires that the test of every `formal-` row fails, runs by name on
+hosted jobs at the gate of each unit whose diff touches
+`crates/halvo-sqlcipher/`, `crates/halvo-capture/src/store/` or the
+database entries of `Cargo.lock` (ruling S-91 7), and on a person's machine
+only where the machine's rules let the rows' tests run.
 
-Outcome of the last pass, the fourth formal step, over the 17 commits of
+Outcome of the fourth formal step, over the 17 commits of
 the unit store-2 (an `open` that makes no database, format versions, the
 settings read back, the sweep that follows no link, the modes, and
 `Locked` before the custody): updated, for both checks.
@@ -2247,3 +2282,30 @@ file left and the database gone, an `open` that makes a database goes on
 to its custody and answers `RootMissing`. The new move refuses it on a
 live store, with the listing. The settings keep their proof in
 `db::tests::pragmas_are_set`.
+
+The seventh formal step read the unit sqlcipher-1 at 376bca38, joined with
+main 5fadd38e: the build of ADR 0013, which zeroes the gap of a page that
+the database builds again or edits in place while secure delete is on, and
+the rows of check 1 of ruling S-91. Outcome: updated, for check 1; in sync,
+for check 2.
+
+The unit changes no line of `formal_tests.rs`, of the page reader or of the
+store code that the covered table names. Hosted run 43674411184 at
+bcdb819e, whose store, database crate and rows files are those of
+376bca38, ran the nine tests of the command on macOS and on Windows, each
+`ok`. It ran every row of the store's, the custody's and `halvo-sqlcipher`'s
+rows files to its end by name: 103 caught.
+
+What had drifted is what two rows of check 1 showed. Under the build
+before ADR 0013, a shred that deletes the key row, where it must set the
+key to NULL, left the key in a page of `store.db`, and both scaled cases
+failed on that substitution. Under the build of ADR 0013 both passed it
+(hosted run 43654678132), so those two rows are gone, and Not covered says
+why. The oldest-first case is now judged by `formal-shred-never-committed`,
+which fails it after pass 1 with the key whole in a page of `store.db`.
+The one-pass case is still judged by `formal-secure-delete-off`, because
+the build zeroes a gap only while secure delete is on. No row of today
+needs the 1,200 segments or the 50 passes; they stay as they were chosen.
+The row `key-row-deleted` is now judged by a hardening test of ADR 0005's
+rule that a shred keeps the key row of its segment, not by a test of the
+pages.
