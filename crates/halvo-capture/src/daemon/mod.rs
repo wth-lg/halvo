@@ -626,12 +626,6 @@ fn loss_line(
     answered: bool,
     reports: &[owner::Report],
 ) -> String {
-    let instant = |at: Option<i64>| {
-        at.and_then(|nanos| {
-            halvo_control::model::UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok()
-        })
-        .map_or_else(|| "-".to_owned(), |second| second.to_string())
-    };
     let final_failed = !answered || settled.events_pending > 0;
     let kind = reports
         .iter()
@@ -646,8 +640,8 @@ fn loss_line(
         .unwrap_or("-");
     format!(
         "halvo-capture: lost events={count} first={} last={} error={kind}",
-        instant(settled.lost_first_at),
-        instant(settled.lost_last_at),
+        owner::capture_second(settled.lost_first_at),
+        owner::capture_second(settled.lost_last_at),
     )
 }
 

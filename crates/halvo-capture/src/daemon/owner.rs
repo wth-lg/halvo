@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 
-use halvo_control::model::StorageCap;
+use halvo_control::model::{StorageCap, UtcSecond};
 use zeroize::Zeroize;
 
 use super::barrier::Gate;
@@ -123,6 +123,41 @@ pub enum Report {
         fault: MaintFault,
     },
     MaintenanceHealthy,
+}
+
+impl Report {
+    /// The line that the daemon writes to its log for a dropped batch
+    /// (contracts.md C11.3): `halvo-capture: dropped events=<n> first=<ts>
+    /// last=<ts> error=<KIND>`, with the token of the batch's last fault;
+    /// `None` for every other report.
+    pub fn drop_line(&self) -> Option<String> {
+        match *self {
+            Report::BatchRejected {
+                events,
+                first_capture,
+                last_capture,
+                fault,
+            } => Some(format!(
+                "halvo-capture: dropped events={events} first={} last={} error={}",
+                capture_second(Some(first_capture)),
+                capture_second(Some(last_capture)),
+                cause_of(fault).as_str()
+            )),
+            Report::StoreReady
+            | Report::DrainFailing { .. }
+            | Report::DrainHealthy
+            | Report::MaintenanceFailing { .. }
+            | Report::MaintenanceHealthy => None,
+        }
+    }
+}
+
+/// The UTC second that holds a capture instant in signed unix nanoseconds,
+/// written `YYYY-MM-DDTHH:MM:SSZ`, as the drop line and the loss line print
+/// it; `-` when there is no instant.
+pub(crate) fn capture_second(at: Option<i64>) -> String {
+    at.and_then(|nanos| UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok())
+        .map_or_else(|| "-".to_owned(), |second| second.to_string())
 }
 
 /// The owner thread is gone.
@@ -3387,5 +3422,88 @@ mod tests {
             );
             assert!(rejected(&harness).is_empty());
         }
+    }
+
+    /// D6 and contracts.md C11.3 (DM-4 item 4): one function builds the line
+    /// of a dropped batch with its count, the UTC second of its first and
+    /// last capture instant and the kind of its last fault; an instant before
+    /// the epoch reads the second that holds it, and no other report has a
+    /// line.
+    #[test]
+    fn the_drop_line_names_the_count_the_two_seconds_and_the_kind() {
+        let noon_nanos = 1_794_571_200_i64 * 1_000_000_000;
+        let dropped = |fault| Report::BatchRejected {
+            events: 5,
+            first_capture: noon_nanos + 999_999_999,
+            last_capture: noon_nanos + 62_000_000_000,
+            fault,
+        };
+        for fault in [
+            WriteFault::Db(19 | (8 << 8)),
+            WriteFault::Db(11),
+            WriteFault::Db(0),
+            WriteFault::Refused,
+            WriteFault::Sealed,
+        ] {
+            assert_eq!(
+                dropped(fault).drop_line().as_deref(),
+                Some(
+                    "halvo-capture: dropped events=5 first=2026-11-13T12:00:00Z \
+                     last=2026-11-13T12:01:02Z error=db"
+                ),
+                "{fault:?}"
+            );
+        }
+        let before_the_epoch = Report::BatchRejected {
+            events: 1,
+            first_capture: -1_000_000_001,
+            last_capture: -1,
+            fault: WriteFault::Db(25),
+        };
+        assert_eq!(
+            before_the_epoch.drop_line().as_deref(),
+            Some(
+                "halvo-capture: dropped events=1 first=1969-12-31T23:59:58Z \
+                 last=1969-12-31T23:59:59Z error=db"
+            )
+        );
+        for report in [
+            Report::StoreReady,
+            Report::DrainHealthy,
+            Report::DrainFailing {
+                cause: DrainCause::Db,
+                since: noon(),
+            },
+            Report::MaintenanceFailing {
+                fault: MaintFault::CheckpointIncomplete,
+            },
+            Report::MaintenanceHealthy,
+        ] {
+            assert_eq!(report.drop_line(), None, "{report:?}");
+        }
+    }
+
+    /// D6: the BatchRejected of a set-aside batch gives its drop line.
+    #[test]
+    fn a_batch_set_aside_gives_its_drop_line() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(21)));
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        harness.emit(foreground(&AT_NOON, Duration::from_secs(3)));
+        harness.emit(foreground(&AT_NOON, Duration::from_secs(1)));
+        settled(&mut harness);
+        two_due_tries(&mut harness);
+        let lines: Vec<String> = rejected(&harness)
+            .iter()
+            .filter_map(Report::drop_line)
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "halvo-capture: dropped events=2 first=2026-11-13T11:59:57Z \
+              last=2026-11-13T11:59:59Z error=db"
+            ]
+        );
     }
 }
