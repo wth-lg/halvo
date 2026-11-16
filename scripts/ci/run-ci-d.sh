@@ -1277,7 +1277,7 @@ own_self_test() {
     printf '#!/bin/sh\nif [ "$1" = 0.1 ]; then exec %s 0.4; fi\nexec %s "$@"\n' "$real_sleep" "$real_sleep" >"$tmp/slow-sleep/sleep" &&
     chmod +x "$tmp/slow-sleep/sleep"
   mkdir -p "$tmp/late-date" &&
-    printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r late ]; then\n  read -r late <late\n  now=$(%s +%%s) || exit 1\n  echo "$((now + late))"\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/late-date/date" &&
+    printf '#!/bin/sh\nfor w in want-read.*; do [ ! -e "$w" ] || [ -e "read-done.${w#want-read.}" ] || : >"read-done.${w#want-read.}"; done\nif [ "$1" = +%%s ] && [ -r late ]; then\n  read -r late <late\n  now=$(%s +%%s) || exit 1\n  echo "$((now + late))"\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/late-date/date" &&
     chmod +x "$tmp/late-date/date"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
@@ -1675,8 +1675,8 @@ own_self_test() {
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && git -C "$fixture" update-index --skip-worktree tracked.txt
   own_case tracked-file-marked-skip-worktree-before-the-first-script 1 'FAIL run-ci-d (a tracked file is marked assume-unchanged or skip-worktree before the first script: tracked.txt)' macos
   new_repo && track_file &&
-    add_script r1 10-a.sh "$good" '( sleep 1; mkdir "$TMPDIR/late"; printf "x\n" >>"$CI_D_REPO/tracked.txt" ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; printf "PASS 10-a\n"' &&
-    add_script r1 20-b.sh "$good" 'sleep 3; printf "PASS 20-b\n"'
+    add_script r1 10-a.sh "$good" '( n=0; while [ ! -e "$CI_D_REPO/started.20-b" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; mkdir "$TMPDIR/late"; printf "x\n" >>"$CI_D_REPO/tracked.txt" ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" ': >"$CI_D_REPO/started.20-b"; sleep 3; printf "PASS 20-b\n"'
   case_gone=1
   own_case child-that-a-script-leaves-is-ended 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" '( trap "sleep 1; : >\"\$CI_D_REPO/term-done\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"; trap "" TERM; sleep 60 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"'
@@ -1822,26 +1822,26 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$pass_a"
   case_limit=2s
   own_case limit-not-a-number-in-the-step-ci.d 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=2s is not a whole number from 1 to 999999999)' macos
-  new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_max_s=15
   own_case default-limit-reached-at-1200-s 1 'FAIL 10-a (time limit 1200 s)' macos
-  new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
     printf '1180\n' >"$fixture/offset"
   case_path=$tmp/late-date
   own_case default-limit-not-reached-at-1181-s 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
+  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_max_s=15
   own_case default-limit-of-a-self-test-reached-at-1200-s 1 'FAIL self-test:10-a (time limit 1200 s)' macos --self-test 10-a
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_witness=yes
   own_case limit-line-raises-the-limit-of-its-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ $# -eq 0 ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
     printf '1500\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_max_s=15
@@ -1873,7 +1873,7 @@ own_self_test() {
   case_max_s=40
   case_witness=yes
   own_case own-cases-reach-their-limit-at-2800-s 1 'FAIL self-test:run-ci-d (time limit 2800 s)' macos --self-test run-ci-d
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ "${1:-}" = --self-test ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ "${1:-}" = --self-test ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_witness=yes
@@ -1887,13 +1887,13 @@ own_self_test() {
   done
   new_repo && add_script r1 10-a.sh "$good$nl$seven$nl# limit: 20m" "$pass_a"
   own_case limit-line-at-line-11-is-no-limit-line 0 '10-a (macos windows): A fixture rule.' --rules
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500$cr" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500$cr" '[ $# -eq 0 ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_witness=yes
   own_case limit-line-with-a-carriage-return-raises-the-limit 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  pair_a='if [ "${1:-}" = --self-test ]; then v="PASS self-test:10-a (1 failing fixtures rejected)"; else [ $# -eq 0 ] || exit 3; v="PASS 10-a"; fi; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "%s\n" "$v"'
-  pair_b='cp "$CI_D_REPO/offset2" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 20-b\n"'
+  pair_a='if [ "${1:-}" = --self-test ]; then v="PASS self-test:10-a (1 failing fixtures rejected)"; else [ $# -eq 0 ] || exit 3; v="PASS 10-a"; fi; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "%s\n" "$v"'
+  pair_b=': >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset2" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 20-b\n"'
   new_repo && add_script r1 10-a.sh "$good$nl# limit: 1800" "$pair_a" && add_script r1 20-b.sh "$good" "$pair_b" && fixture_commit &&
     printf '1500\n' >"$fixture/offset" && printf '3000\n' >"$fixture/offset2"
   case_path=$tmp/late-date
@@ -1911,7 +1911,7 @@ own_self_test() {
   case_first='PASS self-test:10-a (1 failing fixtures rejected)'
   case_then='FAIL self-test:20-b (time limit 1200 s)'
   own_case limit-line-of-1800-passes-past-1200-s-where-no-line-fails-in-the-self-test-step 1 'ci.d macos self-test: 1 passed, 1 failed' macos --self-test 10-a 20-b
-  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1800" '[ $# -eq 0 ] || exit 3; sleep 1; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+  new_repo && add_script r1 10-a.sh "$good$nl# limit: 1800" '[ $# -eq 0 ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
     add_script r1 20-b.sh "$good" "$pass_b" && fixture_commit && printf '1800\n' >"$fixture/offset"
   case_path=$tmp/late-date
   case_max_s=15
@@ -2256,11 +2256,13 @@ own_self_test() {
   case_first='FAIL 10-a (its artifacts directory cannot be made)'
   case_then='PASS 20-b'
   own_case alone-check-that-cannot-start-lets-the-next-alone-check-run 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good" "perl -e 'setpgrp(0, 0); exec @ARGV' sh -c 'sleep 2; printf \"late detail of 10-a on stderr\\\\n\" >&2' >/dev/null & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; printf 'PASS 10-a\\n'" &&
-    add_script r1 20-b.sh "$good" "sleep 4; printf 'PASS 20-b\\n'"
+  late_wait='n=0; while [ ! -e "$CI_D_REPO/$1" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done'
+  new_repo && add_script r1 10-a.sh "$good" "perl -e 'setpgrp(0, 0); exec @ARGV' sh -c '$late_wait; printf \"late detail of 10-a on stderr\\\\n\" >&2; : >\"\$CI_D_REPO/late-written\"' sh started.30-c >/dev/null & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$good" "printf 'PASS 20-b\\n'" &&
+    add_script r1 30-c.sh "$good" ": >\"\$CI_D_REPO/started.30-c\"; set -- late-written; $late_wait; printf 'PASS 30-c\\n'"
   case_witness=yes
   case_first="standard error of 10-a after it was printed:${nl}late detail of 10-a on stderr"
-  case_then='ci.d macos: 2 passed, 0 failed, 0 skipped'
+  case_then='ci.d macos: 3 passed, 0 failed, 0 skipped'
   own_case standard-error-written-after-the-print-in-the-step-ci.d 0 'late detail of 10-a on stderr' macos
   move_head='r=$CI_D_REPO; t=$(git -C "$r" write-tree); p=$(git -C "$r" rev-parse HEAD); c=$(printf "tree %s\nparent %s\nauthor f <f@example.invalid> 1 +0000\ncommitter f <f@example.invalid> 1 +0000\n\nf\n" "$t" "$p" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref HEAD "$c"'
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; w moved || exit 1; printf '%s\\n' \"\$TMPDIR\" >\"\$CI_D_REPO/tmpdir.10-a\"; $check_passes" &&
@@ -2473,9 +2475,9 @@ own_self_test() {
     case_signal_min=4
     own_case "step-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every self-test that it started is ended)" macos --self-test 10-a 20-b
   done
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( sleep 2; printf 'late detail of %s on stderr\\n' \"\$me\" >&2 ) >/dev/null & $passes" &&
-    add_script r1 20-b.sh "$good" "$prelude; sleep 4; $passes"
-  case_jobs=2
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( set -- start.20-b; $late_wait; printf 'late detail of %s on stderr\\n' \"\$me\" >&2; : >\"\$CI_D_REPO/late-written\" ) >/dev/null & $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $starts; set -- late-written; $late_wait; [ -e \"\$CI_D_REPO/late-written\" ] || exit 1; $passes"
+  case_jobs=1
   case_first="standard error of 10-a after it was printed:${nl}late detail of 10-a on stderr"
   case_then='ci.d macos self-test: 2 passed, 0 failed'
   own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
