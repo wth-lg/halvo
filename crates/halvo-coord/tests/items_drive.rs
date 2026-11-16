@@ -2093,7 +2093,7 @@ fn rd96_5b_an_issue_lapses_the_open_confirmation_of_an_earlier_run_first() {
 }
 
 #[test]
-fn rd96_5b_an_issue_keeps_an_answered_confirmation_of_the_same_run() {
+fn rd96_5b_an_issue_keeps_an_open_confirmation_of_the_same_run() {
     let p = ports();
     let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(1)));
     let mut l = ledger_after(&p, &[earlier]);
@@ -2320,11 +2320,60 @@ fn rd96_5b_a_raise_whose_own_read_brings_an_open_item_of_its_kind_closes_it() {
     );
 }
 
+#[test]
+fn rd96_5b_a_ledger_made_as_the_coordinator_makes_it_lapses_the_earlier_runs_confirmation() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(9)));
+    p.events.borrow_mut().push(earlier.clone());
+    let mut l = Ledger::new(workflow_id(1), agent_id(1), 1);
+    l.take(&[earlier]);
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+            },
+            What::ItemRaised {
+                item: held.item().clone(),
+                raised: Raised::Confirm(run_id(1)),
+            },
+        ],
+        "the review's B1: a ledger that starts at the board's last seq finds the earlier item by take alone"
+    );
+}
+
+#[test]
+fn rd96_5b_a_ledger_that_takes_the_events_at_two_moves_lapses_the_earlier_item_once() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(9)));
+    p.events.borrow_mut().push(earlier.clone());
+    let mut l = Ledger::new(workflow_id(1), agent_id(1), 1);
+    l.take(std::slice::from_ref(&earlier));
+    l.take(&[earlier]);
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+            },
+            What::ItemRaised {
+                item: held.item().clone(),
+                raised: Raised::Confirm(run_id(1)),
+            },
+        ],
+        "the review's B2: take replaces the found items, so one lapse"
+    );
+}
+
 mod schedule_raises {
     use super::run_world::{self, agent, flow, World, A, DAY, MANUAL};
-    use halvo_coord::mem::Method;
+    use halvo_coord::mem::{Call, Method};
     use halvo_coord::ports::PortError;
-    use halvo_coord::run::Act;
+    use halvo_coord::run::{recover, Act};
     use halvo_coord::schedule::{drive as schedule_drive, Answer, Move, Owed, Owing};
     use halvo_coord::types::{
         Category, CheckAnswer, Cleared, Doing, Event, ItemId, Lapsed, OtherLapse, Outcome, OwnItem,
@@ -2697,5 +2746,189 @@ mod schedule_raises {
             "the answer's raise lapses the earlier check item before it raises: {body:?}"
         );
         assert!(open_of(&w, 0, is_check).is_empty());
+    }
+
+    fn ended_with_unknown(w: &mut World) {
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+    }
+
+    #[test]
+    fn rd96_5b_a_check_that_an_answer_raises_after_seq_lapses_the_owed_check_item() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7407, Raised::Check(None), lapsed);
+        ended_with_unknown(&mut w);
+        let ready = event(
+            0,
+            last_seq(&w, 0) + 1,
+            What::ItemRaised {
+                item: item(0x7408),
+                raised: Raised::Ready,
+            },
+        );
+        w.ports.events.borrow_mut().push(ready.clone());
+        w.board.members[0].facts.events.push(ready);
+        w.board.members[0].facts.doing = Doing::Idle(Some(OwnItem {
+            item: item(0x7408),
+            kind: OwnItemKind::Ready,
+        }));
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let answered = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            },
+        );
+        assert_eq!(answered.answer, Ok(Answer::Ok));
+        let body = whats_after(&w, 0, before);
+        assert!(
+            matches!(
+                &body[..],
+                [
+                    What::ItemLapsed { item: r, lapsed: Lapsed::Ready(OtherLapse::Check) },
+                    What::ItemLapsed { item: c, lapsed: Lapsed::Check(OtherLapse::AppEnded) },
+                    What::ItemRaised { raised: Raised::Check(None), .. },
+                    What::ItemAnswered { .. },
+                    What::HoldCleared { .. },
+                ] if *r == item(0x7408) && *c == item(0x7407)
+            ),
+            "the review's B3: the answer's second body after seq lapses the earlier check item first: {body:?}"
+        );
+        assert_eq!(closing_rows(&w, 0, &item(0x7407)).len(), 1);
+        assert!(
+            open_of(&w, 0, is_check).is_empty(),
+            "no check item is left open"
+        );
+    }
+
+    #[test]
+    fn rd102_6_an_answer_for_an_agent_with_no_item_that_owes_only_a_check_lapse_stores_hold_cleared_alone(
+    ) {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7507, Raised::Check(None), lapsed);
+        ended_with_unknown(&mut w);
+        assert_eq!(w.board.members[0].facts.doing, Doing::Idle(None));
+        let before = last_seq(&w, 0);
+        let answered = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            },
+        );
+        assert_eq!(answered.answer, Ok(Answer::Ok));
+        let body = whats_after(&w, 0, before);
+        assert!(
+            matches!(&body[..], [What::HoldCleared { .. }]),
+            "the review's B4, RD-102 item 6: hold_cleared alone for an agent that holds no item and owes no ready lapse: {body:?}"
+        );
+        assert_eq!(w.board.owed.len(), 1, "the check lapse stays owed");
+    }
+
+    #[test]
+    fn rd102_a_skip_of_an_agent_that_is_not_queued_names_no_dropped_agent() {
+        let mut w = run_world::world(&[PERSON]);
+        w.act(Act::Tick);
+        assert!(
+            matches!(&w.board.members[0].facts.doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready),
+            "the tick raised the ready item: {:?}",
+            w.board.members[0].facts.doing
+        );
+        let skipped = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Skip { agent: agent(0) },
+        );
+        assert_eq!(skipped.answer, Ok(Answer::Ok));
+        assert_eq!(
+            skipped.dropped,
+            Vec::<halvo_coord::types::AgentId>::new(),
+            "the review's B5: no start was dropped"
+        );
+    }
+
+    #[test]
+    fn rd34e_a_switch_off_sends_no_second_cancel_to_a_run_whose_lapse_sent_it() {
+        let mut w = run_world::world(&[MANUAL]);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.table = w.table.stop(&run);
+        let cancels = |w: &World| {
+            w.ports
+                .tried
+                .borrow()
+                .iter()
+                .filter(|t| matches!(&t.call, Call::Cancel(r) if *r == run))
+                .count()
+        };
+        let before = cancels(&w);
+        let off = w.act(Act::SwitchOff { agent: agent(0) });
+        assert_eq!(off.report.answer, Ok(Answer::Ok));
+        assert_eq!(
+            off.report.stopped,
+            vec![run.clone()],
+            "the switch-off stops the run"
+        );
+        assert_eq!(
+            cancels(&w),
+            before,
+            "the guard's table holds the run stopped, whose lapse sent the cancel: no second cancel"
+        );
+    }
+
+    #[test]
+    fn rd96_5b_after_a_real_recovery_the_ticks_ready_raise_lapses_the_owed_ready_item() {
+        let mut w = run_world::world(&[PERSON]);
+        w.act(Act::Tick);
+        let earlier = open_of(&w, 0, is_ready);
+        assert_eq!(earlier.len(), 1, "the first life raises ready");
+        w.ports.new_life();
+        w.forget();
+        w.ports.refuse(Method::Log, PortError::NoService);
+        let life = recover(&w.ports, &w.limits).expect("recovery");
+        w.ports.clear_refusals();
+        w.board = life.board;
+        w.table = halvo_coord::guard::Table::new();
+        assert!(
+            w.board.owed.iter().any(|o| matches!(
+                &o.what,
+                Owing::ItemLapsed { item: i, lapsed: Lapsed::Ready(OtherLapse::AppEnded), .. } if *i == earlier[0]
+            )),
+            "recovery's refused body leaves the lapse owed"
+        );
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        assert_eq!(tick.report.raised, vec![agent(0)]);
+        let raised = open_of(&w, 0, is_ready);
+        assert_eq!(raised.len(), 1, "one open ready item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: earlier[0].clone(),
+                    lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Ready,
+                },
+            ],
+            "the review's N5: the same rule from a debt that real recovery left"
+        );
     }
 }
