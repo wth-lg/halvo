@@ -1995,6 +1995,19 @@ fn a_drive_or_reply_line_with_a_key_value_outside_its_form_is_no_counted_line() 
         reply.replacen("seed=1", "seed=0", 1),
         reply.replacen("model=m_c", "model=synthetic", 1),
         reply.replacen("reply model", "replies model", 1),
+        reply.replacen("machine=mac", "machine=gen_a", 1),
+        drive.replacen("seed=1", "sead=1", 1),
+        drive.replacen("machine=mac", "machnie=mac", 1),
+        reply.replacen("seed=1", "sead=1", 1),
+        drive.replacen("seed=1", "seedx=1", 1),
+        drive.replacen("machine=mac", "machines=mac", 1),
+        reply.replacen("machine=mac", "machinex=mac", 1),
+        drive.replacen("machine=mac", "MACHINE=mac", 1),
+        drive.replacen("task=bill", "Task=bill", 1),
+        reply.replacen("seed=1", "SEED=1", 1),
+        drive.replacen(" machine=mac", "\tmachine=mac", 1),
+        drive.replacen("seed=1 ", "seed=1\t", 1),
+        reply.replacen(" seed=1", "\tseed=1", 1),
     ] {
         assert!(
             line.starts_with("drive ") || line.starts_with("repl"),
@@ -2003,6 +2016,47 @@ fn a_drive_or_reply_line_with_a_key_value_outside_its_form_is_no_counted_line() 
         let got = beside_set(std::slice::from_ref(&line));
         if got.code != Some(0) || got.stdout != "import rows=66 models=1 sources=2\n" {
             wrong.push(format!("{line}: {:?} {:?}", got.code, got.stderr));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_counted_line_is_read_to_the_space_after_its_seed_and_no_further() {
+    let cell = drive_cell("m_c", "mac", "bill", 1);
+    let write = reply_cell("m_c", "mac", 1)[0].clone();
+    let drive_head = "drive model=m_c machine=mac task=bill seed=1 ";
+    let reply_head = "reply model=m_c machine=mac seed=1 ";
+    let mut wrong = Vec::new();
+    for (what, lines, rows) in [
+        (
+            "a drive line that ends at the space after its seed",
+            with(cell[..5].to_vec(), drive_head),
+            71,
+        ),
+        (
+            "a drive line whose fifth word is not compile=",
+            with(cell[..5].to_vec(), &format!("{drive_head}x=1")),
+            71,
+        ),
+        (
+            "a reply line that ends at the space after its seed",
+            vec![write.clone(), reply_head.to_owned()],
+            67,
+        ),
+        (
+            "a reply line whose fourth word is not bodies=",
+            vec![write.clone(), format!("{reply_head}x=1")],
+            67,
+        ),
+    ] {
+        let got = beside_set(&lines);
+        let want = format!("import rows={rows} models=1 sources=2\n");
+        if got.code != Some(0) || got.stdout != want {
+            wrong.push(format!(
+                "{what}: {:?} {:?} {:?}",
+                got.code, got.stdout, got.stderr
+            ));
         }
     }
     assert_eq!(wrong, Vec::<String>::new());
