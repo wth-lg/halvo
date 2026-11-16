@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in an order that the commit decides, starts no row after budget_s seconds, prints how many rows ran less those whose line says that the mutant does not build, and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
+# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in an order that the commit decides, starts no row after budget_s seconds, prints how many rows ran and how many of those it built a mutant for (a row that fails before its build, or whose mutant does not build, is not built), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
 # lane: alone
 set -u
 name=30-mutants
@@ -78,9 +78,10 @@ budget_run() {
   printf 'phase budget %s s\n' "$((ended - started))"
   printf '%s\n' "$out" >"$scratch/full" || exit 2
   awk -v m="$m" '
-    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; unbuilt[$2] = (index($0, "the mutant does not build") > 0); next }
+    /^built mutation:[^ ]+$/ { built_row[$2] = 1; next }
+    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; next }
     /^seconds mutation:[^ ]+ [0-9]+$/ {
-      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++; if (!unbuilt[$2]) built++ }
+      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++; if ($2 in built_row) built++ }
     }
     END { printf "ran %d of %d rows\nbuilt %d of %d rows\n", n, m, built, m }' "$scratch/full" >"$scratch/ran" || exit 2
   cat "$scratch/ran" || exit 2
@@ -207,6 +208,12 @@ real_runner() {
   done >"$dir/scripts/r1-gate/mutants.rows"
   printf 'later-row\ttarget.sh\ts/echo beta/echo b/\tleak\tpending X-2\tX-2\n' >>"$dir/scripts/r1-gate/mutants.rows"
   : >"$dir/scripts/r1-gate/mutants.expected"
+  real_commit "$1"
+}
+
+# shellcheck disable=SC2016
+real_commit() {
+  dir=$work/$1
   git -C "$dir" init -q && git -C "$dir" add -A || exit 2
   tree=$(git -C "$dir" write-tree) || exit 2
   head=$(printf 'tree %s\nauthor 30-mutants fixture <fixture@example.invalid> 1 +0000\ncommitter 30-mutants fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$tree" | git -C "$dir" hash-object -t commit -w --stdin) || exit 2
@@ -247,7 +254,7 @@ self_test() {
   order1="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only shredded-key-survives --only checkpoint-not-verified --only key-row-deleted"
   order2="$budgeted --only key-row-deleted --only delete-all-destroys-nothing --only checkpoint-not-verified --only shredded-key-survives --only segment-roundtrip-broken"
   order3="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only checkpoint-not-verified --only shredded-key-survives --only key-row-deleted"
-  caught='PASS mutation:segment-roundtrip-broken (test store::x: the one test failed)\nseconds mutation:segment-roundtrip-broken 31\nNOT-RUN mutation:delete-all-destroys-nothing (the budget of 240 s is used)'
+  caught='built mutation:segment-roundtrip-broken\nPASS mutation:segment-roundtrip-broken (test store::x: the one test failed)\nseconds mutation:segment-roundtrip-broken 31\nNOT-RUN mutation:delete-all-destroys-nothing (the budget of 240 s is used)'
   counted='mutation rows: 1 caught, 0 failed, 0 open, 0 transitional, 0 for the measuring Mac not run, 0 expected names with no row'
   rejected=0
   wrong=
@@ -332,7 +339,18 @@ self_test() {
   ref=refs/heads/main
   sha=$commit3
   check real-runner-first-row-only PASS "PASS $name" '' "row mutation:alpha-gone PASS N s${nl}ran 1 of 4 rows"
-  runner push-to-main-row-not-caught "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
+  runner push-to-main-row-that-fails-before-its-build-is-not-built "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (the substitution did not apply)\\nseconds mutation:segment-roundtrip-broken 3\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
+  ref=refs/heads/main
+  check push-to-main-row-that-fails-before-its-build-is-not-built FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}FAIL $name" "$order1"
+  runner push-to-main-built-line-of-a-row-that-did-not-run-is-not-counted "$applies; $listing; printf \"built mutation:key-row-deleted\\n$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-built-line-of-a-row-that-did-not-run-is-not-counted PASS "ran 1 of 5 rows${nl}built 1 of 5 rows${nl}PASS $name" "$order1"
+  real_runner real-runner-counts-the-rows-it-built
+  printf 'delta-gone\ttarget.sh\ts/echo alpha/echo alpha2/\ttest selftest:fx/delta\trequired\tX-1\n' >>"$work/real-runner-counts-the-rows-it-built/scripts/r1-gate/mutants.rows"
+  real_commit real-runner-counts-the-rows-it-built
+  ref=refs/heads/main
+  check real-runner-counts-the-rows-it-built FAIL "ran 4 of 5 rows${nl}built 3 of 5 rows${nl}FAIL $name" ''
+  runner push-to-main-row-not-caught "$applies; $listing; printf \"built mutation:segment-roundtrip-broken\\nFAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
   check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
   runner push-to-main-budget-is-timed-by-the-clock "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"

@@ -43,7 +43,9 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       requires one passing run of the unmutated test. PASS mutation:<name>
       names the verdict source.
       A mutant that does not build is FAIL mutation:<name> (the mutant does not
-      build), never a caught mutant.
+      build), never a caught mutant. Each mutant that a build (not a type
+      check) compiled prints built mutation:<name> before its verdict line; a
+      row that ends before its build prints none.
       --strict also fails on a pending or transitional row, on a row for the
       measuring Mac that did not run, on a row that the budget left unrun, on a
       name of mutants.expected that no row file holds or retires, and on a
@@ -621,6 +623,7 @@ run_rows() {
     fi
     if mutant_builds "$mutated"; then builds=yes; else builds=no; fi
     stop_check
+    [ "$builds:$compile_form" != yes:build ] || printf 'built mutation:%s\n' "$row_name"
     case $compile_form in
       check) compiles=type-checks; compiled=type-checked; not_compiled='does not type-check'; compile_step='the type check' ;;
       *) compiles=builds; compiled=built; not_compiled='does not build'; compile_step='the build step' ;;
@@ -1378,6 +1381,18 @@ cases() {
   verifier_cases
   rule_cases
   form_cases
+  built_cases
+}
+
+built_cases() {
+  t a-built-row-prints-its-built-line PASS fixture_says builds 'built mutation:applies' yes
+  t a-row-whose-substitution-did-not-apply-prints-no-built-line FAIL fixture_says unapplied 'built mutation:stale' yes
+  t a-row-whose-test-fails-unmutated-prints-no-built-line FAIL fixture_says wrong 'built mutation:by-test'
+  t a-mutant-that-does-not-build-prints-no-built-line FAIL fixture_says broken 'built mutation:broken' yes
+  t a-control-that-does-not-build-prints-no-built-line FAIL fixture_says control 'built mutation:control-row' yes
+  t a-type-checked-cargo-row-prints-no-built-line FAIL with_cargo_home form-lib fixture_says form-lib 'built mutation:held' yes
+  t a-kept-build-row-prints-its-built-line PASS with_cargo_home form-sqlcipher fixture_says form-sqlcipher 'built mutation:held' yes
+  t a-full-run-prints-the-built-line-of-a-cargo-row PASS with_cargo_home form-lib fixture_says form-lib 'built mutation:held' no
 }
 
 form_fixture() {
