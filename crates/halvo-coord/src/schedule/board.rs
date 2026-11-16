@@ -126,6 +126,7 @@ pub struct Board<C> {
     ranks: u64,
     listed: bool,
     aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
+    defer_held: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -148,6 +149,7 @@ impl<C> Board<C> {
             ranks: 0,
             listed: false,
             aside: Vec::new(),
+            defer_held: Vec::new(),
         }
     }
 
@@ -172,6 +174,24 @@ impl<C> Board<C> {
 
     pub(super) fn take_aside(&mut self, agent: &AgentId) {
         self.aside.retain(|(a, _)| a != agent);
+    }
+
+    /// Whether the agent's start sends its request to defer only after its `run_started` is
+    /// acknowledged: a `run_started` of it was refused with a name other than `seq`, and no store
+    /// of it has been acknowledged since (I5.5, ruling RD-64 1.8).
+    pub fn defer_held(&self, agent: &AgentId) -> bool {
+        self.defer_held.contains(agent)
+    }
+
+    pub(super) fn hold_defer(&mut self, agent: &AgentId) {
+        if !self.defer_held.contains(agent) {
+            self.defer_held.push(agent.clone());
+        }
+    }
+
+    /// A store of the agent was acknowledged.
+    pub fn acknowledged(&mut self, agent: &AgentId) {
+        self.defer_held.retain(|a| a != agent);
     }
 
     /// Whether this is the life's first creation move that read the owner's list, which raises

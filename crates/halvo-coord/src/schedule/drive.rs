@@ -413,6 +413,8 @@ fn log_at<P: Owner, C>(
         .collect();
     cx.ports.log(&events)?;
     facts.events.extend(events);
+    let agent = facts.agent.clone();
+    board.acknowledged(&agent);
     Ok(())
 }
 
@@ -609,7 +611,9 @@ where
 /// facts as read (`decide`, ruling RD-52 (a)); where one fails it answers that step's cause and
 /// writes nothing of the body, so that no slot and no start of the day is counted and no runner
 /// starts. Such a start has sent the request to defer of step 5, as I5.5 says of a start that
-/// fails at step 6.
+/// fails at step 6, but for an agent whose `run_started` was refused with a name other than `seq`
+/// and of which no store has been acknowledged since: its start sends the request only after its
+/// `run_started` is acknowledged (ruling RD-64 1.8).
 fn start_steps_5_to_8<P, C>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -628,9 +632,15 @@ where
         answer,
         run,
     };
-    let _ = cx
-        .ports
-        .defer(cx.move_stamp.now().saturating_add(go.defer_ms));
+    let defer = || {
+        let _ = cx
+            .ports
+            .defer(cx.move_stamp.now().saturating_add(go.defer_ms));
+    };
+    let held = board.defer_held(&agent);
+    if !held {
+        defer();
+    }
     let run = match minted(cx).map(|h| RunId::parse(&h)) {
         Ok(Ok(run)) => run,
         Ok(Err(_)) => return served(Err(Cause::NoService), None),
@@ -653,7 +663,15 @@ where
         Ok(Stored::LoggedOrFound) => {}
         Ok(Stored::ClosedLostStart) => return served(Err(Cause::State), None),
         Ok(Stored::RedecidedFails(cause)) => return served(Err(cause), None),
-        Err(e) => return served(Err(port_cause(&e)), None),
+        Err(e) => {
+            if matches!(&e, PortError::Refused(_)) && !seq_refusal(&e) {
+                board.hold_defer(&agent);
+            }
+            return served(Err(port_cause(&e)), None);
+        }
+    }
+    if held {
+        defer();
     }
     board.members[i].facts.store_ended = false;
     let workflow = board.members[i].facts.workflow.id.clone();
