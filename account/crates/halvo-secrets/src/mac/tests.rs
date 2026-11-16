@@ -1618,11 +1618,36 @@ mod real_files {
         }
     }
 
+    /// The parent of the store directory of `label` in this process, under the target's tmp:
+    /// the first call makes a fresh directory named by the label, the process id and a count
+    /// kept in the process, passing over a name that an earlier run left; later calls of the
+    /// same label give the same directory.
     fn parent(label: &str) -> std::path::PathBuf {
-        let parent =
-            std::env::temp_dir().join(format!("halvo-secrets-mac-{}-{label}", std::process::id()));
-        std::fs::create_dir_all(&parent).expect("the parent of the store directory");
-        parent
+        static MADE: std::sync::Mutex<Vec<(String, std::path::PathBuf)>> =
+            std::sync::Mutex::new(Vec::new());
+        let mut made = MADE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some((_, parent)) = made.iter().find(|(made_for, _)| made_for == label) {
+            return parent.clone();
+        }
+        let exe = std::env::current_exe().expect("the test binary");
+        let target = exe
+            .ancestors()
+            .nth(3)
+            .expect("the target directory above deps");
+        let base = target.join("tmp").join("halvo-secrets-mac");
+        std::fs::create_dir_all(&base).expect("the base of the real-file tests");
+        let mut n = made.len();
+        loop {
+            let parent = base.join(format!("{label}-{}-{n}", std::process::id()));
+            match std::fs::create_dir(&parent) {
+                Ok(()) => {
+                    made.push((label.to_string(), parent.clone()));
+                    return parent;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => n += 1,
+                Err(error) => panic!("the parent of the store directory: {error}"),
+            }
+        }
     }
 
     fn file_item(label: &str) -> Item<UnixFs, Plain> {

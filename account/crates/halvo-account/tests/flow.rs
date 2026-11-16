@@ -1322,20 +1322,27 @@ mod against_the_store {
         }
     }
 
-    fn place(label: &str, n: usize) -> PathBuf {
-        let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
-        for again in 0.. {
-            let parent = base.join(format!(
-                "halvo-account-delete-{}-{label}-{n}-{again}",
-                std::process::id()
-            ));
-            match std::fs::create_dir_all(base).and_then(|()| std::fs::create_dir(&parent)) {
-                Ok(()) => return parent.join("store"),
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(error) => panic!("the parent of the store directory: {error}"),
+    /// A fresh directory that halvo_test_dir::make makes, removed at the end of a case and
+    /// kept after a failure.
+    struct Place(PathBuf);
+
+    impl Place {
+        fn new(label: &str) -> Place {
+            let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-account-delete");
+            Place(halvo_test_dir::make(&base, label).expect("the parent of the store directory"))
+        }
+
+        fn store(&self) -> PathBuf {
+            self.0.join("store")
+        }
+    }
+
+    impl Drop for Place {
+        fn drop(&mut self) {
+            if !std::thread::panicking() {
+                let _ = std::fs::remove_dir_all(&self.0);
             }
         }
-        unreachable!("a fresh directory is found")
     }
 
     #[test]
@@ -1391,8 +1398,9 @@ mod against_the_store {
         for result in ["deleted", "no-such-account"] {
             for (name, after, line, held) in &cases {
                 n += 1;
+                let place = Place::new(&format!("rows-{n}"));
                 let store = Store::in_directory(
-                    Directory::new(place("rows", n)).expect("an absolute directory"),
+                    Directory::new(place.store()).expect("an absolute directory"),
                     Name::new("account").expect("a name"),
                 );
                 assert_eq!(store.write(&sent.to_secret()), Write::Stored);

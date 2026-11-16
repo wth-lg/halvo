@@ -18,13 +18,34 @@ fn on_a_hosted_runner() {
     );
 }
 
+/// The store directory of `label` in this process: the first call makes a fresh parent named by
+/// the process id, the label and a count kept in the process, passing over a name that an
+/// earlier run left (a process id comes again between runs of one job); later calls of the
+/// same label give the same directory.
 fn dir(label: &str) -> PathBuf {
-    let parent = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
-        "halvo-secrets-hosted-{}-{label}",
-        std::process::id()
-    ));
-    std::fs::create_dir_all(&parent).expect("the parent of the store directory");
-    parent.join("store")
+    static MADE: std::sync::Mutex<Vec<(String, PathBuf)>> = std::sync::Mutex::new(Vec::new());
+    let mut made = MADE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((_, store)) = made.iter().find(|(made_for, _)| made_for == label) {
+        return store.clone();
+    }
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(base).expect("the target's temporary directory");
+    let mut n = made.len();
+    loop {
+        let parent = base.join(format!(
+            "halvo-secrets-hosted-{}-{label}-{n}",
+            std::process::id()
+        ));
+        match std::fs::create_dir(&parent) {
+            Ok(()) => {
+                let store = parent.join("store");
+                made.push((label.to_string(), store.clone()));
+                return store;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => n += 1,
+            Err(error) => panic!("the parent of the store directory: {error}"),
+        }
+    }
 }
 
 fn name(label: &str) -> Name {

@@ -441,6 +441,30 @@ mod tests {
     use crate::keychain::{ItemRef, DUPLICATE_ITEM, ITEM_NOT_FOUND};
     use std::sync::Mutex;
 
+    /// A fresh directory under the target's tmp that halvo_test_dir::make makes, removed at
+    /// the end of the test and kept after a failure.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str) -> Scratch {
+            let exe = std::env::current_exe().expect("the test binary");
+            let target = exe
+                .ancestors()
+                .nth(3)
+                .expect("the target directory above deps");
+            let base = target.join("tmp").join("halvo-secrets-unit");
+            Scratch(halvo_test_dir::make(&base, name).expect("a scratch directory"))
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            if !std::thread::panicking() {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+    }
+
     /// A Keychain of one item at most, which a `Store` can hold.
     struct Held(Mutex<Vec<Vec<u8>>>);
 
@@ -488,10 +512,8 @@ mod tests {
     /// G4 (e): `remove` gives what then stands, here the other store's item.
     #[test]
     fn a_removal_gives_what_then_stands_beside_the_item_of_the_other_store() {
-        let parent =
-            std::env::temp_dir().join(format!("halvo-secrets-store-{}-then", std::process::id()));
-        std::fs::create_dir_all(&parent).expect("the parent of the store directory");
-        let dir = Directory::new(parent.join("store")).expect("an absolute directory");
+        let scratch = Scratch::new("store-then");
+        let dir = Directory::new(scratch.0.join("store")).expect("an absolute directory");
         let name = Name::new("account").expect("a name");
         let kept: &[u8] = b"the Keychain item's credential..";
         let store = Store {

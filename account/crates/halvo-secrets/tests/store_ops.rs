@@ -5,27 +5,37 @@ use halvo_secrets::{
 };
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 const HELD: &[u8] = b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-fn scratch(label: &str) -> PathBuf {
-    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    fs::create_dir_all(base).expect("the target's temporary directory");
-    loop {
-        let n = NEXT.fetch_add(1, Ordering::SeqCst);
-        let path = base.join(format!(
-            "halvo-secrets-ops-{}-{label}-{n}",
-            std::process::id()
-        ));
-        match fs::create_dir(&path) {
-            Ok(()) => return path.join("store"),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => panic!("a scratch directory: {error}"),
+/// The store directory of one test, `store` in a fresh directory that halvo_test_dir::make
+/// makes; the directory goes at the end of the test, and stays after a failure.
+struct Scratch {
+    made: PathBuf,
+    store: PathBuf,
+}
+
+impl std::ops::Deref for Scratch {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.store
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            let _ = fs::remove_dir_all(&self.made);
         }
     }
+}
+
+fn scratch(label: &str) -> Scratch {
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-secrets-ops");
+    let made = halvo_test_dir::make(&base, label).expect("a scratch directory");
+    let store = made.join("store");
+    Scratch { made, store }
 }
 
 fn store_in(dir: &Path) -> Store {

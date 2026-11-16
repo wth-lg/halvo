@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), also inside a loop that retries it, is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it: the list may shrink with its pins and may not grow (U2.5).
+# rule: No tracked Rust test outside crates/halvo-test-dir names a scratch directory from the process id or the clock alone, read lexically in the forms that --help lists: in test code (a tests/ directory, tests.rs, testing.rs, a module or a file under a cfg with test), a line that makes a directory by create_dir_all, a DirBuilder whose recursive() takes anything but false, a plain DirBuilder create or create_dir (also each under another name by use ... as), also inside a loop that retries it, is a place when a process id or clock read (also under another name by use ... as, in a variable bound from one, or through a test function that returns one) stands beside a path or string build on one line, or such a read and a format! or write! stand in the lines above it in its function (16 at most), and each file's count of places equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it: the list may shrink with its pins and may not grow (U2.5); and the tracked files under account/crates/halvo-test-dir, the copy of the maker inside the wall of account/, equal those under crates/halvo-test-dir byte for byte, a differing, missing or extra file named, and a place made through the copy counts as one made through the original (unit 7.8, P7-112).
 # lane: free
 set -u
 LC_ALL=C
@@ -283,6 +283,7 @@ BEGIN {
       continue
     }
     if (substr(path, 1, length(skip)) == skip) continue
+    if (substr(path, 1, length(copy)) == copy) continue
     list[++files] = path
   }
   if (r < 0) {
@@ -320,6 +321,15 @@ BEGIN {
       faults++
     }
   }
+  while ((r = (getline line < copylist)) > 0) {
+    print line
+    faults++
+  }
+  if (r < 0) {
+    printf "test-dirs copy-list=unread\n"
+    faults++
+  }
+  close(copylist)
   printf "test-dirs files=%d places=%d known=%d faults=%d\n", files, total, nk, faults
   exit faults ? 1 : 0
 }
@@ -334,6 +344,25 @@ paths_of() {
   awk 'NF { print $1, $2 }' "$1" | sort | cksum | awk '{ print $1 }'
 }
 
+copy_of_the_maker() {
+  git -C "$1" -c core.quotePath=false ls-files -- crates/halvo-test-dir >"$2/maker" || return 1
+  git -C "$1" -c core.quotePath=false ls-files -- account/crates/halvo-test-dir >"$2/copy" || return 1
+  : >"$2/copy.txt" || return 1
+  [ -s "$2/copy" ] || return 0
+  while IFS= read -r file; do
+    if ! grep -Fqx "account/$file" "$2/copy"; then
+      printf 'test-dirs copy=account/%s missing: copy it from %s\n' "$file" "$file"
+    elif ! cmp -s "$1/$file" "$1/account/$file"; then
+      printf 'test-dirs copy=account/%s differs: copy it from %s byte for byte\n' "$file" "$file"
+    fi
+  done <"$2/maker" >>"$2/copy.txt" || return 1
+  while IFS= read -r file; do
+    if ! grep -Fqx "${file#account/}" "$2/maker"; then
+      printf 'test-dirs copy=%s extra: the copy holds the files of crates/halvo-test-dir alone; copy them from there\n' "$file"
+    fi
+  done <"$2/copy" >>"$2/copy.txt" || return 1
+}
+
 measure() {
   repo=$1
   list=$2
@@ -342,7 +371,9 @@ measure() {
   paths=$(paths_of "$list") || fail setup
   git -C "$repo" -c core.quotePath=false ls-files -- '*.rs' >"$out/files" || fail git
   : >"$out/places.txt" || fail setup
-  awk -v root="$repo" -v skip=crates/halvo-test-dir/ -v placelist="$out/places.txt" \
+  copy_of_the_maker "$repo" "$out" || fail copy
+  awk -v root="$repo" -v skip=crates/halvo-test-dir/ -v copy=account/crates/halvo-test-dir/ \
+    -v copylist="$out/copy.txt" -v placelist="$out/places.txt" \
     -v knownlist="$list" -v filelist="$out/files" -v pin_rows="$pin_rows" \
     -v pin_places="$pin_places" -v pin_paths="$pin_paths" -v paths="$paths" "$program"
   case $? in
@@ -405,6 +436,14 @@ path and count) pin the list: it may shrink with its pins and may not grow, and 
 may not move from one row to another without a ruling. The known list is closed: it
 shrinks only, and new code takes its folder from halvo-test-dir. A raised pin passes,
 because the check cannot know a ruling: the review of the diff is the gate.
+
+The copy of the maker: account/ is a workspace of its own that takes no path outside it,
+so it holds account/crates/halvo-test-dir, a copy of crates/halvo-test-dir. When the copy
+holds a tracked file, each tracked file under crates/halvo-test-dir must stand under
+account/crates/halvo-test-dir with the same bytes, and the copy holds no other file; a
+differing, missing or extra file is named, and the fix is to copy it from
+crates/halvo-test-dir. The copy's files are read as the maker's are, so a place made through
+it counts as one made through the original.
 EOF
 }
 
@@ -534,6 +573,30 @@ self_test() {
   put crates/halvo-test-dir/src/lib.rs "#[cfg(test)]\nmod tests {\n$place}\n"
   put crates/halvo-test-dir/tests/t.rs "$place"
   case_of the-maker-itself PASS 'test-dirs files=0 places=0 known=0 faults=0'
+
+  repo the-copy-of-the-maker
+  put crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  put crates/halvo-test-dir/tests/t.rs "$place"
+  put account/crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  put account/crates/halvo-test-dir/tests/t.rs "$place"
+  case_of the-copy-of-the-maker PASS 'test-dirs files=0 places=0 known=0 faults=0'
+
+  repo a-copy-that-differs
+  put crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  put account/crates/halvo-test-dir/src/lib.rs "pub fn make() { }\n"
+  case_of a-copy-that-differs FAIL 'test-dirs copy=account/crates/halvo-test-dir/src/lib.rs differs: copy it from crates/halvo-test-dir/src/lib.rs byte for byte'
+
+  repo a-copy-that-misses-a-file
+  put crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  put crates/halvo-test-dir/src/tests.rs "fn t() {}\n"
+  put account/crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  case_of a-copy-that-misses-a-file FAIL 'test-dirs copy=account/crates/halvo-test-dir/src/tests.rs missing: copy it from crates/halvo-test-dir/src/tests.rs'
+
+  repo a-copy-with-an-extra-file
+  put crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  put account/crates/halvo-test-dir/src/lib.rs "pub fn make() {}\n"
+  put account/crates/halvo-test-dir/src/extra.rs "fn t() {}\n"
+  case_of a-copy-with-an-extra-file FAIL 'test-dirs copy=account/crates/halvo-test-dir/src/extra.rs extra'
 
   repo a-crate-named-like-the-maker
   put crates/halvo-test-dir-two/tests/t.rs "$place"
