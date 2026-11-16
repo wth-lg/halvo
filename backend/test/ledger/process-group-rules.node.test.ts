@@ -240,16 +240,26 @@ test("a group whose leader pid now has another start time gets no signal", () =>
   expect(record).toEqual([`SIGTERM ${process.pid} ${OWNER}`]);
 });
 
-test("a group that ended by itself, whose id another program's leaderless group now holds, gets no signal from a handler or from endGroup", async () => {
+test("a group that ended by itself, whose id another program's leaderless group now holds, gets no signal from a handler", () => {
   const a = start();
   const b = start();
   rows = rows.filter((each) => each.pgid !== a.pid && each.pgid !== b.pid);
   rows.push({ pid: 90_001, pgid: a.pid, stat: "S", started: OTHER });
   rows.push({ pid: 90_002, pgid: b.pid, stat: "S", started: OTHER });
-  await expect(endGroup(b)).rejects.toThrow("still has members");
   fire("exit");
   expect(record).toEqual([]);
   expect(rows.filter((each) => each.pid >= 90_001)).toHaveLength(2);
+});
+
+test("endGroup ends the members that a group's exited leader left, since its caller started that group", async () => {
+  const a = start();
+  nextPid += 1;
+  rows.push({ pid: nextPid, pgid: a.pid, stat: "S", started: LATER });
+  rows = rows.filter((each) => each.pid !== a.pid);
+  await endGroup(a);
+  expect(record).toEqual([`SIGTERM -${a.pid} gone`]);
+  expect(rows.filter((each) => each.pgid === a.pid)).toEqual([]);
+  expect(marksIn()).toEqual([]);
 });
 
 test("the close of the IPC channel ends every group and exits with 1", () => {

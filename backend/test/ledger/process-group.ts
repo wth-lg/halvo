@@ -237,10 +237,14 @@ export function startGroup(command: string, args: string[], options: Options): G
   }
 }
 
-/** Ends the group with TERM and, if a member is left after 5 s, with KILL; throws if a member is left 5 s after KILL. */
+/**
+ * Ends the group with TERM and, if a member is left after 5 s, with KILL; throws if a member is left 5 s after KILL.
+ * Unlike the handlers and the sweep, it also signals the members of a group whose leader has exited, as the caller
+ * holds the group that it started: a test that stops a run's leader itself ends what the run left in its group.
+ */
 export async function endGroup(group: Group | null): Promise<void> {
   if (group === null) return;
-  if (leads(group, table())) {
+  if (members(group).length > 0) {
     send(group, "SIGTERM");
     if (!(await gone(group, GRACE_MS))) {
       send(group, "SIGKILL");
