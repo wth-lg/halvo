@@ -190,6 +190,19 @@ impl Origin {
         self.parts().2.parse().unwrap_or(0)
     }
 
+    /// Whether the origin has the scheme `http` and a host outside 127.0.0.0/8, where a host is in
+    /// that block only as four decimal labels of 0 to 255 whose first is `127` and never by its
+    /// first label alone (I1.4): `http://localhost:8080` is outside it.
+    pub fn insecure(&self) -> bool {
+        let labels: Vec<&str> = self.host().split('.').collect();
+        let loopback = labels.len() == 4
+            && labels[0] == "127"
+            && labels
+                .iter()
+                .all(|l| l.bytes().all(|b| b.is_ascii_digit()) && l.parse::<u8>().is_ok());
+        self.scheme() == "http" && !loopback
+    }
+
     /// The origin's text.
     pub fn as_str(&self) -> &str {
         &self.0

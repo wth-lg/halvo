@@ -588,6 +588,20 @@ where
                         self.raise_bind(st, i, run, event)
                     }
                     Raise::Run(kind) => {
+                        if let RunEvent::Handback(HandbackAsk {
+                            reason: crate::types::HandbackReason::AccountLink,
+                            origin: Some(origin),
+                            ..
+                        }) = event
+                        {
+                            if origin.insecure() {
+                                return items::answer_from_check(
+                                    &self.ports,
+                                    run,
+                                    crate::types::HandbackResult::Declined,
+                                );
+                            }
+                        }
                         let State { board, ledgers, .. } = st;
                         let Some(board) = board.as_mut() else {
                             return Err(Cause::State);
@@ -697,6 +711,12 @@ where
         let RunEvent::Bind(ask) = event else {
             return Err(Cause::State);
         };
+        if ask.origin.insecure() {
+            return self
+                .ports
+                .answer_bind(run, crate::types::BindResult::Decline)
+                .map_err(|e| cause_of(&e));
+        }
         let State {
             board,
             table,
