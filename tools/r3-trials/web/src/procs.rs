@@ -221,6 +221,16 @@ pub mod fence {
     }
 
     impl Admits {
+        /// What an admission of `p` takes: `p`, a process that the test started, by number and
+        /// start time, and through it the processes whose line of parents reaches it; no other
+        /// test's process and not the test process itself (CP-215 G2).
+        pub fn of_process(p: &Proc) -> Admits {
+            Admits {
+                pairs: vec![(p.pid, p.started_us)],
+                dirs: Vec::new(),
+            }
+        }
+
         /// Whether `p` is admitted, read with `table`, the process table at the call: `p` is one of
         /// `pairs` by number and start time; or `table` holds `p` by number and start time and its
         /// program lies below one of `dirs`; or its line of parents in `table`, each parent found by
@@ -326,10 +336,7 @@ pub mod fence {
 
     /// Admits the process `p`, a row that the test read of a process that it started.
     pub fn admit_process(p: &Proc) -> Admitted {
-        admit(Admits {
-            pairs: vec![(p.pid, p.started_us)],
-            dirs: Vec::new(),
-        })
+        admit(Admits::of_process(p))
     }
 
     /// Admits the processes whose program lies below `dir`, a directory of the test's own into
@@ -339,18 +346,6 @@ pub mod fence {
         admit(Admits {
             pairs: Vec::new(),
             dirs: vec![std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf())],
-        })
-    }
-
-    /// Admits the processes whose line of parents reaches this process, the children that the
-    /// test started and theirs; this process itself is never admitted.
-    pub fn admit_descendants() -> Admitted {
-        admit(Admits {
-            pairs: super::own()
-                .map(|o| (o.pid, o.started_us))
-                .into_iter()
-                .collect(),
-            dirs: Vec::new(),
         })
     }
 
@@ -964,13 +959,30 @@ pub(crate) mod tests {
         );
     }
 
-    /// CP-161 (3): the fence never admits this process itself, also when a test admits the
-    /// processes that descend from it.
+    /// CP-215 G2 (pr-review-40 B4): an admission of the child that one test started admits that
+    /// child, by number and start time, and not a child that another test of the same binary
+    /// started, nor the test process; read on two real children of this process, with no end sent.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn one_test_s_admission_admits_its_own_child_and_not_another_test_s() {
+        let (_a, a_row) = own_child();
+        let (_b, b_row) = own_child();
+        let me = own().expect("this process's row");
+        let table = table().expect("the process table");
+        let of_a = fence::Admits::of_process(&a_row);
+        assert!(of_a.admits(&a_row, &table), "the own child is not admitted");
+        assert!(
+            !of_a.admits(&b_row, &table),
+            "another test's child is admitted"
+        );
+        assert!(!of_a.admits(&me, &table), "the test process is admitted");
+    }
+
+    /// CP-161 (3): the fence never admits this process itself, also when a test admits it.
     #[cfg(any(target_os = "macos", windows))]
     #[test]
     fn the_fence_never_admits_this_process() {
         let me = own().expect("this process's row");
-        let _admitted = fence::admit_descendants();
         let _also = fence::admit_process(&me);
         assert!(std::panic::catch_unwind(|| kill(&me)).is_err());
     }

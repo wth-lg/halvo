@@ -2090,8 +2090,8 @@ pub(crate) mod tests {
             local_state: None,
             program: None,
         };
-        let _admitted = crate::procs::fence::admit_descendants();
         let mut ex = bounded(Executor::start(&opts)).await.expect("start");
+        let _admitted = crate::procs::fence::admit_process(ex.root().expect("the browser's row"));
         let utility = crate::fixture::origin(crate::fixture::UTILITY, port);
         let steps = async {
             ex.open(&format!("{utility}/signin")).await?;

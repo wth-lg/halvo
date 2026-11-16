@@ -826,10 +826,10 @@ mod tests {
         std::fs::write(scratch.join("beside.txt"), b"caller").unwrap();
         let origin = "http://state.agent.test:18599".to_string();
         let a_dir = scratch.join("a");
-        let _admitted = procs::fence::admit_descendants();
         let a = bounded(Executor::start(&options(a_dir.clone())))
             .await
             .unwrap();
+        let _a_admitted = procs::fence::admit_process(a.root().expect("the browser's row"));
         assert!(scratch.join("a-tmp").is_dir());
         let set = a
             .in_origin_page(
@@ -874,6 +874,7 @@ mod tests {
         let b = bounded(Executor::start(&options(b_dir.clone())))
             .await
             .unwrap();
+        let _b_admitted = procs::fence::admit_process(b.root().expect("the browser's row"));
         b.import_state(&exported).await.unwrap();
         let again = b.export_state(std::slice::from_ref(&origin)).await.unwrap();
         assert_eq!(
