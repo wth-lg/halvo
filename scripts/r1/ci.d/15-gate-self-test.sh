@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file, the self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash in the weekly run, when the range of the push or the pull request changes a file under scripts/r1-gate or this script, and when that range cannot be read.
+# rule: On every run the last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file; the self-tests of the R1 gate, sh scripts/r1-gate/run.sh --self-test and each check script under dash, run only in the weekly run, when the range of the push or the pull request changes a path of this script's list, and when that range cannot be read, and then they pass, print each group's PASS line once and reject at least one failing fixture each; an ordinary push or pull request runs neither pass.
 # lane: alone
 # limit: 1800
 set -u
@@ -27,6 +27,8 @@ self_tested() {
   [ -z "$zero" ] || fail "$label printed a PASS line with 0 cases: $zero"
   none=$(printf '%s\n' "$out" | grep -m 1 -E '^PASS self-test:[^ ]* \((.*[ ,])?0 failing fixtures rejected\)')
   [ -z "$none" ] || fail "$label rejected 0 failing fixtures: $none"
+  marked=$(printf '%s\n' "$out" | awk '/^PASS self-test:/ && (index($0, "[override:") || index($0, "[dirty tree;")) { print; exit }')
+  [ -z "$marked" ] || fail "$label printed a PASS line with an override or a dirty tree: $marked"
   case $group:$nl$out$nl in
     :*"${nl}PASS self-test:"*) ;;
     *"${nl}PASS self-test:$group ("* | *"${nl}PASS self-test:$group$nl"*) ;;
@@ -50,7 +52,7 @@ record_defect() {
 }
 
 fixture_commit() {
-  git -C "$1" add -A >/dev/null 2>&1 || exit 2
+  [ "${3:-}" = index ] || git -C "$1" add -A >/dev/null 2>&1 || exit 2
   fixture_tree=$(git -C "$1" write-tree) || exit 2
   fixture_parent=''
   if git -C "$1" rev-parse -q --verify HEAD >/dev/null 2>&1; then fixture_parent="parent $(git -C "$1" rev-parse HEAD)
@@ -95,9 +97,13 @@ event_value() {
   printf '%s\n' "$values"
 }
 
+in_gate_list() {
+  "$@" ':(icase)scripts/r1-gate' ':(icase,exclude)scripts/r1-gate/mutants.expected' ':(icase)scripts/r1/ci.d/15-gate-self-test.sh' ':(icase)scripts/ci/run-ci-d.sh' ':(icase)scripts/ci/self-test-alone.txt' ':(icase)docs/baseline/r1-gate-bounds.txt' ':(icase).github/workflows/ci.yml' ':(icase).gitattributes' ':(icase)scripts/.gitattributes' ':(icase)docs/.gitattributes' ':(icase)docs/baseline/.gitattributes'
+}
+
 unreadable() {
   printf 'range: unreadable: %s\n' "$1"
-  dash_reason='range unreadable'
+  gate_reason="range unreadable: $1"
 }
 
 push_base() {
@@ -114,10 +120,10 @@ push_base() {
   printf 'range: before %s names no commit here, so the base is the merge base with refs/remotes/origin/%s\n' "$before" "$default"
 }
 
-dash_decision() {
-  dash_reason=
+gate_decision() {
+  gate_reason=
   case ${GITHUB_EVENT_NAME:-} in
-    schedule) dash_reason='weekly run'; return ;;
+    schedule) gate_reason='weekly run'; return ;;
     push) push_base || return ;;
     pull_request)
       git -C "$CI_D_REPO" rev-parse -q --verify 'HEAD^2^{commit}' >/dev/null || { unreadable 'the pull request checkout is no merge commit'; return; }
@@ -127,34 +133,102 @@ dash_decision() {
     *) unreadable "the event $GITHUB_EVENT_NAME has no range"; return ;;
   esac
   head=$(git -C "$CI_D_REPO" rev-parse HEAD) || { unreadable 'git rev-parse HEAD failed'; return; }
-  changed=$(git -C "$CI_D_REPO" diff --name-only "$base" "$head" -- scripts/r1-gate "scripts/r1/ci.d/$name.sh") || { unreadable "git diff could not read $base..$head"; return; }
+  changed=$(in_gate_list git -C "$CI_D_REPO" diff --name-only "$base" "$head" --) || { unreadable "git diff could not read $base..$head"; return; }
   [ -n "$changed" ] || return
   printf '%s\n' "$changed" | sed 's/^/gate file changed: /'
-  dash_reason='gate file changed'
+  gate_reason="gate file changed: ${changed%%"$nl"*}"
+}
+
+each_once() {
+  for each in $3; do
+    seen=$(printf '%s\n' "$2" | awk -v g="self-test:$each" '$1 == "PASS" && ($2 == g || index($2, g " ") == 1) { n++ } END { print n + 0 }')
+    [ "$seen" -ne 0 ] || fail "$1 printed no PASS self-test:$each line"
+    [ "$seen" -eq 1 ] || fail "$1 printed PASS self-test:$each $seen times"
+  done
+}
+
+pass_counts() {
+  printf '%s\n' "$1" | awk '/^PASS self-test:/ {
+      n++
+      if (match($0, /[0-9]+ cases/)) c += substr($0, RSTART, RLENGTH - 6)
+      if (match($0, /[0-9]+ failing fixtures rejected/)) f += substr($0, RSTART, RLENGTH - 26)
+    }
+    END { printf "%d groups, %d cases, %d failing fixtures rejected", n, c, f }'
 }
 
 measure() {
   found=$(record_defect "$CI_D_REPO") || fail "$found"
   printf 'record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file\n'
   gate=$CI_D_REPO/scripts/r1-gate
-  dash_decision
-  if [ -z "$dash_reason" ]; then
-    printf 'dash pass: not run: no gate file changed in %s..%s\n' "$base" "$head"
-  else
-    printf 'dash pass: run (%s)\n' "$dash_reason"
-    if ! command -v dash >/dev/null 2>&1; then
-      printf 'SKIP %s (dash is not installed)\n' "$name"
-      exit 77
-    fi
+  gate_decision
+  if [ -z "$gate_reason" ]; then
+    printf "gate self-tests: not run: no path of the gate's list changed in %s..%s\n" "$base" "$head"
+    list=$(in_gate_list echo)
+    printf 'gate self-tests: first pass 0 groups; dash pass 0 groups; the list: %s\n' "$list"
+    printf 'PASS %s\n' "$name"
+    return
   fi
-  self_tested 'run.sh --self-test' '' sh "$gate/run.sh" --self-test
-  [ -n "$dash_reason" ] || { printf 'PASS %s\n' "$name"; return; }
+  printf 'gate self-tests: run (%s)\n' "$gate_reason"
+  if ! command -v dash >/dev/null 2>&1; then
+    printf 'SKIP %s (dash is not installed)\n' "$name"
+    exit 77
+  fi
+  groups=
+  for script in "$gate"/check-*.sh; do
+    [ -f "$script" ] || continue
+    group=${script##*/check-}
+    groups="$groups ${group%.sh}"
+  done
+  self_tested 'first pass: run.sh --self-test' '' sh "$gate/run.sh" --self-test
+  each_once 'first pass' "$out" "$groups run helper tree mutation"
+  first_counts=$(pass_counts "$out")
+  dash_out=
   for script in "$gate"/check-*.sh; do
     [ -f "$script" ] || fail "scripts/r1-gate holds no check-*.sh"
     group=${script##*/check-}
-    self_tested "dash ${script##*/} --self-test" "${group%.sh}" dash "$script" --self-test
+    self_tested "dash pass: dash ${script##*/} --self-test" "${group%.sh}" dash "$script" --self-test
+    dash_out=$dash_out$nl$out
   done
+  each_once 'dash pass' "$dash_out" "$groups"
+  dash_counts=$(pass_counts "$dash_out")
+  printf 'gate self-tests: first pass %s; dash pass %s\n' "$first_counts" "$dash_counts"
   printf 'PASS %s\n' "$name"
+}
+
+outside_reads() {
+  reads=$(git -C "$1" grep -n -I -o -E '\$\{?(GATE_ROOT|CI_D_REPO)\}?/[A-Za-z0-9_./-]*' -- scripts/r1-gate)
+  [ $? -le 1 ] || return 2
+  calls=$(git -C "$1" grep -n -I -E 'git -C "?\$\{?GATE_ROOT' -- scripts/r1-gate)
+  [ $? -le 1 ] || return 2
+  list=$(in_gate_list echo)
+  printf 'R %s\nC %s\n' "$reads" "$calls" | awk -v list="$list" '
+    BEGIN {
+      n = split(list, spec, " ")
+      for (i = 1; i <= n; i++) {
+        sub(/^:\([a-z,]*\)/, "", spec[i])
+        listed[tolower(spec[i])] = 1
+      }
+    }
+    function outside(p,   q) {
+      q = tolower(p)
+      sub(/\/+$/, "", q)
+      if (q == "" || q == "scripts/r1-gate" || index(q, "scripts/r1-gate/") == 1 || index(q, "target/") == 1) return 0
+      if (q == "changed-during-the-run") return 0
+      return !(q in listed)
+    }
+    $1 == "R" && match($0, /\$[{]?(GATE_ROOT|CI_D_REPO)[}]?\//) {
+      p = substr($0, RSTART + RLENGTH)
+      if (outside(p)) print substr($0, 3)
+      next
+    }
+    $1 == "C" && NF > 1 {
+      for (i = 2; i <= NF; i++) {
+        w = $i
+        gsub(/["\047]/, "", w)
+        sub(/^[A-Za-z0-9_.^~{}-]*:/, "", w)
+        if (w ~ /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.\/-]*$/ && outside(w)) print substr($0, 3) ": " w
+      }
+    }'
 }
 
 check() {
@@ -162,6 +236,7 @@ check() {
     unset GITHUB_EVENT_NAME GITHUB_EVENT_PATH
     [ -z "$event" ] || export GITHUB_EVENT_NAME="$event"
     [ -z "$event_path" ] || export GITHUB_EVENT_PATH="$event_path"
+    [ -z "$caller" ] || export "${caller?}"
     PATH=$path CI_D_REPO=$work/$1 "$shell" "$0" 2>&1
   )
   code=$?
@@ -176,19 +251,24 @@ check() {
     *"${3:-}"*) ;;
     *) got=$got-without-the-text ;;
   esac
-  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
-  if [ "$got" != "$2" ]; then
+  verdict "$1" "$2" "$got"
+  path=$PATH
+  event=
+  event_path=
+  caller=
+}
+
+verdict() {
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$3"
+  if [ "$3" != "$2" ]; then
     wrong="$wrong $1"
   elif [ "$2" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
-  path=$PATH
-  event=
-  event_path=
 }
 
 ranged() {
-  gate "$1" "${5:-$pass}" store '[[ a == a ]] && printf "PASS self-test:store (1 cases)\n"'
+  gate "$1" "${5:-$run_pass}" store "${6:-[[ a == a ]] && printf \"PASS self-test:store (1 cases)\\n\"}"
   mkdir -p "$work/$1/scripts/r1/ci.d" || exit 2
   printf 'check\n' >"$work/$1/scripts/r1/ci.d/$name.sh"
   fixture_commit "$work/$1"
@@ -197,6 +277,25 @@ ranged() {
     other) printf 'notes\n' >"$work/$1/README.md"; fixture_commit "$work/$1" ;;
     gate) printf '# a change\n' >>"$work/$1/scripts/r1-gate/check-store.sh"; fixture_record "$work/$1" ;;
     check) printf '# a change\n' >>"$work/$1/scripts/r1/ci.d/$name.sh"; fixture_commit "$work/$1" ;;
+    expected) printf 'row\n' >>"$work/$1/scripts/r1-gate/mutants.expected"; fixture_record "$work/$1" ;;
+    two)
+      mkdir -p "$work/$1/scripts/ci" "$work/$1/.github/workflows" || exit 2
+      printf '# a change\n' >>"$work/$1/scripts/ci/run-ci-d.sh"
+      printf '# a change\n' >>"$work/$1/.github/workflows/ci.yml"
+      fixture_commit "$work/$1" ;;
+    renamed-out)
+      mkdir -p "$work/$1/scripts/old" || exit 2
+      mv "$work/$1/scripts/r1-gate/check-store.sh" "$work/$1/scripts/old/check-store.sh" || exit 2
+      fixture_record "$work/$1" ;;
+    other-case)
+      blob=$(printf 'x\n' | git -C "$work/$1" hash-object -w --stdin) || exit 2
+      git -C "$work/$1" update-index --add --cacheinfo "100644,$blob,scripts/R1-gate/check-x.sh" || exit 2
+      fixture_commit "$work/$1" '' index ;;
+    docs/baseline/r1-gate-bounds.txt) printf 'x=2\n' >"$work/$1/$2"; fixture_record "$work/$1" ;;
+    *)
+      mkdir -p "$(dirname "$work/$1/$2")" || exit 2
+      printf '# a change\n' >>"$work/$1/$2"
+      fixture_commit "$work/$1" ;;
   esac
   to=$(git -C "$work/$1" rev-parse HEAD) || exit 2
   event=${3:-}
@@ -213,7 +312,12 @@ merged() {
 }
 
 unread() {
-  want="range: unreadable: $1${nl}dash pass: run (range unreadable)"
+  want="range: unreadable: $1${nl}gate self-tests: run (range unreadable: $1)"
+}
+
+not_run() {
+  list=$(in_gate_list echo)
+  want="gate self-tests: not run: no path of the gate's list changed in $from..$to${nl}gate self-tests: first pass 0 groups; dash pass 0 groups; the list: $list${nl}PASS $name"
 }
 
 gate() {
@@ -228,65 +332,80 @@ gate() {
   fixture_record "${directory%/scripts/r1-gate}"
 }
 
+scan_case() {
+  repo=$work/scan-$1
+  mkdir -p "$repo/scripts/r1-gate" || exit 2
+  git init -q "$repo" >/dev/null 2>&1 || exit 2
+  printf '%s\n' "$3" | tr @ \$ >"$repo/scripts/r1-gate/check-x.sh"
+  git -C "$repo" add -A >/dev/null 2>&1 || exit 2
+  found=$(outside_reads "$repo")
+  got=PASS
+  [ -z "$found" ] || got=FAIL
+  verdict "scan-$1" "$2" "$got"
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/no-tools"
   shell=$(command -v sh) || exit 2
   path=$PATH
   pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:@group@ (1 cases)\n"'
+  run_groups="[ \"\$*\" = --self-test ] || exit 3; for f in \"\${0%/*}\"/check-*.sh; do [ -f \"\$f\" ] || continue; g=\${f##*/check-}; printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\${g%.sh}\"; done; for g in"
+  run_pass="$run_groups run helper tree mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done"
   fail_then_pass='printf "FAIL self-test:@group@ (case x: wrong verdict)\nPASS self-test:@group@ (1 cases)\n"'
   planned='printf "FAIL self-test:store (planned)\n"; exit 1'
   rejected=0
   wrong=
   event=
   event_path=
+  caller=
   zero=0000000000000000000000000000000000000000
 
-  gate gate-passes "$pass" store "$pass" timed-run "$pass"
-  check gate-passes PASS
+  gate gate-passes "$run_pass" store "$pass" timed-run "$pass"
+  check gate-passes PASS "gate self-tests: first pass 6 groups, 12 cases, 6 failing fixtures rejected; dash pass 2 groups, 2 cases, 0 failing fixtures rejected${nl}PASS $name"
   gate run-fails "$planned" store "$pass"
-  check run-fails FAIL 'run.sh --self-test exited 1)'
+  check run-fails FAIL 'first pass: run.sh --self-test exited 1)'
   gate run-prints-no-pass-line 'exit 0' store "$pass"
   check run-prints-no-pass-line FAIL 'run.sh --self-test printed no PASS self-test line)'
   gate pass-words-inside-a-line 'printf "the line PASS self-test:store is missing\n"' store "$pass"
   check pass-words-inside-a-line FAIL 'run.sh --self-test printed no PASS self-test line)'
-  gate no-check-script "$pass"
+  gate no-check-script "$run_pass"
   check no-check-script FAIL 'scripts/r1-gate holds no check-*.sh)'
-  gate check-fails "$pass" store "$planned"
-  check check-fails FAIL 'dash check-store.sh --self-test exited 1)'
-  gate check-prints-no-pass-line "$pass" store 'exit 0'
+  gate check-fails "$run_pass" store "$planned"
+  check check-fails FAIL 'dash pass: dash check-store.sh --self-test exited 1)'
+  gate check-prints-no-pass-line "$run_pass" store 'exit 0'
   check check-prints-no-pass-line FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
-  gate second-check-fails "$pass" store "$pass" timed-run "$planned"
+  gate second-check-fails "$run_pass" store "$pass" timed-run "$planned"
   check second-check-fails FAIL 'dash check-timed-run.sh --self-test exited 1)'
-  gate check-with-another-initial-fails "$pass" store "$pass" cost "$planned"
+  gate check-with-another-initial-fails "$run_pass" store "$pass" cost "$planned"
   check check-with-another-initial-fails FAIL 'dash check-cost.sh --self-test exited 1)'
-  gate check-needs-bash "$pass" store '[[ a == a ]] && printf "PASS self-test:store\n"'
+  gate check-needs-bash "$run_pass" store '[[ a == a ]] && printf "PASS self-test:store\n"'
   check check-needs-bash FAIL 'dash check-store.sh --self-test exited 127)'
   gate run-prints-a-fail-line "$fail_then_pass" store "$pass"
   check run-prints-a-fail-line FAIL 'run.sh --self-test printed: FAIL self-test:store (case x: wrong verdict))'
-  gate check-prints-a-fail-line "$pass" store "$fail_then_pass"
+  gate check-prints-a-fail-line "$run_pass" store "$fail_then_pass"
   check check-prints-a-fail-line FAIL 'dash check-store.sh --self-test printed: FAIL self-test:store (case x: wrong verdict))'
-  gate check-passes-as-another "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:deletion (1 cases)\n"'
+  gate check-passes-as-another "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:deletion (1 cases)\n"'
   check check-passes-as-another FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
-  gate check-group-is-a-prefix "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store-other (1 cases)\n"'
+  gate check-group-is-a-prefix "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store-other (1 cases)\n"'
   check check-group-is-a-prefix FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
-  gate check-passes-with-0-cases "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 cases)\n"'
+  gate check-passes-with-0-cases "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 cases)\n"'
   check check-passes-with-0-cases FAIL 'dash check-store.sh --self-test printed a PASS line with 0 cases: PASS self-test:store (0 cases))'
-  gate check-rejects-no-fixture "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (3 cases, 0 failing fixtures rejected)\n"'
+  gate check-rejects-no-fixture "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (3 cases, 0 failing fixtures rejected)\n"'
   check check-rejects-no-fixture FAIL 'dash check-store.sh --self-test rejected 0 failing fixtures: PASS self-test:store (3 cases, 0 failing fixtures rejected))'
   gate run-rejects-no-fixture 'printf "PASS self-test:run (5 cases, 0 failing fixtures rejected)\n"' store "$pass"
   check run-rejects-no-fixture FAIL 'run.sh --self-test rejected 0 failing fixtures: PASS self-test:run (5 cases, 0 failing fixtures rejected))'
-  gate bare-zero-rejected "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 failing fixtures rejected)\n"'
+  gate bare-zero-rejected "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 failing fixtures rejected)\n"'
   check bare-zero-rejected FAIL 'dash check-store.sh --self-test rejected 0 failing fixtures: PASS self-test:store (0 failing fixtures rejected))'
-  gate ten-fixtures-rejected "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (12 cases, 10 failing fixtures rejected)\n"'
-  check ten-fixtures-rejected PASS
+  gate ten-fixtures-rejected "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (12 cases, 10 failing fixtures rejected)\n"'
+  check ten-fixtures-rejected PASS 'gate self-tests: first pass 5 groups, 10 cases, 5 failing fixtures rejected; dash pass 1 groups, 12 cases, 10 failing fixtures rejected'
   mkdir -p "$work/check-script-renamed/scripts" "$work/check-script-renamed/docs" || exit 2
   cp -R "$CI_D_REPO/scripts/r1-gate" "$work/check-script-renamed/scripts/" || exit 2
   cp -R "$CI_D_REPO/docs/baseline" "$work/check-script-renamed/docs/" || exit 2
   mv "$work/check-script-renamed/scripts/r1-gate/check-store.sh" "$work/check-script-renamed/scripts/r1-gate/check-store-old.sh" || exit 2
   fixture_record "$work/check-script-renamed"
   check check-script-renamed FAIL 'FAIL self-test:run (check-store.sh is missing from'
-  gate gate-with-a-stale-record "$pass" store "$pass"
+  gate gate-with-a-stale-record "$run_pass" store "$pass"
   printf '# a change after the record\n' >>"$work/gate-with-a-stale-record/scripts/r1-gate/run.sh"
   fixture_commit "$work/gate-with-a-stale-record"
   check gate-with-a-stale-record FAIL ': make the record again)'
@@ -294,17 +413,35 @@ self_test() {
   record_case other-file-changed PASS
   record_case stale FAIL
   record_case bounds-changed FAIL
-  run_changed="gate file changed: scripts/r1-gate/check-store.sh${nl}dash pass: run (gate file changed)"
+  run_changed="gate file changed: scripts/r1-gate/check-store.sh${nl}gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)"
   new_branch="{\"before\": \"$zero\", \"repository\": {\"default_branch\": \"trunk\"}}"
-  ranged push-no-gate-file-changed other push '{"before": "@from@", "after": "@to@"}'
-  check push-no-gate-file-changed PASS "dash pass: not run: no gate file changed in $from..$to"
+  ranged push-no-gate-file-changed other push '{"before": "@from@", "after": "@to@"}' "$planned"
+  not_run
+  check push-no-gate-file-changed PASS "$want"
   ranged push-gate-file-changed gate push '{"before": "@from@", "after": "@to@"}'
   check push-gate-file-changed FAIL "$run_changed"
+  ranged push-gate-file-changed-counts gate push '{"before": "@from@"}' "$run_pass" "$pass"
+  check push-gate-file-changed-counts PASS "$run_changed${nl}PASS self-test:store (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:run (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:helper (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:tree (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:mutation (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:store (1 cases)${nl}gate self-tests: first pass 5 groups, 10 cases, 5 failing fixtures rejected; dash pass 1 groups, 1 cases, 0 failing fixtures rejected${nl}PASS $name"
   ranged push-check-changed check push '{"before": "@from@", "after": "@to@"}'
-  check push-check-changed FAIL "gate file changed: scripts/r1/ci.d/$name.sh${nl}dash pass: run (gate file changed)"
-  ranged new-branch-no-gate-file-changed other push "$new_branch"
+  check push-check-changed FAIL "gate file changed: scripts/r1/ci.d/$name.sh${nl}gate self-tests: run (gate file changed: scripts/r1/ci.d/$name.sh)"
+  for listed in scripts/ci/run-ci-d.sh scripts/ci/self-test-alone.txt docs/baseline/r1-gate-bounds.txt .github/workflows/ci.yml .gitattributes scripts/.gitattributes docs/.gitattributes docs/baseline/.gitattributes; do
+    listed_case=listed$(printf '%s' "$listed" | tr '/.' '--')
+    ranged "$listed_case" "$listed" push '{"before": "@from@"}' "$planned"
+    check "$listed_case" FAIL "gate self-tests: run (gate file changed: $listed)${nl}FAIL self-test:store (planned)${nl}FAIL $name (first pass: run.sh --self-test exited 1)"
+  done
+  ranged two-listed-paths two push '{"before": "@from@"}' "$planned"
+  check two-listed-paths FAIL "gate file changed: .github/workflows/ci.yml${nl}gate file changed: scripts/ci/run-ci-d.sh${nl}gate self-tests: run (gate file changed: .github/workflows/ci.yml)"
+  ranged only-mutants-expected-and-the-record expected push '{"before": "@from@"}' "$planned"
+  not_run
+  check only-mutants-expected-and-the-record PASS "$want"
+  ranged renamed-out-of-the-gate renamed-out push '{"before": "@from@"}'
+  check renamed-out-of-the-gate FAIL 'gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)'
+  ranged gate-in-another-case other-case push '{"before": "@from@"}'
+  check gate-in-another-case FAIL 'gate self-tests: run (gate file changed: scripts/R1-gate/check-x.sh)'
+  ranged new-branch-no-gate-file-changed other push "$new_branch" "$planned"
   git -C "$work/new-branch-no-gate-file-changed" update-ref refs/remotes/origin/trunk "$from" || exit 2
-  check new-branch-no-gate-file-changed PASS "range: before $zero names no commit here, so the base is the merge base with refs/remotes/origin/trunk${nl}dash pass: not run: no gate file changed in $from..$to"
+  not_run
+  check new-branch-no-gate-file-changed PASS "range: before $zero names no commit here, so the base is the merge base with refs/remotes/origin/trunk${nl}$want"
   ranged new-branch-gate-file-changed gate push "$new_branch"
   git -C "$work/new-branch-gate-file-changed" update-ref refs/remotes/origin/trunk "$from" || exit 2
   check new-branch-gate-file-changed FAIL "$run_changed"
@@ -332,32 +469,72 @@ self_test() {
   ranged push-without-event-file other push ""
   unread 'GITHUB_EVENT_PATH names no file'
   check push-without-event-file FAIL "$want"
-  ranged push-diff-fails other push ""
+  ranged push-diff-fails other push "" "$planned"
   broken=$(printf 'tree 1111111111111111111111111111111111111111\nauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' | git -C "$work/push-diff-fails" hash-object -t commit -w --stdin) || exit 2
   event_path=$work/push-diff-fails.json
   printf '{"before": "%s"}\n' "$broken" >"$event_path"
   unread "git diff could not read $broken..$to"
-  check push-diff-fails FAIL "$want"
-  ranged pull-request-no-gate-file-changed other pull_request
+  check push-diff-fails FAIL "$want${nl}FAIL self-test:store (planned)${nl}FAIL $name (first pass: run.sh --self-test exited 1)"
+  ranged pull-request-no-gate-file-changed other pull_request "" "$planned"
   merged pull-request-no-gate-file-changed
-  check pull-request-no-gate-file-changed PASS "dash pass: not run: no gate file changed in $from..$to"
+  not_run
+  check pull-request-no-gate-file-changed PASS "$want"
   ranged pull-request-gate-file-changed gate pull_request
   merged pull-request-gate-file-changed
   check pull-request-gate-file-changed FAIL "$run_changed"
   ranged pull-request-head-not-a-merge other pull_request
   unread 'the pull request checkout is no merge commit'
   check pull-request-head-not-a-merge FAIL "$want"
-  ranged weekly-run other schedule
-  check weekly-run FAIL "record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file${nl}dash pass: run (weekly run)"
-  ranged no-event other
+  ranged weekly-run other schedule "" "$planned"
+  check weekly-run FAIL "record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file${nl}gate self-tests: run (weekly run)${nl}FAIL self-test:store (planned)${nl}FAIL $name (first pass: run.sh --self-test exited 1)"
+  ranged weekly-run-dash-pass other schedule
+  check weekly-run-dash-pass FAIL "gate self-tests: run (weekly run)${nl}PASS self-test:store (2 cases"
+  ranged no-event other "" "" "$planned"
   unread 'GITHUB_EVENT_NAME is not set'
-  check no-event FAIL "$want"
+  check no-event FAIL "$want${nl}FAIL self-test:store (planned)${nl}FAIL $name (first pass: run.sh --self-test exited 1)"
   ranged event-without-a-range other workflow_dispatch
   unread 'the event workflow_dispatch has no range'
   check event-without-a-range FAIL "$want"
-  ranged run-fails-dash-not-run other push '{"before": "@from@"}' "$planned"
-  check run-fails-dash-not-run FAIL 'run.sh --self-test exited 1)'
-  gate dash-missing "$pass" store "$pass"
+  ranged run-fails-not-run other push '{"before": "@from@"}' "$planned"
+  not_run
+  check run-fails-not-run PASS "$want"
+  for assignment in GATE_ROOT=/nonexistent GATE_OVERRIDE_X=1 GATE_TREE_STATE=clean; do
+    caller_case=caller-${assignment%%=*}
+    ranged "$caller_case" gate push '{"before": "@from@"}' "env | grep ^GATE_; $run_pass"
+    caller=$assignment
+    check "$caller_case" FAIL "$run_changed${nl}$assignment"
+    ranged "$caller_case-not-run" other push '{"before": "@from@"}' "$planned"
+    not_run
+    caller=$assignment
+    check "$caller_case-not-run" PASS "$want"
+  done
+  gate override-line '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (2 cases, 1 failing fixtures rejected) [override: x=2]\n"' store "$pass"
+  check override-line FAIL 'first pass: run.sh --self-test printed a PASS line with an override or a dirty tree: PASS self-test:store (2 cases, 1 failing fixtures rejected) [override: x=2])'
+  gate dirty-tree-line "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (1 cases) [dirty tree; x]\n"'
+  check dirty-tree-line FAIL 'dash pass: dash check-store.sh --self-test printed a PASS line with an override or a dirty tree: PASS self-test:store (1 cases) [dirty tree; x])'
+  gate first-pass-lacks-a-group "$run_groups run helper mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done" store "$pass"
+  check first-pass-lacks-a-group FAIL 'FAIL 15-gate-self-test (first pass printed no PASS self-test:tree line)'
+  gate first-pass-group-twice "$run_groups run helper helper tree mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done" store "$pass"
+  check first-pass-group-twice FAIL 'FAIL 15-gate-self-test (first pass printed PASS self-test:helper 2 times)'
+  gate first-pass-lacks-a-check-group "[ \"\$*\" = --self-test ] || exit 3; for g in run helper tree mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done" store "$pass"
+  check first-pass-lacks-a-check-group FAIL 'FAIL 15-gate-self-test (first pass printed no PASS self-test:store line)'
+  gate dash-pass-group-twice "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (1 cases)\nPASS self-test:store (1 cases)\n"'
+  check dash-pass-group-twice FAIL 'FAIL 15-gate-self-test (dash pass printed PASS self-test:store 2 times)'
+  got=PASS
+  gate_list=$(in_gate_list printf '%s\n')
+  [ "$gate_list" = ":(icase)scripts/r1-gate${nl}:(icase,exclude)scripts/r1-gate/mutants.expected${nl}:(icase)scripts/r1/ci.d/$name.sh${nl}:(icase)scripts/ci/run-ci-d.sh${nl}:(icase)scripts/ci/self-test-alone.txt${nl}:(icase)docs/baseline/r1-gate-bounds.txt${nl}:(icase).github/workflows/ci.yml${nl}:(icase).gitattributes${nl}:(icase)scripts/.gitattributes${nl}:(icase)docs/.gitattributes${nl}:(icase)docs/baseline/.gitattributes" ] || got=FAIL
+  verdict the-gate-list PASS "$got"
+  found=$(outside_reads "$CI_D_REPO")
+  got=PASS
+  [ -z "$found" ] || { got=FAIL; printf '%s\n' "$found"; }
+  verdict gate-reads-in-the-list PASS "$got"
+  scan_case read-outside FAIL 'cat "@GATE_ROOT/docs/other.txt"'
+  scan_case repo-read-outside FAIL 'cat "@{CI_D_REPO}/Cargo.lock"'
+  scan_case git-read-outside FAIL 'git -C "@GATE_ROOT" show HEAD:crates/x/src/lib.rs'
+  scan_case stub-file-of-run PASS ': > "@GATE_ROOT/changed-during-the-run"'
+  scan_case another-stub-file FAIL ': > "@GATE_ROOT/changed-during-the-walk"'
+  scan_case reads-in-the-list PASS 'cat "@GATE_ROOT/docs/baseline/r1-gate-bounds.txt" "@GATE_ROOT/target/r1-gate/x" "@GATE_ROOT/scripts/r1-gate/lib.sh"'
+  gate dash-missing "$run_pass" store "$pass"
   for tool in sh git sed tail cut awk grep; do
     tool_path=$(command -v "$tool") || exit 2
     ln -s "$tool_path" "$work/no-tools/$tool" || exit 2
@@ -366,7 +543,8 @@ self_test() {
   check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
   ranged dash-missing-not-run other push '{"before": "@from@"}'
   path=$work/no-tools
-  check dash-missing-not-run PASS "dash pass: not run: no gate file changed in $from..$to"
+  not_run
+  check dash-missing-not-run PASS "$want"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
