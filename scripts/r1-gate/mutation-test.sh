@@ -62,7 +62,9 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       compile its mutant: cargo check of the package and target that the build
       names, for the unmutated copy and for a row on a file that cargo builds;
       cargo build for a row on a file named build.rs or on a path with a part
-      named halvo-sqlcipher, in any case;
+      named halvo-sqlcipher, in any case (the kept build), after one cargo
+      build of the unmutated copy before the first such row, so that a copy
+      that fails only at the link is FAIL unmutated:build and no row's fault;
       sh -n, cc, perl or swiftc for a row on another file. A type-checked row
       prints PASS mutation:<name> (applies and type-checks), a built one
       (applies and builds), and a mutant that does not type-check is
@@ -312,9 +314,21 @@ copy_form() {
   if [ "$apply_only" = yes ]; then compile_form=check; else compile_form=build; fi
 }
 
+kept_build() {
+  case $1 in */[Hh][Aa][Ll][Vv][Oo]-[Ss][Qq][Ll][Cc][Ii][Pp][Hh][Ee][Rr]/*|*/[Bb][Uu][Ii][Ll][Dd].[Rr][Ss]) return 0 ;; esac
+  return 1
+}
+
 mutant_form() {
   copy_form
-  case $1 in */[Hh][Aa][Ll][Vv][Oo]-[Ss][Qq][Ll][Cc][Ii][Pp][Hh][Ee][Rr]/*|*/[Bb][Uu][Ii][Ll][Dd].[Rr][Ss]) compile_form=build ;; esac
+  ! kept_build "$1" || compile_form=build
+}
+
+copy_failed() {
+  unmutated_first=''
+  IFS= read -r unmutated_first < "$work/unmutated.out"
+  case $compile_form in check) unmutated_step=type-check ;; *) unmutated_step=build ;; esac
+  printf 'FAIL unmutated:%s (%s)\n' "$unmutated_step" "$unmutated_first"
 }
 
 tree_build() {
@@ -503,7 +517,7 @@ run_rows() {
     step_check $? "awk of --only" || return 2
     [ -n "$only_hit" ] || { say FAIL "$only_name" "--only names no row"; failures=$((failures + 1)); }
   done
-  built_unmutated=no
+  built_unmutated=no; copy_built=no
   if [ -n "$only" ]; then
     : > "$work/rows.loop"
     only_seen=' '
@@ -575,13 +589,9 @@ run_rows() {
     if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
       copy_form
-      if ! tree_build "$work/unmutated.out"; then
-        unmutated_first=''
-        IFS= read -r unmutated_first < "$work/unmutated.out"
-        case $compile_form in check) unmutated_step=type-check ;; *) unmutated_step=build ;; esac
-        printf 'FAIL unmutated:%s (%s)\n' "$unmutated_step" "$unmutated_first"; return 1
-      fi
+      tree_build "$work/unmutated.out" || { copy_failed; return 1; }
       built_unmutated=yes
+      [ "$compile_form" != build ] || copy_built=yes
       if [ "$apply_only" = no ]; then
         gate_lines
         for gate_check in store deletion no-ll-hook; do
@@ -594,6 +604,11 @@ run_rows() {
           esac
         done
       fi
+    fi
+    if [ "$copy_built" = no ] && needs_cargo "$mutated" && kept_build "$mutated"; then
+      compile_form=build
+      tree_build "$work/unmutated.out" || { copy_failed; return 1; }
+      copy_built=yes
     fi
     if [ "$apply_only" = no ] && [ "$row_state" != control ]; then
       case $row_verdict in 'test '*)
@@ -789,6 +804,8 @@ case $hold in
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'warning: unused variable: x\nerror[E0308]: mismatched types\n'; exit 101; fi ;;
   plain-refuse)
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'cargo: the compiler ended by a signal\n'; exit 101; fi ;;
+  link-refuse)
+    case $1 in build) printf 'error: linking with cc failed: exit status: 1\n'; exit 101 ;; esac ;;
   go)
     : > "$here/marker"
     polls=0
@@ -1459,11 +1476,11 @@ form_cases() {
   t apply-only-cargo-row-line-says-type-checks PASS with_cargo_home form-lib form_said form-lib yes 'PASS mutation:held (applies and type-checks)'
   form_fixture form-sqlcipher crates/halvo-sqlcipher 0
   row form-sqlcipher/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
-  t apply-only-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher yes "$form_check$form_nl$form_build"
+  t apply-only-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher yes "$form_check$form_nl$form_build$form_nl$form_build"
   t apply-only-sqlcipher-row-line-says-builds PASS with_cargo_home form-sqlcipher form_said form-sqlcipher yes 'PASS mutation:held (applies and builds)'
   form_fixture form-build-script crates/x 0
   row form-build-script/crates/x/mutants.rows held build.rs 's/1;/2;/' leak required X-1
-  t apply-only-builds-a-row-on-a-build-script PASS with_cargo_home form-build-script form_args_are form-build-script yes "$form_check$form_nl$form_build"
+  t apply-only-builds-a-row-on-a-build-script PASS with_cargo_home form-build-script form_args_are form-build-script yes "$form_check$form_nl$form_build$form_nl$form_build"
   form_fixture form-refused crates/x refuse
   row form-refused/crates/x/mutants.rows held src/lib.rs 's/1 }/1 } refuse-me/' leak required X-1
   t apply-only-mutant-that-does-not-type-check-is-named PASS with_cargo_home form-refused form_said form-refused yes 'FAIL mutation:held (the mutant does not type-check)'
@@ -1493,7 +1510,7 @@ form_cases() {
     form_fixture "form-spelling-$form_spelling" crates/halvo-sqlcipher 0
     case $form_spelling in dot) form_path=crates/./halvo-sqlcipher/src/lib.rs ;; *) form_path=crates//halvo-sqlcipher/src/lib.rs ;; esac
     row "form-spelling-$form_spelling/scripts/r1-gate/mutants.rows" ctl "$form_path" 's/1 }/2 }/' leak control X-1
-    t "apply-only-builds-a-halvo-sqlcipher-path-spelled-$form_spelling" PASS with_cargo_home "form-spelling-$form_spelling" form_args_are "form-spelling-$form_spelling" yes "$form_check$form_nl$form_build"
+    t "apply-only-builds-a-halvo-sqlcipher-path-spelled-$form_spelling" PASS with_cargo_home "form-spelling-$form_spelling" form_args_are "form-spelling-$form_spelling" yes "$form_check$form_nl$form_build$form_nl$form_build"
   done
   form_fixture form-sqlcipher-not-rust crates/halvo-sqlcipher 0
   mkdir -p "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/csrc"
@@ -1501,14 +1518,21 @@ form_cases() {
   printf '[package]\nname = "x"\n' > "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/Cargo.toml"
   row form-sqlcipher-not-rust/crates/halvo-sqlcipher/mutants.rows c-file csrc/x.c 's/1;/2;/' leak required X-1
   row form-sqlcipher-not-rust/crates/halvo-sqlcipher/mutants.rows manifest Cargo.toml 's/"x"/"y"/' leak required X-1
-  t apply-only-builds-a-c-file-and-the-manifest-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher-not-rust form_args_are form-sqlcipher-not-rust yes "$form_check$form_nl$form_build$form_nl$form_build"
+  t apply-only-builds-a-c-file-and-the-manifest-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher-not-rust form_args_are form-sqlcipher-not-rust yes "$form_check$form_nl$form_build$form_nl$form_build$form_nl$form_build"
   form_fixture form-sqlcipher-upper-case crates/Halvo-SQLCipher 0
   row form-sqlcipher-upper-case/crates/Halvo-SQLCipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
-  t apply-only-builds-a-halvo-sqlcipher-path-in-upper-case PASS with_cargo_home form-sqlcipher-upper-case form_args_are form-sqlcipher-upper-case yes "$form_check$form_nl$form_build"
+  t apply-only-builds-a-halvo-sqlcipher-path-in-upper-case PASS with_cargo_home form-sqlcipher-upper-case form_args_are form-sqlcipher-upper-case yes "$form_check$form_nl$form_build$form_nl$form_build"
   form_fixture form-build-script-upper-case crates/x 0
   printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/form-build-script-upper-case/crates/x/BUILD.RS"
   row form-build-script-upper-case/crates/x/mutants.rows held BUILD.RS 's/1;/2;/' leak required X-1
-  t apply-only-builds-a-build-script-in-upper-case PASS with_cargo_home form-build-script-upper-case form_args_are form-build-script-upper-case yes "$form_check$form_nl$form_build"
+  form_fixture form-copy-link crates/halvo-sqlcipher link-refuse
+  row form-copy-link/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-copy-that-fails-at-the-link-is-named-as-the-copy PASS with_cargo_home form-copy-link form_said form-copy-link yes 'FAIL unmutated:build (error: linking with cc failed: exit status: 1)'
+  t apply-only-copy-that-fails-at-the-link-is-no-row-s-failure FAIL with_cargo_home form-copy-link form_said form-copy-link yes 'FAIL mutation:held (the mutant does not build)'
+  form_fixture form-copy-link-checked crates/x link-refuse
+  row form-copy-link-checked/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-type-checked-row-does-not-build-the-copy PASS with_cargo_home form-copy-link-checked form_said form-copy-link-checked yes 'PASS mutation:held (applies and type-checks)'
+  t apply-only-builds-a-build-script-in-upper-case PASS with_cargo_home form-build-script-upper-case form_args_are form-build-script-upper-case yes "$form_check$form_nl$form_build$form_nl$form_build"
 }
 
 verifier_cases() {
