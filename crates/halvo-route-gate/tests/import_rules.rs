@@ -2,11 +2,26 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-const ATTEMPT: &str = "attempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6";
+macro_rules! write_line {
+    () => {
+        "attempt model=m_a machine=mac task=reply seed=1 kind=write i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6"
+    };
+}
+
+macro_rules! reply_line {
+    () => {
+        "reply model=m_a machine=mac seed=1 bodies=2 of=2 wall_s=10 model_tokens=11"
+    };
+}
+
+const WRITE: &str = write_line!();
+const REPLY: &str = reply_line!();
+const ATTEMPT: &str = concat!(write_line!(), "\n", reply_line!());
 const VERDICT: &str = "verdict driver=none path=B writer=none";
 const BOUND: &str = "bound model=m_a machine=mac bound_bytes=100 fits=yes";
 const CANDIDATES: &str = "verdict candidates=-";
-const ROW: &str = "bill\tutility_bill_payment\tcompile\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t3\t10\t5\t6\tmedium\ts1";
+const ROW: &str =
+    "reply\temail\twrite\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t3\t10\t5\t6\tmedium\ts1";
 const MACHINES: [&str; 2] = ["mac", "hosted-win"];
 
 fn driver_lines(model: &str) -> Vec<String> {
@@ -41,6 +56,28 @@ fn writer_lines(model: &str) -> Vec<String> {
         }
     }
     lines
+}
+
+fn drive_cell(model: &str, machine: &str, task: &str, seed: u32) -> Vec<String> {
+    let mut lines: Vec<String> = [
+        ("compile", 1),
+        ("replay", 1),
+        ("replay", 2),
+        ("replay", 3),
+        ("recover", 1),
+    ]
+    .iter()
+    .map(|(kind, i)| format!("attempt model={model} machine={machine} task={task} seed={seed} kind={kind} i={i} pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6"))
+    .collect();
+    lines.push(format!("drive model={model} machine={machine} task={task} seed={seed} compile=ok replays_ok=3 of=3 recover=ok steps=3 wall_s=10 model_tokens=11 typed_credential=0 effects_without_confirm=0"));
+    lines
+}
+
+fn reply_cell(model: &str, machine: &str, seed: u32) -> Vec<String> {
+    vec![
+        format!("attempt model={model} machine={machine} task=reply seed={seed} kind=write i=1 pass=yes steps=0 wall_s=10 tokens_in=5 tokens_out=6"),
+        format!("reply model={model} machine={machine} seed={seed} bodies=2 of=2 wall_s=10 model_tokens=11"),
+    ]
 }
 
 fn with(mut lines: Vec<String>, last: &str) -> Vec<String> {
@@ -177,13 +214,18 @@ fn refs(lines: &[String]) -> Vec<&str> {
 
 fn attempt_with(key: &str, value: &str) -> String {
     ATTEMPT
-        .split(' ')
-        .map(|word| match word.split_once('=') {
-            Some((k, _)) if k == key => format!("{k}={value}"),
-            _ => word.to_owned(),
+        .lines()
+        .map(|line| {
+            line.split(' ')
+                .map(|word| match word.split_once('=') {
+                    Some((k, _)) if k == key => format!("{k}={value}"),
+                    _ => word.to_owned(),
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
         })
         .collect::<Vec<_>>()
-        .join(" ")
+        .join("\n")
 }
 
 #[test]
@@ -296,21 +338,32 @@ fn an_i_of_4294967295_and_above_is_refused_at_its_line() {
         for kind in ["compile", "replay"] {
             let line = line_of("m_b", "bill", 1, kind, i);
             let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
-            assert_eq!(got.refused(), "REFUSED source: driver:4", "{line}");
+            assert_eq!(got.refused(), "REFUSED source: driver:5", "{line}");
         }
     }
 }
 
 #[test]
 fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
-    let got = run(
-        &[
-            "attempt model=m_b machine=mac task=reply seed=3 kind=write i=1 pass=no steps=0 wall_s=7 tokens_in=1 tokens_out=2",
-            ATTEMPT,
-            "attempt model=m_a machine=hosted-win task=order seed=2 kind=replay i=1 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0",
-            "attempt model=m_a machine=mac task=order seed=1 kind=recover i=1 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1",
-            VERDICT,
+    let mut replay_cell = drive_cell("m_a", "hosted-win", "order", 2);
+    replay_cell[1] = "attempt model=m_a machine=hosted-win task=order seed=2 kind=replay i=1 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0".to_owned();
+    let mut recover_cell = drive_cell("m_a", "mac", "order", 1);
+    recover_cell[4] = "attempt model=m_a machine=mac task=order seed=1 kind=recover i=1 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1".to_owned();
+    let driver = [
+        vec![
+            "attempt model=m_b machine=mac task=reply seed=3 kind=write i=1 pass=no steps=0 wall_s=7 tokens_in=1 tokens_out=2".to_owned(),
+            ATTEMPT.to_owned(),
         ],
+        replay_cell,
+        recover_cell,
+        vec![
+            "reply model=m_b machine=mac seed=3 bodies=0 of=2 wall_s=7 model_tokens=3".to_owned(),
+            VERDICT.to_owned(),
+        ],
+    ]
+    .concat();
+    let got = run(
+        &refs(&driver),
         &[
             "bound model=ternary_bonsai_2_9b machine=mac bound_bytes=0 fits=not-measured",
             "bound model=s5_nano_4b machine=hosted-win bound_bytes=18446744073709551615 fits=no",
@@ -321,17 +374,25 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
         ],
     );
     got.passed();
-    assert_eq!(got.stdout, "import rows=4 models=6 sources=2\n");
+    assert_eq!(got.stdout, "import rows=12 models=6 sources=2\n");
     let recorded = got.file("recorded.tsv");
     let lines: Vec<&str> = recorded.lines().skip(1).collect();
+    let mut sorted = lines.clone();
+    sorted.sort_unstable();
+    assert_eq!(lines, sorted);
+    let named = [
+        "order\tshop_order\trecover\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t18446744073709551615\t1\t1\t1\tmedium\ts1",
+        "order\tshop_order\treplay\ton_device\tm_a\thosted-win\t2\tdev\t1\tyes\t4\t0\t0\t0\tmedium\ts1",
+        ROW,
+        "reply\temail\twrite\ton_device\tm_b\tmac\t3\theld\t1\tno\t0\t7\t1\t2\tmedium\ts1",
+    ];
     assert_eq!(
-        lines,
-        [
-            ROW,
-            "order\tshop_order\trecover\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t18446744073709551615\t1\t1\t1\tmedium\ts1",
-            "order\tshop_order\treplay\ton_device\tm_a\thosted-win\t2\tdev\t1\tyes\t4\t0\t0\t0\tmedium\ts1",
-            "reply\temail\twrite\ton_device\tm_b\tmac\t3\theld\t1\tno\t0\t7\t1\t2\tmedium\ts1",
-        ]
+        lines
+            .iter()
+            .filter(|line| named.contains(line))
+            .copied()
+            .collect::<Vec<_>>(),
+        named
     );
     assert_eq!(
         got.file("models.tsv"),
@@ -375,7 +436,7 @@ fn the_last_line_of_each_block_starts_with_verdict() {
             "an attempt line after the verdict",
             vec![VERDICT, ATTEMPT],
             vec![BOUND, CANDIDATES],
-            "driver:4",
+            "driver:5",
         ),
         (
             "a passed-over line after the verdict",
@@ -385,13 +446,13 @@ fn the_last_line_of_each_block_starts_with_verdict() {
                 "limits task=bill steps=1 wall_s=1 model_tokens=1",
             ],
             vec![BOUND, CANDIDATES],
-            "driver:5",
+            "driver:6",
         ),
         (
             "an empty line after the verdict",
             vec![ATTEMPT, VERDICT, ""],
             vec![BOUND, CANDIDATES],
-            "driver:5",
+            "driver:6",
         ),
         (
             "a bound line after the cells verdict",
@@ -449,8 +510,11 @@ fn a_cells_block_with_no_bound_line_is_refused_after_its_last_line() {
 fn lines_that_are_not_known_are_passed_over() {
     let passed_over = [
         "",
-        "drive model=m_a machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0",
-        "reply model=m_a machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1",
+        "drive model=m_a machine=mac task=bill seed=1",
+        "drive model=m_a",
+        " drive model=m_a machine=mac task=bill seed=1 compile=ok",
+        "reply model=m_a machine=mac seed=1",
+        "\treply model=m_a machine=mac seed=1 bodies=2",
         "prompt file=action.txt sha256=00",
         "cell model=m_a machine=mac",
         "hosted machine=hosted-win run=1 sha=00",
@@ -473,16 +537,28 @@ fn lines_that_are_not_known_are_passed_over() {
         "Attempt model=m_a",
         "ATTEMPTED",
     ];
+    let counted = [
+        "drive model=m_b machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0",
+        "reply model=m_b machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1",
+    ];
+    let cells_of_counted = [drive_cell("m_b", "mac", "bill", 1), reply_cell("m_b", "mac", 1)]
+        .concat()
+        .into_iter()
+        .filter(|line| line.starts_with("attempt "))
+        .collect::<Vec<_>>();
     let mut driver = vec![ATTEMPT];
+    driver.extend(refs(&cells_of_counted));
     driver.extend(passed_over);
+    driver.extend(counted);
     driver.extend(driver_only);
     driver.push(VERDICT);
     let mut cells = passed_over.to_vec();
+    cells.extend(counted);
     cells.extend(cells_only);
     cells.insert(5, BOUND);
     let got = run(&driver, &cells);
     got.passed();
-    assert_eq!(got.stdout, "import rows=1 models=1 sources=2\n");
+    assert_eq!(got.stdout, "import rows=7 models=1 sources=2\n");
 }
 
 fn refused_at(got: &Run, want: &str, what: &str, wrong: &mut Vec<String>) {
@@ -538,7 +614,7 @@ fn a_line_of_a_known_word_after_spaces_and_tabs_or_in_another_letter_case_is_ref
     let mut wrong = Vec::new();
     for line in &driver_cases {
         let got = run(&[ATTEMPT, line, VERDICT], &[BOUND]);
-        refused_at(&got, "driver:4", &format!("driver {line:?}"), &mut wrong);
+        refused_at(&got, "driver:5", &format!("driver {line:?}"), &mut wrong);
     }
     for line in &cells_cases {
         let got = run(&[ATTEMPT, VERDICT], &[BOUND, line]);
@@ -624,7 +700,7 @@ fn a_limits_line_of_bill_or_order_beside_a_verdict_with_no_driver_is_refused_at_
         "limits steps=9 task=order wall_s=400".to_owned(),
     ] {
         let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
-        refused_at(&got, "driver:4", &line, &mut wrong);
+        refused_at(&got, "driver:5", &line, &mut wrong);
     }
     let writer_only = with(
         [writer_lines("m_w"), vec![LIMITS_REPLY.to_owned()]].concat(),
@@ -649,7 +725,7 @@ fn a_limits_line_of_reply_beside_a_verdict_with_no_writer_is_refused_at_its_line
     let got = run(&[ATTEMPT, LIMITS_REPLY, VERDICT], &[BOUND]);
     refused_at(
         &got,
-        "driver:4",
+        "driver:5",
         "beside driver=none writer=none",
         &mut wrong,
     );
@@ -748,7 +824,7 @@ fn a_limits_line_is_checked_with_the_verdicts_lines_in_file_order() {
     let got = run(&[ATTEMPT, LIMITS_BILL, "", VERDICT, ""], &[BOUND]);
     refused_at(
         &got,
-        "driver:7",
+        "driver:8",
         "the last line before a limits line",
         &mut wrong,
     );
@@ -892,7 +968,7 @@ fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
     );
     refused_at(
         &got,
-        "driver:4",
+        "driver:5",
         "the driver file before the cells file",
         &mut wrong,
     );
@@ -902,7 +978,7 @@ fn a_line_of_a_known_word_written_another_way_is_refused_in_file_order() {
 #[test]
 fn a_known_line_of_one_file_is_refused_in_the_other() {
     let got = run(&[ATTEMPT, BOUND, VERDICT], &[BOUND]);
-    assert_eq!(got.refused(), "REFUSED source: driver:4");
+    assert_eq!(got.refused(), "REFUSED source: driver:5");
     let got = run(&[ATTEMPT, VERDICT], &[ATTEMPT, BOUND]);
     assert_eq!(got.refused(), "REFUSED source: cells:3");
     let got = run(&[ATTEMPT, VERDICT], &[BOUND, VERDICT]);
@@ -949,7 +1025,7 @@ fn a_line_that_starts_with_a_known_word_is_of_its_form_or_refused() {
     let mut wrong = Vec::new();
     for (word, line) in &driver_cases {
         let got = run(&[ATTEMPT, line, VERDICT], &[BOUND]);
-        if got.code != Some(2) || got.stderr != "REFUSED source: driver:4\n" {
+        if got.code != Some(2) || got.stderr != "REFUSED source: driver:5\n" {
             wrong.push(format!(
                 "driver {word} {line:?}: {:?} {:?}",
                 got.code, got.stderr
@@ -1075,7 +1151,7 @@ fn a_file_that_breaks_the_text_of_t0_4_is_refused_at_its_first_such_line() {
         (
             "a byte that is no UTF-8 in a line outside the block",
             with_bytes(b"# d\n", block(&[ATTEMPT, VERDICT]), b"note \xff\n"),
-            "6",
+            "7",
         ),
         (
             "a byte that is no UTF-8 in a line inside the block",
@@ -1093,12 +1169,12 @@ fn a_file_that_breaks_the_text_of_t0_4_is_refused_at_its_first_such_line() {
                 block(&[ATTEMPT, VERDICT]),
                 b"text after the block",
             ),
-            "6",
+            "7",
         ),
         (
             "no LF at the end of the closing fence",
             format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```").into_bytes(),
-            "5",
+            "6",
         ),
         (
             "a byte-order mark at the start",
@@ -1122,7 +1198,7 @@ fn a_file_that_breaks_the_text_of_t0_4_is_refused_at_its_first_such_line() {
         let cells = bytes
             .split(|byte| *byte == b'\n')
             .map(|line| match line {
-                l if l == ATTEMPT.as_bytes() => BOUND.as_bytes(),
+                l if l == WRITE.as_bytes() => BOUND.as_bytes(),
                 l if l == VERDICT.as_bytes() => CANDIDATES.as_bytes(),
                 l => l,
             })
@@ -1347,7 +1423,7 @@ fn a_carriage_return_is_refused_with_its_line() {
     );
     assert_eq!(got.refused(), "REFUSED source: driver:1");
     let got = run_files(
-        format!("# d\n```\n{ATTEMPT}\r\n{VERDICT}\n```\n").into_bytes(),
+        format!("# d\n```\n{WRITE}\r\n{REPLY}\n{VERDICT}\n```\n").into_bytes(),
         file("cells", block(&[BOUND, CANDIDATES])),
     );
     assert_eq!(got.refused(), "REFUSED source: driver:3");
@@ -1435,12 +1511,26 @@ fn a_task_and_kind_other_than_the_seven_pairs_of_the_trial_is_refused() {
     let mut refused = 0;
     for task in ["bill", "order", "reply", "cleanup", "fill"] {
         for kind in ["compile", "replay", "recover", "write"] {
-            let line = attempt_with("task", task);
-            let line = line.replace("kind=compile", &format!("kind={kind}"));
-            let got = run(&[&line, VERDICT], &[BOUND]);
+            let line = format!("attempt model=m_a machine=mac task={task} seed=1 kind={kind} i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6");
             if taken.contains(&(task, kind)) {
-                got.passed();
-            } else if got.code != Some(2) || got.stderr != "REFUSED source: driver:3\n" {
+                let cell = if task == "reply" {
+                    reply_cell("m_a", "mac", 1)
+                } else {
+                    drive_cell("m_a", "mac", task, 1)
+                };
+                let cell: Vec<String> = cell
+                    .iter()
+                    .map(|other| match other.split_once(" pass=") {
+                        Some((head, _)) if line.starts_with(&format!("{head} ")) => line.clone(),
+                        _ => other.clone(),
+                    })
+                    .collect();
+                assert!(cell.contains(&line), "{line}");
+                run(&refs(&with(cell, VERDICT)), &[BOUND]).passed();
+                continue;
+            }
+            let got = run(&[&line, VERDICT], &[BOUND]);
+            if got.code != Some(2) || got.stderr != "REFUSED source: driver:3\n" {
                 wrong.push(format!("{task} {kind}: {:?} {:?}", got.code, got.stderr));
             } else {
                 got.refused();
@@ -1455,24 +1545,25 @@ fn a_task_and_kind_other_than_the_seven_pairs_of_the_trial_is_refused() {
 #[test]
 fn an_attempt_line_of_another_shape_is_refused() {
     let shapes = [
-        ATTEMPT.replace("model=", "modell="),
-        ATTEMPT.replace(" tokens_out=6", ""),
-        format!("{ATTEMPT} extra=1"),
-        format!("{ATTEMPT} "),
-        ATTEMPT.replace("seed=1 ", "seed=1  "),
-        ATTEMPT.replace(" i=1", "\ti=1"),
-        ATTEMPT.replace("machine=mac task=bill", "task=bill machine=mac"),
-        ATTEMPT.replace("model=m_a", "model=m_a=b"),
-        ATTEMPT.replace("model=m_a", "model"),
-        ATTEMPT.replace("pass=yes", "pass=yes pass=yes"),
-        ATTEMPT.replace("tokens_out=6", "tokens_out=6\u{a0}"),
+        WRITE.replace("model=", "modell="),
+        WRITE.replace(" tokens_out=6", ""),
+        format!("{WRITE} extra=1"),
+        format!("{WRITE} "),
+        WRITE.replace("seed=1 ", "seed=1  "),
+        WRITE.replace(" i=1", "\ti=1"),
+        WRITE.replace("machine=mac task=reply", "task=reply machine=mac"),
+        WRITE.replace("model=m_a", "model=m_a=b"),
+        WRITE.replace("model=m_a", "model"),
+        WRITE.replace("pass=yes", "pass=yes pass=yes"),
+        WRITE.replace("tokens_out=6", "tokens_out=6\u{a0}"),
         "attempt ".to_owned(),
         "attempt model=m_a".to_owned(),
         "attempt  model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6".to_owned(),
     ];
     for line in &shapes {
+        assert_ne!(line, WRITE);
         let got = run(&[ATTEMPT, line, VERDICT], &[BOUND]);
-        assert_eq!(got.refused(), "REFUSED source: driver:4", "{line:?}");
+        assert_eq!(got.refused(), "REFUSED source: driver:5", "{line:?}");
     }
     let mut bytes = file("driver", Vec::new());
     bytes.extend(b"```\n");
@@ -1484,24 +1575,26 @@ fn an_attempt_line_of_another_shape_is_refused() {
 
 #[test]
 fn a_second_attempt_line_of_one_row_key_is_refused_at_its_line() {
-    let same_key_other_figures = ATTEMPT.replace("pass=yes steps=3", "pass=no steps=4");
+    let same_key_other_figures = WRITE.replace("pass=yes steps=3", "pass=no steps=4");
     let got = run(&[ATTEMPT, VERDICT, &same_key_other_figures], &[BOUND]);
-    assert_eq!(got.refused(), "REFUSED source: driver:5");
+    assert_eq!(got.refused(), "REFUSED source: driver:6");
     let got = run(&[ATTEMPT, ATTEMPT, VERDICT], &[BOUND]);
-    assert_eq!(got.refused(), "REFUSED source: driver:4");
-    for (key, value) in [
-        ("model", "m_b"),
-        ("machine", "hosted-win"),
-        ("task", "order"),
-        ("seed", "2"),
-        ("kind", "recover"),
-    ] {
+    assert_eq!(got.refused(), "REFUSED source: driver:5");
+    for (key, value) in [("model", "m_b"), ("machine", "hosted-win"), ("seed", "2")] {
         let other = attempt_with(key, value);
         run(&[ATTEMPT, &other, VERDICT], &[BOUND]).passed();
     }
-    let replay = attempt_with("kind", "replay");
-    let second = replay.replace(" i=1 ", " i=2 ");
-    run(&[&replay, &second, VERDICT], &[BOUND]).passed();
+    let base = drive_cell("m_a", "mac", "bill", 1);
+    for other in [
+        drive_cell("m_b", "mac", "bill", 1),
+        drive_cell("m_a", "hosted-win", "bill", 1),
+        drive_cell("m_a", "mac", "order", 1),
+        drive_cell("m_a", "mac", "bill", 2),
+    ] {
+        let got = run(&refs(&with([base.clone(), other].concat(), VERDICT)), &[BOUND]);
+        got.passed();
+        assert_eq!(got.stdout, "import rows=10 models=1 sources=2\n");
+    }
 }
 
 fn line_of(model: &str, task: &str, seed: u32, kind: &str, i: &str) -> String {
@@ -1519,7 +1612,7 @@ fn an_i_outside_the_numbering_is_refused_at_its_line() {
     ] {
         let line = line_of("m_b", task, 1, kind, i);
         let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
-        assert_eq!(got.refused(), "REFUSED source: driver:4", "{line}");
+        assert_eq!(got.refused(), "REFUSED source: driver:5", "{line}");
     }
     for further in [
         line_of("m_d", "bill", 1, "replay", "4"),
@@ -1556,7 +1649,7 @@ fn a_gap_in_the_replays_is_refused_at_the_first_replay_line_whose_i_less_one_has
             vec![replay(2, "1"), replay(2, "3"), replay(1, "2")],
             "driver:4",
         ),
-        (vec![ATTEMPT.to_owned(), replay(3, "2")], "driver:4"),
+        (vec![ATTEMPT.to_owned(), replay(3, "2")], "driver:5"),
     ] {
         let got = run(&refs(&with(lines.clone(), VERDICT)), &[BOUND]);
         assert_eq!(
@@ -1565,15 +1658,12 @@ fn a_gap_in_the_replays_is_refused_at_the_first_replay_line_whose_i_less_one_has
             "{lines:?}"
         );
     }
-    let got = run(
-        &refs(&with(
-            vec![replay(1, "3"), replay(1, "1"), replay(1, "2")],
-            VERDICT,
-        )),
-        &[BOUND],
-    );
+    let mut out_of_order = vec![replay(1, "3"), replay(1, "1"), replay(1, "2")];
+    let cell = drive_cell("m_b", "mac", "bill", 1);
+    out_of_order.extend([cell[0].clone(), cell[4].clone(), cell[5].clone()]);
+    let got = run(&refs(&with(out_of_order, VERDICT)), &[BOUND]);
     got.passed();
-    assert_eq!(got.stdout, "import rows=3 models=1 sources=2\n");
+    assert_eq!(got.stdout, "import rows=5 models=1 sources=2\n");
 }
 
 #[test]
@@ -1770,6 +1860,10 @@ fn the_verdict_rests_on_the_drive_and_reply_lines_of_its_driver_and_writer() {
     assert_eq!(wrong, Vec::<String>::new());
 
     let mut others = driver_lines("m_d");
+    for model in ["m_x", "m_dd"] {
+        others.extend(drive_cell(model, "mac", "bill", 1).into_iter().take(5));
+    }
+    others.push(reply_cell("m_d", "mac", 1)[0].clone());
     others.extend([
         "drive model=m_x machine=mac task=bill seed=1 compile=miss".to_owned(),
         "drive model=m_dd machine=mac task=bill seed=1 compile=miss".to_owned(),
@@ -1844,7 +1938,7 @@ fn each_field_of_the_verdict_line_with_a_wrong_value_is_refused() {
     ];
     for line in lines {
         let got = run(&[ATTEMPT, line], &[BOUND]);
-        assert_eq!(got.refused(), "REFUSED source: driver:4", "{line:?}");
+        assert_eq!(got.refused(), "REFUSED source: driver:5", "{line:?}");
     }
     for (line, lines, rows, freeze) in [
         (
@@ -1931,7 +2025,7 @@ fn a_second_bound_line_of_one_model_and_machine_is_refused() {
 fn the_driver_file_is_read_before_the_cells_file_and_each_file_in_line_order() {
     let bad_attempt = attempt_with("seed", "9");
     let got = run(&[ATTEMPT, &bad_attempt, "verdict driver=x"], &["bound x"]);
-    assert_eq!(got.refused(), "REFUSED source: driver:4");
+    assert_eq!(got.refused(), "REFUSED source: driver:5");
     let got = run(&[ATTEMPT], &["bound x"]);
     assert_eq!(got.refused(), "REFUSED source: driver:verdict");
     let got = run(
@@ -2505,7 +2599,7 @@ fn a_path_with_a_backslash_is_kept_as_given() {
 fn a_refusal_of_the_source_writes_nothing() {
     let bad = attempt_with("pass", "maybe");
     let got = run(&[ATTEMPT, VERDICT, &bad], &[BOUND]);
-    assert_eq!(got.refused(), "REFUSED source: driver:5");
+    assert_eq!(got.refused(), "REFUSED source: driver:6");
     let got = run(&[ATTEMPT, VERDICT], &[BOUND, "bound model=m_a"]);
     assert_eq!(got.refused(), "REFUSED source: cells:4");
 }
@@ -2516,18 +2610,16 @@ fn a_row_count_of_many_attempts_is_exact() {
     for model in ["m_a", "m_b"] {
         for machine in ["mac", "hosted-win"] {
             for seed in 1..=3 {
-                for i in 1..=3 {
-                    lines.push(format!("attempt model={model} machine={machine} task=bill seed={seed} kind=replay i={i} pass=yes steps=1 wall_s=1 tokens_in=0 tokens_out=0"));
-                }
+                lines.extend(drive_cell(model, machine, "bill", seed));
             }
         }
     }
     lines.push(VERDICT.to_owned());
     let got = run(&refs(&lines), &[BOUND]);
     got.passed();
-    assert_eq!(got.stdout, "import rows=36 models=1 sources=2\n");
+    assert_eq!(got.stdout, "import rows=60 models=1 sources=2\n");
     let recorded = got.file("recorded.tsv");
-    assert_eq!(recorded.lines().count(), 37);
+    assert_eq!(recorded.lines().count(), 61);
     let mut sorted: Vec<&str> = recorded.lines().skip(1).collect();
     sorted.sort_unstable();
     assert_eq!(sorted, recorded.lines().skip(1).collect::<Vec<_>>());
