@@ -22,7 +22,7 @@ struct Chosen {
 }
 
 impl Dialog for Chosen {
-    fn show(&self, _: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    fn show(&self, _: &Card, _: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         let n = self.shows.fetch_add(1, Ordering::SeqCst) + 1;
         if n > LAST_SHOW {
             return ConfirmAnswer::Reject;
@@ -54,9 +54,11 @@ fn rig() -> Rig {
         shown: Mutex::new(shown_tx),
         press: Mutex::new(press_rx),
     });
-    let presenter = DialogPresenter::new(dialog.clone(), |_: &ItemId| {
-        Card::new(&[Class::Payment], &[])
-    });
+    let presenter = DialogPresenter::new(
+        dialog.clone(),
+        |_: &ItemId| Card::new(&[Class::Payment], &[]),
+        Duration::from_millis(Limits::PRODUCT.arm_ms),
+    );
     let hub = Hub::new(
         world(1, Limits::PRODUCT),
         Limits::PRODUCT,
