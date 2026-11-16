@@ -970,6 +970,7 @@ add_script() {
 
 own_case() {
   case_name=$1
+  own_seen="$own_seen$nl$1"
   want_exit=$2
   want_line=$3
   shift 3
@@ -1176,6 +1177,7 @@ own_judge() {
 
 own_tree_case() {
   case_name=$1
+  own_seen="$own_seen$nl$1"
   want_line=$2
   tree_list=$(own_git -c core.quotePath=false ls-tree -r --name-only HEAD 2>/dev/null | grep -E '(^|/)ci\.d/[^/]+$')
   got_out=
@@ -1211,6 +1213,76 @@ own_clock() {
   printf 'case run-ci-d/%s case-seconds=%s\n' "$case_name" "$((own_now - own_mark))"
   own_mark=$own_now
   own_n=$((own_n + 1))
+}
+
+own_gate() {
+  case "$own_macos_alone$nl" in
+    *"$nl$1:"*)
+      [ "${2:-$own_host}" = windows ] || return 0
+      own_gate_reason=${own_macos_alone#*"$nl$1:"}
+      own_gate_reason=${own_gate_reason%%"$nl"*}
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+own_not_run() {
+  own_seen="$own_seen$nl$1"
+  own_skipped="$own_skipped$nl$1"
+  [ -n "$nested_word" ] || printf 'case run-ci-d/%s not-run (%s)\n' "$1" "$2"
+}
+
+own_reached() {
+  case "$own_seen$nl" in
+    *"$nl$1$nl"*) return 0 ;;
+  esac
+  return 1
+}
+
+own_list_case() {
+  case_name=$1
+  own_seen="$own_seen$nl$1"
+  got=PASS
+  own_list_n=0
+  own_list_r=0
+  while IFS= read -r own_line; do
+    [ -n "$own_line" ] || continue
+    own_list_name=${own_line%%:*}
+    own_list_n=$((own_list_n + 1))
+    own_reached "$own_list_name" || { [ "$got" != PASS ] || got=no-case-$own_list_name; }
+    ! own_gate "$own_list_name" windows || { [ "$got" != PASS ] || got=the-gate-runs-$own_list_name-on-windows; }
+  done <<EOF
+$own_macos_alone
+EOF
+  while IFS= read -r own_line; do
+    [ -n "$own_line" ] || continue
+    own_list_rule=${own_line%%:*}
+    own_list_r=$((own_list_r + 1))
+    own_list_held=
+    # shellcheck disable=SC2086
+    for own_list_name in ${own_line#*:}; do
+      own_reached "$own_list_name" || { [ "$got" != PASS ] || got=no-case-$own_list_name; }
+      if ! own_gate "$own_list_name" windows; then
+        [ "$got" != PASS ] || got=on-both-lists-$own_list_name
+      elif [ "$own_host" != windows ]; then
+        own_list_held=yes
+      else
+        case "$own_skipped$nl" in
+          *"$nl$own_list_name$nl"*) ;;
+          *) ! own_reached "$own_list_name" || own_list_held=yes ;;
+        esac
+      fi
+    done
+    [ -n "$own_list_held" ] || { [ "$got" != PASS ] || got=no-windows-case-for-$own_list_rule; }
+  done <<EOF
+$own_windows_rules
+EOF
+  printf 'case run-ci-d/%s windows form: %s cases not-run (macos alone), %s rules each with a case that runs\n' "$case_name" "$own_list_n" "$own_list_r"
+  printf 'case run-ci-d/%s want=PASS got=%s\n' "$case_name" "$got"
+  own_clock
+  [ "$got" = PASS ] || wrong="$wrong $case_name"
+  case_reset
 }
 
 case_reset() {
@@ -1255,6 +1327,59 @@ own_self_test() {
   own_start=0
   [ -n "$nested_word" ] || own_start=$(date +%s)
   own_mark=$own_start
+  own_host=macos
+  if command -v cygpath >/dev/null 2>&1; then
+    own_host=windows
+  fi
+  own_seen=
+  own_skipped=
+  own_macos_alone="
+two-alone-checks-run-one-after-the-other-in-order:lanes
+alone-check-starts-after-both-lanes-have-ended:lanes
+lane-line-at-line-11-is-no-lane:lanes
+step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says:lanes
+checks-without-a-lane-one-at-a-time-beside-the-free-lane:lanes
+alone-list-line-with-leading-blanks:lanes
+alone-list-with-comment-and-blank-lines:lanes
+free-lane-runs-ci-d-check-jobs-at-a-time:lanes
+self-test-of-the-driver-alone:lanes
+alone-list-names-a-script-of-the-other-job-alone:lanes
+checks-of-two-lanes-run-at-the-same-time:lanes
+output-of-an-alone-check-in-the-order-of-the-run:lanes
+two-at-a-time:lanes
+exit-0-without-pass-line:verdict
+pass-line-with-a-tail:verdict
+pass-line-with-exit-1:verdict
+pass-line-with-exit-77:verdict
+self-test-count-is-no-number:verdict
+self-test-exits-2:verdict
+self-test-fails:verdict
+self-test-pass-line-with-exit-1:verdict
+self-test-prints-nothing:verdict
+self-test-rejects-two:verdict
+self-test-rejects-nothing:verdict
+failing-self-test-beside-another:verdict
+self-tests-run-at-the-same-time:verdict
+self-test-without-scripts:verdict
+refusal-keeps-its-place-in-the-recap:recap
+refusal-keeps-its-place-in-the-recap-of-the-step-ci.d:recap
+skip-in-ci:skip
+skip-outside-ci:skip
+fail-does-not-stop-the-run:skip
+"
+  own_windows_rules="
+path-forms-and-spellings-of-the-root:root-that-starts-with-two-slashes tracked-script-runs-and-untracked-script-is-refused-windows-form-root tracked-script-runs-and-untracked-script-is-refused-doubled-slashes tracked-script-runs-and-untracked-script-is-refused-dot-slash cdpath-of-the-caller-leaves-the-root
+carriage-return-at-the-end-of-a-header-line-or-of-a-line-of-the-alone-list:lane-line-with-a-carriage-return-names-the-free-lane limit-line-with-a-carriage-return-raises-the-limit alone-list-line-with-a-carriage-return alone-line-with-a-carriage-return-names-the-alone-part
+order-of-the-glob-and-of-sort:byte-order list-in-byte-order hidden-entry-after-the-others list-puts-hidden-entries-last outputs-kept-apart-in-name-order output-in-name-order-when-a-later-check-ends-first outputs-of-free-checks-kept-apart-in-name-order
+process-groups-and-signals:step-interrupted-by-TERM step-ci.d-interrupted-by-INT script-that-ignores-term-past-its-limit self-test-past-its-limit default-limit-reached-at-1200-s child-that-a-script-leaves-is-ended script-that-sends-TERM-to-itself-in-the-step-ci.d-ends-as-in-the-foreground script-that-sends-QUIT-to-itself-in-the-step-ci.d-runs-on-as-in-the-foreground interrupt-of-the-own-cases-ends-the-running-case-s-driver-and-witness
+perl-and-its-groups-under-msys:perl-does-not-run perl-does-not-run-in-the-step-ci.d child-in-a-group-of-its-own-is-named-at-the-next-read
+retry-of-a-removal-and-the-mode-555-probe:tmpdir-removed-on-the-third-try-after-two-waits tmpdir-whose-first-removal-fails-is-removed-on-a-later-try tmpdir-whose-parent-the-script-made-read-only-is-removed
+conversions-of-git-core.autocrlf-stat-data-and-the-read-of-the-index:file-of-an-autocrlf-checkout-rewritten-with-lf-before-the-first-script tracked-script-rewritten-with-crlf-before-the-first-script tracked-script-rewritten-with-crlf-by-a-script stat-data-written-into-the-index-leaves-the-read-of-the-driver index-of-the-checkout-with-stale-stat-data-is-the-same-after-a-run same-size-re-encoding-under-a-global-attributes-file-is-named
+cargo-bin-directory-on-path-and-the-driver-s-own-git:git-in-the-cargo-bin-directory-does-not-answer-for-the-driver git-in-the-cargo-bin-directory-spelled-with-a-dot-does-not-answer-for-the-driver git-names-of-the-caller-reach-a-script-unchanged global-git-setting-of-a-script-leaves-the-read-of-the-driver
+descriptor-9:descriptor-9-is-closed-for-a-script
+count-of-processors:default-check-jobs-from-number-of-processors default-number-from-number-of-processors default-number-of-one-when-number-of-processors-is-none default-number-of-one-when-number-of-processors-is-x default-check-jobs-of-one-without-number-of-processors
+file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
+"
   good="# jobs: macos windows$nl# rule: A fixture rule."
   seven="#$nl#$nl#$nl#$nl#$nl#$nl#"
   pass_a='[ $# -eq 0 ] || exit 3; printf "PASS 10-a\n"'
@@ -1350,6 +1475,8 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$pass_a"
   if ln -s no-such-file "$fixture/scripts/r1/ci.d/50-dangling.sh" 2>/dev/null && [ -L "$fixture/scripts/r1/ci.d/50-dangling.sh" ]; then
     own_case dangling-link-with-a-script-name 1 'FAIL 50-dangling (it is not a regular file)' macos
+  else
+    own_not_run dangling-link-with-a-script-name 'a link is a copy on this host'
   fi
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 .20-hidden.sh "$good" 'printf "PASS .20-hidden\n"'
   case_first="PASS 10-a${nl}FAIL .20-hidden ($name_refusal)"
@@ -1428,6 +1555,8 @@ own_self_test() {
     case_first='PASS 10-a'
     case_then="FAIL 20-planted ($untracked_refusal)"
     own_case tracked-script-runs-and-untracked-script-is-refused-root-through-a-link 1 "$e1_ok" macos
+  else
+    own_not_run tracked-script-runs-and-untracked-script-is-refused-root-through-a-link 'a link is a copy on this host'
   fi
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
     printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
@@ -1442,6 +1571,8 @@ own_self_test() {
     case_then="FAIL 20-planted ($untracked_refusal)"
     own_case tracked-script-runs-and-untracked-script-is-refused-working-directory-through-a-link 1 "$e1_ok" macos
     fixture=$e1_real
+  else
+    own_not_run tracked-script-runs-and-untracked-script-is-refused-working-directory-through-a-link 'a link is a copy on this host'
   fi
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" &&
     printf '#!/bin/sh\n%s\n%s\n' "$good" "$plant" >"$fixture/scripts/r1/ci.d/20-planted.sh"
@@ -1460,6 +1591,8 @@ own_self_test() {
     case_witness=yes
     case_absent='PASS 20-planted'
     own_case untracked-script-under-a-tracked-name-through-a-link-and-dot-dot-is-refused 1 "FAIL 10-a ($untracked_refusal)" macos
+  else
+    own_not_run untracked-script-under-a-tracked-name-through-a-link-and-dot-dot-is-refused 'a link is a copy on this host'
   fi
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit && mkdir -p "$fixture/alt/scripts"
   case_cdpath=$fixture/alt
@@ -1475,6 +1608,8 @@ own_self_test() {
     case_first='PASS 10-a'
     case_then="FAIL 20-planted ($untracked_refusal)"
     own_case tracked-script-runs-and-untracked-script-is-refused-windows-form-root 1 "$e1_ok" macos
+  else
+    own_not_run tracked-script-runs-and-untracked-script-is-refused-windows-form-root 'no cygpath on this host'
   fi
   : >"$tmp/case-probe"
   if [ -e "$tmp/CASE-PROBE" ]; then
@@ -1482,29 +1617,59 @@ own_self_test() {
       mv "$fixture/scripts/r1" "$fixture/scripts/R1x" && mv "$fixture/scripts/R1x" "$fixture/scripts/R1"
     case_witness=yes
     own_case run-directory-renamed-by-case-alone-stays-refused 1 "FAIL 10-a ($untracked_refusal)" macos
+  else
+    own_not_run run-directory-renamed-by-case-alone-stays-refused 'the file system keeps letter case apart'
   fi
 
+  if own_gate pass-line-with-exit-1; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a\n"; exit 1'
   own_case pass-line-with-exit-1 1 'FAIL 10-a (exit 1)' macos
+  else
+    own_not_run pass-line-with-exit-1 "macos alone: $own_gate_reason"
+  fi
+  if own_gate exit-0-without-pass-line; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "done\n"'
   own_case exit-0-without-pass-line 1 'FAIL 10-a (exit 0)' macos
+  else
+    own_not_run exit-0-without-pass-line "macos alone: $own_gate_reason"
+  fi
+  if own_gate pass-line-with-a-tail; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a (3 checks)\n"'
   own_case pass-line-with-a-tail 1 'FAIL 10-a (exit 0)' macos
+  else
+    own_not_run pass-line-with-a-tail "macos alone: $own_gate_reason"
+  fi
+  if own_gate pass-line-with-exit-77; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a\n"; exit 77'
   own_case pass-line-with-exit-77 1 'FAIL 10-a (exit 77)' macos
+  else
+    own_not_run pass-line-with-exit-77 "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$good" 'if read -r line; then printf "FAIL 10-a (it read a line)\n"; exit 1; fi; printf "PASS 10-a\n"'
   own_case no-standard-input 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" '[ "$CI_D_JOB" = windows ] || { printf "FAIL 10-a (job)\n"; exit 1; }; printf "PASS 10-a\n"'
   own_case job-handed-to-the-script 0 'ci.d windows: 1 passed, 0 failed, 0 skipped' windows
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && printf 'a file\n' >"$fixture/target"
   own_case artifacts-directory-cannot-be-made 1 'FAIL 10-a (its artifacts directory cannot be made)' macos
+  if own_gate fail-does-not-stop-the-run; then
   new_repo && add_script r1 10-a.sh "$good" "$fail_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case fail-does-not-stop-the-run 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
+  else
+    own_not_run fail-does-not-stop-the-run "macos alone: $own_gate_reason"
+  fi
   own_case name-selects-one 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos 20-b
+  if own_gate skip-outside-ci; then
   new_repo && add_script r1 10-a.sh "$good" "$skip_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case skip-outside-ci 0 'ci.d macos: 1 passed, 0 failed, 1 skipped' macos
+  else
+    own_not_run skip-outside-ci "macos alone: $own_gate_reason"
+  fi
+  if own_gate skip-in-ci; then
   case_ci=true
   own_case skip-in-ci 1 'FAIL 10-a (skipped in CI: no tool)' macos
+  else
+    own_not_run skip-in-ci "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$good" "$skip_a"
   own_case every-script-skipped 1 'ci.d macos: 0 passed, 0 failed, 1 skipped' macos
   new_repo && add_script r1 10-a.sh "# jobs: windows$nl# rule: A fixture rule." "$pass_a"
@@ -1597,6 +1762,9 @@ own_self_test() {
       add_script r1 10-a.sh "$good" "w=\$(git -C \"\$CI_D_REPO\" rev-parse --git-path config.worktree) && printf '[core]\\n\\tcheckStat = minimal\\n' >>\"\$w\" && $stat_edit; printf 'PASS 10-a\\n'" && fixture_commit
     case_witness=yes
     own_case setting-written-through-config-worktree-is-named 1 "$settings_line" macos
+  else
+    own_not_run setting-written-through-an-included-file-is-named 'git under cygpath reads no inode'
+    own_not_run setting-written-through-config-worktree-is-named 'git under cygpath reads no inode'
   fi
   new_repo && printf '\303\251x\n' >"$fixture/tracked.txt" && git -C "$fixture" add tracked.txt >/dev/null 2>&1 &&
     add_script r1 10-a.sh "$good" "[ \"\${XDG_CONFIG_HOME:-}\" = \"\$HOME/config\" ] || { printf 'FAIL 10-a (no home of the case)\\n'; exit 1; }; mkdir -p \"\$XDG_CONFIG_HOME/git\" && printf 'tracked.txt text working-tree-encoding=ISO-8859-1\\n' >\"\$XDG_CONFIG_HOME/git/attributes\" && sleep 1 && printf '\\351x\\r\\n' >\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'" && fixture_commit
@@ -1628,6 +1796,8 @@ own_self_test() {
     case_git_home=yes
     case_witness=yes
     own_case global-check-stat-of-a-script-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  else
+    own_not_run global-check-stat-of-a-script-leaves-the-read-of-the-driver 'git under cygpath reads no inode'
   fi
   new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
   case_cargo_home=$(mktemp -d "$tmp/cargo-home.XXXXXX") && mkdir "$case_cargo_home/bin" &&
@@ -1662,6 +1832,8 @@ own_self_test() {
     case_git_count=yes
     case_witness=yes
     own_case git-setting-of-the-caller-leaves-the-read-of-the-driver 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  else
+    own_not_run git-setting-of-the-caller-leaves-the-read-of-the-driver 'git under cygpath reads no inode'
   fi
   new_repo && add_script r1 10-a.sh "$good" '[ "${GIT_AUTHOR_NAME:-}" = "A Caller" ] && [ "${GIT_CASE_VALUE:-}" = "two  words, and a tab	here" ] && [ "${GIT_INDEX_FILE##*/no-index-of-the-caller/}" = index ] || { printf "FAIL 10-a (the GIT_ names of the caller changed)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_git_names=yes
@@ -1703,18 +1875,42 @@ own_self_test() {
   case_witness=yes
   own_case child-in-a-group-of-its-own-is-named-at-the-next-read 1 'FAIL run-ci-d (20-b changed a tracked file: tracked.txt)' macos
 
+  if own_gate self-test-rejects-two; then
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  else
+    own_not_run self-test-rejects-two "macos alone: $own_gate_reason"
+  fi
+  if own_gate self-test-rejects-nothing; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS self-test:10-a (0 failing fixtures rejected)\n"'
   own_case self-test-rejects-nothing 1 'FAIL self-test:10-a (0 failing fixtures rejected)' macos --self-test 10-a
+  else
+    own_not_run self-test-rejects-nothing "macos alone: $own_gate_reason"
+  fi
+  if own_gate self-test-count-is-no-number; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS self-test:10-a (no failing fixtures rejected)\n"'
   own_case self-test-count-is-no-number 1 'FAIL self-test:10-a (exit 0)' macos --self-test 10-a
+  else
+    own_not_run self-test-count-is-no-number "macos alone: $own_gate_reason"
+  fi
+  if own_gate self-test-fails; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "FAIL self-test:10-a (planned)\n"; exit 1'
   own_case self-test-fails 1 'FAIL self-test:10-a (planned)' macos --self-test 10-a
+  else
+    own_not_run self-test-fails "macos alone: $own_gate_reason"
+  fi
+  if own_gate self-test-exits-2; then
   new_repo && add_script r1 10-a.sh "$good" 'exit 2'
   own_case self-test-exits-2 1 'FAIL self-test:10-a (exit 2)' macos --self-test 10-a
+  else
+    own_not_run self-test-exits-2 "macos alone: $own_gate_reason"
+  fi
+  if own_gate self-test-pass-line-with-exit-1; then
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS self-test:10-a (2 failing fixtures rejected)\n"; exit 1'
   own_case self-test-pass-line-with-exit-1 1 'FAIL self-test:10-a (exit 1)' macos --self-test 10-a
+  else
+    own_not_run self-test-pass-line-with-exit-1 "macos alone: $own_gate_reason"
+  fi
   new_repo && track_file &&
     add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
     add_script r1 20-b.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:20-b (1 failing fixtures rejected)\n"'
@@ -1774,7 +1970,9 @@ own_self_test() {
   mkdir "$tmp/read-only" && chmod 555 "$tmp/read-only"
   if { true >"$tmp/read-only/probe"; } 2>/dev/null; then
     own_case tmpdir-whose-parent-the-script-made-read-only-is-removed 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+    own_not_run tmpdir-that-cannot-be-removed 'a directory of mode 555 takes a new file on this host'
   else
+    own_not_run tmpdir-whose-parent-the-script-made-read-only-is-removed 'a directory of mode 555 takes no new file on this host'
     case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
     case_empty=yes
     own_case tmpdir-that-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
@@ -1807,6 +2005,9 @@ own_self_test() {
     own_case tmpdir-flagged-immutable-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
     own_unflag
     trap - EXIT TERM INT HUP
+  else
+    own_not_run self-test-tmpdir-that-cannot-be-removed 'no chflags on this host'
+    own_not_run tmpdir-flagged-immutable-cannot-be-removed 'no chflags on this host'
   fi
   term_child='( trap ": >\"\$CI_D_REPO/child-got-term\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
   new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $term_child; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
@@ -1923,11 +2124,19 @@ own_self_test() {
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
+  if own_gate self-test-without-scripts; then
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   own_case self-test-without-scripts 1 'FAIL run-ci-d (no scripts for macos)' macos --self-test
+  else
+    own_not_run self-test-without-scripts "macos alone: $own_gate_reason"
+  fi
+  if own_gate self-test-of-the-driver-alone; then
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   own_case self-test-of-the-driver-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
 
+  else
+    own_not_run self-test-of-the-driver-alone "macos alone: $own_gate_reason"
+  fi
   prelude='[ "${1:-}" = --self-test ] || exit 3; me=${0##*/}; me=${me%.sh}; w() { n=0; while [ ! -e "$CI_D_REPO/$1" ]; do [ "$n" -lt 100 ] || return 1; sleep 0.1; n=$((n + 1)); done; }; meet() { : >"$CI_D_REPO/start.$me"; n=0; while [ "$n" -lt 100 ]; do for f in "$CI_D_REPO"/start.*; do [ "$f" = "$CI_D_REPO/start.$me" ] || [ ! -e "$f" ] || return 0; done; sleep 0.1; n=$((n + 1)); done; return 1; }'
   passes='printf "PASS self-test:%s (1 failing fixtures rejected)\n" "$me"'
   ran_alone='{ printf "FAIL self-test:%s (it ran alone)\n" "$me"; exit 1; }'
@@ -1960,9 +2169,13 @@ own_self_test() {
   case_empty=yes
   own_case driver-removes-its-temporary-directory-in-the-self-test-step 0 'ci.d macos self-test: 3 passed, 0 failed' macos --self-test
 
+  if own_gate self-tests-run-at-the-same-time; then
   new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case self-tests-run-at-the-same-time 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  else
+    own_not_run self-tests-run-at-the-same-time "macos alone: $own_gate_reason"
+  fi
   new_repo &&
     add_script r1 10-a.sh "$good" "$prelude; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/a1\"; w b1 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; : >\"\$CI_D_REPO/a2\"; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; w a1 || exit 1; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/b1\"; w a2 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; $passes"
@@ -1983,22 +2196,34 @@ own_self_test() {
     mkdir -p "$fixture/scripts/ci" && printf '10-a its self-test fails beside another one\r\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-a-carriage-return 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  if own_gate two-at-a-time; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
     add_script r1 30-c.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes"
   case_jobs=2
   own_case two-at-a-time 0 'ci.d macos self-test: 3 passed, 0 failed' macos --self-test 10-a 20-b 30-c
+  else
+    own_not_run two-at-a-time "macos alone: $own_gate_reason"
+  fi
+  if own_gate failing-self-test-beside-another; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; printf \"FAIL self-test:%s (planned)\\n\" \"\$me\"; exit 1" &&
     add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case failing-self-test-beside-another 1 'FAIL self-test:10-a (planned)' macos --self-test 10-a 20-b
+  else
+    own_not_run failing-self-test-beside-another "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$good" "$prelude; printf \"%s\\n\" \"\$me\" >\"\$TMPDIR/shared\"; meet || $ran_alone; read -r got <\"\$TMPDIR/shared\"; [ \"\$got\" = \"\$me\" ] || { printf \"FAIL self-test:%s (another self-test wrote its file)\\n\" \"\$me\"; exit 1; }; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; printf \"%s\\n\" \"\$me\" >\"\$TMPDIR/shared\"; meet || $ran_alone; read -r got <\"\$TMPDIR/shared\"; [ \"\$got\" = \"\$me\" ] || { printf \"FAIL self-test:%s (another self-test wrote its file)\\n\" \"\$me\"; exit 1; }; $passes"
   case_jobs=2
   own_case two-self-tests-write-one-path 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  if own_gate self-test-prints-nothing; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || exit 1; exit 0" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case self-test-prints-nothing 1 'FAIL self-test:10-a (exit 0)' macos --self-test 10-a 20-b
+  else
+    own_not_run self-test-prints-nothing "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s TERM \"\$\$\"; $passes" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case self-test-ended-by-a-signal 1 'FAIL self-test:10-a (exit 143)' macos --self-test 10-a 20-b
@@ -2029,14 +2254,20 @@ own_self_test() {
   if [ "$procs" -ge 2 ] 2>/dev/null; then
     new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
     own_case default-of-several-at-a-time 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  else
+    own_not_run default-of-several-at-a-time 'one processor on this host'
   fi
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '99-gone it was renamed\n' >"$fixture/$alone_list"
   own_case alone-list-names-no-script 1 "FAIL run-ci-d ($alone_list names 99-gone, which is no script)" macos --self-test 10-a
+  if own_gate alone-list-names-a-script-of-the-other-job-alone; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     add_script r1 20-w.sh "# jobs: windows$nl# rule: A fixture rule." "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '20-w its self-test fails beside another one\n' >"$fixture/$alone_list"
   own_case alone-list-names-a-script-of-the-other-job-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  else
+    own_not_run alone-list-names-a-script-of-the-other-job-alone "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
   case_jobs=x
   own_case jobs-not-a-number 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=x is not a whole number from 1 to 999999999)' macos --self-test 10-a
@@ -2052,6 +2283,7 @@ own_self_test() {
     add_script r1 20-b.sh "$good" "$prelude; $passes"
   case_jobs=2
   own_case output-of-a-child-that-outlives-its-self-test 1 'FAIL self-test:10-a (exit 0)' macos --self-test 10-a 20-b
+  if own_gate refusal-keeps-its-place-in-the-recap; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 1; $passes" &&
     add_script r1 20-x.sh '# rule: A fixture rule.' "$prelude; $passes" &&
     add_script r1 30-c.sh "$good" "$prelude; $passes"
@@ -2059,6 +2291,9 @@ own_self_test() {
   case_first="PASS self-test:10-a (1 failing fixtures rejected)${nl}FAIL 20-x (its first 10 lines hold no single '# jobs:' line)${nl}PASS self-test:30-c (1 failing fixtures rejected)"
   case_then='ci.d macos self-test: 2 passed, 1 failed'
   own_case refusal-keeps-its-place-in-the-recap 1 "FAIL 20-x (its first 10 lines hold no single '# jobs:' line)" macos --self-test 10-a 30-c
+  else
+    own_not_run refusal-keeps-its-place-in-the-recap "macos alone: $own_gate_reason"
+  fi
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   case_nested=fail
   own_case own-cases-that-fail-in-a-nested-run 1 'ci.d macos self-test: 0 passed, 1 failed' macos --self-test run-ci-d
@@ -2149,16 +2384,24 @@ own_self_test() {
   case_signal_min=3
   case_witness=yes
   own_case interrupt-of-the-self-test-step-ends-the-groups-of-ended-self-tests 143 'FAIL run-ci-d (the step was interrupted by TERM; every self-test that it started is ended)' macos --self-test 10-a 20-b
+  if own_gate alone-list-line-with-leading-blanks; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-leading-blanks 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  else
+    own_not_run alone-list-line-with-leading-blanks "macos alone: $own_gate_reason"
+  fi
+  if own_gate alone-list-with-comment-and-blank-lines; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '# a comment\n\n  # 20-b an indented comment\n10-a its self-test fails beside another one\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-with-comment-and-blank-lines 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  else
+    own_not_run alone-list-with-comment-and-blank-lines "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '10-a\n' >"$fixture/$alone_list"
   own_case alone-list-entry-without-a-reason 1 "FAIL run-ci-d ($alone_list names 10-a without a reason)" macos --self-test 10-a
@@ -2183,36 +2426,56 @@ own_self_test() {
     case_procs=$procs
     own_case "default-number-of-one-when-number-of-processors-is-$procs" 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
   done
+  if own_gate step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; $alone; $ends; printf 'PASS %s\\n' \"\$me\"" &&
     add_script r1 20-b.sh "$good" "$prelude_any; $alone; $ends; printf 'PASS %s\\n' \"\$me\""
   case_jobs=2
   own_case step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says "macos alone: $own_gate_reason"
+  fi
   free="$good$nl# lane: free"
   check_passes='printf "PASS %s\n" "$me"'
   check_alone='{ printf "FAIL %s (it ran alone)\n" "$me"; exit 1; }'
   cargo_before='before=0; for f in "$CI_D_REPO"/cargo-start.*; do [ -e "$f" ] || continue; o=${f##*/cargo-start.}; [ -e "$CI_D_REPO/cargo-end.$o" ] || { printf "FAIL %s (it started beside %s)\n" "$me" "$o"; exit 1; }; before=$((before + 1)); done; : >"$CI_D_REPO/cargo-start.$me"'
   cargo_after='sleep 2; after=0; for f in "$CI_D_REPO"/cargo-start.*; do after=$((after + 1)); done; [ "$after" -eq "$((before + 1))" ] || { printf "FAIL %s (another check of the cargo lane started beside it)\n" "$me"; exit 1; }; : >"$CI_D_REPO/cargo-end.$me"'
+  if own_gate checks-of-two-lanes-run-at-the-same-time; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; $check_passes"
   own_case checks-of-two-lanes-run-at-the-same-time 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run checks-of-two-lanes-run-at-the-same-time "macos alone: $own_gate_reason"
+  fi
   lone="$good$nl# lane: alone"
   busy=': >"$CI_D_REPO/start.$me"; sleep 2; : >"$CI_D_REPO/end.$me"'
   solo='for f in "$CI_D_REPO"/start.*; do [ -e "$f" ] || continue; o=${f##*/start.}; [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL %s (it started beside %s)\n" "$me" "$o"; exit 1; }; done; : >"$CI_D_REPO/start.$me"; sleep 2; for f in "$CI_D_REPO"/start.*; do o=${f##*/start.}; [ "$o" = "$me" ] || [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL %s (%s started beside it)\n" "$me" "$o"; exit 1; }; done; : >"$CI_D_REPO/end.$me"'
   after_lanes='[ -e "$CI_D_REPO/end.20-b" ] && [ -e "$CI_D_REPO/end.30-c" ] || { printf "FAIL %s (it started before the lanes ended)\n" "$me"; exit 1; }'
+  if own_gate alone-check-starts-after-both-lanes-have-ended; then
   new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; $after_lanes; $solo; $check_passes" &&
     add_script r1 20-b.sh "$good" "$prelude_any; $busy; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; $busy; $check_passes"
   own_case alone-check-starts-after-both-lanes-have-ended 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run alone-check-starts-after-both-lanes-have-ended "macos alone: $own_gate_reason"
+  fi
+  if own_gate two-alone-checks-run-one-after-the-other-in-order; then
   new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; $solo; $check_passes" &&
     add_script r1 20-b.sh "$lone" "$prelude_any; [ -e \"\$CI_D_REPO/end.10-a\" ] || { printf 'FAIL %s (it ran before 10-a)\\n' \"\$me\"; exit 1; }; $solo; $check_passes" &&
     add_script r1 30-c.sh "$good" "$prelude_any; $busy; $check_passes"
   own_case two-alone-checks-run-one-after-the-other-in-order 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run two-alone-checks-run-one-after-the-other-in-order "macos alone: $own_gate_reason"
+  fi
+  if own_gate output-of-an-alone-check-in-the-order-of-the-run; then
   new_repo && add_script r1 10-a.sh "$lone" "$prelude_any; printf 'line of %s\\n' \"\$me\"; $check_passes" &&
     add_script r1 20-b.sh "$good" "$prelude_any; printf 'line of %s\\n' \"\$me\"; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; printf 'line of %s\\n' \"\$me\"; $check_passes"
   case_first="line of 10-a${nl}PASS 10-a${nl}seconds 10-a "
   case_then="line of 20-b${nl}PASS 20-b${nl}seconds 20-b "
   own_case output-of-an-alone-check-in-the-order-of-the-run 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run output-of-an-alone-check-in-the-order-of-the-run "macos alone: $own_gate_reason"
+  fi
   new_repo && track_file && add_script r1 10-a.sh "$good" "$prelude_any; $busy; $check_passes" &&
     add_script r1 20-b.sh "$lone" "$prelude_any; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; $busy; $check_passes"
@@ -2273,13 +2536,21 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free$cr" "$prelude_any; meet || $check_alone; $check_passes"
   own_case lane-line-with-a-carriage-return-names-the-free-lane 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  if own_gate checks-without-a-lane-one-at-a-time-beside-the-free-lane; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; $cargo_before; w seen; $cargo_after; $check_passes" &&
     add_script r1 20-b.sh "$good" "$prelude_any; $cargo_before; $cargo_after; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; w cargo-start.10-a && [ ! -e \"\$CI_D_REPO/cargo-end.10-a\" ] || $check_alone; : >\"\$CI_D_REPO/seen\"; $check_passes"
   own_case checks-without-a-lane-one-at-a-time-beside-the-free-lane 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run checks-without-a-lane-one-at-a-time-beside-the-free-lane "macos alone: $own_gate_reason"
+  fi
+  if own_gate lane-line-at-line-11-is-no-lane; then
   new_repo && add_script r1 10-a.sh "$good$nl$seven$nl# lane: free" "$prelude_any; $cargo_before; $cargo_after; $check_passes" &&
     add_script r1 20-b.sh "$good" "$prelude_any; $cargo_before; $cargo_after; $check_passes"
   own_case lane-line-at-line-11-is-no-lane 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run lane-line-at-line-11-is-no-lane "macos alone: $own_gate_reason"
+  fi
   new_repo &&
     add_script r1 10-a.sh "$free" "$prelude_any; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/a1\"; w b1 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; : >\"\$CI_D_REPO/a2\"; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; w a1 || exit 1; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/b1\"; w a2 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; $check_passes"
@@ -2291,18 +2562,26 @@ own_self_test() {
   case_first="line of 10-a${nl}PASS 10-a${nl}seconds 10-a "
   case_then="line of 20-b${nl}PASS 20-b${nl}seconds 20-b "
   own_case output-in-name-order-when-a-later-check-ends-first 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  if own_gate refusal-keeps-its-place-in-the-recap-of-the-step-ci.d; then
   new_repo && add_script r1 10-a.sh "$free" "$prelude_any; sleep 1; $check_passes" &&
     add_script r1 20-x.sh '# rule: A fixture rule.' "$prelude_any; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; $check_passes"
   case_first="PASS 10-a${nl}FAIL 20-x (its first 10 lines hold no single '# jobs:' line)${nl}PASS 30-c"
   case_then='ci.d macos: 2 passed, 1 failed, 0 skipped'
   own_case refusal-keeps-its-place-in-the-recap-of-the-step-ci.d 1 "FAIL 20-x (its first 10 lines hold no single '# jobs:' line)" macos
+  else
+    own_not_run refusal-keeps-its-place-in-the-recap-of-the-step-ci.d "macos alone: $own_gate_reason"
+  fi
   two_others="$running; [ \"\$others\" -le 1 ] || { printf \"FAIL %s (two others ran beside it)\\n\" \"\$me\"; exit 1; }"
+  if own_gate free-lane-runs-ci-d-check-jobs-at-a-time; then
   new_repo && add_script r1 10-a.sh "$free" "$prelude_any; meet || $check_alone; sleep 1; $two_others; $ends; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; $starts; sleep 1; $two_others; $ends; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; $starts; sleep 1; $two_others; $ends; $check_passes"
   case_check_jobs=2
   own_case free-lane-runs-ci-d-check-jobs-at-a-time 0 'ci.d macos: 3 passed, 0 failed, 0 skipped' macos
+  else
+    own_not_run free-lane-runs-ci-d-check-jobs-at-a-time "macos alone: $own_gate_reason"
+  fi
   new_repo && add_script r1 10-a.sh "$free" "$prelude_any; $check_passes"
   case_check_jobs=x
   own_case check-jobs-not-a-number 1 'FAIL run-ci-d (CI_D_CHECK_JOBS=x is not a whole number from 1 to 999999999)' macos
@@ -2360,11 +2639,13 @@ own_self_test() {
       case_jobs=2
       case $foreground:$after in
         'PASS 10-a:yes')
+          own_not_run "self-test-that-sends-$signal-to-itself-$place-ends-as-in-the-foreground" "the shell runs on after its own $signal on this host"
           case_first='line after the kill'
           case_then='PASS self-test:10-a (1 failing fixtures rejected)'
           own_case "self-test-that-sends-$signal-to-itself-$place-runs-on-as-in-the-foreground" 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
           ;;
         'FAIL 10-a (exit '*'):no')
+          own_not_run "self-test-that-sends-$signal-to-itself-$place-runs-on-as-in-the-foreground" "the shell ends at its own $signal on this host"
           case_absent='line after the kill'
           own_case "self-test-that-sends-$signal-to-itself-$place-ends-as-in-the-foreground" 1 "FAIL self-test:10-a (${foreground#FAIL 10-a (}" macos --self-test 10-a 20-b
           ;;
@@ -2377,11 +2658,13 @@ own_self_test() {
     done
     case $foreground:$after in
       'PASS 10-a:yes')
+        own_not_run "script-that-sends-$signal-to-itself-in-the-step-ci.d-ends-as-in-the-foreground" "the shell runs on after its own $signal on this host"
         case_first='line after the kill'
         case_then='PASS 10-a'
         own_case "script-that-sends-$signal-to-itself-in-the-step-ci.d-runs-on-as-in-the-foreground" 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos 10-a
         ;;
       'FAIL 10-a (exit '*'):no')
+        own_not_run "script-that-sends-$signal-to-itself-in-the-step-ci.d-runs-on-as-in-the-foreground" "the shell ends at its own $signal on this host"
         case_absent='line after the kill'
         own_case "script-that-sends-$signal-to-itself-in-the-step-ci.d-ends-as-in-the-foreground" 1 "$foreground" macos 10-a
         ;;
@@ -2390,11 +2673,13 @@ own_self_test() {
       add_script r1 20-b.sh "$good" "$prelude_any; meet || $check_alone; $check_passes"
     case $foreground:$after in
       'PASS 10-a:yes')
+        own_not_run "free-check-that-sends-$signal-to-itself-ends-as-in-the-foreground" "the shell runs on after its own $signal on this host"
         case_first='line after the kill'
         case_then='PASS 10-a'
         own_case "free-check-that-sends-$signal-to-itself-runs-on-as-in-the-foreground" 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
         ;;
       'FAIL 10-a (exit '*'):no')
+        own_not_run "free-check-that-sends-$signal-to-itself-runs-on-as-in-the-foreground" "the shell ends at its own $signal on this host"
         case_absent='line after the kill'
         case_first="$foreground"
         case_then='PASS 20-b'
@@ -2482,6 +2767,7 @@ own_self_test() {
   case_then='ci.d macos self-test: 2 passed, 0 failed'
   own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
 
+  own_list_case lists-of-the-macos-alone-cases-and-of-the-windows-rules
   printf 'run-ci-d own cases: %s cases, %s s\n' "$own_n" "$(($(date +%s) - own_start))"
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
