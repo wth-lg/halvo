@@ -224,6 +224,21 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
     })
 }
 
+/// The row of an agent whose workflow a tick saw gone while its run lives (I5.7, ruling RD-54
+/// (g)): `working.stopping`, or `working.kill_stuck` where `stuck`, the run's kill having come
+/// due without ending it, and no control.
+pub fn gone_row<C: ConfigView>(facts: &Facts<C>, stuck: bool, name: &str) -> Result<Row, Cause> {
+    let line = if stuck {
+        StatusLine::KillStuck
+    } else {
+        StatusLine::Stopping
+    };
+    Ok(Row {
+        controls: Vec::new(),
+        ..row(facts, line, name)?
+    })
+}
+
 /// A row with the time at which its open item was raised, which orders the group `needs_you`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Placed {

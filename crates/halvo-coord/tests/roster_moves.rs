@@ -420,3 +420,68 @@ fn i34_two_page_confirmations_name_their_agent_and_their_place_in_the_replys_ord
     }
     assert_ne!(texts[0], texts[1], "two confirmations do not read the same");
 }
+
+/// A coordinator whose one agent's run lives while a tick has seen its workflow gone.
+fn gone_while_live() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(0));
+    c.tick();
+    assert_eq!(c.live(), 1, "the run is stopping");
+    (c, run)
+}
+
+fn row_of(c: &Coordinator<Both>) -> Option<halvo_coord::types::Row> {
+    c.snapshot().rows.into_iter().find(|r| r.agent == agent(0))
+}
+
+#[test]
+fn rd54g_a_gone_workflows_live_run_keeps_its_row_stopping_with_no_control_until_it_ends() {
+    let (c, _) = gone_while_live();
+    let row = row_of(&c).expect("the row stays while the run lives");
+    assert_eq!(row.line, line("line.working.stopping"));
+    assert_eq!(row.status, halvo_coord::types::Status::Working);
+    assert!(row.controls.is_empty(), "{:?}", row.controls);
+    assert_eq!(
+        c.control(&agent(0), Action::Stop),
+        Err(halvo_coord::types::Cause::UnknownAgent)
+    );
+    assert_eq!(
+        c.card(&agent(0)).map(|_| ()),
+        Err(halvo_coord::types::Cause::UnknownAgent)
+    );
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 0, "the kill ended the run");
+    assert!(row_of(&c).is_none(), "no row once the run has ended");
+}
+
+#[test]
+fn rd54g_a_gone_workflows_run_whose_kill_does_not_end_it_shows_kill_stuck() {
+    let (c, _) = gone_while_live();
+    c.ports().ports.refuse(
+        halvo_coord::mem::Method::Kill,
+        halvo_coord::ports::PortError::Busy,
+    );
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 1, "the kill did not end the run");
+    let row = row_of(&c).expect("the row stays");
+    assert_eq!(row.line, line("line.working.kill_stuck"));
+    assert!(row.controls.is_empty());
+    c.ports().ports.clear_refusals();
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.cancel_grace_s * 1000 + 1_000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 0);
+    assert!(row_of(&c).is_none());
+}

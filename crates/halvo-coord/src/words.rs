@@ -66,6 +66,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.working", "It is doing its task now."),
     ("line.working.stopping", "It is stopping."),
     (
+        "line.working.kill_stuck",
+        "Something of this agent still runs on your computer. Close Halvo and open it again to end it.",
+    ),
+    (
         "line.waiting_turn.queued",
         "Only one agent works at a time, so it starts when its turn comes.",
     ),
