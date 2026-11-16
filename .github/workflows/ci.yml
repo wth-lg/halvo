@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -30,18 +31,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,25 +81,50 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 15-r3-test-dirs
+      - name: U5.1d loop of the tests of S-100
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$tmp/s100-loop-messages.json" 2> "$tmp/s100-loop-build.txt"
+          echo "build exit $?"
+          exe() {
+            grep '"reason":"compiler-artifact"' "$tmp/s100-loop-messages.json" | grep '"executable":"' | grep "\"name\":\"$1\"" | sed 's/.*"executable":"\([^"]*\)".*/\1/' | sed 's/\\\\/\\/g' | tail -n 1
+          }
+          bad=
+          loop() {
+            file=$(exe "$1")
+            if [ -z "$file" ]; then echo "LOOP $2: no test binary $1"; bad=1; return; fi
+            pass=0
+            i=0
+            start=$(date +%s)
+            while [ "$i" -lt "$3" ]; do
+              i=$((i + 1))
+              out=$(cd crates/halvo-derived && "$file" "$2" --exact 2>&1)
+              if printf '%s\n' "$out" | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                pass=$((pass + 1))
+              else
+                echo "LOOP $2 run $i:"
+                printf '%s\n' "$out" | tail -n 25
+              fi
+            done
+            echo "LOOP $2 passed $pass of $3 in $(( $(date +%s) - start )) s"
+            [ "$pass" -eq "$3" ] || bad=1
+          }
+          loop propose a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision 200
+          loop propose a_proposal_with_the_key_of_a_site_keyed_workflow_that_an_agent_does_leaves_it_as_it_was 200
+          loop typed an_open_refuses_an_entry_with_no_workflow_key_that_gives_a_stored_kind_another_family 200
+          loop halvo_derived tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap 200
+          if [ -n "$bad" ]; then echo "LOOP a test missed its count"; exit 1; fi
+          echo "LOOP every count met"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -148,25 +162,50 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-derived 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-derived 15-r3-test-dirs
+      - name: U5.1d loop of the tests of S-100
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$tmp/s100-loop-messages.json" 2> "$tmp/s100-loop-build.txt"
+          echo "build exit $?"
+          exe() {
+            grep '"reason":"compiler-artifact"' "$tmp/s100-loop-messages.json" | grep '"executable":"' | grep "\"name\":\"$1\"" | sed 's/.*"executable":"\([^"]*\)".*/\1/' | sed 's/\\\\/\\/g' | tail -n 1
+          }
+          bad=
+          loop() {
+            file=$(exe "$1")
+            if [ -z "$file" ]; then echo "LOOP $2: no test binary $1"; bad=1; return; fi
+            pass=0
+            i=0
+            start=$(date +%s)
+            while [ "$i" -lt "$3" ]; do
+              i=$((i + 1))
+              out=$(cd crates/halvo-derived && "$file" "$2" --exact 2>&1)
+              if printf '%s\n' "$out" | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                pass=$((pass + 1))
+              else
+                echo "LOOP $2 run $i:"
+                printf '%s\n' "$out" | tail -n 25
+              fi
+            done
+            echo "LOOP $2 passed $pass of $3 in $(( $(date +%s) - start )) s"
+            [ "$pass" -eq "$3" ] || bad=1
+          }
+          loop propose a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision 200
+          loop propose a_proposal_with_the_key_of_a_site_keyed_workflow_that_an_agent_does_leaves_it_as_it_was 200
+          loop typed an_open_refuses_an_entry_with_no_workflow_key_that_gives_a_stored_kind_another_family 200
+          loop halvo_derived tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap 200
+          if [ -n "$bad" ]; then echo "LOOP a test missed its count"; exit 1; fi
+          echo "LOOP every count met"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
