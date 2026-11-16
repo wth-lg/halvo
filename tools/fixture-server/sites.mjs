@@ -280,21 +280,33 @@ export function parseSiteData(bytes) {
 }
 
 /**
- * Reads the site data files at the given paths, in order. Returns `{ sites }` or `{ refused: path }` for the first
- * file that is missing, is not of C11.1, or names a service that an earlier file names (D8).
+ * The number of the path at `index` among `paths` in byte order of their UTF-8 bytes, from 1; equal paths keep
+ * the order in which they are given (contracts.md C11.1).
+ */
+export function fileNumber(paths, index) {
+  const order = paths.map((path, i) => ({ key: Buffer.from(path, 'utf8'), i }));
+  order.sort((a, b) => Buffer.compare(a.key, b.key) || a.i - b.i);
+  return order.findIndex((entry) => entry.i === index) + 1;
+}
+
+/**
+ * Reads the site data files at the given paths, in order. Returns `{ sites }`, or `{ refused: path, number }` for
+ * the first file that is missing, is not of C11.1, or names a service that an earlier file names (D8), where
+ * `number` is the file's number of `fileNumber`, the one that a refusal prints.
  */
 export function loadSites(paths) {
   const sites = [];
   const services = new Set();
-  for (const path of paths) {
+  for (const [i, path] of paths.entries()) {
+    const refused = { refused: path, number: fileNumber(paths, i) };
     let site;
     try {
       site = parseSiteData(readFileSync(path));
     } catch (error) {
-      if (error instanceof SiteDataError || error.code !== undefined) return { refused: path };
+      if (error instanceof SiteDataError || error.code !== undefined) return refused;
       throw error;
     }
-    if (services.has(site.service)) return { refused: path };
+    if (services.has(site.service)) return refused;
     services.add(site.service);
     sites.push(site);
   }

@@ -105,7 +105,7 @@ const args = readArgs(process.argv.slice(2), '--port', isPort);
 if (args === null) refuse('usage', USAGE);
 const port = args.value === null ? DEFAULT_PORT : Number(args.value);
 const loaded = loadSites(args.files);
-if (loaded.refused !== undefined) refuse('site-data', loaded.refused);
+if (loaded.refused !== undefined) refuse('site-data', `SITE_DATA ${loaded.number}`);
 const hosts = routes(loaded.sites);
 
 function respond(req, res) {
