@@ -58,7 +58,7 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
 
 /// S-85, item 5: the open refuses by name a process whose linked database does not answer that it is Halvo's mended
 /// build, and this build is that one. No test build links another library, so the call in `Db::open` is held by the
-/// changed copies named in U5.2's report and not by this test.
+/// text of src/db.rs: the call stands there once, in the function `open`. Its limit: it reads text.
 #[test]
 fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
     assert_eq!(
@@ -67,6 +67,20 @@ fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
     );
     assert_eq!(require_mend(true), Ok(()));
     assert!(halvo_sqlcipher::page_gap_mend_linked());
+    let source = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("db.rs"),
+    )
+    .unwrap();
+    let call = "require_mend(halvo_sqlcipher::page_gap_mend_linked())?;";
+    assert_eq!(source.matches(call).count(), 1, "the call in src/db.rs");
+    let open = source.find("pub(crate) fn open(").unwrap();
+    let end = open + source[open..].find("\n    }\n").unwrap();
+    assert!(
+        source[open..end].contains(call),
+        "the call stands in Db::open"
+    );
 }
 
 #[test]
