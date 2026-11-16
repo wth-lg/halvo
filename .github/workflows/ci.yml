@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,61 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r7-backend-static 21-r7-backend-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r7-backend-static 21-r7-backend-test
+      - name: Unit 5.6 part 2, the backend gate's checks 10, 70 and 80 by name with a stack
+        if: always()
+        shell: bash
+        working-directory: backend
+        run: |
+          set +e
+          all="10-subscription 15-lifecycle 20-card-entry 30-cap 40-prompts 50-concurrency 55-metering 60-schema 70-contract 80-storage 85-licenses 90-outbound 95-model"
+          sh scripts/stack.sh up >"$RUNNER_TEMP/stack-up.txt" 2>&1
+          up=$?
+          echo "stack up: exit=$up"
+          tail -n 5 "$RUNNER_TEMP/stack-up.txt" | cut -c1-200
+          failed=0
+          for keep in 10-subscription 70-contract 80-storage; do
+            args=""
+            for id in $all; do
+              if [ "$id" != "$keep" ]; then args="$args --except $id"; fi
+            done
+            sh scripts/gate.sh $args >"$RUNNER_TEMP/gate-$keep.txt" 2>&1
+            code=$?
+            echo "gate $keep: exit=$code"
+            grep -E "^(PASS|FAIL) " "$RUNNER_TEMP/gate-$keep.txt" | cut -c1-400
+            if [ "$keep" = 80-storage ] && grep -q "^FAIL storage: stub, not built yet (P6)" "$RUNNER_TEMP/gate-$keep.txt"; then
+              echo "80-storage is the stub of P6: its FAIL line is the stub's own"
+            elif [ "$code" != 0 ]; then failed=1; tail -n 20 "$RUNNER_TEMP/gate-$keep.txt" | cut -c1-200; fi
+          done
+          sh scripts/stack.sh down >"$RUNNER_TEMP/stack-down.txt" 2>&1
+          echo "stack down: exit=$?"
+          [ "$failed" = 0 ] && [ "$up" = 0 ]
+      - name: Unit 5.6 part 2 loop, 15 rounds of 21-r7-backend-test through the driver
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=15
+          passed=0
+          start=$(date +%s)
+          for round in $(seq 1 "$rounds"); do
+            t0=$(date +%s)
+            sh scripts/ci/run-ci-d.sh macos 21-r7-backend-test >"$RUNNER_TEMP/loop-$round.txt" 2>&1
+            code=$?
+            t1=$(date +%s)
+            if [ "$code" = 0 ]; then passed=$((passed + 1)); fi
+            echo "round $round: exit=$code seconds=$((t1 - t0)) $(grep -E '^(PASS|FAIL) 21-r7-backend-test' "$RUNNER_TEMP/loop-$round.txt" | tail -n 1 | cut -c1-240)"
+            node -e 'const fs = require("fs"); const path = process.argv[1]; if (!fs.existsSync(path)) { console.log("  no vitest.json"); process.exit(0); } const report = JSON.parse(fs.readFileSync(path, "utf8")); for (const file of report.testResults ?? []) for (const test of file.assertionResults ?? []) if (/^the drawn test, seed 115|^drawn customers \(seed 562\)/.test(test.title)) console.log(`  drawn test ${test.title.slice(0, 34)}: status=${test.status} seconds=${((test.duration ?? 0) / 1000).toFixed(2)}`);' target/ci-artifacts/21-r7-backend-test/vitest.json
+          done
+          echo "unit 5.6 part 2 loop: 21-r7-backend-test rounds=$rounds passed=$passed seconds=$(( $(date +%s) - start ))"
+          [ "$passed" = "$rounds" ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +197,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r7-backend-static
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r7-backend-static
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
