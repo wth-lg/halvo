@@ -151,6 +151,41 @@ pub fn refusal_causes(check_stderr: &str) -> String {
     }
 }
 
+/// One line for each line of the egress check's denial log (`denied at=<t> proto=<p>
+/// dest=<host>:<port> ...`, A14.3): `egress_denial <cell> set=<set> proto=<tcp|udp|icmp|dns|->
+/// port=<n|-> loopback=<yes|no|unknown>`. The address itself is never printed, because job logs
+/// are public; `loopback=unknown` stands for a host that the log does not give as an address.
+pub fn denial_lines(cell: &str, set: &str, log: &str) -> Vec<String> {
+    log.lines()
+        .map(|line| {
+            let proto = key(line, "proto")
+                .filter(|p| ["tcp", "udp", "icmp", "dns"].contains(p))
+                .unwrap_or("-");
+            let (host, port) = match key(line, "dest").and_then(|d| d.rsplit_once(':')) {
+                Some((host, port)) => (host, port),
+                None => ("", ""),
+            };
+            let port = if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) {
+                port
+            } else {
+                "-"
+            };
+            let host = host.trim_start_matches('[').trim_end_matches(']');
+            let loopback = match host.parse::<std::net::IpAddr>() {
+                Ok(std::net::IpAddr::V6(v6))
+                    if v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback()) =>
+                {
+                    "yes"
+                }
+                Ok(ip) if ip.is_loopback() => "yes",
+                Ok(_) => "no",
+                Err(_) => "unknown",
+            };
+            format!("egress_denial {cell} set={set} proto={proto} port={port} loopback={loopback}")
+        })
+        .collect()
+}
+
 /// The values of item 3's inner line `egress_run <cell> browser_started=<yes|no>
 /// task=<ok|miss|notrun> cause=<word>`.
 #[derive(Debug, PartialEq, Eq)]
@@ -541,6 +576,13 @@ mod tests {
             ))
         );
         assert_eq!(o(None, false), Outer::NotRun("egress_check".into()));
+        for value in ["maybe", ""] {
+            assert_eq!(
+                o(Some(&inner(value, "ok", "-")), false),
+                Outer::NotRun("egress_check".into()),
+                "{value}"
+            );
+        }
         assert_eq!(
             o(
                 Some(&format!(
@@ -585,6 +627,71 @@ mod tests {
                 .collect();
             assert_eq!(started, lines, "{}", start.name());
         }
+    }
+
+    #[test]
+    fn each_denial_prints_its_protocol_its_port_and_whether_its_host_is_loopback() {
+        let cell = "machine=hosted-win browser=chrome";
+        let rows = [
+            (
+                "proto=udp dest=10.1.0.4:5353",
+                "proto=udp port=5353 loopback=no",
+            ),
+            (
+                "proto=tcp dest=127.0.0.1:18090",
+                "proto=tcp port=18090 loopback=yes",
+            ),
+            (
+                "proto=tcp dest=127.8.9.1:80",
+                "proto=tcp port=80 loopback=yes",
+            ),
+            (
+                "proto=udp dest=[::1]:443",
+                "proto=udp port=443 loopback=yes",
+            ),
+            (
+                "proto=udp dest=[fe80::1]:5353",
+                "proto=udp port=5353 loopback=no",
+            ),
+            (
+                "proto=tcp dest=[::ffff:127.0.0.1]:80",
+                "proto=tcp port=80 loopback=yes",
+            ),
+            (
+                "proto=tcp dest=[::ffff:8.8.8.8]:443",
+                "proto=tcp port=443 loopback=no",
+            ),
+            (
+                "proto=udp dest=-:443",
+                "proto=udp port=443 loopback=unknown",
+            ),
+            ("proto=icmp dest=-:-", "proto=icmp port=- loopback=unknown"),
+            ("proto=icmp dest=8.8.4.4:-", "proto=icmp port=- loopback=no"),
+            (
+                "proto=dns dest=resolver",
+                "proto=dns port=- loopback=unknown",
+            ),
+            ("proto=- dest=-", "proto=- port=- loopback=unknown"),
+            ("proto=sctp dest=1.2.3.4:9x", "proto=- port=- loopback=no"),
+            ("", "proto=- port=- loopback=unknown"),
+        ];
+        let log: String = rows
+            .iter()
+            .map(|(l, _)| format!("denied at=17 {l} pid=4 image=chrome.exe\n"))
+            .collect();
+        let got = denial_lines(cell, "first", &log);
+        let want: Vec<String> = rows
+            .iter()
+            .map(|(_, w)| format!("egress_denial {cell} set=first {w}"))
+            .collect();
+        assert_eq!(got, want);
+        for (line, address) in got
+            .iter()
+            .zip(["10.1.0.4", "127.0.0.1", "127.8.9.1", "::1"])
+        {
+            assert!(!line.contains(address), "{line}");
+        }
+        assert_eq!(denial_lines(cell, "final", ""), Vec::<String>::new());
     }
 
     #[test]
