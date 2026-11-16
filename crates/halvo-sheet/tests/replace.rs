@@ -374,6 +374,29 @@ fn a_file_of_another_party_that_cannot_be_read_at_the_copys_name_is_no_copy_left
 }
 
 #[test]
+fn a_prepare_of_the_run_after_a_replace_refused_for_its_lock_answers_the_checkpoint_error() {
+    let scratch = Scratch::new("replace-refused-lock");
+    fs::copy(corpus(FILE), scratch.path(FILE)).expect("copy");
+    let wait = std::time::Duration::from_millis(100);
+    let folder = Folder::new(&scratch.dir, common::locks_waiting(wait)).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(77.0)]];
+    let prepared = folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values)
+        .expect("prepared");
+    let held = common::locks().hold(&scratch.dir).expect("the lock");
+    let got = folder.replace(&prepared);
+    drop(held);
+    assert_eq!(
+        got,
+        Err(Error::NotReplaced(Kept::Lock(halvo_sheet::LockError::Busy)))
+    );
+    let again = folder.prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(again.as_ref().err(), Some(&Error::Checkpoint));
+}
+
+#[test]
 fn a_prepare_of_the_run_by_another_spelling_after_a_refused_replace_answers_the_checkpoint_error() {
     let scratch = Scratch::new("replace-refused-spelling");
     let s = setup(&scratch);
