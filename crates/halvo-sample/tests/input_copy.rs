@@ -454,6 +454,51 @@ fn the_layers_refusal_names_the_tier_or_layers_argument_alone() {
     assert!(!dir.join("o").exists());
 }
 
+fn long_dir(base: &Path, total: usize) -> PathBuf {
+    let mut dir = base.to_path_buf();
+    while s(&dir).len() + 1 < total {
+        let room = total - s(&dir).len() - 1;
+        dir.push("d".repeat(room.min(200)));
+    }
+    assert_eq!(s(&dir).len(), total);
+    dir
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_stream_directory_that_cannot_be_made_is_refused_by_the_dir_argument_alone() {
+    let dir = scratch("dir-make");
+    let t = tier(&dir, false);
+    let stream = files_under(&t)
+        .into_iter()
+        .find(|f| f.starts_with("streams/") && f.contains("/day-"))
+        .and_then(|f| f.split('/').nth(1).map(str::to_owned))
+        .expect("a stream directory");
+    let fits = |d: &Path, rel: &str| s(&d.join(rel)).len() <= 1023;
+    let copy = long_dir(&dir.join("c"), 1001);
+    assert!(fits(&copy, "manifest.sha256") && !fits(&copy, &format!("streams/{stream}")));
+    let o = run(&["input-copy", "--input-set", &app_title(), &s(&t), &s(&copy)]);
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&copy)));
+    assert!(copy.join("manifest.sha256").is_file());
+    let built = long_dir(&dir.join("b"), 1001);
+    assert!(fits(&built, "script-manifest.jsonl") && !fits(&built, &format!("streams/{stream}")));
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-dev",
+        "--seed",
+        "4",
+        "--out",
+        &s(&built),
+        &s(&dir.join("script.jsonl")),
+        &s(&dir.join("marked.jsonl")),
+    ]);
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&built)));
+    assert!(built.join("script-manifest.jsonl").is_file());
+}
+
 fn without_entry(tier: &Path, rel: &str) {
     let mp = tier.join("manifest.toml");
     let mut m = TierManifest::parse(&fs::read(&mp).expect("m")).expect("parse");

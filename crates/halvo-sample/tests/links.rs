@@ -204,6 +204,21 @@ fn a_tier_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
 }
 
 #[test]
+fn a_tier_link_given_from_a_sibling_directory_with_a_name_and_dot_dot_after_it_is_refused() {
+    let dir = scratch("link-sibling");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "nothing here\n");
+    let real = s(&dir.join("real"));
+    link_dir(&t, &dir.join("linked"));
+    fs::create_dir_all(dir.join("beside")).expect("a sibling directory");
+    let sep = std::path::MAIN_SEPARATOR;
+    let form = format!("..{sep}linked{sep}streams{sep}..");
+    let o = common::run_in(&dir.join("beside"), &["leak", &form, &real]);
+    refused(&o, "tier-manifest");
+    assert_eq!(o.stderr, format!("REFUSED tier-manifest: {form}\n"));
+}
+
+#[test]
 fn a_link_reached_through_a_linked_parent_and_a_trailing_separator_is_refused() {
     let dir = scratch("link-parent-slash");
     let t = tier(&dir);

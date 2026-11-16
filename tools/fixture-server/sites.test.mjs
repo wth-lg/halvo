@@ -571,6 +571,9 @@ test('checker: a file not of C11.1 is refused with site-data naming the file, an
     assert.equal(run.stdout, '');
     assert.equal(run.stderr, 'REFUSED site-data: SITE_DATA 1\n');
   }
+  const cased = runChecker([join(dir, 'a-x.json'), join(dir, 'B-x.json')]);
+  assert.equal(cased.status, 2);
+  assert.equal(cased.stderr, 'REFUSED site-data: SITE_DATA 2\n');
 });
 
 test('arguments: one optional flag with a value, then one or more files', () => {
@@ -604,6 +607,7 @@ test('loading: a missing file, a directory and two files that name one service a
   assert.deepEqual(loadSites([join(dir, 'zz.json'), bad]), { refused: join(dir, 'zz.json'), number: 2 });
   const wide = join(dir, '\u{1F600}.json');
   assert.deepEqual(loadSites([wide, join(dir, '\u{FF61}.json')]), { refused: wide, number: 2 });
+  assert.deepEqual(loadSites([join(dir, 'a-x.json'), join(dir, 'B-x.json')]), { refused: join(dir, 'a-x.json'), number: 2 });
 });
 
 test('checker: usage and parameters refusals', () => {

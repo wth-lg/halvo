@@ -295,7 +295,7 @@ test('server: refusals usage, site-data and port, each with nothing on standard 
     assert.equal(run.stdout, '');
     assert.match(run.stderr, /^REFUSED usage: [^\n]*\n$/);
   }
-  for (const [args, number] of [[[good, spaced], 2], [[spaced, good], 2], [[good, twin], 2], [[twin, good], 1]]) {
+  for (const [args, number] of [[[good, spaced], 2], [[spaced, good], 2], [[good, twin], 2], [[twin, good], 1], [[join(dir, 'a-x.json'), join(dir, 'B-x.json')], 2]]) {
     const run = refusal(['--port', '0', ...args]);
     console.log(`refusal site-data: status=${run.status}`);
     assert.equal(run.status, 2);

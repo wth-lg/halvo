@@ -378,6 +378,11 @@ fn the_site_data_refusal_names_a_file_by_its_number_in_byte_order_alone() {
     wide.push(dir.join("\u{FF61}.json"));
     assert_eq!(number(&wide, sites.len()), sites.len() + 2);
     expect(&wide, sites.len());
+    let mut cased = sites.clone();
+    cased.push(dir.join("a-x.json"));
+    cased.push(dir.join("B-x.json"));
+    assert_eq!(number(&cased, sites.len()), 2);
+    expect(&cased, sites.len());
     let mut twice = sites.clone();
     twice.push(sites[0].clone());
     assert_eq!(number(&twice, sites.len()), 2);
