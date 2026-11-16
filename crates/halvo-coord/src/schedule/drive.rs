@@ -1375,6 +1375,7 @@ fn check_body<P: Rng, C>(
     cx: &MoveContext<'_, P>,
     facts: &Facts<C>,
     owed: &[ItemId],
+    owed_checks: Vec<What>,
     run: &RunId,
     answer: CheckAnswer,
 ) -> Result<Vec<What>, PortError> {
@@ -1394,6 +1395,7 @@ fn check_body<P: Rng, C>(
             item,
             lapsed: Lapsed::Ready(OtherLapse::Check),
         }));
+        whats.extend(owed_checks);
         whats.push(What::ItemRaised {
             item: check.clone(),
             raised: Raised::Check(None),
@@ -1428,7 +1430,14 @@ fn answer_check<P: Owner + Rng, C: ConfigView>(
 ) -> Report {
     let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
     let owed = owed_ready(board, i);
-    let whats = match check_body(cx, &board.members[i].facts, &owed, run, answer) {
+    let whats = match check_body(
+        cx,
+        &board.members[i].facts,
+        &owed,
+        owed_of_kind(board, i, ItemKind::Check),
+        run,
+        answer,
+    ) {
         Ok(whats) => whats,
         Err(e) => return refused(port_cause(&e)),
     };
@@ -1453,7 +1462,14 @@ fn answer_check<P: Owner + Rng, C: ConfigView>(
                     None => refused(Cause::State),
                 };
             }
-            match check_body(cx, facts, &owed_ready(board, i), run, answer) {
+            match check_body(
+                cx,
+                facts,
+                &owed_ready(board, i),
+                owed_of_kind(board, i, ItemKind::Check),
+                run,
+                answer,
+            ) {
                 Ok(again) => log_at(cx, board, i, &again, day, at),
                 Err(e) => Err(e),
             }

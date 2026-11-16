@@ -110,6 +110,17 @@ impl Ledger {
             .collect()
     }
 
+    fn insert_before(&mut self, row: &What, lapses: Vec<What>, stamp: Stamp) {
+        let Some(at) = self.waiting.iter().position(|e| e.what == *row) else {
+            return;
+        };
+        let events = self.number(lapses, stamp);
+        for (k, e) in events.into_iter().enumerate() {
+            self.waiting.insert(at + k, e);
+        }
+        self.renumber();
+    }
+
     /// Keeps the rows that close an item among `events`, which the owner acknowledged.
     fn keep_acknowledged_closing_rows(&mut self, events: &[Event]) {
         for e in events {
@@ -122,14 +133,19 @@ impl Ledger {
     /// The events of a read: the waiting events that the owner stored with no acknowledgement
     /// leave the list, every waiting row that would close an item that the owner's events close
     /// leaves it, the rows that close an item are kept for `closing` and end the doubt of a press
-    /// of that item whose row got no acknowledgement, and the rest is numbered after the owner's
-    /// last.
+    /// of that item whose row got no acknowledgement, the items that they raise join the ones
+    /// that a raise may close (`earlier_open`), and the rest is numbered after the owner's last.
     fn absorb(&mut self, read: Vec<Event>) {
         for e in &read {
             if let Some(k) = self.waiting.iter().position(|w| same_but_seq(w, e)) {
                 self.waiting.remove(k);
             }
             self.last = self.last.max(e.seq.get());
+            if let What::ItemRaised { item, raised } = &e.what {
+                if !self.found.iter().any(|(i, _)| i == item) {
+                    self.found.push((item.clone(), raised.clone()));
+                }
+            }
         }
         for e in read {
             if let Some(item) = closed_item(&e.what).filter(|i| closes(std::slice::from_ref(&e), i))
@@ -512,10 +528,22 @@ fn store_raise<P: Owner + Clock>(
         return Ok(());
     };
     let mut whats = ledger.earlier_open(&row);
-    whats.push(row);
+    whats.push(row.clone());
     let events = ledger.number(whats.clone(), stamp);
     ledger.waiting.extend(events);
-    if let Ok(false) = flush_reading(ports, ledger, limits, read) {
+    let flushed = {
+        let mut read_then_find = |l: &mut Ledger| {
+            let r = read(l);
+            if r == Read::Taken {
+                let more = l.earlier_open(&row);
+                l.insert_before(&row, more.clone(), stamp);
+                whats.extend(more);
+            }
+            r
+        };
+        flush_reading(ports, ledger, limits, &mut read_then_find)
+    };
+    if let Ok(false) = flushed {
         ledger.waiting.retain(|e| !whats.contains(&e.what));
         ledger.renumber();
         return Err(Cause::State);

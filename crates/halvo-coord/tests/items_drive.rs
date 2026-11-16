@@ -2242,15 +2242,79 @@ fn rd96_5b_a_raise_leaves_an_earlier_item_that_the_events_close() {
     );
 }
 
+fn open_stuck(p: &Ports<Config>) -> Vec<Raised> {
+    let events = p.events.borrow();
+    events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: raised @ Raised::Stuck(_),
+            } if !events.iter().any(
+                |c| matches!(&c.what, What::ItemLapsed { item: i, .. } | What::ItemAnswered { item: i, .. } if i == item),
+            ) =>
+            {
+                Some(raised.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn rd96_5b_a_raise_whose_handed_read_brings_an_open_item_of_its_kind_closes_it() {
+    let p = ports();
+    let mut l = ledger_after(&p, &[]);
+    p.events
+        .borrow_mut()
+        .push(earlier_raise(1, 9, Raised::Stuck(run_id(9))));
+    let mut read = |l: &mut Ledger| {
+        let events: Vec<Event> = p.events.borrow().clone();
+        l.take(&events);
+        Read::Taken
+    };
+    raise_run_item_reading(
+        &p,
+        &mut l,
+        &LIMITS,
+        &run_id(1),
+        RunItemKind::Stuck,
+        &mut read,
+    )
+    .unwrap();
+    assert_eq!(
+        open_stuck(&p),
+        vec![Raised::Stuck(run_id(1))],
+        "the review's case: the read after seq brings the earlier item: {:?}",
+        whats_from(&p, 0)
+    );
+}
+
+#[test]
+fn rd96_5b_a_raise_whose_own_read_brings_an_open_item_of_its_kind_closes_it() {
+    let p = ports();
+    p.events
+        .borrow_mut()
+        .push(earlier_raise(1, 9, Raised::Stuck(run_id(9))));
+    let mut l = ledger();
+    raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        open_stuck(&p),
+        vec![Raised::Stuck(run_id(1))],
+        "the review's case: the ledger's own read after seq brings the earlier item: {:?}",
+        whats_from(&p, 0)
+    );
+}
+
 mod schedule_raises {
     use super::run_world::{self, agent, flow, World, A, DAY, MANUAL};
     use halvo_coord::mem::Method;
     use halvo_coord::ports::PortError;
     use halvo_coord::run::Act;
-    use halvo_coord::schedule::{drive as schedule_drive, Move, Owed, Owing};
+    use halvo_coord::schedule::{drive as schedule_drive, Answer, Move, Owed, Owing};
     use halvo_coord::types::{
-        Category, Cleared, Doing, Event, ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind,
-        Raised, What,
+        Category, CheckAnswer, Cleared, Doing, Event, ItemId, Lapsed, OtherLapse, Outcome, OwnItem,
+        OwnItemKind, Raised, What,
     };
     use std::num::NonZeroU32;
 
@@ -2565,5 +2629,59 @@ mod schedule_raises {
             ],
             "the body made again after the read lapses the earlier check item first"
         );
+    }
+
+    #[test]
+    fn rd96_5b_a_check_that_an_answer_raises_lapses_the_earlier_check_item_whose_lapse_is_owed() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7307, Raised::Check(None), lapsed);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+        let ready = event(
+            0,
+            last_seq(&w, 0) + 1,
+            What::ItemRaised {
+                item: item(0x7308),
+                raised: Raised::Ready,
+            },
+        );
+        w.ports.events.borrow_mut().push(ready.clone());
+        w.board.members[0].facts.events.push(ready);
+        w.board.members[0].facts.doing = Doing::Idle(Some(OwnItem {
+            item: item(0x7308),
+            kind: OwnItemKind::Ready,
+        }));
+        let before = last_seq(&w, 0);
+        let answered = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            },
+        );
+        assert_eq!(answered.answer, Ok(Answer::Ok));
+        let body = whats_after(&w, 0, before);
+        assert!(
+            matches!(
+                &body[..],
+                [
+                    What::ItemLapsed { item: r, lapsed: Lapsed::Ready(OtherLapse::Check) },
+                    What::ItemLapsed { item: c, lapsed: Lapsed::Check(OtherLapse::AppEnded) },
+                    What::ItemRaised { raised: Raised::Check(None), .. },
+                    What::ItemAnswered { .. },
+                    What::HoldCleared { .. },
+                ] if *r == item(0x7308) && *c == item(0x7307)
+            ),
+            "the answer's raise lapses the earlier check item before it raises: {body:?}"
+        );
+        assert!(open_of(&w, 0, is_check).is_empty());
     }
 }
