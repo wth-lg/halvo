@@ -105,7 +105,8 @@ mod seam_only_in_the_crates_own_tests {
             Vec::<String>::new()
         );
         let features = format!("{MANIFEST}\n[features]\nseam = []\n");
-        let controls: [(&str, [&str; 4]); 6] = [
+        let controls: [(&str, [&str; 4]); 7] = [
+            ("no declaration", [MANIFEST, "mod remove;\n", HOOK, CALL]),
             (
                 "public module",
                 [MANIFEST, "mod remove;\npub mod seam;\n", HOOK, CALL],
