@@ -1,3 +1,4 @@
+use halvo_schema::executable::body::CHECKPOINTS_REPLY_MAX;
 use halvo_schema::learning::body::{LearnedRead, Refinement, Refinements};
 use halvo_schema::learning::names::RefinementKind;
 use halvo_schema::learning::record::Day;
@@ -452,5 +453,72 @@ fn a_key_of_the_body_or_the_reply_in_another_letter_case_is_refused() {
             ("Refinement", Some("refinements"), "unknown_key"),
             "{to}"
         );
+    }
+}
+
+const ENTRY: &str = r#"{"day":20767,"what":"target_learned"}"#;
+
+const ESCAPED_ENTRY: &str =
+    r#"{"day":20767,"what":"\u0074\u0061\u0072\u0067\u0065\u0074_learned"}"#;
+
+const WHITE_SPACE: [char; 4] = [' ', '\n', '\t', '\r'];
+
+fn filled(len: usize, entry: &str) -> (String, usize) {
+    let frame = r#"{"refinements":[]}"#.len();
+    let entries = (len - frame + 1) / (entry.len() + 1);
+    let list = vec![entry; entries].join(",");
+    let pad: String = (0..len - frame - list.len())
+        .map(|i| WHITE_SPACE[i % WHITE_SPACE.len()])
+        .collect();
+    let line = format!(r#"{{{pad}"refinements":[{list}]}}"#);
+    assert_eq!(line.len(), len);
+    (line, entries)
+}
+
+fn read(line: &str) -> Result<usize, Want> {
+    Refinements::parse(line.as_bytes())
+        .map(|reply| reply.refinements.len())
+        .map_err(|refusal| parts(&refusal))
+}
+
+#[test]
+fn a_reply_that_white_space_takes_past_the_bound_is_refused_before_it_is_read() {
+    let (line, entries) = filled(CHECKPOINTS_REPLY_MAX + 1, ENTRY);
+    let compact = line.replace(WHITE_SPACE, "");
+    assert!(compact.len() < line.len());
+    assert!(compact.len() <= CHECKPOINTS_REPLY_MAX);
+    assert_eq!(read(&compact), Ok(entries));
+    assert_eq!(read(&line), Err(("Refinements", None, "reply_bytes")));
+    let unread = format!("{}x", &line[..CHECKPOINTS_REPLY_MAX]);
+    assert_eq!(read(&unread), Err(("Refinements", None, "reply_bytes")));
+}
+
+#[test]
+fn a_reply_that_escapes_take_past_the_bound_is_refused_before_it_is_read() {
+    let (line, entries) = filled(CHECKPOINTS_REPLY_MAX + 1, ESCAPED_ENTRY);
+    let escapes = line.matches(r"\u00").count();
+    assert_eq!(escapes, 6 * entries);
+    assert!(line.len() - 5 * escapes <= CHECKPOINTS_REPLY_MAX);
+    let value: serde_json::Value = serde_json::from_str(&line).unwrap();
+    let decoded = value.to_string();
+    assert!(decoded.len() <= CHECKPOINTS_REPLY_MAX);
+    assert_eq!(read(&decoded), Ok(entries));
+    assert_eq!(read(&line), Err(("Refinements", None, "reply_bytes")));
+}
+
+#[test]
+fn a_reply_of_exactly_the_bound_with_white_space_or_escapes_is_read() {
+    assert_eq!(CHECKPOINTS_REPLY_MAX, 261_067);
+    let learned = Refinement {
+        day: day(20767),
+        what: RefinementKind::TargetLearned,
+    };
+    for entry in [ENTRY, ESCAPED_ENTRY] {
+        let (line, entries) = filled(CHECKPOINTS_REPLY_MAX, entry);
+        assert!(line.starts_with("{ \n"), "{entry}");
+        let reply = Refinements::parse(line.as_bytes()).map_err(|refusal| parts(&refusal));
+        let refinements = reply.unwrap().refinements;
+        assert_eq!(refinements.len(), entries);
+        assert!(refinements.iter().all(|r| *r == learned), "{entry}");
     }
 }
