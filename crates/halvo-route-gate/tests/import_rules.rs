@@ -1970,6 +1970,40 @@ fn the_order_cases_with_their_earlier_fault_mended_and_a_bad_cells_file_are_refu
 }
 
 #[test]
+fn a_drive_or_reply_line_with_a_key_value_outside_its_form_is_no_counted_line() {
+    let drive = drive_cell("m_c", "mac", "bill", 1)[5].clone();
+    let reply = reply_cell("m_c", "mac", 1)[1].clone();
+    let mut wrong = Vec::new();
+    for line in [
+        drive.replacen("task=bill", "task=reply", 1),
+        drive.replacen("task=bill", "task=cleanup", 1),
+        drive.replacen("task=bill", "task=gen", 1),
+        drive.replacen("machine=mac", "machine=gen_a", 1),
+        drive.replacen("seed=1", "seed=4", 1),
+        drive.replacen("seed=1", "seed=01", 1),
+        drive.replacen("model=m_c", "model=synthetic", 1),
+        drive.replacen("model=m_c", "model=none", 1),
+        drive.replacen("model=m_c", "model=M_c", 1),
+        drive.replacen("model=m_c ", "model=m_c  ", 1),
+        drive.split(" compile=").next().expect("a head").to_owned(),
+        reply.replacen("machine=mac", "machine=win", 1),
+        reply.replacen("seed=1", "seed=0", 1),
+        reply.replacen("model=m_c", "model=synthetic", 1),
+        reply.replacen("reply model", "replies model", 1),
+    ] {
+        assert!(
+            line.starts_with("drive ") || line.starts_with("repl"),
+            "{line}"
+        );
+        let got = beside_set(&[line.clone()]);
+        if got.code != Some(0) || got.stdout != "import rows=66 models=1 sources=2\n" {
+            wrong.push(format!("{line}: {:?} {:?}", got.code, got.stderr));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
 fn the_count_reads_the_lines_of_a_cell_wherever_they_stand_in_the_block() {
     let cell = drive_cell("m_c", "mac", "bill", 1);
     let reply = reply_cell("m_c", "mac", 1);
