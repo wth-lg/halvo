@@ -56,9 +56,9 @@ export function held(): { fault: CancelFault; release(): void } {
 export function started(w: World): (string | null)[] {
   const ids: (string | null)[] = [];
   const inner = w.host.port.cancelSubscription.bind(w.host.port);
-  w.host.port.cancelSubscription = (id, customerId) => {
+  w.host.port.cancelSubscription = (id, customerId, settled) => {
     ids.push(id);
-    return inner(id, customerId);
+    return inner(id, customerId, settled);
   };
   return ids;
 }

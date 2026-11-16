@@ -66,7 +66,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
   test("a second subscription on one customer: the call ends both at the fake", async () => {
     const paid = await paidCustomer();
     expect((await call("/test/subscribe", { customer: paid.customer })).result).toBe("subscribed");
-    const answer = await port.cancelSubscription(paid.subscription, paid.customer);
+    const answer = await port.cancelSubscription(paid.subscription, paid.customer, false);
     expect({ answer, statuses: await statuses(paid.customer) }).toEqual({ answer: { kind: "cancelled" }, statuses: { canceled: 2 } });
   });
 
@@ -76,7 +76,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
     await call("/test/subscribe", { customer: paid.customer, status: "incomplete_expired", count: 100 });
     await call("/test/subscribe", { customer: paid.customer });
     const before = await requestCount();
-    const answer = await port.cancelSubscription(null, paid.customer);
+    const answer = await port.cancelSubscription(null, paid.customer, false);
     expect({ answer, statuses: await statuses(paid.customer), requests: await requestsSince(before) }).toEqual({
       answer: { kind: "cancelled" },
       statuses: { canceled: 3, incomplete_expired: 100 },
@@ -99,7 +99,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
     const customer = String((await call(`/test/sessions/${started.sessionId}`)).customer);
     await call("/test/subscribe", { customer, status: "incomplete_expired" });
     const before = await requestCount();
-    const answer = await port.cancelSubscription(null, customer);
+    const answer = await port.cancelSubscription(null, customer, false);
     expect({ answer, requests: await requestsSince(before) }).toEqual({
       answer: { kind: "nothing-to-cancel" },
       requests: [
@@ -113,7 +113,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
     const paid = await paidCustomer();
     expect((await call("/test/delete-customer", { customer: paid.customer })).result).toBe("deleted");
     const before = await requestCount();
-    const answer = await port.cancelSubscription(null, paid.customer);
+    const answer = await port.cancelSubscription(null, paid.customer, false);
     expect({ answer, requests: await requestsSince(before) }).toEqual({
       answer: { kind: "nothing-to-cancel" },
       requests: [{ method: "GET", path: "/v1/customers/{id}", params: [] }],
@@ -122,7 +122,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
 
   test("a customer that the provider does not know, with no stored id: the read of the customer is made and the answer is failed", async () => {
     const before = await requestCount();
-    const answer = await port.cancelSubscription(null, "cus_test_000000000000000000000000");
+    const answer = await port.cancelSubscription(null, "cus_test_000000000000000000000000", false);
     expect({ answer, requests: await requestsSince(before) }).toEqual({
       answer: { kind: "failed", cancelled: 0 },
       requests: [{ method: "GET", path: "/v1/customers/{id}", params: [] }],
@@ -133,7 +133,7 @@ describe("the provider fake's customer and list (contract 7 from unit 5.6 part 2
     const paid = await paidCustomer();
     const second = String(((await call("/test/subscribe", { customer: paid.customer })).subscriptions as string[])[0]);
     expect((await call("/test/refuse-cancel", { subscription: second })).result).toBe("refusing");
-    const answer = await port.cancelSubscription(paid.subscription, paid.customer);
+    const answer = await port.cancelSubscription(paid.subscription, paid.customer, false);
     expect({ answer, statuses: await statuses(paid.customer) }).toEqual({ answer: { kind: "failed", cancelled: 0 }, statuses: { active: 1, canceled: 1 } });
   });
 });
@@ -149,8 +149,8 @@ describe("a customer of 250 subscriptions that have not ended, deleted through t
     const calls: string[] = [];
     const counted: ProviderPort = {
       ...port,
-      async cancelSubscription(id, customerId) {
-        const answer = await port.cancelSubscription(id, customerId);
+      async cancelSubscription(id, customerId, settled) {
+        const answer = await port.cancelSubscription(id, customerId, settled);
         calls.push(answer.kind === "failed" ? `failed ${answer.cancelled}` : answer.kind);
         return answer;
       },

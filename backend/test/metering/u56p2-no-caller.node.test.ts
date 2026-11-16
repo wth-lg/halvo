@@ -48,8 +48,8 @@ async function ninetyDays(failing: Failing, sends: "answered" | "lost", o: { rej
   const answers: string[] = [];
   let answeredAt: Ms | null = null;
   const port = w.host.port.cancelSubscription.bind(w.host.port);
-  w.host.port.cancelSubscription = async (id, customerId) => {
-    const answer = await port(id, customerId);
+  w.host.port.cancelSubscription = async (id, customerId, settled) => {
+    const answer = await port(id, customerId, settled);
     answers.push(answer.kind);
     if (answer.kind !== "failed") answeredAt = answeredAt ?? w.now();
     return answer;

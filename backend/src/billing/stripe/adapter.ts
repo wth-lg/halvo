@@ -24,10 +24,10 @@ export interface StripeConfig {
 type Answer = { status: number; body: unknown } | null;
 type Fields = Record<string, unknown>;
 type Cancel = Awaited<ReturnType<ProviderPort["cancelSubscription"]>>;
-type CancelOutcome = "ended" | "needs-no-cancel" | "unanswered" | "stopped";
+type CancelOutcome = "ended" | "needs-no-cancel" | "refused-live" | "unanswered" | "stopped";
 type CustomerRead = "goes-on" | "deleted" | "unknown" | "fault";
 type Page = { entries: { id: string; status: string }[]; hasMore: boolean };
-type ListRead = { kind: "whole"; notEnded: number } | { kind: "fault" } | { kind: "stopped" };
+type ListRead = { kind: "whole"; pages: number; notEnded: Set<string> } | { kind: "fault" } | { kind: "stopped" };
 
 const LIVE_KEY = /^[rs]k_live_/;
 const TEST_KEY = /^[rs]k_test_/;
@@ -68,6 +68,15 @@ function endedSubscription(answer: Answer, subscriptionId: string): boolean {
   return (
     succeeded(answer) && answer.body.id === subscriptionId && typeof answer.body.status === "string" && ENDED_STATUSES.includes(answer.body.status)
   );
+}
+
+function sendable(id: string): boolean {
+  try {
+    encodeURIComponent(id);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function keyIsLive(apiKey: string): boolean | null {
@@ -128,15 +137,18 @@ export function makeStripePort(config: StripeConfig, clock: () => number = () =>
 
   const deadline = () => AbortSignal.timeout(PROVIDER_CALL_TIMEOUT_MS);
 
-  async function cancelAll(subscriptionId: string | null, customerId: string | null): Promise<Cancel> {
+  async function cancelAll(subscriptionId: string | null, customerId: string | null, storedSettled: boolean): Promise<Cancel> {
     const endsAt = clock() + PROVIDER_CALL_TIMEOUT_MS;
     const signal = deadline();
     let made = 0;
-    let counted = 0;
-    let endedOne = false;
+    const endedIds = new Set<string>();
+    let dropped = 0;
+    const unended = new Set<string>();
+    let storedEnded = false;
+    let settled = subscriptionId !== null && storedSettled;
     let storedUnanswered = false;
     let listedCancel = false;
-    const failed = (): Cancel => ({ kind: "failed", cancelled: counted });
+    const failed = (): Cancel => ({ kind: "failed", cancelled: endedIds.size - dropped, unended: unended.size, storedSettled: settled });
 
     async function ask(method: "GET" | "DELETE", path: string, params: [string, string][] | null): Promise<Answer | "stopped"> {
       if (made >= CALL_REQUEST_LIMIT || endsAt - clock() < REQUEST_START_MARGIN_MS) return "stopped";
@@ -145,6 +157,7 @@ export function makeStripePort(config: StripeConfig, clock: () => number = () =>
     }
 
     async function cancelOne(id: string): Promise<CancelOutcome> {
+      if (!sendable(id)) return "unanswered";
       const path = `/v1/subscriptions/${encodeURIComponent(id)}`;
       const cancelled = await ask("DELETE", path, [["invoice_now", "true"]]);
       if (cancelled === "stopped") return "stopped";
@@ -152,55 +165,90 @@ export function makeStripePort(config: StripeConfig, clock: () => number = () =>
       if (cancelled.status >= 200 && cancelled.status < 300) return endedSubscription(cancelled, id) ? "ended" : "unanswered";
       const read = await ask("GET", path, null);
       if (read === "stopped") return "stopped";
-      return isUnknownId(read) || endedSubscription(read, id) ? "needs-no-cancel" : "unanswered";
+      if (isUnknownId(read) || endedSubscription(read, id)) return "needs-no-cancel";
+      return succeeded(read) && read.body.id === id && typeof read.body.status === "string" ? "refused-live" : "unanswered";
+    }
+
+    async function readPage(customer: string, after: string | null): Promise<Page | "fault" | "stopped"> {
+      const query: [string, string][] = [
+        ["customer", customer],
+        ["limit", String(LIST_PAGE_SIZE)],
+      ];
+      if (after !== null) query.push(["starting_after", after]);
+      const answer = await ask("GET", `/v1/subscriptions?${new URLSearchParams(query).toString()}`, null);
+      if (answer === "stopped") return "stopped";
+      const page = pageOf(answer, customer);
+      if (page === null) {
+        log({ event: "cancel-list-fault" });
+        return "fault";
+      }
+      return page;
     }
 
     async function readList(customer: string, cancelling: boolean): Promise<ListRead> {
       let after: string | null = null;
-      let notEnded = 0;
+      let pages = 0;
+      const notEnded = new Set<string>();
       for (;;) {
-        const query: [string, string][] = [
-          ["customer", customer],
-          ["limit", String(LIST_PAGE_SIZE)],
-        ];
-        if (after !== null) query.push(["starting_after", after]);
-        const answer = await ask("GET", `/v1/subscriptions?${new URLSearchParams(query).toString()}`, null);
-        if (answer === "stopped") return { kind: "stopped" };
-        const page = pageOf(answer, customer);
-        if (page === null) {
-          log({ event: "cancel-list-fault" });
-          return { kind: "fault" };
-        }
+        const page = await readPage(customer, after);
+        if (page === "stopped" || page === "fault") return { kind: page };
+        pages += 1;
         for (const entry of page.entries) {
           if (ENDED_STATUSES.includes(entry.status)) continue;
-          notEnded += 1;
+          notEnded.add(entry.id);
           if (!cancelling) continue;
           listedCancel = true;
           const outcome = await cancelOne(entry.id);
           if (outcome === "stopped") return { kind: "stopped" };
-          if (outcome === "ended") {
-            counted += 1;
-            endedOne = true;
-          }
+          if (outcome === "ended") endedIds.add(entry.id);
+          else if (outcome !== "needs-no-cancel") unended.add(entry.id);
         }
-        const last = page.entries.at(-1);
-        if (!page.hasMore || last === undefined) return { kind: "whole", notEnded };
-        after = last.id;
+        if (!page.hasMore) return { kind: "whole", pages, notEnded };
+        let cursor: string | null = null;
+        for (let at = page.entries.length - 1; at >= 0 && cursor === null; at -= 1) {
+          const id = (page.entries[at] as { id: string }).id;
+          if (sendable(id)) cursor = id;
+        }
+        if (cursor === null) {
+          log({ event: "cancel-list-fault" });
+          return { kind: "fault" };
+        }
+        after = cursor;
       }
+    }
+
+    async function nothingLeft(customer: string, last: ListRead): Promise<boolean> {
+      if (last.kind !== "whole") return false;
+      const shown = new Set(last.notEnded);
+      let first: Page | "fault" | "stopped" | null = null;
+      if (last.pages > 1) {
+        first = await readPage(customer, null);
+        if (first !== "fault" && first !== "stopped") {
+          for (const entry of first.entries) if (!ENDED_STATUSES.includes(entry.status)) shown.add(entry.id);
+        }
+      }
+      for (const id of endedIds) {
+        if (!shown.has(id)) continue;
+        dropped += 1;
+        unended.add(id);
+      }
+      return first !== "fault" && first !== "stopped" && shown.size === 0;
     }
 
     const end = (): Cancel => {
       if (storedUnanswered) return failed();
-      return endedOne ? { kind: "cancelled" } : { kind: "nothing-to-cancel" };
+      return storedEnded || endedIds.size - dropped > 0 ? { kind: "cancelled" } : { kind: "nothing-to-cancel" };
     };
 
-    if (subscriptionId !== null) {
+    if (subscriptionId !== null && !settled) {
       const outcome = await cancelOne(subscriptionId);
       if (outcome === "stopped") return failed();
-      endedOne = outcome === "ended";
-      storedUnanswered = outcome === "unanswered";
+      storedEnded = outcome === "ended";
+      settled = outcome === "ended" || outcome === "needs-no-cancel";
+      storedUnanswered = !settled;
+      if (outcome === "refused-live") unended.add(subscriptionId);
     }
-    if (customerId === null) return failed();
+    if (customerId === null || !sendable(customerId)) return failed();
     const customer = await ask("GET", `/v1/customers/${encodeURIComponent(customerId)}`, null);
     if (customer === "stopped") return failed();
     const read = customerRead(customer, customerId, live);
@@ -209,9 +257,8 @@ export function makeStripePort(config: StripeConfig, clock: () => number = () =>
     if (read === "deleted") return end();
     const walked = await readList(customerId, true);
     if (walked.kind !== "whole") return failed();
-    if (!listedCancel) return end();
-    const last = await readList(customerId, false);
-    return last.kind === "whole" && last.notEnded === 0 ? end() : failed();
+    const last = listedCancel ? await readList(customerId, false) : walked;
+    return (await nothingLeft(customerId, last)) ? end() : failed();
   }
 
   return {
@@ -280,10 +327,10 @@ export function makeStripePort(config: StripeConfig, clock: () => number = () =>
       return url === null ? { kind: "failed" } : { kind: "page", url };
     },
 
-    async cancelSubscription(subscriptionId, customerId) {
+    async cancelSubscription(subscriptionId, customerId, storedSettled) {
       if (subscriptionId === null && customerId === null) return { kind: "nothing-to-cancel" };
-      if (!ready) return { kind: "failed", cancelled: 0 };
-      return cancelAll(subscriptionId, customerId);
+      if (!ready) return { kind: "failed", cancelled: 0, unended: 0, storedSettled: subscriptionId !== null && storedSettled };
+      return cancelAll(subscriptionId, customerId, storedSettled);
     },
 
     async sendUsage() {

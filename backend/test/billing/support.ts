@@ -20,7 +20,7 @@ export function scriptedPort(over: Partial<ProviderPort> = {}): ProviderPort {
     verifyWebhook: async () => ({ kind: "rejected" }),
     readSession: async () => ({ kind: "failed" }),
     openManagePage: async () => ({ kind: "failed" }),
-    cancelSubscription: async () => ({ kind: "failed", cancelled: 0 }),
+    cancelSubscription: async () => ({ kind: "failed", cancelled: 0, unended: 0, storedSettled: false }),
     sendUsage: async () => ({ kind: "failed" }),
     readUsageTotal: async () => ({ kind: "failed" }),
     ...over,

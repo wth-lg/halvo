@@ -113,12 +113,22 @@ interface Mark {
   nextAt: Ms | null;
   delay: Ms | null;
   decidedAt: Ms | null;
+  storedSettledFor: string | null;
+  unansweredAt: Ms | null;
 }
 
 type Fourth =
   | { kind: "answer"; answer: DeleteAnswer }
   | { kind: "again" }
-  | { kind: "cancel"; subscriptionId: string | null; customerId: string | null; mark: Ms; unacknowledged: number; began: Ms | null }
+  | {
+      kind: "cancel";
+      subscriptionId: string | null;
+      customerId: string | null;
+      storedSettled: boolean;
+      mark: Ms;
+      unacknowledged: number;
+      began: Ms | null;
+    }
   | { kind: "answered"; mark: Ms };
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
@@ -255,7 +265,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
   const holds = (sql: Sql) => tableExists(sql, SKELETON);
   const skeletonRow = (sql: Sql) =>
     sql.exec(
-      "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at FROM skeleton",
+      "SELECT destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at FROM skeleton",
     )[0] ??
     contractBroken();
   const lastNow = (sql: Sql) => Number(skeletonRow(sql).last_now);
@@ -269,6 +279,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       nextAt: timeOrNull(row.cancel_next_at),
       delay: timeOrNull(row.cancel_delay),
       decidedAt: timeOrNull(row.removal_decided_at),
+      storedSettledFor: row.cancel_stored_settled_for === null || row.cancel_stored_settled_for === undefined ? null : String(row.cancel_stored_settled_for),
+      unansweredAt: timeOrNull(row.cancel_unanswered_at),
     };
   };
   const destroyingSince = (sql: Sql) => markOf(sql).since;
@@ -425,13 +437,15 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
 
   function createTables(sql: Sql, now: Ms): void {
     sql.exec(
-      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER)",
+      "CREATE TABLE skeleton (destroying_since INTEGER, last_now INTEGER NOT NULL, alarm_failures INTEGER NOT NULL, cancel_answered_at INTEGER, cancel_answered_for TEXT, cancel_next_at INTEGER, cancel_delay INTEGER, removal_decided_at INTEGER, cancel_stored_settled_for TEXT, cancel_unanswered_at INTEGER)",
     );
     sql.exec(
-      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO skeleton (destroying_since, last_now, alarm_failures, cancel_answered_at, cancel_answered_for, cancel_next_at, cancel_delay, removal_decided_at, cancel_stored_settled_for, cancel_unanswered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       null,
       now,
       0,
+      null,
+      null,
       null,
       null,
       null,
@@ -837,7 +851,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       const calls = subscriptionId !== null || customerId !== null;
       if (calls) storeCallRecord(open.sql, subscriptionId, now);
-      return { kind: "cancel", subscriptionId, customerId, mark: mark.since, unacknowledged, began: calls ? now : null };
+      const storedSettled = subscriptionId !== null && mark.storedSettledFor === subscriptionId;
+      return { kind: "cancel", subscriptionId, customerId, storedSettled, mark: mark.since, unacknowledged, began: calls ? now : null };
     }, by);
   }
 
@@ -859,7 +874,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (next.kind === "answer") return next.answer;
     if (next.kind === "again") return contractBroken();
     const mark = next.mark;
-    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId, customerId: next.customerId } : null;
+    const made = next.kind === "cancel" ? { subscriptionId: next.subscriptionId, customerId: next.customerId, storedSettled: next.storedSettled } : null;
     if (made !== null) {
       for (let each = 0; next.kind === "cancel" && each < next.unacknowledged; each += 1) log({ event: "cancel-before-send" });
       const id = made.subscriptionId;
@@ -875,7 +890,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           log({ event: by.line, error: errorName(clearing) });
         }
       };
-      const settled = (async () => host.port.cancelSubscription(id, made.customerId))().then(
+      const settled = (async () => host.port.cancelSubscription(id, made.customerId, made.storedSettled))().then(
         (answer) => ({ answer }),
         (error: unknown) => ({ error }),
       );
@@ -885,28 +900,33 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (first === null) {
         log({ event: "cancel-call-unsettled" });
         void settled.then(clear);
-        cancelled = { kind: "failed", cancelled: 0 };
+        cancelled = { kind: "failed", cancelled: 0, unended: 0, storedSettled: false };
       } else if ("error" in first) {
         clear();
         throw first.error;
       } else cancelled = first.answer;
       if (cancelled.kind === "failed") {
-        const progress = cancelled.cancelled > 0;
-        const unanswered = step((open): { answer: DeleteAnswer; capped: boolean } => {
-          if (!holds(open.sql)) return { answer: { result: "deleted" }, capped: false };
+        const answer = cancelled;
+        const unanswered = step((open): { answer: DeleteAnswer; line: boolean } => {
+          if (!holds(open.sql)) return { answer: { result: "deleted" }, line: false };
           const now = open.begin();
           if (first !== null) clearCallRecord(open.sql, id, began);
           const current = markOf(open.sql);
-          if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, capped: false };
-          if (progress) {
-            open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + SYNC_RETRY_MS, SYNC_RETRY_MS);
-            return { answer: NOT_FINISHED, capped: false };
+          if (holder(open.sql, hash) !== null || current.since !== mark) return { answer: NOT_FINISHED, line: false };
+          if (answer.storedSettled && id !== null) open.sql.exec("UPDATE skeleton SET cancel_stored_settled_for = ?", id);
+          let capped = false;
+          if (answer.cancelled > 0) open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + SYNC_RETRY_MS, SYNC_RETRY_MS);
+          else {
+            const delay = current.delay ?? SYNC_RETRY_MS;
+            open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));
+            capped = delay >= RETRY_DELAY_CAP_MS;
           }
-          const delay = current.delay ?? SYNC_RETRY_MS;
-          open.sql.exec("UPDATE skeleton SET cancel_next_at = ?, cancel_delay = ?", now + delay, Math.min(2 * delay, RETRY_DELAY_CAP_MS));
-          return { answer: NOT_FINISHED, capped: delay >= RETRY_DELAY_CAP_MS };
+          const owed = capped || answer.unended > 0;
+          if (!owed || (current.unansweredAt !== null && now < current.unansweredAt + RETRY_DELAY_CAP_MS)) return { answer: NOT_FINISHED, line: false };
+          open.sql.exec("UPDATE skeleton SET cancel_unanswered_at = ?", now);
+          return { answer: NOT_FINISHED, line: true };
         }, by);
-        if (unanswered.capped) log({ event: "cancel-unanswered" });
+        if (unanswered.line) log({ event: "cancel-unanswered" });
         return unanswered.answer;
       }
     }

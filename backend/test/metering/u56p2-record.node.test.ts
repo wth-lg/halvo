@@ -175,28 +175,85 @@ describe("the pace of the tries after a failed call (P7-117 T2, T8 and T9; Addit
     w.close();
   });
 
-  test("T8: a listed subscription that the provider refuses on every try keeps the delete open with its data; the walk ends every other subscription, the pause doubles after the first try, and each try at the cap writes one cancel-unanswered", async () => {
+  test("T8 with X5: a listed subscription that the provider refuses on every try keeps the delete open with its data; the walk ends every other subscription, the pause doubles after the first try, and the second count writes cancel-unanswered at the first try, beside its progress, then at most once per RETRY_DELAY_CAP_MS, the time of the last line in its column", async () => {
     const w = await listed({ plans: [{ id: "sub_2" }, { id: "sub_3" }], refused: ["sub_2"] });
     await subscribed(w);
     w.at(START + MINUTE);
     expect(await destroy(w)).toEqual({ result: "not-finished" });
     const firstRow = await skeleton(w);
+    const firstLines = events(w).filter((each) => each === "cancel-unanswered").length;
     const seen = await tries(w, 9);
     expect({
-      first: { wait: Number(firstRow?.cancel_next_at) - (START + MINUTE), delay: firstRow?.cancel_delay },
+      first: { wait: Number(firstRow?.cancel_next_at) - (START + MINUTE), delay: firstRow?.cancel_delay, lines: firstLines },
       waits: seen.map((each) => each.wait),
-      unanswered: events(w).filter((each) => each === "cancel-unanswered").length,
+      linesAfterEachTry: seen.map((each) => each.unanswered),
+      lastLineAt: Number((await skeleton(w))?.cancel_unanswered_at) - (START + MINUTE),
       plans: [statusOf(w, "sub_1"), statusOf(w, "sub_2"), statusOf(w, "sub_3")],
       holds: await holds(w),
       answeredAt: (await skeleton(w))?.cancel_answered_at,
     }).toEqual({
-      first: { wait: SYNC_RETRY_MS, delay: SYNC_RETRY_MS },
+      first: { wait: SYNC_RETRY_MS, delay: SYNC_RETRY_MS, lines: 1 },
       waits: [60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000, CAP_MS, CAP_MS, CAP_MS],
-      unanswered: 3,
+      linesAfterEachTry: [1, 1, 1, 1, 1, 1, 2, 3, 4],
+      lastLineAt: 11_040_000,
       plans: ["canceled", "active", "canceled"],
       holds: true,
       answeredAt: null,
     });
+    w.close();
+  });
+});
+
+describe("X1 in the object: the column of the settled stored id (P7-119 Addition 1)", () => {
+  const settledArguments = (w: World) => w.calls.flatMap((each) => (each.kind === "cancel" ? [[each.subscriptionId, each.storedSettled]] : []));
+
+  test("a failed call that settles the stored id writes it into cancel_stored_settled_for, and the next try passes the stored id as settled", async () => {
+    const w = await listed({ plans: [{ id: "sub_2" }, { id: "sub_3" }], perCall: 1 });
+    await subscribed(w);
+    w.at(START + MINUTE);
+    expect(await destroy(w)).toEqual({ result: "not-finished" });
+    const afterFirst = (await skeleton(w))?.cancel_stored_settled_for;
+    await alarmAt(w, Number((await skeleton(w))?.cancel_next_at));
+    expect({ afterFirst, calls: settledArguments(w), holds: await holds(w) }).toEqual({
+      afterFirst: "sub_1",
+      calls: [
+        ["sub_1", false],
+        ["sub_1", true],
+      ],
+      holds: false,
+    });
+    w.close();
+  });
+
+  test("an id that arrives after a call made for no id is not settled: the column stays empty and the next try puts the new id first", async () => {
+    const w = await listed({ plans: [{ id: "sub_2" }, { id: "sub_3" }], perCall: 1 }, { subscribed: false });
+    w.at(START + MINUTE);
+    expect(await destroy(w)).toEqual({ result: "not-finished" });
+    const afterFirst = (await skeleton(w))?.cancel_stored_settled_for ?? null;
+    w.meter.subscribe(ACCOUNT, Math.floor((START + MINUTE) / 1000), "sub_1");
+    await subscribed(w, "sub_1", START + MINUTE + 1000);
+    await alarmAt(w, Number((await skeleton(w))?.cancel_next_at));
+    expect({ afterFirst, calls: settledArguments(w) }).toEqual({
+      afterFirst: null,
+      calls: [
+        [null, false],
+        ["sub_1", false],
+      ],
+    });
+    w.close();
+  });
+});
+
+describe("item (5) of P7-119: the record after a failed call with progress", () => {
+  test("adv3 c4: a failed call that ended one listed subscription clears its record in the step after its answer; the person's second delete 30 s later makes the next call", async () => {
+    const w = await listed({ plans: [{ id: "sub_2" }, { id: "sub_3" }], perCall: 1 });
+    await subscribed(w);
+    w.at(START + MINUTE);
+    const first = await destroy(w);
+    const recordAfter = await callRecord(w);
+    w.at(START + MINUTE + 30_000);
+    await destroy(w);
+    expect({ first, recordAfter, callsAfterSecond: cancels(w).length }).toEqual({ first: { result: "not-finished" }, recordAfter: [], callsAfterSecond: 2 });
     w.close();
   });
 });

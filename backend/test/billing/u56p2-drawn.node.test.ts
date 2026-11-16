@@ -50,7 +50,7 @@ test("drawn customers (seed 562): no call answers cancelled or nothing-to-cancel
         for (let call = 0; call < 12 && !ended; call += 1) {
           const before = subs.map((each) => each.status);
           const requestsBefore = server.requests.length;
-          const answer = await port.cancelSubscription(stored, CUSTOMER);
+          const answer = await port.cancelSubscription(stored, CUSTOMER, false);
           const made = server.requests.slice(requestsBefore);
           const changed = subs.filter((each, index) => !ENDED.includes(before[index] as string) && each.status === "canceled");
           const listFaulted = fault !== null && made.some((request, index) => request.path === "/v1/subscriptions" && server.requests.slice(0, requestsBefore + index).filter((each) => each.path === "/v1/subscriptions").length === fault.page);

@@ -108,9 +108,9 @@ async function exitWithTheDeleteInTheRun(f: Faults): Promise<Exit> {
   const cancels: Ms[] = [];
   let answeredAt: Ms | null = null;
   const cancel = w.host.port.cancelSubscription;
-  w.host.port.cancelSubscription = async (id, customerId) => {
+  w.host.port.cancelSubscription = async (id, customerId, settled) => {
     cancels.push(w.now());
-    const answer = await cancel(id, customerId);
+    const answer = await cancel(id, customerId, settled);
     if (answer.kind !== "failed" && answeredAt === null) answeredAt = w.now();
     return answer;
   };

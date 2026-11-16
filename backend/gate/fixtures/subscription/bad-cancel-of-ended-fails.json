@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/billing/stripe/adapter.ts",
-      "find": "      return isUnknownId(read) || endedSubscription(read, id) ? \"needs-no-cancel\" : \"unanswered\";",
-      "replace": "      return isUnknownId(read) ? \"needs-no-cancel\" : \"unanswered\";"
+      "find": "      if (isUnknownId(read) || endedSubscription(read, id)) return \"needs-no-cancel\";",
+      "replace": "      if (isUnknownId(read)) return \"needs-no-cancel\";"
     }
   ],
   "line": [

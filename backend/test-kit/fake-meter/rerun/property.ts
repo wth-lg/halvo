@@ -438,6 +438,7 @@ export function searchCases(): SearchCase[] {
     faults: [...searchedAfterTheSequence, ...crashes([HALF_A_WINDOW])],
   });
   cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), listedSecondPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
+  cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), settledSecondPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
   return cases;
 }
 

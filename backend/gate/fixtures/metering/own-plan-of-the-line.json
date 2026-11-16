@@ -3,6 +3,6 @@
     "--plan"
   ],
   "line": [
-    "PASS metering-plan: seeds=1,2,3,4,5 orderings-of-one-seed=20000 settings=39 read-width-seconds=60"
+    "PASS metering-plan: seeds=1,2,3,4,5 orderings-of-one-seed=20000 settings=40 read-width-seconds=60"
   ]
 }
