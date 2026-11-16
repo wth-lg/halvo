@@ -695,6 +695,18 @@ mod tests {
     }
 
     #[test]
+    fn a_last_line_with_no_newline_still_prints_its_denial() {
+        let log = "denied at=1 proto=udp dest=-:443 pid=5 image=x\ndenied at=2 proto=tcp dest=127.0.0.1:9 pid=5 image=x";
+        assert_eq!(
+            denial_lines("c", "final", log),
+            vec![
+                "egress_denial c set=final proto=udp port=443 loopback=unknown".to_string(),
+                "egress_denial c set=final proto=tcp port=9 loopback=yes".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn the_refusal_causes_name_every_refused_line() {
         assert_eq!(
             refusal_causes("REFUSED list: x\negress y\nREFUSED mode: z\n"),
