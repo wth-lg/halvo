@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails or has not answered within 120 s, when the check ends the git process that it started for it, by its pid; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails or has not answered within 120 s, when the check ends the git process that it started for it, by its pid; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), and on a push to the default branch from the before commit of the push (copy-of-the-default-branch not-run when the clone does not hold that commit), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 # lane: free
 set -u
 name=19-home-paths
@@ -107,11 +107,11 @@ has_commit() {
 event_program='
 let event;
 try {
-  event = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+  event = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace(/^\uFEFF/, ""));
 } catch (error) {
   process.exit(3);
 }
-const field = (object, key) => (object !== null && typeof object === "object" && typeof object[key] === "string" ? object[key] : "");
+const field = (object, key) => (object !== null && typeof object === "object" && typeof object[key] === "string" && !/[\r\n]/.test(object[key]) ? object[key] : "");
 const repository = event !== null && typeof event === "object" ? event.repository : null;
 process.stdout.write(field(repository, "default_branch") + "\n" + field(event, "before") + "\n");
 '
@@ -130,10 +130,17 @@ read_the_event() {
 }
 
 take_the_copy_of_the_default_branch() {
-  default_ref=refs/remotes/origin/$default_branch
   default_copy=
   default_note=
-  if ! default_commit=$(git rev-parse -q --verify "$default_ref^{commit}" 2>/dev/null); then
+  default_label=$default_ref
+  if [ -n "$push_to_the_default_branch" ]; then
+    default_label='the commit before the push'
+    if [ "$kind" != the-push ]; then
+      default_note='not-run (the before commit of the push is not in this clone)'
+      return 0
+    fi
+    default_commit=$event_before
+  elif ! default_commit=$(git rev-parse -q --verify "$default_ref^{commit}" 2>/dev/null); then
     if [ "$shallow" = true ]; then
       default_note="not-run (no $default_ref in this shallow clone)"
       return 0
@@ -145,7 +152,7 @@ take_the_copy_of_the_default_branch() {
   mkdir -p "$scratch/default/scripts" || fail 'mkdir failed'
   for file in check-home-paths.sh commit-range.sh; do
     git cat-file blob "$default_commit:scripts/$file" >"$scratch/default/scripts/$file" 2>/dev/null </dev/null ||
-      fail "$default_ref holds no scripts/$file, so the copy of the default branch cannot scan beside the copy of this branch; restore the file on the default branch"
+      fail "$default_label holds no scripts/$file, so the copy of the default branch cannot scan beside the copy of this branch; restore the file on the default branch"
   done
   git cat-file blob "$default_commit:scripts/check-commit-messages.sh" >"$scratch/default/scripts/check-commit-messages.sh" 2>/dev/null </dev/null ||
     : >"$scratch/default/scripts/check-commit-messages.sh"
@@ -182,7 +189,22 @@ scan_head() {
   [ -f scripts/check-home-paths.sh ] || fail 'scripts/check-home-paths.sh is missing'
   head_commit=$(git rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null) || fail 'HEAD names no commit'
   read_the_event
+  default_ref=refs/remotes/origin/$default_branch
   shallow=$(git rev-parse --is-shallow-repository 2>/dev/null) || shallow=unknown
+  push_to_the_default_branch=
+  if [ "$shallow" != true ] && [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = "refs/heads/$default_branch" ]; then
+    push_to_the_default_branch=yes
+    range_of_the_push
+  elif has_commit "$default_ref" && ! git merge-base --is-ancestor HEAD "$default_ref"; then
+    kind=since-the-default-branch
+    range=$default_ref..HEAD
+  elif has_commit HEAD^1; then
+    kind=head-commit
+    range='HEAD^!'
+  else
+    kind=root-commit
+    range=HEAD
+  fi
   take_the_copy_of_the_default_branch
   tag=not-a-tag-run
   tag_to_read=
@@ -198,18 +220,6 @@ scan_head() {
       fi
       ;;
   esac
-  if [ "$shallow" != true ] && [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = "refs/heads/$default_branch" ]; then
-    range_of_the_push
-  elif has_commit "$default_ref" && ! git merge-base --is-ancestor HEAD "$default_ref"; then
-    kind=since-the-default-branch
-    range=$default_ref..HEAD
-  elif has_commit HEAD^1; then
-    kind=head-commit
-    range='HEAD^!'
-  else
-    kind=root-commit
-    range=HEAD
-  fi
   sh scripts/check-home-paths.sh "$range" ${tag_to_read:+"$tag_to_read"} >"$scratch/out" 2>"$scratch/err" </dev/null
   code=$?
   default_code=
@@ -249,16 +259,16 @@ scan_head() {
     *) fail "sh scripts/check-home-paths.sh could not check the range (exit $code); run sh scripts/check-home-paths.sh '$range' on a clone of this head and read its error" ;;
   esac
   if [ -n "$default_copy" ]; then
-    way_on="on a clone of this head, run the scanner of a checkout of the default branch: sh <checkout of the default branch>/scripts/check-home-paths.sh '$range'${tag_to_read:+ $GITHUB_REF}"
+    way_on="on a clone of this head, run the scanner of a checkout of $default_label: sh <that checkout>/scripts/check-home-paths.sh '$range'${tag_to_read:+ $GITHUB_REF}"
     case $default_code in
       0)
-        [ -n "$default_counts" ] || fail "the copy of scripts/check-home-paths.sh that $default_ref holds exited 0 and printed no count of the commits and lines that it read, so nothing shows what it read; $way_on, and read its last line"
+        [ -n "$default_counts" ] || fail "the copy of scripts/check-home-paths.sh that $default_label holds exited 0 and printed no count of the commits and lines that it read, so nothing shows what it read; $way_on, and read its last line"
         case $default_counts in
-          commits=0\ *) [ "$listed" = 0 ] || fail "the copy of scripts/check-home-paths.sh that $default_ref holds read 0 commits, and git lists $listed for that range, so it did not read the head; $way_on" ;;
+          commits=0\ *) [ "$listed" = 0 ] || fail "the copy of scripts/check-home-paths.sh that $default_label holds read 0 commits, and git lists $listed for that range, so it did not read the head; $way_on" ;;
         esac
         ;;
-      1) fail "the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that $default_ref holds finds an added line or a message with a home path that scripts/home-path-allow.txt does not allow, and the copy of this branch finds none: this branch changed the scanner or its range file, or the default branch holds an older scanner that refuses a line which the newer one accepts; the commits must pass both copies, so take each line that it lists out of the commit that added it, and undo a change that weakens the scan; $way_on" ;;
-      *) fail "the copy of scripts/check-home-paths.sh that $default_ref holds could not check the range (exit $default_code); $way_on, and read its error" ;;
+      1) fail "the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that $default_label holds finds an added line or a message with a home path that scripts/home-path-allow.txt does not allow, and the copy of this branch finds none: this branch changed the scanner or its range file, or the default branch holds an older scanner that refuses a line which the newer one accepts; the commits must pass both copies, so take each line that it lists out of the commit that added it, and undo a change that weakens the scan; $way_on" ;;
+      *) fail "the copy of scripts/check-home-paths.sh that $default_label holds could not check the range (exit $default_code); $way_on, and read its error" ;;
     esac
   fi
   [ -z "$tag_cause" ] || fail "tag=$tag: $tag_cause"
@@ -549,6 +559,62 @@ case_scheduled_run_on_the_default_branch() {
   no_event
 }
 
+push_whose_last_commit_changes() {
+  fixture "$1"
+  below=$(git -C "$scratch/$1" rev-parse HEAD) || exit 2
+  add_commit "$1" "see /$u/zoe/x" 'second'
+  first_of_the_push=$(git -C "$scratch/$1" rev-parse HEAD) || exit 2
+  "$2" "$1"
+  add_commit "$1" 'plain again' 'change a script of the check'
+  git -C "$scratch/$1" update-ref refs/remotes/origin/main HEAD || exit 2
+  event_of_a_run "$1" push refs/heads/main "$below" false main
+}
+
+weaken_the_scanner() {
+  weak_scanner >"$scratch/$1/scripts/check-home-paths.sh" || exit 2
+}
+
+name_the_first_commit_exempt() {
+  printf 'NEWEST_EXEMPT_COMMIT=%s\n' "$first_of_the_push" >"$scratch/$1/scripts/check-commit-messages.sh" || exit 2
+}
+
+case_push_whose_last_commit_weakens_the_scanner() {
+  c='push-whose-last-commit-weakens-the-scanner'
+  push_whose_last_commit_changes "$c" weaken_the_scanner
+  expect FAIL "$c" 'the copy of scripts/check-home-paths.sh and scripts/commit-range.sh that the commit before the push holds finds'
+  no_event
+}
+
+case_push_whose_last_commit_names_the_first_exempt() {
+  c='push-whose-last-commit-names-the-first-exempt'
+  push_whose_last_commit_changes "$c" name_the_first_commit_exempt
+  expect FAIL "$c" 'copy-of-the-default-branch commits=2 lines=1 exit=1'
+  no_event
+}
+
+case_event_whose_default_branch_holds_a_line_break() {
+  c='event-whose-default-branch-holds-a-line-break'
+  push_of_three_commits "$c" "see /$u/zoe/x"
+  head_of_the_push=$(git -C "$scratch/$c" rev-parse HEAD) || exit 2
+  printf '{"ref": "refs/heads/main", "repository": {"default_branch": "main\\n%s"}}\n' "$head_of_the_push" >"$scratch/$c.event.json" || exit 2
+  GITHUB_EVENT_NAME=push
+  GITHUB_REF=refs/heads/main
+  GITHUB_EVENT_PATH=$scratch/$c.event.json
+  expect FAIL "$c" 'gives no default branch that git reads as a branch name'
+  no_event
+}
+
+case_event_that_starts_with_a_byte_order_mark() {
+  c='event-that-starts-with-a-byte-order-mark'
+  push_of_three_commits "$c" 'more plain text'
+  event_of_a_run "$c" push refs/heads/main "$below" false main
+  mv "$GITHUB_EVENT_PATH" "$scratch/$c.event-without-the-mark.json" || exit 2
+  printf '\357\273\277' >"$GITHUB_EVENT_PATH" || exit 2
+  cat "$scratch/$c.event-without-the-mark.json" >>"$GITHUB_EVENT_PATH" || exit 2
+  expect PASS "$c" 'range=the-push tag=not-a-tag-run commits=3 lines=0 '
+  no_event
+}
+
 case_push_to_another_branch() {
   c='push-to-another-branch'
   fixture "$c"
@@ -716,6 +782,10 @@ default-branch-scanner-that-cannot-check
 push-to-the-default-branch-in-a-shallow-clone
 scheduled-run-on-the-default-branch
 push-to-another-branch
+push-whose-last-commit-weakens-the-scanner
+push-whose-last-commit-names-the-first-exempt
+event-whose-default-branch-holds-a-line-break
+event-that-starts-with-a-byte-order-mark
 '
 
 run_new_case() {
