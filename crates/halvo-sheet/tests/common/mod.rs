@@ -2,10 +2,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 pub struct Scratch {
     pub dir: PathBuf,
@@ -13,14 +9,8 @@ pub struct Scratch {
 
 impl Scratch {
     pub fn new(name: &str) -> Scratch {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        let n = NEXT.fetch_add(1, Ordering::SeqCst);
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join("halvo-sheet")
-            .join(format!("{name}-{}-{nanos}-{n}", std::process::id()));
-        fs::create_dir_all(&dir).expect("make the scratch directory");
+        let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-sheet");
+        let dir = halvo_test_dir::make(&base, name).expect("make the scratch directory");
         Scratch { dir }
     }
 
