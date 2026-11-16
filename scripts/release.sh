@@ -34,6 +34,11 @@ Releases Halvo with cargo-release, one version for every package of the workspac
       In a shallow clone it fetches the whole history and the tags from origin
       first (git fetch --unshallow --tags origin), after the checks that read no
       history; a dry run refuses a shallow clone and names that command.
+      Just before cargo-release it runs scripts/r1/ci.d/54-tag-needs-store4.sh
+      with the coming tag, and while crates/halvo-capture/src/store/db.rs holds
+      the statement that creates the search index events_fts, which store-4
+      takes out, it stops there with that check's line and changes nothing; a
+      dry run prints the line where --execute would stop and exits 0.
       When cargo-release fails, the script puts the clone back to the commit it
       started from and deletes the tags that the run made, and says so.
   sh scripts/release.sh --help
@@ -265,6 +270,20 @@ if [ "$mode" = --execute ] && has_a_remote_named_origin; then
       fail "HEAD and origin's main have diverged, or this clone lacks origin's newest commit ($newest): run git fetch origin main and compare; nothing was released"
     fi
   fi
+fi
+
+store4_check=scripts/r1/ci.d/54-tag-needs-store4.sh
+store4_status=0
+store4=$(CI_D_REPO=$PWD GITHUB_REF_TYPE=tag GITHUB_REF_NAME=$tag sh "$store4_check" 2>&1) || store4_status=$?
+if [ "$store4_status" -ne 0 ]; then
+  store4_cause=$(printf '%s\n' "$store4" | sed -n 's/^FAIL 54-tag-needs-store4 (\(.*\))$/\1/p')
+  [ -n "$store4_cause" ] ||
+    store4_cause="$store4_check exited $store4_status and printed no FAIL line, so it cannot say that the tag $tag may be made"
+  if [ "$mode" = --execute ]; then
+    printf '%s\n' "$store4" >&2
+    fail "$store4_cause; nothing was released"
+  fi
+  printf 'release.sh: --execute would stop here: %s\n' "$store4_cause" >&2
 fi
 
 if [ "$mode" = --execute ]; then

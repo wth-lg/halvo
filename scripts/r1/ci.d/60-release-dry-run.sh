@@ -60,6 +60,23 @@ fail_after() {
   fail "$line"
 }
 
+store4_cause() {
+  said=$(cd "$1" && CI_D_REPO=$1 GITHUB_REF_TYPE=tag GITHUB_REF_NAME=$2 sh scripts/r1/ci.d/54-tag-needs-store4.sh 2>&1)
+  code=$?
+  last=$(printf '%s\n' "$said" | awk 'NF { last = $0 } END { print last }')
+  case $code:$last in
+    '0:PASS 54-tag-needs-store4') return 0 ;;
+    '1:FAIL 54-tag-needs-store4 ('*')')
+      cause=${last#'FAIL 54-tag-needs-store4 ('}
+      printf '%s\n' "${cause%')'}"
+      ;;
+    *)
+      printf '54-tag-needs-store4 exited %s in the clone with the last line %s\n' "$code" "${last:-nothing}"
+      return 1
+      ;;
+  esac
+}
+
 snapshot() {
   git -C "$1" status --porcelain --untracked-files=all
   git -C "$1" rev-parse HEAD
@@ -226,10 +243,16 @@ All notable changes are recorded in this file.
 
 ## [Unreleased]
 '
+  found=0
+  grep -o -E 'scripts/r1/ci\.d/[0-9][0-9]-[a-z0-9-]+\.sh' "$root/scripts/release.sh" >"$work/called-checks" || found=$?
+  [ "$found" -le 1 ] || exit 2
   repository() {
     repo=$work/repo-$1
     mkdir -p "$repo/scripts" || exit 2
     cp "$root/scripts/release.sh" "$root/scripts/check-changelog.sh" "$repo/scripts/" || exit 2
+    while IFS= read -r check; do
+      mkdir -p "$repo/${check%/*}" && cp "$root/$check" "$repo/$check" || exit 2
+    done <"$work/called-checks"
     printf '%s\n%s\n' "$intro" "$2" >"$repo/CHANGELOG.md"
     git init -q "$repo" && git -C "$repo" add -A && git -C "$repo" commit -q -m fixture || exit 2
   }
@@ -274,7 +297,7 @@ All notable changes are recorded in this file.
   help_status=0
   (cd "$repo" && sh scripts/release.sh --help) >"$work/help.txt" 2>&1 || help_status=$?
   missing=
-  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps"; do
+  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps" '54-tag-needs-store4' 'would stop'; do
     grep -q -F -e "$fact" "$work/help.txt" || missing="$missing [$fact]"
   done
   got=FAIL
@@ -588,6 +611,85 @@ GITSTUB
   shallow_state >"$work/shallow-after"
   cmp -s "$work/shallow-before" "$work/shallow-after" && got=PASS || got=FAIL
   verdict dry-run-in-a-shallow-clone-changes-nothing PASS "$got"
+
+  got=FAIL
+  grep -q -x -F 'scripts/r1/ci.d/54-tag-needs-store4.sh' "$work/called-checks" && got=PASS
+  verdict fixtures-hold-the-checks-that-release-sh-calls PASS "$got"
+  with_statement() {
+    mkdir -p "$repo/crates/halvo-capture/src/store" || exit 2
+    printf '%s\n' '                 CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",' >"$repo/crates/halvo-capture/src/store/db.rs"
+    printf 'target/\n' >"$repo/.gitignore"
+    git -C "$repo" add -A && git -C "$repo" commit -q -m 'Create the search index' || exit 2
+  }
+  stop_case() {
+    case_name=$1 mode=$2
+    shift 2
+    log=$work/argv-$case_name
+    snapshot "$repo" >"$work/stop-$case_name-before"
+    status=0
+    (cd "$repo" && env "$@" PATH="$work/bin:$PATH" STUB_ACTION=commit-tag STUB_LOG="$log" CARGO_HOME="$work/no-cargo-home" sh scripts/release.sh "$mode") >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$log"
+    snapshot "$repo" >"$work/stop-$case_name-after"
+    released=no
+    grep -q -E '^release (patch|minor|major) --config .* --execute' "$log" && released=yes
+    unchanged=no
+    cmp -s "$work/stop-$case_name-before" "$work/stop-$case_name-after" && unchanged=yes
+  }
+  repository index-statement "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  statement_repo=$repo
+  got=FAIL
+  cause=$(store4_cause "$repo" v1.2.4) && [ -n "$cause" ] && got=PASS
+  verdict 54-refuses-the-tag-of-the-fixture-with-the-statement PASS "$got"
+  stop_case dry-run-on-a-tree-with-the-statement --dry-run
+  got=FAIL
+  [ "$status" = 0 ] && grep -q -x -F -e "release.sh: --execute would stop here: $cause" "$work/out-dry-run-on-a-tree-with-the-statement" &&
+    grep -q -x 'next version: 1.2.4' "$work/out-dry-run-on-a-tree-with-the-statement" && [ "$unchanged" = yes ] && got=PASS
+  verdict dry-run-on-a-tree-with-the-statement-prints-the-stop-and-exits-0 PASS "$got"
+  stop_case execute-on-a-tree-with-the-statement --execute
+  got=PASS
+  [ "$status" = 1 ] && grep -q -x -F -e "release.sh: $cause; nothing was released" "$work/out-execute-on-a-tree-with-the-statement" &&
+    grep -q -x -F -e "FAIL 54-tag-needs-store4 ($cause)" "$work/out-execute-on-a-tree-with-the-statement" &&
+    grep -q '^release version patch' "$work/argv-execute-on-a-tree-with-the-statement" && [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
+  verdict execute-on-a-tree-with-the-statement FAIL "$got"
+  repository index-statement-free "$typed"
+  git -C "$repo" checkout -q -B main
+  statement_free_repo=$repo
+  repo=$statement_repo
+  stop_case execute-over-a-branch-ref-and-a-foreign-root-in-the-environment --execute GITHUB_REF_TYPE=branch GITHUB_REF_NAME=main "CI_D_REPO=$statement_free_repo"
+  got=PASS
+  [ "$status" = 1 ] && grep -q -x -F -e "release.sh: $cause; nothing was released" "$work/out-execute-over-a-branch-ref-and-a-foreign-root-in-the-environment" &&
+    [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
+  verdict execute-over-a-branch-ref-and-a-foreign-root-in-the-environment FAIL "$got"
+  repo=$statement_free_repo
+  stop_case dry-run-on-a-tree-without-the-statement-under-a-foreign-root --dry-run "CI_D_REPO=$statement_repo"
+  got=FAIL
+  [ "$status" = 0 ] && ! grep -q 'would stop here' "$work/out-dry-run-on-a-tree-without-the-statement-under-a-foreign-root" && got=PASS
+  verdict dry-run-on-a-tree-without-the-statement-under-a-foreign-root PASS "$got"
+  repository index-statement-behind-origin "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  git clone -q --bare "$repo" "$work/origin-of-index-statement.git" || exit 2
+  git -C "$repo" remote add origin "$work/origin-of-index-statement.git"
+  git -C "$repo" commit -q --allow-empty -m 'A commit that origin gets'
+  git -C "$repo" push -q origin main
+  git -C "$repo" checkout -q -B main HEAD~1
+  stop_case origin-refusal-comes-before-54 --execute
+  got=PASS
+  [ "$status" = 1 ] && grep -q 'run git pull --ff-only origin main, then run this again' "$work/out-origin-refusal-comes-before-54" &&
+    ! grep -q '54-tag-needs-store4' "$work/out-origin-refusal-comes-before-54" && [ "$released" = no ] && got=FAIL
+  verdict origin-refusal-comes-before-54 FAIL "$got"
+  repository 54-without-its-line "$typed"
+  mkdir -p "$repo/scripts/r1/ci.d" || exit 2
+  printf '%s\n' '#!/bin/sh' 'echo a stand-in of 54 that ends without its line' 'exit 3' >"$repo/scripts/r1/ci.d/54-tag-needs-store4.sh"
+  printf 'target/\n' >"$repo/.gitignore"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m 'A 54 that ends without its line' || exit 2
+  git -C "$repo" checkout -q -B main
+  stop_case 54-that-ends-without-its-line --execute
+  got=PASS
+  [ "$status" = 1 ] && grep -q -F 'scripts/r1/ci.d/54-tag-needs-store4.sh exited 3' "$work/out-54-that-ends-without-its-line" && [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
+  verdict 54-that-ends-without-its-line-stops-execute FAIL "$got"
 
   group_case() {
     case_name=$1 want=$2 dry=$3 version=$4 before=$5 expected=$6
