@@ -100,6 +100,44 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: U5.2 loop of the new tests and the probe
+        shell: bash
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$tmp/u52-loop-messages.json" 2> "$tmp/u52-loop-build.txt"
+          echo "build exit $?"
+          exe() {
+            grep '"reason":"compiler-artifact"' "$tmp/u52-loop-messages.json" | grep '"executable":"' | grep "\"name\":\"$1\"" | sed 's/.*"executable":"\([^"]*\)".*/\1/' | sed 's/\\\\/\\/g' | tail -n 1
+          }
+          bad=
+          loop() {
+            file=$(exe "$1")
+            if [ -z "$file" ]; then echo "LOOP $2: no test binary $1"; bad=1; return; fi
+            pass=0
+            i=0
+            start=$(date +%s)
+            while [ "$i" -lt "$3" ]; do
+              i=$((i + 1))
+              out=$(cd crates/halvo-derived && "$file" "$2" --exact 2>&1)
+              if printf '%s\n' "$out" | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                pass=$((pass + 1))
+              else
+                echo "LOOP $2 run $i:"
+                printf '%s\n' "$out" | tail -n 25
+              fi
+            done
+            echo "LOOP $2 passed $pass of $3 in $(( $(date +%s) - start )) s"
+            [ "$pass" -eq "$3" ] || bad=1
+          }
+          loop privacy removed_rows_leave_no_text_in_the_gap_of_a_page_built_again 20
+          loop page_gap_check small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check 20
+          loop page_gap_check the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check 200
+          loop open open_refuses_a_store_whose_auto_vacuum_is_not_0 200
+          loop open open_refuses_a_keyless_store_whose_page_size_is_not_4096 200
+          loop halvo_derived tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap 200
+          if [ -n "$bad" ]; then echo "LOOP a test missed its count"; exit 1; fi
+          echo "LOOP every count met"
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -156,6 +194,44 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: U5.2 loop of the new tests and the probe
+        shell: bash
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$tmp/u52-loop-messages.json" 2> "$tmp/u52-loop-build.txt"
+          echo "build exit $?"
+          exe() {
+            grep '"reason":"compiler-artifact"' "$tmp/u52-loop-messages.json" | grep '"executable":"' | grep "\"name\":\"$1\"" | sed 's/.*"executable":"\([^"]*\)".*/\1/' | sed 's/\\\\/\\/g' | tail -n 1
+          }
+          bad=
+          loop() {
+            file=$(exe "$1")
+            if [ -z "$file" ]; then echo "LOOP $2: no test binary $1"; bad=1; return; fi
+            pass=0
+            i=0
+            start=$(date +%s)
+            while [ "$i" -lt "$3" ]; do
+              i=$((i + 1))
+              out=$(cd crates/halvo-derived && "$file" "$2" --exact 2>&1)
+              if printf '%s\n' "$out" | grep -q '^test result: ok\. 1 passed; 0 failed'; then
+                pass=$((pass + 1))
+              else
+                echo "LOOP $2 run $i:"
+                printf '%s\n' "$out" | tail -n 25
+              fi
+            done
+            echo "LOOP $2 passed $pass of $3 in $(( $(date +%s) - start )) s"
+            [ "$pass" -eq "$3" ] || bad=1
+          }
+          loop privacy removed_rows_leave_no_text_in_the_gap_of_a_page_built_again 20
+          loop page_gap_check small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check 20
+          loop page_gap_check the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check 200
+          loop open open_refuses_a_store_whose_auto_vacuum_is_not_0 200
+          loop open open_refuses_a_keyless_store_whose_page_size_is_not_4096 200
+          loop halvo_derived tests::the_open_refuses_a_database_library_without_the_mend_of_the_page_gap 200
+          if [ -n "$bad" ]; then echo "LOOP a test missed its count"; exit 1; fi
+          echo "LOOP every count met"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
