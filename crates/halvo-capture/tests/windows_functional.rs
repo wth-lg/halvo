@@ -376,10 +376,39 @@ fn start_report<T>(test: &str, source: &str, result: &Result<T, CaptureError>) {
     }
 }
 
+/// Prints the per-user Uninstall key of both registry views when a test
+/// starts and again when it ends, a panic or a time-out among the ends, so
+/// that one hosted run shows after which test the key stands (ruling W3-27
+/// (3) (b)).
+struct UninstallKeyPrints {
+    test: &'static str,
+}
+
+impl UninstallKeyPrints {
+    fn before(test: &'static str) -> Self {
+        uninstall_key_lines(test, "before");
+        Self { test }
+    }
+}
+
+impl Drop for UninstallKeyPrints {
+    fn drop(&mut self) {
+        uninstall_key_lines(self.test, "after");
+    }
+}
+
+fn uninstall_key_lines(test: &str, when: &str) {
+    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+    for view in per_user_uninstall_views(&hkcu) {
+        say(test, format!("uninstall_key_{when} {}", view.line()));
+    }
+}
+
 fn with_deadline<F>(test: &'static str, limit: Duration, body: F)
 where
     F: FnOnce() + Send + 'static,
 {
+    let _prints = UninstallKeyPrints::before(test);
     let (done, finished) = mpsc::channel();
     let worker = std::thread::Builder::new()
         .name(format!("tf-{test}"))
@@ -1771,6 +1800,118 @@ fn per_user_key_absent_or_removed(test: &str, hkcu: &winreg::RegKey) -> bool {
         ),
     );
     removed
+}
+
+/// Puts the per-user Uninstall key of each registry view back as its test
+/// found it, in every exit of the test, a panic among them: a key that stood
+/// and is gone is made again, empty, and a key that did not stand and holds
+/// nothing is removed. A key that holds something is never touched.
+struct PerUserKeyRestore {
+    test: &'static str,
+    hkcu: winreg::RegKey,
+    stood: [bool; 2],
+}
+
+impl Drop for PerUserKeyRestore {
+    fn drop(&mut self) {
+        let paths = [UNINSTALL, UNINSTALL_WOW];
+        let now = per_user_uninstall_views(&self.hkcu);
+        for ((path, stood), view) in paths.into_iter().zip(self.stood).zip(&now) {
+            let done = match (stood, view.exists) {
+                (true, false) => Some(("made_again", self.hkcu.create_subkey(path).map(|_| ()))),
+                (false, true) if view.holds_nothing() => {
+                    Some(("removed", self.hkcu.delete_subkey(path)))
+                }
+                _ => None,
+            };
+            if let Some((what, result)) = done {
+                say(
+                    self.test,
+                    format!(
+                        "restore per_user_uninstall_key={} {what}={}",
+                        view.view,
+                        show(&result)
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// JB-28 (1), ruling W3-27 (3) (a): c5-watch's precondition removes an empty
+/// per-user Uninstall key and goes on, and leaves a key that holds something.
+/// The test makes the empty key when it is absent, and its guard puts both
+/// views back as it found them.
+#[test]
+#[ignore = "functional: writes the per-user Uninstall key of the Windows registry; 50-windows-functional runs every test of this binary under --ignored, so a test that is not ignored here runs zero tests there, and under 12-test's cargo test it would write the registry of every machine that runs the workspace's tests"]
+fn c5_watch_precondition_removes_an_empty_per_user_key_and_goes_on() {
+    const TEST: &str = "c5-precondition";
+    with_deadline(TEST, Duration::from_secs(60), || {
+        use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let found = per_user_uninstall_views(&hkcu);
+        for view in &found {
+            say(TEST, format!("found {}", view.line()));
+        }
+        let restore = PerUserKeyRestore {
+            test: TEST,
+            hkcu: RegKey::predef(HKEY_CURRENT_USER),
+            stood: found.each_ref().map(|view| view.exists),
+        };
+        let counts = |views: &[PerUserView; 2]| {
+            views
+                .each_ref()
+                .map(|view| (view.exists, view.subkeys, view.values))
+        };
+        if !found.iter().all(PerUserView::holds_nothing) {
+            let went_on = per_user_key_absent_or_removed(TEST, &hkcu);
+            let left = per_user_uninstall_views(&hkcu);
+            say(
+                TEST,
+                format!("held_something=true precondition_went_on={went_on}"),
+            );
+            assert!(
+                !went_on,
+                "the precondition went on past a per-user Uninstall key that holds something"
+            );
+            assert_eq!(
+                counts(&left),
+                counts(&found),
+                "the precondition changed a per-user Uninstall key that holds something"
+            );
+            drop(restore);
+            return;
+        }
+        if !found[0].exists {
+            hkcu.create_subkey(UNINSTALL)
+                .expect("make the empty per-user Uninstall key");
+        }
+        let made = per_user_uninstall_views(&hkcu);
+        for view in &made {
+            say(TEST, format!("made {}", view.line()));
+        }
+        assert!(
+            made[0].exists && made.iter().all(PerUserView::holds_nothing),
+            "the per-user Uninstall key is not there and empty before the precondition"
+        );
+        let went_on = per_user_key_absent_or_removed(TEST, &hkcu);
+        let gone = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_err();
+        say(
+            TEST,
+            format!("held_something=false precondition_went_on={went_on} key_gone={gone}"),
+        );
+        assert!(
+            went_on,
+            "the precondition did not go on past an empty per-user Uninstall key"
+        );
+        assert!(
+            gone,
+            "the precondition went on and left the empty per-user Uninstall key"
+        );
+        drop(restore);
+    });
 }
 
 #[test]
