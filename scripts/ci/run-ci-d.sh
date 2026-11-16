@@ -927,6 +927,20 @@ st_entry() {
 
 new_repo() {
   fixture_added=
+  if [ ! -e "$tmp/fixture-made-once.done" ]; then
+    fixture=$tmp/fixture-made-once
+    mkdir -p "$fixture" || return 1
+    git -C "$fixture" init -q >/dev/null 2>&1 || return 1
+    printf 'version = 4\n' >"$fixture/Cargo.lock"
+    git -C "$fixture" add Cargo.lock >/dev/null 2>&1 && fixture_commit || return 1
+    printf '' >"$tmp/fixture-made-once.done"
+  fi
+  fixture=$(mktemp -d "$tmp/repo.XXXXXX") || return 1
+  cp -Rp "$tmp/fixture-made-once/." "$fixture/"
+}
+
+new_repo_by_git() {
+  fixture_added=
   fixture=$(mktemp -d "$tmp/repo.XXXXXX") || return 1
   git -C "$fixture" init -q >/dev/null 2>&1 || return 1
   printf 'version = 4\n' >"$fixture/Cargo.lock"
@@ -1637,7 +1651,7 @@ own_self_test() {
   case_git_home=plain
   case_witness=yes
   own_case global-setting-of-a-script-leaves-the-settings-that-the-driver-reads 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit && touch -t 200001010000 "$fixture/tracked.txt"
+  new_repo_by_git && track_file && add_script r1 10-a.sh "$good" "$pass_a" && fixture_commit && touch -t 200001010000 "$fixture/tracked.txt"
   case_index_same=yes
   case_witness=yes
   own_case index-of-the-checkout-with-stale-stat-data-is-the-same-after-a-run 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
