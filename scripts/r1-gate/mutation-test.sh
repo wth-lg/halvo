@@ -485,7 +485,10 @@ buildable() {
 gate_lines() {
   : > "$work/gate.out"
   stop_check
-  { git init -q "$tree" && git -C "$tree" add -A; } > "$work/gate.err" 2>&1
+  git init -q "$tree" > "$work/gate.err" 2>&1
+  step_check $? "git init of the copy" || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
+  stop_check
+  git -C "$tree" add -A >> "$work/gate.err" 2>&1
   step_check $? "git add of the copy" || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
   for gate_check in store deletion no-ll-hook; do
     stop_check
@@ -1541,6 +1544,36 @@ cases() {
   form_cases
   built_cases
   lint_cases
+  stop_order_cases
+}
+
+stop_order_cases() {
+  fixture_tree stop-copy-staging
+  stub_gate stop-copy-staging 'FAIL store (verify-store measured: rows)'
+  stub_hold stop-copy-staging git 'init -q *'
+  row stop-copy-staging/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t stop-during-the-git-init-of-the-copy-starts-no-git-add PASS no_git_add_after stop-copy-staging stopped_by stop-copy-staging TERM runner 60 run 143 gone none 0 'STOPPED mutation:held (signal TERM; no test was running)'
+  t a-signal-recorded-before-the-self-test-s-traps-runs-no-case PASS selftest_after_a_signal
+}
+
+no_git_add_after() {
+  git_add_fixture=$gate_scratch/$1; shift
+  "$@" || return 1
+  ! grep -q -e ' add -A' "$git_add_fixture/bin/calls" && return 0
+  printf 'git add of the copy started after the signal\n'
+  return 1
+}
+
+selftest_after_a_signal() {
+  after_dir=$gate_scratch/selftest-after-a-signal
+  mkdir -p "$after_dir"
+  ( cases() { : > "$after_dir/ran"; }
+    stop_check() { :; }
+    gate_scratch=''; stop_signal=TERM; stop_status=143
+    main --self-test ) > "$after_dir.out" 2>&1
+  after_status=$?
+  [ ! -e "$after_dir/ran" ] || { printf 'the self-test ran its cases after a recorded signal\n'; return 1; }
+  [ "$after_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$after_status"; return 1; }
 }
 
 lint_cases() {
@@ -2434,6 +2467,7 @@ main() {
   stop_check
   if [ "$mode" = self-test ] && [ "$main_help" = no ] && [ -z "$main_bad" ]; then
     gate_traps
+    [ -z "$stop_signal" ] || exit "$stop_status"
     selftest_run
     return
   fi
