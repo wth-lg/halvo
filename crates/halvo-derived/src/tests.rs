@@ -58,7 +58,10 @@ fn the_progress_handler_interrupts_a_statement_past_its_budget() {
 /// S-85, item 5: the open refuses by name a process whose linked database does not answer that it is Halvo's mended
 /// build, and this build is that one. No test build links another library, so the call in `Db::open` is held by the
 /// text of src/db.rs: the call stands once on a line of code, a line that is no comment, and that line lies in the
-/// function `open`. Its limit: it reads text, so a call that stands on a line of code and never runs, as one behind a
+/// function `open` before the first line of `open` that makes or opens a file: the first line of code there that
+/// names `std::fs::`, `WriterLock::take(` or `Connection::open(`, which at this head is the line that makes the
+/// directory `derived/` by `std::fs::create_dir_all` (ruling S-100, item 5). Its limit: it reads text, so a call that
+/// stands on a line of code and never runs, as one behind a
 /// condition that is false, passes it; a test by behaviour would need a test-only switch in src/db.rs (ruling S-98,
 /// item 2).
 #[test]
@@ -101,6 +104,24 @@ fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
     assert!(
         (open..end).contains(&calls[0]),
         "the call stands in Db::open"
+    );
+    let first_file = code
+        .iter()
+        .filter(|(n, _)| (open..end).contains(n))
+        .find(|(_, line)| {
+            ["std::fs::", "WriterLock::take(", "Connection::open("]
+                .iter()
+                .any(|maker| line.contains(maker))
+        })
+        .map(|(n, _)| *n)
+        .unwrap();
+    assert!(
+        lines[first_file].contains("std::fs::create_dir_all("),
+        "the first line of Db::open that makes or opens a file"
+    );
+    assert!(
+        calls[0] < first_file,
+        "the call stands before the first line of Db::open that makes or opens a file"
     );
 }
 
