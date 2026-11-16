@@ -680,7 +680,7 @@ esac
 if spec "all-not-driven-$test"; then
   printf '%s round=0 wait_ms=150 bound_ms=1000 counted=0 ahead=0 markers=0 plain=0 secure=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
 else
-  printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8\n' "$test"
+  printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0\n' "$test"
 fi
 spec "one-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=0 markers=0 plain=0 secure=8 rv=notdriven not_driven=late_reply_left_secure_within_3000_ms phase_counted=1 phase_not_driven=1\n' "$test"
 spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
@@ -833,12 +833,13 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   check panic-line FAIL "    | thread 'phase_one' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:500:27:
     | the fixture gave no line that starts with left_secure within 3000 ms" 'panic-phase_one'
   check one-round-not-driven PASS 'MS phase_one result=pass counted=1 not_driven=1 seconds=' 'one-not-driven-phase_one'
+  check known-fault-recorded-in-a-round-not-driven PASS 'MS known_one result=known-fault counted=1 not_driven=1 seconds=' 'recorded-not-driven-known_one'
   check rounds-not-driven-in-the-total PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0 rounds_counted=4 rounds_not_driven=1' 'one-not-driven-phase_one'
   check every-round-not-driven FAIL 'phase_one: every round of the phase was not driven' 'all-not-driven-phase_one'
   check recorded-in-a-round-not-driven FAIL 'phase_one: a key was recorded in a round not driven' 'recorded-not-driven-phase_one'
   check artifacts-hold-the-output PASS 'MS phase_one result=pass' 'long-output-phase_one'
   printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE HALVO_STALL_FORM HALVO_STALL_GAP_MS ' \
-    'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8' \
+    'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
     'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
     >"$work/output-wanted" || exit 2
   kept=$work/artifacts-artifacts-hold-the-output/tests
