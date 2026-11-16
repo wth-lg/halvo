@@ -15,7 +15,7 @@ pypdf=""
 
 reg_value() {
   MSYS_NO_PATHCONV=1 reg query "HKLM\\SOFTWARE\\Policies\\$1" /v "$2" 2>/dev/null | tr -d '\r' |
-    awk -v n="$2" '$1 == n { t = $2; $1 = ""; $2 = ""; sub(/^ +/, ""); print t " " $0; f = 1 } END { exit f ? 0 : 1 }'
+    awk -v n="$2" '$1 == n { d = $0; if (sub(/^    [^ ]+    [^ ]+    /, "", d) == 0) { d = $0; sub(/^ *[^ ]+ +[^ ]+ +/, "", d) }; print $2 " " d; f = 1 } END { exit f ? 0 : 1 }'
 }
 
 key_exists() {

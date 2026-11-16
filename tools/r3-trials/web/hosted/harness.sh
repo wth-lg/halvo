@@ -324,6 +324,19 @@ if [ -e "$RUNNER_TEMP/late" ]; then echo call_alive; else echo call_ended; fi
 CASE
   verdict win_ends_the_call_in_progress_when_it_is_ended \
     "$(holds has "$c/out" call_ended)" "out=$(tr ' \n' '_;' <"$c/out" | cut -c1-120)"
+  c="$work/w-spaces"
+  mkdir -p "$c/reg/Google/Chrome"
+  printf 'REG_SZ a  b   c' >"$c/reg/Google/Chrome/ProxyMode"
+  in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"; k=chrome
+policy_set "Google\\Chrome" ProxyMode REG_SZ direct >/dev/null
+[ "$(cat "$R3_REG/Google/Chrome/ProxyMode")" = "REG_SZ direct" ] || echo not_set
+policy_unset
+CASE
+  v=$(cat "$c/reg/Google/Chrome/ProxyMode" 2>/dev/null)
+  verdict win_puts_back_a_value_with_runs_of_spaces_byte_for_byte \
+    "$(holds test "$v" = "REG_SZ a  b   c")$(has "$c/out" not_set && echo _not_set)$(has "$c/out" "policy removed=yes name=ProxyMode earlier=yes" || echo _line)" \
+    "value_after=$(printf '%s' "$v" | tr ' ' '_')"
   c="$work/w-port"
   mkdir -p "$c"
   in_stand_ins "$c" <<'CASE'
