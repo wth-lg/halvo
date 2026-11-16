@@ -262,7 +262,7 @@ fn the_line_of_an_unanswered_stop_names_no_healed_fault() {
     let reports = harness.reports();
     assert!(reports.contains(&Report::DrainHealthy), "{reports:?}");
     assert_eq!((snapshot.events_persisted, snapshot.events_pending), (1, 0));
-    let line = super::loss_line(&snapshot, 0, false, &reports);
+    let line = super::loss_line(&snapshot, 0, &reports);
     assert!(line.ends_with(" error=-"), "the drain had healed: {line}");
 }
 
@@ -1333,4 +1333,107 @@ fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_
         exit::CLEAN
     );
     assert_eq!(String::from_utf8(err).unwrap(), format!("{}\n", loss.line));
+}
+
+/// Sources whose window moves the owner's clock until three batches of their
+/// keys are set aside, each after three due tries answered with 19, and that
+/// then emit nothing more (the review's case text-1).
+struct ThreeSetAsidesInTheWindow {
+    inner: ScriptedRun,
+    store: ModelStore,
+    clocks: ManualClocks,
+}
+
+impl RunSources for ThreeSetAsidesInTheWindow {
+    fn start(
+        &mut self,
+        ctx: &SourceContext,
+        wanted: &[SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<FailedSource> {
+        self.inner.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        drive(&self.store, &self.clocks, 9, RETRY_FIRST);
+        self.inner.wait(window, stop)
+    }
+
+    fn stop(&mut self) -> Vec<FailedSource> {
+        self.inner.stop()
+    }
+
+    fn figures(&self) -> SourceCounters {
+        self.inner.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        self.inner.hold_refusal()
+    }
+}
+
+/// Ruling PR-32 R3 and its Addition 1, D2 and D4: a timed run that ends
+/// after the third set-aside in a row, while the owner's drain reads failing
+/// with db, exits 1 and names db in its loss line, as a run that stops on a
+/// held batch names its fault.
+#[test]
+fn a_timed_run_that_ends_after_the_third_set_aside_names_db_in_its_loss_line() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Db(19)));
+    let clocks = ManualClocks::at(noon());
+    let mut sources = ThreeSetAsidesInTheWindow {
+        inner: keys(1_200),
+        store: store.clone(),
+        clocks: clocks.clone(),
+    };
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut sources,
+        store.clone(),
+        clocks,
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(store.write_calls().len(), 9, "{outcome:?}");
+    assert_eq!(outcome.report.events_persisted, 0, "{outcome:?}");
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    let loss = outcome.loss.as_ref().expect("no loss line");
+    assert_eq!(loss.cause, Some(LossCause::LostSinceAcknowledged), "{loss}");
+    assert!(
+        loss.line
+            .starts_with("halvo-capture: lost events=1200 first=2"),
+        "{loss}"
+    );
+    assert!(
+        loss.line.ends_with(" error=db"),
+        "the drain reads failing with db at the stop: {loss}"
+    );
+}
+
+/// D2: a timed run whose final flush still fails with one of the eight names
+/// db, not io, in its loss line.
+#[test]
+fn a_timed_run_whose_final_flush_fails_with_19_names_db_in_its_loss_line() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Db(19)));
+    let mut scripted = four_events();
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    let loss = outcome.loss.as_ref().expect("no loss line");
+    assert_eq!(loss.cause, Some(LossCause::Pending), "{loss}");
+    assert_eq!(
+        loss.line,
+        "halvo-capture: lost events=4 first=- last=- error=db"
+    );
 }

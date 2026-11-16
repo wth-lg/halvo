@@ -648,18 +648,12 @@ fn stop_loss(
     };
     (cause.is_some() || count > 0).then(|| Loss {
         cause,
-        line: loss_line(settled, count, answered.is_ok(), reports),
+        line: loss_line(settled, count, reports),
     })
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
-fn loss_line(
-    settled: &counters::Snapshot,
-    count: u64,
-    answered: bool,
-    reports: &[owner::Report],
-) -> String {
-    let final_failed = !answered || settled.events_pending > 0;
+fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]) -> String {
     let kind = reports
         .iter()
         .rev()
@@ -669,7 +663,6 @@ fn loss_line(
             _ => None,
         })
         .flatten()
-        .filter(|_| final_failed)
         .unwrap_or("-");
     format!(
         "halvo-capture: lost events={count} first={} last={} error={kind}",
