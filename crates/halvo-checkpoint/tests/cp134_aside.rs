@@ -31,7 +31,7 @@ fn the_move_aside_replaces_no_file_at_the_removing_name() {
     let locks = Locks::open(&scratch.path("data"), Duration::from_secs(5)).expect("the locks");
     let row = Row {
         folder: &folder,
-        workbook: Path::new("values.xlsx"),
+        workbook: &folder.join("values.xlsx"),
         run: &run,
         expect: Expect::Made {
             sha256: Sha256::of(COPY),

@@ -37,7 +37,7 @@ mod dir_swapped_while_waiting {
             thread::spawn(move || {
                 let row = Row {
                     folder: &folder,
-                    workbook: Path::new("sub/book.xlsx"),
+                    workbook: &folder.join("sub").join("book.xlsx"),
                     run: &run,
                     expect: Expect::Made {
                         sha256: Sha256::of(&bytes),
@@ -128,7 +128,7 @@ mod written_in_place_while_read {
 
             let row = Row {
                 folder: &folder,
-                workbook: Path::new("book.xlsx"),
+                workbook: &folder.join("book.xlsx"),
                 run: &run,
                 expect: Expect::Made {
                     sha256,
@@ -183,7 +183,7 @@ mod swapped_before_the_removal {
             scratch.write(&format!("warm-{warm}/{name}"), &ours);
             let row = Row {
                 folder: &folder,
-                workbook: Path::new("book.xlsx"),
+                workbook: &folder.join("book.xlsx"),
                 run: &run,
                 expect,
             };
@@ -218,7 +218,7 @@ mod swapped_before_the_removal {
 
             let row = Row {
                 folder: &folder,
-                workbook: Path::new("book.xlsx"),
+                workbook: &folder.join("book.xlsx"),
                 run: &run,
                 expect,
             };

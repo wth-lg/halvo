@@ -1,5 +1,5 @@
 use std::ffi::OsStr;
-use std::fs::{File, Metadata};
+use std::fs::{self, File, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -9,8 +9,8 @@ use crate::walk::{is_loop, Root, Walk};
 use crate::{checkpoint_name, digest, removing_name, LockError, Locks, RunId, Sha256, FILE_MAX};
 
 /// What a row of the list of checkpoints names (contracts.md A7.4): the folder that `prepare`
-/// was given, the workbook's path as given to `prepare` (absolute, or relative to the folder),
-/// the run, and what the copy must hold.
+/// was given and the workbook's path as given to `prepare`, both absolute (a relative one is
+/// refused as `not_file`), the run, and what the copy must hold.
 pub struct Row<'a> {
     /// The row's `folder`; the call works inside it alone.
     pub folder: &'a Path,
@@ -66,11 +66,13 @@ pub enum Left {
     /// it is not the workbook as it stands (also when the workbook is absent or unreadable),
     /// or another file took its place while the call read it.
     Changed,
-    /// `link`: a directory on the way below the folder, or the copy itself, is a link.
+    /// `link`: the folder itself, a directory on the way below it, or the copy itself is a
+    /// link.
     Link,
     /// `not_file`: the copy is no regular file, a part of the way is no directory, the folder
-    /// is no directory, or the row's path is not inside the folder (outside it, with a parent
-    /// step, or the folder itself), which the call then never reaches.
+    /// is no directory, the row's folder or path is relative, or the row's path is not inside
+    /// the folder (outside it, with a parent step, or the folder itself), which the call then
+    /// never reaches.
     NotFile,
     /// `name`: the directory holds no entry whose own name is the built name byte for byte,
     /// though the system answered for it, as a file system that folds case does for a name in
@@ -118,7 +120,8 @@ type Pass = Result<Removal, Undecided>;
 /// Removes the checkpoint of `row.run` beside `row.workbook`, inside `row.folder` alone
 /// (contracts.md A11.3, A6.6; the coordinator's rulings CP-96 (e), CP-98 (3) and CP-124). It
 /// builds the copy's name with [`checkpoint_name`] and never searches a folder for another; it
-/// walks from the folder, which may itself be reached through a link, to the workbook's
+/// walks from the folder, which is no link itself (a directory above it may be one), to the
+/// workbook's
 /// directory, takes the lock of that directory, and holds it from its first look at the copy
 /// to the removal, so that it never overlaps a `prepare` or a `replace` of the sheet executor.
 /// Under the lock it walks the way again part by part, each directory opened without following
@@ -230,18 +233,31 @@ fn stays(at: &Dir, name: &OsStr, answer: Pass) -> Result<bool, Pass> {
     }
 }
 
-/// The folder of the row: [`Undecided::Folder`] when it is absent.
+/// The folder of the row (contracts.md A7.4, A11.3): `not_file` when its path is relative,
+/// `link` when the folder itself is a link (a directory above it may be one), and
+/// [`Undecided::Folder`] when it is absent.
 fn root(folder: &Path) -> Result<Root, Pass> {
-    Root::new(folder).map_err(|walk| match walk {
+    if !folder.is_absolute() {
+        return Err(Ok(Removal::Left(Left::NotFile)));
+    }
+    let plain: PathBuf = folder.components().collect();
+    if fs::symlink_metadata(&plain).is_ok_and(|meta| meta.file_type().is_symlink()) {
+        return Err(Ok(Removal::Left(Left::Link)));
+    }
+    Root::new(&plain).map_err(|walk| match walk {
         Walk::Io(io::ErrorKind::NotFound) => Err(Undecided::Folder),
         walk => Ok(walked(walk)),
     })
 }
 
+/// The workbook's directory and the workbook's name, for a row whose path is absolute (A7.4):
+/// `not_file` for a relative one.
 fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Pass> {
-    root(folder)?
-        .parent(workbook)
-        .map_err(|walk| Ok(walked(walk)))
+    let root = root(folder)?;
+    if !workbook.is_absolute() {
+        return Err(Ok(Removal::Left(Left::NotFile)));
+    }
+    root.parent(workbook).map_err(|walk| Ok(walked(walk)))
 }
 
 /// The workbook's directory walked again under the lock, part by part, and checked to be the

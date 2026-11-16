@@ -187,6 +187,68 @@ fn a_read_type_in_another_case_or_a_read_relationship_with_no_entry_refuses_the_
     }
 }
 
+/// U2.4 (4): a relationship type that the executor reads, in another case before its last
+/// slash and not marked External, refuses the workbook (contracts.md A11.3): the types are
+/// compared byte for byte, and a type that equals one of them only when case is ignored is
+/// refused, whichever part of it differs.
+#[test]
+fn a_read_type_in_another_case_before_its_last_slash_refuses_the_workbook() {
+    let rel = |kind: String, target: &str| {
+        format!(r#"<Relationship Id="rId9" Type="{kind}" Target="{target}"/>"#)
+    };
+    let strict = "http://purl.oclc.org/OOXML/officeDocument/relationships";
+    let cases = [
+        (
+            "a worksheet type",
+            rel(
+                OD.replace("officeDocument", "OfficeDocument") + "/worksheet",
+                "worksheets/sheet1.xml",
+            ),
+            "xl/other/unused.xml",
+        ),
+        (
+            "a macro project type",
+            rel(
+                MS.replace("http://schemas", "HTTP://SCHEMAS") + "/vbaProject",
+                "code.bin",
+            ),
+            "xl/code.bin",
+        ),
+        (
+            "a table type of the strict namespace",
+            rel(format!("{strict}/table"), "other/t.xml"),
+            "xl/other/t.xml",
+        ),
+    ];
+    for (label, relationship, part) in cases {
+        let scratch = Scratch::new("names-types-namespace");
+        values_with(&scratch, &relationship, &[(part, b"<x/>")]);
+        refused(&scratch, label, "Values", "B5", Refusal::Relationship);
+    }
+    let scratch = Scratch::new("names-types-package");
+    let each = |name: &str, bytes: Vec<u8>| {
+        let bytes = if name == "_rels/.rels" {
+            let from = "/officeDocument/2006/relationships/officeDocument";
+            replaced(
+                bytes,
+                from,
+                "/officedocument/2006/relationships/officeDocument",
+            )
+        } else {
+            bytes
+        };
+        Some((name.to_string(), bytes))
+    };
+    repack(
+        &corpus("values.xlsx"),
+        &scratch.path("book.xlsx"),
+        &each,
+        &[],
+    );
+    let label = "the package's office document type";
+    refused(&scratch, label, "Values", "B5", Refusal::Relationship);
+}
+
 #[test]
 fn two_entries_whose_names_differ_in_case_alone_are_an_entry_name_twice() {
     for twin in [

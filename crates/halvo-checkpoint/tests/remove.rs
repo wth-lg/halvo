@@ -64,10 +64,94 @@ fn a_checkpoint_whose_checks_all_hold_is_removed() {
     let left = vec!["other.xlsx".to_string(), "values.xlsx".to_string()];
     assert_eq!(scratch.names("folder/sub"), left);
     assert_eq!(fs::read(&workbook).expect("read"), b"the workbook now");
-    let relative = with_checkpoint(&scratch, "values.xlsx");
-    let got = answer(&scratch, Path::new("values.xlsx"), made(COPY));
-    assert_eq!(got, Ok(Removal::Removed), "a path relative to the folder");
-    assert!(!relative.exists());
+}
+
+/// The path that names `to` from the directory `from`, through parent steps; `None` when the
+/// two share no root, as two drives of Windows do.
+fn relative(from: &Path, to: &Path) -> Option<PathBuf> {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = to.components().collect();
+    let shared = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    if shared == 0 {
+        return None;
+    }
+    let mut path = PathBuf::new();
+    for _ in shared..from.len() {
+        path.push("..");
+    }
+    for part in &to[shared..] {
+        path.push(part.as_os_str());
+    }
+    Some(path)
+}
+
+/// U2.4 (4): the row's folder and path are as A7.4 and A11.3 have them. A folder that is itself
+/// a link is refused as `link`, and a folder or a workbook's path that is relative as
+/// `not_file`, and the copy stays; a folder that a link above it leads to is taken.
+#[test]
+fn a_folder_that_is_a_link_or_a_relative_path_is_refused() {
+    let scratch = Scratch::new("remove-folder-form");
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    let run = run();
+    let locks = locks(&scratch);
+    let workbook = scratch.path("folder/values.xlsx");
+    let alias = scratch.path("alias");
+    link_dir(&scratch.path("folder"), &alias);
+    let through = alias.join("values.xlsx");
+    let here = std::env::current_dir().expect("the working directory");
+    let here = here
+        .canonicalize()
+        .expect("the canonical working directory");
+    let up = relative(&here, &scratch.path("folder"));
+    let cases: [(&str, Option<PathBuf>, &Path, Left); 4] = [
+        (
+            "a folder that is a link",
+            Some(alias.clone()),
+            &through,
+            Left::Link,
+        ),
+        (
+            "a link folder, the real path",
+            Some(alias.clone()),
+            &workbook,
+            Left::Link,
+        ),
+        ("a relative folder", up, &workbook, Left::NotFile),
+        (
+            "a relative path",
+            Some(scratch.path("folder")),
+            Path::new("values.xlsx"),
+            Left::NotFile,
+        ),
+    ];
+    for (label, folder, workbook, why) in cases {
+        let Some(folder) = folder else {
+            println!("{label}: no relative path from the working directory");
+            continue;
+        };
+        let row = Row {
+            folder: &folder,
+            workbook,
+            run: &run,
+            expect: made(COPY),
+        };
+        assert_eq!(remove(&locks, &row), Ok(Removal::Left(why)), "{label}");
+        assert_eq!(fs::read(&copy).expect("the copy stays"), COPY, "{label}");
+    }
+    link_dir(&scratch.dir, &scratch.path("up"));
+    let folder = scratch.path("up/folder");
+    let row = Row {
+        folder: &folder,
+        workbook: &folder.join("values.xlsx"),
+        run: &run,
+        expect: made(COPY),
+    };
+    assert_eq!(
+        remove(&locks, &row),
+        Ok(Removal::Removed),
+        "a link above the folder"
+    );
+    assert!(!copy.exists());
 }
 
 #[test]

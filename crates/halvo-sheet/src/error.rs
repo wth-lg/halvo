@@ -95,7 +95,8 @@ pub enum Refusal {
     /// format names parts: its target does not decode (a percent sign is not followed by two hex
     /// digits, a `/` or a `\` is percent-encoded, or the bytes are not UTF-8). Or a relationship
     /// of a type that the crate or its reader reads names no entry, or its type equals such a
-    /// type only when ASCII case is ignored. Or the package's office document is not
+    /// type only when ASCII case is ignored, in its last segment or in the namespace before
+    /// its last slash. Or the package's office document is not
     /// `xl/workbook.xml`, or the crate and the reader would find the named sheet in two
     /// different parts.
     Relationship,
