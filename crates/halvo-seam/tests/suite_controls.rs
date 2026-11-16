@@ -107,6 +107,243 @@ const IGNORE_RANGE_IN_STOPS: &str = "check filtered_stops: the filter the range 
 const NEXT_FALLS_IN_STOPS: &str = "check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: next fell";
 const FROM_THE_START_IN_STOPS: &str = "check filtered_stops: the filter window_title on the fourth text of set A and set C from {seg 2, idx 139}: the position {seg 1, idx 1} is below the cursor's position {seg 2, idx 139}";
 
+const CONTROLS: &[(Fault, [Want; 4])] = &[
+    (Conforming, [Pass, Pass, Pass, Pass]),
+    (RestartLosesASegment, [
+            Fail("33 entries served, want the 44 entries of the reference read at or after it"),
+            Pass,
+            Pass,
+            Pass,
+        ]),
+    (ShredNothing, [
+            Pass,
+            Fail("34 entries served, want the 33 entries above segment 1"),
+            Pass,
+            Pass,
+        ]),
+    (IgnoreKinds, [
+            Pass,
+            Pass,
+            Fail(IGNORE_KINDS_IN_FILTERS),
+            Fail(IGNORE_KINDS_IN_STOPS),
+        ]),
+    (IgnoreRange, [
+            Pass,
+            Pass,
+            Fail(IGNORE_RANGE_IN_FILTERS),
+            Fail(IGNORE_RANGE_IN_STOPS),
+        ]),
+    (LoadKeepsTheOldStore, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("an open_cursor with the old store id got another reply than an error"),
+        ]),
+    (LoadDropsALine, everywhere("the reference read served 43 entries; want the 44 records of set A of a served kind, in order")),
+    (OversizeBatch, everywhere("a reply frame to read_batch of 262145 payload bytes, outside 1 to 262,144")),
+    (BatchNamesAnotherStore, everywhere("a Batch names another store than the reply to its open_cursor")),
+    (WatermarkFalls, everywhere("the watermark fell")),
+    (NextFalls, [
+            Fail("next fell"),
+            Fail("next fell"),
+            Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
+            Fail(NEXT_FALLS_IN_STOPS),
+        ]),
+    (NextAboveWatermark, everywhere("next is above the watermark")),
+    (RepeatsARecord, everywhere("the position {seg 1, idx 0} does not rise")),
+    (ServesBelowTheCursor, [
+            Fail("the position {seg 1, idx 10} is below the cursor's position {seg 1, idx 11}"),
+            Fail("the position {seg 1, idx 10} is below the cursor's position {seg 1, idx 11}"),
+            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 2, idx 9} is below the cursor's position {seg 2, idx 10}"),
+            Pass,
+        ]),
+    (RecordAtNext, everywhere("the position {seg 4, idx 11} is not below next")),
+    (ExpiryDropped, everywhere("expiry names no instant for segment 1 of the records")),
+    (ExpiryNamesAnotherSegment, everywhere("expiry names segment 5, which holds no record of the Batch")),
+    (ExpiryOutOfOrder, everywhere("expiry names segment 3 after segment 4, out of rising order")),
+    (ExpiryNamesASegmentTwice, everywhere("expiry names segment 1 after segment 1, out of rising order")),
+    (ExpiryAtZero, everywhere("the expiry instant of segment 1 is not after its records")),
+    (ServesScreenFrame, everywhere("a screen_frame record was served")),
+    (StallsWithAnEmptyBatch, everywhere("an empty Batch whose next neither rose nor stands at the watermark")),
+    (OversizeOpenReply, everywhere("a reply frame to open_cursor of 262145 payload bytes, outside 1 to 262,144")),
+    (OpenHoldsARecord, everywhere("the reply to open_cursor holds 1 records and 0 expiry entries; want none")),
+    (OpenHoldsExpiry, everywhere("the reply to open_cursor holds 0 records and 1 expiry entries; want none")),
+    (OpenNextElsewhere, everywhere("the reply to open_cursor at {seg 0, idx 0} has next {seg 0, idx 1}")),
+    (OpenNamesAnotherStore, everywhere("the reply to open_cursor names another store than the one asked for")),
+    (BadPositionGetsStoreError, [
+            Fail("an open_cursor at {seg 6, idx 0} got store-error; want bad-position"),
+            Pass,
+            Pass,
+            Pass,
+        ]),
+    (StoreChangedNamesTheOldId, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("store-changed names the old store id"),
+        ]),
+    (StoreChangedGetsStoreError, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("an open_cursor with the old store id got store-error; want store-changed"),
+        ]),
+    (RefusalGetsStoreError(Form::EmptyKinds), [Pass, Pass, Fail("an empty kinds got store-error; want bad-request"), Pass]),
+    (RefusalGetsStoreError(Form::ScreenFrameKind), [Pass, Pass, Fail("kinds with screen_frame got store-error; want bad-request"), Pass]),
+    (RefusalGetsStoreError(Form::KindTwice), [Pass, Pass, Fail("kinds with a name twice got store-error; want bad-request"), Pass]),
+    (RefusalGetsStoreError(Form::EmptyRange), [Pass, Pass, Fail("a range whose end equals its start got store-error; want bad-request"), Pass]),
+    (RefusalGetsStoreError(Form::NullStoreAtAPosition), [
+            Pass,
+            Pass,
+            Pass,
+            Fail("a null store with a non-zero position got store-error; want bad-request"),
+        ]),
+    (RefusalGetsStoreError(Form::ReadAfterReplace), [
+            Pass,
+            Pass,
+            Pass,
+            Fail("a second read_batch after replace_live got store-error; want bad-request"),
+        ]),
+    (RefusalGetsStoreError(Form::ReadWithNoCursor), [
+            Pass,
+            Pass,
+            Pass,
+            Fail("read_batch after store-changed got store-error; want bad-request"),
+        ]),
+    (ReadGetsStoreError, everywhere("read_batch got the error store-error")),
+    (OpenGetsClosed, everywhere("open_cursor got a reply other than batch or error")),
+    (ReadGetsClosed, everywhere("the reference read: read_batch got a reply other than batch or error")),
+    (CloseGetsBadRequest, everywhere("close got a reply other than closed")),
+    (SendsNoMessage, everywhere("a reply that is no message of C5.5")),
+    (EndsTheStream, everywhere("the server ended the stream before its reply")),
+    (NeverReachesTheWatermark, everywhere("the read from {seg 0, idx 0} did not reach the watermark in 1000 reads")),
+    (NoLookAhead, everywhere(
+            "the reply that serves the last entry of the reference read has next {seg 4, idx 12}; want its watermark {seg 5, idx 0}",
+        )),
+    (OpensInsideTheWatermarkSegment, [
+            Fail("an open_cursor at {seg 5, idx 1} got another reply than an error"),
+            Pass,
+            Pass,
+            Pass,
+        ]),
+    (IgnoresTheByteBound, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C: a reply frame to read_batch of 521617 payload bytes, outside 1 to 262,144"),
+        ]),
+    (RepeatsAtAStop, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C served 420 entries, the first that differs at {seg 1, idx 176}; want the 420 records of C in order, each once"),
+        ]),
+    (SkipsAtAStop, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("at the stop of the read of set C at {seg 1, idx 176}, the next Batch starts at {seg 1, idx 177}"),
+        ]),
+    (LoadCutsSetC(20), [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C ended 0 Batches before the store ended; want at least 2"),
+        ]),
+    (LoadCutsSetC(264), [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C ended 1 Batches before the store ended; want at least 2"),
+        ]),
+    (EndsEachBatchAtASegmentEnd, [Pass, Pass, Pass, Pass]),
+    (FilteredOpenServesFromTheStart, [
+            Pass,
+            Pass,
+            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} is below the cursor's position {seg 2, idx 10}"),
+            Fail(FROM_THE_START_IN_STOPS),
+        ]),
+    (OldStoreOpensAtZero, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("an open_cursor with the old store id at the zero position got another reply than an error"),
+        ]),
+    (KindsOutOfOrderRefused, [
+            Pass,
+            Pass,
+            Fail("the filter window_title and foreground_app: open_cursor at {seg 0, idx 0} got the error bad-request"),
+            Fail("check filtered_stops: the filter keystroke and window_title on the fourth text of set A and set C from {seg 0, idx 0}: open_cursor at {seg 0, idx 0} got the error bad-request"),
+        ]),
+    (RefusesFarPastASegmentEnd, [
+            Fail("resume from start 6 at {seg 1, idx 13}: open_cursor at {seg 1, idx 13} got the error bad-position"),
+            Pass,
+            Pass,
+            Pass,
+        ]),
+    (WatermarkLowAfterAShred, [
+            Pass,
+            Fail("after shred_oldest, a watermark below that of the reference read"),
+            Pass,
+            Pass,
+        ]),
+    (ReopenByIdGetsClosed, [
+            Pass,
+            Pass,
+            Fail("check open_while_open: the read before an open_cursor while a cursor stands at the watermark: read_batch got a reply other than batch or error"),
+            Fail("the read before replace_live got a reply other than batch or error"),
+        ]),
+    (StoreChangedNamesAnAlias, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the new store's reply names another id than store-changed did"),
+        ]),
+    (LeavesOutTheFirstRecordAfterStoreChanged, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the new store served other entries with its new id"),
+        ]),
+    (KeepsServingAfterTheReplace, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("read_batch after replace_live got another reply than an error"),
+        ]),
+    (StoreChangedOnReadNamesTheOldId, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("store-changed after replace_live names the old store id"),
+        ]),
+    (StoreChangedOnReadGetsStoreError, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("read_batch after replace_live got store-error; want store-changed"),
+        ]),
+    (ServesOldRecordsAfterTheReplace, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the store after replace_live served 44 entries; want none"),
+        ]),
+    (DropsTheLastRecordOfSetC, [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C served 419 entries, the first that differs at its end; want the 420 records of C in order, each once"),
+        ]),
+    (RestartAddsASegment, [Pass, Pass, Pass, Pass]),
+    (RefusesPastASegmentEnd, [
+            Fail("open_cursor at {seg 1, idx 12} got the error bad-position"),
+            Pass,
+            Pass,
+            Pass,
+        ]),
+];
+
 fn files_dir() -> &'static Path {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
     DIR.get_or_init(|| {
@@ -758,7 +995,17 @@ fn holds(want: Want, got: &Result<(), String>) -> bool {
     }
 }
 
-fn check(fault: Fault, want: [Want; 4]) {
+fn wants(fault: Fault) -> [Want; 4] {
+    let mut rows = CONTROLS.iter().filter(|(f, _)| *f == fault);
+    let (_, want) = rows
+        .next()
+        .unwrap_or_else(|| panic!("{fault:?} has no row in CONTROLS"));
+    assert!(rows.next().is_none(), "{fault:?} has two rows in CONTROLS");
+    *want
+}
+
+fn check(fault: Fault) {
+    let want = wants(fault);
     let mut subject = Control::new(fault);
     let results = conformance::run(&mut subject);
     let names: Vec<&str> = results.iter().map(|(name, _)| *name).collect();
@@ -875,6 +1122,25 @@ fn an_expectation_holds_only_when_its_last_part_is_the_last_part_of_the_failure(
     assert!(off.is_empty(), "{}", off.join("\n"));
 }
 
+#[test]
+fn no_two_controls_share_an_expectation() {
+    let mut shared = Vec::new();
+    for (a, wants_a) in CONTROLS {
+        for (b, wants_b) in CONTROLS.iter().filter(|(b, _)| b != a) {
+            for (case_a, want_a) in CASES.iter().zip(wants_a) {
+                for (case_b, want_b) in CASES.iter().zip(wants_b) {
+                    if let Fail(text_b) = want_b {
+                        if holds(*want_a, &Err((*text_b).to_owned())) {
+                            shared.push(format!("{a:?} in {case_a} holds for {b:?} in {case_b}"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(shared.is_empty(), "{}", shared.join("\n"));
+}
+
 fn batches_of(texts: &[&str]) -> Vec<Batch> {
     let files: Vec<PathBuf> = texts.iter().map(|t| file_of(t).unwrap()).collect();
     let mut t = FixtureTransport::open(&files, 1, None).unwrap();
@@ -986,634 +1252,271 @@ fn the_six_expectations_pin_the_counts_of_the_suites_data() {
 
 #[test]
 fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_shows_it() {
-    check(Conforming, [Pass, Pass, Pass, Pass]);
-    check(
-        RestartLosesASegment,
-        [
-            Fail("33 entries served, want the 44 entries of the reference read at or after it"),
-            Pass,
-            Pass,
-            Pass,
-        ],
-    );
-    check(
-        ShredNothing,
-        [
-            Pass,
-            Fail("34 entries served, want the 33 entries above segment 1"),
-            Pass,
-            Pass,
-        ],
-    );
-    check(
-        IgnoreKinds,
-        [
-            Pass,
-            Pass,
-            Fail(IGNORE_KINDS_IN_FILTERS),
-            Fail(IGNORE_KINDS_IN_STOPS),
-        ],
-    );
-    check(
-        IgnoreRange,
-        [
-            Pass,
-            Pass,
-            Fail(IGNORE_RANGE_IN_FILTERS),
-            Fail(IGNORE_RANGE_IN_STOPS),
-        ],
-    );
-    check(
-        LoadKeepsTheOldStore,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("an open_cursor with the old store id got another reply than an error"),
-        ],
-    );
-    let short = "the reference read served 43 entries; want the 44 records of set A of a served kind, in order";
-    check(
-        LoadDropsALine,
-        [Fail(short), Fail(short), Fail(short), Fail(short)],
-    );
+    check(Conforming);
+    check(RestartLosesASegment);
+    check(ShredNothing);
+    check(IgnoreKinds);
+    check(IgnoreRange);
+    check(LoadKeepsTheOldStore);
+    check(LoadDropsALine);
 }
 
-fn everywhere(text: &'static str) -> [Want; 4] {
+const fn everywhere(text: &'static str) -> [Want; 4] {
     [Fail(text), Fail(text), Fail(text), Fail(text)]
 }
 
 #[test]
 fn control_a_reply_frame_over_the_server_limit() {
-    check(
-        OversizeBatch,
-        everywhere("a reply frame to read_batch of 262145 payload bytes, outside 1 to 262,144"),
-    );
+    check(OversizeBatch);
 }
 
 #[test]
 fn control_a_batch_of_another_store_than_its_open_reply() {
-    check(
-        BatchNamesAnotherStore,
-        everywhere("a Batch names another store than the reply to its open_cursor"),
-    );
+    check(BatchNamesAnotherStore);
 }
 
 #[test]
 fn control_a_watermark_that_falls() {
-    check(WatermarkFalls, everywhere("the watermark fell"));
+    check(WatermarkFalls);
 }
 
 #[test]
 fn control_a_next_that_falls() {
-    check(
-        NextFalls,
-        [
-            Fail("next fell"),
-            Fail("next fell"),
-            Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
-            Fail(NEXT_FALLS_IN_STOPS),
-        ],
-    );
+    check(NextFalls);
 }
 
 #[test]
 fn control_a_next_above_the_watermark() {
-    check(
-        NextAboveWatermark,
-        everywhere("next is above the watermark"),
-    );
+    check(NextAboveWatermark);
 }
 
 #[test]
 fn control_a_position_that_repeats_inside_a_batch() {
-    check(
-        RepeatsARecord,
-        everywhere("the position {seg 1, idx 0} does not rise"),
-    );
+    check(RepeatsARecord);
 }
 
 #[test]
 fn control_an_entry_below_the_cursor_position() {
-    check(
-        ServesBelowTheCursor,
-        [
-            Fail("the position {seg 1, idx 10} is below the cursor's position {seg 1, idx 11}"),
-            Fail("the position {seg 1, idx 10} is below the cursor's position {seg 1, idx 11}"),
-            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 2, idx 9} is below the cursor's position {seg 2, idx 10}"),
-            Pass,
-        ],
-    );
+    check(ServesBelowTheCursor);
 }
 
 #[test]
 fn control_an_entry_at_next() {
-    check(
-        RecordAtNext,
-        everywhere("the position {seg 4, idx 11} is not below next"),
-    );
+    check(RecordAtNext);
 }
 
 #[test]
 fn control_an_expiry_that_misses_a_segment_of_its_records() {
-    check(
-        ExpiryDropped,
-        everywhere("expiry names no instant for segment 1 of the records"),
-    );
+    check(ExpiryDropped);
 }
 
 #[test]
 fn control_an_expiry_that_names_a_segment_with_no_record() {
-    check(
-        ExpiryNamesAnotherSegment,
-        everywhere("expiry names segment 5, which holds no record of the Batch"),
-    );
+    check(ExpiryNamesAnotherSegment);
 }
 
 #[test]
 fn control_an_expiry_out_of_rising_order() {
-    check(
-        ExpiryOutOfOrder,
-        everywhere("expiry names segment 3 after segment 4, out of rising order"),
-    );
+    check(ExpiryOutOfOrder);
 }
 
 #[test]
 fn control_an_expiry_that_names_a_segment_twice() {
-    check(
-        ExpiryNamesASegmentTwice,
-        everywhere("expiry names segment 1 after segment 1, out of rising order"),
-    );
+    check(ExpiryNamesASegmentTwice);
 }
 
 #[test]
 fn control_an_expiry_instant_not_after_its_records() {
-    check(
-        ExpiryAtZero,
-        everywhere("the expiry instant of segment 1 is not after its records"),
-    );
+    check(ExpiryAtZero);
 }
 
 #[test]
 fn control_a_screen_frame_record_served() {
-    check(
-        ServesScreenFrame,
-        everywhere("a screen_frame record was served"),
-    );
+    check(ServesScreenFrame);
 }
 
 #[test]
 fn control_an_empty_batch_whose_next_does_not_rise() {
-    check(
-        StallsWithAnEmptyBatch,
-        everywhere("an empty Batch whose next neither rose nor stands at the watermark"),
-    );
+    check(StallsWithAnEmptyBatch);
 }
 
 #[test]
 fn control_an_open_reply_frame_over_the_server_limit() {
-    check(
-        OversizeOpenReply,
-        everywhere("a reply frame to open_cursor of 262145 payload bytes, outside 1 to 262,144"),
-    );
+    check(OversizeOpenReply);
 }
 
 #[test]
 fn control_an_open_reply_with_a_record() {
-    check(
-        OpenHoldsARecord,
-        everywhere("the reply to open_cursor holds 1 records and 0 expiry entries; want none"),
-    );
+    check(OpenHoldsARecord);
 }
 
 #[test]
 fn control_an_open_reply_with_an_expiry_entry() {
-    check(
-        OpenHoldsExpiry,
-        everywhere("the reply to open_cursor holds 0 records and 1 expiry entries; want none"),
-    );
+    check(OpenHoldsExpiry);
 }
 
 #[test]
 fn control_an_open_reply_whose_next_is_not_the_position_asked_for() {
-    check(
-        OpenNextElsewhere,
-        everywhere("the reply to open_cursor at {seg 0, idx 0} has next {seg 0, idx 1}"),
-    );
+    check(OpenNextElsewhere);
 }
 
 #[test]
 fn control_an_open_reply_of_another_store_than_the_one_asked_for() {
-    let text = "the reply to open_cursor names another store than the one asked for";
-    check(
-        OpenNamesAnotherStore,
-        [Fail(text), Fail(text), Fail(text), Fail(text)],
-    );
+    check(OpenNamesAnotherStore);
 }
 
 #[test]
 fn control_an_error_of_another_cause_than_bad_position() {
-    check(
-        BadPositionGetsStoreError,
-        [
-            Fail("an open_cursor at {seg 6, idx 0} got store-error; want bad-position"),
-            Pass,
-            Pass,
-            Pass,
-        ],
-    );
+    check(BadPositionGetsStoreError);
 }
 
 #[test]
 fn control_a_store_changed_that_names_the_old_store() {
-    check(
-        StoreChangedNamesTheOldId,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("store-changed names the old store id"),
-        ],
-    );
+    check(StoreChangedNamesTheOldId);
 }
 
 #[test]
 fn control_an_error_of_another_cause_than_store_changed() {
-    check(
-        StoreChangedGetsStoreError,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("an open_cursor with the old store id got store-error; want store-changed"),
-        ],
-    );
+    check(StoreChangedGetsStoreError);
 }
 
 #[test]
 fn control_an_error_of_another_cause_than_bad_request_for_each_refused_message() {
-    let filters = [
-        (
-            Form::EmptyKinds,
-            "an empty kinds got store-error; want bad-request",
-        ),
-        (
-            Form::ScreenFrameKind,
-            "kinds with screen_frame got store-error; want bad-request",
-        ),
-        (
-            Form::KindTwice,
-            "kinds with a name twice got store-error; want bad-request",
-        ),
-        (
-            Form::EmptyRange,
-            "a range whose end equals its start got store-error; want bad-request",
-        ),
-    ];
-    for (form, text) in filters {
-        check(RefusalGetsStoreError(form), [Pass, Pass, Fail(text), Pass]);
-    }
-    check(
-        RefusalGetsStoreError(Form::NullStoreAtAPosition),
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("a null store with a non-zero position got store-error; want bad-request"),
-        ],
-    );
-    check(
-        RefusalGetsStoreError(Form::ReadAfterReplace),
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("a second read_batch after replace_live got store-error; want bad-request"),
-        ],
-    );
-    check(
-        RefusalGetsStoreError(Form::ReadWithNoCursor),
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("read_batch after store-changed got store-error; want bad-request"),
-        ],
-    );
+    check(RefusalGetsStoreError(Form::EmptyKinds));
+    check(RefusalGetsStoreError(Form::ScreenFrameKind));
+    check(RefusalGetsStoreError(Form::KindTwice));
+    check(RefusalGetsStoreError(Form::EmptyRange));
+    check(RefusalGetsStoreError(Form::NullStoreAtAPosition));
+    check(RefusalGetsStoreError(Form::ReadAfterReplace));
+    check(RefusalGetsStoreError(Form::ReadWithNoCursor));
 }
 
 #[test]
 fn control_replies_of_the_wrong_message() {
-    check(
-        ReadGetsStoreError,
-        everywhere("read_batch got the error store-error"),
-    );
-    check(
-        OpenGetsClosed,
-        everywhere("open_cursor got a reply other than batch or error"),
-    );
-    check(
-        ReadGetsClosed,
-        everywhere("the reference read: read_batch got a reply other than batch or error"),
-    );
-    check(
-        CloseGetsBadRequest,
-        everywhere("close got a reply other than closed"),
-    );
-    check(
-        SendsNoMessage,
-        everywhere("a reply that is no message of C5.5"),
-    );
-    check(
-        EndsTheStream,
-        everywhere("the server ended the stream before its reply"),
-    );
+    check(ReadGetsStoreError);
+    check(OpenGetsClosed);
+    check(ReadGetsClosed);
+    check(CloseGetsBadRequest);
+    check(SendsNoMessage);
+    check(EndsTheStream);
 }
 
 #[test]
 fn control_a_read_that_never_reaches_the_watermark() {
-    check(
-        NeverReachesTheWatermark,
-        everywhere("the read from {seg 0, idx 0} did not reach the watermark in 1000 reads"),
-    );
+    check(NeverReachesTheWatermark);
 }
 
 #[test]
 fn control_a_server_without_look_ahead() {
-    check(
-        NoLookAhead,
-        everywhere(
-            "the reply that serves the last entry of the reference read has next {seg 4, idx 12}; want its watermark {seg 5, idx 0}",
-        ),
-    );
+    check(NoLookAhead);
 }
 
 #[test]
 fn control_a_server_that_opens_inside_the_watermark_segment() {
-    check(
-        OpensInsideTheWatermarkSegment,
-        [
-            Fail("an open_cursor at {seg 5, idx 1} got another reply than an error"),
-            Pass,
-            Pass,
-            Pass,
-        ],
-    );
+    check(OpensInsideTheWatermarkSegment);
 }
 
 #[test]
 fn control_a_server_that_ignores_the_byte_bound() {
-    check(
-        IgnoresTheByteBound,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the read of set C: a reply frame to read_batch of 521617 payload bytes, outside 1 to 262,144"),
-        ],
-    );
+    check(IgnoresTheByteBound);
 }
 
 #[test]
 fn control_a_server_that_repeats_the_record_at_a_stop() {
-    check(
-        RepeatsAtAStop,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the read of set C served 420 entries, the first that differs at {seg 1, idx 176}; want the 420 records of C in order, each once"),
-        ],
-    );
+    check(RepeatsAtAStop);
 }
 
 #[test]
 fn control_a_server_that_skips_the_record_at_a_stop() {
-    check(
-        SkipsAtAStop,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("at the stop of the read of set C at {seg 1, idx 176}, the next Batch starts at {seg 1, idx 177}"),
-        ],
-    );
+    check(SkipsAtAStop);
 }
 
 #[test]
 fn control_a_set_c_too_short_to_stop_a_batch() {
-    check(
-        LoadCutsSetC(20),
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the read of set C ended 0 Batches before the store ended; want at least 2"),
-        ],
-    );
+    check(LoadCutsSetC(20));
 }
 
 #[test]
 fn control_a_set_c_that_stops_one_batch_before_its_end() {
-    check(
-        LoadCutsSetC(264),
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the read of set C ended 1 Batches before the store ended; want at least 2"),
-        ],
-    );
+    check(LoadCutsSetC(264));
 }
 
 #[test]
 fn a_server_that_ends_each_batch_at_a_segment_end_passes() {
-    check(EndsEachBatchAtASegmentEnd, [Pass, Pass, Pass, Pass]);
+    check(EndsEachBatchAtASegmentEnd);
 }
 
 #[test]
 fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_start() {
-    check(
-        FilteredOpenServesFromTheStart,
-        [
-            Pass,
-            Pass,
-            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} is below the cursor's position {seg 2, idx 10}"),
-            Fail(FROM_THE_START_IN_STOPS),
-        ],
-    );
+    check(FilteredOpenServesFromTheStart);
 }
 
 #[test]
 fn control_another_store_id_at_the_zero_position_that_opens_a_cursor() {
-    check(
-        OldStoreOpensAtZero,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("an open_cursor with the old store id at the zero position got another reply than an error"),
-        ],
-    );
+    check(OldStoreOpensAtZero);
 }
 
 #[test]
 fn control_a_kinds_list_out_of_the_order_of_c4_4_that_gets_bad_request() {
-    check(
-        KindsOutOfOrderRefused,
-        [
-            Pass,
-            Pass,
-            Fail("the filter window_title and foreground_app: open_cursor at {seg 0, idx 0} got the error bad-request"),
-            Fail("check filtered_stops: the filter keystroke and window_title on the fourth text of set A and set C from {seg 0, idx 0}: open_cursor at {seg 0, idx 0} got the error bad-request"),
-        ],
-    );
+    check(KindsOutOfOrderRefused);
 }
 
 #[test]
 fn control_a_server_that_refuses_a_position_two_past_the_end_of_an_inner_segment() {
-    check(
-        RefusesFarPastASegmentEnd,
-        [
-            Fail("resume from start 6 at {seg 1, idx 13}: open_cursor at {seg 1, idx 13} got the error bad-position"),
-            Pass,
-            Pass,
-            Pass,
-        ],
-    );
+    check(RefusesFarPastASegmentEnd);
 }
 
 #[test]
 fn control_an_open_reply_whose_watermark_falls_below_the_reference_after_a_shred() {
-    check(
-        WatermarkLowAfterAShred,
-        [
-            Pass,
-            Fail("after shred_oldest, a watermark below that of the reference read"),
-            Pass,
-            Pass,
-        ],
-    );
+    check(WatermarkLowAfterAShred);
 }
 
 #[test]
 fn control_a_read_before_the_replace_that_gets_closed() {
-    check(
-        ReopenByIdGetsClosed,
-        [
-            Pass,
-            Pass,
-            Fail("check open_while_open: the read before an open_cursor while a cursor stands at the watermark: read_batch got a reply other than batch or error"),
-            Fail("the read before replace_live got a reply other than batch or error"),
-        ],
-    );
+    check(ReopenByIdGetsClosed);
 }
 
 #[test]
 fn control_a_store_changed_whose_id_the_new_store_does_not_carry() {
-    check(
-        StoreChangedNamesAnAlias,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the new store's reply names another id than store-changed did"),
-        ],
-    );
+    check(StoreChangedNamesAnAlias);
 }
 
 #[test]
 fn control_a_cursor_opened_with_the_new_id_that_serves_other_entries() {
-    check(
-        LeavesOutTheFirstRecordAfterStoreChanged,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the new store served other entries with its new id"),
-        ],
-    );
+    check(LeavesOutTheFirstRecordAfterStoreChanged);
 }
 
 #[test]
 fn control_a_server_that_goes_on_serving_after_the_replace() {
-    check(
-        KeepsServingAfterTheReplace,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("read_batch after replace_live got another reply than an error"),
-        ],
-    );
+    check(KeepsServingAfterTheReplace);
 }
 
 #[test]
 fn control_a_store_changed_after_the_replace_that_names_the_old_store() {
-    check(
-        StoreChangedOnReadNamesTheOldId,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("store-changed after replace_live names the old store id"),
-        ],
-    );
+    check(StoreChangedOnReadNamesTheOldId);
 }
 
 #[test]
 fn control_an_error_of_another_cause_than_store_changed_after_the_replace() {
-    check(
-        StoreChangedOnReadGetsStoreError,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("read_batch after replace_live got store-error; want store-changed"),
-        ],
-    );
+    check(StoreChangedOnReadGetsStoreError);
 }
 
 #[test]
 fn control_a_server_that_serves_the_old_records_after_the_replace() {
-    check(
-        ServesOldRecordsAfterTheReplace,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the store after replace_live served 44 entries; want none"),
-        ],
-    );
+    check(ServesOldRecordsAfterTheReplace);
 }
 
 #[test]
 fn control_a_server_that_drops_the_last_record_of_set_c() {
-    check(
-        DropsTheLastRecordOfSetC,
-        [
-            Pass,
-            Pass,
-            Pass,
-            Fail("the read of set C served 419 entries, the first that differs at its end; want the 420 records of C in order, each once"),
-        ],
-    );
+    check(DropsTheLastRecordOfSetC);
 }
 
 #[test]
 fn a_server_whose_restart_adds_a_segment_passes() {
-    check(RestartAddsASegment, [Pass, Pass, Pass, Pass]);
+    check(RestartAddsASegment);
 }
 
 #[test]
 fn control_a_server_that_refuses_a_position_past_the_end_of_an_inner_segment() {
-    check(
-        RefusesPastASegmentEnd,
-        [
-            Fail("open_cursor at {seg 1, idx 12} got the error bad-position"),
-            Pass,
-            Pass,
-            Pass,
-        ],
-    );
+    check(RefusesPastASegmentEnd);
 }
