@@ -59,6 +59,7 @@ interface Live {
   owner: Id | null;
   signals: boolean;
   installed: boolean;
+  grace: number;
 }
 
 const GRACE_MS = 5_000;
@@ -88,15 +89,18 @@ function live(): Live {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
   const found = shared[LIVE];
   if (found !== undefined) return found;
-  const made: Live = { processes: SYSTEM, groups: new Map(), owner: null, signals: false, installed: false };
+  const made: Live = { processes: SYSTEM, groups: new Map(), owner: null, signals: false, installed: false, grace: GRACE_MS };
   shared[LIVE] = made;
   return made;
 }
 
-/** For the kit's own tests: puts processes in place of the system and forgets every group, mark path and handler that the kit knew. */
-export function useProcesses(processes: Processes | null): void {
+/**
+ * For the kit's own tests: puts processes in place of the system, with a grace of graceMs between TERM and KILL
+ * (5 s unless given), and forgets every group, mark path and handler that the kit knew.
+ */
+export function useProcesses(processes: Processes | null, graceMs = GRACE_MS): void {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
-  shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), owner: null, signals: false, installed: false };
+  shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), owner: null, signals: false, installed: false, grace: graceMs };
 }
 
 function table(): Row[] {
@@ -141,7 +145,7 @@ function stopNow(groups: Id[]): Id[] {
   let going = confirmed;
   for (const name of ["SIGTERM", "SIGKILL"] as const) {
     for (const group of going) send(group, name);
-    const until = Date.now() + GRACE_MS;
+    const until = Date.now() + live().grace;
     while (going.some((group) => members(group).length > 0) && Date.now() < until) sleep(100);
     going = going.filter((group) => members(group).length > 0);
     if (going.length === 0) break;
@@ -153,6 +157,16 @@ function unmark(path: string): void {
   try {
     unlinkSync(path);
   } catch {}
+}
+
+function release(path: string, text: string): void {
+  let now: string;
+  try {
+    now = readFileSync(path, "utf8");
+  } catch {
+    return;
+  }
+  if (now === text) unmark(path);
 }
 
 function stopAll(state: Live): void {
@@ -263,9 +277,9 @@ export async function endGroup(group: Group | null): Promise<void> {
     return;
   }
   send(group, "SIGTERM");
-  if (!(await gone(group, GRACE_MS))) {
+  if (!(await gone(group, state.grace))) {
     send(group, "SIGKILL");
-    await gone(group, GRACE_MS);
+    await gone(group, state.grace);
   }
   if (members(group).length > 0) {
     if (mark !== undefined) state.groups.set(group, mark);
@@ -283,9 +297,9 @@ async function gone(group: Id, ms: number): Promise<boolean> {
   return true;
 }
 
-function readMark(path: string): Mark | null {
+function readMark(text: string): Mark | null {
   try {
-    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    const value: unknown = JSON.parse(text);
     const pid = (each: unknown): boolean => Number.isSafeInteger(each) && (each as number) > 1;
     const id = (each: unknown): each is Id => typeof each === "object" && each !== null && pid((each as Id).pid) && typeof (each as Id).started === "string";
     if (typeof value !== "object" || value === null) return null;
@@ -318,7 +332,13 @@ export function sweepMarks(): string[] {
   const lines: string[] = [];
   for (const name of names.filter((each) => /^group-\d+\.json$/.test(each)).sort()) {
     const path = join(dir, name);
-    const mark = readMark(path);
+    let text: string;
+    try {
+      text = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
+    const mark = readMark(text);
     if (mark === null) {
       lines.push(`process-group: skipped the mark ${name}, which is no group with an owner`);
       continue;
@@ -332,14 +352,17 @@ export function sweepMarks(): string[] {
     const self = rows.find((row) => row.pid === process.pid);
     const leader = rows.find((row) => row.pid === mark.pid && row.pgid === mark.pid);
     const at = leader === undefined ? null : epoch(leader.started);
-    const started =
-      mark.started ?? (leader !== undefined && at !== null && at >= mark.spawned - 1 && at <= mark.spawned + 2 ? leader.started : "no start time");
+    if (mark.started === null && leader !== undefined && (at === null || at < mark.spawned - 1 || at > mark.spawned + 2)) {
+      lines.push(`process-group: left group ${mark.pid} (started ${leader.started}): its leader started outside the seconds of the spawn that its mark records`);
+      continue;
+    }
+    const started = mark.started ?? (leader !== undefined ? leader.started : "no start time");
     const group = { pid: mark.pid, started };
     const count = members(group, rows).length;
     const born = epoch(started);
     const ownerBorn = epoch(mark.owner.started);
     if (count === 0) {
-      unmark(path);
+      release(path, text);
     } else if (self !== undefined && mark.pid === self.pgid) {
       lines.push(`process-group: left group ${mark.pid}: it is the group of the sweeping process`);
     } else if (!leads(group, rows)) {
@@ -347,7 +370,7 @@ export function sweepMarks(): string[] {
     } else if (born === null || ownerBorn === null || born < ownerBorn) {
       lines.push(`process-group: left group ${mark.pid} (started ${started}): its leader started before the run that marked it`);
     } else if (stopNow([group]).length === 0) {
-      unmark(path);
+      release(path, text);
       lines.push(`process-group: ended group ${mark.pid} (started ${started}), which a run of this checkout left: ${count} processes`);
     } else {
       lines.push(`process-group: group ${mark.pid} (started ${started}) still has members after KILL`);

@@ -29,6 +29,7 @@ let handlers = new Map<string, (() => void)[]>();
 let nextPid = 100_000;
 let marks = "";
 let onPs: (() => void) | null = null;
+let spawnStarted = LATER;
 
 const world: Processes = {
   ps: () => {
@@ -39,7 +40,7 @@ const world: Processes = {
   },
   spawn: () => {
     nextPid += 1;
-    rows.push({ pid: nextPid, pgid: nextPid, stat: "S", started: LATER });
+    rows.push({ pid: nextPid, pgid: nextPid, stat: "S", started: spawnStarted });
     return { pid: nextPid } as unknown as ReturnType<Processes["spawn"]>;
   },
   kill: (pid, signal) => {
@@ -104,7 +105,8 @@ beforeEach(() => {
   mkdirSync(join(ROOT, ".tmp"), { recursive: true });
   marks = join(mkdtempSync(join(ROOT, ".tmp", "process-group-rules.")), "marks");
   process.env.HALVO_GROUP_MARKS = marks;
-  useProcesses(world);
+  spawnStarted = LATER;
+  useProcesses(world, 300);
 });
 
 afterAll(() => {
@@ -206,6 +208,7 @@ test("after a signal that the process outlives, a group started later still ends
 });
 
 test("groups that outlive TERM all get TERM at once and KILL after one grace of 5 s, and their marks go", () => {
+  useProcesses(world);
   const a = start();
   const b = start();
   row(a.pid).termProof = true;
@@ -340,9 +343,110 @@ test("sweep: a mark written before its start time was read names the leader of i
   const h = group({ started: OTHER });
   mark(g, { started: null, spawned: LATER_EPOCH - 1, owner: gone });
   mark(h, { started: null, spawned: LATER_EPOCH, owner: gone });
-  expect(sweepMarks()).toEqual([`process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 2 processes`]);
+  expect(sweepMarks()).toEqual([
+    `process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 2 processes`,
+    `process-group: left group ${h} (started ${OTHER}): its leader started outside the seconds of the spawn that its mark records`,
+  ]);
   expect(record).toEqual([`SIGTERM -${g} ${LATER}`]);
-  expect(marksIn()).toEqual([]);
+  expect(marksIn()).toEqual([`group-${h}.json`]);
+});
+
+test("sweep: the window of a mark written before its start time was read holds a leader at one second before and two seconds after the spawn, and not at two before or three after", () => {
+  const offsets = [-2, -1, 2, 3];
+  const leaders = offsets.map((offset) => {
+    const g = group();
+    mark(g, { started: null, spawned: LATER_EPOCH - offset, owner: gone });
+    return g;
+  });
+  const outside = (g: number) =>
+    `process-group: left group ${g} (started ${LATER}): its leader started outside the seconds of the spawn that its mark records`;
+  const ended = (g: number) => `process-group: ended group ${g} (started ${LATER}), which a run of this checkout left: 1 processes`;
+  const [early, justEarly, justLate, late] = leaders as [number, number, number, number];
+  expect(sweepMarks()).toEqual([outside(early), ended(justEarly), ended(justLate), outside(late)]);
+  expect(record).toEqual([`SIGTERM -${justEarly} ${LATER}`, `SIGTERM -${justLate} ${LATER}`]);
+  expect(marksIn()).toEqual([`group-${early}.json`, `group-${late}.json`]);
+});
+
+test("sweep: a mark that a concurrent run wrote again during the sweep's read of ps is not removed", () => {
+  mark(154_322, { started: LATER, owner: gone });
+  const fresh = JSON.stringify({ pid: 154_322, started: OTHER, owner: { pid: process.pid, started: OWNER }, checkout: HERE });
+  onPs = () => writeFileSync(join(marks, "group-154322.json"), fresh);
+  expect(sweepMarks()).toEqual([]);
+  expect(readFileSync(join(marks, "group-154322.json"), "utf8")).toBe(fresh);
+});
+
+test("a group whose leader has left its group id is leaderless for the handlers and gets no signal", () => {
+  const a = start();
+  nextPid += 1;
+  rows.push({ pid: nextPid, pgid: a.pid, stat: "S", started: LATER });
+  row(a.pid).pgid = 199_999;
+  fire("exit");
+  expect(record).toEqual([]);
+});
+
+test("startGroup refuses a child whose row is there and does not lead its own group, sends KILL to that group id and removes the mark", () => {
+  const spawnOf = world.spawn;
+  let pid = 0;
+  world.spawn = (command, args, options) => {
+    const child = spawnOf(command, args, options);
+    pid = child.pid as number;
+    row(pid).pgid = 1;
+    return child;
+  };
+  try {
+    expect(start).toThrow("does not lead its own process group");
+    expect(record).toEqual([`SIGKILL -${pid} ${LATER}`]);
+    expect(marksIn()).toEqual([]);
+  } finally {
+    world.spawn = spawnOf;
+  }
+});
+
+test("endGroup throws when a member outlives KILL, and keeps the mark", async () => {
+  const a = start();
+  row(a.pid).killProof = true;
+  await expect(endGroup(a)).rejects.toThrow("still has members");
+  expect(record).toEqual([`SIGTERM -${a.pid} ${LATER}`, `SIGKILL -${a.pid} ${LATER}`]);
+  expect(marksIn()).toEqual([`group-${a.pid}.json`]);
+});
+
+test("endGroup forgets the group, so that a later group of the same pid keeps its mark when the process exits", async () => {
+  const a = start();
+  await endGroup(a);
+  nextPid = a.pid - 1;
+  spawnStarted = OTHER;
+  const b = start();
+  expect(b.pid).toBe(a.pid);
+  row(b.pid).killProof = true;
+  record = [];
+  fire("exit");
+  expect(record).toEqual([`SIGTERM -${b.pid} ${OTHER}`, `SIGKILL -${b.pid} ${OTHER}`]);
+  expect(marksIn()).toEqual([`group-${b.pid}.json`]);
+});
+
+test("a stop forgets its groups, so that a later group of the same pid keeps its mark at the next stop", () => {
+  const a = start();
+  fire("SIGINT");
+  nextPid = a.pid - 1;
+  spawnStarted = OTHER;
+  const b = start();
+  expect(b.pid).toBe(a.pid);
+  row(b.pid).killProof = true;
+  record = [];
+  fire("SIGTERM");
+  expect(record.slice(0, 2)).toEqual([`SIGTERM -${b.pid} ${OTHER}`, `SIGKILL -${b.pid} ${OTHER}`]);
+  expect(marksIn()).toEqual([`group-${b.pid}.json`]);
+});
+
+test("sweep: a mark whose owner is an empty object, has pid 0 or has no start time is skipped and nothing is signalled", () => {
+  const g = group();
+  const h = group();
+  const k = group();
+  mark(g, { started: LATER, owner: {} });
+  mark(h, { started: LATER, owner: { pid: 0, started: OWNER } });
+  mark(k, { started: LATER, owner: { pid: 777_777 } });
+  expect(sweepMarks()).toEqual([g, h, k].map((each) => `process-group: skipped the mark group-${each}.json, which is no group with an owner`));
+  expect(record).toEqual([]);
 });
 
 test("sweep: a mark whose owner is alive stays and its group gets no signal", () => {
