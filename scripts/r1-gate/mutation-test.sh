@@ -1569,6 +1569,50 @@ cases() {
   lint_cases
   stop_order_cases
   root_cases
+  fallback_cases
+}
+
+fallback_cases() {
+  t stop-children-ends-a-wrapper-s-children-by-pkill-when-no-child-id-is-known PASS pkill_fallback_named
+  fallback_want=NO-INPUT
+  [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
+  t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
+}
+
+pkill_fallback_named() {
+  fallback_dir=$gate_scratch/pkill-fallback
+  mkdir -p "$fallback_dir/bin"
+  cat > "$fallback_dir/bin/pkill" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >> "${0%/*}/pkill.args"
+exit 0
+STUB
+  chmod +x "$fallback_dir/bin/pkill"
+  sh -c 'sleep 2 & wait' &
+  child_wrapper=$!
+  child_pid=''
+  fallback_wrapper=$child_wrapper
+  PATH=$fallback_dir/bin:$PATH stop_children
+  fallback_args=''
+  [ ! -f "$fallback_dir/bin/pkill.args" ] || fallback_args=$(cat "$fallback_dir/bin/pkill.args")
+  [ "$fallback_args" = "-TERM -P $fallback_wrapper" ] && [ -z "$child_wrapper" ] && return 0
+  printf 'pkill got: %s; child_wrapper=%s\n' "${fallback_args:-nothing}" "$child_wrapper"
+  return 1
+}
+
+pkill_fallback_real() {
+  [ "${GITHUB_ACTIONS:-}" = true ] || return 3
+  sh -c 'sleep 60 & wait' &
+  child_wrapper=$!
+  child_pid=''
+  fallback_wrapper=$child_wrapper
+  fallback_start=$(date +%s)
+  stop_children
+  fallback_end=$(date +%s)
+  fallback_rest=$(pgrep -P "$fallback_wrapper" | wc -l | tr -d ' ')
+  [ "$((fallback_end - fallback_start))" -lt 30 ] && [ "$fallback_rest" -eq 0 ] && return 0
+  printf 'stop_children took %s s and left %s children of the wrapper\n' "$((fallback_end - fallback_start))" "$fallback_rest"
+  return 1
 }
 
 root_cases() {
