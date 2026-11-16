@@ -2000,7 +2000,7 @@ fn a_drive_or_reply_line_with_a_key_value_outside_its_form_is_no_counted_line() 
             line.starts_with("drive ") || line.starts_with("repl"),
             "{line}"
         );
-        let got = beside_set(&[line.clone()]);
+        let got = beside_set(std::slice::from_ref(&line));
         if got.code != Some(0) || got.stdout != "import rows=66 models=1 sources=2\n" {
             wrong.push(format!("{line}: {:?} {:?}", got.code, got.stderr));
         }
