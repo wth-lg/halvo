@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fs::{self, File, Metadata};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::at::Dir;
 use crate::identity::{same_file, unchanged, FileId};
@@ -9,8 +9,8 @@ use crate::walk::{is_loop, Root, Walk};
 use crate::{checkpoint_name, digest, removing_name, LockError, Locks, RunId, Sha256, FILE_MAX};
 
 /// What a row of the list of checkpoints names (contracts.md A7.4): the folder that `prepare`
-/// was given and the workbook's path as given to `prepare`, both absolute (a relative one is
-/// refused as `not_file`), the run, and what the copy must hold.
+/// was given and the workbook's path as given to `prepare`, both absolute and with no parent
+/// step (any other is refused as `not_file`), the run, and what the copy must hold.
 pub struct Row<'a> {
     /// The row's `folder`; the call works inside it alone.
     pub folder: &'a Path,
@@ -70,9 +70,9 @@ pub enum Left {
     /// link.
     Link,
     /// `not_file`: the copy is no regular file, a part of the way is no directory, the folder
-    /// is no directory, the row's folder or path is relative, or the row's path is not inside
-    /// the folder (outside it, with a parent step, or the folder itself), which the call then
-    /// never reaches.
+    /// is no directory, the row's folder or path is relative or holds a parent step, or the
+    /// row's path is not inside the folder (outside it, or the folder itself), which the call
+    /// then never reaches.
     NotFile,
     /// `name`: the directory holds no entry whose own name is the built name byte for byte,
     /// though the system answered for it, as a file system that folds case does for a name in
@@ -249,7 +249,7 @@ fn stays(at: &Dir, name: &OsStr, answer: Pass) -> Result<Leftover, Pass> {
 }
 
 fn root(folder: &Path) -> Result<Root, Pass> {
-    if !folder.is_absolute() {
+    if !one_spelling(folder) {
         return Err(Ok(Removal::Left(Left::NotFile)));
     }
     let plain: PathBuf = folder.components().collect();
@@ -264,10 +264,17 @@ fn root(folder: &Path) -> Result<Root, Pass> {
 
 fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Pass> {
     let root = root(folder)?;
-    if !workbook.is_absolute() {
+    if !one_spelling(workbook) {
         return Err(Ok(Removal::Left(Left::NotFile)));
     }
     root.parent(workbook).map_err(|walk| Ok(walked(walk)))
+}
+
+fn one_spelling(path: &Path) -> bool {
+    path.is_absolute()
+        && !path
+            .components()
+            .any(|part| matches!(part, Component::ParentDir))
 }
 
 /// The workbook's directory walked again under the lock, part by part, and checked to be the

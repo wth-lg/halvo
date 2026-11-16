@@ -274,6 +274,40 @@ fn a_removal_whose_every_pass_finds_the_removing_name_is_undecided_and_leaves_bo
 }
 
 #[test]
+fn a_folder_or_a_path_with_a_parent_step_is_refused() {
+    let scratch = Scratch::new("remove-parent-step");
+    fs::create_dir_all(scratch.path("folder")).expect("make the folder");
+    fs::create_dir_all(scratch.path("outside/deep")).expect("make the outside directory");
+    link_dir(&scratch.path("outside/deep"), &scratch.path("folder/inner"));
+    let theirs = scratch.path("outside").join(copy_name("values.xlsx"));
+    fs::write(&theirs, COPY).expect("a file outside with the copy's name and bytes");
+    let copy = scratch.write(&format!("real/{}", copy_name("values.xlsx")), COPY);
+    scratch.write("real/values.xlsx", b"the workbook now");
+    scratch.write("real/x/kept.txt", b"a file of the person's own");
+    link_dir(&scratch.path("real"), &scratch.path("alias"));
+    let run = run();
+    let locks = locks(&scratch);
+    let rows = [
+        (scratch.path("folder/inner/.."), "values.xlsx"),
+        (scratch.path("alias/x/.."), "values.xlsx"),
+        (scratch.path("real"), "x/../values.xlsx"),
+    ];
+    for (folder, rel) in rows {
+        let workbook = folder.join(rel);
+        let row = Row {
+            folder: &folder,
+            workbook: &workbook,
+            run: &run,
+            expect: made(COPY),
+        };
+        let got = remove(&locks, &row);
+        assert_eq!(got, Ok(Removal::Left(Left::NotFile)), "{rel} in {folder:?}");
+    }
+    assert_eq!(fs::read(&theirs).expect("the file outside stays"), COPY);
+    assert_eq!(fs::read(&copy).expect("the copy stays"), COPY);
+}
+
+#[test]
 fn a_link_on_the_way_or_in_the_place_of_the_checkpoint_leaves_the_file() {
     let scratch = Scratch::new("remove-link");
     let real = with_checkpoint(&scratch, "real/values.xlsx");
