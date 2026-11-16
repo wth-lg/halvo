@@ -841,8 +841,9 @@ fn at_the_watermark<S: Subject>(
 /// read of set D from the zero position must serve its records in order, the `at` of the `keystroke` after the
 /// step back must lie exactly 999 ms below that of the pointer before it, as `load` keeps it when it moves every
 /// `at` by a whole number of seconds (C5.13 item 2), and eight reads, each from the zero position, from the
-/// position of that pointer and from the position of every other entry of D up to the keystroke's, must each serve every entry of D at or after the start position that passes the
-/// read's filter, at its position: the range from the `at` of the first entry of D to that of the pointer
+/// position of that pointer and from the position of every other entry of D up to the keystroke's, must each
+/// serve every entry of D at or after the start position that passes the read's filter, at its position: the
+/// range from the `at` of the first entry of D to that of the pointer
 /// (C5.13 item 8), the range from the same start to 1 ns after the `at` of the `keystroke`, the range from the
 /// `at` of the `keystroke` to that of the entry after it, the range from 1 ns after the `at` of the `keystroke`
 /// to the same end, the first range with the kinds filter `keystroke`, the range from the `at` of the first
