@@ -64,11 +64,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.record",
-        "Halvo cannot read or save its record now, so it starts nothing and cannot save your answers. Stop still works.",
+        "Halvo can't save this agent's history now, so it starts no tasks and can't take your answers. Stop works.",
     ),
     (
         "card.records_dropped",
-        "Since Halvo opened, {count} parts of its record could not be saved.",
+        "Since Halvo opened, {count} entries of this agent's history could not be saved and are missing from it.",
     ),
     (
         "line.problem.sign_in_refused",
@@ -99,7 +99,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.stopping", "It is stopping."),
     (
         "line.working.kill_stuck",
-        "Something of this agent still runs on your computer. Close Halvo and open it again to end it.",
+        "Part of this agent is still running. Quit Halvo completely and open it again to end it.",
     ),
     (
         "line.waiting_turn.queued",

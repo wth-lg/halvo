@@ -439,6 +439,24 @@ fn fixed_texts_stand_word_for_word() {
     assert!(classes.contains(&"payment"));
 }
 
+/// The three texts of ruling RD-116 W1, the coordinator's word after two plain readings.
+#[test]
+fn rd116_w1_the_three_texts_stand_word_for_word() {
+    let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
+    assert_eq!(
+        t("line.working.kill_stuck", &[]),
+        "Part of this agent is still running. Quit Halvo completely and open it again to end it."
+    );
+    assert_eq!(
+        t("line.problem.record", &[]),
+        "Halvo can't save this agent's history now, so it starts no tasks and can't take your answers. Stop works."
+    );
+    assert_eq!(
+        t("card.records_dropped", &[("count", "3")]),
+        "Since Halvo opened, 3 entries of this agent's history could not be saved and are missing from it."
+    );
+}
+
 /// The hold `failures` says what happened and its way out (ruling RD-81).
 #[test]
 fn rd81_the_line_of_the_hold_failures_names_its_way_out() {
