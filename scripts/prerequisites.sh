@@ -459,7 +459,7 @@ ensure_pnpm() {
   fi
   entry=
   for candidate in "$prefix/bin/pnpm" "$prefix/pnpm"; do
-    if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+    if [ -e "$candidate" ]; then
       entry=$candidate
       break
     fi
