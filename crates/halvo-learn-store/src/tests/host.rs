@@ -89,12 +89,22 @@ impl Host for AgentSide {
     }
 }
 
-/// A row of the family `learn` as the test host holds it: its kind, the workflow key that the store keeps beside it,
-/// none where the row's commit gave none, and its text.
+/// A row of the family `learn` as the test host holds it: its kind, the workflow key and the day that the store keeps
+/// beside it, as the derived store keeps its columns set at commit, and its text.
 struct Held {
     kind: &'static str,
     key: Option<WorkflowId>,
+    day: Option<u64>,
     json: String,
+}
+
+/// The value under the key `day` at the top level of a row's text, as a store's commit reads it.
+fn day_of(text: &str) -> Option<u64> {
+    serde_json::from_str::<Value>(text)
+        .ok()?
+        .as_object()?
+        .get("day")?
+        .as_u64()
 }
 
 /// The workflow that a row's text names under its kind's workflow key, as a store's commit reads it.
@@ -143,12 +153,16 @@ impl TestHost {
         self.put_raw_under(kind, key.as_ref().map(WorkflowId::as_str), text);
     }
 
-    /// Stores a row of the family `learn` as its text, with no check, under the workflow key `key`, or under none.
+    /// Stores a row of the family `learn` as its text, with no check, under the workflow key `key`, or under none, and
+    /// with the day that its text holds, or today's where it holds none: a row committed today whose text was damaged
+    /// later.
     pub fn put_raw_under(&mut self, kind: &'static str, key: Option<&str>, text: &str) {
         let key = key.map(|k| WorkflowId::parse(k).expect("a workflow id"));
+        let day = day_of(text).or(Some(u64::from(self.day)));
         self.learn.push(Held {
             kind,
             key,
+            day,
             json: text.to_owned(),
         });
     }
@@ -211,15 +225,12 @@ impl Clock for TestHost {
     }
 }
 
-fn withheld(kind: &str, json: &str, today: u32) -> bool {
+fn withheld(kind: &str, day: Option<u64>, today: u32) -> bool {
     let Some(RetentionClass::Bounded { days }) =
         registry().find(|e| e.name == kind).map(|e| e.class)
     else {
         return false;
     };
-    let day = serde_json::from_str::<Value>(json)
-        .ok()
-        .and_then(|v| v.get("day").and_then(Value::as_u64));
     match day {
         None => true,
         Some(d) if d > u64::from(today) => d - u64::from(today) > 2,
@@ -238,7 +249,7 @@ impl TestHost {
         let held: Vec<&Held> = self
             .learn
             .iter()
-            .filter(|row| row.kind == kind && !withheld(kind, &row.json, self.day))
+            .filter(|row| row.kind == kind && !withheld(kind, row.day, self.day))
             .filter(|row| workflow.is_none_or(|w| row.key.as_ref() == Some(w)))
             .collect();
         self.visited.borrow_mut().extend(
@@ -307,9 +318,11 @@ impl LearnHost for TestHost {
         }
         for record in records {
             let key = key_of(record.kind, &record.json);
+            let day = day_of(&record.json);
             self.learn.push(Held {
                 kind: record.kind,
                 key,
+                day,
                 json: record.json,
             });
         }

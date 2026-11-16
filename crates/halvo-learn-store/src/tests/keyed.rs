@@ -404,6 +404,28 @@ fn a_replay_put_playbook_of_a_run_whose_start_is_held_reads_no_row_of_another_wo
 }
 
 #[test]
+fn a_learn_run_row_of_no_json_under_the_key_of_a_answers_the_replay_put_of_a_with_the_count_0() {
+    let mut w = two_workflows();
+    w.host
+        .put_raw_under("learn_run", Some(&wf(1)), "not a json object");
+    let served = w.replay(10);
+    let proposal = with_locators(
+        served[2].clone(),
+        "button Next step",
+        vec![loc("C"), next()],
+    );
+    assert_eq!(w.put(10, w.loaded, vec![proposal]), Ok(stored(0)));
+    w.pair = 2;
+    let served = w.replay(20);
+    let proposal = with_locators(
+        served[2].clone(),
+        "button Next step",
+        vec![loc("C"), next()],
+    );
+    assert_eq!(w.put(20, w.loaded, vec![proposal]), Ok(stored(1)));
+}
+
+#[test]
 fn the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none(
 ) {
     let mut w = two_workflows();
