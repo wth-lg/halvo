@@ -313,6 +313,46 @@ fn a_prepare_of_the_run_after_a_refused_replace_of_the_workbook_answers_the_chec
 }
 
 #[test]
+fn a_file_of_the_copys_bytes_put_at_its_name_is_not_renamed_into_place() {
+    let scratch = Scratch::new("replace-same-bytes");
+    let s = setup(&scratch);
+    let bytes = fs::read(scratch.path(&s.copy)).expect("read the copy");
+    fs::write(scratch.path("theirs.xlsx"), &bytes).expect("write their file");
+    fs::rename(scratch.path("theirs.xlsx"), scratch.path(&s.copy)).expect("put it at the name");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Copy))
+    );
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+    assert_eq!(fs::read(scratch.path(&s.copy)).expect("their file"), bytes);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_copy_that_cannot_be_read_is_answered_as_left_and_stays() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("replace-unreadable");
+    let s = setup(&scratch);
+    let copy = scratch.path(&s.copy);
+    let mode = |m: u32| fs::set_permissions(&copy, fs::Permissions::from_mode(m)).expect("chmod");
+    mode(0o000);
+    assert!(fs::read(&copy).is_err(), "the copy cannot be read");
+    let got = s.folder.replace(&s.prepared);
+    let second = s.folder.replace(&s.prepared);
+    let after = copy.exists();
+    drop(s.prepared);
+    let dropped = copy.exists();
+    mode(0o600);
+    assert_eq!(got, Err(Error::CopyLeft(Kept::Copy)));
+    assert_eq!(second, got);
+    assert!(
+        after && dropped,
+        "the copy stays after the call and after the drop"
+    );
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+}
+
+#[test]
 fn a_folder_that_does_not_hold_the_workbook_touches_nothing_and_is_no_first_replace() {
     let scratch = Scratch::new("replace-folder");
     let s = setup(&scratch);

@@ -279,7 +279,10 @@ impl Folder {
     /// that name after the write, of any bytes, or the copy written in place with other bytes,
     /// stays, and of Halvo's files the checkpoint is the one that stays beside the workbook
     /// after either end; when the system refuses the removal of the copy (a read-only
-    /// directory, an immutable copy) the answer is [`Error::CopyLeft`] and the copy stays. A
+    /// directory, an immutable copy), or the file that `prepare` made cannot be read to tell
+    /// its bytes, the answer is [`Error::CopyLeft`] and the copy stays. It renames into the
+    /// workbook's place only the file that `prepare` made, compared by
+    /// [`halvo_checkpoint::same_file`], and only while it holds the bytes that were checked. A
     /// second call with
     /// the same [`Prepared`] returns the answer of the first call that a folder holding the
     /// workbook made, and touches no file; a call refused as [`PathRefusal::Outside`] is no
@@ -301,9 +304,12 @@ impl Folder {
                     .and_then(|_| write::replace(prepared));
                 let answer = match done {
                     Err(Error::NotReplaced(why)) => match prepared.own_copy() {
-                        Some((file, copy)) if write::remove_made(&file, &copy).is_err() => {
+                        write::CopyAt::Own(file, copy)
+                            if write::remove_made(&file, &copy).is_err() =>
+                        {
                             Err(Error::CopyLeft(why))
                         }
+                        write::CopyAt::Unread => Err(Error::CopyLeft(why)),
                         _ => Err(Error::NotReplaced(why)),
                     },
                     other => other,

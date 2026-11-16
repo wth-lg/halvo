@@ -177,7 +177,9 @@ pub enum Error {
     /// `replace` left the workbook as it was.
     NotReplaced(Kept),
     /// `replace` left the workbook as it was, and the system refused to remove the prepared
-    /// copy (a read-only directory, an immutable file), which stays beside the workbook.
+    /// copy (a read-only directory, an immutable file), or the call could not read the file that
+    /// `prepare` made to tell that it is the copy it checked; the file stays beside the
+    /// workbook.
     CopyLeft(Kept),
 }
 

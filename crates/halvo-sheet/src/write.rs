@@ -102,12 +102,28 @@ impl Prepared {
         self.unmarked
     }
 
-    pub(crate) fn own_copy(&self) -> Option<(File, PathBuf)> {
-        let copy = self.root.file(&self.copy).ok()?;
-        let file = open_regular(&copy).ok()?;
-        let made = FileId::of(&file).is_ok_and(|id| same_file(&id, &self.made));
-        (made && same_bytes(&file, &self.changed)).then_some((file, copy))
+    pub(crate) fn own_copy(&self) -> CopyAt {
+        let made = |id: io::Result<FileId>| id.is_ok_and(|id| same_file(&id, &self.made));
+        let Ok(copy) = self.root.file(&self.copy) else {
+            return CopyAt::Other;
+        };
+        if !made(FileId::at(&copy)) {
+            return CopyAt::Other;
+        }
+        match open_regular(&copy) {
+            Ok(file) if made(FileId::of(&file)) && same_bytes(&file, &self.changed) => {
+                CopyAt::Own(file, copy)
+            }
+            Ok(_) => CopyAt::Other,
+            Err(_) => CopyAt::Unread,
+        }
     }
+}
+
+pub(crate) enum CopyAt {
+    Own(File, PathBuf),
+    Unread,
+    Other,
 }
 
 impl Drop for Prepared {
@@ -115,7 +131,7 @@ impl Drop for Prepared {
         if self.answer.get() == Some(&Ok(())) {
             return;
         }
-        if let Some((file, copy)) = self.own_copy() {
+        if let CopyAt::Own(file, copy) = self.own_copy() {
             let _ = remove_made(&file, &copy);
         }
     }
@@ -330,7 +346,8 @@ pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
     if !holds(&prepared.checkpoint, &prepared.original) {
         return Err(Error::NotReplaced(Kept::Checkpoint));
     }
-    if !holds(&prepared.copy, &prepared.changed) {
+    let made = FileId::at(&prepared.copy).is_ok_and(|id| same_file(&id, &prepared.made));
+    if !made || !holds(&prepared.copy, &prepared.changed) {
         return Err(Error::NotReplaced(Kept::Copy));
     }
     fs::rename(&prepared.copy, &prepared.workbook)
