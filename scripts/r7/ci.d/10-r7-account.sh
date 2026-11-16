@@ -826,6 +826,7 @@ case $1 in
         printf '%s/debug/deps/halvo_secrets-0.d: crates/halvo-secrets/src/lib.rs\n\ncrates/halvo-secrets/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_secrets-0.d" || exit 98
       fi
       printf '%s/debug/deps/halvo_account-0.d: crates/halvo-account/src/lib.rs\n\ncrates/halvo-account/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_account-0.d" || exit 98
+      printf '%s/debug/deps/halvo_test_dir-0.d: crates/halvo-test-dir/src/lib.rs\n\ncrates/halvo-test-dir/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_test_dir-0.d" || exit 98
       printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$t" >"$t/debug/deps/itoa-0.d" || exit 98
       [ -z "${STUB_UNREADABLE:-}" ] || chmod 000 "$t/debug/deps/halvo_wire-0.d" || exit 98
     fi
