@@ -5,7 +5,7 @@ use halvo_schema::learning::record::Day;
 use halvo_schema::learning::Refusal;
 use halvo_schema::request::{
     decode, decode_reply, write_reply, CoordinatorBody, CoordinatorRole, CoordinatorWrite, Decoded,
-    ReplyResult,
+    ReplyResult, REPLY_MAX,
 };
 use halvo_schema::{AgentId, RequestId, WorkflowId};
 use serde_json::value::RawValue;
@@ -481,10 +481,31 @@ fn outside(line: &str) -> [String; 2] {
     [format!("{pad}{compact}"), format!("{compact}{pad}")]
 }
 
-fn read(line: &str) -> Result<usize, Want> {
-    Refinements::parse(line.as_bytes())
+fn plain_reply(len: usize) -> String {
+    let kept = r#"{"day":20767,"what":"target_kept"}"#;
+    let room = len + 1 - r#"{"refinements":[]}"#.len();
+    let step = |entry: &str| entry.len() + 1;
+    let first = (0..step(ENTRY))
+        .find(|n| (room - n * step(kept)) % step(ENTRY) == 0)
+        .unwrap();
+    let second = (room - first * step(kept)) / step(ENTRY);
+    let list = [vec![kept; first], vec![ENTRY; second]].concat().join(",");
+    let line = format!(r#"{{"refinements":[{list}]}}"#);
+    assert_eq!(line.len(), len);
+    assert!(!line
+        .bytes()
+        .any(|b| b.is_ascii_whitespace() || b == b'\\' || b >= 0x80));
+    line
+}
+
+fn read_bytes(bytes: &[u8]) -> Result<usize, Want> {
+    Refinements::parse(bytes)
         .map(|reply| reply.refinements.len())
         .map_err(|refusal| parts(&refusal))
+}
+
+fn read(line: &str) -> Result<usize, Want> {
+    read_bytes(line.as_bytes())
 }
 
 #[test]
@@ -505,6 +526,38 @@ fn a_reply_that_white_space_takes_past_the_bound_is_refused_before_it_is_read() 
     assert!(wide.len() > CHECKPOINTS_REPLY_MAX);
     assert!(wide.chars().count() <= CHECKPOINTS_REPLY_MAX);
     assert_eq!(read(&wide), Err(("Refinements", None, "reply_bytes")));
+    assert!(read(&plain_reply(CHECKPOINTS_REPLY_MAX)).is_ok());
+    for len in [
+        CHECKPOINTS_REPLY_MAX + 1,
+        CHECKPOINTS_REPLY_MAX + 2,
+        REPLY_MAX + 1,
+        2 * REPLY_MAX,
+        4 << 20,
+    ] {
+        assert_eq!(
+            read(&plain_reply(len)),
+            Err(("Refinements", None, "reply_bytes")),
+            "{len}"
+        );
+    }
+    let mut not_utf8 = plain_reply(CHECKPOINTS_REPLY_MAX + 1).into_bytes();
+    not_utf8[CHECKPOINTS_REPLY_MAX] = 0xff;
+    assert!(std::str::from_utf8(&not_utf8).is_err());
+    assert_eq!(
+        read_bytes(&not_utf8),
+        Err(("Refinements", None, "reply_bytes"))
+    );
+    let four = char::from_u32(0x1f600).unwrap();
+    let high = String::from(four).repeat(CHECKPOINTS_REPLY_MAX / 4 + 1);
+    assert!(high.len() > CHECKPOINTS_REPLY_MAX && high.as_bytes()[0] >= 0xf0);
+    assert_eq!(read(&high), Err(("Refinements", None, "reply_bytes")));
+    let lines = format!(
+        "{}{}",
+        "\n".repeat(64),
+        plain_reply(CHECKPOINTS_REPLY_MAX + 1 - 64)
+    );
+    assert_eq!(lines.matches('\n').count(), 64);
+    assert_eq!(read(&lines), Err(("Refinements", None, "reply_bytes")));
 }
 
 #[test]
