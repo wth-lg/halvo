@@ -14,7 +14,7 @@ use zeroize::Zeroize;
 
 use super::barrier::Gate;
 use super::batch::{utc_day, Admit, Batch, TextFilters};
-use super::counters::{Counters, DiscardReason, Snapshot, SourceTallies};
+use super::counters::{BatchCode, Counters, DiscardReason, Snapshot, SourceTallies};
 use super::maintenance::{Clocks, Instants, Job, Schedule};
 use super::port::{ByteBound, CaptureStore, EntryKind, MaintFault, WriteFault, PAYLOAD_MAX_BYTES};
 use crate::floor::exclude::FloorHandle;
@@ -36,7 +36,8 @@ pub const HELD_MAX_BYTES: usize = 2 * PAYLOAD_MAX_BYTES;
 /// Under this many free bytes on the store's volume the owner tries no flush.
 pub const FREE_SPACE_FLOOR_BYTES: u64 = 16_777_216;
 
-/// The same failure that is not I/O this many times in a row drops the batch.
+/// A counted failure at this many due tries in a row sets the batch aside:
+/// the same fault at each, or any of the eight codes of [`BatchCode`] at each.
 pub const REJECT_AFTER_SAME_FAULTS: u32 = 3;
 
 /// The first wait before a failed write is tried again.
@@ -660,6 +661,13 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         self.release(now);
     }
 
+    fn set_aside(&mut self, fault: WriteFault, now: Instants) {
+        if let Some(code) = batch_code(fault) {
+            self.counters.set_aside(code);
+        }
+        self.reject(fault, now);
+    }
+
     fn reject(&mut self, fault: WriteFault, now: Instants) {
         let events = self.batch.events() as u64;
         let (first_capture, last_capture) = self.batch.captures();
@@ -703,7 +711,9 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 since,
             } if now.monotonic >= retry_at => {
                 let same = match same {
-                    Some((last, count)) if counted && last == fault => Some((fault, count + 1)),
+                    Some((last, count)) if counted && one_run(last, fault) => {
+                        Some((fault, count + 1))
+                    }
                     _ => counted.then_some((fault, 1)),
                 };
                 let delay = (delay * 2).min(RETRY_MAX);
@@ -716,12 +726,12 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 cause: before,
                 since,
             } => {
-                let same = same.filter(|(last, _)| *last == fault);
+                let same = same.filter(|(last, _)| one_run(*last, fault));
                 (retry_at, delay, same, since, before != cause)
             }
         };
         if same.is_some_and(|(_, count)| count >= REJECT_AFTER_SAME_FAULTS) {
-            self.reject(fault, now);
+            self.set_aside(fault, now);
             return;
         }
         if changed {
@@ -765,23 +775,44 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 }
 
-/// The counted class at a write: the primary codes of the open's sealed row
-/// of contracts.md C11.3, corrupt (11) and not a database (26), and 0, the
-/// code of a failed mint of the segment id. Every other primary code but 13
-/// (no space), I/O (10), busy (5) and locked (6) among them and one that this
-/// build does not know, is of the class of Io: held, never counted, kind io
-/// (ruling PR-30 PR4; ruling PR-31 item 3). Nothing holds this list in step
-/// with the store's own table.
+/// The primary codes of the counted class at a write whose due tries count
+/// while the same fault, by the whole code, ends each of them: those of the
+/// open's sealed row of contracts.md C11.3, corrupt (11) and not a database
+/// (26), and 0, the code of a failed mint of the segment id. The eight codes
+/// of [`BatchCode`] are counted too, by their primary code. Every other
+/// primary code, 13 (no space), I/O (10), busy (5) and locked (6) among them
+/// and one that this build does not know, is of the class of Io: held, never
+/// counted, kind io (ruling PR-30 PR4; ruling PR-31 item 3; ruling PR-32 with
+/// its Addition 1). Nothing holds these lists in step with the store's own
+/// table.
 const DB_CODES_COUNTED: [i32; 3] = [11, 26, 0];
 
-/// Whether a write's fault counts toward the three tries of
+/// Whether a write's fault counts toward the due tries of
 /// REJECT_AFTER_SAME_FAULTS.
 fn counts_toward_tries(fault: WriteFault) -> bool {
     match fault {
+        WriteFault::Db(code) if BatchCode::of(code).is_some() => true,
         WriteFault::Db(code) => DB_CODES_COUNTED.contains(&(code & 0xff)),
         WriteFault::Refused | WriteFault::Sealed => true,
         WriteFault::Io(_) | WriteFault::AlreadyWritten { .. } => false,
     }
+}
+
+/// The one of the eight codes that ended a write, if one did.
+fn batch_code(fault: WriteFault) -> Option<BatchCode> {
+    match fault {
+        WriteFault::Db(code) => BatchCode::of(code),
+        WriteFault::Io(_)
+        | WriteFault::AlreadyWritten { .. }
+        | WriteFault::Refused
+        | WriteFault::Sealed => None,
+    }
+}
+
+/// Whether a try that ends with `fault` goes on the run of due tries whose
+/// last ended with `last`: the same fault, or any two of the eight codes.
+fn one_run(last: WriteFault, fault: WriteFault) -> bool {
+    last == fault || (batch_code(last).is_some() && batch_code(fault).is_some())
 }
 
 fn cause_of(fault: WriteFault) -> DrainCause {
@@ -790,7 +821,7 @@ fn cause_of(fault: WriteFault) -> DrainCause {
     }
     match fault {
         WriteFault::Io(_) => DrainCause::Io,
-        WriteFault::Db(code) if !DB_CODES_COUNTED.contains(&(code & 0xff)) => DrainCause::Io,
+        WriteFault::Db(_) if !counts_toward_tries(fault) => DrainCause::Io,
         WriteFault::AlreadyWritten { .. }
         | WriteFault::Refused
         | WriteFault::Db(_)
@@ -1197,12 +1228,13 @@ mod tests {
         }
         let bound_to_the_batch_read_again_by_ruling_pr_31 = [1, 2, 12, 18, 19, 20, 21, 25];
         for code in bound_to_the_batch_read_again_by_ruling_pr_31 {
-            let fault = WriteFault::Db(code);
-            assert_eq!(
-                (counts_toward_tries(fault), cause_of(fault)),
-                (false, DrainCause::Io),
-                "{fault:?}"
-            );
+            for fault in [WriteFault::Db(code), WriteFault::Db(code | (1 << 8))] {
+                assert_eq!(
+                    (counts_toward_tries(fault), cause_of(fault)),
+                    (true, DrainCause::Db),
+                    "{fault:?}"
+                );
+            }
         }
     }
 
@@ -2703,5 +2735,349 @@ mod tests {
             "the command waited for the receive"
         );
         assert!(harness.owner.finish_pass());
+    }
+
+    use crate::daemon::counters::BatchCode;
+
+    /// An owner that took `events` events and tried them once at a settle,
+    /// with every report before the try read.
+    fn tried_once(store: ModelStore, events: usize) -> Harness {
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        let _ = harness.reports();
+        for _ in 0..events {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness
+    }
+
+    /// The due tries at 1 s and 3 s after the first try.
+    fn two_due_tries(harness: &mut Harness) {
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+    }
+
+    fn set_aside_counts(snapshot: &Snapshot) -> Vec<(i32, u64)> {
+        BatchCode::ALL
+            .into_iter()
+            .map(|code| (code.primary(), snapshot.batches_set_aside_by_code.of(code)))
+            .filter(|(_, count)| *count > 0)
+            .collect()
+    }
+
+    /// Contracts.md C11.3, D1, D2, D6 and D8: three due tries that each end
+    /// with `code` set the batch aside, counted lost and by its code, with
+    /// the drain failing with db between the tries, and the next batch is
+    /// written.
+    fn three_due_tries_set_the_batch_aside(code: i32) {
+        let fault = WriteFault::Db(code);
+        let store = ModelStore::new();
+        store.script_writes([WriteScript::Fail(fault); 3]);
+        let mut harness = tried_once(store, 5);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        let between = harness.reports();
+        assert!(
+            matches!(
+                between[..],
+                [Report::DrainFailing {
+                    cause: DrainCause::Db,
+                    ..
+                }]
+            ),
+            "code {code} between the tries: {between:?}"
+        );
+        assert_eq!(harness.owner.snapshot().events_lost, 0, "code {code}");
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 3, "code {code}");
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            (snapshot.events_lost, snapshot.events_pending),
+            (5, 0),
+            "code {code}"
+        );
+        assert_eq!(set_aside_counts(&snapshot), [(code, 1)]);
+        let reports = harness.reports();
+        assert!(
+            matches!(
+                reports[..],
+                [
+                    Report::BatchRejected { events: 5, fault: rejected, .. },
+                    Report::DrainHealthy
+                ] if rejected == fault
+            ),
+            "code {code} at the third due try: {reports:?}"
+        );
+        harness.emit(foreground_now());
+        let after = settled(&mut harness);
+        assert_eq!(after.events_persisted, 1, "code {code}");
+        assert!(after.is_conserved());
+    }
+
+    #[test]
+    fn three_due_tries_answered_1_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(1);
+    }
+
+    #[test]
+    fn three_due_tries_answered_2_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(2);
+    }
+
+    #[test]
+    fn three_due_tries_answered_12_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(12);
+    }
+
+    #[test]
+    fn three_due_tries_answered_18_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(18);
+    }
+
+    #[test]
+    fn three_due_tries_answered_19_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(19);
+    }
+
+    #[test]
+    fn three_due_tries_answered_20_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(20);
+    }
+
+    #[test]
+    fn three_due_tries_answered_21_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(21);
+    }
+
+    #[test]
+    fn three_due_tries_answered_25_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(25);
+    }
+
+    /// D1: a mix of the eight among the due tries counts, and the batch is
+    /// reported and counted by the code of its last try.
+    #[test]
+    fn three_due_tries_answered_19_20_and_19_set_the_batch_aside() {
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(20)),
+            WriteScript::Fail(WriteFault::Db(19)),
+        ]);
+        let mut harness = tried_once(store, 4);
+        two_due_tries(&mut harness);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!((snapshot.events_lost, snapshot.events_pending), (4, 0));
+        assert_eq!(set_aside_counts(&snapshot), [(19, 1)]);
+        assert!(matches!(
+            rejected(&harness)[..],
+            [Report::BatchRejected {
+                events: 4,
+                fault: WriteFault::Db(19),
+                ..
+            }]
+        ));
+    }
+
+    /// D1 with the extended codes of SQLite: 2067 (unique) and 275 (check)
+    /// are read as 19, constraint, by their primary code.
+    #[test]
+    fn extended_codes_of_one_of_the_eight_are_read_as_that_code() {
+        let unique = WriteFault::Db(19 | (8 << 8));
+        let check = WriteFault::Db(19 | (1 << 8));
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(unique),
+            WriteScript::Fail(check),
+            WriteScript::Fail(unique),
+        ]);
+        let mut harness = tried_once(store, 3);
+        two_due_tries(&mut harness);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(snapshot.events_lost, 3);
+        assert_eq!(set_aside_counts(&snapshot), [(19, 1)]);
+        assert!(matches!(
+            rejected(&harness)[..],
+            [Report::BatchRejected { events: 3, fault, .. }] if fault == unique
+        ));
+    }
+
+    /// Contracts.md C11.3: a code outside the eight, I/O (10) and one that
+    /// this build does not know (99), is still held and never counted.
+    #[test]
+    fn three_due_tries_answered_10_or_an_unknown_code_leave_the_batch_held() {
+        for code in [10, 99] {
+            let store = ModelStore::new();
+            store.fail_every_write(Some(WriteFault::Db(code)));
+            let mut harness = tried_once(store, 4);
+            two_due_tries(&mut harness);
+            harness.clocks.advance(4 * RETRY_FIRST);
+            harness.pass();
+            assert_eq!(harness.store.write_calls().len(), 4, "code {code}");
+            let snapshot = harness.owner.snapshot();
+            assert_eq!(
+                (snapshot.events_lost, snapshot.events_pending),
+                (0, 4),
+                "code {code}"
+            );
+            assert!(set_aside_counts(&snapshot).is_empty(), "code {code}");
+            let reports = harness.reports();
+            assert!(
+                matches!(
+                    reports[..],
+                    [Report::DrainFailing {
+                        cause: DrainCause::Io,
+                        ..
+                    }]
+                ),
+                "code {code}: {reports:?}"
+            );
+        }
+    }
+
+    /// D1 and DM-5 items 1 and 2: early tries that settles make and that meet
+    /// one of the eight are made and leave the run as it was, so the batch is
+    /// set aside at its third due try, after more than three tries.
+    #[test]
+    fn early_tries_that_meet_one_of_the_eight_do_not_count() {
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(20)),
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(25)),
+            WriteScript::Fail(WriteFault::Db(21)),
+        ]);
+        let mut harness = tried_once(store, 5);
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        settled(&mut harness);
+        assert_eq!(harness.store.write_calls().len(), 4);
+        assert_eq!(
+            harness.owner.snapshot().events_lost,
+            0,
+            "set aside before the third due try"
+        );
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 5);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(snapshot.events_lost, 5);
+        assert_eq!(set_aside_counts(&snapshot), [(21, 1)]);
+    }
+
+    /// D1 and DM-5 item 2: an early try whose fault is outside the eight,
+    /// between two due tries with the eight, ends the run, and the batch is
+    /// held at the due try after it.
+    #[test]
+    fn an_early_try_outside_the_eight_ends_the_run_and_leaves_the_batch_held() {
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(10)),
+            WriteScript::Fail(WriteFault::Db(19)),
+        ]);
+        let mut harness = tried_once(store, 4);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        settled(&mut harness);
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 4);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            (snapshot.events_lost, snapshot.events_pending),
+            (0, 4),
+            "an early try outside the eight did not end the run"
+        );
+        assert!(rejected(&harness).is_empty());
+    }
+
+    /// The entry of 2026-11-16T09:24:35Z: a batch that the store refuses with
+    /// one of the eight at its first try and takes at its second is stored
+    /// once, under the id of its first try.
+    #[test]
+    fn a_batch_that_the_second_try_stores_after_19_is_written_once() {
+        let store = ModelStore::new();
+        store.script_writes([WriteScript::Fail(WriteFault::Db(19))]);
+        let mut harness = tried_once(store, 4);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        let writes = harness.store.write_calls();
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].0, writes[1].0);
+        assert_eq!(harness.store.batches().len(), 1);
+        assert_eq!(harness.store.records().len(), 4);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!((snapshot.events_persisted, snapshot.events_lost), (4, 0));
+        assert!(set_aside_counts(&snapshot).is_empty());
+        let reports = harness.reports();
+        assert!(
+            matches!(
+                reports[..],
+                [
+                    Report::DrainFailing {
+                        cause: DrainCause::Db,
+                        ..
+                    },
+                    Report::DrainHealthy
+                ]
+            ),
+            "{reports:?}"
+        );
+    }
+
+    /// D7 and the fourth mend of the brief: a batch that the store kept and
+    /// answered with one of the eight is acknowledged by its next try, which
+    /// reads AlreadyWritten, and is never set aside.
+    #[test]
+    fn a_batch_kept_and_answered_19_is_acknowledged_by_its_next_try() {
+        let store = ModelStore::new();
+        store.script_writes([WriteScript::KeepThenFail(WriteFault::Db(19))]);
+        let mut harness = tried_once(store, 4);
+        two_due_tries(&mut harness);
+        let writes = harness.store.write_calls();
+        assert_eq!(writes.len(), 2);
+        assert!(matches!(
+            writes[1].1,
+            Err(WriteFault::AlreadyWritten { .. })
+        ));
+        assert_eq!(harness.store.batches().len(), 1);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!((snapshot.events_persisted, snapshot.events_lost), (4, 0));
+        assert!(rejected(&harness).is_empty());
+    }
+
+    /// D8 and the fourth mend of the brief: a batch set aside after every due
+    /// try failed with one of the eight leaves nothing of it in the store and
+    /// its payload wiped in memory.
+    #[test]
+    fn a_batch_set_aside_leaves_nothing_of_it_in_the_store_or_in_memory() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(19)));
+        let mut harness = tried_once(store, 4);
+        two_due_tries(&mut harness);
+        let writes = harness.store.write_calls();
+        assert_eq!(writes.len(), 3);
+        let set_aside = writes[0].0;
+        assert!(writes.iter().all(|(id, _)| *id == set_aside));
+        assert_eq!(harness.owner.snapshot().events_lost, 4);
+        assert!(
+            harness.owner.payload_bytes().iter().all(|byte| *byte == 0),
+            "the set-aside batch is still in the payload"
+        );
+        harness.store.fail_every_write(None);
+        harness.emit(foreground_now());
+        settled(&mut harness);
+        let batches = harness.store.batches();
+        assert_eq!(batches.len(), 1);
+        assert_ne!(batches[0].segment_id, set_aside);
+        assert_eq!(harness.store.records().len(), 1);
     }
 }
