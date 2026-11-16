@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or, on a push to the default branch in a clone that is not shallow, in the commits of the push as the event file that GITHUB_EVENT_PATH names gives its before commit (range=the-push, before..HEAD; range=every-commit-of-the-head when that commit is all zeros or not in the clone; FAIL when the variable names no file or the before commit is no object id of 40 or 64 lower-case hexadecimal characters), or else in the head commit when the default branch holds it or the checkout does not, and in the message of the tag of a run that a pushed tag started, beside the head's commits (tag=read from the checkout; when the checkout's ref names a commit, tag=fetched-and-read from origin under refs/ci-d/19-home-paths/tag-of-the-run, that ref deleted again, or tag=remote-holds-a-commit; FAIL with tag=remote-holds-another-commit when the tag moved, tag=remote-holds-no-such-ref when origin no longer holds it, and tag=remote-could-not-be-asked when the ask or the fetch fails; tag=not-a-tag-run otherwise); beside the copy of this branch, the copies of scripts/check-home-paths.sh and scripts/commit-range.sh, with the exempt commit of scripts/check-commit-messages.sh, that the default branch holds, taken from the commit that refs/remotes/origin/<default branch> names by its object id (the default branch of the event file that GITHUB_EVENT_PATH names, else main), scan the same range and tag with the list of the scanned commit, and the run FAILs when that copy finds a path, prints no count or reads 0 commits where git lists one, when the commit holds no such scanner or range file, and in a full clone of a workflow run without that ref (copy-of-the-default-branch not-run in a shallow clone without it, as the windows job's pull request runs are, and outside a workflow run); and FAIL when the scan or --stale prints no count or the scan reads 0 commits where git lists one, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 # lane: free
 set -u
 name=19-home-paths
@@ -114,6 +114,30 @@ take_the_copy_of_the_default_branch() {
   default_copy=$scratch/default/scripts/check-home-paths.sh
 }
 
+range_of_the_push() {
+  [ -n "${GITHUB_EVENT_PATH:-}" ] || fail "this run is a push to $default_branch, and GITHUB_EVENT_PATH names no event file, so the check cannot read which commits the push added; run it in the workflow, which sets the variable"
+  before_form=hexadecimal
+  case $event_before in
+    '' | *[!0123456789abcdef]*) before_form=other ;;
+  esac
+  case ${#event_before} in
+    40 | 64) ;;
+    *) before_form=other ;;
+  esac
+  [ "$before_form" = hexadecimal ] || fail "the event file that GITHUB_EVENT_PATH names gives no before commit of 40 or 64 lower-case hexadecimal characters for this push to $default_branch, so the check cannot read which commits the push added; run the job again"
+  case $event_before in
+    *[!0]*)
+      if has_commit "$event_before"; then
+        kind=the-push
+        range=$event_before..HEAD
+        return 0
+      fi
+      ;;
+  esac
+  kind=every-commit-of-the-head
+  range=HEAD
+}
+
 counts_of() {
   sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$@"
 }
@@ -140,7 +164,9 @@ scan_head() {
       fi
       ;;
   esac
-  if has_commit "$default_ref" && ! git merge-base --is-ancestor HEAD "$default_ref"; then
+  if [ "$shallow" != true ] && [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = "refs/heads/$default_branch" ]; then
+    range_of_the_push
+  elif has_commit "$default_ref" && ! git merge-base --is-ancestor HEAD "$default_ref"; then
     kind=since-the-default-branch
     range=$default_ref..HEAD
   elif has_commit HEAD^1; then
@@ -402,6 +428,89 @@ case_shallow_clone_without_the_default_branch() {
   no_event
 }
 
+push_of_three_commits() {
+  fixture "$1"
+  below=$(git -C "$scratch/$1" rev-parse HEAD) || exit 2
+  add_commit "$1" "$2" 'second'
+  add_commit "$1" 'plain again' 'third'
+  add_commit "$1" 'plain once more' 'fourth'
+  git -C "$scratch/$1" update-ref refs/remotes/origin/main HEAD || exit 2
+}
+
+case_push_of_three_commits_to_the_default_branch() {
+  c=push-of-three-commits-to-the-default-branch
+  push_of_three_commits "$c" "see /$u/zoe/x"
+  event_of_a_run "$c" push refs/heads/main "$below" false main
+  expect FAIL "$c" 'range=the-push tag=not-a-tag-run commits=3 lines=1 '
+  no_event
+}
+
+case_clean_push_of_three_commits_to_the_default_branch() {
+  c=clean-push-of-three-commits-to-the-default-branch
+  push_of_three_commits "$c" 'more plain text'
+  event_of_a_run "$c" push refs/heads/main "$below" false main
+  expect PASS "$c" 'range=the-push tag=not-a-tag-run commits=3 lines=0 '
+  no_event
+}
+
+case_push_that_creates_the_default_branch() {
+  c=push-that-creates-the-default-branch
+  push_of_three_commits "$c" "see /$u/zoe/x"
+  event_of_a_run "$c" push refs/heads/main 0000000000000000000000000000000000000000 false main
+  expect FAIL "$c" 'range=every-commit-of-the-head tag=not-a-tag-run commits=4 lines=1 '
+  no_event
+}
+
+case_forced_push_whose_old_tip_is_not_in_the_clone() {
+  c=forced-push-whose-old-tip-is-not-in-the-clone
+  push_of_three_commits "$c" "see /$u/zoe/x"
+  event_of_a_run "$c" push refs/heads/main abababababababababababababababababababab true main
+  expect FAIL "$c" 'range=every-commit-of-the-head tag=not-a-tag-run commits=4 lines=1 '
+  no_event
+}
+
+case_push_to_the_default_branch_with_an_event_that_is_no_json() {
+  c=push-to-the-default-branch-with-an-event-that-is-no-json
+  push_of_three_commits "$c" 'more plain text'
+  event_of_a_run "$c" push refs/heads/main "$below" false main
+  printf '{"before": "made-up-marker-of-the-event-file\n' >"$GITHUB_EVENT_PATH" || exit 2
+  expect FAIL "$c" 'cannot be read as JSON'
+  no_event
+  if grep -q 'made-up-marker-of-the-event-file' "$scratch/$c.out"; then
+    got=printed-the-file
+  else
+    got=printed-nothing-of-the-file
+  fi
+  printf 'case %s/%s-prints-nothing-of-the-file want=printed-nothing-of-the-file got=%s\n' "$name" "$c" "$got"
+  [ "$got" = printed-nothing-of-the-file ] || wrong="$wrong $c-prints-nothing-of-the-file"
+}
+
+case_push_whose_before_holds_upper_case_letters() {
+  c=push-whose-before-holds-upper-case-letters
+  push_of_three_commits "$c" 'more plain text'
+  event_of_a_run "$c" push refs/heads/main ABABABABABABABABABABABABABABABABABABABAB false main
+  expect FAIL "$c" 'gives no before commit of 40 or 64 lower-case hexadecimal characters'
+  no_event
+}
+
+case_push_whose_before_is_39_characters_long() {
+  c=push-whose-before-is-39-characters-long
+  push_of_three_commits "$c" 'more plain text'
+  short_before=$(printf '%.39s' "$below") || exit 2
+  event_of_a_run "$c" push refs/heads/main "$short_before" false main
+  expect FAIL "$c" 'gives no before commit of 40 or 64 lower-case hexadecimal characters'
+  no_event
+}
+
+case_push_to_the_default_branch_without_an_event_file() {
+  c=push-to-the-default-branch-without-an-event-file
+  push_of_three_commits "$c" 'more plain text'
+  GITHUB_EVENT_NAME=push
+  GITHUB_REF=refs/heads/main
+  expect FAIL "$c" 'GITHUB_EVENT_PATH names no event file'
+  no_event
+}
+
 new_cases='
 branch-scanner-that-prints-counts-and-finds-nothing
 branch-range-file-that-leaves-out-the-commit-with-the-path
@@ -409,6 +518,14 @@ list-entry-of-the-branch-holds-for-both-copies
 default-branch-missing-from-a-full-clone-of-a-workflow-run
 default-branch-without-the-range-file
 shallow-clone-without-the-default-branch
+push-of-three-commits-to-the-default-branch
+clean-push-of-three-commits-to-the-default-branch
+push-that-creates-the-default-branch
+forced-push-whose-old-tip-is-not-in-the-clone
+push-to-the-default-branch-with-an-event-that-is-no-json
+push-to-the-default-branch-without-an-event-file
+push-whose-before-holds-upper-case-letters
+push-whose-before-is-39-characters-long
 '
 
 run_new_case() {
