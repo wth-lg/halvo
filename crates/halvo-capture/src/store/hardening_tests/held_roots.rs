@@ -1327,3 +1327,251 @@ fn st47_t2_control_a_link_at_the_store_name_of_a_data_directory_is_removed_and_t
     assert!(answer.is_ok(), "{}", answer_line(&answer));
     assert_eq!(delete_report(&answer).not_followed, 1);
 }
+
+/// The spellings of ruling ST-47 T3 that end a path in a separator: `p/`,
+/// `p/.` and `p//`.
+fn st47_spellings(path: &Path) -> Vec<(&'static str, PathBuf)> {
+    ["/", "/.", "//"]
+        .into_iter()
+        .map(|tail| {
+            let mut spelled = path.as_os_str().to_os_string();
+            spelled.push(tail);
+            (tail, PathBuf::from(spelled))
+        })
+        .collect()
+}
+
+/// The store's open with the roots path `roots` given to it and to the
+/// file-root custody that it makes.
+fn st47_open_at(store_dir: &Path, roots: &Path, root_id: RootId) -> StoreResult<EncryptedStore> {
+    let custody_roots = roots.to_path_buf();
+    EncryptedStore::open_with(
+        store_dir,
+        roots,
+        DEFAULT_RETENTION,
+        move |_: &crate::custody::CustodyLocator| {
+            Ok(Box::new(file_root_custody(
+                &custody_roots,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )))
+        },
+    )
+}
+
+/// Ruling ST-47 T3: the tail of either layout given a link spelled `link/`,
+/// `link/.` or `link//` refuses it as it refuses `link`: DeleteIncomplete
+/// with not_followed 1, the link left standing, and the store behind it
+/// opens and reads after the call.
+#[test]
+fn st47_t3_the_tail_refuses_a_link_spelled_with_a_trailing_separator_in_both_layouts() {
+    let mut problems = Vec::new();
+    for layout in [
+        crate::store::Layout::ScratchStore,
+        crate::store::Layout::DataDirectory,
+    ] {
+        for spelling in ["/", "/.", "//"] {
+            let dir = tempfile::tempdir().unwrap();
+            let real = dir.path().join("real");
+            let (store_dir, roots_dir, root_id, segment) = match layout {
+                crate::store::Layout::ScratchStore => {
+                    let (real, roots, _, root_id, segment) =
+                        st47_a_scratch_store_behind_a_link(dir.path());
+                    (real, roots, root_id, segment)
+                }
+                crate::store::Layout::DataDirectory => {
+                    let made = file_root_store(&real);
+                    std::os::unix::fs::symlink(&real, dir.path().join("link")).unwrap();
+                    made
+                }
+            };
+            let link = dir.path().join("link");
+            let spelled = st47_spellings(&link)
+                .into_iter()
+                .find(|(tail, _)| *tail == spelling)
+                .unwrap()
+                .1;
+
+            let answer = EncryptedStore::delete_data_dir(&spelled, layout);
+
+            let reads = open_over_file_root(&store_dir, &roots_dir, root_id)
+                .map(|store| store.read_segment(segment, &mut Vec::new()).is_ok());
+            let link_stands =
+                std::fs::symlink_metadata(&link).is_ok_and(|meta| meta.file_type().is_symlink());
+            let (incomplete, not_followed) = match &answer {
+                Ok(report) => (false, report.not_followed),
+                Err(StoreError::DeleteIncomplete(report)) => (true, report.not_followed),
+                Err(_) => (false, u64::MAX),
+            };
+            println!(
+                "ST47-T3-TAIL layout={layout:?} spelling=link{spelling} {} not_followed={not_followed} link_stands={link_stands} store_behind_reads={reads:?}",
+                answer_line(&answer)
+            );
+            if !(incomplete && not_followed == 1 && link_stands && matches!(reads, Ok(true))) {
+                problems.push(format!(
+                    "{layout:?} link{spelling}: {} not_followed={not_followed} link_stands={link_stands} store_behind_reads={reads:?}",
+                    answer_line(&answer)
+                ));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-47 T3: the roots handle's open and the store's open given a
+/// roots path that is a link spelled `link/`, `link/.` or `link//` refuse it
+/// as they refuse `link`, and hold nothing behind it.
+#[test]
+fn st47_t3_the_roots_handles_open_refuses_a_link_spelled_with_a_trailing_separator() {
+    let mut problems = Vec::new();
+    for spelling in ["/", "/.", "//"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let behind = dir.path().join("roots-behind");
+        std::fs::rename(&roots_dir, &behind).unwrap();
+        let link = dir.path().join("roots-link");
+        std::os::unix::fs::symlink(&behind, &link).unwrap();
+        let spelled = st47_spellings(&link)
+            .into_iter()
+            .find(|(tail, _)| *tail == spelling)
+            .unwrap()
+            .1;
+
+        let held = crate::custody::file_root::hold(&spelled).map(drop);
+        let opened = st47_open_at(&store_dir, &spelled, root_id).map(drop);
+
+        println!("ST47-T3-ROOTS spelling=link{spelling} hold={held:?} open={opened:?}");
+        if !matches!(held, Err(crate::custody::CustodyError::RootCorrupt)) {
+            problems.push(format!(
+                "link{spelling}: the roots handle's open answered {held:?}"
+            ));
+        }
+        if opened.is_ok() {
+            problems.push(format!(
+                "link{spelling}: the store opened over roots through a link"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-47 T3: the store's create and open given a store path that is a
+/// link spelled `link/`, `link/.` or `link//` refuse it as they refuse
+/// `link`: the create makes nothing behind the link and the open holds
+/// nothing behind it.
+#[test]
+fn st47_t3_the_stores_create_and_open_refuse_a_link_spelled_with_a_trailing_separator() {
+    let mut problems = Vec::new();
+    for spelling in ["", "/", "/.", "//"] {
+        let dir = tempfile::tempdir().unwrap();
+        let empty = dir.path().join("empty");
+        std::fs::create_dir(&empty).unwrap();
+        let link_to_empty = dir.path().join("link-to-empty");
+        std::os::unix::fs::symlink(&empty, &link_to_empty).unwrap();
+        let mut spelled_create = link_to_empty.as_os_str().to_os_string();
+        spelled_create.push(spelling);
+        let created = EncryptedStore::create(
+            Path::new(&spelled_create),
+            Box::new(file_root_custody(
+                &dir.path().join("roots-of-create"),
+                TestProtector::new(0x5a).0,
+                RootId::fresh().unwrap(),
+            )),
+            DEFAULT_RETENTION,
+        )
+        .map(drop);
+        let made_behind = std::fs::read_dir(&empty).unwrap().count();
+
+        let (real, roots, link, root_id, _) = st47_a_scratch_store_behind_a_link(dir.path());
+        let mut spelled_open = link.as_os_str().to_os_string();
+        spelled_open.push(spelling);
+        let opened = st47_open_at(Path::new(&spelled_open), &roots, root_id).map(drop);
+        let real_opens = st47_open_at(&real, &roots, root_id).map(drop);
+
+        println!(
+            "ST47-T3-STORE spelling=link{spelling} create={created:?} entries_made_behind={made_behind} open={opened:?} real_opens_after={real_opens:?}"
+        );
+        if created.is_ok() || made_behind != 0 {
+            problems.push(format!(
+                "link{spelling}: the create answered {created:?} and made {made_behind} entries behind the link"
+            ));
+        }
+        if opened.is_ok() {
+            problems.push(format!(
+                "link{spelling}: the open held the store behind the link"
+            ));
+        }
+        if real_opens.is_err() {
+            problems.push(format!(
+                "link{spelling}: the store behind the link no longer opens: {real_opens:?}"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-47 T3, the controls: a real folder spelled `realdir/` or
+/// `realdir/.` answers as `realdir` does, for the tail of both layouts, the
+/// roots handle's open and the store's create and open.
+#[test]
+fn st47_t3_control_a_real_folder_spelled_with_a_trailing_separator_answers_as_the_folder() {
+    let mut problems = Vec::new();
+    for spelling in ["", "/", "/."] {
+        let dir = tempfile::tempdir().unwrap();
+        let spell = |path: &Path| {
+            let mut spelled = path.as_os_str().to_os_string();
+            spelled.push(spelling);
+            PathBuf::from(spelled)
+        };
+
+        let created_at = dir.path().join("created");
+        std::fs::create_dir(&created_at).unwrap();
+        let root_id = RootId::fresh().unwrap();
+        let roots = dir.path().join("created-roots");
+        let created = EncryptedStore::create(
+            &spell(&created_at),
+            Box::new(file_root_custody(
+                &roots,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )),
+            DEFAULT_RETENTION,
+        )
+        .map(drop);
+        let held = crate::custody::file_root::hold(&spell(&roots)).map(drop);
+        let opened = st47_open_at(&spell(&created_at), &spell(&roots), root_id).map(drop);
+
+        let scratch_parent = dir.path().join("scratch");
+        std::fs::create_dir(&scratch_parent).unwrap();
+        let (scratch, scratch_roots, _, scratch_id, _) =
+            st47_a_scratch_store_behind_a_link(&scratch_parent);
+        let scratch_tail =
+            EncryptedStore::delete_data_dir(&spell(&scratch), crate::store::Layout::ScratchStore);
+        let scratch_root_left = scratch_roots.join(format!("{scratch_id}.root")).exists();
+
+        let data = dir.path().join("data");
+        let (_, data_roots, data_id, _) = file_root_store(&data);
+        let data_tail =
+            EncryptedStore::delete_data_dir(&spell(&data), crate::store::Layout::DataDirectory);
+        let data_root_left = data_roots.join(format!("{data_id}.root")).exists();
+
+        println!(
+            "ST47-T3-CONTROL spelling=realdir{spelling} create={created:?} hold={held:?} open={opened:?} scratch_tail={} scratch_root_left={scratch_root_left} data_tail={} data_root_left={data_root_left}",
+            answer_line(&scratch_tail),
+            answer_line(&data_tail)
+        );
+        if created.is_err() || held.is_err() || opened.is_err() {
+            problems.push(format!(
+                "realdir{spelling}: create={created:?} hold={held:?} open={opened:?}"
+            ));
+        }
+        if scratch_tail.is_err() || scratch_root_left || data_tail.is_err() || data_root_left {
+            problems.push(format!(
+                "realdir{spelling}: scratch_tail={} data_tail={}",
+                answer_line(&scratch_tail),
+                answer_line(&data_tail)
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
