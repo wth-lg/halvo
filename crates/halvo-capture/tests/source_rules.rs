@@ -72,6 +72,11 @@ const LISTED: [(&str, &str, &str); 9] = [
         "include_str",
         "\"engine-url-forms.txt\"",
     ),
+    (
+        "crates/halvo-capture/tests/cold_evidence.rs",
+        "path",
+        "\"browser/evidence.rs\"",
+    ),
 ];
 
 /// The roots whose files the tests of this file read.
