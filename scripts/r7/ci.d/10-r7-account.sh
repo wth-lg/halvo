@@ -1158,7 +1158,7 @@ run_case() {
   fi
   if [ "$want" = "PASS $name" ]; then
     case $nl$out$nl in
-      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-3}$nl"*) ;;
+      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-4}$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
     calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
