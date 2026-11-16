@@ -139,7 +139,7 @@ self_test() {
   lower=$(printf '%s\n' "$with_statement" | tr '[:upper:]' '[:lower:]')
   fixture lower-case "$lower"
   run_case tag-with-the-statement-in-lower-case FAIL "$work/lower-case" 'on line 4' GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4
-  spaced=$(printf '%s\n' "$with_statement" | sed 's/VIRTUAL TABLE/VIRTUAL 	 TABLE/')
+  spaced=$(printf '%s\n' "$with_statement" | sed 's/CREATE VIRTUAL TABLE IF NOT EXISTS events_fts/CREATE  VIRTUAL	TABLE 	IF  NOT	 EXISTS  events_fts/')
   fixture more-blanks "$spaced"
   run_case tag-with-more-blanks-in-the-statement FAIL "$work/more-blanks" 'on line 4' GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4
   at_end=$(printf '%s\n' "$with_statement" | sed 's/events_fts USING fts5(foreground_app);",/events_fts/')
