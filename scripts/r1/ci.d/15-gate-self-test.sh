@@ -36,7 +36,25 @@ self_tested() {
   esac
 }
 
-record_defect() {
+isolated_git() {
+  names=$(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
+  for each in $names; do unset "$each"; done
+  GIT_CONFIG_NOSYSTEM=1
+  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_NO_REPLACE_OBJECTS=1
+  GIT_GRAFT_FILE=/dev/null/no-grafts
+  export GIT_CONFIG_NOSYSTEM GIT_CONFIG_GLOBAL GIT_NO_REPLACE_OBJECTS GIT_GRAFT_FILE
+}
+
+range_git() {
+  (
+    isolated_git
+    git -C "$CI_D_REPO" "$@"
+  )
+}
+
+record_defect() (
+  isolated_git
   record_tree=$(sed -n 's/^gate head=[0-9a-f]* tree=\([0-9a-f]*\) .*/\1/p' "$1/docs/baseline/r1-gate-main.txt" 2>/dev/null | tail -n 1)
   [ -n "$record_tree" ] || { printf 'docs/baseline/r1-gate-main.txt holds no line gate head=... tree=...\n'; return 1; }
   record_commit=$(git -C "$1" log -1 --format=%H -- scripts/r1-gate docs/baseline/r1-gate-bounds.txt) || { printf 'git log could not read the history of scripts/r1-gate\n'; return 1; }
@@ -49,7 +67,7 @@ record_defect() {
   record_short=$(printf '%s' "$record_commit" | cut -c1-12)
   printf 'the last record of docs/baseline/r1-gate-main.txt names tree %s, and %s, the last commit that changed scripts/r1-gate or the bounds file, has tree %s: make the record again\n' "$record_tree" "$record_short" "$record_want"
   return 1
-}
+)
 
 fixture_commit() {
   [ "${3:-}" = index ] || git -C "$1" add -A >/dev/null 2>&1 || exit 2
@@ -68,11 +86,12 @@ fixture_record() {
   git init -q "$1" >/dev/null 2>&1 || exit 2
   [ -f "$1/scripts/r1-gate/lib.sh" ] || cp "$CI_D_REPO/scripts/r1-gate/lib.sh" "$1/scripts/r1-gate/lib.sh" || exit 2
   [ -f "$1/docs/baseline/r1-gate-bounds.txt" ] || printf 'x=1\n' >"$1/docs/baseline/r1-gate-bounds.txt"
-  fixture_commit "$1"
+  fixture_commit "$1" '' "${2:-}"
   recorded=$(GATE_ROOT=$1 sh -c '. "$0"; tree_id "$GATE_ROOT" HEAD' "$1/scripts/r1-gate/lib.sh") || exit 2
   recorded_blob=$(git -C "$1" rev-parse HEAD:docs/baseline/r1-gate-bounds.txt) || exit 2
   printf 'gate head=0 tree=%s bounds=%s state=clean input=none machine=host\n' "$recorded" "$recorded_blob" >"$1/docs/baseline/r1-gate-main.txt"
-  fixture_commit "$1"
+  [ "${2:-}" != index ] || git -C "$1" add -- docs/baseline/r1-gate-main.txt >/dev/null 2>&1 || exit 2
+  fixture_commit "$1" '' "${2:-}"
 }
 
 record_case() {
@@ -112,11 +131,11 @@ push_base() {
   base=$before
   case $before in
     *[!0-9a-f]*) ;;
-    *) git -C "$CI_D_REPO" rev-parse -q --verify "$before^{commit}" >/dev/null && return 0 ;;
+    *) range_git rev-parse -q --verify "$before^{commit}" >/dev/null && return 0 ;;
   esac
   default=$(event_value default_branch) || { unreadable "before $before names no commit here, and the push event holds no one value of default_branch"; return 1; }
-  ! git -C "$CI_D_REPO" merge-base --is-ancestor HEAD "refs/remotes/origin/$default" || { unreadable "before $before names no commit here, and HEAD is on refs/remotes/origin/$default, so the merge base gives no range"; return 1; }
-  base=$(git -C "$CI_D_REPO" merge-base HEAD "refs/remotes/origin/$default") || { unreadable "before $before names no commit here, and HEAD has no merge base with refs/remotes/origin/$default"; return 1; }
+  ! range_git merge-base --is-ancestor HEAD "refs/remotes/origin/$default" || { unreadable "before $before names no commit here, and HEAD is on refs/remotes/origin/$default, so the merge base gives no range"; return 1; }
+  base=$(range_git merge-base HEAD "refs/remotes/origin/$default") || { unreadable "before $before names no commit here, and HEAD has no merge base with refs/remotes/origin/$default"; return 1; }
   printf 'range: before %s names no commit here, so the base is the merge base with refs/remotes/origin/%s\n' "$before" "$default"
 }
 
@@ -126,14 +145,14 @@ gate_decision() {
     schedule) gate_reason='weekly run'; return ;;
     push) push_base || return ;;
     pull_request)
-      git -C "$CI_D_REPO" rev-parse -q --verify 'HEAD^2^{commit}' >/dev/null || { unreadable 'the pull request checkout is no merge commit'; return; }
-      base=$(git -C "$CI_D_REPO" rev-parse 'HEAD^1') || { unreadable 'git rev-parse HEAD^1 failed'; return; }
+      range_git rev-parse -q --verify 'HEAD^2^{commit}' >/dev/null || { unreadable 'the pull request checkout is no merge commit'; return; }
+      base=$(range_git rev-parse 'HEAD^1') || { unreadable 'git rev-parse HEAD^1 failed'; return; }
       ;;
     '') unreadable 'GITHUB_EVENT_NAME is not set'; return ;;
     *) unreadable "the event $GITHUB_EVENT_NAME has no range"; return ;;
   esac
-  head=$(git -C "$CI_D_REPO" rev-parse HEAD) || { unreadable 'git rev-parse HEAD failed'; return; }
-  changed=$(in_gate_list git -C "$CI_D_REPO" diff --name-only "$base" "$head" --) || { unreadable "git diff could not read $base..$head"; return; }
+  head=$(range_git rev-parse HEAD) || { unreadable 'git rev-parse HEAD failed'; return; }
+  changed=$(in_gate_list range_git diff --name-only --ignore-submodules=none -O/dev/null "$base" "$head" --) || { unreadable "git diff could not read $base..$head"; return; }
   [ -n "$changed" ] || return
   printf '%s\n' "$changed" | sed 's/^/gate file changed: /'
   gate_reason="gate file changed: ${changed%%"$nl"*}"
@@ -141,9 +160,12 @@ gate_decision() {
 
 each_once() {
   for each in $3; do
-    seen=$(printf '%s\n' "$2" | awk -v g="self-test:$each" '$1 == "PASS" && ($2 == g || index($2, g " ") == 1) { n++ } END { print n + 0 }')
+    lines=$(printf '%s\n' "$2" | awk -v g="self-test:$each" '/^PASS self-test:/ && $2 == g')
+    seen=$(printf '%s' "$lines" | awk 'END { print NR }')
     [ "$seen" -ne 0 ] || fail "$1 printed no PASS self-test:$each line"
     [ "$seen" -eq 1 ] || fail "$1 printed PASS self-test:$each $seen times"
+    rejected=$(printf '%s\n' "$lines" | sed -n 's/.*[( ]\([0-9][0-9]*\) failing fixtures rejected)$/\1/p')
+    [ "${rejected:-0}" -gt 0 ] || fail "$1 printed PASS self-test:$each with no count above 0 of failing fixtures rejected: $lines"
   done
 }
 
@@ -236,7 +258,7 @@ check() {
     unset GITHUB_EVENT_NAME GITHUB_EVENT_PATH
     [ -z "$event" ] || export GITHUB_EVENT_NAME="$event"
     [ -z "$event_path" ] || export GITHUB_EVENT_PATH="$event_path"
-    [ -z "$caller" ] || export "${caller?}"
+    for exported in $caller; do export "${exported?}"; done
     PATH=$path CI_D_REPO=$work/$1 "$shell" "$0" 2>&1
   )
   code=$?
@@ -271,9 +293,18 @@ ranged() {
   gate "$1" "${5:-$run_pass}" store "${6:-[[ a == a ]] && printf \"PASS self-test:store (1 cases)\\n\"}"
   mkdir -p "$work/$1/scripts/r1/ci.d" || exit 2
   printf 'check\n' >"$work/$1/scripts/r1/ci.d/$name.sh"
+  [ -z "$stale" ] || printf '# after the record\n' >>"$work/$1/scripts/r1-gate/run.sh"
   fixture_commit "$work/$1"
   from=$(git -C "$work/$1" rev-parse HEAD) || exit 2
   case $2 in
+    gitlink)
+      git -C "$work/$1" update-index --add --cacheinfo "160000,$from,scripts/r1-gate/sub" || exit 2
+      fixture_record "$work/$1" index ;;
+    gitlink-ignored)
+      printf '[submodule "sub"]\n\tpath = scripts/r1-gate/sub\n\turl = ./sub\n\tignore = all\n' >"$work/$1/.gitmodules"
+      git -C "$work/$1" add -- .gitmodules >/dev/null 2>&1 || exit 2
+      git -C "$work/$1" update-index --add --cacheinfo "160000,$from,scripts/r1-gate/sub" || exit 2
+      fixture_record "$work/$1" index ;;
     other) printf 'notes\n' >"$work/$1/README.md"; fixture_commit "$work/$1" ;;
     gate) printf '# a change\n' >>"$work/$1/scripts/r1-gate/check-store.sh"; fixture_record "$work/$1" ;;
     check) printf '# a change\n' >>"$work/$1/scripts/r1/ci.d/$name.sh"; fixture_commit "$work/$1" ;;
@@ -349,7 +380,7 @@ self_test() {
   mkdir -p "$work/no-tools"
   shell=$(command -v sh) || exit 2
   path=$PATH
-  pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:@group@ (1 cases)\n"'
+  pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:@group@ (1 cases, 1 failing fixtures rejected)\n"'
   run_groups="[ \"\$*\" = --self-test ] || exit 3; for f in \"\${0%/*}\"/check-*.sh; do [ -f \"\$f\" ] || continue; g=\${f##*/check-}; printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\${g%.sh}\"; done; for g in"
   run_pass="$run_groups run helper tree mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done"
   fail_then_pass='printf "FAIL self-test:@group@ (case x: wrong verdict)\nPASS self-test:@group@ (1 cases)\n"'
@@ -359,10 +390,11 @@ self_test() {
   event=
   event_path=
   caller=
+  stale=
   zero=0000000000000000000000000000000000000000
 
   gate gate-passes "$run_pass" store "$pass" timed-run "$pass"
-  check gate-passes PASS "gate self-tests: first pass 6 groups, 12 cases, 6 failing fixtures rejected; dash pass 2 groups, 2 cases, 0 failing fixtures rejected${nl}PASS $name"
+  check gate-passes PASS "gate self-tests: first pass 6 groups, 12 cases, 6 failing fixtures rejected; dash pass 2 groups, 2 cases, 2 failing fixtures rejected${nl}PASS $name"
   gate run-fails "$planned" store "$pass"
   check run-fails FAIL 'first pass: run.sh --self-test exited 1)'
   gate run-prints-no-pass-line 'exit 0' store "$pass"
@@ -421,7 +453,7 @@ self_test() {
   ranged push-gate-file-changed gate push '{"before": "@from@", "after": "@to@"}'
   check push-gate-file-changed FAIL "$run_changed"
   ranged push-gate-file-changed-counts gate push '{"before": "@from@"}' "$run_pass" "$pass"
-  check push-gate-file-changed-counts PASS "$run_changed${nl}PASS self-test:store (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:run (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:helper (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:tree (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:mutation (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:store (1 cases)${nl}gate self-tests: first pass 5 groups, 10 cases, 5 failing fixtures rejected; dash pass 1 groups, 1 cases, 0 failing fixtures rejected${nl}PASS $name"
+  check push-gate-file-changed-counts PASS "$run_changed${nl}PASS self-test:store (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:run (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:helper (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:tree (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:mutation (2 cases, 1 failing fixtures rejected)${nl}PASS self-test:store (1 cases, 1 failing fixtures rejected)${nl}gate self-tests: first pass 5 groups, 10 cases, 5 failing fixtures rejected; dash pass 1 groups, 1 cases, 1 failing fixtures rejected${nl}PASS $name"
   ranged push-check-changed check push '{"before": "@from@", "after": "@to@"}'
   check push-check-changed FAIL "gate file changed: scripts/r1/ci.d/$name.sh${nl}gate self-tests: run (gate file changed: scripts/r1/ci.d/$name.sh)"
   for listed in scripts/ci/run-ci-d.sh scripts/ci/self-test-alone.txt docs/baseline/r1-gate-bounds.txt .github/workflows/ci.yml .gitattributes scripts/.gitattributes docs/.gitattributes docs/baseline/.gitattributes; do
@@ -534,6 +566,79 @@ self_test() {
   scan_case stub-file-of-run PASS ': > "@GATE_ROOT/changed-during-the-run"'
   scan_case another-stub-file FAIL ': > "@GATE_ROOT/changed-during-the-walk"'
   scan_case reads-in-the-list PASS 'cat "@GATE_ROOT/docs/baseline/r1-gate-bounds.txt" "@GATE_ROOT/target/r1-gate/x" "@GATE_ROOT/scripts/r1-gate/lib.sh"'
+  stale=yes
+  ranged stale-record-push-not-run other push '{"before": "@from@"}' "$planned"
+  stale=
+  check stale-record-push-not-run FAIL ': make the record again)'
+  stale=yes
+  ranged stale-record-pull-request-not-run other pull_request "" "$planned"
+  stale=
+  merged stale-record-pull-request-not-run
+  check stale-record-pull-request-not-run FAIL ': make the record again)'
+  gate dash-group-without-a-fixture-count "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (4 cases)\n"'
+  check dash-group-without-a-fixture-count FAIL 'FAIL 15-gate-self-test (dash pass printed PASS self-test:store with no count above 0 of failing fixtures rejected: PASS self-test:store (4 cases))'
+  gate first-pass-group-with-00-fixtures "$run_groups run helper mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done; printf \"PASS self-test:tree (2 cases, 00 failing fixtures rejected)\\n\"" store "$pass"
+  check first-pass-group-with-00-fixtures FAIL 'FAIL 15-gate-self-test (first pass printed PASS self-test:tree with no count above 0 of failing fixtures rejected: PASS self-test:tree (2 cases, 00 failing fixtures rejected))'
+  gate first-pass-indented-group-line "$run_groups run helper mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done; printf \"  PASS self-test:tree (2 cases, 1 failing fixtures rejected)\\n\"" store "$pass"
+  check first-pass-indented-group-line FAIL 'FAIL 15-gate-self-test (first pass printed no PASS self-test:tree line)'
+  ranged caller-git-literal-pathspecs gate push '{"before": "@from@"}' "$planned"
+  caller=GIT_LITERAL_PATHSPECS=1
+  check caller-git-literal-pathspecs FAIL 'gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)'
+  submodule_changed="gate file changed: scripts/r1-gate/sub${nl}gate self-tests: run (gate file changed: scripts/r1-gate/sub)"
+  ranged caller-config-count-ignore-submodules gitlink push '{"before": "@from@"}' "$planned"
+  caller='GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.ignoreSubmodules GIT_CONFIG_VALUE_0=all'
+  check caller-config-count-ignore-submodules FAIL "$submodule_changed"
+  ranged caller-config-parameters-ignore-submodules gitlink push '{"before": "@from@"}' "$planned"
+  caller="GIT_CONFIG_PARAMETERS='diff.ignoreSubmodules'='all'"
+  check caller-config-parameters-ignore-submodules FAIL "$submodule_changed"
+  ranged caller-work-tree-gitmodules gitlink push '{"before": "@from@"}' "$planned"
+  mkdir -p "$work/caller-work-tree-elsewhere" || exit 2
+  printf '[submodule "sub"]\n\tpath = scripts/r1-gate/sub\n\turl = ./sub\n\tignore = all\n' >"$work/caller-work-tree-elsewhere/.gitmodules"
+  caller=GIT_WORK_TREE=$work/caller-work-tree-elsewhere
+  check caller-work-tree-gitmodules FAIL "$submodule_changed"
+  ranged checkout-gitmodules-ignore-all gitlink-ignored push '{"before": "@from@"}' "$planned"
+  check checkout-gitmodules-ignore-all FAIL "$submodule_changed"
+  ranged checkout-config-ignore-submodules gitlink push '{"before": "@from@"}' "$planned"
+  git -C "$work/checkout-config-ignore-submodules" config diff.ignoreSubmodules all || exit 2
+  check checkout-config-ignore-submodules FAIL "$submodule_changed"
+  ranged caller-replace-ref-base check push '{"before": "@from@"}' "$planned"
+  git -C "$work/caller-replace-ref-base" update-ref "refs/caller/$to" "$from" || exit 2
+  caller=GIT_REPLACE_REF_BASE=refs/caller/
+  check caller-replace-ref-base FAIL "gate self-tests: run (gate file changed: scripts/r1/ci.d/$name.sh)"
+  ranged caller-replace-ref-base-ci-yml .github/workflows/ci.yml push '{"before": "@from@"}' "$planned"
+  git -C "$work/caller-replace-ref-base-ci-yml" update-ref "refs/caller/$to" "$from" || exit 2
+  caller=GIT_REPLACE_REF_BASE=refs/caller/
+  check caller-replace-ref-base-ci-yml FAIL 'gate self-tests: run (gate file changed: .github/workflows/ci.yml)'
+  ranged checkout-replace-ref check push '{"before": "@from@"}' "$planned"
+  git -C "$work/checkout-replace-ref" update-ref "refs/replace/$to" "$from" || exit 2
+  check checkout-replace-ref FAIL "gate self-tests: run (gate file changed: scripts/r1/ci.d/$name.sh)"
+  ranged checkout-graft-pull-request gate pull_request "" "$planned"
+  branch_tip=$to
+  merged checkout-graft-pull-request
+  mkdir -p "$work/checkout-graft-pull-request/.git/info" || exit 2
+  printf '%s %s %s\n' "$to" "$branch_tip" "$from" >"$work/checkout-graft-pull-request/.git/info/grafts"
+  check checkout-graft-pull-request FAIL 'gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)'
+  ranged checkout-order-file two push '{"before": "@from@"}' "$planned"
+  printf 'scripts/ci/run-ci-d.sh\n' >"$work/checkout-order-file.order"
+  git -C "$work/checkout-order-file" config diff.orderFile "$work/checkout-order-file.order" || exit 2
+  check checkout-order-file FAIL "gate file changed: .github/workflows/ci.yml${nl}gate file changed: scripts/ci/run-ci-d.sh${nl}gate self-tests: run (gate file changed: .github/workflows/ci.yml)"
+  ranged caller-home-gitconfig gitlink push '{"before": "@from@"}' "$planned"
+  mkdir -p "$work/caller-home" || exit 2
+  printf '[diff]\n\tignoreSubmodules = all\n' >"$work/caller-home/.gitconfig"
+  caller=HOME=$work/caller-home
+  check caller-home-gitconfig FAIL "$submodule_changed"
+  gate dash-group-with-only-a-fixture-count "$run_pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (5 failing fixtures rejected)\n"'
+  check dash-group-with-only-a-fixture-count PASS 'dash pass 1 groups, 0 cases, 5 failing fixtures rejected'
+  gate first-pass-tab-after-pass "$run_groups run helper mutation; do printf \"PASS self-test:%s (2 cases, 1 failing fixtures rejected)\\n\" \"\$g\"; done; printf \"PASS\\tself-test:tree (2 cases, 1 failing fixtures rejected)\\n\"" store "$pass"
+  check first-pass-tab-after-pass FAIL 'FAIL 15-gate-self-test (first pass printed no PASS self-test:tree line)'
+  ranged caller-git-dir-repository other push '{"before": "@from@"}'
+  ranged caller-git-dir gate push '{"before": "@from@"}' "$planned"
+  caller=GIT_DIR=$work/caller-git-dir-repository/.git
+  check caller-git-dir FAIL 'gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)'
+  ranged caller-object-directory gate push '{"before": "@from@"}' "$planned"
+  mkdir -p "$work/caller-object-directory-empty" || exit 2
+  caller=GIT_OBJECT_DIRECTORY=$work/caller-object-directory-empty
+  check caller-object-directory FAIL 'gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)'
   gate dash-missing "$run_pass" store "$pass"
   for tool in sh git sed tail cut awk grep; do
     tool_path=$(command -v "$tool") || exit 2
