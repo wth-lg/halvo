@@ -1,0 +1,145 @@
+        fn store_is_persistent(&self) -> bool {
+            // SAFETY: on the main thread with the view retained; the copy of the configuration
+            // shares the page's data store, both come back retained, and isPersistent is a
+            // property read.
+            unsafe { self.0.configuration().websiteDataStore().isPersistent() }
+        }
+
+====
+        fn config_answers(&self, selector: Sel) -> bool {
+            // SAFETY: on the main thread with the view retained; the configuration comes back
+            // retained.
+            let config = unsafe { self.0.configuration() };
+            answers(&config, selector)
+        }
+
+====
+        fn allowed_hosts_count(&self) -> Option<usize> {
+            // SAFETY: on the main thread with the view retained; the configuration comes back
+            // retained.
+            let config = unsafe { self.0.configuration() };
+            // SAFETY: the callers ask only after the configuration answered _allowedNetworkHosts,
+            // which takes nothing and returns an NSSet or nil, retained here.
+            let hosts: Option<Retained<AnyObject>> =
+                unsafe { msg_send![&*config, _allowedNetworkHosts] };
+            // SAFETY: the set answers count, which takes nothing and returns NSUInteger.
+            hosts.map(|hosts| unsafe { msg_send![&*hosts, count] })
+        }
+
+====
+        fn delegate(&self) -> Option<*const AnyObject> {
+            // SAFETY: on the main thread with the view retained; the weak property comes back
+            // retained or nil, and only its address leaves this function.
+            unsafe { self.0.navigationDelegate() }.map(|delegate| {
+                let object: &AnyObject = (*delegate).as_ref();
+                std::ptr::from_ref(object)
+            })
+        }
+
+====
+        fn delegate_answers(&self, selector: Sel) -> bool {
+            // SAFETY: as in `delegate`; the delegate stays retained for the question.
+            unsafe { self.0.navigationDelegate() }
+                .is_some_and(|delegate| answers((*delegate).as_ref(), selector))
+        }
+
+====
+        fn store_answers(&self, selector: Sel) -> bool {
+            // SAFETY: on the main thread with the view retained; both reads come back retained.
+            let store = unsafe { self.0.configuration().websiteDataStore() };
+            answers(&store, selector)
+        }
+
+====
+        fn proxy_configuration_count(&self) -> Option<usize> {
+            // SAFETY: on the main thread with the view retained; both reads come back retained.
+            let store = unsafe { self.0.configuration().websiteDataStore() };
+            // SAFETY: the callers ask only after the store answered proxyConfigurations, which
+            // takes nothing and returns an NSArray or nil, retained here.
+            let configs: Option<Retained<NSArray<AnyObject>>> =
+                unsafe { msg_send![&*store, proxyConfigurations] };
+            configs.map(|configs| configs.count())
+        }
+
+====
+        fn set_proxy(&self, host: &CStr, port: &CStr) -> Result<(), NotInstalled> {
+            // SAFETY: on the main thread with the view retained; both reads come back retained.
+            let store = unsafe { self.0.configuration().websiteDataStore() };
+            // SAFETY: both arguments are NUL-terminated strings that the caller owns through the
+            // call; Network copies them and returns a +1 object or null.
+            let endpoint = unsafe { nw_endpoint_create_host(host.as_ptr(), port.as_ptr()) };
+            // SAFETY: the pointer is the +1 result of nw_endpoint_create_host, an Objective-C
+            // object under OS_OBJECT_USE_OBJC, or null; Retained takes over that one reference.
+            let endpoint = unsafe { Retained::from_raw(endpoint) }.ok_or("no proxy endpoint")?;
+            // SAFETY: `endpoint` is retained through the call, and Network retains what it keeps;
+            // the result is a +1 object or null.
+            let config =
+                unsafe { nw_proxy_config_create_socksv5(Retained::as_ptr(&endpoint).cast_mut()) };
+            // SAFETY: the pointer is the +1 result of nw_proxy_config_create_socksv5 or null;
+            // Retained takes over that one reference.
+            let config = unsafe { Retained::from_raw(config) }.ok_or("no proxy configuration")?;
+            let configs = NSArray::from_retained_slice(&[config]);
+            // SAFETY: on the main thread; the callers send only after the store answered
+            // setProxyConfigurations:, whose argument is an NSArray of nw_proxy_config_t and
+            // which returns void; the store copies the array.
+            let _: () = unsafe { msg_send![&*store, setProxyConfigurations: &*configs] };
+            Ok(())
+        }
+
+====
+    fn set_feature(prefs: &WKPreferences, key: &str, on: bool) -> Result<(), NotInstalled> {
+        let feature = feature_named(key)?;
+        if !answers(prefs, sel!(_setEnabled:forFeature:)) {
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system cannot set a feature".to_string(),
+            ));
+        }
+        if !answers(prefs, sel!(_isEnabledForFeature:)) {
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system cannot read a feature back".to_string(),
+            ));
+        }
+        // SAFETY: the preferences answer _setEnabled:forFeature: (checked above), which takes a
+        // BOOL and a _WKFeature of the list and returns void, on the main thread.
+        let _: () = unsafe { msg_send![prefs, _setEnabled: on, forFeature: &*feature] };
+        // SAFETY: the preferences answer _isEnabledForFeature: (checked above), which takes the
+        // same _WKFeature and returns BOOL.
+        let now: bool = unsafe { msg_send![prefs, _isEnabledForFeature: &*feature] };
+        if now != on {
+            return Err(NotInstalled::from(format!(
+                "the feature {key} does not read back as set"
+            )));
+        }
+        Ok(())
+    }
+
+====
+    fn turn_off_engine_features(view: &WKWebView) -> Result<(), NotInstalled> {
+        // SAFETY: on the main thread with `view` retained; both reads come back retained, and the
+        // preferences are the object that the page's settings follow (WebKit's configuration copy
+        // shares it).
+        let prefs = unsafe { view.configuration().preferences() };
+        if !answers(&prefs, sel!(_setPeerConnectionEnabled:)) {
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system have no peer-connection setting".to_string(),
+            ));
+        }
+        if !answers(&prefs, sel!(_peerConnectionEnabled)) {
+            return Err(NotInstalled::on_this_system(
+                "the preferences of this system cannot read the peer-connection setting back"
+                    .to_string(),
+            ));
+        }
+        // SAFETY: the preferences answer _setPeerConnectionEnabled: (checked above), which takes
+        // a BOOL and returns void, on the main thread.
+        let _: () = unsafe { msg_send![&*prefs, _setPeerConnectionEnabled: false] };
+        // SAFETY: the preferences answer _peerConnectionEnabled (checked above), which takes
+        // nothing and returns BOOL.
+        let peer_on: bool = unsafe { msg_send![&*prefs, _peerConnectionEnabled] };
+        if peer_on {
+            return Err(NotInstalled::from(
+                "peer connections stay on after the preference was set".to_string(),
+            ));
+        }
+        set_feature(&prefs, super::LINK_PRECONNECT_FEATURE, false)
+    }

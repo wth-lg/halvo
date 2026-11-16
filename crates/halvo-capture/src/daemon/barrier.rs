@@ -21,7 +21,11 @@ impl Gate {
     }
 
     /// Starts discarding and returns the barrier `b`: every event received
-    /// before it was received before the pause.
+    /// before it was received before the pause. The owner reads no command
+    /// while it waits for an event, so the event numbered b − 1, which a pass
+    /// may hold received and not yet filtered, may have arrived after the
+    /// pause was asked: it is discarded with the queued ones and counted as
+    /// discarded by the barrier.
     pub fn open_pause(&mut self, writer: &SinkWriter) -> Barrier {
         *self = Gate::Discarding;
         writer.barrier()
