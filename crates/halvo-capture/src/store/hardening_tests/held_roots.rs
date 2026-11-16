@@ -951,3 +951,40 @@ fn an_abandoned_create_destroys_its_root_in_the_held_roots_directory_after_it_mo
         "the abandoned create made a roots directory at the old path"
     );
 }
+
+/// store-3b: the tail without the lock, on a stopped create whose made mark
+/// names the root by its identity, with that root file renamed inside the
+/// roots directory and a file of another identity put at its name: the step
+/// destroys the mark's root where it lies and leaves the other file, which it
+/// names.
+#[test]
+fn a_tail_without_the_lock_destroys_the_marks_root_where_it_lies_and_leaves_another_identity_at_its_name(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id) = a_create_stopped_after_its_made_mark(dir.path());
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let aside = roots_dir.join("kept-aside");
+    std::fs::rename(&root_file, &aside).unwrap();
+    std::fs::write(&root_file, [0x44u8; 32]).unwrap();
+    crate::store::failpoint::arm("tail_lock");
+
+    let answer = tail(&store_dir, &roots_dir);
+
+    let other_stands = std::fs::read(&root_file).ok().as_deref() == Some(&[0x44u8; 32][..]);
+    let destroyed_where_it_lies = no_root_bytes_at(&aside);
+    println!(
+        "MARK-TAIL-NO-LOCK-WITNESS {} other_identity_stands={other_stands} \
+         destroyed_where_it_lies={destroyed_where_it_lies}",
+        answer_line(&answer)
+    );
+    assert!(destroyed_where_it_lies, "{}", answer_line(&answer));
+    assert!(
+        other_stands,
+        "the tail without the lock destroyed a file of another identity at the mark's root name"
+    );
+    assert!(answer.is_err(), "{}", answer_line(&answer));
+    assert!(delete_report(&answer)
+        .roots
+        .names
+        .contains(&format!("{root_id}.root")));
+}
