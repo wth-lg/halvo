@@ -114,16 +114,21 @@ pub enum Undecided {
     Folder,
 }
 
-/// How a call or one of its steps ends: with the row's answer, or undecided.
 type Pass = Result<Removal, Undecided>;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Leftover {
+    Clear,
+    Finished,
+}
 
 /// Removes the checkpoint of `row.run` beside `row.workbook`, inside `row.folder` alone
 /// (contracts.md A11.3, A6.6; the coordinator's rulings CP-96 (e), CP-98 (3) and CP-124). It
 /// builds the copy's name with [`checkpoint_name`] and never searches a folder for another; it
 /// walks from the folder, which is no link itself (a directory above it may be one), to the
-/// workbook's
-/// directory, takes the lock of that directory, and holds it from its first look at the copy
-/// to the removal, so that it never overlaps a `prepare` or a `replace` of the sheet executor.
+/// workbook's directory, takes the lock of that directory, and holds it from its first look at
+/// the copy to the removal, so that it never overlaps a `prepare` or a `replace` of the sheet
+/// executor.
 /// Under the lock it walks the way again part by part, each directory opened without following
 /// a link (on macOS by descriptors, each opened relative to the one before; on Windows by
 /// handles that it holds open and shares with no deletion, so no directory of the way can be
@@ -182,10 +187,9 @@ fn pass(locks: &Locks, row: &Row<'_>) -> Pass {
     answer
 }
 
-/// The pass inside the workbook's directory that the call opened and holds the lock of.
 fn within(at: &Dir, name: &OsStr, moved: &OsStr, workbook: &OsStr, expect: Expect) -> Pass {
-    let finished = match leftover(at, name, moved, workbook, expect) {
-        Ok(finished) => finished,
+    let left = match leftover(at, name, moved, workbook, expect) {
+        Ok(left) => left,
         Err(answer) => return answer,
     };
     match checked(at, name, workbook, expect) {
@@ -195,28 +199,20 @@ fn within(at: &Dir, name: &OsStr, moved: &OsStr, workbook: &OsStr, expect: Expec
             crate::seam::reach(crate::seam::Moment::Checked);
             aside(at, name, moved, &seen, read)
         }
-        Err(Removal::Absent) if finished => Ok(Removal::Removed),
+        Err(Removal::Absent) if left == Leftover::Finished => Ok(Removal::Removed),
         Err(answer) => Ok(answer),
     }
 }
 
-/// What a pass killed between the move aside and the removal left under the removing name
-/// `moved`, dealt with before the pass looks at the copy. Nothing there, or a second name of the
-/// copy (the file that stands under the copy's own name, which a put back killed after its
-/// link leaves), which goes: `Ok(false)`. A file that passes every check of the copy goes, and
-/// `Ok(true)` says that the pass removed the copy. Any other entry stays: when no entry stands
-/// under the copy's own name, the answer is that entry's reason as `left`, so that no row says
-/// `gone` while its bytes lie in the folder; when one stands, the pass goes on with `Ok(false)`
-/// and its move aside meets the entry.
 fn leftover(
     at: &Dir,
     name: &OsStr,
     moved: &OsStr,
     workbook: &OsStr,
     expect: Expect,
-) -> Result<bool, Pass> {
+) -> Result<Leftover, Pass> {
     let found = match opened(at, moved) {
-        Err(Removal::Absent) => return Ok(false),
+        Err(Removal::Absent) => return Ok(Leftover::Clear),
         Err(answer) => return stays(at, name, Ok(answer)),
         Ok((_, _, found)) => found,
     };
@@ -228,35 +224,30 @@ fn leftover(
     if let Ok((_, _, copy)) = opened(at, name) {
         if same_file(&found, &copy) {
             let _ = at.unlink(moved);
-            return Ok(false);
+            return Ok(Leftover::Clear);
         }
     }
     match checked(at, moved, workbook, expect) {
         Ok((file, seen, _)) if same_file(&found, &seen) => {
             drop(file);
             match at.unlink(moved) {
-                Ok(()) => Ok(true),
+                Ok(()) => Ok(Leftover::Finished),
                 Err(error) => stays(at, name, Err(Undecided::Remove(error.kind()))),
             }
         }
         Ok(_) => stays(at, name, Ok(Removal::Left(Left::Changed))),
-        Err(Removal::Absent) => Ok(false),
+        Err(Removal::Absent) => Ok(Leftover::Clear),
         Err(answer) => stays(at, name, Ok(answer)),
     }
 }
 
-/// An entry under the removing name that the pass leaves: the pass ends with `answer` when the
-/// copy's own name holds no entry, and goes on otherwise.
-fn stays(at: &Dir, name: &OsStr, answer: Pass) -> Result<bool, Pass> {
+fn stays(at: &Dir, name: &OsStr, answer: Pass) -> Result<Leftover, Pass> {
     match opened(at, name) {
         Err(Removal::Absent) => Err(answer),
-        _ => Ok(false),
+        _ => Ok(Leftover::Clear),
     }
 }
 
-/// The folder of the row (contracts.md A7.4, A11.3): `not_file` when its path is relative,
-/// `link` when the folder itself is a link (a directory above it may be one), and
-/// [`Undecided::Folder`] when it is absent.
 fn root(folder: &Path) -> Result<Root, Pass> {
     if !folder.is_absolute() {
         return Err(Ok(Removal::Left(Left::NotFile)));
@@ -271,8 +262,6 @@ fn root(folder: &Path) -> Result<Root, Pass> {
     })
 }
 
-/// The workbook's directory and the workbook's name, for a row whose path is absolute (A7.4):
-/// `not_file` for a relative one.
 fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Pass> {
     let root = root(folder)?;
     if !workbook.is_absolute() {

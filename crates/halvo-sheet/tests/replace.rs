@@ -237,10 +237,6 @@ fn a_prepared_copy_gone_or_changed_keeps_the_workbook() {
     kept(&scratch, &s, Kept::Copy, &s.before);
 }
 
-/// U2.4 (1): a `replace` that misses removes only the prepared copy that its own `prepare` made
-/// and that still holds the bytes that `prepare` checked. A file that another party put at the
-/// copy's name after the write stays, whether it holds other bytes, the copy's own bytes, or is
-/// the copy written in place with other bytes; and the drop leaves it too.
 #[test]
 fn a_replace_that_misses_leaves_a_file_put_at_the_copys_name_after_the_write() {
     let theirs = fs::read(corpus("formulas.xlsx")).expect("read");

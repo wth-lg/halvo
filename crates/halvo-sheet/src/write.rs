@@ -102,9 +102,6 @@ impl Prepared {
         self.unmarked
     }
 
-    /// The prepared copy opened without following a link, with its full path, when no link
-    /// stands on the way to it, the file is the one that `prepare` made and it holds the bytes
-    /// that `prepare` checked: the one file that a call of this crate removes as the copy.
     pub(crate) fn own_copy(&self) -> Option<(File, PathBuf)> {
         let copy = self.root.file(&self.copy).ok()?;
         let file = open_regular(&copy).ok()?;

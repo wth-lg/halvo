@@ -66,8 +66,6 @@ fn a_checkpoint_whose_checks_all_hold_is_removed() {
     assert_eq!(fs::read(&workbook).expect("read"), b"the workbook now");
 }
 
-/// The path that names `to` from the directory `from`, through parent steps; `None` when the
-/// two share no root, as two drives of Windows do.
 fn relative(from: &Path, to: &Path) -> Option<PathBuf> {
     let from: Vec<_> = from.components().collect();
     let to: Vec<_> = to.components().collect();
@@ -85,9 +83,6 @@ fn relative(from: &Path, to: &Path) -> Option<PathBuf> {
     Some(path)
 }
 
-/// U2.4 (4): the row's folder and path are as A7.4 and A11.3 have them. A folder that is itself
-/// a link is refused as `link`, and a folder or a workbook's path that is relative as
-/// `not_file`, and the copy stays; a folder that a link above it leads to is taken.
 #[test]
 fn a_folder_that_is_a_link_or_a_relative_path_is_refused() {
     let scratch = Scratch::new("remove-folder-form");
@@ -184,9 +179,6 @@ fn an_absent_file_counts_as_removed() {
     assert_eq!(Removal::Removed.state(), "gone");
 }
 
-/// U2.4 (3): a folder that is absent, as it is while the volume that holds it is not mounted,
-/// is undecided and never `gone`: the copy may still lie in it. Once the folder is back, the
-/// next call decides.
 #[test]
 fn an_absent_folder_as_on_a_volume_that_is_not_mounted_is_undecided() {
     let scratch = Scratch::new("remove-unmounted");
@@ -213,17 +205,11 @@ fn an_absent_folder_as_on_a_volume_that_is_not_mounted_is_undecided() {
     assert!(!copy.exists());
 }
 
-/// The removing name of the checkpoint `checkpoint` as the crate documents it: the name, then
-/// `.halvo-removing-` and the first 16 hex digits of the SHA-256 of the name.
 fn removing(checkpoint: &str) -> String {
     let digest = Sha256::of(checkpoint.as_bytes()).hex();
     format!("{checkpoint}.halvo-removing-{}", &digest[..16])
 }
 
-/// U2.4 (2): a kill between the move aside and the unlink leaves the copy under its removing
-/// name. A later pass finishes the removal when the file there holds the row's bytes, removes
-/// that name alone when it is a second name of the copy, and otherwise leaves the file and
-/// answers `left`: no answer is `gone` while the bytes lie in the folder.
 #[test]
 fn a_copy_that_a_killed_pass_left_under_its_removing_name_is_finished_or_reported() {
     let scratch = Scratch::new("remove-killed-aside");

@@ -23,7 +23,6 @@ impl Dir {
         Dir::folder(folder)?.below(names)
     }
 
-    /// The directory that holds the last name of `names`, walked from this one part by part.
     pub(crate) fn below(self, names: &[&OsStr]) -> io::Result<Dir> {
         let mut dir = self;
         for name in names {

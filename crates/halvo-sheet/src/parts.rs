@@ -111,18 +111,12 @@ const READ: [&str; 11] = [
     "xlIntlMacrosheet",
 ];
 
-/// The namespaces before the last slash of the types of [`READ`]: the transitional and the
-/// strict namespace of the package format, and Microsoft's for the macro parts. A type of
-/// [`READ`] whose namespace equals one of them only when ASCII case is ignored refuses the
-/// workbook, as one whose last segment does.
 const NAMESPACES: [&str; 3] = [
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
     "http://purl.oclc.org/ooxml/officeDocument/relationships",
     "http://schemas.microsoft.com/office/2006/relationships",
 ];
 
-/// Whether the part of `whole` before its last slash equals a namespace of [`NAMESPACES`] only
-/// when ASCII case is ignored.
 fn namespace_in_another_case(whole: &str) -> bool {
     whole.rsplit_once('/').is_some_and(|(space, _)| {
         !NAMESPACES.contains(&space) && NAMESPACES.iter().any(|n| n.eq_ignore_ascii_case(space))

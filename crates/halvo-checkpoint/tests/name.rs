@@ -109,7 +109,6 @@ fn the_bound_of_a_file_is_64_mib() {
     assert_eq!(FILE_MAX, 67_108_864);
 }
 
-/// U2.4 (2): one removing name for each checkpoint, built from its name alone, 32 units longer.
 #[test]
 fn the_removing_name_is_the_checkpoints_name_and_16_hex_digits_of_its_sha256() {
     let checkpoint = checkpoint_name(Path::new("values.xlsx"), &run()).expect("a name");

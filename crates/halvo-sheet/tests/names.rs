@@ -187,10 +187,6 @@ fn a_read_type_in_another_case_or_a_read_relationship_with_no_entry_refuses_the_
     }
 }
 
-/// U2.4 (4): a relationship type that the executor reads, in another case before its last
-/// slash and not marked External, refuses the workbook (contracts.md A11.3): the types are
-/// compared byte for byte, and a type that equals one of them only when case is ignored is
-/// refused, whichever part of it differs.
 #[test]
 fn a_read_type_in_another_case_before_its_last_slash_refuses_the_workbook() {
     let rel = |kind: String, target: &str| {
