@@ -76,6 +76,13 @@ enum Fault {
     RangedReadDropsTheFirstLineAtItsStart,
     RangedReadMovesASteppedBackEntry,
     RangedReadSwapsASteppedBackRecord,
+    RangedReadEndsAfterAServedSteppedBackLine,
+    RangedReadTakesItsEndForASteppedBackLine,
+    RangedKindsReadDropsAnAtBelowTheLastAdmittedLine,
+    RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
+    RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
+    RangedReadFindsItsEndByABinarySearch(Midpoint),
+    RangedReadDropsAFirstLineBelowTheLineBeforeItsStart,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
     LoadChangesTheKeystrokeOfD,
@@ -161,6 +168,7 @@ fn form_of(open: &OpenCursor) -> Option<Form> {
 struct Fixture {
     test: &'static str,
     fault: Option<Fault>,
+    batch: Option<usize>,
     files: Vec<PathBuf>,
     first_live: u64,
     idle: Option<FixtureTransport>,
@@ -177,6 +185,7 @@ impl Fixture {
         Fixture {
             test,
             fault: None,
+            batch: None,
             files: Vec::new(),
             first_live: 1,
             idle: None,
@@ -193,6 +202,13 @@ impl Fixture {
         Fixture {
             fault: Some(fault),
             ..Fixture::new(test)
+        }
+    }
+
+    fn wrong_in_batches_of(test: &'static str, fault: Fault, lines: usize) -> Fixture {
+        Fixture {
+            batch: Some(lines),
+            ..Fixture::wrong(test, fault)
         }
     }
 
@@ -249,6 +265,7 @@ impl Subject for Fixture {
         let (requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, replies_out) = io::pipe().map_err(|e| e.to_string())?;
         let fault = self.fault;
+        let batch = self.batch;
         let shredded = self.first_live > 1;
         let all_shredded = self.first_live > self.files.len() as u64;
         let one_shred = self.first_live == 2;
@@ -267,6 +284,7 @@ impl Subject for Fixture {
                 Some(fault) => {
                     let mut wrong = Wrong {
                         fault,
+                        batch,
                         shredded,
                         all_shredded,
                         one_shred,
@@ -282,6 +300,7 @@ impl Subject for Fixture {
                         cut_kinds: None,
                         cut_from_zero: true,
                         started: false,
+                        seed_from: None,
                         connection,
                         further,
                         reads: 0,
@@ -338,6 +357,7 @@ fn error(cause: Cause) -> ServerMessage {
 
 struct Wrong {
     fault: Fault,
+    batch: Option<usize>,
     shredded: bool,
     all_shredded: bool,
     one_shred: bool,
@@ -358,6 +378,7 @@ struct Wrong {
     cut_kinds: Option<Vec<Kind>>,
     cut_from_zero: bool,
     started: bool,
+    seed_from: Option<Position>,
 }
 
 fn cuts(fault: Fault) -> bool {
@@ -377,7 +398,52 @@ fn cuts(fault: Fault) -> bool {
             | RangedReadDropsTheFirstLineAtItsStart
             | RangedReadMovesASteppedBackEntry
             | RangedReadSwapsASteppedBackRecord
+            | RangedReadEndsAfterAServedSteppedBackLine
+            | RangedReadTakesItsEndForASteppedBackLine
+            | RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
+            | RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd
+            | RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd
+            | RangedReadFindsItsEndByABinarySearch(_)
+            | RangedReadDropsAFirstLineBelowTheLineBeforeItsStart
     )
+}
+
+fn from_the_line_before(open: &OpenCursor) -> Option<OpenCursor> {
+    let p = open.position();
+    match open.store() {
+        Some(store) if open.range().is_some() && p.idx > 0 => OpenCursor::at(
+            store.clone(),
+            Position {
+                seg: p.seg,
+                idx: p.idx - 1,
+            },
+            None,
+            None,
+        ),
+        _ => without_range(open),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Midpoint {
+    Down,
+    Up,
+}
+
+fn first_at_or_after(records: &[Entry], at: Instant, midpoint: Midpoint) -> usize {
+    let (mut lo, mut hi) = (0, records.len());
+    while lo < hi {
+        let mid = match midpoint {
+            Midpoint::Down => (lo + hi) / 2,
+            Midpoint::Up => (lo + hi).div_ceil(2).min(hi - 1),
+        };
+        if records[mid].record.at() < at {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
 }
 
 fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
@@ -392,6 +458,7 @@ fn without_range(open: &OpenCursor) -> Option<OpenCursor> {
 impl Wrong {
     fn open(&mut self, t: &mut FixtureTransport, asked: &OpenCursor) -> ServerMessage {
         let unranged = match self.fault {
+            RangedReadDropsAFirstLineBelowTheLineBeforeItsStart => from_the_line_before(asked),
             fault if cuts(fault) => without_range(asked),
             _ => None,
         };
@@ -539,7 +606,16 @@ impl Wrong {
             }
             _ => reply,
         };
+        let seeded = open.position() != asked.position();
+        let reply = match reply {
+            ServerMessage::Batch(mut b) if seeded => {
+                b.next = asked.position();
+                ServerMessage::Batch(b)
+            }
+            other => other,
+        };
         if matches!(reply, ServerMessage::Batch(_)) {
+            self.seed_from = seeded.then_some(open.position());
             self.cut = asked.range();
             self.cut_kinds = asked
                 .kinds()
@@ -560,6 +636,27 @@ impl Wrong {
             ServerMessage::Batch(b) => b,
             reply => return reply,
         };
+        let seed = match (self.seed_from.take(), b.records.first()) {
+            (Some(line), Some(first)) if first.pos == line => Some(b.records.remove(0).record.at()),
+            _ => None,
+        };
+        if let (Some(lines), Some(open)) = (self.batch, self.last.as_ref()) {
+            if b.records.len() > lines {
+                b.records.truncate(lines);
+                let last = b.records[lines - 1].pos;
+                b.next = Position {
+                    seg: last.seg,
+                    idx: last.idx + 1,
+                };
+                let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
+                b.expiry.retain(|x| segs.contains(&x.seg));
+                let on =
+                    OpenCursor::at(b.store.clone(), b.next, open.kinds().cloned(), open.range())
+                        .unwrap();
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(on));
+            }
+        }
         self.reads += 1;
         self.cursor_reads += 1;
         if let (Some(range), true) = (self.cut, cuts(self.fault)) {
@@ -567,24 +664,34 @@ impl Wrong {
             let records = std::mem::take(&mut b.records);
             let skip = match self.fault {
                 RangedReadFindsItsStartByABinarySearch => {
-                    let (mut lo, mut hi) = (0, records.len());
-                    while lo < hi {
-                        let mid = (lo + hi) / 2;
-                        if records[mid].record.at() < range.start() {
-                            lo = mid + 1;
-                        } else {
-                            hi = mid;
-                        }
-                    }
-                    lo
+                    first_at_or_after(&records, range.start(), Midpoint::Down)
                 }
                 _ => 0,
             };
+            let end = match self.fault {
+                RangedReadFindsItsEndByABinarySearch(midpoint) => {
+                    first_at_or_after(&records, range.end(), midpoint)
+                }
+                _ => records.len(),
+            };
             let mut line_before: Option<(Entry, bool)> = None;
+            let mut served_a_step_back = false;
+            let mut last_admitted: Option<Instant> = None;
+            let mut done = false;
             for (i, e) in records.into_iter().enumerate() {
                 let at = e.record.at();
                 let from_zero = self.cut_from_zero;
+                let stepped_back = line_before
+                    .as_ref()
+                    .is_some_and(|(before, _)| at < before.record.at());
+                let kind = self
+                    .cut_kinds
+                    .as_ref()
+                    .is_none_or(|k| k.contains(&e.record.kind()));
+                let admitted = self.cut_kinds.is_some() && kind;
                 let ends = match self.fault {
+                    RangedReadEndsAfterAServedSteppedBackLine => served_a_step_back,
+                    RangedReadFindsItsEndByABinarySearch(_) => i >= end,
                     RangedReadEndsAtTheFirstAtFromItsEnd => at >= range.end(),
                     RangedReadEndsAtTheFirstAtPastItsEnd => at > range.end(),
                     RangedReadEndsWhenABatchStartsFromItsEnd => i == 0 && at >= range.end(),
@@ -605,22 +712,46 @@ impl Wrong {
                     RangedReadTakesItsFirstServedAtAsTheStart => kept.first(),
                     _ => None,
                 }
-                .is_some_and(|k| at < k.record.at());
+                .is_some_and(|k| at < k.record.at())
+                    || (i == 0 && seed.is_some_and(|s| at < s));
+                let below_admitted = self.fault == RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
+                    && admitted
+                    && last_admitted.is_some_and(|p| at < p);
+                if admitted {
+                    last_admitted = Some(at);
+                }
                 let in_range = match self.fault {
                     RangedReadChecksItsStartOnce => {
                         self.started = self.started || at >= range.start();
                         self.started && at < range.end()
+                    }
+                    RangedReadTakesItsEndForASteppedBackLine => {
+                        range.contains(at) || (stepped_back && at == range.end())
                     }
                     _ => range.contains(at),
                 };
                 let first_at_start = self.fault == RangedReadDropsTheFirstLineAtItsStart
                     && e.pos == (Position { seg: 1, idx: 0 })
                     && at == range.start();
-                let kind = self
-                    .cut_kinds
-                    .as_ref()
-                    .is_none_or(|k| k.contains(&e.record.kind()));
-                let keep = i >= skip && in_range && kind && !below && !first_at_start;
+                let keep = i >= skip
+                    && in_range
+                    && kind
+                    && !below
+                    && !below_admitted
+                    && !first_at_start
+                    && !done;
+                done = done
+                    || match self.fault {
+                        RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd => {
+                            admitted && at >= range.end()
+                        }
+                        RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd => {
+                            self.cut_kinds.as_ref().is_some_and(|k| k.len() > 1)
+                                && at >= range.end()
+                        }
+                        _ => false,
+                    };
+                served_a_step_back = served_a_step_back || (keep && stepped_back);
                 let line = e.clone();
                 let mut e = e;
                 if let (true, Some((before, false))) = (keep, &line_before) {
@@ -1048,7 +1179,7 @@ fn conformance_check_filtered_stops() {
 #[test]
 fn conformance_filters_step_back() {
     let load = "; want 999000000 ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)";
-    let servers: [(Fault, String); 26] = [
+    let servers: [(Fault, String); 34] = [
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
@@ -1118,6 +1249,38 @@ fn conformance_filters_step_back() {
             "the range of set D up to the pointer before its step back: entry 4 at {seg 1, idx 4} is another record than set D holds there".to_owned(),
         ),
         (
+            RangedReadEndsAfterAServedSteppedBackLine,
+            "the range of set D up to its seventh entry: 5 entries served, want 6".to_owned(),
+        ),
+        (
+            RangedReadTakesItsEndForASteppedBackLine,
+            "the range of set D up to the keystroke of its step back: 4 entries served, want 3".to_owned(),
+        ),
+        (
+            RangedKindsReadDropsAnAtBelowTheLastAdmittedLine,
+            "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
+            "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
+            "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadFindsItsEndByABinarySearch(Midpoint::Down),
+            "the range of set D up to the pointer before its step back from {seg 1, idx 2}: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadFindsItsEndByABinarySearch(Midpoint::Up),
+            "the range of set D up to the pointer before its step back from {seg 1, idx 1}: 2 entries served, want 3".to_owned(),
+        ),
+        (
+            RangedReadDropsAFirstLineBelowTheLineBeforeItsStart,
+            "the range of set D up to the pointer before its step back from {seg 1, idx 4}: 0 entries served, want 1".to_owned(),
+        ),
+        (
             LoadRoundsTheStepBackAway,
             format!("set D as served steps back by 0 ns from the pointer at 1768294981000000000 to the keystroke at 1768294981000000000{load}"),
         ),
@@ -1151,9 +1314,48 @@ fn conformance_filters_step_back() {
             String::new(),
         ),
     ];
+    let in_batches_of_two: [(Fault, &str); 7] = [
+        (
+            RangedReadEndsAtTheFirstAtFromItsEnd,
+            "the range of set D up to the pointer before its step back: 3 entries served, want 4",
+        ),
+        (
+            RangedReadEndsAtTheFirstAtPastItsEnd,
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4",
+        ),
+        (
+            RangedReadEndsAfterItsEnd(500_000_000),
+            "the range of set D up to just after the keystroke of its step back: 3 entries served, want 4",
+        ),
+        (
+            RangedReadEndsWhenABatchStartsFromItsEnd,
+            "the range of set D up to the pointer before its step back from {seg 1, idx 3}: 0 entries served, want 1",
+        ),
+        (
+            RangedReadWithKindsEndsAtTheFirstAtFromItsEnd,
+            "the range of set D up to the pointer before its step back with keystroke: 1 entries served, want 2",
+        ),
+        (
+            RangedReadEndsPastItsEndFromANonZeroStart,
+            "the range of set D up to just after the keystroke of its step back from {seg 1, idx 3}: 0 entries served, want 1",
+        ),
+        (
+            RangedReadFindsItsEndByABinarySearch(Midpoint::Down),
+            "the range of set D up to the pointer before its step back: 3 entries served, want 4",
+        ),
+    ];
+    let test = "conformance_filters_step_back";
+    let subjects = servers
+        .into_iter()
+        .map(|(fault, reason)| (Fixture::wrong(test, fault), reason))
+        .chain(in_batches_of_two.into_iter().map(|(fault, reason)| {
+            (
+                Fixture::wrong_in_batches_of(test, fault, 2),
+                reason.to_owned(),
+            )
+        }));
     let mut missed = Vec::new();
-    for (fault, reason) in servers {
-        let mut subject = Fixture::wrong("conformance_filters_step_back", fault);
+    for (mut subject, reason) in subjects {
         let got = conformance::filters(&mut subject);
         let caught = match (&got, reason.is_empty()) {
             (Ok(()), true) => true,
@@ -1161,10 +1363,34 @@ fn conformance_filters_step_back() {
             _ => false,
         };
         if !caught {
-            missed.push(format!("{fault:?}: got {got:?}"));
+            missed.push(format!(
+                "{:?} in Batches of {:?} lines: got {got:?}",
+                subject.fault, subject.batch
+            ));
         }
     }
     assert!(missed.is_empty(), "{}", missed.join("\n"));
+}
+
+fn served_ats(subject: &mut Fixture) -> Vec<i64> {
+    subject.load(&conformance::SET_D).unwrap();
+    let (mut writer, mut reader) = subject.connect().unwrap();
+    let mut served = Vec::new();
+    let open = ClientMessage::OpenCursor(OpenCursor::fresh(None, None));
+    let mut next = Vec::new();
+    for message in [open, ClientMessage::ReadBatch] {
+        write_frame(&mut writer, &message.to_payload(), CLIENT_FRAME_MAX).unwrap();
+        let reply = read_frame(&mut reader, SERVER_FRAME_MAX).unwrap().unwrap();
+        match decode_server(&reply).unwrap() {
+            ServerMessage::Batch(b) => {
+                served.extend(b.records.iter().map(|e| e.record.at().0));
+                next.push(b.next == b.watermark);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+    assert_eq!(next, [false, true]);
+    served
 }
 
 #[test]
@@ -1195,25 +1421,34 @@ fn conformance_set_d_holds_its_step_back_when_served() {
             assert!(ats[i] - ats[i - 1] >= 2_000_000_000, "step {i}");
         }
     }
-    let mut subject = Fixture::new("conformance_set_d_holds_its_step_back_when_served");
-    subject.load(&conformance::SET_D).unwrap();
-    let (mut writer, mut reader) = subject.connect().unwrap();
-    let mut served = Vec::new();
-    let open = ClientMessage::OpenCursor(OpenCursor::fresh(None, None));
-    let mut next = Vec::new();
-    for message in [open, ClientMessage::ReadBatch] {
-        write_frame(&mut writer, &message.to_payload(), CLIENT_FRAME_MAX).unwrap();
-        let reply = read_frame(&mut reader, SERVER_FRAME_MAX).unwrap().unwrap();
-        match decode_server(&reply).unwrap() {
-            ServerMessage::Batch(b) => {
-                served.extend(b.records.iter().map(|e| e.record.at().0));
-                next.push(b.next == b.watermark);
-            }
-            other => panic!("{other:?}"),
-        }
+    let test = "conformance_set_d_holds_its_step_back_when_served";
+    let loads = [
+        (Fixture::new(test), Some(0)),
+        (
+            Fixture::wrong(test, LoadMovesEveryAt(86_400_000_000_000, Rounding::None)),
+            Some(86_400_000_000_000),
+        ),
+        (
+            Fixture::wrong(test, LoadMovesEveryAt(3_601_000_000_000, Rounding::None)),
+            Some(3_601_000_000_000),
+        ),
+        (Fixture::wrong(test, LoadRoundsTheStepBackAway), None),
+        (
+            Fixture::wrong(test, LoadMovesEveryAt(50_000_000, Rounding::UpToASecond)),
+            None,
+        ),
+    ];
+    for (mut subject, offset) in loads {
+        let served = served_ats(&mut subject);
+        let moved = served
+            .first()
+            .zip(ats.first())
+            .map(|(s, a)| s - a)
+            .filter(|by| {
+                served.len() == ats.len() && served.iter().zip(&ats).all(|(s, a)| s - a == *by)
+            });
+        assert_eq!(moved, offset, "{:?}: served {served:?}", subject.fault);
     }
-    assert_eq!(next, [false, true]);
-    assert_eq!(served, ats);
     for by in [86_400_000_000_000, 3_601_000_000_000] {
         let fault = LoadMovesEveryAt(by, Rounding::None);
         let mut subject =
