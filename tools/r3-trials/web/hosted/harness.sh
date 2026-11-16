@@ -358,6 +358,20 @@ CASE
         "$(holds has "$c/out" "prefs_daemon found=1 ended=0")$(has "$c/calls" "kill" && echo _killed)" "-"
     fi
   done
+  c="$work/w-term-stale"
+  mkdir -p "$c/reg/Google/Chrome"
+  printf 'REG_SZ fixed_servers' >"$c/reg/Google/Chrome/ProxyMode"
+  R3_CASE_SH=$(posix_sh) in_stand_ins "$c" <<'CASE'
+. "$here/win.sh"; k=chrome; arm_undo
+policy_set "Google\\Chrome" ProxyMode REG_SZ direct >/dev/null
+policy_unset >/dev/null
+key_exists() { kill -TERM $$; sleep 1; return 0; }
+policy_set "Google\\Chrome" RemoteDebuggingAllowed REG_DWORD 0 >/dev/null
+sleep 5; echo not_ended
+CASE
+  verdict win_a_term_in_policy_set_writes_no_stale_value \
+    "$(holds test ! -e "$c/reg/Google/Chrome/RemoteDebuggingAllowed")$(has "$c/out" not_ended && echo _not_ended)" \
+    "value_left=$(tr ' ' '_' <"$c/reg/Google/Chrome/RemoteDebuggingAllowed" 2>/dev/null)"
   [ "$(uname -s)" = Darwin ] || return 0
   c="$work/m-earlier"
   mkdir -p "$c/managed" "$c/work"

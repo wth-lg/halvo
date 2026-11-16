@@ -23,20 +23,27 @@ key_exists() {
 }
 
 policy_set() {
-  pend_key=$1
-  pend_name=$2
+  pend_key=""
+  pend_had=no
+  pend_type=""
+  pend_data=""
   pend_made=""
+  made_list=""
   sub=""
   for part in $(printf '%s\n' "$1" | tr '\134' ' '); do
     sub=${sub:+$sub\\}$part
-    key_exists "$sub" || pend_made="$sub${pend_made:+ $pend_made}"
+    key_exists "$sub" || made_list="$sub${made_list:+ $made_list}"
   done
-  pend_had=no
+  had=no
   if prev=$(reg_value "$1" "$2"); then
-    pend_had=yes
+    had=yes
     pend_type=${prev%% *}
     pend_data=${prev#* }
   fi
+  pend_had=$had
+  pend_made=$made_list
+  pend_name=$2
+  pend_key=$1
   MSYS_NO_PATHCONV=1 reg add "HKLM\\SOFTWARE\\Policies\\$1" /v "$2" /t "$3" /d "$4" /f >/dev/null
   made=0
   for m in $pend_made; do made=$((made + 1)); done
