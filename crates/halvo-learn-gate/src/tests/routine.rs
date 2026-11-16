@@ -429,20 +429,78 @@ impl halvo_schema::RowRead for RoutineRows {
 
 const ROUTINE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20767,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":30,"seen":3,"first":20705,"last":20765,"next":20795,"missed":0,"mark":"none","since":null}"#;
 const UNREADABLE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","rev":4}"#;
+const LATER_DAY_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20768,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":14,"seen":3,"first":20705,"last":20765,"next":20779,"missed":0,"mark":"none","since":null}"#;
+
+const SAME_DAY_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20767,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":14,"seen":3,"first":20705,"last":20765,"next":20779,"missed":0,"mark":"none","since":null}"#;
+const OTHER_AGENT_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f80a","rev":9,"day":20780,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":7,"seen":3,"first":20705,"last":20765,"next":20772,"missed":0,"mark":"none","since":null}"#;
+
+#[test]
+fn routine_newest_row_of_two_rows_of_one_rev_and_one_day_is_the_one_later_in_the_read() {
+    assert_eq!(
+        newest_of(vec![ROUTINE_ROW, SAME_DAY_ROW]),
+        Ok(Some((Mark::None, Some(14))))
+    );
+    assert_eq!(
+        newest_of(vec![SAME_DAY_ROW, ROUTINE_ROW]),
+        Ok(Some((Mark::None, Some(30))))
+    );
+    assert_eq!(newest_of(vec![OTHER_AGENT_ROW]), Ok(None));
+}
+
+#[test]
+fn routine_newest_row_of_two_rows_of_one_rev_is_the_one_of_the_later_day_in_either_order() {
+    for rows in [
+        vec![LATER_DAY_ROW, ROUTINE_ROW],
+        vec![ROUTINE_ROW, LATER_DAY_ROW],
+    ] {
+        assert_eq!(
+            newest_of(rows.clone()),
+            Ok(Some((Mark::None, Some(14)))),
+            "{rows:?}"
+        );
+    }
+    let other_pair = ROUTINE_ROW
+        .replacen("\"rev\":3", "\"rev\":9", 1)
+        .replacen("\"period\":30", "\"period\":7", 1)
+        .replacen("\"next\":20795", "\"next\":20772", 1)
+        .replacen(
+            "1a2b3c4d5e6f708192a3b4c5d6e7f809",
+            "1a2b3c4d5e6f708192a3b4c5d6e7f80a",
+            1,
+        );
+    let other_pair: &'static str = Box::leak(other_pair.into_boxed_str());
+    assert_eq!(
+        newest_of(vec![other_pair, ROUTINE_ROW]),
+        Ok(Some((Mark::None, Some(30))))
+    );
+    assert_eq!(newest_of(vec![other_pair]), Ok(None));
+}
+
+fn pair() -> (halvo_schema::WorkflowId, halvo_schema::AgentId) {
+    (
+        halvo_schema::WorkflowId::parse("0f1e2d3c4b5a69788796a5b4c3d2e1f0").expect("a workflow id"),
+        halvo_schema::AgentId::parse("1a2b3c4d5e6f708192a3b4c5d6e7f809").expect("an agent id"),
+    )
+}
+
+fn newest_of(rows: Vec<&'static str>) -> Result<Option<crate::routine::Figures>, String> {
+    let (workflow, agent) = pair();
+    newest(&RoutineRows(rows), &workflow, &agent)
+}
 
 #[test]
 fn routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses() {
     assert_eq!(
-        newest(&RoutineRows(vec![ROUTINE_ROW])),
+        newest_of(vec![ROUTINE_ROW]),
         Ok(Some((Mark::None, Some(30))))
     );
-    assert_eq!(newest(&RoutineRows(Vec::new())), Ok(None));
+    assert_eq!(newest_of(Vec::new()), Ok(None));
     for rows in [
         vec![ROUTINE_ROW, UNREADABLE_ROW],
         vec![UNREADABLE_ROW, ROUTINE_ROW],
     ] {
         assert_eq!(
-            newest(&RoutineRows(rows)),
+            newest_of(rows),
             Err("a learn_routine row that its parser refuses".to_owned())
         );
     }
