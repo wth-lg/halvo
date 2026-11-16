@@ -1,6 +1,6 @@
 gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record
 stamp=fabbb137a9ad35bd04f801e072444e3e4b872b4b1b44d174bfce466747c62f72
-script=d70ff47ee0ed6a358137be532da0f8995aa285b5f6b5c195247720530091ffdd
+script=19d2038c2f7e1eb5979f27b5c8321e091b378a3a954e509c7bc9fe8ca3601ced
 selftest fixture=good mode=good as-expected=yes
 selftest fixture=not-compared mode=reads-input as-expected=yes
 selftest rule=scratch held=yes
@@ -51,8 +51,12 @@ selftest fixture=good-without-a-job mode=good as-expected=yes
 selftest rule=no-job-calls-every-run held=yes
 selftest fixture=good-macos mode=good as-expected=yes
 selftest rule=macos-calls-every-run held=yes
-selftest fixture=good mode=other-bytes-windows as-expected=yes
-selftest fixture=good mode=java-old as-expected=yes
+selftest fixture=good-capital-windows mode=good as-expected=yes
+selftest rule=capital-windows-calls-every-configuration held=yes
+selftest fixture=good-windows-and-a-blank mode=good as-expected=yes
+selftest rule=windows-and-a-blank-calls-every-configuration held=yes
+selftest fixture=other-bytes-windows mode=other-bytes as-expected=yes
+selftest fixture=java-old-windows mode=java-old as-expected=yes
 selftest fixture=line-beside-its-copy-windows mode=good as-expected=yes
 selftest fixture=days-not-for-ci-windows mode=good as-expected=yes
 selftest fixture=invariant-twice-windows mode=good as-expected=yes
@@ -103,4 +107,4 @@ selftest rule=removed-after-a-signal held=yes
 selftest control=C1 rejected=yes
 selftest control=L5 rejected=yes
 selftest control=L11 rejected=yes
-results=102
+results=106

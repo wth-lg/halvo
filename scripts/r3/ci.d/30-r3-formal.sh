@@ -766,6 +766,8 @@ windows_cases() {
   calls_case calls-windows windows 0 1
   calls_case calls-macos macos 15 0
   calls_case calls-without-a-job - 15 0
+  calls_case calls-capital-windows Windows 15 0
+  calls_case calls-windows-and-a-blank 'windows ' 15 0
   fixture='tracked-unstaged-windows'
   printf '\\* changed\n' >>"$fx/formal/r3-confirm/Confirm.tla" || fail selftest
   expect tracked CI_D_JOB=windows

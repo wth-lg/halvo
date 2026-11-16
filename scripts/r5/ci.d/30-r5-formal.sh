@@ -1048,6 +1048,16 @@ windows_fixtures() {
   job_as=-
   expect good-without-a-job "$passed" good "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
   logged_as good-without-a-job 1:2:1:4
+  fixture good-capital-windows
+  real_export good-capital-windows
+  job_as=Windows
+  expect good-capital-windows "$passed" good "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
+  logged_as good-capital-windows 1:2:1:4
+  fixture good-windows-and-a-blank
+  real_export good-windows-and-a-blank
+  job_as='windows '
+  expect good-windows-and-a-blank "$passed" good "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
+  logged_as good-windows-and-a-blank 1:2:1:4
   fixture small-line-windows
   edit small-line-windows "$rt" 's/^small config=Small.cfg states=15690$/small config=Small.cfg states=15689/'
   job_as=windows

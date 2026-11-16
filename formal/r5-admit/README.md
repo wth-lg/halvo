@@ -372,8 +372,10 @@ how the run of `Admit.cfg` ran: `workers` is TLC's `-workers`, `run` is `helper`
 run through the machine's queue of timed runs and `nice19` for a run beside it at the
 lowest priority, and `seconds` is the wall time, an observation and not a measurement.
 The `small` line holds the count of distinct states of `Small.cfg`, which the check finds
-again in every push of the macos job; in the windows job it prints `small=-` and does not read
-this line. There is one `design` line and one `reach` line for each line of
+again in every push of the macos job. In the windows job the check does not read the value of
+this line and prints `small=-`; the line still counts among the record's lines (`lines=`). No
+job of CI then runs `Small.cfg` and the two control copies under the Java 17 of the windows job
+(the macos job's java is 21); the export there stays a TLC run under Java 17. There is one `design` line and one `reach` line for each line of
 `runs.txt`, with the bound of that line.
 
 The stamp shows which files the record names: a change of a `.tla` or `.cfg` file gives

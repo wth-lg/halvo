@@ -1075,6 +1075,13 @@ every_call() {
     END { for (k in want) if (!(k in seen)) bad = 1; exit (bad || n == 0) }' "$work/counts.txt" "$work/$1/java-good.log"
 }
 
+every_config() {
+  awk '
+    NR == FNR { if ($5 == "yes") want[$1 " " $3] = 1; next }
+    { seen[substr($1, 8) " " substr($2, 8)] = 1 }
+    END { for (k in want) if (!(k in seen)) bad = 1; exit (bad + 0) }' "$work/counts.txt" "$work/$1/java-good.log"
+}
+
 windows_cases() {
   left='formal left to the macos job: the eight configurations marked for CI and the controls C1, L5 and L11 (CI_D_JOB=windows)'
   fixture good-windows
@@ -1092,11 +1099,23 @@ windows_cases() {
   expect good-macos "0:PASS $name" good '' ' same=yes' 'formal record fault=none'
   rule=macos-calls-every-run
   held every_call good-macos
+  fixture good-capital-windows
+  job_as=Windows
+  expect good-capital-windows "0:PASS $name" good '' ' same=-' 'formal record fault=none'
+  rule=capital-windows-calls-every-configuration
+  held every_config good-capital-windows
+  fixture good-windows-and-a-blank
+  job_as='windows '
+  expect good-windows-and-a-blank "0:PASS $name" good '' ' same=-' 'formal record fault=none'
+  rule=windows-and-a-blank-calls-every-configuration
+  held every_config good-windows-and-a-blank
+  fixture other-bytes-windows
   jar_from=$work/other.jar
   job_as=windows
-  expect good "1:FAIL $name (hash)" other-bytes-windows
+  expect other-bytes-windows "1:FAIL $name (hash)" other-bytes
+  fixture java-old-windows
   job_as=windows
-  expect good "1:FAIL $name (java)" java-old
+  expect java-old-windows "1:FAIL $name (java)" java-old
   fixture line-beside-its-copy-windows
   edit line-beside-its-copy-windows README.md 's/^\(| .Schedule. | .queue. | .Schedule-queue\.cfg. |\)\(.*\)$/\1\2\
 \1/'
