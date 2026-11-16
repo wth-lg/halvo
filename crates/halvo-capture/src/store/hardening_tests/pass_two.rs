@@ -1448,6 +1448,38 @@ fn the_tail_follows_no_link_at_the_roots_name_of_its_data_directory() {
     );
     assert!(control.is_ok(), "{}", report_line(&control));
     assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
+
+    let dir = tempfile::tempdir().unwrap();
+    let behind = dir.path().join("behind");
+    let behind_id = RootId::fresh().unwrap();
+    let mut other = EncryptedStore::create(
+        &behind,
+        Box::new(DevFallbackCustody::new(behind_id, behind.join("roots"))),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = other
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    drop(other);
+    let (store_dir, roots_dir, _, _) = file_root_store(&dir.path().join("data"));
+    std::fs::rename(&roots_dir, dir.path().join("data").join("roots-aside")).unwrap();
+    std::os::unix::fs::symlink(behind.join("roots"), &roots_dir).unwrap();
+    let answer = tail(&store_dir, &roots_dir);
+    let reads = public_reads(&behind, &behind.join("roots"), segment.segment_id);
+    println!(
+        "ST46 K2 a link at the roots name beside a store of its own: {} the_other_store: {reads}",
+        report_line(&answer)
+    );
+    assert!(
+        reads.starts_with("open=Ok segment_plaintext_equal=true"),
+        "the tail's root step swept another store's roots through a link at its roots name: {reads}"
+    );
+    assert!(
+        answer.is_err() && !delete_report(&answer).roots.listed,
+        "{}",
+        report_line(&answer)
+    );
 }
 
 /// The adversary's p3_c (ruling ST-46 K3, the verifier's copy L44): the tail
