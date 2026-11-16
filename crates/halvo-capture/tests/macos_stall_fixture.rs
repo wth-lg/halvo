@@ -263,6 +263,7 @@ struct Fixture {
     notes: Vec<String>,
     by: &'static str,
     wait: Duration,
+    late: Vec<String>,
 }
 
 const ASK_WAIT: Duration = Duration::from_secs(10);
@@ -433,6 +434,7 @@ fn launched(opener: &Path, bundle: &Path, tag: &str, wait: Duration) -> Result<F
         notes: Vec::new(),
         by: "opened",
         wait: ASK_WAIT,
+        late: Vec::new(),
     })
 }
 
@@ -462,6 +464,7 @@ impl Fixture {
             notes: Vec::new(),
             by: "spawned",
             wait: ASK_WAIT,
+            late: Vec::new(),
         })
     }
 
@@ -506,13 +509,21 @@ impl Fixture {
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
             match self.lines.recv_timeout(left) {
-                Ok(line) if line.starts_with(prefix) => return Ok(line),
-                Ok(line) => self.notes.push(line),
+                Ok(line) => {
+                    if let Some(at) = self.late.iter().position(|late| line.starts_with(late)) {
+                        self.late.remove(at);
+                    } else if line.starts_with(prefix) {
+                        return Ok(line);
+                    } else {
+                        self.notes.push(line);
+                    }
+                }
                 Err(RecvTimeoutError::Timeout) => {
+                    self.late.push(prefix.to_owned());
                     return Err(NoReply::Late {
                         reply: prefix.to_owned(),
                         wait: within,
-                    })
+                    });
                 }
                 Err(RecvTimeoutError::Disconnected) => {
                     return Err(NoReply::Ended {
@@ -936,10 +947,11 @@ fn round(
 }
 
 fn not_driven_verdict(round: &Round) -> Verdict {
-    let recorded = match round.verdict {
-        Some(verdict) if !round.stamps.is_empty() => verdict == Verdict::Recorded,
-        _ => round.ahead > 0,
-    } || round.markers > MARKERS.len();
+    let excused =
+        !round.stamps.is_empty() && round.verdict == Some(Verdict::NotCounted(NOT_DRIVEN));
+    let recorded = round.verdict == Some(Verdict::Recorded)
+        || round.ahead > 0 && !excused
+        || round.markers > MARKERS.len();
     if recorded {
         Verdict::Recorded
     } else {
@@ -4718,6 +4730,16 @@ fn each_judge_reads_a_round_not_driven_by_its_rule_on_a_table() {
             Verdict::NotDriven,
         ),
         (
+            "verdict: a key ahead in a round judged not counted for another cause",
+            read(
+                1,
+                0,
+                true,
+                Some(Verdict::NotCounted("the round's first stamp read on")),
+            ),
+            Verdict::Recorded,
+        ),
+        (
             "verdict: judged recorded with the stamps read and no key ahead",
             read(0, 0, true, Some(Verdict::Recorded)),
             Verdict::Recorded,
@@ -4815,5 +4837,92 @@ fn a_recorded_key_in_a_round_not_driven_fails_its_phase() {
             .as_deref()
             .is_some_and(|text| text.contains("recorded keys beside the markers")),
         "{as_is_judged:?}"
+    );
+}
+
+#[test]
+fn a_key_ahead_in_a_round_not_driven_whose_first_stamp_reads_on_fails_its_phase() {
+    let stamps_line = "stamps n=2 lost=0 fr_secure:1:2000500:1 cmd_plain:0:3000000:0";
+    let mut fixture = stand_in_fixture_with(
+        "first-on",
+        &format!("clear) : ;;\n    stamps) printf '{stamps_line}\\n' >&3 ;;"),
+    );
+    let not_driven = round(
+        &mut fixture,
+        &StandInRecords { keys: 1 },
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let line = stand_in_line("stand-in-first-on", &not_driven, Keep::Mended);
+    assert!(line.contains(" ahead=1 "), "{line}");
+    assert!(
+        line.ends_with(" not_driven=late_reply_cleared_within_300_ms"),
+        "{line}"
+    );
+    let stamps = parse_stamps(stamps_line);
+    let counted = Round {
+        stamps: stamps.clone(),
+        verdict: Some(mended_verdict(
+            false,
+            None,
+            1,
+            &evidence(&stamps, &[], 0),
+            Duration::ZERO,
+        )),
+        ..stand_in_round(true, 1)
+    };
+    let mut counted_beside = held_at_each_wait();
+    counted_beside.push(counted);
+    assert!(
+        judged_mended(&counted_beside).is_some(),
+        "a counted round with this key ahead and these stamps fails its phase"
+    );
+    let mut beside = held_at_each_wait();
+    beside.push(not_driven);
+    let found = judged_mended(&beside);
+    assert!(
+        found.is_some(),
+        "a key ahead in a round not driven whose first stamp reads on fails its phase as it \
+         fails a counted round, but the phase passed: {line}"
+    );
+}
+
+#[test]
+fn the_late_reply_of_one_round_is_not_taken_as_the_reply_of_the_next() {
+    let mut fixture = stand_in_fixture_with(
+        "stale",
+        "clear) sleep 0.5; printf 'cleared\\n' >&3 ;;\n    \
+         plain) printf 'focus=plain\\n' >&3 ;;\n    \
+         stamps) printf 'stamps n=0 lost=0\\n' >&3 ;;",
+    );
+    let none = StandInRecords { keys: 0 };
+    let first = round(
+        &mut fixture,
+        &none,
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let first_line = stand_in_line("stand-in-stale", &first, Keep::Mended);
+    assert!(
+        first_line.ends_with(" not_driven=late_reply_cleared_within_300_ms"),
+        "{first_line}"
+    );
+    let second = round(
+        &mut fixture,
+        &none,
+        Move::Tab,
+        150,
+        Duration::ZERO,
+        Keep::Mended,
+    );
+    let second_line = stand_in_line("stand-in-stale", &second, Keep::Mended);
+    assert!(
+        second_line.ends_with(" not_driven=late_reply_cleared_within_300_ms"),
+        "the second round took the first round's late 'cleared' as its own reply to 'clear' and \
+         named the reply after it: {second_line}"
     );
 }
