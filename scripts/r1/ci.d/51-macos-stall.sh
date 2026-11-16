@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
 # lane: alone
 set -u
 name=51-macos-stall
@@ -102,14 +102,23 @@ crates/halvo-capture/tests/macos_stall_fixture.rs
 crates/halvo-capture/tests/macos_stall_fixture/fixture.m
 crates/halvo-capture/src/macos/secure_input_byte.rs
 crates/halvo-capture/src/macos/run_loop.rs
-crates/halvo-capture/Cargo.toml
 scripts/r1/ci.d/51-macos-stall.sh
 EOF
 }
 
+seam_lines() {
+  git show ":crates/halvo-capture/Cargo.toml" >"$work/manifest" 2>/dev/null ||
+    fail "crates/halvo-capture/Cargo.toml cannot be read from the index"
+  tr -d '\r' <"$work/manifest" >"$work/manifest-lines" || fail "crates/halvo-capture/Cargo.toml cannot be read"
+  awk '
+    /^[[:space:]]*\[/ { table = $0 }
+    /stall-seam/ { printf "measured seam path=crates/halvo-capture/Cargo.toml table=%s text=%s\n", table, $0 }
+  ' "$work/manifest-lines" >"$work/seam-head" || fail "crates/halvo-capture/Cargo.toml cannot be read"
+}
+
 ledger_check() {
   ledger=docs/baseline/ledger.d/macos-2b.txt
-  fix="run the long form (HALVO_STALL_FORM=long) on a scratch push of this head, then record that run with form=long, result=pass, its figures and the blob ids of the nine files of the hold in $ledger (rulings MA-22 L10, MA-23)"
+  fix="run the long form (HALVO_STALL_FORM=long) on a scratch push of this head, then record that run with form=long, result=pass, its figures, the blob ids of the eight files of the hold and the stall-seam lines of crates/halvo-capture/Cargo.toml in $ledger (rulings MA-22 L10, MA-23; the inbox entry of 2026-11-16T10:12:55Z)"
   [ -f "$ledger" ] || fail "$ledger is missing: $fix"
   tr -d '\r' <"$ledger" >"$work/ledger" || fail "$ledger cannot be read"
   runs=$(sed -n 's/^measured run=\([0-9][0-9]*\) .*/\1/p' "$work/ledger" | tr '\n' ' ')
@@ -122,9 +131,9 @@ ledger_check() {
   [ "$long" = 1 ] || fail "$ledger names the measured run $run without form=long and result=pass: $fix"
   sed -n 's/^measured blob path=\([^ ]*\) id=[0-9a-f]*$/\1/p' "$work/ledger" | sort >"$work/ledger-paths" ||
     fail "$ledger cannot be read"
-  measured_files | sort >"$work/measured-paths" || fail "the list of the nine files cannot be read"
+  measured_files | sort >"$work/measured-paths" || fail "the list of the eight files cannot be read"
   cmp -s "$work/ledger-paths" "$work/measured-paths" ||
-    fail "$ledger records the blobs of files other than the nine of the hold, once each: $fix"
+    fail "$ledger records the blobs of files other than the eight of the hold, once each: $fix"
   while read -r path; do
     recorded=$(awk -v path="$path" '$1 == "measured" && $2 == "blob" && $3 == "path=" path { sub(/^id=/, "", $4); print $4 }' "$work/ledger")
     staged=$(git ls-files --stage -- "$path" | cut -d ' ' -f 2)
@@ -132,7 +141,14 @@ ledger_check() {
     [ "$recorded" = "$staged" ] ||
       fail "the measured run $run ran on a blob of $path other than the head's ($recorded against $staged): $fix"
   done <"$work/measured-paths"
-  printf 'ledger: the measured run %s of the long form ran on the blobs that the head has of the nine files of the hold\n' "$run"
+  sed -n '/^measured seam /p' "$work/ledger" >"$work/seam-ledger" || fail "$ledger cannot be read"
+  [ -s "$work/seam-ledger" ] || fail "$ledger names no stall-seam line of crates/halvo-capture/Cargo.toml: $fix"
+  seam_lines
+  if ! cmp -s "$work/seam-ledger" "$work/seam-head"; then
+    head_lines=$(sed 's/^measured seam path=[^ ]* //' "$work/seam-head" | tr '\n' '|')
+    fail "the stall-seam lines of crates/halvo-capture/Cargo.toml differ from those that the measured run $run ran on (the head has: ${head_lines%|}): $fix"
+  fi
+  printf 'ledger: the measured run %s of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml\n' "$run"
 }
 
 tracked_changes() {
@@ -701,6 +717,12 @@ EOF
   chmod +x "$work/bin/cargo" "$work/bin/clang" "$work/bin/stall-stub" "$work/bin/halvo_capture-stub" || exit 2
 }
 
+manifest_case() {
+  printf '%b' "$4" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check "$1" "$2" "$3" ''
+}
+
 write_measured_ledger() {
   ledger_file=$work/repo/docs/baseline/ledger.d/macos-2b.txt
   mkdir -p "$work/repo/docs/baseline/ledger.d" "$work/repo/crates/halvo-capture/src/macos" \
@@ -715,6 +737,9 @@ write_measured_ledger() {
     blob=${entry#* }
     printf 'measured blob path=%s id=%s\n' "$path" "${blob%% *}"
   done >>"$ledger_file" || exit 2
+  printf '%s\n' 'measured seam path=crates/halvo-capture/Cargo.toml table=[features] text=stall-seam = []' \
+    'measured seam path=crates/halvo-capture/Cargo.toml table=[dev-dependencies] text=halvo-capture = { path = ".", features = ["stall-seam"] }' \
+    >>"$ledger_file" || exit 2
   git -C "$work/repo" add docs || exit 2
 }
 
@@ -879,7 +904,7 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   printf '%b' "$seam_manifest" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
-  check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the nine files of the hold' ''
+  check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml' ''
   printf 'changed\n' >>"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   check ledger-blob-changed FAIL 'ran on a blob of crates/halvo-capture/src/secure_input_macos_hold.rs other than the head'"'"'s' ''
@@ -891,7 +916,7 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   write_measured_ledger
   grep -v 'path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m ' "$work/repo/docs/baseline/ledger.d/macos-2b.txt" >"$work/ledger-four" || exit 2
   cp "$work/ledger-four" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
-  check ledger-four-files FAIL 'records the blobs of files other than the nine of the hold' ''
+  check ledger-four-files FAIL 'records the blobs of files other than the eight of the hold' ''
   write_measured_ledger
   printf 'measured run=2 form=long result=pass commit=0 figures=none\n' >>"$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
   check ledger-two-runs FAIL 'names more than one measured run (1 2)' ''
@@ -906,6 +931,22 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   printf 'changed\n' >>"$work/repo/scripts/r1/ci.d/51-macos-stall.sh" || exit 2
   git -C "$work/repo" add scripts || exit 2
   check ledger-ninth-file-changed FAIL 'ran on a blob of scripts/r1/ci.d/51-macos-stall.sh other than the head' ''
+  write_measured_ledger
+  seam_text='the stall-seam lines of crates/halvo-capture/Cargo.toml differ from those that the measured run 1 ran on'
+  manifest_case ledger-seam-line-changed FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = ["other"]\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n'
+  manifest_case ledger-seam-line-moved FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n\n[dev-dependencies]\n'
+  manifest_case ledger-seam-line-dropped FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = "." }\n'
+  manifest_case ledger-unrelated-manifest-line PASS 'ledger: the measured run 1 of the long form ran on' \
+    '[package]\nname = "halvo-capture"\nversion = "0.2.0"\n\n[features]\nstall-seam = []\n\n[dependencies]\nlibc = "0.2"\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n'
+  printf '%b' "$seam_manifest" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  write_measured_ledger
+  grep -v '^measured seam ' "$work/repo/docs/baseline/ledger.d/macos-2b.txt" >"$work/ledger-without-seam" || exit 2
+  cp "$work/ledger-without-seam" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
+  check ledger-names-no-seam-line FAIL 'names no stall-seam line of crates/halvo-capture/Cargo.toml' ''
   write_measured_ledger
   d2_note=$(
     unset MS_NOTES_FILE
