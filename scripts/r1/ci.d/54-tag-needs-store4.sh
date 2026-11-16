@@ -45,8 +45,8 @@ measure() {
     exit 0
   fi
   if [ "$tag_ref" = true ]; then
-    if [ -n "${GITHUB_REF_NAME:-}" ]; then ref="the tag $GITHUB_REF_NAME"; else ref='a tag of no name'; fi
-    fail "the ref is $ref, and $store at HEAD holds $statement on line $line, the search index that keeps words of a removed event; no tag is made before store-4 takes that statement out"
+    if [ -n "${GITHUB_REF_NAME:-}" ]; then refused="the tag $GITHUB_REF_NAME is refused"; else refused='a tag of no name is refused'; fi
+    fail "$refused: $store at HEAD holds $statement on line $line, the search index that keeps words of a removed event, and store-4 takes that statement out before any tag"
   fi
   printf 'tag ref: false, %s at HEAD: present, index statement: true, on line %s\n' "$store" "$line"
   printf 'PASS %s\n' "$name"
@@ -107,13 +107,16 @@ self_test() {
   fixture with "$with_statement"
   fixture without "$without_statement"
   on_line_4="$statement on line 4"
-  run_case tag-with-the-statement FAIL "$work/with" "the ref is the tag v1.2.4, and $store at HEAD holds $on_line_4" GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4
+  run_case tag-with-the-statement FAIL "$work/with" "the tag v1.2.4 is refused: $store at HEAD holds $on_line_4" GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4
+  got=FAIL
+  grep -q -F -e 'the ref is' "$work/out-tag-with-the-statement" || got=PASS
+  verdict cause-names-the-refused-tag-and-no-ref PASS "$got"
   run_case tag-without-the-statement PASS "$work/without" 'index statement: false' GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4
   run_case branch-with-the-statement PASS "$work/with" 'index statement: true' GITHUB_REF_TYPE=branch GITHUB_REF_NAME=main
   run_case merge-ref-of-a-pull-request-with-the-statement PASS "$work/with" 'tag ref: false' GITHUB_REF_TYPE=branch GITHUB_REF_NAME=12/merge
   run_case no-ref-with-the-statement PASS "$work/with" 'tag ref: false'
   run_case empty-ref-type-with-the-statement PASS "$work/with" 'tag ref: false' GITHUB_REF_TYPE= GITHUB_REF_NAME=v1.2.4
-  run_case tag-without-a-name-with-the-statement FAIL "$work/with" 'the ref is a tag of no name, and' GITHUB_REF_TYPE=tag GITHUB_REF_NAME=
+  run_case tag-without-a-name-with-the-statement FAIL "$work/with" 'a tag of no name is refused: ' GITHUB_REF_TYPE=tag GITHUB_REF_NAME=
   run_case root-from-ci-d-repo FAIL "$work" "$on_line_4" GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4 "CI_D_REPO=$work/with"
   run_case git-dir-of-another-repository-in-the-environment FAIL "$work/with" "$on_line_4" GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4 "GIT_DIR=$work/without/.git"
 
@@ -178,7 +181,7 @@ self_test() {
     cd "$work/with" && GITHUB_REF_TYPE=tag GITHUB_REF_NAME=v1.2.4 CI_D_REPO=$work/with sh "$self"
   ) >"$work/out-call-of-release-sh" 2>&1 || status=$?
   got=PASS
-  [ "$status" = 1 ] && grep -q -F -e "the ref is the tag v1.2.4, and $store at HEAD holds $on_line_4" "$work/out-call-of-release-sh" && got=FAIL
+  [ "$status" = 1 ] && grep -q -F -e "the tag v1.2.4 is refused: $store at HEAD holds $on_line_4" "$work/out-call-of-release-sh" && got=FAIL
   verdict call-of-release-sh-over-a-branch-ref-and-a-foreign-root FAIL "$got"
   status=0
   (
