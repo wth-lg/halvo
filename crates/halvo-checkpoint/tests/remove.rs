@@ -295,13 +295,24 @@ fn a_folder_or_a_path_with_a_parent_step_is_refused() {
     link_dir(&scratch.path("real"), &scratch.path("alias"));
     let run = run();
     let locks = locks(&scratch);
+    let text = scratch.dir.to_string_lossy().into_owned();
+    let base = PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text));
+    let up =
+        |path: &[&str]| -> PathBuf { path.iter().fold(base.clone(), |dir, part| dir.join(part)) };
     let rows = [
-        (scratch.path("folder/inner/.."), "values.xlsx"),
-        (scratch.path("alias/x/.."), "values.xlsx"),
-        (scratch.path("real"), "x/../values.xlsx"),
+        (
+            up(&["folder", "inner", ".."]),
+            up(&["folder", "inner", "..", "values.xlsx"]),
+        ),
+        (
+            up(&["alias", "x", ".."]),
+            up(&["alias", "x", "..", "values.xlsx"]),
+        ),
+        (up(&["real"]), up(&["real", "x", "..", "values.xlsx"])),
     ];
-    for (folder, rel) in rows {
-        let workbook = folder.join(rel);
+    for (folder, workbook) in rows {
+        let steps = |path: &Path| path.components().filter(|c| c.as_os_str() == "..").count();
+        assert!(steps(&folder) + steps(&workbook) > 0, "{workbook:?}");
         let row = Row {
             folder: &folder,
             workbook: &workbook,
@@ -309,7 +320,7 @@ fn a_folder_or_a_path_with_a_parent_step_is_refused() {
             expect: made(COPY),
         };
         let got = remove(&locks, &row);
-        assert_eq!(got, Ok(Removal::Left(Left::NotFile)), "{rel} in {folder:?}");
+        assert_eq!(got, Ok(Removal::Left(Left::NotFile)), "{workbook:?}");
     }
     assert_eq!(fs::read(&theirs).expect("the file outside stays"), COPY);
     assert_eq!(fs::read(&copy).expect("the copy stays"), COPY);
