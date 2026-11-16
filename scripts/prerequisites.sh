@@ -376,7 +376,21 @@ EOF
   echo "$shim_target"
 }
 
+pnpm_dir_id() {
+  /usr/bin/stat -L -f '%d:%i' "$1" 2>/dev/null || /usr/bin/stat -L -c '%d:%i' "$1" 2>/dev/null
+}
+
+pnpm_same_dir() {
+  # shellcheck disable=SC3013
+  if [ / -ef / ] 2>/dev/null; then
+    [ "$1" -ef "$2" ]
+    return
+  fi
+  same_first=$(pnpm_dir_id "$1") && same_second=$(pnpm_dir_id "$2") && [ -n "$same_first" ] && [ "$same_first" = "$same_second" ]
+}
+
 pnpm_path_without() {
+  unset CDPATH
   cd -P . || return 1
   start=$PWD
   if cd -P -- "$1/bin" 2>/dev/null; then without_bin=$PWD; else without_bin=; fi
@@ -389,6 +403,9 @@ pnpm_path_without() {
     entry=${rest%%:*}
     rest=${rest#*:}
     cd -- "$start" || return 1
+    if pnpm_same_dir "${entry:-.}" "$1/bin" || pnpm_same_dir "${entry:-.}" "$1"; then
+      continue
+    fi
     if cd -P -- "${entry:-.}" 2>/dev/null; then real=$PWD; else real=; fi
     if [ -n "$real" ] && { [ "$real" = "$without_bin" ] || [ "$real" = "$without_prefix" ]; }; then
       continue
@@ -1514,6 +1531,56 @@ EOF
   fi
   verdict "$name"
 
+  name='with the bin directory of the prefix first on the PATH that the step is given in other letter case, on a volume that folds case, a cmp that npm writes there does not decide the compare, and neither file runs'
+  new_backend_case backend-given-path-other-case-written
+  mkdir -p "$case_dir/home/.local/bin"
+  if [ ! -d "$case_dir/HOME/.LOCAL/BIN" ]; then
+    echo "  branch case-sensitive: this volume does not fold case, so the case holds nothing here"
+  else
+    echo "  branch folds-case: the PATH names the bin directory of the prefix in other letter case"
+    path_front=$case_dir/HOME/.LOCAL/BIN
+    write_unchecked_pnpm "$case_dir/other-pnpm" unchecked-pnpm
+    printf '#!/bin/sh\necho "planted-tool cmp" >>%s\nexit 0\n' "'$case_dir/calls'" >"$case_dir/planted-cmp"
+    cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/other-pnpm' '$case_dir/home/.local/bin/pnpm' && cp '$case_dir/planted-cmp' '$case_dir/home/.local/bin/cmp' && chmod +x '$case_dir/home/.local/bin/cmp'
+EOF
+    chmod +x "$case_dir/stubs/npm"
+    run_ensure_backend fails
+    [ "$(count 'planted-tool' "$case_dir/calls")" = 0 ] || problems="$problems; the cmp of the prefix ran"
+    [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of other bytes ran"
+    [ "$(count 'does not have the bytes of package/' "$case_dir/output")" = 1 ] || problems="$problems; no line refused the pnpm of other bytes"
+  fi
+  verdict "$name"
+
+  name='with the bin directory of the prefix first on the PATH that the step is given in other letter case, a cmp and a pnpm of other bytes that stand there before the step decide nothing: the step refuses, installs nothing, and neither file runs'
+  new_backend_case backend-given-path-other-case-standing
+  mkdir -p "$case_dir/home/.local/bin"
+  if [ ! -d "$case_dir/HOME/.LOCAL/BIN" ]; then
+    echo "  branch case-sensitive: this volume does not fold case, so the case holds nothing here"
+  else
+    echo "  branch folds-case: the PATH names the bin directory of the prefix in other letter case"
+    path_front=$case_dir/HOME/.LOCAL/BIN
+    write_unchecked_pnpm "$case_dir/other-pnpm" unchecked-pnpm
+    printf '#!/bin/sh\necho "planted-tool cmp" >>%s\nexit 0\n' "'$case_dir/calls'" >"$case_dir/planted-cmp"
+    cp "$case_dir/other-pnpm" "$case_dir/home/.local/bin/pnpm"
+    cp "$case_dir/planted-cmp" "$case_dir/home/.local/bin/cmp"
+    chmod +x "$case_dir/home/.local/bin/cmp"
+    cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/other-pnpm' '$case_dir/home/.local/bin/pnpm' && cp '$case_dir/planted-cmp' '$case_dir/home/.local/bin/cmp'
+EOF
+    chmod +x "$case_dir/stubs/npm"
+    run_ensure_backend fails
+    [ "$(count 'planted-tool' "$case_dir/calls")" = 0 ] || problems="$problems; the cmp of the prefix ran"
+    [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of other bytes ran"
+    [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; a package install ran"
+    [ "$(count 'present' "$case_dir/output")" = 0 ] || problems="$problems; the pnpm of other bytes was taken as present"
+  fi
+  verdict "$name"
+
   name='a file of the same length as the binary that differs in one byte is refused, and it never runs'
   new_backend_case backend-binary-same-length
   sed 's/echo "pnpm /echo "pnpX /' "$case_dir/pnpm" >"$case_dir/one-byte"
@@ -2304,6 +2371,25 @@ EOF
   [ "$fetched" = 0 ] || problems="$problems; the licences were fetched after the failed fetch of the tools"
   verdict "$name"
 
+  name='with CDPATH set, a relative entry of the PATH that names the bin directory of the prefix from the directory of the step is taken out, and the reader prints one line'
+  new_case path-without-cdpath
+  mkdir -p "$case_dir/step/p/bin" "$case_dir/cdp/p/bin"
+  got=$(cd "$case_dir/step" && CDPATH="$case_dir/cdp" pnpm_path_without "$case_dir/step/p" "p/bin:/usr/bin") || got="the reader failed"
+  [ "$got" = /usr/bin ] || problems="$problems; the reader gave: $(printf '%s' "$got" | tr '\n' '|')"
+  [ "$(printf '%s\n' "$got" | wc -l | tr -d ' ')" = 1 ] || problems="$problems; the reader printed more than one line"
+  verdict "$name"
+
+  name='the reader of device and inode gives one id for two spellings of one directory and another id for another directory'
+  new_case directory-id
+  mkdir -p "$case_dir/one/two" "$case_dir/other"
+  first=$(pnpm_dir_id "$case_dir/one/two") || first=
+  second=$(pnpm_dir_id "$case_dir/one/./two/") || second=
+  third=$(pnpm_dir_id "$case_dir/other") || third=
+  [ -n "$first" ] || problems="$problems; no id was read"
+  [ "$first" = "$second" ] || problems="$problems; two spellings gave $first and $second"
+  [ "$first" != "$third" ] || problems="$problems; two directories gave one id"
+  verdict "$name"
+
   name='--help prints the usage and the named limit of the pnpm step, exits 0 and runs no tool'
   new_case help
   mkdir "$case_dir/help-stubs" "$case_dir/home"
@@ -2348,10 +2434,10 @@ a pnpm in ~/.local/bin or ~/.local with the binary inside the checked
 platform package before that pnpm runs; when they differ, it installs both
 packages for the user into ~/.local with npm and compares again, and it
 stops at any difference. The compare and its lookup of pnpm use the PATH
-that the script was given with ~/.local/bin and ~/.local taken out, in
-every spelling that leads to those directories, so no tool under ~/.local
-takes part in it, and the step puts ~/.local on its PATH only after the
-compare has passed.
+that the script was given without each entry that is the same directory as
+~/.local/bin or ~/.local by the shell's same-file test, so no tool under
+~/.local takes part in it, and the step puts ~/.local on its PATH only
+after the compare has passed.
 Named limit: the pnpm step checks the bytes of what it downloads, and a
 pnpm of the pinned version that already stands on a person's PATH outside
 ~/.local is used as it is, because whoever can write there needs no pnpm to
