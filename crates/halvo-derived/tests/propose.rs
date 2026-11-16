@@ -918,3 +918,91 @@ fn the_summary_read_visits_a_summary_of_a_day_after_the_clock_s_day_only_once_th
         3
     );
 }
+
+/// C2.4, the row of a kept workflow whose `agent` is not null, for keys that hold a site (ruling S-100, item 2): a
+/// workflow keyed by a domain seen in the address field, and one keyed by a title, whose site key the store hashed
+/// and the test reads from the stored summary, each `active` with an agent. A proposal with its key and another app,
+/// trigger, confidence and support set leaves the row, its support rows and the revision as they are and is counted
+/// in `unchanged`.
+#[test]
+fn a_proposal_with_the_key_of_a_site_keyed_workflow_that_an_agent_does_leaves_it_as_it_was() {
+    let agent = "4".repeat(32);
+    for (name, site) in [
+        ("guard-domain", domain("qzguard-site.test")),
+        ("guard-title", token("qzguard-title")),
+    ] {
+        let scratch = Scratch::new(name);
+        let clock = TestClock::at_day(DAY);
+        let fixed = Rc::new(RefCell::new(Vec::new()));
+        let host = || {
+            Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed)))).handler(
+                "test",
+                Takes::Coordinator(&["set_state"]),
+                Box::new(SetState),
+            )
+        };
+        let mut store = open_host(&scratch, host()).unwrap();
+        store
+            .commit_batch(
+                &store_id(1),
+                &[episode(1, DAY, site.clone()), episode(2, DAY, site.clone())],
+                position(1, 0),
+                &mut Seq(100),
+            )
+            .unwrap();
+        drop(store);
+        let summary: halvo_schema_core::record::Summary =
+            serde_json::from_str(&bodies(&scratch, "summary")[0]).unwrap();
+        assert!(
+            summary.site.is_some(),
+            "{name}: the summary's key holds a site"
+        );
+        let keyed = |ids: &[u64]| {
+            let mut p = over(ids);
+            p.site = summary.site.clone();
+            p
+        };
+        *fixed.borrow_mut() = vec![keyed(&[1])];
+        let mut store = open_host(&scratch, host()).unwrap();
+        let made = store
+            .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+            .unwrap()
+            .proposals;
+        assert_eq!(made.stored, 1, "{name}");
+        let id = common::listed(&store)[0].workflow.id().clone();
+        store
+            .decide(&InterfaceDecision::approve(
+                &InterfaceRole::claim(),
+                RequestId::from_random([2; 16]),
+                id.clone(),
+            ))
+            .unwrap();
+        set_state(&mut store, id.as_str(), "active", Some(&agent));
+        drop(store);
+        let before = held(&scratch);
+        let mut changed = keyed(&[1, 2]);
+        changed.app = AppId::parse("com.example.qzother").unwrap();
+        changed.trigger = Trigger::Schedule;
+        changed.confidence = Confidence(90);
+        *fixed.borrow_mut() = vec![changed];
+        let mut store = open_host(&scratch, host()).unwrap();
+        let outcome = store
+            .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(300))
+            .unwrap()
+            .proposals;
+        drop(store);
+        assert_eq!(
+            outcome,
+            ProposalOutcome {
+                unchanged: 1,
+                ..ProposalOutcome::default()
+            },
+            "{name}"
+        );
+        assert_eq!(
+            held(&scratch),
+            before,
+            "{name}: (the workflow, the support rows, the revision) stay as they were"
+        );
+    }
+}
