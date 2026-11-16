@@ -72,7 +72,8 @@ fn the_open_refuses_a_database_library_without_the_mend_of_the_page_gap() {
             .join("src")
             .join("db.rs"),
     )
-    .unwrap();
+    .unwrap()
+    .replace("\r\n", "\n");
     let call = "require_mend(halvo_sqlcipher::page_gap_mend_linked())?;";
     assert_eq!(source.matches(call).count(), 1, "the call in src/db.rs");
     let open = source.find("pub(crate) fn open(").unwrap();
