@@ -112,16 +112,23 @@ named halvo-sqlcipher and a file named build.rs, in any case, keep the cargo
 build there too, because the link decides such a mutant. The row line of a
 type-checked row reads `PASS mutation:<name> (applies and type-checks)`, and that
 of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
-`(applies and builds)`. `FAIL mutation:<name> (the mutant does not build)` and
+`(applies and builds)`, and that of a row whose file no compile of the cargo
+build reads (its dep-info does not list it) reads
+`(applies; no compile of the build reads <file>)`. `FAIL mutation:<name> (the mutant does not build)` and
 `FAIL mutation:<name> (the mutant does not type-check)` are never caught mutants.
 
 What the runs prove for a row. On each pull request and each push, the macos
 job's `scripts/r1/ci.d/30-mutants.sh` applies each row that a run would apply
 here and compiles its mutant as above, so the mutant of a cargo row that keeps no build is type-checked and
 not built. On a push to
-main it then builds the rows that start within its budget, in an order that the
-commit decides, runs each against its verdict and prints how many rows ran,
-less those whose line says that the mutant does not build. The
+main it then builds the rows that start within its budget, in the sorted order of
+the row names rotated to start at the first-parent commit count of main times
+the stride 6, modulo the row count, runs each against its verdict and prints how
+many rows ran, how many of them it built a mutant for (`built mutation:<name>`,
+printed only when the build compiled the mutated file, which for a cargo row is
+read from the build's dep-info) and, counted apart, how many no compile of the
+build read (`not-compiled mutation:<name>`); when the push ran fewer rows than the
+stride it says how many rows after them were not started in this turn. The
 whole list is built and run against its verdicts only in a full run on the
 measuring Mac. So a mutant that passes the type check and fails only at the
 link, after monomorphization or in code generation is found on main when the

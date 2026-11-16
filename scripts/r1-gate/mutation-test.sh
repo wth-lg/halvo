@@ -43,9 +43,14 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       requires one passing run of the unmutated test. PASS mutation:<name>
       names the verdict source.
       A mutant that does not build is FAIL mutation:<name> (the mutant does not
-      build), never a caught mutant. Each mutant that a build (not a type
-      check) compiled prints built mutation:<name> before its verdict line; a
-      row that ends before its build prints none.
+      build), never a caught mutant. A mutant whose build (not a type check)
+      succeeded prints built mutation:<name> before its verdict line only when
+      the build compiled the mutated file: for a cargo row, when the build's
+      dep-info, target/r1-gate/debug/halvo-capture.d of the copy, lists it.
+      Otherwise it prints not-compiled mutation:<name> (no compile of the build
+      reads FILE), and under --apply-only its row reads PASS mutation:<name>
+      (applies; no compile of the build reads FILE). A row that ends before its
+      build prints neither.
       --strict also fails on a pending or transitional row, on a row for the
       measuring Mac that did not run, on a row that the budget left unrun, on a
       name of mutants.expected that no row file holds or retires, and on a
@@ -465,6 +470,28 @@ link_line() {
   ' "$@"
 }
 
+compiled_by_build() {
+  compiled_path=$tree_abs/$1
+  compiled_info=$tree_abs/target/r1-gate/debug/halvo-capture.d
+  [ -f "$compiled_info" ] || return 1
+  LC_ALL=C awk -v want="$compiled_path" '
+    function norm(p,   n, i, k, part, stack, out) {
+      n = split(p, part, "/"); k = 0
+      for (i = 1; i <= n; i++) {
+        if (part[i] == "" || part[i] == ".") continue
+        if (part[i] == ".." && k > 0) { k--; continue }
+        stack[++k] = part[i]
+      }
+      out = ""
+      for (i = 1; i <= k; i++) out = out "/" stack[i]
+      return tolower(out)
+    }
+    BEGIN { want = norm(want) }
+    { gsub(/\\ /, "\001")
+      for (i = 2; i <= NF; i++) { f = $i; gsub(/\001/, " ", f); if (norm(f) == want) found = 1 } }
+    END { exit !found }' "$compiled_info"
+}
+
 copy_failed() {
   unmutated_first=''
   IFS= read -r unmutated_first < "$work/unmutated.out"
@@ -664,6 +691,9 @@ run_rows() {
   lint_prepare "$work/rows.linted" || return 2
   table=$work/rows.linted
   built_unmutated=no; copy_built=no
+  stop_check
+  tree_abs=$(cd "$tree" && pwd -P)
+  step_check $? "read of the copy's path" || return 2
   if [ -n "$only" ]; then
     : > "$work/rows.loop"
     only_seen=' '
@@ -803,7 +833,20 @@ run_rows() {
     fi
     if mutant_builds "$mutated"; then builds=yes; else builds=no; fi
     stop_check
-    [ "$builds:$compile_form" != yes:build ] || printf 'built mutation:%s\n' "$row_name"
+    row_unread=no
+    if [ "$builds:$compile_form" = yes:build ]; then
+      if ! needs_cargo "$mutated"; then
+        printf 'built mutation:%s\n' "$row_name"
+      else
+        compiled_by_build "$mutated"
+        compiled_status=$?
+        step_check "$compiled_status" "read of the build's dep-info"
+        if [ "$compiled_status" -eq 0 ]; then printf 'built mutation:%s\n' "$row_name"
+        elif [ "$compiled_status" -eq 1 ]; then row_unread=yes; say not-compiled "$row_name" "no compile of the build reads $mutated"
+        else say FAIL copy "the dep-info of the build could not be read"; return 2
+        fi
+      fi
+    fi
     case $compile_form in
       check) compiles=type-checks; compiled=type-checked; not_compiled='does not type-check'; compile_step='the type check' ;;
       *) compiles=builds; compiled=built; not_compiled='does not build'; compile_step='the build step' ;;
@@ -813,6 +856,8 @@ run_rows() {
       else say FAIL "$row_name" "control: the mutant $compiled, so $compile_step proves nothing"; failures=$((failures + 1)); fi
     elif [ "$builds" = no ]; then
       say FAIL "$row_name" "the mutant $not_compiled"; failures=$((failures + 1))
+    elif [ "$apply_only" = yes ] && [ "$row_unread" = yes ]; then
+      say PASS "$row_name" "applies; no compile of the build reads $mutated"
     elif [ "$apply_only" = yes ]; then
       say PASS "$row_name" "applies and $compiles"
     else
@@ -963,6 +1008,11 @@ printf 'cargo\n' >> "$here/starts"
 printf '%s\n' "$*" >> "$here/args"
 printf '%s\n' "${CARGO_TARGET_DIR:-unset}" >> "$here/target-dirs"
 printf '%s\n' "${GATE_ROOT:-unset}" >> "$here/gate-roots"
+if [ "$1" = build ] && [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d crates ]; then
+  mkdir -p "$CARGO_TARGET_DIR/debug"
+  find "$(pwd -P)/crates" -type f ! -path '*/tests/*' ! -name mutants.rows > "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"
+  { printf '%s:' "$CARGO_TARGET_DIR/debug/halvo-capture"; while IFS= read -r compiled; do printf ' %s' "$compiled"; done < "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"; printf '\n'; } > "$CARGO_TARGET_DIR/debug/halvo-capture.d"
+fi
 case $hold in
   0) ;;
   second)
@@ -1573,6 +1623,25 @@ cases() {
   stop_order_cases
   root_cases
   fallback_cases
+  compiled_cases
+}
+
+compiled_cases() {
+  for compiled_mode in apply full; do
+    form_fixture "compiled-$compiled_mode" crates/halvo-sqlcipher 0
+    mkdir -p "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/tests"
+    printf 'pub fn f() -> i32 { 1 }\n#[cfg(test)]\n#[path = "../tests/t.rs"]\nmod t;\n' > "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/src/lib.rs"
+    printf 'pub fn g() -> i32 { 1 }\n' > "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/tests/t.rs"
+    row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" held tests/t.rs 's/1 }/1 } refuse-me (/' leak required X-1
+    row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" read src/lib.rs 's/1 }/2 }/' leak required X-1
+  done
+  compiled_line='not-compiled mutation:held (no compile of the build reads crates/halvo-sqlcipher/tests/t.rs)'
+  t a-mutant-that-no-compile-of-the-build-reads-prints-no-built-line FAIL with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:held'
+  t a-mutant-that-no-compile-of-the-build-reads-prints-its-own-line PASS with_cargo_home compiled-apply form_said compiled-apply yes "$compiled_line"
+  t apply-only-row-that-no-compile-reads-does-not-say-builds PASS with_cargo_home compiled-apply form_said compiled-apply yes 'PASS mutation:held (applies; no compile of the build reads crates/halvo-sqlcipher/tests/t.rs)'
+  t a-mutant-that-the-build-compiles-still-prints-its-built-line PASS with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:read'
+  t full-run-mutant-that-no-compile-reads-prints-no-built-line FAIL with_cargo_home compiled-full form_said compiled-full no 'built mutation:held'
+  t full-run-mutant-that-no-compile-reads-prints-its-own-line PASS with_cargo_home compiled-full form_said compiled-full no "$compiled_line"
 }
 
 fallback_cases() {

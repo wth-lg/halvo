@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in the sorted order of the row names rotated to start at the first-parent commit count of main times the stride, modulo the row count, prints within how many pushes every row starts while each push runs at least the stride's number of rows, starts no row after budget_s seconds, prints how many rows ran and how many of those it built a mutant for (a row that fails before its build, or whose mutant does not build, is not built), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
+# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in the sorted order of the row names rotated to start at the first-parent commit count of main times the stride, modulo the row count, prints within how many pushes every row starts while each push runs at least the stride's number of rows and, after a push that ran fewer, how many rows of its turn were not started, starts no row after budget_s seconds, prints how many rows ran, how many of those it built a mutant for (built mutation:<name>, printed only when the build compiled the mutated file, read from the build's dep-info for a cargo row; a row that fails before its build, or whose mutant does not build, is not built) and, apart, how many no compile of the build read (not-compiled mutation:<name>), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
 # lane: alone
 set -u
 name=30-mutants
@@ -83,13 +83,24 @@ budget_run() {
   printf '%s\n' "$out" >"$scratch/full" || exit 2
   awk -v m="$m" '
     /^built mutation:[^ ]+$/ { built_row[$2] = 1; next }
+    /^not-compiled mutation:[^ ]+ \(/ { unread_row[$2] = 1; next }
     /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; next }
     /^seconds mutation:[^ ]+ [0-9]+$/ {
-      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++; if ($2 in built_row) built++ }
+      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++; if ($2 in built_row) built++; if ($2 in unread_row) unread++ }
     }
-    END { printf "ran %d of %d rows\nbuilt %d of %d rows\n", n, m, built, m }' "$scratch/full" >"$scratch/ran" || exit 2
+    END { printf "ran %d of %d rows\nbuilt %d of %d rows\nnot compiled by the build %d of %d rows\n", n, m, built, m, unread, m }' "$scratch/full" >"$scratch/ran" || exit 2
   cat "$scratch/ran" || exit 2
   ran=$(sed -n 's/^ran \([0-9]*\) of .*/\1/p' "$scratch/ran")
+  turn=$stride
+  [ "$m" -ge "$turn" ] || turn=$m
+  if [ "${ran:-0}" -lt "$turn" ]; then
+    left=$((turn - ${ran:-0}))
+    ran_words="${ran:-0} rows"; after=them
+    [ "${ran:-0}" -ne 1 ] || { ran_words='1 row'; after=it; }
+    left_words="$left rows"
+    [ "$left" -ne 1 ] || left_words='1 row'
+    printf "order: this push ran %s, fewer than the stride %d, so the %s after %s up to the next push's start were not started in this turn\n" "$ran_words" "$stride" "$left_words" "$after"
+  fi
   first=$(sed -n '/^FAIL /{p;q;}' "$scratch/full")
   [ "$code" -eq 0 ] || fail "$label exited $code: ${first:-it printed no FAIL line}"
   [ -z "$first" ] || fail "$label exited 0 and printed: $first"
@@ -319,16 +330,16 @@ self_test() {
 
   runner push-to-main-runs-rows-in-the-order-of-the-commit "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-runs-rows-in-the-order-of-the-commit PASS "row mutation:segment-roundtrip-broken PASS 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}PASS $name" "$order1"
+  check push-to-main-runs-rows-in-the-order-of-the-commit PASS "row mutation:segment-roundtrip-broken PASS 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 1 row, fewer than the stride 6, so the 4 rows after it up to the next push's start were not started in this turn${nl}PASS $name" "$order1"
   runner push-to-main-times-the-budget-run "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-times-the-budget-run PASS "${nl}phase budget " "$order1"
   runner push-to-main-mutant-that-does-not-build "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (the mutant does not build)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
-  check push-to-main-mutant-that-does-not-build FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}FAIL $name" "$order1"
+  check push-to-main-mutant-that-does-not-build FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 1 row, fewer than the stride 6, so the 4 rows after it up to the next push's start were not started in this turn${nl}FAIL $name" "$order1"
   runner push-to-main-control-row-is-not-built "$applies; $listing; printf \"PASS mutation:segment-roundtrip-broken (control: the mutant does not build, and the runner did not count it as caught)\\nseconds mutation:segment-roundtrip-broken 12\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-control-row-is-not-built PASS "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}PASS $name" "$order1"
+  check push-to-main-control-row-is-not-built PASS "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 1 row, fewer than the stride 6, so the 4 rows after it up to the next push's start were not started in this turn${nl}PASS $name" "$order1"
   runner push-to-main-same-commit-same-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-same-commit-same-rows PASS 'order: from row 2 of 5 at 1 first-parent commits; every row starts within 1 push while each push runs at least 6 rows' "$order1"
@@ -345,6 +356,16 @@ self_test() {
   chain push-to-main-shallow-checkout-is-refused 4
   cp "$work/push-to-main-shallow-checkout-is-refused/head.id" "$work/push-to-main-shallow-checkout-is-refused/.git/shallow" || exit 2
   check push-to-main-shallow-checkout-is-refused FAIL 'the checkout is shallow, so git cannot count the first-parent commits of ' "$apply_only"
+  runner push-to-main-counts-apart-a-row-that-no-compile-reads "$applies; $listing; printf \"not-compiled mutation:segment-roundtrip-broken (no compile of the build reads crates/x/tests/t.rs)\\nPASS mutation:segment-roundtrip-broken (test store::x: the one test failed)\\nseconds mutation:segment-roundtrip-broken 31\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-counts-apart-a-row-that-no-compile-reads PASS "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}not compiled by the build 1 of 5 rows${nl}order: this push ran 1 row" "$order1"
+  runner push-to-main-says-the-rows-that-a-short-push-left-unstarted "$applies; $thirteen; printf \"built mutation:r07\\nPASS mutation:r07 (test store::x: the one test failed)\\nseconds mutation:r07 3\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-says-the-rows-that-a-short-push-left-unstarted PASS "${nl}order: this push ran 1 row, fewer than the stride 6, so the 5 rows after it up to the next push's start were not started in this turn${nl}" "$order13"
+  six_ran='built mutation:r07\\nPASS mutation:r07 (x)\\nseconds mutation:r07 3\\nbuilt mutation:r08\\nPASS mutation:r08 (x)\\nseconds mutation:r08 3\\nbuilt mutation:r09\\nPASS mutation:r09 (x)\\nseconds mutation:r09 3\\nbuilt mutation:r10\\nPASS mutation:r10 (x)\\nseconds mutation:r10 3\\nbuilt mutation:r11\\nPASS mutation:r11 (x)\\nseconds mutation:r11 3\\nbuilt mutation:r12\\nPASS mutation:r12 (x)\\nseconds mutation:r12 3'
+  runner push-to-main-that-ran-the-stride-says-no-row-was-left "$applies; $thirteen; printf \"$six_ran\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-that-ran-the-stride-says-no-row-was-left PASS "ran 6 of 13 rows${nl}built 6 of 13 rows${nl}not compiled by the build 0 of 13 rows${nl}PASS $name" "$order13"
   runner push-to-main-consecutive-counts-start-at-different-rows-4 "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   chain push-to-main-consecutive-counts-start-at-different-rows-4 4
@@ -374,18 +395,18 @@ self_test() {
   check real-runner-first-row-only PASS "PASS $name" '' "row mutation:alpha-gone PASS N s${nl}ran 1 of 4 rows"
   runner push-to-main-row-that-fails-before-its-build-is-not-built "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (the substitution did not apply)\\nseconds mutation:segment-roundtrip-broken 3\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
-  check push-to-main-row-that-fails-before-its-build-is-not-built FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}FAIL $name" "$order1"
+  check push-to-main-row-that-fails-before-its-build-is-not-built FAIL "ran 1 of 5 rows${nl}built 0 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 1 row, fewer than the stride 6, so the 4 rows after it up to the next push's start were not started in this turn${nl}FAIL $name" "$order1"
   runner push-to-main-built-line-of-a-row-that-did-not-run-is-not-counted "$applies; $listing; printf \"built mutation:key-row-deleted\\n$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-built-line-of-a-row-that-did-not-run-is-not-counted PASS "ran 1 of 5 rows${nl}built 1 of 5 rows${nl}PASS $name" "$order1"
+  check push-to-main-built-line-of-a-row-that-did-not-run-is-not-counted PASS "ran 1 of 5 rows${nl}built 1 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 1 row, fewer than the stride 6, so the 4 rows after it up to the next push's start were not started in this turn${nl}PASS $name" "$order1"
   real_runner real-runner-counts-the-rows-it-built
   printf 'delta-gone\ttarget.sh\ts/echo alpha/echo alpha2/\ttest selftest:fx/delta\trequired\tX-1\n' >>"$work/real-runner-counts-the-rows-it-built/scripts/r1-gate/mutants.rows"
   chain real-runner-counts-the-rows-it-built 1
   ref=refs/heads/main
-  check real-runner-counts-the-rows-it-built FAIL "ran 4 of 5 rows${nl}built 3 of 5 rows${nl}FAIL $name" ''
+  check real-runner-counts-the-rows-it-built FAIL "ran 4 of 5 rows${nl}built 3 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 4 rows, fewer than the stride 6, so the 1 row after them up to the next push's start were not started in this turn${nl}FAIL $name" ''
   runner push-to-main-row-not-caught "$applies; $listing; printf \"built mutation:segment-roundtrip-broken\\nFAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
-  check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
+  check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}built 1 of 5 rows${nl}not compiled by the build 0 of 5 rows${nl}order: this push ran 1 row, fewer than the stride 6, so the 4 rows after it up to the next push's start were not started in this turn${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
   runner push-to-main-budget-is-timed-by-the-clock "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
   stand_in_date push-to-main-budget-is-timed-by-the-clock 1000 1007 2000 2042
