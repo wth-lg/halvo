@@ -1786,6 +1786,7 @@ dependencies = [
  "halvo-policy",
  "halvo-schema",
  "halvo-sheet",
+ "halvo-test-dir",
  "serde_json",
 ]
 
