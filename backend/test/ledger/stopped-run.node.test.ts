@@ -32,7 +32,10 @@ interface Ready {
 }
 
 function table(): Row[] {
-  const text = execFileSync("ps", ["-A", "-o", "pid=,ppid=,pgid=,stat=,lstart=,command="], { encoding: "utf8" });
+  const text = execFileSync("ps", ["-A", "-o", "pid=,ppid=,pgid=,stat=,lstart=,command="], {
+    encoding: "utf8",
+    env: { ...process.env, TZ: "UTC0", LC_ALL: "C" },
+  });
   const rows: Row[] = [];
   for (const line of text.split("\n")) {
     const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.*)$/.exec(line);
