@@ -68,7 +68,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "card.records_dropped",
-        "Since Halvo opened, {count} entries of this agent's history could not be saved and are missing from it.",
+        "Since Halvo opened, {count} things in this agent's history went unsaved. They may still have happened; check before repeating them.",
     ),
     (
         "line.problem.sign_in_refused",
@@ -99,7 +99,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.stopping", "It is stopping."),
     (
         "line.working.kill_stuck",
-        "Part of this agent is still running. Quit Halvo completely and open it again to end it.",
+        "Part still runs, taking no step for you. Quit Halvo (Mac: app menu; Windows: icon by the clock), then reopen.",
     ),
     (
         "line.waiting_turn.queued",

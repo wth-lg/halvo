@@ -445,7 +445,7 @@ fn rd116_w1_the_three_texts_stand_word_for_word() {
     let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
     assert_eq!(
         t("line.working.kill_stuck", &[]),
-        "Part of this agent is still running. Quit Halvo completely and open it again to end it."
+        "Part still runs, taking no step for you. Quit Halvo (Mac: app menu; Windows: icon by the clock), then reopen."
     );
     assert_eq!(
         t("line.problem.record", &[]),
@@ -453,7 +453,7 @@ fn rd116_w1_the_three_texts_stand_word_for_word() {
     );
     assert_eq!(
         t("card.records_dropped", &[("count", "3")]),
-        "Since Halvo opened, 3 entries of this agent's history could not be saved and are missing from it."
+        "Since Halvo opened, 3 things in this agent's history went unsaved. They may still have happened; check before repeating them."
     );
 }
 
