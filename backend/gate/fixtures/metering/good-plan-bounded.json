@@ -6,7 +6,7 @@
   "line": [
     "PASS metering: plan=bounded fake-checks=",
     "orderings=100 of 100 ",
-    "sequences=38 ",
-    "settings=38 of 38 "
+    "sequences=39 ",
+    "settings=39 of 39 "
   ]
 }

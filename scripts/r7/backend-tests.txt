@@ -8,6 +8,7 @@ test/billing/routes.node.test.ts	4
 test/billing/stripe-adapter-list.node.test.ts	60
 test/billing/stripe-adapter.node.test.ts	39
 test/billing/stripe-read-session.node.test.ts	1
+test/billing/u56p2-drawn.node.test.ts	1
 test/contract/billing-stub.node.test.ts	2
 test/contract/constants.node.test.ts	1
 test/contract/entries.node.test.ts	134
@@ -77,6 +78,7 @@ test/metering/stripe-meter.node.test.ts	31
 test/metering/sync.node.test.ts	21
 test/metering/t1-exits.node.test.ts	9
 test/metering/u56p2-customer.node.test.ts	9
+test/metering/u56p2-no-caller.node.test.ts	14
 test/metering/u56p2-record.node.test.ts	9
 test/metering/ver2-v1-calls.node.test.ts	6
 test/metering/ver37-f1b.node.test.ts	1

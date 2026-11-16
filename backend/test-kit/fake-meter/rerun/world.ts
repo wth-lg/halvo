@@ -57,6 +57,7 @@ export type Scenario = {
   readonly faultsByProviderCall: readonly Fault[];
   readonly repeatAnswer?: "duplicate" | "failed";
   readonly lateSubscriptionId?: readonly number[];
+  readonly listedSecondPlan?: readonly number[];
 };
 
 export type Options = { readonly downtimeBudgetSeconds: number; readonly onFailedCheck: "stop" | "list" };
@@ -120,6 +121,7 @@ type Account = {
   closedNotBillable: Set<string>;
   providerEnded: boolean;
   idLate: boolean;
+  secondPlanLive: boolean;
   sendsMade: Set<string>;
   endedByTheDeleteAt: number | null;
   deleteBound: Map<string, { amountMinor: number; timestamp: number }>;
@@ -319,6 +321,7 @@ class World {
       closedNotBillable: new Set(),
       providerEnded: false,
       idLate: this.scenario.lateSubscriptionId?.includes(index) ?? false,
+      secondPlanLive: this.scenario.listedSecondPlan?.includes(index) ?? false,
       sendsMade: new Set(),
       endedByTheDeleteAt: null,
       deleteBound: new Map(),
@@ -403,9 +406,14 @@ class World {
           await account.entries.webhookEvent(
             this.subscriptionEvent(account, { providerTime, period: { start: start * 1000, end: (start + BILLING_PERIOD) * 1000 } }),
           );
-          return { kind: "nothing-to-cancel" };
+          this.count("cancel.the-list-of-no-stored-id-ends-the-plan");
         }
         if (this.cancelAnswerStored(account, subscriptionId)) this.fail("a cancel call though an answer is stored", `${account.id}: ${subscriptionId}`);
+        if (account.secondPlanLive) {
+          account.secondPlanLive = false;
+          this.count("cancel.progress-with-the-stored-plan-unanswered");
+          return { kind: "failed", cancelled: 1 };
+        }
         if (account.providerEnded) {
           this.count("call.cancel-of-an-ended-subscription");
           return { kind: "nothing-to-cancel" };
@@ -1062,7 +1070,7 @@ class World {
       const view = this.tables(account);
       if (account.ended === "delete") {
         if (view !== null) this.fail("storage after account delete", `${account.id} still holds storage`);
-        if (!account.providerEnded) this.fail("a deleted account whose plan the provider still bills", account.id);
+        if (!account.providerEnded || account.secondPlanLive) this.fail("a deleted account whose plan the provider still bills", account.id);
       } else if (view === null) {
         this.fail("storage", `${account.id} lost its storage without an account delete`);
       }
