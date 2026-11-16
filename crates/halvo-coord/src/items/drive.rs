@@ -91,10 +91,12 @@ impl Ledger {
     }
 
     /// The `item_lapsed` rows with `app_ended` of the items of the kind of the raise `row` that
-    /// the events that the ledger last took hold open, that another run raised, and that no row
-    /// of the ledger closes: the open items of an earlier life whose lapse recovery owes, which
-    /// the raise closes before it raises, so that no ledger holds two open items of one kind for
-    /// an agent (ruling RD-96 item 5 (b)).
+    /// the events that the ledger took, and the reads it made, hold open, that another run
+    /// raised (a run's item of another run, or the hold's `check` item), and that no row of the
+    /// ledger closes; the raise closes them before it raises (ruling RD-96 item 5 (b)). It reads
+    /// no debt of the board: an item of a run that ended in this life is closed by its end, so
+    /// in the coordinator these are the items of an earlier life whose lapse recovery owes. Two
+    /// open items of one kind of the raising run itself stay open.
     fn earlier_open(&self, row: &What) -> Vec<What> {
         let What::ItemRaised { raised, .. } = row else {
             return Vec::new();

@@ -6566,7 +6566,11 @@ fn rd102_a_skip_on_the_card_of_a_queued_agent_drops_its_start() {
     );
     assert_eq!(skipped, Ok(()), "the skip is stored");
     assert_eq!(c.queued(), vec![], "the skip drops the queued start");
-    assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
+    assert_eq!(
+        row_line(&c.snapshot(), 1),
+        text("line.all_set.done"),
+        "the row leaves queued in the same reply: all set, with no item and no start"
+    );
 }
 
 #[test]

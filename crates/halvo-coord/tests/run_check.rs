@@ -1935,6 +1935,14 @@ fn a_start_whose_log_meets_seq_for_another_writers_event_answers_its_ready_item_
     assert_eq!(closes(&w, &ready), vec![answered_start(&ready)]);
 }
 
+fn act_late(w: &mut World, turns: Vec<Turn>, act: Act) -> halvo_coord::run::Done {
+    let late = Late {
+        ports: &w.ports,
+        turns: std::cell::RefCell::new(turns.into()),
+    };
+    halvo_coord::run::drive(&late, &mut w.board, &mut w.table, &w.limits, act)
+}
+
 #[test]
 fn a_tick_raises_ready_with_no_check_item_of_an_earlier_life_left_open() {
     let mut w = world(&[PERSON]);
@@ -1963,6 +1971,17 @@ fn a_tick_raises_ready_with_no_check_item_of_an_earlier_life_left_open() {
         "the new life's check raise lapsed the earlier check item in its body (RD-96 item 5 (b))"
     );
     assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    w.set_clock(T0 + 15_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    act_late(&mut w, vec![Turn::Refuse(PortError::NoService)], Act::Tick);
+    assert!(
+        w.board.owed.is_empty(),
+        "a tick whose first log is refused pays the debt all the same: the events close the item"
+    );
+    assert!(
+        acknowledged_bodies_from(&w, 0, from).is_empty(),
+        "the refused log is the ready raise, and nothing is sent for the debt"
+    );
     w.set_clock(T0 + 20_000, DAY);
     let from = w.ports.tried.borrow().len();
     w.act(Act::Tick);
@@ -1972,7 +1991,7 @@ fn a_tick_raises_ready_with_no_check_item_of_an_earlier_life_left_open() {
             &raised[..],
             [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Ready, .. }])
         ),
-        "the tick pays the debt with no send and raises ready: {raised:?}"
+        "the next tick raises ready: {raised:?}"
     );
     assert!(w.board.owed.is_empty());
     assert_eq!(
