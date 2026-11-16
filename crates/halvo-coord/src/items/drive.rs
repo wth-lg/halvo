@@ -44,6 +44,7 @@ pub struct Ledger {
     waiting: Vec<Event>,
     closing: Vec<Event>,
     unsure: Vec<ItemId>,
+    found: Vec<(ItemId, Raised)>,
 }
 
 impl Ledger {
@@ -57,13 +58,17 @@ impl Ledger {
             waiting: Vec::new(),
             closing: Vec::new(),
             unsure: Vec::new(),
+            found: Vec::new(),
         }
     }
 
     /// Takes the owner's events after the last acknowledged one that a read outside this ledger
     /// brought, the coordinator's read right after a call that answered no acknowledgement, as
-    /// the read after a refusal `seq` takes them (ruling RD-40).
+    /// the read after a refusal `seq` takes them (ruling RD-40). The items that `events` hold open
+    /// are the ones that the ledger's next raise of a run's item may close (ruling RD-96 item
+    /// 5 (b)), so `events` are all the agent's events that the coordinator holds.
     pub fn take(&mut self, events: &[Event]) {
+        self.found = open_raised(events);
         let read: Vec<Event> = events
             .iter()
             .filter(|e| e.seq.get() > self.last)
@@ -83,6 +88,26 @@ impl Ledger {
             .iter()
             .filter(|e| closed_item(&e.what) == Some(item) && closes(std::slice::from_ref(e), item))
             .max_by_key(|e| e.seq)
+    }
+
+    /// The `item_lapsed` rows with `app_ended` of the items of the kind of the raise `row` that
+    /// the events that the ledger last took hold open, that another run raised, and that no row
+    /// of the ledger closes: the open items of an earlier life whose lapse recovery owes, which
+    /// the raise closes before it raises, so that no ledger holds two open items of one kind for
+    /// an agent (ruling RD-96 item 5 (b)).
+    fn earlier_open(&self, row: &What) -> Vec<What> {
+        let What::ItemRaised { raised, .. } = row else {
+            return Vec::new();
+        };
+        self.found
+            .iter()
+            .filter(|(_, r)| r.kind() == raised.kind() && raised_run(r) != raised_run(raised))
+            .filter(|(item, _)| !closes(&self.closing, item) && !closes(&self.waiting, item))
+            .map(|(item, r)| What::ItemLapsed {
+                item: item.clone(),
+                lapsed: app_ended(r),
+            })
+            .collect()
     }
 
     /// Keeps the rows that close an item among `events`, which the owner acknowledged.
@@ -150,6 +175,43 @@ impl Ledger {
         for (i, e) in (0u32..).zip(self.waiting.iter_mut()) {
             e.seq = NonZeroU32::MIN.saturating_add(last.saturating_add(i));
         }
+    }
+}
+
+fn open_raised(events: &[Event]) -> Vec<(ItemId, Raised)> {
+    events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised { item, raised } if !closes(events, item) => {
+                Some((item.clone(), raised.clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn raised_run(raised: &Raised) -> Option<&RunId> {
+    match raised {
+        Raised::Confirm(run)
+        | Raised::SignIn(run)
+        | Raised::LinkAccount(run)
+        | Raised::Stuck(run)
+        | Raised::Show(run) => Some(run),
+        Raised::Check(run) => run.as_ref(),
+        Raised::Setup | Raised::Ready => None,
+    }
+}
+
+fn app_ended(raised: &Raised) -> Lapsed {
+    match raised {
+        Raised::Confirm(_) => Lapsed::Confirm(LapseCause::AppEnded),
+        Raised::SignIn(_) => Lapsed::SignIn(OtherLapse::AppEnded),
+        Raised::LinkAccount(_) => Lapsed::LinkAccount(OtherLapse::AppEnded),
+        Raised::Stuck(_) => Lapsed::Stuck(OtherLapse::AppEnded),
+        Raised::Check(_) => Lapsed::Check(OtherLapse::AppEnded),
+        Raised::Setup => Lapsed::Setup(OtherLapse::AppEnded),
+        Raised::Ready => Lapsed::Ready(OtherLapse::AppEnded),
+        Raised::Show(_) => Lapsed::Show(OtherLapse::AppEnded),
     }
 }
 
@@ -449,10 +511,12 @@ fn store_raise<P: Owner + Clock>(
     let Ok(stamp) = Stamp::read(ports) else {
         return Ok(());
     };
-    let events = ledger.number(vec![row.clone()], stamp);
+    let mut whats = ledger.earlier_open(&row);
+    whats.push(row);
+    let events = ledger.number(whats.clone(), stamp);
     ledger.waiting.extend(events);
     if let Ok(false) = flush_reading(ports, ledger, limits, read) {
-        ledger.waiting.retain(|e| e.what != row);
+        ledger.waiting.retain(|e| !whats.contains(&e.what));
         ledger.renumber();
         return Err(Cause::State);
     }

@@ -6,9 +6,9 @@ use super::{
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
-    Doing, Event, Facts, HoldSetCause, ItemId, Lapsed, Live, OtherLapse, Outcome, OwnItem,
-    OwnItemKind, Raised, ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow, WorkflowId,
-    WorkflowState,
+    Doing, Event, Facts, HoldSetCause, ItemId, ItemKind, Lapsed, Live, OtherLapse, Outcome,
+    OwnItem, OwnItemKind, Raised, ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow,
+    WorkflowId, WorkflowState,
 };
 use std::num::NonZeroU32;
 
@@ -1024,6 +1024,31 @@ pub(crate) fn owed_ready<C>(board: &Board<C>, i: usize) -> Vec<ItemId> {
         .collect()
 }
 
+/// The `item_lapsed` rows that the board owes for the agent of member `i` whose item is of the
+/// kind `kind` and whose close the agent's events do not hold. A raise of an item of that kind
+/// writes them before its `item_raised`, in one body, so that no ledger holds two open items of
+/// one kind for an agent; the debt then leaves at the next tick with no send (ruling RD-96 item
+/// 5 (b)).
+pub(crate) fn owed_of_kind<C>(board: &Board<C>, i: usize, kind: ItemKind) -> Vec<What> {
+    let facts = &board.members[i].facts;
+    board
+        .owed
+        .iter()
+        .filter(|o| o.agent == facts.agent)
+        .filter_map(|o| match &o.what {
+            Owing::ItemLapsed { item, lapsed, .. }
+                if lapsed.kind() == kind && !item_closed(&facts.events, item) =>
+            {
+                Some(What::ItemLapsed {
+                    item: item.clone(),
+                    lapsed: *lapsed,
+                })
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// Whether the events close the item: they hold its `item_released` or its `item_lapsed`, or,
 /// for a kind other than `confirm`, its `item_answered` (I5.8, I7.1).
 pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
@@ -1101,12 +1126,12 @@ fn raise_own_item<P: Owner + Rng, C: ConfigView>(
 ) -> Result<bool, PortError> {
     let item = ItemId::parse(&minted(cx)?).map_err(|_| PortError::NoService)?;
     let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
-    let row = What::ItemRaised {
+    let mut whats = owed_of_kind(board, i, raised.kind());
+    whats.push(What::ItemRaised {
         item: item.clone(),
         raised,
-    };
-    if let Stored::RedecidedFails(_) = log_or_reread_once(cx, board, i, vec![row], day, at, decide)?
-    {
+    });
+    if let Stored::RedecidedFails(_) = log_or_reread_once(cx, board, i, whats, day, at, decide)? {
         return Ok(false);
     }
     let facts = &mut board.members[i].facts;

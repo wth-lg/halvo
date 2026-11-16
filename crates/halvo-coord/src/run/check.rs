@@ -1,8 +1,8 @@
 use crate::ports::{Clock, Owner, Rng, Stamp};
-use crate::schedule::{holds, owed_ready, read_back, seq_refusal, Board, Hold};
+use crate::schedule::{holds, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold};
 use crate::types::{
-    hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, Lapsed, Limits, OtherLapse, OwnItem,
-    OwnItemKind, Raised, What,
+    hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, ItemKind, Lapsed, Limits, OtherLapse,
+    OwnItem, OwnItemKind, Raised, What,
 };
 use std::num::NonZeroU32;
 
@@ -25,7 +25,9 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
 /// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
 /// holds: after the agent's last event it stores, in one body, `item_lapsed` with the cause `check`
 /// of the agent's open `ready` item where it holds one and of each `ready` item whose lapse the
-/// board owes and the events do not close (`owed_ready`), and then `item_raised` of the kind
+/// board owes and the events do not close (`owed_ready`), then the owed `item_lapsed` of each
+/// `check` item of an earlier life that the events do not close (`owed_of_kind`, ruling RD-96
+/// item 5 (b)), and then `item_raised` of the kind
 /// `check` with no run; the agent holds the item `check` once the owner acknowledged the body,
 /// the lapse stores no `slot_skipped`, and the debt stays on the board until a tick finds the item
 /// closed (I5.4, I5.8, rulings RD-5 and RD-96). When the owner refuses the body
@@ -57,7 +59,13 @@ where
         let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {
             continue;
         };
-        let events = check_raise_body(&board.members[i].facts, owed_ready(board, i), &item, stamp);
+        let events = check_raise_body(
+            &board.members[i].facts,
+            owed_ready(board, i),
+            owed_of_kind(board, i, ItemKind::Check),
+            &item,
+            stamp,
+        );
         let logged = match ports.log(&events) {
             Ok(()) => Retried::Logged(events),
             Err(e) if seq_refusal(&e) => {
@@ -91,6 +99,7 @@ enum Retried {
 fn check_raise_body<C>(
     facts: &Facts<C>,
     owed: Vec<ItemId>,
+    owed_checks: Vec<What>,
     item: &ItemId,
     stamp: Stamp,
 ) -> Vec<Event> {
@@ -108,6 +117,7 @@ fn check_raise_body<C>(
         raised: Raised::Check(None),
     };
     lapses
+        .chain(owed_checks)
         .chain(std::iter::once(raise))
         .zip(0u32..)
         .map(|(what, k)| Event {
@@ -144,7 +154,13 @@ where
     if !check_due(&board.members[i].facts, gone) {
         return Retried::Nothing;
     }
-    let events = check_raise_body(&board.members[i].facts, owed_ready(board, i), item, stamp);
+    let events = check_raise_body(
+        &board.members[i].facts,
+        owed_ready(board, i),
+        owed_of_kind(board, i, ItemKind::Check),
+        item,
+        stamp,
+    );
     match ports.log(&events) {
         Ok(()) => Retried::Logged(events),
         Err(_) => Retried::Nothing,

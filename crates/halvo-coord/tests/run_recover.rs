@@ -1541,8 +1541,8 @@ fn a_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowle
     let open = open_checks(&w);
     assert_eq!(
         open.len(),
-        2,
-        "the owner refused the body and stored the new check item"
+        1,
+        "the owner refused the body, and the new check's body lapsed the earlier check item first (RD-96 item 5 (b))"
     );
     let stored = open.iter().find(|i| !earlier.contains(i)).unwrap().clone();
     assert_eq!(
