@@ -1262,7 +1262,13 @@ EOF
   run_ensure_backend fails
   [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of other bytes beside the link ran"
   [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
-  [ "$(count "which runs when the pnpm of $case_dir/home/.local is called, is a shell shim that this script does not read, because its form is not the one that npm writes or a link leads to it, so the file that it runs is not compared with package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the file"
+  if [ -L "$case_dir/home/.local/pnpm" ]; then
+    echo "  branch link: the pnpm of the prefix is a link to the shim"
+    [ "$(count "which runs when the pnpm of $case_dir/home/.local is called, is a shell shim that this script does not read, because its form is not the one that npm writes or a link leads to it, so the file that it runs is not compared with package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the shim behind the link"
+  else
+    echo "  branch copies: this platform makes copies for links, so the shim stands in the prefix and its target there is read"
+    [ "$(count "prerequisites: error: $prefix_real/node_modules/pnpm/pnpm, which runs when the pnpm of $case_dir/home/.local is called, does not have the bytes of package/$case_member of $platform_archive_path" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the target of the shim"
+  fi
   verdict "$name"
 
   expect_shim_refused() {
