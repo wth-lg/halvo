@@ -1174,3 +1174,156 @@ fn st47_t1_a_root_moved_into_a_directory_of_the_roots_folder_keeps_every_delete_
         "a tail answered other than DeleteIncomplete naming the directory while it stands"
     );
 }
+
+/// A scratch store at `<parent>/real` made over a file-root custody whose
+/// roots lie inside it, with one segment, and a link at `<parent>/link` to it.
+fn st47_a_scratch_store_behind_a_link(
+    parent: &Path,
+) -> (PathBuf, PathBuf, PathBuf, RootId, uuid::Uuid) {
+    let real = parent.join("real");
+    let roots = real.join("roots");
+    let root_id = RootId::fresh().unwrap();
+    let mut store = EncryptedStore::create(
+        &real,
+        Box::new(file_root_custody(
+            &roots,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = store
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    drop(store);
+    let link = parent.join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    (real, roots, link, root_id, segment.segment_id)
+}
+
+/// Ruling ST-47 T2 (adversary 1's T14): a store path that is a link, under
+/// both closed layouts. Each tail answers DeleteIncomplete with not_followed
+/// 1, leaves the link standing, and the store behind the link opens and
+/// reads after it.
+#[test]
+fn st47_t2_a_store_path_that_is_a_link_is_refused_in_both_layouts() {
+    let mut problems = Vec::new();
+    for layout in [
+        crate::store::Layout::ScratchStore,
+        crate::store::Layout::DataDirectory,
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let (real, roots, link, root_id, segment) = st47_a_scratch_store_behind_a_link(dir.path());
+
+        let answer = EncryptedStore::delete_data_dir(&link, layout);
+
+        let reads = open_over_file_root(&real, &roots, root_id)
+            .map(|store| store.read_segment(segment, &mut Vec::new()).is_ok());
+        let link_stands =
+            std::fs::symlink_metadata(&link).is_ok_and(|meta| meta.file_type().is_symlink());
+        let (incomplete, not_followed) = match &answer {
+            Ok(report) => (false, report.not_followed),
+            Err(StoreError::DeleteIncomplete(report)) => (true, report.not_followed),
+            Err(_) => (false, u64::MAX),
+        };
+        println!(
+            "ST47-T2-T14 layout={layout:?} {} not_followed={not_followed} link_stands={link_stands} store_behind_reads={reads:?}",
+            answer_line(&answer)
+        );
+        if !matches!(reads, Ok(true)) {
+            problems.push(format!(
+                "{layout:?}: the store behind the link no longer reads: {reads:?}"
+            ));
+        }
+        if !link_stands {
+            problems.push(format!("{layout:?}: the tail removed the link"));
+        }
+        if !incomplete || not_followed != 1 {
+            problems.push(format!(
+                "{layout:?}: {} with not_followed={not_followed}, not DeleteIncomplete with 1",
+                answer_line(&answer)
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-47 T2 (adversary 1's H1): the scratch tail on a store path that
+/// is a link answers no Ok while the root behind the link unwraps the key,
+/// and removes nothing: the link, the key file, the database and the root
+/// file behind it stand.
+#[test]
+fn st47_t2_a_scratch_store_path_that_is_a_link_removes_nothing_and_answers_no_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    let (real, roots, link, root_id, _) = st47_a_scratch_store_behind_a_link(dir.path());
+    let wrapped = wrapped_of(&real);
+    let root_file = roots.join(format!("{root_id}.root"));
+
+    let answer = EncryptedStore::delete_data_dir(&link, crate::store::Layout::ScratchStore);
+
+    let unwraps = st47_unwraps(dir.path(), "h1", &root_file, root_id, &wrapped);
+    let link_stands = std::fs::symlink_metadata(&link).is_ok();
+    let behind_stands = [
+        real.join("store.key"),
+        real.join("store.db"),
+        root_file.clone(),
+    ]
+    .iter()
+    .all(|path| path.exists());
+    println!(
+        "ST47-T2-H1 {} root_unwraps={unwraps} link_stands={link_stands} behind_stands={behind_stands}",
+        answer_line(&answer)
+    );
+    assert!(
+        !(answer.is_ok() && unwraps),
+        "the tail answered Ok while the root behind the scratch link unwraps the key"
+    );
+    assert!(
+        link_stands,
+        "the scratch tail removed the link at the store path"
+    );
+    assert!(
+        behind_stands,
+        "the scratch tail removed a file behind the link"
+    );
+    assert_eq!(delete_report(&answer).not_followed, 1);
+}
+
+/// Ruling ST-47 T2, the control in the data layout: a link at `DIR/store`
+/// is removed as the entry that it is, counted as not followed, the roots
+/// directory of `DIR` is swept, and the tail answers Ok; the directory that
+/// the link named keeps its files.
+#[test]
+fn st47_t2_control_a_link_at_the_store_name_of_a_data_directory_is_removed_and_the_roots_swept() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let (store_dir, roots_dir, root_id, _) = file_root_store(&data);
+    let aside = dir.path().join("aside");
+    std::fs::rename(&store_dir, &aside).unwrap();
+    std::os::unix::fs::symlink(&aside, &store_dir).unwrap();
+
+    let answer = EncryptedStore::delete_data_dir(&data, crate::store::Layout::DataDirectory);
+
+    let link_stands = std::fs::symlink_metadata(&store_dir).is_ok();
+    let root_stands = roots_dir.join(format!("{root_id}.root")).exists();
+    let aside_kept = aside.join("store.key").exists() && aside.join("store.db").exists();
+    println!(
+        "ST47-T2-CONTROL {} link_stands={link_stands} root_stands={root_stands} aside_kept={aside_kept}",
+        answer_line(&answer)
+    );
+    assert!(
+        !link_stands,
+        "the data tail left the link at the store name"
+    );
+    assert!(
+        !root_stands,
+        "the data tail left the root file in the roots directory"
+    );
+    assert!(
+        aside_kept,
+        "the data tail followed the link at the store name"
+    );
+    assert!(answer.is_ok(), "{}", answer_line(&answer));
+    assert_eq!(delete_report(&answer).not_followed, 1);
+}
