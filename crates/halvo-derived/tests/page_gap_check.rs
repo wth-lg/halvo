@@ -142,8 +142,8 @@ fn checked(scratch: &Scratch) -> (rules::Checked, bool) {
 /// edited-page-gap-not-zeroed of crates/halvo-sqlcipher/mutants.rows) this test fails by the check's own lines.
 #[test]
 fn small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check() {
-    let mut lines = Vec::new();
     for seed in [1u64, 2, 3] {
+        let mut lines = Vec::new();
         let scratch = drawn_store(seed);
         let order = Draw(0x9e37_79b9_7f4a_7c15 ^ seed).order(ROWS as usize);
         for (step, &i) in order.iter().take(STEPS).enumerate() {
@@ -170,6 +170,11 @@ fn small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check() {
                     .map(|p| format!("seed {seed}, step {step}: {p}")),
             );
         }
+        assert_eq!(
+            lines,
+            Vec::<String>::new(),
+            "seed {seed}: the lines of the structural check"
+        );
         let (conn, bytes) = image(&scratch);
         let read = rules::check(&conn, &bytes);
         assert!(
@@ -182,11 +187,6 @@ fn small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check() {
             "seed {seed}: the plants that the check does not name"
         );
     }
-    assert_eq!(
-        lines,
-        Vec::<String>::new(),
-        "the lines of the structural check"
-    );
 }
 
 /// The draw of the test above, with secure delete off: the includer's own control (rules.rs, the caller's duties),
