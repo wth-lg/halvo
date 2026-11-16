@@ -937,10 +937,12 @@ fn the_tail_answers_each_arm_as_its_row_says_and_leaves_the_roots_directory_as_i
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// H1: the tail opens no roots path that leads through a store name at which
-/// it did not open a directory itself. A link at the store name leads to a
-/// store whose roots lie inside it; the tail removes the link and leaves
-/// that store and its root whole.
+/// H1, as ruling ST-47 T2 amends it for the scratch store path: the tail
+/// opens no roots path that leads through a store name at which it did not
+/// open a directory itself. A link at the scratch store path leads to a store
+/// whose roots lie inside it; the tail leaves the link standing, answers
+/// DeleteIncomplete with not_followed 1, and leaves that store and its root
+/// whole.
 #[test]
 fn the_tail_opens_no_roots_path_through_a_link_at_the_store_name() {
     let dir = tempfile::tempdir().unwrap();
@@ -953,8 +955,13 @@ fn the_tail_opens_no_roots_path_through_a_link_at_the_store_name() {
     let answer = tail(&data.join("store"), &data.join("store").join("roots"));
     println!("ST45 H1 roots through a link {}", report_line(&answer));
     assert_eq!(root_files_in(&roots_behind), roots_before);
-    assert!(std::fs::symlink_metadata(data.join("store")).is_err());
-    assert!(answer.is_ok(), "{}", report_line(&answer));
+    assert!(std::fs::symlink_metadata(data.join("store")).is_ok());
+    assert!(
+        matches!(answer, Err(StoreError::DeleteIncomplete(_))),
+        "{}",
+        report_line(&answer)
+    );
+    assert_eq!(delete_report(&answer).not_followed, 1);
 }
 
 /// H1: in the arm whose lock fails for a reason other than a holder (a test
