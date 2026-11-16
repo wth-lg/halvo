@@ -248,6 +248,18 @@ fn expected_keys() -> BTreeSet<String> {
         k.insert(format!("run.effect.{end}"));
     }
     k.insert("line.run.stopped".to_owned());
+    for key in [
+        "line.quitting",
+        "line.problem.record",
+        "card.records_dropped",
+        "line.off.kept",
+        "line.all_set.nothing_first",
+        "say_again",
+        "line.run.answer_lost",
+        "line.problem.sign_in_refused",
+    ] {
+        k.insert(key.to_owned());
+    }
     for n in ["file", "range"] {
         k.insert(format!("field.local_edit.{n}"));
     }
@@ -277,7 +289,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 242);
+    assert_eq!(seen.len(), 250);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -314,6 +326,8 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     want.insert("say.item.new".into(), vec!["name"]);
     want.insert("say.item.gone".into(), vec!["name"]);
     want.insert("confirm.asked_by".into(), vec!["name"]);
+    want.insert("card.records_dropped".into(), vec!["count"]);
+    want.insert("say_again".into(), vec!["name"]);
     want.insert("confirm.asked_by_place".into(), vec!["count", "n", "name"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
@@ -423,6 +437,18 @@ fn fixed_texts_stand_word_for_word() {
     }
     let classes: Vec<&str> = Class::ALL.iter().map(|c| c.name()).collect();
     assert!(classes.contains(&"payment"));
+}
+
+/// The hold `failures` says what happened and its way out (ruling RD-81).
+#[test]
+fn rd81_the_line_of_the_hold_failures_names_its_way_out() {
+    let line = words::text("line.problem.failures", &[]).unwrap();
+    let switch_on = words::text("control.switch_on", &[]).unwrap();
+    assert_eq!(
+        line,
+        "Halvo switched it off after several tries in a row did not work. To try again, choose Switch on."
+    );
+    assert!(line.contains(&switch_on));
 }
 
 /// The two choices of a second step (ruling RD-24 (b)): the one that allows says that the site

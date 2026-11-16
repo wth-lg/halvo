@@ -60,7 +60,39 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.failures",
-        "It failed several times in a row, so Halvo switched it off.",
+        "Halvo switched it off after several tries in a row did not work. To try again, choose Switch on.",
+    ),
+    (
+        "line.problem.record",
+        "Halvo cannot read or save its record now, so it starts nothing and cannot save your answers. Stop still works.",
+    ),
+    (
+        "card.records_dropped",
+        "Since Halvo opened, {count} parts of its record could not be saved.",
+    ),
+    (
+        "line.problem.sign_in_refused",
+        "The site did not let it sign in.",
+    ),
+    (
+        "line.off.kept",
+        "This task is switched off. To let it run again, choose Switch on.",
+    ),
+    (
+        "line.all_set.nothing_first",
+        "The first time it ran, it found nothing to do.",
+    ),
+    (
+        "line.quitting",
+        "Halvo is closing, so it starts nothing new.",
+    ),
+    (
+        "line.run.answer_lost",
+        "Halvo could not pass your answer on, so it stopped the task.",
+    ),
+    (
+        "say_again",
+        "Halvo could not use your answers for “{name}”, so it asks again.",
     ),
     ("line.working.starting", "It is starting."),
     ("line.working.working", "It is doing its task now."),
