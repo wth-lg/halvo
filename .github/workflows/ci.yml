@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job's proof (the windows job runs 10-format alone)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +33,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -85,21 +76,60 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: store-3b loop of the later tests (macos)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          tmp=${RUNNER_TEMP:-$TMPDIR}
+          cargo test --locked -p halvo-capture --lib --no-run --message-format=json >"$tmp/store-3b-build.json" 2>"$tmp/store-3b-build.err"
+          bin=$(python3 -c 'import json,sys
+          for line in open(sys.argv[1]):
+              try: m = json.loads(line)
+              except ValueError: continue
+              if m.get("reason") == "compiler-artifact" and m.get("profile", {}).get("test") and m.get("target", {}).get("name") == "halvo_capture" and m.get("executable"): print(m["executable"])' "$tmp/store-3b-build.json" | tail -n 1)
+          echo "test binary found: $([ -n "$bin" ] && echo yes || echo no)"
+          H=store::hardening_tests::held_roots
+          P=store::hardening_tests::pass_two
+          names="$H::a_tail_on_a_data_directory_that_does_not_exist_answers_ok_with_nothing_named $H::an_open_whose_roots_path_is_a_link_is_refused_and_reads_no_root_behind_it $H::an_abandoned_create_destroys_its_root_in_the_held_roots_directory_after_it_moved $P::the_tail_follows_no_link_at_the_roots_name_of_its_data_directory"
+          count=$(printf '%s\n' $names | grep -c .)
+          passed=0
+          shown=
+          round=0
+          while [ "$round" -lt 200 ]; do
+            round=$((round + 1))
+            (cd crates/halvo-capture && "$bin" --exact $names) >"$tmp/store-3b-round.txt" 2>&1
+            if grep -q "^test result: ok\. $count passed; 0 failed" "$tmp/store-3b-round.txt"; then
+              passed=$((passed + 1))
+            elif [ -z "$shown" ]; then
+              shown=yes
+              echo "round $round failed:"
+              tail -n 20 "$tmp/store-3b-round.txt"
+            fi
+          done
+          printf 'loop store-3b-macos-later: passed %s of 200 rounds of %s tests\n' "$passed" "$count"
+          [ "$passed" = 200 ]
+      - name: store-3b rows to their end (the 48 left at faeb9868)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 90
+        shell: bash
+        run: |
+          set +e
+          set --
+          for row in an-absent-root-name-counts-as-removed any-entry-at-the-root-name-reads-as-the-root-file any-entry-of-the-root-id-is-the-witness associated-data-holds-the-path-of-the-executable cleanup-by-a-made-mark-destroys-by-id cleanup-by-identity-answers-ok-on-an-unlistable-directory cleanup-drops-the-fate-of-a-partial-name constant-wrap-nonce create-holds-no-roots-directory custody-root-is-all-zero custody-wrap-under-constant-key edited-page-gap-not-zeroed entry-at-the-roots-name-written-when-the-identity-is-known formal-custody-root-is-all-zero formal-custody-wrap-under-constant-key made-mark-records-no-identity made-mark-without-identity-destroys-by-id mark-stays-owed-after-the-root mode-set-before-the-identity-is-compared moved-roots-directory-answers-ok open-cleanup-destroys-the-root-it-read os-entropy-hook-missing page-gap-chain-walk-unbounded page-gap-check-reads-past-the-page page-gap-plant-past-the-image-unguarded rebuilt-page-gap-not-zeroed refused-create-publishes-a-root-to-pick-its-answer root-file-made-of-the-root-id root-partial-name-shared-by-every-writer root-published-by-rename root-step-ignores-the-root-files-identity root-step-lists-once-for-a-moved-root root-write-scrubs-a-partial-name-it-did-not-make sqlite-opens-the-kept-name-under-the-volume-form step-without-its-witness-names-nothing store-holds-no-roots-directory-at-the-open store-key-not-wiped tail-opens-the-roots-by-the-path tail-sweeps-nothing-when-nothing-is-named tail-without-the-lock-destroys-another-identity-at-the-marks-name unknown-key-file-does-not-stop-the-cleanup unnamed-root-prints-yes wrap-nonce-from-a-counter wrap-nonce-from-a-fixed-seed wrap-nonce-from-a-hashed-counter-per-process wrap-nonce-of-one-random-byte tail-leaves-a-link-at-the-store-name tail-sweeps-a-roots-path-through-a-link; do
+            set -- "$@" --only "$row"
+          done
+          echo "rows named: $(($# / 2))"
+          sh scripts/r1-gate/mutation-test.sh --budget 4200 "$@" 2>&1 | tee "${RUNNER_TEMP:-$TMPDIR}/store-3b-rows.txt" | grep --line-buffered -E '^(PASS|FAIL|OPEN|NOT-RUN|STOPPED|mutation rows|seconds mutation)'
+          echo "runner_exit=${PIPESTATUS[0]}"
+          true
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -153,21 +183,13 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
