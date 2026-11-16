@@ -34,9 +34,9 @@ pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves o
 pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
 
 /// What a Mac's page says while its status reads keys_withheld yes: an item and no warning
-/// (ruling PR-30 PR10). The team's default, in the owner's table of sentences and the owner's
-/// to change; it says no more than [`KEY_TYPED_AHEAD_CAN_BE_NOTED`] does (MA-12 H5).
-pub const KEYS_WITHHELD_ON_A_MAC: &str = "Halvo left out some of the keys that you pressed, because they may have gone into a password field.";
+/// (ruling PR-30 PR10), in the coordinator's words after three plain readers, the owner's to
+/// change. A withheld key is dropped from the macOS keyboard source's queue and written nowhere.
+pub const KEYS_WITHHELD_ON_A_MAC: &str = "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything.";
 
 const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
 
@@ -271,7 +271,7 @@ mod tests {
         );
         assert_eq!(
             KEYS_WITHHELD_ON_A_MAC,
-            "Halvo left out some of the keys that you pressed, because they may have gone into a password field."
+            "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything."
         );
         for (platform, yes) in [
             (Platform::Macos, false),
