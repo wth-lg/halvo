@@ -1239,9 +1239,21 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
     }
 }
 
-fn pay_owed<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
+/// Sends what is owed, each debt's `day` set again before its send to the local day of its
+/// instant by the clock's day of an instant, so that a move of time zone passes at the next send
+/// (I7.1, ruling RD-64 2.3); a debt whose day cannot be read waits.
+fn pay_owed<P: Owner + Clock, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
     let owed = std::mem::take(&mut board.owed);
-    for o in owed {
+    for mut o in owed {
+        if let Owing::RunEnded { day, at, .. } | Owing::ItemLapsed { day, at, .. } = &mut o.what {
+            match crate::items::drive::day_of(cx.ports, *at) {
+                Ok(d) => *day = d,
+                Err(_) => {
+                    board.owed.push(o);
+                    continue;
+                }
+            }
+        }
         if matches!(&o.what, Owing::EndRun { run } if store_record_shows_ended(board, &o.agent, run))
         {
             continue;

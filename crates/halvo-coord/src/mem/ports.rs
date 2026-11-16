@@ -219,6 +219,7 @@ pub struct Ports<C> {
     refusals: RefCell<Vec<(Method, PortError)>>,
     agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
     record_refusals: RefCell<Vec<(fn(&Event) -> bool, PortError)>>,
+    tie_days: Cell<bool>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
     marks: RefCell<Vec<(RunId, Reaped)>>,
@@ -251,6 +252,7 @@ impl<C> Ports<C> {
             refusals: RefCell::new(Vec::new()),
             agent_refusals: RefCell::new(Vec::new()),
             record_refusals: RefCell::new(Vec::new()),
+            tie_days: Cell::new(false),
             limits,
             created: RefCell::new(Vec::new()),
             marks: RefCell::new(Vec::new()),
@@ -441,6 +443,13 @@ impl<C> Ports<C> {
         self.record_refusals.borrow_mut().push((names, error));
     }
 
+    /// Makes `Owner::log` refuse with `malformed` a body that holds a record whose `day` is not
+    /// the clock's day of its `at`, as the owner's handler ties them (the agent-setup run's
+    /// CP-122 (b)); a test sets it after its seed rows.
+    pub fn tie_days(&self, on: bool) {
+        self.tie_days.set(on);
+    }
+
     /// Makes every method do its work again.
     pub fn clear_refusals(&self) {
         self.refusals.borrow_mut().clear();
@@ -529,6 +538,13 @@ impl<C> Ports<C> {
                 .borrow()
                 .iter()
                 .any(|(w, a)| w == workflow && a == agent)
+    }
+
+    fn ties(&self, e: &Event) -> bool {
+        u64::try_from(e.at.div_euclid(1_000_000))
+            .ok()
+            .and_then(|ms| Clock::day(self, ms).ok())
+            == Some(e.day)
     }
 
     fn log_refusal(&self, events: &[Event]) -> Option<&'static str> {
@@ -721,6 +737,9 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             .map(|(_, e)| e.clone());
         if let Some(e) = named {
             return Err(self.note(call, e));
+        }
+        if self.tie_days.get() && events.iter().any(|e| !self.ties(e)) {
+            return Err(self.note(call, refusal("malformed")));
         }
         if let Some(name) = self.log_refusal(events) {
             return Err(self.note(call, refusal(name)));

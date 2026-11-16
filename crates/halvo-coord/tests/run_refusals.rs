@@ -443,3 +443,50 @@ fn recoverys_body_refused_with_no_workflow_owes_nothing() {
         "class B: no debt"
     );
 }
+
+#[test]
+fn a_waiting_record_takes_the_day_of_its_instant_again_before_its_send() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(1)]);
+    w.ports.clear_refusals();
+    assert_eq!(l.waiting()[0].day, DAY);
+    w.ports.set_clock(T0, DAY + 1);
+    w.ports.tie_days(true);
+    flush(&w.ports, &mut l, &w.limits).expect("the moved zone passes at the next send");
+    let stored = w.ports.events.borrow();
+    let row = stored.iter().rev().find(|e| slot_is(e, 1)).unwrap();
+    assert_eq!(row.day, DAY + 1, "the clock's day of its instant");
+}
+
+#[test]
+fn an_owed_debt_takes_the_day_of_its_instant_again_before_its_send() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    let run = owed_run_ended(&mut w, 0);
+    w.ports.set_clock(T0, DAY - 1);
+    w.ports.tie_days(true);
+    w.act(Act::Tick);
+    assert!(w.board.owed.is_empty(), "the debt is paid");
+    let stored = w.ports.events.borrow();
+    let row = stored
+        .iter()
+        .find(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+        .unwrap();
+    assert_eq!(row.day, DAY - 1);
+}
+
+#[test]
+fn a_stored_row_is_the_senders_own_by_its_instant_and_event_whatever_its_day() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(1)]);
+    w.ports.clear_refusals();
+    let lost = l.waiting()[0].clone();
+    w.ports.log(std::slice::from_ref(&lost)).unwrap();
+    w.ports.set_clock(T0, DAY + 1);
+    flush(&w.ports, &mut l, &w.limits).unwrap();
+    assert!(l.waiting().is_empty());
+    assert_eq!(stored_slots(&w), vec![1], "stored once, with its first day");
+}

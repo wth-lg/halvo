@@ -260,12 +260,17 @@ fn app_ended(raised: &Raised) -> Lapsed {
     }
 }
 
+/// Whether a stored row is the sender's own: the same pair, instant and event, whatever its
+/// `day`, which the sender sets again before each send (I7.1, ruling RD-64 2.3).
 fn same_but_seq(a: &Event, b: &Event) -> bool {
-    a.workflow == b.workflow
-        && a.agent == b.agent
-        && a.day == b.day
-        && a.at == b.at
-        && a.what == b.what
+    a.workflow == b.workflow && a.agent == b.agent && a.at == b.at && a.what == b.what
+}
+
+/// The local day of a row's instant `at` in nanoseconds, by the clock's day of an instant (I7.1,
+/// ruling RD-64 2.3).
+pub fn day_of<P: Clock + ?Sized>(clock: &P, at: i64) -> Result<u32, PortError> {
+    let ms = u64::try_from(at.div_euclid(1_000_000)).map_err(|_| PortError::NoService)?;
+    clock.day(ms)
 }
 
 /// Reads the owner's events after the last acknowledged one and takes them as `Ledger::absorb`
@@ -635,6 +640,9 @@ fn flush_reading<P: Owner + Clock>(
         } else {
             body_len(&ledger.waiting, limits)
         };
+        for e in &mut ledger.waiting[..n] {
+            e.day = day_of(ports, e.at)?;
+        }
         let error = match ports.log(&ledger.waiting[..n]) {
             Ok(()) => {
                 ledger.acknowledge(n);
@@ -681,6 +689,7 @@ fn flush_reading<P: Owner + Clock>(
                         }
                         let mut next = ledger.waiting[1].clone();
                         next.seq = ledger.waiting[0].seq;
+                        next.day = day_of(ports, next.at)?;
                         if let Err(e) = ports.log(std::slice::from_ref(&next)) {
                             ledger.refused = true;
                             return Err(e);

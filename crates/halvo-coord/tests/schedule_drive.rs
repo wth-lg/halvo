@@ -2184,7 +2184,7 @@ fn a_run_ended_that_the_owner_did_not_acknowledge_is_owed_and_holds_the_agent() 
         "no start while its run_ended is owed"
     );
     assert_eq!(w.calls(), Vec::<String>::new());
-    w.clock(T0 + 1_000, DAY + 1);
+    w.clock(T0 + 86_400_000 + 1_000, DAY + 1);
     w.tick();
     assert_eq!(w.calls(), ["log run_ended completed"]);
     let e = w.stored().last().cloned().unwrap();
