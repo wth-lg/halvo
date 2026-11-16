@@ -1378,6 +1378,20 @@ EOF
   [ "$(count 'does not have the bytes of package/' "$case_dir/output")" = 1 ] || problems="$problems; no line refused the pnpm of other bytes"
   verdict "$name"
 
+  name='a cmp and an npm that stand in the prefix before the step neither decide the compare of the pnpm there nor run: that pnpm never runs, and the npm of the path installs the checked one over it'
+  new_backend_case backend-planted-cmp-before-the-step
+  mkdir -p "$case_dir/home/.local/bin"
+  write_unchecked_pnpm "$case_dir/home/.local/bin/pnpm" unchecked-pnpm
+  printf '#!/bin/sh\necho "planted-tool cmp" >>%s\nexit 0\n' "'$case_dir/calls'" >"$case_dir/home/.local/bin/cmp"
+  printf '#!/bin/sh\necho "planted-tool npm" >>%s\nexit 0\n' "'$case_dir/calls'" >"$case_dir/home/.local/bin/npm"
+  chmod +x "$case_dir/home/.local/bin/cmp" "$case_dir/home/.local/bin/npm"
+  run_ensure_backend ok
+  [ "$(count 'planted-tool cmp' "$case_dir/calls")" = 0 ] || problems="$problems; the cmp of the prefix ran"
+  [ "$(count 'planted-tool npm' "$case_dir/calls")" = 0 ] || problems="$problems; the npm of the prefix ran"
+  [ "$(count 'unchecked-pnpm' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of other bytes ran"
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm over it once"
+  verdict "$name"
+
   name='a file of the same length as the binary that differs in one byte is refused, and it never runs'
   new_backend_case backend-binary-same-length
   sed 's/echo "pnpm /echo "pnpX /' "$case_dir/pnpm" >"$case_dir/one-byte"
