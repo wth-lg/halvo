@@ -81,7 +81,7 @@ enum Fault {
     RangedKindsReadDropsAnAtBelowTheLastAdmittedLine,
     RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd,
     RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd,
-    RangedReadFindsItsEndByABinarySearch,
+    RangedReadFindsItsEndByABinarySearch(Midpoint),
     RangedReadDropsAFirstLineBelowTheLineBeforeItsStart,
     LoadRoundsTheStepBackAway,
     LoadDropsTheLastLineOfD,
@@ -403,7 +403,7 @@ fn cuts(fault: Fault) -> bool {
             | RangedKindsReadDropsAnAtBelowTheLastAdmittedLine
             | RangedKindsReadEndsAfterAnAdmittedLineFromItsEnd
             | RangedReadWithTwoKindsEndsAtTheFirstAtFromItsEnd
-            | RangedReadFindsItsEndByABinarySearch
+            | RangedReadFindsItsEndByABinarySearch(_)
             | RangedReadDropsAFirstLineBelowTheLineBeforeItsStart
     )
 }
@@ -424,10 +424,19 @@ fn from_the_line_before(open: &OpenCursor) -> Option<OpenCursor> {
     }
 }
 
-fn first_at_or_after(records: &[Entry], at: Instant) -> usize {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Midpoint {
+    Down,
+    Up,
+}
+
+fn first_at_or_after(records: &[Entry], at: Instant, midpoint: Midpoint) -> usize {
     let (mut lo, mut hi) = (0, records.len());
     while lo < hi {
-        let mid = (lo + hi) / 2;
+        let mid = match midpoint {
+            Midpoint::Down => (lo + hi) / 2,
+            Midpoint::Up => ((lo + hi + 1) / 2).min(hi - 1),
+        };
         if records[mid].record.at() < at {
             lo = mid + 1;
         } else {
@@ -655,12 +664,14 @@ impl Wrong {
             let records = std::mem::take(&mut b.records);
             let skip = match self.fault {
                 RangedReadFindsItsStartByABinarySearch => {
-                    first_at_or_after(&records, range.start())
+                    first_at_or_after(&records, range.start(), Midpoint::Down)
                 }
                 _ => 0,
             };
             let end = match self.fault {
-                RangedReadFindsItsEndByABinarySearch => first_at_or_after(&records, range.end()),
+                RangedReadFindsItsEndByABinarySearch(midpoint) => {
+                    first_at_or_after(&records, range.end(), midpoint)
+                }
                 _ => records.len(),
             };
             let mut line_before: Option<(Entry, bool)> = None;
@@ -680,7 +691,7 @@ impl Wrong {
                 let admitted = self.cut_kinds.is_some() && kind;
                 let ends = match self.fault {
                     RangedReadEndsAfterAServedSteppedBackLine => served_a_step_back,
-                    RangedReadFindsItsEndByABinarySearch => i >= end,
+                    RangedReadFindsItsEndByABinarySearch(_) => i >= end,
                     RangedReadEndsAtTheFirstAtFromItsEnd => at >= range.end(),
                     RangedReadEndsAtTheFirstAtPastItsEnd => at > range.end(),
                     RangedReadEndsWhenABatchStartsFromItsEnd => i == 0 && at >= range.end(),
@@ -1168,7 +1179,7 @@ fn conformance_check_filtered_stops() {
 #[test]
 fn conformance_filters_step_back() {
     let load = "; want 999000000 ns, because load moves every at by a whole number of seconds and rounds none (C5.13 item 2)";
-    let servers: [(Fault, String); 33] = [
+    let servers: [(Fault, String); 34] = [
         (
             RangedReadEndsAtTheFirstAtFromItsEnd,
             "the range of set D up to the pointer before its step back: 3 entries served, want 4".to_owned(),
@@ -1258,8 +1269,12 @@ fn conformance_filters_step_back() {
             "the range of set D up to the pointer before its step back with pointer and keystroke: 1 entries served, want 2".to_owned(),
         ),
         (
-            RangedReadFindsItsEndByABinarySearch,
+            RangedReadFindsItsEndByABinarySearch(Midpoint::Down),
             "the range of set D up to the pointer before its step back from {seg 1, idx 2}: 1 entries served, want 2".to_owned(),
+        ),
+        (
+            RangedReadFindsItsEndByABinarySearch(Midpoint::Up),
+            "the range of set D up to the pointer before its step back from {seg 1, idx 1}: 2 entries served, want 3".to_owned(),
         ),
         (
             RangedReadDropsAFirstLineBelowTheLineBeforeItsStart,
@@ -1325,7 +1340,7 @@ fn conformance_filters_step_back() {
             "the range of set D up to just after the keystroke of its step back from {seg 1, idx 3}: 0 entries served, want 1",
         ),
         (
-            RangedReadFindsItsEndByABinarySearch,
+            RangedReadFindsItsEndByABinarySearch(Midpoint::Down),
             "the range of set D up to the pointer before its step back: 3 entries served, want 4",
         ),
     ];
