@@ -100,6 +100,8 @@ fn root_name(root_id: RootId) -> OsString {
 fn partial_name(root_id: RootId) -> Result<OsString, CustodyError> {
     let mut tag = [0u8; 8];
     fill_random(&mut tag)?;
+    #[cfg(test)]
+    let tag = partial_tag_seam::forced().unwrap_or(tag);
     let tag: String = tag.iter().map(|b| format!("{b:02x}")).collect();
     Ok(OsString::from(format!("{root_id}.{tag}.{PARTIAL_EXT}")))
 }
@@ -845,7 +847,8 @@ impl<P: Protector> FileRoots<P> {
             .protect(root.as_slice(), root_id.as_bytes())?;
         let dir = self.open_private_roots_dir()?;
         let partial = partial_name(root_id)?;
-        let written = write_partial(&dir, &partial, &blob);
+        let file = dir.create_new(&partial).map_err(root_io)?;
+        let written = fill_partial(file, &blob);
         let published = written.and_then(|()| {
             dir.link(&partial, &root_name(root_id))
                 .map_err(|e| match e.kind() {
@@ -948,10 +951,33 @@ impl<P: Protector> FileRoots<P> {
     }
 }
 
+#[cfg(test)]
 fn write_partial(dir: &Dir, partial: &OsStr, blob: &[u8]) -> Result<(), CustodyError> {
-    let mut file = dir.create_new(partial).map_err(root_io)?;
+    fill_partial(dir.create_new(partial).map_err(root_io)?, blob)
+}
+
+fn fill_partial(mut file: std::fs::File, blob: &[u8]) -> Result<(), CustodyError> {
     file.write_all(blob).map_err(root_io)?;
     file.sync_all().map_err(root_io)
+}
+
+/// A test's tag for the partial names that this thread writes next, in
+/// place of the random one (ruling S-95 (f)).
+#[cfg(test)]
+pub(crate) mod partial_tag_seam {
+    use std::cell::Cell;
+
+    thread_local! {
+        static FORCED: Cell<Option<[u8; 8]>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn force(tag: Option<[u8; 8]>) {
+        FORCED.with(|forced| forced.set(tag));
+    }
+
+    pub(crate) fn forced() -> Option<[u8; 8]> {
+        FORCED.with(|forced| forced.get())
+    }
 }
 
 #[cfg(test)]
@@ -1362,6 +1388,40 @@ mod tests {
                 .expose(),
             &[0x61; 32]
         );
+    }
+
+    #[test]
+    fn a_root_write_whose_partial_name_another_writer_holds_leaves_that_file_and_makes_no_root() {
+        use super::partial_tag_seam;
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh().unwrap();
+        std::fs::create_dir_all(dir.path().join("roots")).unwrap();
+        let theirs = dir
+            .path()
+            .join("roots")
+            .join(format!("{root_id}.0f0f0f0f0f0f0f0f.{PARTIAL_EXT}"));
+        let in_progress = b"the blob that another create is writing";
+        std::fs::write(&theirs, in_progress).unwrap();
+        partial_tag_seam::force(Some([0x0f; 8]));
+        let made = roots.create_root(root_id);
+        partial_tag_seam::force(None);
+        let left = std::fs::read(&theirs).ok();
+        println!(
+            "S95F made={made:?} theirs_kept={} root_made={}",
+            left.as_deref() == Some(in_progress.as_slice()),
+            roots.path(root_id).exists()
+        );
+        assert!(
+            made.is_err(),
+            "the root write shared another writer's partial name"
+        );
+        assert_eq!(
+            left.as_deref(),
+            Some(in_progress.as_slice()),
+            "the root write changed or removed the partial file of another writer"
+        );
+        assert!(!roots.path(root_id).exists());
     }
 
     #[test]
