@@ -1011,6 +1011,7 @@ printf '%s\n' "${GATE_ROOT:-unset}" >> "$here/gate-roots"
 if [ "$1" = build ] && [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d crates ]; then
   mkdir -p "$CARGO_TARGET_DIR/debug"
   find "$(pwd -P)/crates" -type f ! -path '*/tests/*' ! -name mutants.rows > "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"
+  sort -o "$CARGO_TARGET_DIR/debug/halvo-capture.compiled" "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"
   { printf '%s:' "$CARGO_TARGET_DIR/debug/halvo-capture"; while IFS= read -r compiled; do printf ' %s' "$compiled"; done < "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"; printf '\n'; } > "$CARGO_TARGET_DIR/debug/halvo-capture.d"
 fi
 case $hold in
@@ -1634,11 +1635,13 @@ compiled_cases() {
     printf 'pub fn g() -> i32 { 1 }\n' > "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/tests/t.rs"
     row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" held tests/t.rs 's/1 }/1 } refuse-me (/' leak required X-1
     row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" read src/lib.rs 's/1 }/2 }/' leak required X-1
+    row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" first build.rs 's/1;/2;/' leak required X-1
   done
   compiled_line='not-compiled mutation:held (no compile of the build reads crates/halvo-sqlcipher/tests/t.rs)'
   t a-mutant-that-no-compile-of-the-build-reads-prints-no-built-line FAIL with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:held'
   t a-mutant-that-no-compile-of-the-build-reads-prints-its-own-line PASS with_cargo_home compiled-apply form_said compiled-apply yes "$compiled_line"
   t apply-only-row-that-no-compile-reads-does-not-say-builds PASS with_cargo_home compiled-apply form_said compiled-apply yes 'PASS mutation:held (applies; no compile of the build reads crates/halvo-sqlcipher/tests/t.rs)'
+  t a-mutant-on-the-first-file-of-the-dep-info-prints-its-built-line PASS with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:first'
   t a-mutant-that-the-build-compiles-still-prints-its-built-line PASS with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:read'
   t full-run-mutant-that-no-compile-reads-prints-no-built-line FAIL with_cargo_home compiled-full form_said compiled-full no 'built mutation:held'
   t full-run-mutant-that-no-compile-reads-prints-its-own-line PASS with_cargo_home compiled-full form_said compiled-full no "$compiled_line"
