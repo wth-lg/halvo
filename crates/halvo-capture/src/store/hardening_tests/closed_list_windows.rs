@@ -76,7 +76,7 @@ fn delete_all_names_the_root_as_left_when_the_roots_directory_was_renamed_while_
         let renamed = std::fs::rename(&roots_dir, &moved);
         let answer = if tail {
             drop(store);
-            EncryptedStore::delete_store_dir(&store_dir, &roots_dir)
+            tail(&store_dir, &roots_dir)
         } else {
             let mut store = store;
             store.delete_all()
@@ -108,7 +108,7 @@ fn the_tail_destroys_the_root_or_reports_it_when_the_store_directory_or_its_lock
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let wrapped = wrapped_of(&store_dir);
     let held = hold_dir(&store_dir, 0);
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     drop(held);
     println!(
         "WIN-TAIL-HELD-DIR {} key_file_left={} root_unwraps={}",
@@ -131,7 +131,7 @@ fn the_tail_destroys_the_root_or_reports_it_when_the_store_directory_or_its_lock
     let wrapped = wrapped_of(&store_dir);
     let _ = std::fs::remove_file(store_dir.join("writer.lock"));
     std::fs::create_dir(store_dir.join("writer.lock")).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let alive = unwraps(&roots_dir, root_id, &wrapped);
     println!(
         "WIN-TAIL-LOCK-DIR {} root_unwraps={alive}",
@@ -198,7 +198,7 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
             "a directory at the trimmed name" => std::fs::create_dir(&sibling).unwrap(),
             _ => {}
         }
-        let answer = EncryptedStore::delete_store_dir(&verbatim, &base.join("roots"));
+        let answer = tail(&verbatim, &base.join("roots"));
         let sibling_now = if sibling.is_dir() {
             Some(b"<dir>".to_vec())
         } else {
@@ -242,7 +242,7 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     let wrapped = wrapped_of(&made_at);
     let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
     std::fs::rename(&made_at, &verbatim).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&verbatim, &roots_dir);
+    let answer = tail(&verbatim, &roots_dir);
     println!(
         "WIN-TRAILING-DOT case=a store under such a name {} store_dot_holds_its_key_file={} trimmed_name_exists={}",
         report_line(&answer),
@@ -268,7 +268,7 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     let roots_dot = PathBuf::from(format!(r"\\?\{}\roots.", base.display()));
     std::fs::create_dir(&roots_dot).unwrap();
     std::fs::write(roots_dot.join("held-file"), b"inside").unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dot);
+    let answer = tail(&store_dir, &roots_dot);
     println!(
         "WIN-TRAILING-DOT case=such a name as the roots path {} roots_dot_holds_its_file={} sibling_roots_exists={}",
         report_line(&answer),
@@ -348,7 +348,7 @@ fn the_tail_destroys_a_root_file_whose_name_was_renamed_to_upper_case() {
     let lower = roots_dir.join(format!("{root_id}.root"));
     let upper = roots_dir.join(format!("{root_id}.root").to_uppercase());
     std::fs::rename(&lower, &upper).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let alive = unwraps(&roots_dir, root_id, &wrapped);
     println!(
         "WIN-UPPER-CASE {} root_unwraps={alive}",
@@ -474,7 +474,7 @@ fn the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_roo
             "a dot part" => format!(r"{text}\.\store."),
             _ => format!(r"{text}\\store."),
         });
-        let answer = EncryptedStore::delete_store_dir(&given, &roots_dir);
+        let answer = tail(&given, &roots_dir);
         let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
         let other_stays = roots_dir.join(format!("{other}.root")).exists();
         let key_file_stays = verbatim.join("store.key").exists();
@@ -517,7 +517,7 @@ fn the_tail_without_the_lock_destroys_the_named_root_alone() {
             std::fs::create_dir(made_at.join("writer.lock")).unwrap();
             made_at.clone()
         };
-        let answer = EncryptedStore::delete_store_dir(&store_at, &roots_dir);
+        let answer = tail(&store_at, &roots_dir);
         let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
         let other_stays = roots_dir.join(format!("{other}.root")).exists();
         println!(
@@ -636,7 +636,7 @@ fn the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path()
     if made.is_err() {
         return;
     }
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &data.join("alias").join("roots"));
+    let answer = tail(&store_dir, &data.join("alias").join("roots"));
     let other_unwraps = unwraps(&behind_roots, behind_id, &wrapped);
     println!(
         "WIN-ST46-K2 {} the_other_root_unwraps={other_unwraps}",

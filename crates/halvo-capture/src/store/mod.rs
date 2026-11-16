@@ -132,6 +132,19 @@ impl fmt::Display for Met {
     }
 }
 
+/// Where a data directory keeps its store and its roots, for the delete tail
+/// of [`db::EncryptedStore::delete_data_dir`], which opens each from the
+/// handle of the directory that holds it by its fixed name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layout {
+    /// The product's data directory (C3.5): the store directory `store` and
+    /// the roots directory `roots`, side by side in it.
+    DataDirectory,
+    /// A scratch run's store directory (C4 item 9): the store in the
+    /// directory itself, and its roots directory `roots` inside it.
+    ScratchStore,
+}
+
 /// What a delete says of the store's root. `Destroyed`: this call, or an
 /// earlier call on the same handle, removed that root's file itself at the
 /// root's own name (a regular file that is not empty and, off Windows, of the
@@ -258,7 +271,7 @@ pub enum StoreError {
     /// store.key or store.db has a format version below the one this build
     /// reads, among them a key file of version 1, which an older build wrote.
     /// No migration exists; the delete tail of
-    /// [`db::EncryptedStore::delete_store_dir`] removes such a store.
+    /// [`db::EncryptedStore::delete_data_dir`] removes such a store.
     #[error(
         "the store has format version {found}, below version {supported} that this build reads"
     )]

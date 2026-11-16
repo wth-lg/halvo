@@ -1,6 +1,6 @@
 //! The tests of ruling ST-45: the adversary's cases of its pass 2 at
 //! 79f75b1b (prefix `p2_`), the tests that the ruling names for H1 to H5, and
-//! the table test of the tail, one row for each arm of `delete_store_dir`.
+//! the table test of the tail, one row for each arm of `delete_data_dir`.
 //! Every store and every root lives in a directory that the test made. They
 //! print answers, readings, counts and name shapes, never a key, a root, a
 //! root id or a path.
@@ -244,7 +244,7 @@ fn p2_d_the_tail_writes_nothing_through_a_second_name_at_store_key_tmp() {
     let theirs = dir.path().join("a-file-of-another-party");
     std::fs::write(&theirs, vec![7u8; 300]).unwrap();
     std::fs::hard_link(&theirs, store_dir.join("store.key.tmp")).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let bytes = std::fs::read(&theirs).unwrap();
     let kept = bytes == vec![7u8; 300];
     println!(
@@ -300,7 +300,7 @@ fn the_store_key_file_under_a_second_name_at_store_key_tmp_ends_all_zero_under_e
     let third = dir.path().join("a-third-name-of-the-key-file");
     std::fs::hard_link(KeyFile::path(&store_dir), &third).unwrap();
     std::fs::hard_link(KeyFile::path(&store_dir), store_dir.join("store.key.tmp")).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let bytes = std::fs::read(&third).unwrap();
     println!(
         "ST45 H5 own key file {} third_name_len={} all_zero={}",
@@ -328,8 +328,8 @@ fn an_entry_at_store_key_tmp_that_no_call_can_remove_is_counted_as_not_followed(
         vec![7u8; 10],
     )
     .unwrap();
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     let theirs = std::fs::read(store_dir.join("store.key.tmp").join("theirs"));
     println!("ST45 H5 count first tail {}", report_line(&first));
     println!("ST45 H5 count second tail {}", report_line(&second));
@@ -362,9 +362,9 @@ fn p2_b_a_tail_after_a_tail_that_left_the_root_file_names_it_or_destroys_it() {
         let root_file =
             FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
         set_mode(&root_file, mode);
-        let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-        let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-        let third = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+        let first = tail(&store_dir, &roots_dir);
+        let second = tail(&store_dir, &roots_dir);
+        let third = tail(&store_dir, &roots_dir);
         let stands = root_file.exists();
         println!("ST45 P2-B mode={mode:o} first tail {}", report_line(&first));
         println!(
@@ -404,7 +404,7 @@ fn p2_b2_a_handle_whose_root_file_cannot_be_opened_then_the_tail() {
     let first = store.delete_all();
     let again = store.delete_all();
     drop(store);
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     let stands = root_file.exists();
     println!("ST45 P2-B2 handle first {}", report_line(&first));
     println!("ST45 P2-B2 handle again {}", report_line(&again));
@@ -430,8 +430,8 @@ fn p2_b3_the_next_store_under_a_roots_directory_with_a_root_file_that_no_call_na
     let root_file =
         FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
     set_mode(&root_file, 0o000);
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     println!("ST45 P2-B3 first tail {}", report_line(&first));
     println!("ST45 P2-B3 second tail {}", report_line(&second));
     let next_id = RootId::fresh().unwrap();
@@ -486,8 +486,8 @@ fn a_root_file_that_no_open_reaches_is_named_by_every_tail_and_none_answers_ok()
         FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
     set_mode(&root_file, 0o000);
     set_immutable(&root_file, true);
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     set_immutable(&root_file, false);
     set_mode(&root_file, 0o600);
     println!("ST45 H2 first tail {}", report_line(&first));
@@ -555,7 +555,7 @@ fn p2_c2_the_tail_reads_destroyed_only_when_it_removed_the_root_file_and_not_a_l
     std::fs::rename(&root_file, &moved).unwrap();
     std::os::unix::fs::symlink(&moved, &root_file).unwrap();
     let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let report = delete_report(&answer);
     let unwraps = unwraps(&elsewhere, root_id, &wrapped);
     println!("ST45 P2-C2 open_with_the_link_at_the_root_name={opened}");
@@ -585,7 +585,7 @@ fn a_file_of_another_length_at_the_root_name_is_removed_unwritten_and_the_root_r
     let theirs = dir.path().join("a-file-of-another-party");
     std::fs::write(&theirs, vec![7u8; 48]).unwrap();
     std::fs::hard_link(&theirs, &root_file).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let bytes = std::fs::read(&theirs).unwrap();
     println!(
         "ST45 H4 another length {} the_other_partys_file_kept={} root_name_stands={}",
@@ -618,7 +618,7 @@ fn an_all_zero_root_file_of_the_root_length_reads_destroyed_when_the_tail_remove
     let root_file = roots_dir.join(format!("{root_id}.root"));
     let len = std::fs::metadata(&root_file).unwrap().len() as usize;
     std::fs::write(&root_file, vec![0u8; len]).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     println!("ST45 H4 all zero len={len} {}", report_line(&answer));
     assert!(answer.is_ok(), "{}", report_line(&answer));
     assert!(
@@ -629,7 +629,7 @@ fn an_all_zero_root_file_of_the_root_length_reads_destroyed_when_the_tail_remove
     assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
 }
 
-/// The arm of `delete_store_dir` that a row reaches.
+/// The arm of `delete_data_dir` that a row reaches.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Arm {
     /// The store directory opens and the tail takes its lock.
@@ -716,7 +716,7 @@ use Naming::*;
 use RootsAfter::{Both, Empty, Nothing, OnlyOwn, TheOtherOne};
 use RootsAt::*;
 
-/// One row for each arm of `delete_store_dir` by named or unnamed and by
+/// One row for each arm of `delete_data_dir` by named or unnamed and by
 /// roots present, absent or not listable. A named root with nothing at the
 /// roots path reads left with the roots location not listed (ruling ST-44 F1
 /// (d)); with nothing named, nothing at the roots path is an answer, listed. An arm in which nothing can name a
@@ -881,7 +881,7 @@ fn run_row(row: &Row) -> Vec<String> {
     if row.arm == LockFails {
         crate::store::failpoint::arm("tail_lock");
     }
-    let answer = EncryptedStore::delete_store_dir(&store_at, &roots_dir);
+    let answer = tail(&store_at, &roots_dir);
     crate::store::failpoint::arm("");
     if row.arm == CannotOpen {
         set_mode(&store_at, 0o700);
@@ -950,8 +950,7 @@ fn the_tail_opens_no_roots_path_through_a_link_at_the_store_name() {
     let data = dir.path().join("data");
     std::fs::create_dir(&data).unwrap();
     std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
-    let answer =
-        EncryptedStore::delete_store_dir(&data.join("store"), &data.join("store").join("roots"));
+    let answer = tail(&data.join("store"), &data.join("store").join("roots"));
     println!("ST45 H1 roots through a link {}", report_line(&answer));
     assert_eq!(root_files_in(&roots_behind), roots_before);
     assert!(std::fs::symlink_metadata(data.join("store")).is_err());
@@ -978,7 +977,7 @@ fn the_tail_whose_lock_fails_beside_a_key_file_of_version_1_reads_the_roots_as_n
     .unwrap();
     let roots_before = root_files_in(&roots_dir);
     crate::store::failpoint::arm("tail_lock");
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     crate::store::failpoint::arm("");
     println!(
         "ST45 H1 lock fails beside version 1 {}",
@@ -1010,8 +1009,8 @@ fn the_tail_beside_a_key_file_of_version_1_sweeps_the_roots_and_the_next_tail_re
         ),
     )
     .unwrap();
-    let first = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    let second = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let first = tail(&store_dir, &roots_dir);
+    let second = tail(&store_dir, &roots_dir);
     println!("ST45 H1 version 1 first {}", report_line(&first));
     println!("ST45 H1 version 1 second {}", report_line(&second));
     assert_eq!(delete_report(&first).root_not_handled, Some(older));
@@ -1053,7 +1052,7 @@ fn the_tail_sweeps_the_root_of_an_owed_mark_and_reads_the_root_of_a_made_mark_de
             )
             .unwrap();
         }
-        let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+        let answer = tail(&store_dir, &roots_dir);
         println!("ST45 H1 mark={reading} {}", report_line(&answer));
         assert!(answer.is_ok(), "{reading}: {}", report_line(&answer));
         assert_eq!(delete_report(&answer).root.as_text(), expected);
@@ -1144,7 +1143,7 @@ fn the_tail_whose_lock_fails_takes_no_empty_file_at_the_root_name_as_its_witness
     std::fs::write(&root_file, b"").unwrap();
     let other = put_a_root(&roots_dir);
     crate::store::failpoint::arm("tail_lock");
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     crate::store::failpoint::arm("");
     println!(
         "ST45 A2 lock fails {} roots_dir_now={:?}",
@@ -1178,7 +1177,7 @@ fn p3_e_the_unnamed_sweep_removes_a_second_name_at_a_root_name_without_writing_t
     let any_id = RootId::fresh().unwrap();
     let at_the_root_name = roots_dir.join(format!("{any_id}.root"));
     std::fs::hard_link(&theirs, &at_the_root_name).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&dir.path().join("no-store-here"), &roots_dir);
+    let answer = tail(&dir.path().join("store"), &roots_dir);
     let bytes = std::fs::read(&theirs).unwrap();
     println!(
         "ST45 P3-E {} roots_dir_now={:?} the_other_partys_file: len={} bytes_kept={}",
@@ -1393,14 +1392,13 @@ fn with_nothing_moved_after_the_listing_the_root_reads_destroyed() {
     assert!(delete_report(&answer).root_destroyed());
 }
 
-/// The verifier's issue 1 (ruling ST-46 K2): the roots path reaches another
-/// store's directory through a link in one of its parts below the directory
-/// that it shares with the store path (here `data/alias`, beside a link at
-/// the store name). The tail runs no sweep there, its roots read not listed,
-/// it answers DeleteIncomplete, and that store opens and reads after it. The
-/// control, the tests' own layout, still sweeps.
+/// ST-46 K2 with store-3b's closed layout: the tail opens the roots
+/// directory from the data directory's handle by its fixed name and follows
+/// no link there, so a link at the roots name to another store's roots is
+/// not swept, also beside a link at the store name; the roots read not
+/// listed. The control: the data directory's own roots are swept.
 #[test]
-fn the_tail_runs_no_sweep_through_a_link_in_a_part_of_the_roots_path() {
+fn the_tail_follows_no_link_at_the_roots_name_of_its_data_directory() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path().join("data");
     std::fs::create_dir(&data).unwrap();
@@ -1416,57 +1414,40 @@ fn the_tail_runs_no_sweep_through_a_link_in_a_part_of_the_roots_path() {
         .write_segment(&mut Cursor::new(b"typed errors"))
         .unwrap();
     drop(other);
-    std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
-    std::os::unix::fs::symlink(&behind, data.join("alias")).unwrap();
-    let answer =
-        EncryptedStore::delete_store_dir(&data.join("store"), &data.join("alias").join("roots"));
-    let reads = public_reads(&behind, &behind.join("roots"), segment.segment_id);
-    println!(
-        "ST46 K2 a link in the roots path {} the_other_store: {reads}",
-        report_line(&answer)
-    );
-    assert!(
-        reads.starts_with("open=Ok segment_plaintext_equal=true"),
-        "the tail swept another store's roots through a link in its roots path: {reads}"
-    );
-    assert!(
-        answer.is_err() && !delete_report(&answer).roots.listed,
-        "{}",
-        report_line(&answer)
-    );
+    for at_the_store_name in ["nothing", "a link to the other store"] {
+        if at_the_store_name != "nothing" {
+            std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
+        }
+        std::os::unix::fs::symlink(behind.join("roots"), data.join("roots")).unwrap_or(());
+        let answer = tail(&data.join("store"), &data.join("roots"));
+        let reads = public_reads(&behind, &behind.join("roots"), segment.segment_id);
+        println!(
+            "ST46 K2 a link at the roots name, {at_the_store_name} at the store name: {} \
+             the_other_store: {reads}",
+            report_line(&answer)
+        );
+        assert!(
+            reads.starts_with("open=Ok segment_plaintext_equal=true"),
+            "the tail swept another store's roots through a link at its roots name: {reads}"
+        );
+        assert!(
+            answer.is_err() && !delete_report(&answer).roots.listed,
+            "{}",
+            report_line(&answer)
+        );
+    }
 
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
     put_a_root(&roots_dir);
     zero_the_key_file(&store_dir);
-    let control = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
-    println!("ST46 K2 the tests' own layout {}", report_line(&control));
+    let control = tail(&store_dir, &roots_dir);
+    println!(
+        "ST46 K2 the data directory's own roots {}",
+        report_line(&control)
+    );
     assert!(control.is_ok(), "{}", report_line(&control));
     assert_eq!(root_files_in(&roots_dir), Vec::<String>::new());
-}
-
-/// ST-46 K2: a roots path that holds a parent part gets no sweep.
-#[test]
-fn the_tail_runs_no_sweep_on_a_roots_path_with_a_parent_part() {
-    let dir = tempfile::tempdir().unwrap();
-    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
-    std::fs::create_dir(dir.path().join("x")).unwrap();
-    put_a_root(&roots_dir);
-    zero_the_key_file(&store_dir);
-    let before = root_files_in(&roots_dir);
-    let through = dir.path().join("x").join("..").join("roots");
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &through);
-    println!("ST46 K2 a parent part {}", report_line(&answer));
-    assert_eq!(
-        root_files_in(&roots_dir),
-        before,
-        "the tail swept through a parent part"
-    );
-    assert!(
-        answer.is_err() && !delete_report(&answer).roots.listed,
-        "{}",
-        report_line(&answer)
-    );
 }
 
 /// The adversary's p3_c (ruling ST-46 K3, the verifier's copy L44): the tail
@@ -1486,7 +1467,7 @@ fn p3_c_the_tail_on_a_store_that_a_handle_holds_answers_locked_and_touches_nothi
         std::fs::read(KeyFile::path(&store_dir)).unwrap(),
         names(&roots_dir),
     );
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let after = (
         std::fs::read(&root_file).unwrap_or_default(),
         std::fs::read(KeyFile::path(&store_dir)).unwrap_or_default(),
