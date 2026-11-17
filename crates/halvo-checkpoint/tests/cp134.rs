@@ -29,7 +29,7 @@ fn answer(scratch: &Scratch, workbook_len: u64, copy_len: u64) -> Result<Removal
     let locks = Locks::open(&scratch.path("data"), Duration::from_secs(5)).expect("the locks");
     let row = Row {
         folder: &folder,
-        workbook: Path::new("values.xlsx"),
+        workbook: &folder.join("values.xlsx"),
         run: &run,
         expect: Expect::Planned,
     };

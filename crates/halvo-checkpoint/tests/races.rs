@@ -1,5 +1,151 @@
 mod common;
 
+mod seam_only_in_the_crates_own_tests {
+    use std::fs;
+    use std::path::Path;
+
+    fn sources(dir: &Path) -> Vec<(String, String)> {
+        let mut found = Vec::new();
+        for entry in fs::read_dir(dir).expect("list the sources").flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                found.extend(sources(&path));
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                let name = path.strip_prefix(dir).unwrap_or(&path);
+                let text = fs::read_to_string(&path).expect("read a source");
+                found.push((name.to_string_lossy().replace('\\', "/"), text));
+            }
+        }
+        found
+    }
+
+    fn faults(crate_dir: &Path) -> Vec<String> {
+        let mut faults = Vec::new();
+        let src = crate_dir.join("src");
+        let manifest = fs::read_to_string(crate_dir.join("Cargo.toml")).expect("the manifest");
+        if manifest.lines().any(|line| line.trim() == "[features]") {
+            faults.push("Cargo.toml: a feature".to_string());
+        }
+        let all = sources(&src);
+        let Some((_, hook)) = all.iter().find(|(name, _)| name == "seam.rs") else {
+            return vec!["src/seam.rs: no hook".to_string()];
+        };
+        for word in ["env::var", "var_os", "env!", "option_env!"] {
+            if hook.contains(word) {
+                faults.push(format!("seam.rs: {word}"));
+            }
+        }
+        if hook
+            .lines()
+            .any(|line| line.trim_start().starts_with("pub "))
+        {
+            faults.push("seam.rs: a public item".to_string());
+        }
+        for (name, text) in &all {
+            if name == "seam.rs" {
+                continue;
+            }
+            let lines: Vec<&str> = text.lines().collect();
+            let tests = lines
+                .windows(2)
+                .position(|pair| pair[0].trim() == "#[cfg(test)]" && pair[1] == "mod tests {")
+                .unwrap_or(lines.len());
+            for (at, line) in lines.iter().enumerate().take(tests) {
+                if !line.contains("seam") {
+                    continue;
+                }
+                let gated = at > 0 && lines[at - 1].trim() == "#[cfg(test)]";
+                let plain = if name == "lib.rs" {
+                    line.trim() == "mod seam;"
+                } else {
+                    line.trim_start().starts_with("crate::seam::reach(")
+                };
+                if !(gated && plain) {
+                    faults.push(format!("{name}:{}: {}", at + 1, line.trim()));
+                }
+            }
+        }
+        let declared = all
+            .iter()
+            .any(|(name, text)| name == "lib.rs" && text.lines().any(|l| l.trim() == "mod seam;"));
+        if !declared {
+            faults.push("lib.rs: no declaration of the hook".to_string());
+        }
+        faults
+    }
+
+    #[test]
+    fn the_hook_exists_only_in_the_crates_own_test_build() {
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let found = faults(here);
+        println!("seam check faults={}", found.len());
+        assert_eq!(found, Vec::<String>::new());
+    }
+
+    const MANIFEST: &str = "[package]\nname = \"x\"\n\n[dependencies]\n";
+    const LIB: &str = "mod remove;\n#[cfg(test)]\nmod seam;\n";
+    const HOOK: &str = "pub(crate) fn reach(_: u8) {}\n";
+    const CALL: &str = "fn f() {\n    #[cfg(test)]\n    crate::seam::reach(1);\n}\n\n#[cfg(test)]\nmod tests {\n    fn g() {\n        crate::seam::reach(2);\n    }\n}\n";
+
+    fn tree(name: &str, files: [&str; 4]) -> Vec<String> {
+        let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-checkpoint");
+        let dir = halvo_test_dir::make(&base, name).expect("make the tree");
+        fs::create_dir_all(dir.join("src")).expect("make src");
+        let paths = ["Cargo.toml", "src/lib.rs", "src/seam.rs", "src/remove.rs"];
+        for (path, text) in paths.iter().zip(files) {
+            fs::write(dir.join(path), text).expect("write a file of the tree");
+        }
+        faults(&dir)
+    }
+
+    #[test]
+    fn the_check_refuses_a_hook_that_a_build_other_than_the_crates_tests_can_reach() {
+        assert_eq!(
+            tree("seam-check-plain", [MANIFEST, LIB, HOOK, CALL]),
+            Vec::<String>::new()
+        );
+        let features = format!("{MANIFEST}\n[features]\nseam = []\n");
+        let controls: [(&str, [&str; 4]); 7] = [
+            ("no declaration", [MANIFEST, "mod remove;\n", HOOK, CALL]),
+            (
+                "public module",
+                [MANIFEST, "mod remove;\npub mod seam;\n", HOOK, CALL],
+            ),
+            (
+                "module in every build",
+                [MANIFEST, "mod remove;\nmod seam;\n", HOOK, CALL],
+            ),
+            (
+                "public item",
+                [MANIFEST, LIB, "pub fn reach(_: u8) {}\n", CALL],
+            ),
+            (
+                "call in every build",
+                [
+                    MANIFEST,
+                    LIB,
+                    HOOK,
+                    "fn f() {\n    crate::seam::reach(1);\n}\n",
+                ],
+            ),
+            ("feature", [&features, LIB, HOOK, CALL]),
+            (
+                "environment",
+                [
+                    MANIFEST,
+                    LIB,
+                    "pub(crate) fn reach(_: u8) {\n    let _ = std::env::var(\"X\");\n}\n",
+                    CALL,
+                ],
+            ),
+        ];
+        for (label, files) in controls {
+            let found = tree("seam-check-control", files);
+            assert!(!found.is_empty(), "{label}: the check passed");
+        }
+    }
+}
+
 mod dir_swapped_while_waiting {
     use std::fs;
     use std::path::Path;
@@ -37,7 +183,7 @@ mod dir_swapped_while_waiting {
             thread::spawn(move || {
                 let row = Row {
                     folder: &folder,
-                    workbook: Path::new("sub/book.xlsx"),
+                    workbook: &folder.join("sub").join("book.xlsx"),
                     run: &run,
                     expect: Expect::Made {
                         sha256: Sha256::of(&bytes),
@@ -128,7 +274,7 @@ mod written_in_place_while_read {
 
             let row = Row {
                 folder: &folder,
-                workbook: Path::new("book.xlsx"),
+                workbook: &folder.join("book.xlsx"),
                 run: &run,
                 expect: Expect::Made {
                     sha256,
@@ -183,7 +329,7 @@ mod swapped_before_the_removal {
             scratch.write(&format!("warm-{warm}/{name}"), &ours);
             let row = Row {
                 folder: &folder,
-                workbook: Path::new("book.xlsx"),
+                workbook: &folder.join("book.xlsx"),
                 run: &run,
                 expect,
             };
@@ -218,7 +364,7 @@ mod swapped_before_the_removal {
 
             let row = Row {
                 folder: &folder,
-                workbook: Path::new("book.xlsx"),
+                workbook: &folder.join("book.xlsx"),
                 run: &run,
                 expect,
             };
