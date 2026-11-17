@@ -144,10 +144,14 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   whole output when it holds no mark. An output with an opening mark and no closing mark after
   it, a body with a mark left after the cut, and an output whose tokens equal the level's
   `reply_tokens` have no body. A body counts when it has three words or more, no marker and no
-  address; the floor of three words is this trial's alone. With full-width ASCII forms and
-  ideographic full stops read as ASCII, an address is an at-sign in any of its three forms
-  (`@`, `﹫`, `＠`), `://`, or a word that, cut before its first `/`, `?` or `#`, is a host name
-  with a dot or a port, an IPv4 or IPv6 address or `www.` in any letter case (CP-173 E7). `bodies.txt` keeps each whole output
+  address; the floor of three words is this trial's alone. The address rule (`names_address`,
+  CP-173 E7) reads the text in lower case with invisible characters and soft hyphens left out,
+  full-width ASCII forms as ASCII, ideographic and small full stops and dot leaders as dots,
+  non-breaking hyphens as hyphens, and `[.]`, `(.)`, `[at]` and `(at)` as a dot and an at-sign;
+  an address is then an at-sign (`@`, `﹫`, `＠`), `://`, or a run of letters, digits and
+  `.-_:[]%` that holds a host name with a dot (labels of any script, an `xn--` last label), a
+  name with a port, an IPv4 or IPv6 address, or `www.`. Words such as `Friday.Thanks`,
+  `report.pdf` and `ref:4471` read as addresses too: the rule can refuse a body, never count one. `bodies.txt` keeps each whole output
   with its count and its tokens. A model whose thinking carries no such mark is not cut.
 
 ## How the cells of unit U0.6 ran
