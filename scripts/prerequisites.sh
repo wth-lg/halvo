@@ -25,7 +25,12 @@ sha256_of() {
   else
     sum=$(shasum -a 256 <"$1") || return 1
   fi
-  echo "${sum%% *}"
+  sum=${sum%% *}
+  case "$sum" in
+    '' | *[!0-9a-f]*) return 1 ;;
+  esac
+  [ "${#sum}" = 64 ] || return 1
+  echo "$sum"
 }
 
 cargo_release_sha256() {
@@ -82,7 +87,7 @@ install_cargo_release() {
   fi
   partial="$CARGO_HOME/bin/.$executable.partial"
   failed=
-  if ! sum=$(sha256_of "$tmp/$asset") || [ "$sum" != "$(cargo_release_sha256 "$target")" ]; then
+  if ! pin=$(cargo_release_sha256 "$target") || ! sum=$(sha256_of "$tmp/$asset") || [ "$sum" != "$pin" ]; then
     failed="checking the sha256 of the prebuilt cargo-release $asset"
   elif ! unpack_cargo_release "$tmp/$asset" "$tmp"; then
     failed="unpacking the prebuilt cargo-release $asset"
@@ -98,10 +103,13 @@ install_cargo_release() {
 }
 
 ensure_cargo_release() {
-  if cargo release --version 2>/dev/null | grep -q " $cargo_release_version\$"; then
-    echo "prerequisites: cargo-release $cargo_release_version present"
-    return
-  fi
+  present=$(cargo release --version 2>/dev/null) || present=
+  case "$present" in
+    *" $cargo_release_version")
+      echo "prerequisites: cargo-release $cargo_release_version present"
+      return
+      ;;
+  esac
   install_cargo_release || return
   version_status=0
   version=$(cargo release --version) || version_status=$?
@@ -834,6 +842,28 @@ EOF
   pin_asset
   expect_stop "copying the prebuilt cargo-release into $CARGO_HOME/bin failed"
   expect_no_binary
+  verdict "$name"
+
+  name='a sha256 tool that prints no digest fails the check, also against an empty pin, and the script fails and builds nothing'
+  new_case empty-digest
+  make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+  for tool in sha256sum shasum; do
+    printf '#!/bin/sh\nexit 0\n' >"$case_dir/stubs/$tool"
+    chmod +x "$case_dir/stubs/$tool"
+  done
+  expect_stop "checking the sha256 of the prebuilt cargo-release $asset failed"
+  expect_no_binary
+  verdict "$name"
+
+  name='an old cargo-release that reports 1.117 is not taken for 1.1.7, and the prebuilt replaces it'
+  new_case dotted-version
+  make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+  pin_asset
+  mkdir "$CARGO_HOME/bin"
+  echo 'cargo-release 1.117' >"$CARGO_HOME/bin/$executable"
+  run_ensure
+  [ "$(count "prerequisites: cargo-release $cargo_release_version present" "$case_dir/output")" = 0 ] || problems="$problems; 1.117 was taken for $cargo_release_version"
+  cmp -s "$work/binary/$executable" "$CARGO_HOME/bin/$executable" || problems="$problems; bin/$executable is not the binary of the archive"
   verdict "$name"
 
   if command -v chflags >/dev/null 2>&1; then
