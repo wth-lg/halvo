@@ -904,3 +904,37 @@ fn a_new_life_whose_owner_answers_store_to_both_bodies_stores_and_starts_nothing
     assert_eq!(unique.len(), seqs.len(), "no seq on two rows: {seqs:?}");
     assert!(seqs.starts_with(&before), "the record reads as before");
 }
+
+#[test]
+fn class_c_a_record_exactly_two_days_ahead_keeps_its_place() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0 + 2 * DAY_MS);
+    w.ports.refuse_record(second, refused("malformed"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(stored_slots(&w), vec![1]);
+    assert_eq!(l.waiting().len(), 2, "it keeps its place");
+    assert!(l.taken_off().is_empty());
+}
+
+#[test]
+fn class_c_a_lone_record_past_its_bound_is_taken_off_at_once_and_one_at_its_bound_waits_for_its_proof(
+) {
+    for (days, off) in [(94, true), (93, false)] {
+        let w = world_with(&[MANUAL], Limits::PRODUCT);
+        let mut l = ledger_of(&w);
+        w.ports.refuse(Method::Log, PortError::NoService);
+        w.ports.set_now(T0 - days * DAY_MS);
+        let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+        w.ports.set_now(T0);
+        w.ports.clear_refusals();
+        w.ports.refuse_record(second, refused("malformed"));
+        let _ = flush(&w.ports, &mut l, &w.limits);
+        if off {
+            assert!(l.waiting().is_empty(), "{days} days: taken off");
+            assert_eq!(l.taken_off().len(), 1, "{days} days: and counted");
+        } else {
+            assert_eq!(l.waiting().len(), 1, "{days} days: it waits for its proof");
+            assert!(l.taken_off().is_empty(), "{days} days");
+        }
+    }
+}

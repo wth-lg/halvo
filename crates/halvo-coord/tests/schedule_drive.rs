@@ -3265,3 +3265,42 @@ fn rd86_a_start_that_failed_holds_null() {
         .expect("the start stored its run_started");
     assert_eq!(defers_of(&w, &run), None);
 }
+
+#[test]
+fn rd86_a_start_whose_defer_waited_for_its_run_started_takes_that_defers_answer() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(
+        Method::LogRunStarted,
+        PortError::Refused(Name::parse("store").unwrap()),
+    );
+    assert!(
+        w.start(0).answer.is_err(),
+        "the store refused its run_started"
+    );
+    w.ports.clear_refusals();
+    let run = ok_run(&w.start(0));
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(
+        defers_of(&w, &run),
+        defers(true, 0),
+        "the defer that went after its run_started was acknowledged"
+    );
+}
+
+#[test]
+fn rd86_an_end_owed_in_this_life_keeps_its_values_and_counts_no_tick_after_the_run_left_the_board()
+{
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.end(&run, Some(Outcome::Completed));
+    w.ports.clear_refusals();
+    w.clock(halvo_coord::ports::Stamp::LAST + 1, DAY);
+    w.tick();
+    ticks(&mut w, 1, 1);
+    assert_eq!(
+        defers_of(&w, &run),
+        defers(true, 0),
+        "the owed end is stored with what this life saw while the run stood on the board"
+    );
+}
