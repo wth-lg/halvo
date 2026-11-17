@@ -179,7 +179,11 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   which a review of the diff is the gate. It refuses a source that holds the word `admit` in any
   letter case, `from_env`, the name of the fence's variable, `fence::VAR`, a glob import written
   `fence::*` or a `*` in a use group `fence::{...}`; a review of the diff is the gate for any
-  other way to open the fence.
+  other way to open the fence. It refuses `include!` and a `path` attribute on a module, also
+  inside `cfg_attr`, which bring a module from a file that it does not read; `include_str!` and
+  `include_bytes!` bring no module and stay. The lint reads the text of the crate's own .rs
+  files, and a review of the diff is the gate for any other way to put a stand-in in the place
+  of the crate r3_web.
 
 ## How the cells of unit U0.6 ran
 

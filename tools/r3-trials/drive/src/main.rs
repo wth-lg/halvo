@@ -589,6 +589,20 @@ mod tests {
         })
     }
 
+    fn brings_another_file(source: &str) -> bool {
+        let packed: String = source.chars().filter(|c| !c.is_whitespace()).collect();
+        packed.contains(concat!("incl", "ude!"))
+            || packed.contains(concat!("#[pa", "th="))
+            || packed
+                .split(concat!("#[cfg", "_attr("))
+                .skip(1)
+                .any(|attr| {
+                    attr.split(']')
+                        .next()
+                        .is_some_and(|a| a.contains(concat!(",pa", "th=")))
+                })
+    }
+
     fn opens_the_fence(source: &str) -> bool {
         let lower = source.to_lowercase();
         let packed: String = lower.chars().filter(|c| !c.is_whitespace()).collect();
@@ -625,7 +639,15 @@ mod tests {
         }
         for (path, source) in &tree.files {
             if declares_r3_web(source) {
-                problems.push(format!("an item named after the crate r3-web: {path}"));
+                problems.push(format!(
+                    "the name {} outside a path: {path}",
+                    concat!("r3", "_web")
+                ));
+            }
+            if brings_another_file(source) {
+                problems.push(format!(
+                    "a module or text brought from another file: {path}"
+                ));
             }
             if opens_the_fence(source) {
                 problems.push(format!("a call that opens the fence: {path}"));
@@ -938,6 +960,44 @@ mod tests {
             FENCED.to_string(),
         ] {
             assert!(!declares_r3_web(&not_an_item), "{not_an_item}");
+        }
+    }
+
+    #[test]
+    fn the_lint_refuses_a_module_brought_from_another_file() {
+        let include = concat!("incl", "ude!");
+        let path = concat!("#[pa", "th");
+        for source in [
+            format!("#[cfg(test)]\nmod tests {{\n    {include}(\"stand.txt\");\n}}\n"),
+            format!("{include} (\"stand.txt\");"),
+            format!("{path} = \"stand.txt\"]\nmod stand;\n"),
+            format!("{path}=\"stand.rs\"] mod stand;"),
+            format!(
+                "#[cfg_attr(test, {} = \"stand.txt\")]\nmod stand;\n",
+                concat!("pa", "th")
+            ),
+        ] {
+            assert!(brings_another_file(&source), "{source}");
+            let tree = fixture(
+                &the_manifest(),
+                &[
+                    ("src/main.rs", FENCED),
+                    ("tests/x.rs", &format!("{source}\n{FENCED}")),
+                ],
+            );
+            assert_eq!(
+                lint(&tree),
+                vec!["a module or text brought from another file: tests/x.rs".to_string()],
+                "{source}"
+            );
+        }
+        for kept in [
+            format!("let t = {}(\"x.txt\");", concat!("include", "_str!")),
+            format!("let b = {}(\"x.bin\");", concat!("include", "_bytes!")),
+            "let path = 1;".to_string(),
+            FENCED.to_string(),
+        ] {
+            assert!(!brings_another_file(&kept), "{kept}");
         }
     }
 
