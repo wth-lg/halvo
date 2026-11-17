@@ -239,6 +239,12 @@ self_test() {
   track no-sudo
   check no-sudo FAIL 'problem: the Prerequisites section of README.md does not say that the command uses no sudo'
 
+  fixture sudo-under-release
+  edit sudo-under-release 's/, with no sudo\././' README.md
+  printf '\nThe release uses no sudo.\n' >>"$work/sudo-under-release/README.md" || exit 2
+  track sudo-under-release
+  check sudo-under-release FAIL 'problem: the Prerequisites section of README.md does not say that the command uses no sudo'
+
   fixture windows-form
   printf '\nRun sh scripts/ci/run-ci-d.sh windows 99-nothing too.\n' >>"$work/windows-form/README.md" || exit 2
   track windows-form
