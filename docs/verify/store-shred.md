@@ -1638,7 +1638,12 @@ set, and the root's own volume name answers the root.
   count and a length that the rule writes through, again before any write
   (on Windows the read-only attribute is cleared after that test); a mode
   change that a program racing the step causes between that read and the
-  open is this limit (ruling ST-48 U1, and at a root name and a partial name
+  open is this limit, on the step by name and on the step by identity: the
+  mode is set by the name, so a file of another party put at the name in
+  that window gets mode 0600, and the kept handle then shows another
+  identity and the name is removed with no write, its bytes kept (the two
+  review cases of reports/builder-104.md that swap the file at that point
+  show it) (ruling ST-48 U1, and at a root name and a partial name
   the inbox entry of 2026-11-17T02:59:55Z (1); tests
   `st48_u1_no_mode_change_at_a_plain_name_before_the_count_and_the_length_pass`
   and `row20_a_file_of_another_length_at_a_root_name_keeps_its_mode_and_its_bytes`).
