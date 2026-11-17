@@ -1689,6 +1689,11 @@ place_cases() {
   t row-whose-pattern-holds-the-context-of-one-place PASS fixture_says one-place-by-its-context 'PASS mutation:one-place-by-its-context (applies and builds)' yes
   place_fixture one-place-by-a-lookbehind 'echo one\necho one\n' 's/(?<=one\n)echo one/echo 1/'
   t row-whose-pattern-names-one-place-by-a-lookbehind PASS fixture_says one-place-by-a-lookbehind 'PASS mutation:one-place-by-a-lookbehind (applies and builds)' yes
+  place_fixture anchored 'echo one\necho two\necho one\necho three\n' 's/echo one(?=\necho three\n)/echo 1/'
+  t anchored-row-that-matches-one-place-applies PASS fixture_says anchored 'PASS mutation:anchored (applies and builds)' yes
+  place_fixture anchored-gains-a-match 'echo one\necho three\necho one\necho two\necho one\necho three\n' 's/echo one(?=\necho three\n)/echo 1/'
+  place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 5'
+  t anchored-row-whose-block-is-put-above-it-again-is-named PASS fixture_says anchored-gains-a-match "FAIL mutation:anchored-gains-a-match ($refusal)" yes
   place_fixture shared-line-end 'echo a\n    x=1\n    x=1\necho b\n' 's/\n    x=1\n/\n    x=2\n/'
   place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '2 and 3'
   t row-whose-two-places-share-a-line-end-is-named PASS fixture_says shared-line-end "FAIL mutation:shared-line-end ($refusal)" yes
