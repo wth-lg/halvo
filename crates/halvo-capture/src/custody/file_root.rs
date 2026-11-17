@@ -561,11 +561,32 @@ impl PartialEq for EntryFate {
     }
 }
 
+/// Whether the destroy step may write through a regular file that stands at a
+/// name of kind `at`, by its count of names and its length: at a partial name
+/// always; at the named root's own name only with a root file's length
+/// (ruling ST-45 H4); at another id's root name with a root file's length or
+/// with one name (ruling ST-45 Addition 2 (b)); at any other name only with
+/// one name and a root file's length (ruling ST-48 U1). Any other file has its
+/// name removed with no write through it.
+fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
+    match at {
+        EntryName::Partial => true,
+        EntryName::OwnRoot => root_len,
+        EntryName::OtherRoot => root_len || one_name,
+        EntryName::OtherName => one_name && root_len,
+    }
+}
+
 /// Destroys one entry of a roots directory. An entry that is no regular file
-/// is removed as the entry that it is. For a regular file the step first sets
-/// its mode to 0600 by its name through the directory's handle, following no
-/// link (on Windows it clears the read-only attribute after the open), then
-/// keeps one handle: the open for update, or the read open, or the write open
+/// is removed as the entry that it is. At a name that is no root name and no
+/// partial name the step first reads the file's count of names and its length
+/// by its name through the directory's handle, following no link and opening
+/// nothing; a file whose read shows more than one name, a count that cannot be
+/// read or no root file's length has its name removed with no open, no mode
+/// change and no write (ruling ST-48 U1). For a regular file that may be
+/// written the step then sets its mode to 0600 by its name through the
+/// directory's handle, following no link (on Windows it clears the read-only
+/// attribute after the open and the test), then keeps one handle: the open for update, or the read open, or the write open
 /// of the same name, none following a link. The count, the test that the name
 /// still leads to that file and the zero-fill go through the kept handle; a
 /// kept handle that cannot write zero-fills through a write open of the name
@@ -583,7 +604,10 @@ impl PartialEq for EntryFate {
 /// removed as the entry that it is with no write through it and is
 /// `NotTheRootFile`; at another root's name such a file with more than one
 /// name, or a count that cannot be read, is removed with no write through it
-/// (ruling ST-45 Addition 2 (b)).
+/// (ruling ST-45 Addition 2 (b)); at any other name the kept handle shows again
+/// the identity, the one name and the root file's length that the read by
+/// name showed before any write, or the name is removed with no write through
+/// it ([`written_through`]).
 fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
     let remove = |dir: &Dir| match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -600,6 +624,17 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         Ok(entry) if entry.kind != EntryKind::File => return removed_unwritten(dir),
         Ok(_) => {}
     }
+    let by_name = if at == EntryName::OtherName {
+        match dir.file_shape_at(name) {
+            Ok(shape) if written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) => {
+                Some(shape.identity)
+            }
+            Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+            _ => return removed_unwritten(dir),
+        }
+    } else {
+        None
+    };
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
     let kept = match dir
@@ -612,18 +647,14 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         Err(e) if durable::refusal(&e).is_some() => return removed_unwritten(dir),
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
     };
-    if at != EntryName::Partial {
-        let root_len = kept
-            .metadata()
-            .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
-        let one_name = matches!(durable::file_link_count(&kept), Ok(1));
-        let unwritten = match at {
-            EntryName::OtherName => !root_len || !one_name,
-            _ => !root_len && (at == EntryName::OwnRoot || !one_name),
-        };
-        if unwritten {
-            return removed_unwritten(dir);
-        }
+    let root_len = kept
+        .metadata()
+        .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
+    let one_name = matches!(durable::file_link_count(&kept), Ok(1));
+    let same_file = by_name
+        .is_none_or(|identity| matches!(durable::identity_of(&kept), Ok(held) if held == identity));
+    if !(same_file && written_through(at, one_name, root_len)) {
+        return removed_unwritten(dir);
     }
     #[cfg(windows)]
     make_writable(dir, name, &kept);

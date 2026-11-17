@@ -6,6 +6,15 @@ use std::path::{Path, PathBuf};
 
 pub(crate) use crate::custody::FileIdentity;
 
+/// What a read of a regular file by its name, following no link, gives: its
+/// identity, its count of names and its length (ruling ST-48 U1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FileShape {
+    pub(crate) identity: FileIdentity,
+    pub(crate) names: u64,
+    pub(crate) len: u64,
+}
+
 pub(crate) trait DurableFs: Send + Sync {
     fn create_new(&self, dir: &Dir, name: &OsStr) -> io::Result<File>;
     fn sync_file(&self, file: &File, dir: &Dir, name: &OsStr) -> io::Result<()>;
@@ -169,7 +178,7 @@ mod unix_dir {
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refusal, refused, Dir, Entry, EntryKind, FileIdentity, Refused};
+    use super::{refusal, refused, Dir, Entry, EntryKind, FileIdentity, FileShape, Refused};
 
     fn c_name(name: &OsStr) -> io::Result<CString> {
         CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
@@ -535,6 +544,25 @@ mod unix_dir {
             Ok((st.st_dev as u64, st.st_ino))
         }
 
+        /// The identity, the count of names and the length of the regular file
+        /// at `name`, read by its name through this handle with no open and
+        /// following no link, so that no mode is needed; an entry of another
+        /// kind is refused.
+        pub(crate) fn file_shape_at(&self, name: &OsStr) -> io::Result<FileShape> {
+            let st = stat_at(self.fd.as_raw_fd(), name)?;
+            if kind(&st) != EntryKind::File {
+                return Err(refused(Refused::NotARegularFile));
+            }
+            Ok(FileShape {
+                identity: FileIdentity {
+                    volume: st.st_dev as u64,
+                    file: st.st_ino,
+                },
+                names: u64::from(st.st_nlink),
+                len: st.st_size as u64,
+            })
+        }
+
         /// The identity of the regular file at `name`, following no link; an
         /// entry of another kind is refused.
         pub(crate) fn file_identity_at(&self, name: &OsStr) -> io::Result<FileIdentity> {
@@ -628,7 +656,7 @@ mod windows_dir {
     use std::path::{Path, PathBuf};
 
     use super::{
-        refusal, refused, Dir, Entry, EntryKind, FileIdentity, Refused,
+        refusal, refused, Dir, Entry, EntryKind, FileIdentity, FileShape, Refused,
         FILE_FLAG_OPEN_REPARSE_POINT,
     };
 
@@ -950,6 +978,22 @@ mod windows_dir {
                 Err(e) if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() => Ok(false),
                 Err(e) => Err(e),
             }
+        }
+
+        /// The identity, the count of names and the length of the regular file
+        /// at `name`, read through a handle opened for reading, following no
+        /// reparse point, so that no attribute is changed; an entry of another
+        /// kind is refused.
+        pub(crate) fn file_shape_at(&self, name: &OsStr) -> io::Result<FileShape> {
+            let file = held_file(
+                &self.entry_path(name),
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            )?;
+            Ok(FileShape {
+                identity: identity_of(&file)?,
+                names: file_link_count(&file)?,
+                len: file.metadata()?.len(),
+            })
         }
 
         /// The identity of the regular file at `name`, following no link; an
