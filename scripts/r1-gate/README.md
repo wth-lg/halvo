@@ -93,8 +93,9 @@ empty, and a line that is empty is skipped.
   substitution runs where no variable of the runner is in sight, so a name
   such as `$text` in it is no valid perl. Limits: the replacement is not
   read, so a variable in it, `$@` for one, gives its value where the row may
-  mean the text; and `\G`, which a statement without `g` reads as the start
-  of the file, is tried at every position and may be refused.
+  mean the text; and the runner counts the places of a pattern with `\G`
+  where its scan tries it, while a statement without `g` reads `\G` as the
+  start of the file: write no `\G`.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and
