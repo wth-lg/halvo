@@ -111,7 +111,15 @@ pub enum Mode {
     },
     /// The scratch delete (contracts.md C4 item 9) of `store_dir`, the path as
     /// the command line gave it, so that the store's delete tail meets a link
-    /// at its last part in any spelling and refuses it.
+    /// at its last part in any spelling and refuses it. Before the tail's call
+    /// the parse refuses, with exit 64, a directory that holds a data
+    /// directory's layout, an entry at the name store beside one at the name
+    /// roots, read through DIR as resolved and without following a link at
+    /// either name, and opens, changes and removes nothing in it. This look is
+    /// the one look before the tail's call: every gate trap calls this mode,
+    /// and a wrong argument must not cost a person's store its root (ruling
+    /// DM-22). A look that cannot be read refuses nothing; the tail then
+    /// cannot enter such a directory either.
     #[cfg(debug_assertions)]
     DeleteAll {
         store_dir: PathBuf,
@@ -154,7 +162,7 @@ pub struct Usage(pub &'static str);
 /// Why a command line is not run: a refused line, which exits 64, or an
 /// account that gives no data directory to check a store directory against,
 /// which is no fault of the line and exits 1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Refusal {
     #[error(transparent)]
     Usage(#[from] Usage),
@@ -162,16 +170,22 @@ pub enum Refusal {
         "halvo-capture: the account gives no data directory to check the store directory against: {0}"
     )]
     NoDataDir(PathError),
+    /// A store directory that holds a data directory's layout, by its text as
+    /// given; the scratch delete refuses it with exit 64.
+    #[error(
+        "halvo-capture: {0} holds store/ beside roots/, the layout of a data directory; the scratch delete takes a scratch store directory alone, and nothing in this one was opened or removed"
+    )]
+    DataDirLayout(String),
 }
 
 /// The binary's answer to a command line that is not run: the refusal's text
-/// on `err`, and exit 64 for a refused line or exit 1 for an account that
-/// gives no data directory.
-pub fn usage_answer<R: Copy + Into<Refusal>>(refused: &R, err: &mut dyn std::io::Write) -> i32 {
-    let refusal: Refusal = (*refused).into();
+/// on `err`, and exit 64 for a refused line or a data directory's layout, or
+/// exit 1 for an account that gives no data directory.
+pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io::Write) -> i32 {
+    let refusal: Refusal = refused.clone().into();
     let _ = writeln!(err, "{refusal}");
     match refusal {
-        Refusal::Usage(_) => halvo_control::exit::USAGE,
+        Refusal::Usage(_) | Refusal::DataDirLayout(_) => halvo_control::exit::USAGE,
         Refusal::NoDataDir(_) => halvo_control::exit::ERROR,
     }
 }
@@ -201,7 +215,11 @@ pub fn outcome_answer(
 }
 
 /// What the store's delete tail answered for a scratch store directory, in
-/// the scratch layout, as the binary hands it to [`scratch_delete`].
+/// the scratch layout, as the binary hands it to [`scratch_delete`]. After a
+/// delete that was stopped between its root step and its file step, or when
+/// the root file was removed by other hands, the next delete says that it is
+/// not finished although nothing stays after it, because it did not itself
+/// destroy the root; the delete after that says finished (ruling DM-21).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TailAnswer {
     /// The tail answered Ok.
@@ -265,6 +283,17 @@ impl TailReport {
             && !self.key_file_gone
             && self.database_left
             && self.files_left == 1
+    }
+
+    /// The report of a tail that could not open the store directory, or that
+    /// answered through its not-opened report for another cause: store.key,
+    /// the database and one file read as not removed because the tail never
+    /// looked. A removal that left exactly those three reads the same.
+    fn not_opened(&self) -> bool {
+        !self.key_file_gone
+            && self.database_left
+            && self.files_left == 1
+            && self.keyed_segments.is_none()
     }
 
     /// The scratch form of the `deleted` line of contracts.md C2.6 and C3.3:
@@ -385,6 +414,8 @@ pub fn scratch_delete(
                 && !(cfg!(windows) && has_a_part_that_windows_trims(store_dir))
             {
                 format!("halvo-capture: {shown} is a link or a file, not a folder; nothing was removed; give the path of the folder itself")
+            } else if report.not_opened() {
+                "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it".to_owned()
             } else {
                 match report.what_stays() {
                     stays if stays.is_empty() => {
@@ -506,7 +537,8 @@ pub fn parse(
         #[cfg(debug_assertions)]
         Some("--delete-all") => {
             let flags = gate::Flags::read(&args[1..], &["--store-dir"])?;
-            let store_dir = gate::store_dir(flags.store_dir, account)?.given;
+            let store_dir =
+                gate::store_dir(flags.store_dir, account)?.without_a_data_directory_layout()?;
             Ok(Mode::DeleteAll { store_dir })
         }
         _ => Err(Usage("no mode of this build").into()),
@@ -623,11 +655,21 @@ mod gate {
     }
 
     pub(super) struct StoreDir {
-        pub(super) given: PathBuf,
+        given: PathBuf,
         resolved: PathBuf,
     }
 
     impl StoreDir {
+        pub(super) fn without_a_data_directory_layout(self) -> Result<PathBuf, Refusal> {
+            let stands = |name: &str| self.resolved.join(name).symlink_metadata().is_ok();
+            if stands("store") && stands("roots") {
+                return Err(Refusal::DataDirLayout(halvo_control::paths::one_line(
+                    &self.given.to_string_lossy(),
+                )));
+            }
+            Ok(self.given)
+        }
+
         pub(super) fn without_store_key(self) -> Result<PathBuf, Refusal> {
             match self.resolved.join("store.key").symlink_metadata() {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -1701,7 +1743,7 @@ mod tests {
             roots_at_their_path: false,
             key_file_gone: false,
             database_left: true,
-            files_left: 1,
+            files_left: 2,
             not_followed: 2,
             ..TailReport::default()
         };
@@ -1711,7 +1753,7 @@ mod tests {
         assert!(out.contains(" root_destroyed=yes root_id=- "), "{out}");
         assert_eq!(
             err,
-            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 1 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
+            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 2 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
         );
         let unnamed = TailReport {
             files_left: 1,
@@ -1725,6 +1767,130 @@ mod tests {
             err,
             "halvo-capture: the delete is not finished: 1 other files of the store stay\n"
         );
+    }
+
+    #[test]
+    fn a_not_opened_report_says_the_store_dir_could_not_be_opened_and_nothing_of_what_stays() {
+        for root in [
+            TailRoot::Left(None),
+            TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
+            TailRoot::Destroyed,
+        ] {
+            let report = TailReport {
+                root,
+                database_left: true,
+                files_left: 1,
+                roots_at_their_path: true,
+                ..TailReport::default()
+            };
+            let (status, out, err, _) =
+                scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report.clone()));
+            assert_eq!(status, exit::ERROR);
+            assert!(
+                out.ends_with(" files_left=1 database_left=yes not_followed=0\n"),
+                "{out}"
+            );
+            assert_eq!(
+                err,
+                "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it\n",
+                "{report:?}"
+            );
+        }
+        let removal_left_these = TailReport {
+            root: TailRoot::Destroyed,
+            roots_listed: true,
+            database_left: true,
+            files_left: 2,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        };
+        let (_, _, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(removal_left_these));
+        assert!(
+            err.contains("store.key stays; a database file stays"),
+            "{err}"
+        );
+        let not_opened = TailReport {
+            root: TailRoot::Destroyed,
+            roots_listed: true,
+            database_left: true,
+            files_left: 1,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        };
+        for (what, other) in [
+            (
+                "the key file gone",
+                TailReport {
+                    key_file_gone: true,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "no database left",
+                TailReport {
+                    database_left: false,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "the segments read",
+                TailReport {
+                    keyed_segments: Some(1),
+                    ..not_opened.clone()
+                },
+            ),
+        ] {
+            let (_, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other));
+            assert!(
+                !err.contains("could not be opened")
+                    && err.contains("1 other files of the store stay"),
+                "{what}: {err}"
+            );
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_data_directory_layout_is_refused_by_the_parse_and_its_half_is_not() {
+        let dirs = dirs();
+        let d = Path::new(&dirs.store);
+        let line = |dir: &Path| {
+            parse(
+                args(&["--delete-all", "--store-dir", dir.to_str().unwrap()]),
+                &dirs.account,
+            )
+        };
+        std::fs::create_dir(d.join("store")).unwrap();
+        assert!(
+            matches!(line(d), Ok(Mode::DeleteAll { .. })),
+            "store/ alone"
+        );
+        std::fs::create_dir(d.join("roots")).unwrap();
+        let refused = line(d);
+        assert!(
+            matches!(refused, Err(ref refusal) if !matches!(refusal, Refusal::NoDataDir(_))),
+            "store/ beside roots/: {refused:?}"
+        );
+        std::fs::remove_dir(d.join("store")).unwrap();
+        assert!(
+            matches!(line(d), Ok(Mode::DeleteAll { .. })),
+            "roots/ alone"
+        );
+        std::fs::write(d.join("store"), b"a file at the name").unwrap();
+        assert!(
+            line(d).is_err(),
+            "an entry of any kind at store beside roots/"
+        );
+        #[cfg(unix)]
+        {
+            std::fs::remove_file(d.join("store")).unwrap();
+            std::os::unix::fs::symlink(d.join("nowhere"), d.join("store")).unwrap();
+            assert!(
+                line(d).is_err(),
+                "a link that leads nowhere at store, not followed"
+            );
+        }
     }
 
     fn refused_report() -> TailReport {
