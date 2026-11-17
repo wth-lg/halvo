@@ -110,34 +110,96 @@ seam_manifests() {
 }
 
 carbon_calls() {
-  git grep --cached -n -w -E -e 'EnableSecureEventInput|DisableSecureEventInput' -- '*.rs' '*.m' '*.c' '*.h' '*.swift' >"$work/carbon" 2>/dev/null
+  set -- '*.rs' '*.m' '*.mm' '*.c' '*.cc' '*.cpp' '*.h' '*.swift'
+  git grep --cached -n -w -E -e 'EnableSecureEventInput|DisableSecureEventInput' -- "$@" >"$work/carbon" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the Carbon calls" ;; esac
+  git grep --cached -n -E -e 'link_name' -- "$@" >"$work/link-names" 2>/dev/null
+  case $? in 0 | 1) ;; *) fail "git grep could not read the tree for link_name" ;; esac
+  grep -v -E 'link_name = "[A-Za-z0-9_$]+"' "$work/link-names" >>"$work/carbon"
   other=$(cut -d : -f 1 "$work/carbon" | grep -v -x -F -e crates/halvo-capture/src/secure_input_macos.rs | sort -u | tr '\n' ' ')
   [ -z "$other" ] ||
-    fail "EnableSecureEventInput or DisableSecureEventInput stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: ${other% } (ruling MA-14); call the hold of that file"
-  printf 'carbon: EnableSecureEventInput and DisableSecureEventInput stand in crates/halvo-capture/src/secure_input_macos.rs alone\n'
+    fail "EnableSecureEventInput, DisableSecureEventInput, or a link_name whose name is no plain literal (concat!, an escape, a macro), stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6); call the hold of that file"
+  printf 'carbon: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone, in the source files .rs .m .mm .c .cc .cpp .h .swift\n'
+}
+
+reading_places_of() {
+  git show ":$1" >"$work/reading-source" 2>/dev/null || fail "$1 cannot be read from the index"
+  tr -d '\r' <"$work/reading-source" | awk -v seam='#[cfg(all(debug_assertions, feature = "stall-seam"))]' '
+    function opens(text) { return gsub(/\{/, "{", text) }
+    function closes(text) { return gsub(/\}/, "}", text) }
+    function names(text) { return text ~ /(^|[^A-Za-z_])Reading([^A-Za-z_:]|$)/ }
+    skip {
+      depth += opens($0) - closes($0)
+      if (depth <= 0) skip = 0
+      next
+    }
+    item {
+      depth += opens($0) - closes($0)
+      if (depth <= 0) { item = 0; next }
+      line = $0
+      gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", line)
+      if (line !~ /^ *Reading,?$/ && names(line)) print NR
+      next
+    }
+    /^ *(\/\/\/|#\[)/ {
+      if ($0 ~ /^ *#\[/ && $0 ~ /test/) testattr = 1
+      if ($0 ~ /^ *#\[/ && index($0, seam) > 0) seamattr = 1
+      next
+    }
+    /^ *(pub(\([a-z]+\))? )?mod [A-Za-z_]+ \{/ && testattr {
+      skip = 1
+      depth = opens($0) - closes($0)
+      testattr = 0
+      seamattr = 0
+      next
+    }
+    /^ *(pub(\([a-z]+\))? )?(struct|enum|union) / && seamattr {
+      depth = opens($0) - closes($0)
+      if (depth > 0) skip = 1
+      testattr = 0
+      seamattr = 0
+      next
+    }
+    /^ *(pub(\([a-z]+\))? )?(struct|enum|union) [A-Za-z_]+/ {
+      line = $0
+      gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", line)
+      if (names(line)) print NR
+      depth = opens($0) - closes($0)
+      if (depth > 0) item = 1
+      testattr = 0
+      seamattr = 0
+      next
+    }
+    /^ *(pub(\([a-z]+\))? )?type [A-Za-z_]+/ && names($0) { print NR }
+    /^ *(pub(\([a-z]+\))? )?(static|const) / && names($0) { print NR }
+    /^ *(pub(\([a-z]+\))? )?use / && /Reading as / { print NR }
+    /let (mut )?[A-Za-z_]+ *:/ {
+      line = $0
+      sub(/=.*/, "", line)
+      if (names(line)) print NR
+    }
+    { testattr = 0; seamattr = 0 }
+  ' >"$work/reading-places" || fail "$1 cannot be read"
+  places=$(tr '\n' ' ' <"$work/reading-places")
+  [ -z "$places" ] ||
+    fail "a field, a payload, an alias, a renaming use, a static or an annotated let of $1 can keep a reading of the secure-input state between two events (lines ${places% }): the reading of an event is taken by the one function that handles the event and handed on by value (rulings MA-14, MA-30 M6)"
 }
 
 reading_places() {
-  git show ":crates/halvo-capture/src/macos/input.rs" >"$work/input-rs" 2>/dev/null ||
-    fail "crates/halvo-capture/src/macos/input.rs cannot be read from the index"
-  tr -d '\r' <"$work/input-rs" | awk '
-    /^mod tests \{/ { exit }
-    /^(pub(\([a-z]+\))? )?struct [A-Za-z_]+(<[^>]*>)? \{$/ { inside = 1; next }
-    inside && /^\}/ { inside = 0; next }
-    inside && /^    (pub(\([a-z]+\))? )?[a-z_]+: / {
-      type = $0
-      sub(/^[^:]*: /, "", type)
-      gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", type)
-      if (type ~ /(^|[^A-Za-z_])Reading([^A-Za-z_]|$)/) print NR
-      next
-    }
-    /^ *(pub(\([a-z]+\))? )?(static|thread_local!)/ && /(^|[^A-Za-z_])Reading([^A-Za-z_]|$)/ { print NR }
-  ' >"$work/reading-places" || fail "crates/halvo-capture/src/macos/input.rs cannot be read"
-  places=$(tr '\n' ' ' <"$work/reading-places")
-  [ -z "$places" ] ||
-    fail "a field or a static of crates/halvo-capture/src/macos/input.rs can keep a reading of the secure-input state between two events (lines ${places% }): the reading of an event is taken by the one function that handles the event and handed on by value (ruling MA-14)"
-  printf 'reading: no field or static of crates/halvo-capture/src/macos/input.rs holds a reading of the secure-input state\n'
+  for source in crates/halvo-capture/src/macos/input.rs crates/halvo-capture/src/secure_input_macos_hold.rs; do
+    reading_places_of "$source"
+  done
+  printf 'reading: no field, payload, alias, renaming use, static or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs holds a reading of the secure-input state; one limit stands, a cache whose type is inferred\n'
+}
+
+clock_fields() {
+  git show ":crates/halvo-capture/src/secure_input_macos_hold.rs" >"$work/hold-source" 2>/dev/null ||
+    fail "crates/halvo-capture/src/secure_input_macos_hold.rs cannot be read from the index"
+  for clock in Monotonic Uptime; do
+    tr -d '\r' <"$work/hold-source" | grep -q -x -F -e "pub struct $clock(u64);" ||
+      fail "the clock $clock of crates/halvo-capture/src/secure_input_macos_hold.rs is no longer exactly 'pub struct $clock(u64);': its field is public in some form, or the type moved; it stays private, made by from_nanos and read by nanos (rulings MA-21, MA-29 (2), MA-30 M10)"
+  done
+  printf 'clocks: the fields of Monotonic and Uptime are private\n'
 }
 
 names_and_numbers() {
@@ -376,6 +438,7 @@ measure() {
   seam_manifests
   carbon_calls
   reading_places
+  clock_fields
   printf 'session reader of the phases: %s\n' "${HALVO_STALL_SESSION:-real}"
 
   proofs=$(cut -d ' ' -f 1 "$work/proofs" | tr '\n' ' ')
@@ -876,6 +939,10 @@ self_test() {
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
+  clock_lines='pub struct Monotonic(u64);
+pub struct Uptime(u64);'
+  mkdir -p "$work/repo/crates/halvo-capture/src" || exit 2
+  printf '%s\n' "$clock_lines" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   seam_manifest='[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n'
   printf '%b' "$seam_manifest" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   printf '[dependencies]\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
@@ -1050,29 +1117,56 @@ waits-not-driven-phase_one'
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
   check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml' ''
-  printf 'mod carbon {\n    fn EnableSecureEventInput() -> i32;\n    fn DisableSecureEventInput() -> i32;\n}\n' >"$work/repo/crates/halvo-capture/src/secure_input_macos.rs" || exit 2
+  printf 'mod carbon {\n    fn EnableSecureEventInput() -> i32;\n    fn DisableSecureEventInput() -> i32;\n    #[link_name = concat!("Is", "SecureEventInputEnabled")]\n    fn is_on() -> u8;\n}\n' >"$work/repo/crates/halvo-capture/src/secure_input_macos.rs" || exit 2
   mkdir -p "$work/repo/crates/other/src" || exit 2
-  printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  printf 'extern "C" {\n    #[link_name = "fdopendir$INODE64"]\n    fn fdopendir() -> i32;\n}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
-  check carbon-calls-in-the-lock-file PASS 'carbon: EnableSecureEventInput and DisableSecureEventInput stand in crates/halvo-capture/src/secure_input_macos.rs alone' ''
-  printf 'extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
-  git -C "$work/repo" add crates || exit 2
-  check carbon-call-outside-the-lock FAIL 'DisableSecureEventInput stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: crates/other/src/lib.rs (ruling MA-14)' ''
+  check carbon-calls-and-a-plain-link-name PASS 'carbon: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone' ''
+  carbon_text='stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: crates/other/src/'
+  for form in 'lib.rs:extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' \
+    'hold.mm:void hold(void) { EnableSecureEventInput(); }\n' \
+    'hold.cpp:void hold(void) { DisableSecureEventInput(); }\n' \
+    'lib.rs:extern "C" {\n    #[link_name = concat!("Enable", "SecureEventInput")]\n    fn hold() -> i32;\n}\n' \
+    'lib.rs:extern "C" {\n    #[link_name = "\\x45nableSecureEventInput"]\n    fn hold() -> i32;\n}\n'; do
+    file=${form%%:*}
+    printf "${form#*:}" >"$work/repo/crates/other/src/$file" || exit 2
+    git -C "$work/repo" add crates || exit 2
+    check "carbon-outside-the-lock-in-$file-$(printf '%s' "$form" | cksum | cut -d ' ' -f 1)" FAIL "$carbon_text$file" ''
+    printf '// none\n' >"$work/repo/crates/other/src/$file" || exit 2
+    git -C "$work/repo" add crates || exit 2
+  done
   printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
-  printf 'struct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\nstruct HoldState {\n    keys: HeldKeys<HeldKey>,\n}\n\nmod tests {\n    struct Kept {\n        kept: Reading,\n    }\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  printf 'enum Kind {\n    Key,\n    Reading,\n}\n\nstruct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\n#[cfg(all(debug_assertions, feature = "stall-seam"))]\n#[derive(Debug)]\npub enum RawEntry {\n    Reading {\n        value: Reading,\n    },\n}\n\nfn read() {\n    let reading = (self.secure)(state.session);\n    let step = Reading::Off;\n}\n\n#[cfg(all(test, debug_assertions))]\nmod tests {\n    thread_local! {\n        static ANSWER: Cell<Reading> = const { Cell::new(Reading::Off) };\n    }\n    struct Kept {\n        kept: Reading,\n    }\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
-  check reading-in-a-reader-type-and-a-test PASS 'reading: no field or static of crates/halvo-capture/src/macos/input.rs holds a reading of the secure-input state' ''
-  printf 'struct HoldState {\n    keys: HeldKeys<HeldKey>,\n    kept: Option<(Reading, Stamps)>,\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  check reading-in-a-variant-a-reader-type-the-seam-and-a-test PASS 'reading: no field, payload, alias, renaming use, static or annotated let' ''
+  reading_text='can keep a reading of the secure-input state between two events'
+  for form in 'field:struct HoldState {\n    keys: HeldKeys<HeldKey>,\n    kept: Option<(Reading, Stamps)>,\n}\n' \
+    'closure:fn tap_callback() {\n    let kept: std::cell::Cell<Option<Reading>> = std::cell::Cell::new(None);\n}\n' \
+    'newtype:struct LastReading(Option<Reading>);\n' \
+    'alias:type Kept = Option<Reading>;\n' \
+    'use-as:use crate::secure_input_macos::Reading as State;\n\nstruct HoldState {\n    kept: Option<State>,\n}\n' \
+    'enum-wrapper:enum Kept {\n    One(Reading),\n}\n' \
+    'static:static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n' \
+    'static-after-the-tests:#[cfg(test)]\nmod tests {\n    fn x() {}\n}\n\nstatic LAST_READING: Mutex<Option<Reading>> = Mutex::new(None);\n'; do
+    printf "${form#*:}" >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+    git -C "$work/repo" add crates || exit 2
+    check "reading-kept-by-a-${form%%:*}" FAIL "crates/halvo-capture/src/macos/input.rs $reading_text" ''
+  done
+  printf 'fn x() {}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  printf '%s\npub struct HeldKeys<T> {\n    keys: VecDeque<T>,\n    kept: Option<Reading>,\n}\n' "$clock_lines" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
-  check reading-kept-in-a-field FAIL 'can keep a reading of the secure-input state between two events (lines 3)' ''
-  printf 'static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
-  git -C "$work/repo" add crates || exit 2
-  check reading-kept-in-a-static FAIL 'can keep a reading of the secure-input state between two events (lines 1)' ''
+  check reading-kept-in-the-hold-file FAIL "crates/halvo-capture/src/secure_input_macos_hold.rs $reading_text" ''
+  for form in 'pub struct Monotonic(pub(crate) u64);\npub struct Uptime(u64);\n' 'pub struct Monotonic(u64);\npub struct Uptime(pub u64);\n'; do
+    printf "$form" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
+    git -C "$work/repo" add crates || exit 2
+    check "clock-field-made-public-$(printf '%s' "$form" | cksum | cut -d ' ' -f 1)" FAIL 'its field is public in some form, or the type moved' ''
+  done
   for path in crates/halvo-capture/src/macos/input.rs crates/halvo-capture/src/secure_input_macos.rs; do
     printf '%s\n' "$path" >"$work/repo/$path" || exit 2
   done
+  printf '%s\n' "$clock_lines" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
   printf 'changed\n' >>"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
