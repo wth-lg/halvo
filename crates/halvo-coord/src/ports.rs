@@ -30,9 +30,9 @@ pub trait Owner {
     /// The events of the agent with a `seq` above `after`, in ascending `seq`, at most 64 for
     /// one call, as `coord_history` answers (I7.2), and the reply's `last`: the largest `seq`
     /// among the agent's rows that the read hands out, 0 with none, whatever `after` is, which
-    /// every sender takes as the stored last, also where it is below a `seq` that the sender
-    /// holds (I5.10, I7.2; ruling RD-64 3.1, 3.2); the caller asks again from the last `seq`
-    /// that it holds.
+    /// the three places of ruling RD-64 3.2, the items' ledger, the schedule's log and recovery's
+    /// body, take as the stored last, also where it is below a `seq` that they hold (I5.10,
+    /// I7.2; ruling RD-64 3.1, 3.2); the caller asks again from the last `seq` that it holds.
     fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError>;
     /// The owner's list of workflows.
     fn workflows(&self) -> Result<Vec<Workflow>, PortError>;

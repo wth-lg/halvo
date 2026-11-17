@@ -962,9 +962,10 @@ fn gone_refusal(error: &PortError, dismissed: bool) -> bool {
 }
 
 /// Whether a refusal of a debt's body of the day `day` ends the debt by its class (I7.2, ruling
-/// RD-64 2.1, 2.2): class B ends it; class C drops a debt whose day is more than two days after
-/// the clock's day `today`, or outside its bound, and counts its record as taken off; any other
-/// debt stays owed and goes again at each tick.
+/// RD-64 2.1, 2.2): class B ends it, `binding` of a workflow that the owner's list of the move
+/// shows dismissed among it (ruling RD-122 C1); class C drops a debt whose day is more than two
+/// days after the clock's day `today`, or outside its bound, and counts its record as taken off;
+/// any other debt stays owed and goes again at each tick.
 fn debt_refused<C>(
     board: &mut Board<C>,
     owed: &Owed,

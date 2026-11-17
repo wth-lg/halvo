@@ -566,7 +566,9 @@ pub enum Class {
     /// Class A, `seq`: the sender reads the owner's events and goes on from there.
     Seq,
     /// Class B, `no_workflow`, and `binding` for a workflow that the owner's list shows
-    /// dismissed: no fault, the body is not sent again and a debt ends.
+    /// dismissed: no fault, the body is not sent again and a debt ends. Every sender passes the
+    /// list's fact: the debts, the schedule's log and recovery's body from the list of their
+    /// move, the items' ledger from the board's last read of it (ruling RD-122 C1).
     Gone,
     /// Class C, `malformed` and `too_large`: the records go one to a body.
     One,
@@ -574,8 +576,9 @@ pub enum Class {
     Whole,
 }
 
-/// The class of `error`, where `dismissed` says whether the owner's list shows the workflow
-/// dismissed; none for a failure that is no refusal by name, after which the body stays as it is.
+/// The class of `error`, where `dismissed` says whether the owner's list, as the move or the
+/// board last read it, shows the workflow dismissed; none for a failure that is no refusal by
+/// name, after which the body stays as it is.
 pub fn class_of(error: &PortError, dismissed: bool) -> Option<Class> {
     let PortError::Refused(name) = error else {
         return None;

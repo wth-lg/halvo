@@ -368,9 +368,6 @@ impl<C> Board<C> {
         }
     }
 
-    /// Whether the agent's record is stuck, for the line `line.problem.record` (I5.7, I1.3): it is
-    /// set aside, or `record_stuck_ticks` ticks in a row had such a refusal (ruling RD-64 1.4,
-    /// 2.5).
     /// Whether the agent's record is stuck by a refusal that cannot pass in this life, so that no
     /// tick tries its start again; a record stuck by refusals that can pass does not stop the
     /// tick, whose start is itself the write that ends the count (ruling RD-123, RD-64 2.5).
@@ -379,6 +376,9 @@ impl<C> Board<C> {
             && (self.aside(agent) || self.stuck.iter().any(|(a, s)| a == agent && s.for_life))
     }
 
+    /// Whether the agent's record is stuck, for the line `line.problem.record` (I5.7, I1.3): it is
+    /// set aside, or `record_stuck_ticks` ticks in a row had such a refusal (ruling RD-64 1.4,
+    /// 2.5).
     pub fn record_stuck(&self, agent: &AgentId, limits: &crate::types::Limits) -> bool {
         self.aside(agent)
             || self
