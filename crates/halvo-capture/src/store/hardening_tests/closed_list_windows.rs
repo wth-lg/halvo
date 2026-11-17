@@ -1036,3 +1036,72 @@ fn st47_t3_a_directory_link_spelled_with_a_trailing_separator_is_refused() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// Ruling ST-48 U2 on Windows: a create.pending written by hand whose made
+/// mark records the identity of another party's read-only file of 100 bytes,
+/// which has a second name at a plain name of the roots folder. After the
+/// tail and after the next create, each in its own case, that file's bytes
+/// and its read-only attribute are unchanged, read through its outside name.
+#[test]
+fn st48_u2_a_hand_written_mark_writes_through_no_read_only_file_of_another_party() {
+    let mut problems = Vec::new();
+    for reader in ["the tail", "the next create"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+        let outside = dir.path().join("outside");
+        let bytes: Vec<u8> = (0..100u8).map(|i| 0x41 + i % 26).collect();
+        std::fs::write(&outside, &bytes).unwrap();
+        let mut permissions = std::fs::metadata(&outside).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&outside, permissions).unwrap();
+        std::fs::hard_link(&outside, roots_dir.join("plain")).unwrap();
+        let identity =
+            crate::store::durable::identity_of(&std::fs::File::open(&outside).unwrap()).unwrap();
+        std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+        let marked = RootId::fresh().unwrap();
+        std::fs::write(
+            store_dir.join("create.pending"),
+            format!(
+                "{{\"custody_kind\":\"dpapi\",\"root_id\":\"{marked}\",\"reading\":\"made\",\"root_file\":{{\"volume\":{},\"file\":{}}}}}",
+                identity.volume, identity.file
+            ),
+        )
+        .unwrap();
+        let answer = match reader {
+            "the tail" => report_line(&tail(&store_dir, &roots_dir)),
+            _ => format!(
+                "{:?}",
+                EncryptedStore::create(
+                    &store_dir,
+                    Box::new(file_root_custody(
+                        &roots_dir,
+                        TestProtector::new(0x5a).0,
+                        RootId::fresh().unwrap(),
+                    )),
+                    DEFAULT_RETENTION,
+                )
+                .map(drop)
+            ),
+        };
+        let bytes_kept = std::fs::read(&outside).ok() == Some(bytes.clone());
+        let read_only = std::fs::metadata(&outside)
+            .map(|meta| meta.permissions().readonly())
+            .unwrap_or(false);
+        println!(
+            "WIN-ST48-U2 reader={reader} answer={answer} outside_bytes_kept={bytes_kept} outside_read_only={read_only}"
+        );
+        if !bytes_kept || !read_only {
+            problems.push(format!(
+                "{reader}: bytes kept {bytes_kept}, read-only {read_only}"
+            ));
+        }
+        let mut permissions = std::fs::metadata(&outside).unwrap().permissions();
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "the test's own file is made writable so that its directory can be removed"
+        )]
+        permissions.set_readonly(false);
+        let _ = std::fs::set_permissions(&outside, permissions);
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

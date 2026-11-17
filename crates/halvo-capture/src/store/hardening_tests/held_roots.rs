@@ -1743,3 +1743,122 @@ fn st48_u1_no_mode_change_at_a_plain_name_before_the_count_and_the_length_pass()
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// Ruling ST-48 U2 (the review's B2, the verifier's D-2): a create.pending
+/// written by hand whose made mark records the identity of another party's
+/// file of 100 bytes and mode 0644, which has a second name in the roots
+/// folder (i) at a plain name, (ii) at the mark's own root name, (iii) at
+/// another id's root name. After the next open, after the tail and after the
+/// next create, each in its own case, that file's bytes and mode are
+/// unchanged, read through its outside name, and no tail reads the root
+/// destroyed for it.
+#[test]
+fn st48_u2_a_hand_written_mark_never_writes_through_another_partys_file() {
+    let mut problems = Vec::new();
+    for place in [
+        "a plain name",
+        "the mark's own root name",
+        "another id's root name",
+    ] {
+        for reader in ["the next open", "the tail", "the next create"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+            let marked = RootId::fresh().unwrap();
+            let other = RootId::fresh().unwrap();
+            let (outside, bytes, kept) = st48_foreign_file(dir.path(), "outside", 100, 0o644);
+            let inside = match place {
+                "a plain name" => roots_dir.join("plain"),
+                "the mark's own root name" => roots_dir.join(format!("{marked}.root")),
+                _ => roots_dir.join(format!("{other}.root")),
+            };
+            std::fs::hard_link(&outside, &inside).unwrap();
+            if reader != "the next open" {
+                std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+            }
+            write_made_mark(&store_dir, marked, Some(&outside));
+            let (answer, destroyed) = match reader {
+                "the next open" => (
+                    format!(
+                        "{:?}",
+                        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+                    ),
+                    false,
+                ),
+                "the tail" => {
+                    let answer = tail(&store_dir, &roots_dir);
+                    let destroyed = match &answer {
+                        Ok(report) => report.root_destroyed(),
+                        Err(StoreError::DeleteIncomplete(report)) => report.root_destroyed(),
+                        Err(_) => false,
+                    };
+                    (answer_line(&answer), destroyed)
+                }
+                _ => (
+                    format!(
+                        "{:?}",
+                        EncryptedStore::create(
+                            &store_dir,
+                            Box::new(file_root_custody(
+                                &roots_dir,
+                                TestProtector::new(0x5a).0,
+                                RootId::fresh().unwrap(),
+                            )),
+                            DEFAULT_RETENTION,
+                        )
+                        .map(drop)
+                    ),
+                    false,
+                ),
+            };
+            let mode_after = st48_mode(&outside);
+            let bytes_kept = st48_bytes_of(&kept) == bytes;
+            println!(
+                "ST48-U2 place={place} reader={reader} answer={answer} outside_mode={mode_after:o} outside_bytes_kept={bytes_kept} root_read_destroyed={destroyed}"
+            );
+            if mode_after != 0o644 || !bytes_kept || destroyed {
+                problems.push(format!(
+                    "{place}, {reader}: outside mode {mode_after:o}, bytes kept {bytes_kept}, root read destroyed {destroyed}"
+                ));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-48 U2, the named cost: the store's own root renamed inside the
+/// roots folder to a plain name while it has a second name outside the folder
+/// is removed there with no write through it. The handle's delete answers
+/// DeleteIncomplete with the root left, the outside name keeps the root's
+/// bytes, and the next tail answers by what then stands.
+#[test]
+fn st48_u2_the_stores_root_at_a_plain_name_with_a_second_name_outside_is_removed_unwritten() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let outside = dir.path().join("the-root-under-another-name");
+    std::fs::hard_link(&root_file, &outside).unwrap();
+    std::fs::rename(&root_file, roots_dir.join("plain")).unwrap();
+    let bytes = std::fs::read(&outside).unwrap();
+
+    let first = store.delete_all();
+    drop(store);
+    let first_bytes_kept = std::fs::read(&outside).ok() == Some(bytes.clone());
+    let next = tail(&store_dir, &roots_dir);
+    let next_bytes_kept = std::fs::read(&outside).ok() == Some(bytes.clone());
+    println!(
+        "ST48-U2-COST delete_all={} outside_bytes_kept={first_bytes_kept} plain_stands={} tail={} outside_bytes_kept_after_the_tail={next_bytes_kept}",
+        answer_line(&first),
+        roots_dir.join("plain").exists(),
+        answer_line(&next)
+    );
+    assert!(
+        first_bytes_kept,
+        "the handle's delete wrote through a name of its root outside the roots folder"
+    );
+    assert!(
+        matches!(&first, Err(StoreError::DeleteIncomplete(report)) if report.root == RootReading::Left(Some(root_id))),
+        "a removal with no write read as the root's destruction: {}",
+        answer_line(&first)
+    );
+}
