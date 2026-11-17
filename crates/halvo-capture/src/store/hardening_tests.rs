@@ -10274,6 +10274,9 @@ mod pass_two;
 #[cfg(unix)]
 mod held_roots;
 
+#[cfg(target_os = "macos")]
+mod full_flush;
+
 #[cfg(windows)]
 mod closed_list_windows;
 
