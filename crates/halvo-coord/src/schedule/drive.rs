@@ -745,14 +745,6 @@ where
     P: Owner + Runs + Analysis + Rng,
     C: ConfigView,
 {
-    let agent = &board.members[i].facts.agent;
-    if board.aside(agent) {
-        return Served {
-            agent: agent.clone(),
-            answer: Err(Cause::NoService),
-            run: None,
-        };
-    }
     let off = holds(&board.members[i].facts).contains(&Hold::Off);
     let served = start_steps(cx, board, i, trigger, listed, from_queue, unread);
     if !off && holds(&board.members[i].facts).contains(&Hold::Off) {
