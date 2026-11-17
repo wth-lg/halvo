@@ -196,6 +196,11 @@ fn full_or_paused_manual(workflow: &Workflow, agent: &AgentId, day: u32) -> Full
     }
 }
 
+fn dismissed_in(list: &[Workflow], id: &crate::types::WorkflowId) -> bool {
+    list.iter()
+        .any(|w| matches!(w, Workflow::Dismissed(d) if &d.id == id))
+}
+
 fn started_at(events: &[Event], run: &RunId) -> i64 {
     events
         .iter()
@@ -316,7 +321,8 @@ where
             f.step = f.step(&reaped);
             logged = log_recovery_body(ports, f, (day, at), limits);
         }
-        let gone = matches!(&logged, Err(e) if class_of(e, false) == Some(Class::Gone));
+        let dismissed = dismissed_in(&workflows, &f.workflow.id);
+        let gone = matches!(&logged, Err(e) if class_of(e, dismissed) == Some(Class::Gone));
         ended.extend(f.step.ended.iter().map(|run| Ended {
             run: run.clone(),
             cause: RunEnd::Interrupted,
@@ -349,7 +355,8 @@ where
     for f in &found {
         if let Some(run) = &f.step.owed {
             let sent = ports.send(&Body::EndRun { run: run.clone() });
-            if matches!(&sent, Err(e) if class_of(e, false) != Some(Class::Gone)) {
+            let dismissed = dismissed_in(&workflows, &f.workflow.id);
+            if matches!(&sent, Err(e) if class_of(e, dismissed) != Some(Class::Gone)) {
                 owed.push(Owed {
                     agent: f.agent.agent.clone(),
                     workflow: f.workflow.id.clone(),
@@ -406,6 +413,7 @@ where
     for agent in &unread {
         board.keep_unread(agent);
     }
+    board.note_list(&workflows);
     let checked = raise_checks(ports, &mut board, limits, None);
     Ok(Life {
         board,

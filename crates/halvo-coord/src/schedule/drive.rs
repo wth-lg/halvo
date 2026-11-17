@@ -223,6 +223,7 @@ fn listing<P: Owner, C>(
     only: Option<usize>,
 ) -> Result<Vec<WorkflowId>, PortError> {
     let list = cx.ports.workflows()?;
+    board.note_list(&list);
     for (k, m) in board.members.iter_mut().enumerate() {
         if only.is_none_or(|i| i == k) {
             let found = list.iter().find_map(|w| match w {
@@ -406,6 +407,7 @@ fn log_at<P: Owner, C>(
     at: i64,
 ) -> Result<(), PortError> {
     let last = board.stored_last(i);
+    let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
     let facts = &mut board.members[i].facts;
     let events: Vec<Event> = whats
         .iter()
@@ -421,7 +423,7 @@ fn log_at<P: Owner, C>(
         .collect();
     let agent = facts.agent.clone();
     if let Err(e) = cx.ports.log(&events) {
-        if matches!(class_of(&e, false), Some(Class::One | Class::Whole)) {
+        if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
             board.refused(&agent);
         }
         return Err(e);
@@ -548,7 +550,14 @@ fn finish<P: Owner, C>(
     let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
     match log_end(cx, board, i, run, cause, (day, at), false) {
         Ok(()) => board.forget_defers(run),
-        Err(e) if gone_refusal(&e) => board.forget_defers(run),
+        Err(e)
+            if gone_refusal(
+                &e,
+                board.workflow_dismissed(&board.members[i].facts.workflow.id),
+            ) =>
+        {
+            board.forget_defers(run)
+        }
         Err(_) => {
             let facts = &board.members[i].facts;
             let owed = Owed {
@@ -944,8 +953,10 @@ where
     }
 }
 
-fn gone_refusal(error: &PortError) -> bool {
-    matches!(error, PortError::Refused(name) if name.as_str() == "no_workflow")
+/// Whether a refusal is of class B: `no_workflow`, or `binding` of a workflow that the owner's
+/// list shows dismissed (I7.2, ruling RD-122 C1).
+fn gone_refusal(error: &PortError, dismissed: bool) -> bool {
+    class_of(error, dismissed) == Some(Class::Gone)
 }
 
 /// Whether a refusal of a debt's body of the day `day` ends the debt by its class (I7.2, ruling
@@ -954,13 +965,13 @@ fn gone_refusal(error: &PortError) -> bool {
 /// debt stays owed and goes again at each tick.
 fn debt_refused<C>(
     board: &mut Board<C>,
-    agent: &AgentId,
+    owed: &Owed,
     error: &PortError,
-    day: u32,
-    today: u32,
+    (day, today): (u32, u32),
     event: &str,
 ) -> bool {
-    match class_of(error, false) {
+    let agent = &owed.agent;
+    match class_of(error, board.workflow_dismissed(&owed.workflow)) {
         Some(Class::Gone) => true,
         Some(Class::One) if alone(day, today) == Alone::Off => {
             if let PortError::Refused(name) = error {
@@ -981,10 +992,11 @@ fn send_owed<P: Owner, C: ConfigView>(
         Owing::EndRun { run } => match cx.ports.send(&Body::EndRun { run: run.clone() }) {
             Ok(_) => true,
             Err(e) => {
-                if matches!(class_of(&e, false), Some(Class::One | Class::Whole)) {
+                let dismissed = board.workflow_dismissed(&owed.workflow);
+                if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
                     board.refused(&owed.agent);
                 }
-                gone_refusal(&e)
+                gone_refusal(&e, dismissed)
             }
         },
         Owing::RunEnded {
@@ -1002,14 +1014,7 @@ fn send_owed<P: Owner, C: ConfigView>(
             match log_end(cx, board, i, run, *cause, (*day, *at), true) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => reread_finds_run_ended(cx, board, i, run),
-                Err(e) => debt_refused(
-                    board,
-                    &owed.agent,
-                    &e,
-                    *day,
-                    cx.move_stamp.day(),
-                    "run_ended",
-                ),
+                Err(e) => debt_refused(board, owed, &e, (*day, cx.move_stamp.day()), "run_ended"),
             }
         }
         Owing::ItemLapsed {
@@ -1034,14 +1039,7 @@ fn send_owed<P: Owner, C: ConfigView>(
                     read_back(cx.ports, cx.limits, cx.move_stamp, board, i).is_ok()
                         && item_closed(&board.members[i].facts.events, item)
                 }
-                Err(e) => debt_refused(
-                    board,
-                    &owed.agent,
-                    &e,
-                    *day,
-                    cx.move_stamp.day(),
-                    "item_lapsed",
-                ),
+                Err(e) => debt_refused(board, owed, &e, (*day, cx.move_stamp.day()), "item_lapsed"),
             }
         }
     }
@@ -1217,8 +1215,19 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
             continue;
         };
         let mut events = Vec::new();
-        let Ok(last) = resync(cx.ports, &agent, &mut events) else {
-            continue;
+        let last = match resync(cx.ports, &agent, &mut events) {
+            Ok(last) => last,
+            Err(e)
+                if gone_refusal(
+                    &e,
+                    board.workflow_dismissed(&board.members[i].facts.workflow.id),
+                ) =>
+            {
+                board.take_aside(&agent);
+                board.keep_unread(&agent);
+                continue;
+            }
+            Err(_) => continue,
         };
         board.take_aside(&agent);
         let facts = &mut board.members[i].facts;
@@ -1406,7 +1415,8 @@ where
         let agent = facts.agent.clone();
         let on_list = listed.contains(&facts.workflow.id)
             && !board.place_held(&agent)
-            && !board.record_stuck(&agent, cx.limits);
+            && !board.record_stuck(&agent, cx.limits)
+            && !board.dismissed_unread(&agent);
         match tick_step(facts, on_list, cx.limits) {
             Ask::Ready if starts => {
                 let still = |f: &Facts<C>| {
@@ -1470,6 +1480,7 @@ where
         Ok(w) => w,
         Err(e) => return refused(port_cause(&e)),
     };
+    board.note_list(&workflows);
     if board.first_listing() {
         setups_again(cx, board, &workflows);
     }
@@ -1682,6 +1693,9 @@ where
     };
     if board.aside(&agent) {
         return refused(Cause::NoService);
+    }
+    if board.dismissed_unread(&agent) {
+        return refused(Cause::State);
     }
     let list = listing(cx, board, Some(i));
     let read = fresh(cx, board, Some(i));

@@ -2102,3 +2102,97 @@ fn rd121_an_agent_set_aside_in_an_earlier_life_and_read_whole_in_this_one_gets_i
         "the read whole life raises its check"
     );
 }
+
+fn dismiss(w: &World, n: usize) {
+    w.ports.workflows.borrow_mut()[n] =
+        Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(n),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: None,
+        });
+}
+
+#[test]
+fn rd122_c1_a_recovery_body_refused_binding_for_a_dismissed_workflow_ends_its_debt() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    dismiss(&w, 0);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("binding"));
+    relife(&mut w, &[(run, Reaped::Gone)]);
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    let owed = w.board.owed.iter().filter(|o| o.agent == agent(0)).count();
+    assert_eq!(
+        owed, 0,
+        "class B: binding where the owner's list shows the workflow dismissed ends the debt"
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "no fault shown"
+    );
+}
+
+#[test]
+fn rd122_c1_an_agent_set_aside_whose_dismissed_workflow_then_answers_binding_is_kept_unread() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    let first = started(&mut w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[(first, Reaped::Gone)]);
+    assert!(w.board.aside(&agent(0)));
+    dismiss(&w, 0);
+    w.ports.clear_refusals();
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("binding"));
+    for _ in 0..4 {
+        w.act(Act::Tick);
+    }
+    assert_eq!(
+        w.board.members.len(),
+        2,
+        "the agent of a dismissed workflow is kept"
+    );
+    assert!(!w.board.aside(&agent(0)), "it leaves the aside list");
+    assert!(
+        w.board.dismissed_unread(&agent(0)),
+        "kept with no event read"
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "no fault shown"
+    );
+}
+
+#[test]
+fn rd122_c2_no_sender_logs_for_a_dismissed_agent_kept_unread() {
+    let slotted_person = A {
+        person: true,
+        slotted: true,
+    };
+    let mut w = world_with(&[slotted_person, MANUAL], two_live());
+    dismiss(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("binding"));
+    relife(&mut w, &[]);
+    assert!(w.board.dismissed_unread(&agent(0)));
+    let from = w.ports.tried.borrow().len();
+    for k in 1..4 {
+        w.set_clock(T0 + k * 86_400_000, DAY + k as u32);
+        w.act(Act::Tick);
+    }
+    let start = w.act(Act::Start { agent: agent(0) });
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(
+        logs_of_agent(&w, 0, from),
+        Vec::new(),
+        "no tick, no Run now and no Switch off logs for it: start {:?}, switch-off {:?}",
+        start.report.answer,
+        off.report.answer
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "no fault shown"
+    );
+}

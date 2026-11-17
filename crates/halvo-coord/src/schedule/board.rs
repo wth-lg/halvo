@@ -147,6 +147,7 @@ pub struct Board<C> {
     lasts: Vec<(AgentId, u32, usize)>,
     defers: Vec<(RunId, Defers)>,
     unread: Vec<AgentId>,
+    dismissed: Vec<WorkflowId>,
 }
 
 impl<C> Board<C> {
@@ -175,7 +176,26 @@ impl<C> Board<C> {
             lasts: Vec::new(),
             defers: Vec::new(),
             unread: Vec::new(),
+            dismissed: Vec::new(),
         }
+    }
+
+    /// Takes from the owner's list that a move read which workflows it shows dismissed (I7.2,
+    /// ruling RD-122 C1).
+    pub(crate) fn note_list(&mut self, list: &[crate::types::Workflow]) {
+        self.dismissed = list
+            .iter()
+            .filter_map(|w| match w {
+                crate::types::Workflow::Dismissed(d) => Some(d.id.clone()),
+                crate::types::Workflow::Full(_) => None,
+            })
+            .collect();
+    }
+
+    /// Whether the owner's list, as a move last read it, shows the workflow dismissed, so that
+    /// `binding` of it is class B (I7.2, ruling RD-122 C1).
+    pub fn workflow_dismissed(&self, workflow: &WorkflowId) -> bool {
+        self.dismissed.contains(workflow)
     }
 
     /// Keeps the agent of a workflow that the owner's list shows dismissed, whose history the

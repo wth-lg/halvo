@@ -122,6 +122,7 @@ fn ledger<'a, C>(
         }
     };
     let l = &mut ledgers[k].1;
+    l.set_dismissed(board.workflow_dismissed(&board.members[i].facts.workflow.id));
     if let Some(last) = l.learnt() {
         board.set_last(i, last);
     }
@@ -297,6 +298,9 @@ where
         for (agent, l) in ledgers.iter_mut() {
             if l.waiting().is_empty() {
                 continue;
+            }
+            if let Some(i) = index(board, agent) {
+                l.set_dismissed(board.workflow_dismissed(&board.members[i].facts.workflow.id));
             }
             let _ = items::flush(&self.ports, l, &self.limits);
             if l.refused() {

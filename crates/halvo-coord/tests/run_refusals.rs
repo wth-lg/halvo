@@ -973,3 +973,102 @@ fn class_b_a_proof_write_refused_with_no_workflow_leaves_the_list_and_is_not_sen
     assert!(!l.refused(), "class B is no fault");
     assert!(!l.holds_place());
 }
+
+fn rd122_third(e: &Event) -> bool {
+    slot_is(e, 3)
+}
+
+#[test]
+fn rd122_c3_a_proof_write_refused_with_store_holds_the_place() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0);
+    w.ports.refuse_record(second, refused("malformed"));
+    w.ports.refuse_record(rd122_third, refused("store"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(stored_slots(&w), vec![1]);
+    assert_eq!(l.waiting().len(), 2, "nothing taken off");
+    assert!(l.refused(), "the refusal counts");
+    assert!(
+        l.holds_place(),
+        "a record refused with store keeps its place under class D, so no tick starts the agent"
+    );
+}
+
+#[test]
+fn rd122_c3_a_proof_write_that_fails_with_no_refusal_counts_nothing() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0);
+    w.ports.refuse_record(second, refused("malformed"));
+    w.ports.refuse_record(rd122_third, PortError::NoService);
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(l.waiting().len(), 2, "nothing taken off");
+    assert!(
+        !l.refused(),
+        "a failure that is no refusal counts nothing toward the stuck count"
+    );
+    assert!(!l.holds_place());
+}
+
+#[test]
+fn rd122_c3_a_proof_takes_off_only_its_own_record_once_a_read_closes_that_records_item() {
+    use halvo_coord::types::{ItemId, Lapsed, OtherLapse};
+    fn is_lapse(e: &Event) -> bool {
+        matches!(e.what, What::ItemLapsed { .. })
+    }
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    let item = ItemId::parse(&format!("{:032x}", 0x77)).unwrap();
+    let lapse = What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Check(OtherLapse::AppEnded),
+    };
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![lapse]);
+    w.ports.clear_refusals();
+    w.ports.refuse_record(is_lapse, refused("malformed"));
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    assert_eq!(l.waiting().len(), 1, "the lapse waits for its proof");
+    let seq = l.waiting()[0].seq;
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(9)]);
+    w.ports.clear_refusals();
+    let other = Event {
+        seq,
+        at: l.waiting()[0].at + 1,
+        ..l.waiting()[0].clone()
+    };
+    w.ports.log(std::slice::from_ref(&other)).unwrap();
+    l.take(&[other]);
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    assert!(
+        l.taken_off().is_empty(),
+        "the record that a read closed leaves the list, and no other record is taken off in its place"
+    );
+    assert_eq!(stored_slots(&w), vec![9], "the record behind it is stored");
+    assert!(l.waiting().is_empty());
+}
+
+#[test]
+fn rd122_c1_a_body_refused_binding_where_the_board_shows_the_workflow_dismissed_leaves_the_list() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0);
+    l.set_dismissed(true);
+    w.ports.refuse(Method::Log, refused("binding"));
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    assert!(
+        l.waiting().is_empty(),
+        "class B: the body is not sent again"
+    );
+    assert!(!l.refused(), "and it is no fault");
+    assert!(!l.holds_place());
+    let mut k = three_waiting(&w, T0);
+    w.ports.refuse(Method::Log, refused("binding"));
+    let _ = flush(&w.ports, &mut k, &w.limits);
+    assert_eq!(
+        k.waiting().len(),
+        3,
+        "binding of a listed workflow is class D"
+    );
+    assert!(k.refused());
+}

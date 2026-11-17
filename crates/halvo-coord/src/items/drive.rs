@@ -33,6 +33,27 @@ fn refused_with(error: &PortError, name: &str) -> bool {
     matches!(error, PortError::Refused(n) if n.as_str() == name)
 }
 
+/// The record that waits for its proof, by its instant and its event, with the `seq` under which
+/// a later write proves it and the name of its refusal (ruling RD-64 2.1 (iii), RD-122 C3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Proof {
+    seq: u32,
+    at: i64,
+    what: What,
+    name: String,
+}
+
+impl Proof {
+    fn of(record: &Event, name: String) -> Proof {
+        Proof {
+            seq: record.seq.get(),
+            at: record.at,
+            what: record.what.clone(),
+            name,
+        }
+    }
+}
+
 /// One agent's ledger as the drive writes it (I7.1): its workflow and agent, the `seq` of the
 /// last event that the owner acknowledged, and the events that wait for an acknowledgement,
 /// which every later write sends first. The coordinator holds one per agent.
@@ -46,11 +67,12 @@ pub struct Ledger {
     unsure: Vec<ItemId>,
     found: Vec<(ItemId, Raised)>,
     taken: Vec<(String, String)>,
-    proof: Option<(u32, String)>,
+    proof: Option<Proof>,
     acked: bool,
     held: bool,
     refused: bool,
     learnt: bool,
+    dismissed: bool,
 }
 
 impl Ledger {
@@ -70,6 +92,7 @@ impl Ledger {
             acked: false,
             held: false,
             refused: false,
+            dismissed: false,
             learnt: false,
         }
     }
@@ -191,19 +214,29 @@ impl Ledger {
         self.renumber();
     }
 
+    /// Takes whether the owner's list, as the board last read it, shows the ledger's workflow
+    /// dismissed, so that `binding` of it is class B (I7.2, ruling RD-122 C1).
+    pub fn set_dismissed(&mut self, dismissed: bool) {
+        self.dismissed = dismissed;
+    }
+
     /// The record that waits for its proof is taken off and counted once a later write of the
     /// agent holds the `seq` that it held (ruling RD-64 2.1 (iii)).
     fn prove(&mut self) {
-        let Some((seq, name)) = self.proof.take() else {
+        let Some(proof) = self.proof.take() else {
             return;
         };
-        if self.last < seq {
-            self.proof = Some((seq, name));
+        if self.last < proof.seq {
+            self.proof = Some(proof);
             return;
         }
-        if !self.waiting.is_empty() {
-            let e = self.waiting.remove(0);
-            self.taken.push((event_name(&e).to_string(), name));
+        if let Some(k) = self
+            .waiting
+            .iter()
+            .position(|e| e.at == proof.at && e.what == proof.what)
+        {
+            let e = self.waiting.remove(k);
+            self.taken.push((event_name(&e).to_string(), proof.name));
         }
     }
 
@@ -679,7 +712,7 @@ fn flush_reading<P: Owner + Clock>(
             }
             Err(e) => e,
         };
-        match class_of(&error, false) {
+        match class_of(&error, ledger.dismissed) {
             Some(Class::Seq) if !resynced => {
                 resynced = true;
                 match read(ledger) {
@@ -714,7 +747,7 @@ fn flush_reading<P: Owner + Clock>(
                                 PortError::Refused(n) => n.as_str().to_string(),
                                 _ => String::new(),
                             };
-                            ledger.proof = Some((ledger.waiting[0].seq.get(), name));
+                            ledger.proof = Some(Proof::of(&ledger.waiting[0], name));
                             ledger.held = false;
                             return Err(error);
                         }
@@ -723,28 +756,38 @@ fn flush_reading<P: Owner + Clock>(
                         next.day = day_of(ports, next.at)?;
                         match ports.log(std::slice::from_ref(&next)) {
                             Ok(()) => {}
-                            Err(e) if class_of(&e, false) == Some(Class::Seq) && !resynced => {
+                            Err(e)
+                                if class_of(&e, ledger.dismissed) == Some(Class::Seq)
+                                    && !resynced =>
+                            {
                                 resynced = true;
                                 one = false;
                                 let name = match &error {
                                     PortError::Refused(n) => n.as_str().to_string(),
                                     _ => String::new(),
                                 };
-                                ledger.proof = Some((ledger.waiting[0].seq.get(), name));
+                                ledger.proof = Some(Proof::of(&ledger.waiting[0], name));
                                 match read(ledger) {
                                     Read::Failed => return Err(e),
                                     Read::Off => return Ok(false),
                                     Read::Taken => continue,
                                 }
                             }
-                            Err(e) if class_of(&e, false) == Some(Class::Gone) => {
+                            Err(e) if class_of(&e, ledger.dismissed) == Some(Class::Gone) => {
                                 ledger.waiting.drain(..2);
                                 ledger.proof = None;
                                 ledger.renumber();
                                 return Err(e);
                             }
                             Err(e) => {
-                                ledger.refused = true;
+                                match class_of(&e, ledger.dismissed) {
+                                    Some(Class::Whole) => {
+                                        ledger.held = true;
+                                        ledger.refused = true;
+                                    }
+                                    Some(_) => ledger.refused = true,
+                                    None => {}
+                                }
                                 return Err(e);
                             }
                         }
