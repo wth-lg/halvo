@@ -371,7 +371,13 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    fn link_to_a_folder(folder: &Path, link: &Path) {
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(folder, link).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(folder, link).unwrap();
+    }
+
     #[test]
     fn a_link_or_a_file_at_the_store_dir_is_refused_in_every_spelling_and_keeps_the_store() {
         let scratch = scratch();
@@ -380,16 +386,20 @@ mod tests {
         let roots_before = root_files(&dir);
         assert_eq!(roots_before.len(), 1);
         let link = scratch.root.path().join("E-link");
-        std::os::unix::fs::symlink(&dir, &link).unwrap();
+        link_to_a_folder(&dir, &link);
         let file = scratch.root.path().join("a-file");
         std::fs::write(&file, b"not a folder").unwrap();
-        for given in [
+        let mut spellings = vec![
             text(&link),
             format!("{}/", text(&link)),
             format!("{}/.", text(&link)),
             format!("{}//", text(&link)),
             text(&file),
-        ] {
+        ];
+        if cfg!(windows) {
+            spellings.push(format!("{}\\", text(&link)));
+        }
+        for given in spellings {
             let (status, out, err) = scratch.delete(&given);
             assert_eq!(status, 1, "{given}: {out}{err}");
             assert!(
@@ -429,13 +439,10 @@ mod tests {
                     .trim_start_matches(['/', '\\'])
             ),
         ];
-        #[cfg(unix)]
-        {
-            let link = scratch.root.path().join("data-link");
-            std::os::unix::fs::symlink(&scratch.data, &link).unwrap();
-            refused.push(text(&link));
-            refused.push(format!("{}/scratch", text(&link)));
-        }
+        let link = scratch.root.path().join("data-link");
+        link_to_a_folder(&scratch.data, &link);
+        refused.push(text(&link));
+        refused.push(format!("{}/scratch", text(&link)));
         for given in refused {
             let answer = daemon::parse(
                 ["--delete-all", "--store-dir", &given].map(std::ffi::OsString::from),
