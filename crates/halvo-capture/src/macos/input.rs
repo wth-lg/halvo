@@ -1879,6 +1879,12 @@ impl CaptureSource for InputSource {
         answer
     }
 
+    /// The state of the tap thread and the counters. A named limit (ruling
+    /// MA-30 M8): while the notice thread watches nothing (no Accessibility
+    /// grant, nothing in front, a registration refused) or has ended, the
+    /// source reads running and guards as macos-2b did; health says nothing of
+    /// the notice. A drop by doubt does not read as impaired. The figure
+    /// max_lag_ms has no writer on a Mac and reads 0.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
