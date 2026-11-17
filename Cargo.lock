@@ -1701,8 +1701,10 @@ name = "halvo-derived"
 version = "0.0.0"
 dependencies = [
  "halvo-derived",
+ "halvo-redact",
  "halvo-schema-core",
  "halvo-sqlcipher",
+ "halvo-test-dir",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1725,6 +1727,7 @@ dependencies = [
  "halvo-learn-store",
  "halvo-policy",
  "halvo-schema",
+ "halvo-test-dir",
  "serde_json",
 ]
 
