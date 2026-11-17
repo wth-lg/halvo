@@ -95,7 +95,7 @@ fn a_secret_longer_than_1024_bytes_passes_and_one_that_no_frame_can_carry_is_unr
 }
 
 #[test]
-fn two_live_runs_that_ask_one_name_read_it_for_their_own_agents_and_only_the_holder_gets_it() {
+fn two_live_runs_that_ask_two_names_get_on_every_read_in_order_what_their_own_agent_holds() {
     let rig = Rig::new("secret-agents");
     let go = rig.dir.join("go");
     let wait = format!("wait-for {}", go.display());
@@ -105,11 +105,15 @@ fn two_live_runs_that_ask_one_name_read_it_for_their_own_agents_and_only_the_hol
     let (a, b) = (rig.spec(&first), rig.spec(&second));
     let (a_run, b_run) = (a.run.clone(), b.run.clone());
     let (a_agent, b_agent) = (a.agent.clone(), b.agent.clone());
-    rig.vault.held.lock().unwrap().push((
-        a_agent.clone(),
-        name("fixture_token"),
-        stored("tok_agent_a"),
-    ));
+    rig.vault.held.lock().unwrap().extend([
+        (
+            a_agent.clone(),
+            name("fixture_token"),
+            stored("tok_a_fixture"),
+        ),
+        (a_agent.clone(), name("other_token"), stored("tok_a_other")),
+        (b_agent.clone(), name("other_token"), stored("tok_b_other")),
+    ]);
     rig.sup.start(a).unwrap();
     rig.sup.start(b).unwrap();
     assert!(first.wait_log("live", SHORT), "{}", first.log());
@@ -120,22 +124,26 @@ fn two_live_runs_that_ask_one_name_read_it_for_their_own_agents_and_only_the_hol
     assert!(rig.mark(&a_run).is_some() && rig.mark(&b_run).is_some());
     rig.sup.kill(&a_run).unwrap();
     rig.sup.kill(&b_run).unwrap();
-    let none = r#"{"t":"secret_reply","answer":"none"}"#;
+    let value = |v: &str| format!(r#"{{"t":"secret_reply","answer":"stored","value":"{v}"}}"#);
+    let none = r#"{"t":"secret_reply","answer":"none"}"#.to_owned();
     assert_eq!(
         first.replies(),
-        vec![
-            r#"{"t":"secret_reply","answer":"stored","value":"tok_agent_a"}"#,
-            none
-        ]
+        vec![value("tok_a_fixture"), value("tok_a_other")]
     );
-    assert_eq!(second.replies(), vec![none, none]);
+    assert_eq!(second.replies(), vec![none, value("tok_b_other")]);
     let calls = rig.vault.calls.lock().unwrap().clone();
     assert_eq!(calls.len(), 4, "{calls:?}");
     for agent in [a_agent, b_agent] {
-        for asked in ["fixture_token", "other_token"] {
-            let call = (agent.clone(), name(asked));
-            assert!(calls.contains(&call), "{call:?} in {calls:?}");
-        }
+        let asked: Vec<&Name> = calls
+            .iter()
+            .filter(|(a, _)| a == &agent)
+            .map(|(_, n)| n)
+            .collect();
+        assert_eq!(
+            asked,
+            [&name("fixture_token"), &name("other_token")],
+            "{calls:?}"
+        );
     }
 }
 
