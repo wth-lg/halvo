@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job's proof (the windows job runs 10-format alone)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +33,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -85,21 +76,80 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: 51-macos-stall in the long form (scratch copy alone)
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          HALVO_STALL_FORM: long
+          CI_D_SCRIPT_LIMIT_S: 3600
+        run: sh scripts/ci/run-ci-d.sh macos 51-macos-stall
+      - name: Rows of the unit by name
+        if: ${{ !cancelled() }}
+        shell: bash
+        timeout-minutes: 60
+        run: |
+          set +e
+          names="$RUNNER_TEMP/unit-rows.txt"
+          cat >"$names" <<'NAMES'
+            wake-mark-against-the-entry-stamp
+            ma24-asleep-read-after-the-lag
+            notice-drops-nothing
+            notice-mark-read-strictly
+            notice-refuses-nothing
+            notice-as-a-timing-fault
+            notice-sets-no-keys-withheld
+            notice-doubt-marks-nothing
+            notice-error-read-as-another-element
+            notice-secure-subrole-read-as-another
+            notice-mark-moves-back
+            lag-stamp-before-the-state-read
+            notice-not-read-at-a-reading
+            notice-read-again-at-every-reading
+            notice-seen-not-kept
+            notice-mark-not-handed-to-the-timing
+            system-tap-maker-watches-no-focus
+            released-modifier-recorded
+            modifier-read-by-its-family-with-device-bits
+            modifier-key-code-not-read
+            modifier-of-another-key-code-read
+            seam-count-reaches-the-status
+            late-key-releases-the-due-key
+            untimed-key-releases-the-due-key
+            late-key-up-drops-nothing
+            l4-untimed-key-up-drops-nothing
+            session-read-at-every-reading
+            entry-stamp-on-the-uptime-clock
+            l5-own-take-stamp-is-not-its-own
+            stop-not-read-at-an-event
+            stop-not-read-at-a-tick
+            l5-stop-at-a-tick-enters-no-drop
+            l5-stop-at-an-event-enters-no-drop
+            ma24-release-loop-reads-after-an-emit-before-the-stop
+            l4-key-up-with-a-new-modifier-bit-is-a-press
+          NAMES
+          sed -i '' 's/^ *//' "$names"
+          set --
+          while read -r name; do
+            [ -n "$name" ] && set -- "$@" --only "$name"
+          done <"$names"
+          echo "rows asked: $(($# / 2))"
+          sh scripts/r1-gate/mutation-test.sh "$@" | tee "$RUNNER_TEMP/rows-out.txt"
+          code=${PIPESTATUS[0]}
+          ran=0
+          caught=0
+          while read -r name; do
+            grep -q -E "^(PASS|FAIL) mutation:$name " "$RUNNER_TEMP/rows-out.txt" && ran=$((ran + 1))
+            grep -q -E "^PASS mutation:$name " "$RUNNER_TEMP/rows-out.txt" && caught=$((caught + 1))
+          done <"$names"
+          echo "rows run: $ran of 35; caught: $caught; runner exit $code"
+          [ "$ran" -eq 35 ] && [ "$code" -eq 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -153,21 +203,13 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
