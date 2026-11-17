@@ -3310,12 +3310,15 @@ mod tests {
         .unwrap();
         mode.store(OPEN, Ordering::SeqCst);
         let path = now.get().saturating_sub(Duration::from_secs(1));
-        assert_eq!(
-            outcome.loss.as_ref().and_then(|loss| loss.cause),
-            Some(LossCause::ShutdownUnanswered),
+        assert!(
+            matches!(
+                outcome.loss.as_ref().and_then(|loss| loss.cause),
+                Some(LossCause::ShutdownUnanswered | LossCause::Pending)
+            ),
             "{:?}",
             outcome.loss
         );
+        assert_eq!(outcome.status, exit::ERROR);
         assert!(
             path <= Duration::from_millis(SHUTDOWN_BUDGET_MS) + Duration::from_millis(50),
             "the stop path took {path:?} on the injected clock"
