@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b) and the check fails on any line that the rule prints and never prints such a log, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 # lane: alone
 set -u
 group=${WF_GROUP:-native}
@@ -14,9 +14,11 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=54
+failing_fixtures=60
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
+prints_rule=scripts/r1/windows-prints-rule.sh
+prints_rule_line='^prints-rule [A-Za-z0-9_:]+ line=[0-9]+ length=[0-9]+ token=[0-9]+$'
 shutdown_line='TF shutdown source='
 fixtures_at_once=4
 LC_ALL=C
@@ -144,6 +146,7 @@ EOF
 ledger_paths() {
   cat <<'EOF'
 scripts/r1/ci.d/50-windows-functional.sh
+scripts/r1/windows-prints-rule.sh
 crates/halvo-control
 crates/halvo-sqlcipher
 EOF
@@ -309,7 +312,7 @@ ledger_check() {
   [ -n "$recorded" ] || fail "$ledger records no id of the windows lines of Cargo.lock: $fix"
   [ "$recorded" = "$head_id" ] ||
     fail "the measured run $run ran on other windows lines of Cargo.lock than the head's ($recorded against $head_id): $fix"
-  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check, of crates/halvo-control and crates/halvo-sqlcipher, which the Windows build of the capture crate compiles, and of the windows lines of Cargo.lock\n' "$run" "$total"
+  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check and of its prints rule, of crates/halvo-control and crates/halvo-sqlcipher, which the Windows build of the capture crate compiles, and of the windows lines of Cargo.lock\n' "$run" "$total"
 }
 
 loops() {
@@ -535,6 +538,9 @@ measure() {
   twice=$(cut -f 1 "$work/plan" | sort | uniq -d | tr '\n' ' ')
   [ -z "$twice" ] || fail "the list names these tests more than once, so a test stands in both scripts or twice in one: ${twice% }"
   cut -f 1 "$work/plan" | sort >"$work/expected-names" || fail "the expected list cannot be read"
+  [ -f "$prints_rule" ] || fail "$prints_rule is missing, and its rule reads every test's log (ruling W3-29)"
+  . ./scripts/r1/windows-prints-rule.sh || fail "$prints_rule cannot be read"
+  (wpr_vocabulary "$work/vocabulary") || fail "wpr_vocabulary of $prints_rule exited $?, so no log can be read by its rule"
 
   cargo test --locked -p halvo-capture --test windows_functional --no-run --message-format json >"$work/build.json" ||
     fail "the test build failed: cargo test --no-run exited $?"
@@ -567,6 +573,8 @@ measure() {
   known=0
   fixed=0
   failed=0
+  rule_broken=0
+  rule_failed=0
   long_only=0
   ran=0
   index=0
@@ -592,7 +600,20 @@ measure() {
     want_id=$(awk -F '\t' -v test="$test" '$1 == test && $4 != "-" { print $4 }' "$work/plan")
     run_test "$test" "$log"
     code=$?
-    judge "$test" "$code" "$log" "$want_id"
+    rule_out=$(wpr_check_log "$test" "$log" "$work/vocabulary")
+    rule_code=$?
+    if [ "$rule_code" -eq 0 ]; then
+      judge "$test" "$code" "$log" "$want_id"
+    else
+      rule_lines=$(printf '%s\n' "$rule_out" | grep -E "$prints_rule_line")
+      [ -z "$rule_lines" ] || printf '%s\n' "$rule_lines"
+      broken=$(printf '%s\n' "$rule_lines" | grep -c -E "$prints_rule_line")
+      rule_broken=$((rule_broken + broken))
+      rule_failed=$((rule_failed + 1))
+      verdict=FAIL
+      id=
+      cause="wpr_check_log exited $rule_code with $broken lines that break the prints rule, so its log is not printed"
+    fi
     case $verdict in
       pass) passed=$((passed + 1)) ;;
       known-defect) known=$((known + 1)) ;;
@@ -604,6 +625,11 @@ measure() {
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done <"$work/names"
+  line="prints_rule broken_lines=$rule_broken withheld_logs=$rule_failed"
+  printf '%s\n' "$line"
+  printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+  [ "$rule_failed" -eq 0 ] ||
+    fail "the logs of $rule_failed tests hold $rule_broken lines that break the prints rule of $prints_rule, and those logs are not printed: read the prints-rule lines above"
 
   form_line=
   : >"$work/left-out"
@@ -887,6 +913,15 @@ case $kind in
     printf '%skeyboard ok=false\ntest %s ... ok\n\n%s\n\n' "$STUB_SHUTDOWN_LINE" "$test" "$ok"
     exit 0
     ;;
+  rule-break | rule-unreadable | rule-leaky)
+    case $kind in
+      rule-break) printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\n' "$test" ;;
+      rule-unreadable) printf 'TF %s RULE-CANNOT-READ hunter2-typed-text\n' "$test" ;;
+      rule-leaky) printf 'TF %s LEAKS-TEXT hunter2-typed-text\n' "$test" ;;
+    esac
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
   form)
     printf 'form=%s counted_rounds_at_each_wait_ms=150:20,200:5\n' "${HALVO_WF_FORM:-unset}"
     [ "${HALVO_WF_FORM:-}" != short ] || printf 'left_out 15 of the 20 counted rounds at the wait of 200 ms\n'
@@ -1005,6 +1040,20 @@ make_ledger_repo() {
     printf 'pub fn c() {}\n' >"$repo/crates/$crate/src/lib.rs" || exit 2
   done
   printf '#!/bin/sh\n' >"$repo/scripts/r1/ci.d/50-windows-functional.sh" || exit 2
+  cat >"$repo/scripts/r1/windows-prints-rule.sh" <<'EOF' || exit 2
+wpr_vocabulary() {
+  : >"$1"
+}
+wpr_check_log() {
+  [ -r "$2" ] && [ -r "$3" ] || return 2
+  ! grep -q RULE-CANNOT-READ "$2" || return 2
+  if grep -q LEAKS-TEXT "$2"; then
+    printf 'prints-rule %s line=1 text=%s\n' "$1" "$(grep LEAKS-TEXT "$2")"
+    return 1
+  fi
+  awk -v test="$1" '/BREAKS-THE-RULE/ { n++; printf "prints-rule %s line=%d length=%d token=2\n", test, NR, length($0) } END { exit n ? 1 : 0 }' "$2"
+}
+EOF
   printf '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "windows"\nversion = "0.62.2"\n' \
     >"$repo/Cargo.lock" || exit 2
   mkdir -p "$repo/crates/halvo-capture/src/custody" || exit 2
@@ -1064,7 +1113,7 @@ make_ledger_repo() {
       -c commit.gpgsign=false commit -q -m "the macOS cfg line moved" || exit 2
   ) || exit 2
   for case_repo in mac-unit-changed hold-without-path hold-named-elsewhere inner-cfg-gone build-script rust-in-fixture \
-    control-changed sqlcipher-changed other-crate-changed; do
+    control-changed sqlcipher-changed other-crate-changed no-prints-rule vocabulary-fails prints-rule-changed; do
     git clone -q "$repo" "$work/repo-$case_repo" || exit 2
     mkdir -p "$work/repo-$case_repo/docs/baseline/ledger.d" || exit 2
     cp "$right_ledger" "$work/repo-$case_repo/docs/baseline/ledger.d/win-3.txt" || exit 2
@@ -1084,6 +1133,9 @@ make_ledger_repo() {
         control-changed) printf 'pub fn c() { let _ = 4; }\n' >../halvo-control/src/lib.rs ;;
         sqlcipher-changed) printf '[package]\nname = "halvo-sqlcipher"\nbuild = "build.rs"\n' >../halvo-sqlcipher/Cargo.toml ;;
         other-crate-changed) printf 'pub fn c() { let _ = 5; }\n' >../halvo-route/src/lib.rs ;;
+        no-prints-rule) mv ../../scripts/r1/windows-prints-rule.sh ../../scripts/r1/windows-prints-rule.sh.gone ;;
+        vocabulary-fails) printf 'wpr_vocabulary() {\n  return 2\n}\nwpr_check_log() {\n  return 0\n}\n' >../../scripts/r1/windows-prints-rule.sh ;;
+        prints-rule-changed) printf 'wpr_unused() {\n  :\n}\n' >>../../scripts/r1/windows-prints-rule.sh ;;
       esac || exit 2
       git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
         -c commit.gpgsign=false commit -q -m "$case_repo" || exit 2
@@ -1116,7 +1168,7 @@ self_test() {
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
   if [ "$group" = browser ]; then
     set_of_fixtures=browser_fixtures
-    failing_fixtures=6
+    failing_fixtures=7
   else
     set_of_fixtures=fixtures
   fi
@@ -1174,10 +1226,14 @@ browser_fixtures() {
   repo_knob=$work/repo-control-changed
   check a-changed-halvo-control-is-refused-by-the-browser-script FAIL "$mixed_spec" \
     "FAIL 52-windows-browser (the measured run 6 ran on another crates/halvo-control than the head's"
+  expected=$mixed
+  check a-page-test-log-that-breaks-the-prints-rule FAIL "c1_raw_input|pass${nl}browser::a_page_test|rule-break${nl}known_defect::a_held_swap|defect|W3-7-Q2i" \
+    "prints-rule browser::a_page_test line=3 length=" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" \
+    "FAIL 52-windows-browser (the logs of 1 tests hold 1 lines that break the prints rule" "!hunter2-typed-text"
 }
 
 fixtures() {
-  check every-test-right PASS "$right" \
+  check every-test-right PASS "$right" "${nl}prints_rule broken_lines=0 withheld_logs=0${nl}" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
     "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
@@ -1327,10 +1383,28 @@ fixtures() {
   ledger_knob=$right_ledger
   repo_knob=$work/repo-sqlcipher-changed
   check a-changed-halvo-sqlcipher-is-refused FAIL "$right" "the measured run 6 ran on another crates/halvo-sqlcipher than the head's"
+  check two-logs-that-break-the-prints-rule-are-not-printed FAIL "c1_raw_input|rule-break${nl}helper_child_window|rule-break${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "prints-rule c1_raw_input line=3 length=" "$name: c1_raw_input: wpr_check_log exited 1 with 1 lines that break the prints rule, so its log is not printed${nl}WF c1_raw_input result=FAIL${nl}" \
+    "${nl}prints-rule helper_child_window line=3 length=" "${nl}prints_rule broken_lines=2 withheld_logs=2${nl}" \
+    "FAIL $name (the logs of 2 tests hold 2 lines that break the prints rule of scripts/r1/windows-prints-rule.sh, and those logs are not printed" \
+    "!hunter2-typed-text"
+  check a-log-that-the-prints-rule-cannot-read-fails FAIL "c1_raw_input|rule-unreadable${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "$name: c1_raw_input: wpr_check_log exited 2 with 0 lines that break the prints rule, so its log is not printed${nl}" \
+    "${nl}prints_rule broken_lines=0 withheld_logs=1${nl}" "!hunter2-typed-text"
+  check a-rule-line-that-holds-text-is-not-printed FAIL "c1_raw_input|rule-leaky${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "$name: c1_raw_input: wpr_check_log exited 1 with 0 lines that break the prints rule, so its log is not printed${nl}" \
+    "!hunter2-typed-text" "!LEAKS-TEXT"
+  repo_knob=$work/repo-no-prints-rule
+  check the-prints-rule-is-missing FAIL "$right" "FAIL $name (scripts/r1/windows-prints-rule.sh is missing, and its rule reads every test's log (ruling W3-29))"
+  repo_knob=$work/repo-vocabulary-fails
+  check the-prints-rule-cannot-write-its-vocabulary FAIL "$right" "FAIL $name (wpr_vocabulary of scripts/r1/windows-prints-rule.sh exited 2, so no log can be read by its rule)"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-prints-rule-changed
+  check a-changed-prints-rule-is-refused FAIL "$right" "the measured run 6 ran on another scripts/r1/windows-prints-rule.sh than the head's"
   ledger_knob=$right_ledger
   repo_knob=$work/repo-other-crate-changed
   check a-changed-crate-outside-the-bound-trees-is-not-refused PASS "$right" \
-    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check, of crates/halvo-control and crates/halvo-sqlcipher, which the Windows build of the capture crate compiles, and of the windows lines of Cargo.lock${nl}" \
+    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check and of its prints rule, of crates/halvo-control and crates/halvo-sqlcipher, which the Windows build of the capture crate compiles, and of the windows lines of Cargo.lock${nl}" \
     "${nl}PASS $name"
   ledger_knob=$work/ledger-lock
   check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 6 ran on other windows lines of Cargo.lock than the head's"
