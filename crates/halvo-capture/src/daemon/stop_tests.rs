@@ -6,10 +6,11 @@ use std::time::{Duration, Instant, SystemTime};
 
 use halvo_control::exit;
 
+use super::batch::BATCH_MAX_EVENTS;
 use super::model_store::{
     foreground_now, key, noon, Harness, ManualClocks, ModelStore, WriteScript,
 };
-use super::owner::{Answer, Command, Report};
+use super::owner::{Answer, Command, Report, RETRY_FIRST};
 use super::port::{
     ByteBound, CaptureStore, MaintFault, MaintainStore, Pass, SegmentWrite, Usage as StoreUsage,
     WriteFault, Written,
@@ -121,7 +122,7 @@ fn an_unanswered_stop_counts_at_least_the_accepted_events_that_no_write_stored()
     parked.store(false, Ordering::SeqCst);
     assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
     assert!(matches!(
-        outcome.loss.as_ref().map(|loss| loss.cause),
+        outcome.loss.as_ref().and_then(|loss| loss.cause),
         Some(
             LossCause::PauseUnanswered
                 | LossCause::SettleUnanswered
@@ -261,7 +262,7 @@ fn the_line_of_an_unanswered_stop_names_no_healed_fault() {
     let reports = harness.reports();
     assert!(reports.contains(&Report::DrainHealthy), "{reports:?}");
     assert_eq!((snapshot.events_persisted, snapshot.events_pending), (1, 0));
-    let line = super::loss_line(&snapshot, 0, false, &reports);
+    let line = super::loss_line(&snapshot, 0, &reports);
     assert!(line.ends_with(" error=-"), "the drain had healed: {line}");
 }
 
@@ -892,7 +893,7 @@ fn each_named_wait_of_the_stop_path_gives_up_at_its_own_part() {
 
     let bound = Duration::from_secs(1);
     let tick = Duration::from_millis(500);
-    let cause = |outcome: &RunOutcome| outcome.loss.as_ref().map(|loss| loss.cause);
+    let cause = |outcome: &RunOutcome| outcome.loss.as_ref().and_then(|loss| loss.cause);
 
     let (store, parked) = ParkingStore::parked(ModelStore::new());
     let mut scripted = keys(1_200);
@@ -1041,7 +1042,7 @@ fn a_late_second_ask_of_the_settle_leaves_the_first_answer_and_the_shutdown_repo
     );
     assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
     let loss = outcome.loss.expect("no loss");
-    assert_eq!(loss.cause, LossCause::Pending, "{}", loss.line);
+    assert_eq!(loss.cause, Some(LossCause::Pending), "{}", loss.line);
     assert!(
         loss.line.starts_with("halvo-capture: lost events=4 ") && loss.line.ends_with(" error=io"),
         "{}",
@@ -1061,7 +1062,7 @@ fn an_owner_gone_after_its_first_answer_gives_an_unanswered_shutdown() {
     );
     assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
     assert_eq!(
-        outcome.loss.as_ref().map(|loss| loss.cause),
+        outcome.loss.as_ref().and_then(|loss| loss.cause),
         Some(LossCause::ShutdownUnanswered)
     );
     assert!(
@@ -1087,12 +1088,12 @@ fn a_store_that_takes_most_of_each_bound_for_each_write_still_ends_inside_the_st
     println!(
         "slow store: status={} cause={:?} line={:?} took={took:?}",
         outcome.status,
-        outcome.loss.as_ref().map(|loss| loss.cause),
+        outcome.loss.as_ref().and_then(|loss| loss.cause),
         outcome.loss.as_ref().map(|loss| loss.line.clone())
     );
     assert_eq!(outcome.status, exit::ERROR);
     assert!(matches!(
-        outcome.loss.as_ref().map(|loss| loss.cause),
+        outcome.loss.as_ref().and_then(|loss| loss.cause),
         Some(LossCause::Pending | LossCause::ShutdownUnanswered)
     ));
     assert!(
@@ -1169,5 +1170,244 @@ fn an_unanswered_stop_after_a_dropped_batch_counts_the_dropped_events() {
         count >= 1_200 - stored,
         "the loss line counts {count}, fewer than the {} accepted events that no write stored",
         1_200 - stored
+    );
+}
+
+fn refused_hold(scripted: &mut ScriptedRun, store: ModelStore) -> Vec<String> {
+    scripted.refusal = Some(-25_291);
+    let stop = AtomicBool::new(false);
+    let ended = run_timed(
+        &TimedRun {
+            secure_input: SecureInput::Hold,
+            ..run_of(5)
+        },
+        scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    );
+    let Err(error) = ended else {
+        panic!("a refused hold gave a report: {ended:?}");
+    };
+    error.to_string().lines().map(str::to_owned).collect()
+}
+
+#[test]
+fn a_refused_hold_with_a_failed_drain_gives_the_refusal_and_then_the_loss_line() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+    let lines = refused_hold(&mut four_events(), store);
+    assert_eq!(
+        lines,
+        [
+            "the system refused the secure-input hold (status -25291)",
+            "halvo-capture: lost events=4 first=- last=- error=io"
+        ]
+    );
+}
+
+#[test]
+fn a_refused_hold_after_a_drop_that_a_good_write_followed_gives_the_loss_line() {
+    let store = ModelStore::new();
+    store.script_writes([WriteScript::Fail(WriteFault::Refused)]);
+    let mut scripted = keys(512);
+    scripted.in_window = vec![foreground_now()];
+    let lines = refused_hold(&mut scripted, store);
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert_eq!(
+        lines[0],
+        "the system refused the secure-input hold (status -25291)"
+    );
+    assert!(
+        lines[1].starts_with("halvo-capture: lost events=512 first=2")
+            && lines[1].ends_with(" error=-"),
+        "{lines:?}"
+    );
+}
+
+struct SetAsidesInTheWindow {
+    inner: ScriptedRun,
+    store: ModelStore,
+    clocks: ManualClocks,
+    sink: Option<crate::sink::SinkHandle>,
+    batches: usize,
+    good_write_after: bool,
+}
+
+fn set_asides_in_the_window(
+    store: &ModelStore,
+    clocks: &ManualClocks,
+    batches: usize,
+    good_write_after: bool,
+) -> SetAsidesInTheWindow {
+    SetAsidesInTheWindow {
+        inner: ScriptedRun::new(Vec::new()),
+        store: store.clone(),
+        clocks: clocks.clone(),
+        sink: None,
+        batches,
+        good_write_after,
+    }
+}
+
+fn drive(store: &ModelStore, clocks: &ManualClocks, writes: usize, step: Duration) {
+    for _ in 0..2_000 {
+        if store.write_calls().len() >= writes {
+            return;
+        }
+        clocks.advance(step);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    panic!("the owner made no write {writes} within 10 s");
+}
+
+impl RunSources for SetAsidesInTheWindow {
+    fn start(
+        &mut self,
+        ctx: &SourceContext,
+        wanted: &[SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<FailedSource> {
+        self.sink = Some(ctx.sink().clone());
+        self.inner.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        let sink = self.sink.take().expect("the run did not start its sources");
+        for batch in 0..self.batches {
+            for _ in 0..BATCH_MAX_EVENTS {
+                assert_eq!(sink.emit_event(key()), crate::sink::Emitted::Queued);
+            }
+            drive(&self.store, &self.clocks, 3 * batch + 1, Duration::ZERO);
+            drive(&self.store, &self.clocks, 3 * batch + 3, RETRY_FIRST);
+        }
+        if self.good_write_after {
+            self.store.fail_every_write(None);
+            assert_eq!(
+                sink.emit_event(foreground_now()),
+                crate::sink::Emitted::Queued
+            );
+        }
+        self.inner.wait(window, stop)
+    }
+
+    fn stop(&mut self) -> Vec<FailedSource> {
+        self.inner.stop()
+    }
+
+    fn figures(&self) -> SourceCounters {
+        self.inner.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        self.inner.hold_refusal()
+    }
+}
+
+#[test]
+fn a_timed_run_with_a_set_aside_batch_and_a_good_write_after_it_prints_the_loss_line_and_exits_0() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Db(19)));
+    let clocks = ManualClocks::at(noon());
+    let mut sources = set_asides_in_the_window(&store, &clocks, 1, true);
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut sources,
+        store.clone(),
+        clocks,
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(store.write_calls().len(), 4);
+    assert_eq!(
+        (
+            outcome.report.events_received,
+            outcome.report.events_persisted
+        ),
+        (513, 1)
+    );
+    assert_eq!(outcome.status, exit::CLEAN, "{outcome:?}");
+    let loss = outcome
+        .loss
+        .as_ref()
+        .expect("a life that lost events printed no line");
+    assert_eq!(loss.cause, None, "{loss}");
+    assert!(
+        loss.line
+            .starts_with("halvo-capture: lost events=512 first=2"),
+        "{loss}"
+    );
+    assert!(loss.line.ends_with(" error=-"), "{loss}");
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert_eq!(
+        super::outcome_answer(&outcome, &mut out, &mut err),
+        exit::CLEAN
+    );
+    assert_eq!(String::from_utf8(err).unwrap(), format!("{}\n", loss.line));
+}
+
+#[test]
+fn a_timed_run_that_ends_after_the_third_set_aside_names_db_in_its_loss_line() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Db(19)));
+    let clocks = ManualClocks::at(noon());
+    let mut sources = set_asides_in_the_window(&store, &clocks, 3, false);
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut sources,
+        store.clone(),
+        clocks,
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(store.write_calls().len(), 9, "{outcome:?}");
+    assert_eq!(
+        (
+            outcome.report.events_received,
+            outcome.report.events_persisted
+        ),
+        (1_536, 0),
+        "{outcome:?}"
+    );
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    let loss = outcome.loss.as_ref().expect("no loss line");
+    assert_eq!(loss.cause, Some(LossCause::LostSinceAcknowledged), "{loss}");
+    assert!(
+        loss.line
+            .starts_with("halvo-capture: lost events=1536 first=2"),
+        "{loss}"
+    );
+    assert!(
+        loss.line.ends_with(" error=db"),
+        "the drain reads failing with db at the stop: {loss}"
+    );
+}
+
+#[test]
+fn a_timed_run_whose_final_flush_fails_with_19_names_db_in_its_loss_line() {
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Db(19)));
+    let mut scripted = four_events();
+    let stop = AtomicBool::new(false);
+    let outcome = run_timed(
+        &run_of(5),
+        &mut scripted,
+        store,
+        ManualClocks::at(noon()),
+        &stop,
+        Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    let loss = outcome.loss.as_ref().expect("no loss line");
+    assert_eq!(loss.cause, Some(LossCause::Pending), "{loss}");
+    assert_eq!(
+        loss.line,
+        "halvo-capture: lost events=4 first=- last=- error=db"
     );
 }

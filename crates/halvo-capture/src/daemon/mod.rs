@@ -517,7 +517,20 @@ where
     };
     let figures = sources.figures();
     if let Some(refusal) = sources.hold_refusal() {
-        return Err(refusal);
+        let settled = match last {
+            Ok(snapshot) => snapshot,
+            Err(_) => owner.snapshot(),
+        };
+        let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
+        return Err(
+            match stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports) {
+                Some(loss) => DaemonError::RefusedWithLoss {
+                    refusal: Box::new(refusal),
+                    loss,
+                },
+                None => refusal,
+            },
+        );
     }
     let last = match last {
         Ok(_) => match answer_within(&owner.handle, Command::Shutdown, bounds.shutdown) {
@@ -534,23 +547,13 @@ where
     if last.is_ok() {
         owner.join().map_err(|_| DaemonError::DrainPanicked)?;
     }
-    let count = match last {
-        Ok(_) => settled.events_lost + settled.events_pending,
-        Err(_) => unstored_bound(&settled, &sink_counts),
+    let loss = stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports);
+    let failing = match loss.as_ref().map(|loss| loss.cause) {
+        Some(Some(_)) => true,
+        Some(None) | None => false,
     };
-    let cause = match last {
-        Err(cause) => Some(cause),
-        Ok(_) if settled.events_pending > 0 => Some(LossCause::Pending),
-        Ok(_) if settled.lost_since_acknowledged > 0 => Some(LossCause::LostSinceAcknowledged),
-        Ok(_) if settled.events_lost > before.events_lost => Some(LossCause::LostDuringStop),
-        Ok(_) => None,
-    };
-    let loss = cause.map(|cause| Loss {
-        cause,
-        line: loss_line(&settled, count, last.is_ok(), &reports),
-    });
     let signalled = signalled || stop.load(std::sync::atomic::Ordering::SeqCst);
-    let status = if loss.is_some() {
+    let status = if failing {
         exit::ERROR
     } else if signalled {
         exit::TIMED_RUN_INTERRUPTED
@@ -620,19 +623,32 @@ fn unstored_bound(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) 
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
-fn loss_line(
+fn stop_loss(
+    answered: Result<(), LossCause>,
     settled: &counters::Snapshot,
-    count: u64,
-    answered: bool,
+    before: &counters::Snapshot,
+    sink: &crate::sink::SinkCounts,
     reports: &[owner::Report],
-) -> String {
-    let instant = |at: Option<i64>| {
-        at.and_then(|nanos| {
-            halvo_control::model::UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok()
-        })
-        .map_or_else(|| "-".to_owned(), |second| second.to_string())
+) -> Option<Loss> {
+    let count = match answered {
+        Ok(()) => settled.events_lost + settled.events_pending,
+        Err(_) => unstored_bound(settled, sink),
     };
-    let final_failed = !answered || settled.events_pending > 0;
+    let cause = match answered {
+        Err(cause) => Some(cause),
+        Ok(()) if settled.events_pending > 0 => Some(LossCause::Pending),
+        Ok(()) if settled.lost_since_acknowledged > 0 => Some(LossCause::LostSinceAcknowledged),
+        Ok(()) if settled.events_lost > before.events_lost => Some(LossCause::LostDuringStop),
+        Ok(()) => None,
+    };
+    (cause.is_some() || count > 0).then(|| Loss {
+        cause,
+        line: loss_line(settled, count, reports),
+    })
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]) -> String {
     let kind = reports
         .iter()
         .rev()
@@ -642,12 +658,11 @@ fn loss_line(
             _ => None,
         })
         .flatten()
-        .filter(|_| final_failed)
         .unwrap_or("-");
     format!(
         "halvo-capture: lost events={count} first={} last={} error={kind}",
-        instant(settled.lost_first_at),
-        instant(settled.lost_last_at),
+        owner::capture_second(settled.lost_first_at),
+        owner::capture_second(settled.lost_last_at),
     )
 }
 
@@ -720,6 +735,14 @@ pub enum DaemonError {
     NotImplemented(&'static str),
     #[error("the system refused the secure-input hold (status {0})")]
     SecureInputRefused(i32),
+    /// The refusal of the hold of a run whose life lost events: the
+    /// refusal's text, then the loss line on a line of its own (contracts.md
+    /// C4 item 10).
+    #[error("{refusal}\n{loss}")]
+    RefusedWithLoss {
+        refusal: Box<DaemonError>,
+        loss: Loss,
+    },
     #[error("the store owner panicked")]
     DrainPanicked,
 }
@@ -1309,7 +1332,7 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::ERROR);
         let loss = outcome.loss.expect("no loss line");
-        assert_eq!(loss.cause, LossCause::LostSinceAcknowledged);
+        assert_eq!(loss.cause, Some(LossCause::LostSinceAcknowledged));
         assert!(
             loss.line.starts_with("halvo-capture: lost events=4 first="),
             "{loss}"
@@ -1331,7 +1354,7 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::ERROR);
         let loss = outcome.loss.expect("no loss line");
-        assert_eq!(loss.cause, LossCause::Pending);
+        assert_eq!(loss.cause, Some(LossCause::Pending));
         assert!(
             loss.line.starts_with("halvo-capture: lost events=4 "),
             "{loss}"
@@ -1359,7 +1382,7 @@ mod tests {
             "a drop with no write since: {outcome:?}"
         );
         assert_eq!(
-            outcome.loss.map(|loss| loss.cause),
+            outcome.loss.and_then(|loss| loss.cause),
             Some(LossCause::LostSinceAcknowledged)
         );
 
@@ -1380,7 +1403,16 @@ mod tests {
             exit::CLEAN,
             "a drop that a good write followed"
         );
-        assert!(outcome.loss.is_none());
+        let loss = outcome
+            .loss
+            .expect("a life that lost events printed no line");
+        assert_eq!(loss.cause, None, "{loss}");
+        assert!(
+            loss.line
+                .starts_with("halvo-capture: lost events=512 first=2"),
+            "{loss}"
+        );
+        assert!(loss.line.ends_with(" error=-"), "{loss}");
     }
 
     /// A store whose every write takes 6 s, three times the settle bound of
@@ -1436,7 +1468,7 @@ mod tests {
         .unwrap();
         assert_eq!(outcome.status, exit::ERROR);
         assert_eq!(
-            outcome.loss.map(|loss| loss.cause),
+            outcome.loss.and_then(|loss| loss.cause),
             Some(LossCause::SettleUnanswered)
         );
     }
@@ -1572,7 +1604,7 @@ mod tests {
         assert_eq!(outcome.report.events_persisted, 101);
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
         let loss = outcome.loss.expect("no loss line");
-        assert_eq!(loss.cause, LossCause::LostDuringStop);
+        assert_eq!(loss.cause, Some(LossCause::LostDuringStop));
         assert!(
             loss.line.starts_with("halvo-capture: lost events=512 "),
             "{loss}"
@@ -1661,7 +1693,7 @@ mod tests {
         .unwrap();
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
         let loss = outcome.loss.expect("no loss line");
-        assert_eq!(loss.cause, LossCause::ShutdownUnanswered);
+        assert_eq!(loss.cause, Some(LossCause::ShutdownUnanswered));
         assert_eq!(
             outcome.report.events_persisted, 4,
             "the last settle was clean"
@@ -1733,7 +1765,7 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
         assert_eq!(
-            outcome.loss.map(|loss| loss.cause),
+            outcome.loss.and_then(|loss| loss.cause),
             Some(LossCause::LostSinceAcknowledged)
         );
     }
@@ -1798,7 +1830,7 @@ mod tests {
         let took = started.elapsed();
         assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
         assert_eq!(
-            outcome.loss.as_ref().map(|loss| loss.cause),
+            outcome.loss.as_ref().and_then(|loss| loss.cause),
             Some(LossCause::PauseUnanswered)
         );
         assert!(

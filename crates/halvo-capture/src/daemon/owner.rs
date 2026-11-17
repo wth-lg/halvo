@@ -9,12 +9,12 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 
-use halvo_control::model::StorageCap;
+use halvo_control::model::{StorageCap, UtcSecond};
 use zeroize::Zeroize;
 
 use super::barrier::Gate;
 use super::batch::{utc_day, Admit, Batch, TextFilters};
-use super::counters::{Counters, DiscardReason, Snapshot, SourceTallies};
+use super::counters::{BatchCode, Counters, DiscardReason, Snapshot, SourceTallies};
 use super::maintenance::{Clocks, Instants, Job, Schedule};
 use super::port::{ByteBound, CaptureStore, EntryKind, MaintFault, WriteFault, PAYLOAD_MAX_BYTES};
 use crate::floor::exclude::FloorHandle;
@@ -36,8 +36,15 @@ pub const HELD_MAX_BYTES: usize = 2 * PAYLOAD_MAX_BYTES;
 /// Under this many free bytes on the store's volume the owner tries no flush.
 pub const FREE_SPACE_FLOOR_BYTES: u64 = 16_777_216;
 
-/// The same failure that is not I/O this many times in a row drops the batch.
+/// A counted failure at this many due tries in a row sets the batch aside:
+/// the same fault at each, or any of the eight codes of [`BatchCode`] at each.
 pub const REJECT_AFTER_SAME_FAULTS: u32 = 3;
+
+/// After this many batches set aside in a row, with no acknowledged write
+/// between them, the owner sets no batch aside: it holds the next one as for
+/// an I/O fault until a write is acknowledged. Batches given up as Refused or
+/// Sealed neither count nor start the count again; an owner starts at 0.
+pub const SET_ASIDES_BEFORE_STOP: u32 = 3;
 
 /// The first wait before a failed write is tried again.
 pub const RETRY_FIRST: Duration = Duration::from_secs(1);
@@ -116,6 +123,38 @@ pub enum Report {
         fault: MaintFault,
     },
     MaintenanceHealthy,
+}
+
+impl Report {
+    /// The line that the daemon writes to its log for a dropped batch
+    /// (contracts.md C11.3): `halvo-capture: dropped events=<n> first=<ts>
+    /// last=<ts> error=<KIND>`, with the token of the batch's last fault;
+    /// `None` for every other report.
+    pub fn drop_line(&self) -> Option<String> {
+        match *self {
+            Report::BatchRejected {
+                events,
+                first_capture,
+                last_capture,
+                fault,
+            } => Some(format!(
+                "halvo-capture: dropped events={events} first={} last={} error={}",
+                capture_second(Some(first_capture)),
+                capture_second(Some(last_capture)),
+                cause_of(fault).as_str()
+            )),
+            Report::StoreReady
+            | Report::DrainFailing { .. }
+            | Report::DrainHealthy
+            | Report::MaintenanceFailing { .. }
+            | Report::MaintenanceHealthy => None,
+        }
+    }
+}
+
+pub(crate) fn capture_second(at: Option<i64>) -> String {
+    at.and_then(|nanos| UtcSecond::from_unix_seconds(nanos.div_euclid(1_000_000_000)).ok())
+        .map_or_else(|| "-".to_owned(), |second| second.to_string())
 }
 
 /// The owner thread is gone.
@@ -220,6 +259,10 @@ impl Drop for SpilledRecord {
 
 enum Drain {
     Healthy,
+    Stopped {
+        cause: DrainCause,
+        since: SystemTime,
+    },
     Failing {
         retry_at: Duration,
         delay: Duration,
@@ -245,6 +288,7 @@ pub struct Owner<S, C> {
     spill_bytes: usize,
     counters: Counters,
     drain: Drain,
+    set_asides: u32,
     schedule: Schedule,
     maintenance_failing: bool,
     inbox: Option<Received>,
@@ -289,6 +333,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             spill_bytes: 0,
             counters: Counters::default(),
             drain: Drain::Healthy,
+            set_asides: 0,
             schedule,
             maintenance_failing: false,
             inbox: None,
@@ -376,7 +421,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             self.batch.deadline().filter(|_| !self.frozen),
             match self.drain {
                 Drain::Failing { retry_at, .. } => Some(retry_at),
-                Drain::Healthy => None,
+                Drain::Healthy | Drain::Stopped { .. } => None,
             },
             self.schedule.deadline().or(Some(now)),
         ];
@@ -578,7 +623,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     fn due_work(&mut self, now: Instants) {
         let retry_due = match self.drain {
             Drain::Failing { retry_at, .. } => now.monotonic >= retry_at,
-            Drain::Healthy => true,
+            Drain::Healthy | Drain::Stopped { .. } => true,
         };
         if self.frozen && retry_due {
             self.flush(now);
@@ -657,10 +702,43 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         self.counters
             .persisted(self.batch.events() as u64, disk_bytes, now.wall);
         self.schedule.flushed();
+        self.set_asides = 0;
+        self.heal();
+        self.release(now);
+    }
+
+    fn stopped(&self) -> bool {
+        self.set_asides >= SET_ASIDES_BEFORE_STOP
+    }
+
+    fn set_aside(
+        &mut self,
+        fault: WriteFault,
+        cause: DrainCause,
+        since: SystemTime,
+        now: Instants,
+    ) {
+        if let Some(code) = batch_code(fault) {
+            self.counters.set_aside(code);
+        }
+        self.set_asides += 1;
+        if !self.stopped() {
+            self.reject(fault, now);
+            return;
+        }
+        self.lose(fault);
+        self.drain = Drain::Stopped { cause, since };
+        self.report(Report::DrainFailing { cause, since });
         self.release(now);
     }
 
     fn reject(&mut self, fault: WriteFault, now: Instants) {
+        self.lose(fault);
+        self.heal();
+        self.release(now);
+    }
+
+    fn lose(&mut self, fault: WriteFault) {
         let events = self.batch.events() as u64;
         let (first_capture, last_capture) = self.batch.captures();
         self.counters.lost(events, first_capture, last_capture);
@@ -670,16 +748,18 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             last_capture,
             fault,
         });
-        self.release(now);
+    }
+
+    fn heal(&mut self) {
+        if !matches!(self.drain, Drain::Healthy) {
+            self.drain = Drain::Healthy;
+            self.report(Report::DrainHealthy);
+        }
     }
 
     fn release(&mut self, now: Instants) {
         self.batch.clear();
         self.frozen = false;
-        if matches!(self.drain, Drain::Failing { .. }) {
-            self.drain = Drain::Healthy;
-            self.report(Report::DrainHealthy);
-        }
         self.refill(now);
     }
 
@@ -695,6 +775,16 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 now.wall,
                 true,
             ),
+            Drain::Stopped {
+                cause: before,
+                since,
+            } => (
+                now.monotonic + RETRY_FIRST,
+                RETRY_FIRST,
+                counted.then_some((fault, 1)),
+                since,
+                before != cause,
+            ),
             Drain::Failing {
                 retry_at,
                 delay,
@@ -703,7 +793,9 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 since,
             } if now.monotonic >= retry_at => {
                 let same = match same {
-                    Some((last, count)) if counted && last == fault => Some((fault, count + 1)),
+                    Some((last, count)) if counted && one_run(last, fault) => {
+                        Some((fault, count + 1))
+                    }
                     _ => counted.then_some((fault, 1)),
                 };
                 let delay = (delay * 2).min(RETRY_MAX);
@@ -716,12 +808,12 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 cause: before,
                 since,
             } => {
-                let same = same.filter(|(last, _)| *last == fault);
+                let same = same.filter(|(last, _)| one_run(*last, fault));
                 (retry_at, delay, same, since, before != cause)
             }
         };
-        if same.is_some_and(|(_, count)| count >= REJECT_AFTER_SAME_FAULTS) {
-            self.reject(fault, now);
+        if !self.stopped() && same.is_some_and(|(_, count)| count >= REJECT_AFTER_SAME_FAULTS) {
+            self.set_aside(fault, cause, since, now);
             return;
         }
         if changed {
@@ -765,23 +857,41 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 }
 
-/// The counted class at a write: the primary codes of the open's sealed row
-/// of contracts.md C11.3, corrupt (11) and not a database (26), and 0, the
-/// code of a failed mint of the segment id. Every other primary code but 13
-/// (no space), I/O (10), busy (5) and locked (6) among them and one that this
-/// build does not know, is of the class of Io: held, never counted, kind io
-/// (ruling PR-30 PR4; ruling PR-31 item 3). Nothing holds this list in step
-/// with the store's own table.
+/// The primary codes of the counted class at a write whose due tries count
+/// while the same fault, by the whole code, ends each of them: those of the
+/// open's sealed row of contracts.md C11.3, corrupt (11) and not a database
+/// (26), and 0, the code of a failed mint of the segment id. The eight codes
+/// of [`BatchCode`] are counted too, by their primary code. Every other
+/// primary code, 13 (no space), I/O (10), busy (5) and locked (6) among them
+/// and one that this build does not know, is of the class of Io: held, never
+/// counted, kind io (ruling PR-30 PR4; ruling PR-31 item 3; ruling PR-32 with
+/// its Addition 1). Nothing holds these lists in step with the store's own
+/// table.
 const DB_CODES_COUNTED: [i32; 3] = [11, 26, 0];
 
-/// Whether a write's fault counts toward the three tries of
+/// Whether a write's fault counts toward the due tries of
 /// REJECT_AFTER_SAME_FAULTS.
 fn counts_toward_tries(fault: WriteFault) -> bool {
     match fault {
+        WriteFault::Db(code) if BatchCode::of(code).is_some() => true,
         WriteFault::Db(code) => DB_CODES_COUNTED.contains(&(code & 0xff)),
         WriteFault::Refused | WriteFault::Sealed => true,
         WriteFault::Io(_) | WriteFault::AlreadyWritten { .. } => false,
     }
+}
+
+fn batch_code(fault: WriteFault) -> Option<BatchCode> {
+    match fault {
+        WriteFault::Db(code) => BatchCode::of(code),
+        WriteFault::Io(_)
+        | WriteFault::AlreadyWritten { .. }
+        | WriteFault::Refused
+        | WriteFault::Sealed => None,
+    }
+}
+
+fn one_run(last: WriteFault, fault: WriteFault) -> bool {
+    last == fault || (batch_code(last).is_some() && batch_code(fault).is_some())
 }
 
 fn cause_of(fault: WriteFault) -> DrainCause {
@@ -790,7 +900,7 @@ fn cause_of(fault: WriteFault) -> DrainCause {
     }
     match fault {
         WriteFault::Io(_) => DrainCause::Io,
-        WriteFault::Db(code) if !DB_CODES_COUNTED.contains(&(code & 0xff)) => DrainCause::Io,
+        WriteFault::Db(_) if !counts_toward_tries(fault) => DrainCause::Io,
         WriteFault::AlreadyWritten { .. }
         | WriteFault::Refused
         | WriteFault::Db(_)
@@ -1197,12 +1307,13 @@ mod tests {
         }
         let bound_to_the_batch_read_again_by_ruling_pr_31 = [1, 2, 12, 18, 19, 20, 21, 25];
         for code in bound_to_the_batch_read_again_by_ruling_pr_31 {
-            let fault = WriteFault::Db(code);
-            assert_eq!(
-                (counts_toward_tries(fault), cause_of(fault)),
-                (false, DrainCause::Io),
-                "{fault:?}"
-            );
+            for fault in [WriteFault::Db(code), WriteFault::Db(code | (1 << 8))] {
+                assert_eq!(
+                    (counts_toward_tries(fault), cause_of(fault)),
+                    (true, DrainCause::Db),
+                    "{fault:?}"
+                );
+            }
         }
     }
 
@@ -2703,5 +2814,813 @@ mod tests {
             "the command waited for the receive"
         );
         assert!(harness.owner.finish_pass());
+    }
+
+    use crate::daemon::counters::BatchCode;
+
+    fn tried_once(store: ModelStore, events: usize) -> Harness {
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        let _ = harness.reports();
+        for _ in 0..events {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness
+    }
+
+    fn two_due_tries(harness: &mut Harness) {
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+    }
+
+    fn set_aside_counts(snapshot: &Snapshot) -> Vec<(i32, u64)> {
+        BatchCode::ALL
+            .into_iter()
+            .map(|code| (code.primary(), snapshot.batches_set_aside_by_code.of(code)))
+            .filter(|(_, count)| *count > 0)
+            .collect()
+    }
+
+    fn three_due_tries_set_the_batch_aside(code: i32) {
+        let fault = WriteFault::Db(code);
+        let store = ModelStore::new();
+        store.script_writes([WriteScript::Fail(fault); 3]);
+        let mut harness = tried_once(store, 5);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        let between = harness.reports();
+        assert!(
+            matches!(
+                between[..],
+                [Report::DrainFailing {
+                    cause: DrainCause::Db,
+                    ..
+                }]
+            ),
+            "code {code} between the tries: {between:?}"
+        );
+        assert_eq!(harness.owner.snapshot().events_lost, 0, "code {code}");
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 3, "code {code}");
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            (snapshot.events_lost, snapshot.events_pending),
+            (5, 0),
+            "code {code}"
+        );
+        assert_eq!(set_aside_counts(&snapshot), [(code, 1)]);
+        let reports = harness.reports();
+        assert!(
+            matches!(
+                reports[..],
+                [
+                    Report::BatchRejected { events: 5, fault: rejected, .. },
+                    Report::DrainHealthy
+                ] if rejected == fault
+            ),
+            "code {code} at the third due try: {reports:?}"
+        );
+        harness.emit(foreground_now());
+        let after = settled(&mut harness);
+        assert_eq!(after.events_persisted, 1, "code {code}");
+        assert!(after.is_conserved());
+    }
+
+    #[test]
+    fn three_due_tries_answered_1_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(1);
+    }
+
+    #[test]
+    fn three_due_tries_answered_2_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(2);
+    }
+
+    #[test]
+    fn three_due_tries_answered_12_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(12);
+    }
+
+    #[test]
+    fn three_due_tries_answered_18_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(18);
+    }
+
+    #[test]
+    fn three_due_tries_answered_19_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(19);
+    }
+
+    #[test]
+    fn three_due_tries_answered_20_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(20);
+    }
+
+    #[test]
+    fn three_due_tries_answered_21_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(21);
+    }
+
+    #[test]
+    fn three_due_tries_answered_25_set_the_batch_aside() {
+        three_due_tries_set_the_batch_aside(25);
+    }
+
+    #[test]
+    fn three_due_tries_answered_19_20_and_19_set_the_batch_aside() {
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(20)),
+            WriteScript::Fail(WriteFault::Db(19)),
+        ]);
+        let mut harness = tried_once(store, 4);
+        two_due_tries(&mut harness);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!((snapshot.events_lost, snapshot.events_pending), (4, 0));
+        assert_eq!(set_aside_counts(&snapshot), [(19, 1)]);
+        assert!(matches!(
+            rejected(&harness)[..],
+            [Report::BatchRejected {
+                events: 4,
+                fault: WriteFault::Db(19),
+                ..
+            }]
+        ));
+    }
+
+    #[test]
+    fn extended_codes_of_one_of_the_eight_are_read_as_that_code() {
+        let unique = WriteFault::Db(19 | (8 << 8));
+        let check = WriteFault::Db(19 | (1 << 8));
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(unique),
+            WriteScript::Fail(check),
+            WriteScript::Fail(unique),
+        ]);
+        let mut harness = tried_once(store, 3);
+        two_due_tries(&mut harness);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(snapshot.events_lost, 3);
+        assert_eq!(set_aside_counts(&snapshot), [(19, 1)]);
+        assert!(matches!(
+            rejected(&harness)[..],
+            [Report::BatchRejected { events: 3, fault, .. }] if fault == unique
+        ));
+    }
+
+    #[test]
+    fn three_due_tries_answered_10_or_an_unknown_code_leave_the_batch_held() {
+        for code in [10, 99] {
+            let store = ModelStore::new();
+            store.fail_every_write(Some(WriteFault::Db(code)));
+            let mut harness = tried_once(store, 4);
+            two_due_tries(&mut harness);
+            harness.clocks.advance(4 * RETRY_FIRST);
+            harness.pass();
+            assert_eq!(harness.store.write_calls().len(), 4, "code {code}");
+            let snapshot = harness.owner.snapshot();
+            assert_eq!(
+                (snapshot.events_lost, snapshot.events_pending),
+                (0, 4),
+                "code {code}"
+            );
+            assert!(set_aside_counts(&snapshot).is_empty(), "code {code}");
+            let reports = harness.reports();
+            assert!(
+                matches!(
+                    reports[..],
+                    [Report::DrainFailing {
+                        cause: DrainCause::Io,
+                        ..
+                    }]
+                ),
+                "code {code}: {reports:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn early_tries_that_meet_one_of_the_eight_do_not_count() {
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(20)),
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(25)),
+            WriteScript::Fail(WriteFault::Db(21)),
+        ]);
+        let mut harness = tried_once(store, 5);
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        settled(&mut harness);
+        assert_eq!(harness.store.write_calls().len(), 4);
+        assert_eq!(
+            harness.owner.snapshot().events_lost,
+            0,
+            "set aside before the third due try"
+        );
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 5);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(snapshot.events_lost, 5);
+        assert_eq!(set_aside_counts(&snapshot), [(21, 1)]);
+    }
+
+    #[test]
+    fn an_early_try_outside_the_eight_ends_the_run_and_leaves_the_batch_held() {
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(19)),
+            WriteScript::Fail(WriteFault::Db(10)),
+            WriteScript::Fail(WriteFault::Db(19)),
+        ]);
+        let mut harness = tried_once(store, 4);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        settled(&mut harness);
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 4);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            (snapshot.events_lost, snapshot.events_pending),
+            (0, 4),
+            "an early try outside the eight did not end the run"
+        );
+        assert!(rejected(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_batch_that_the_second_try_stores_after_19_is_written_once() {
+        let store = ModelStore::new();
+        store.script_writes([WriteScript::Fail(WriteFault::Db(19))]);
+        let mut harness = tried_once(store, 4);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        let writes = harness.store.write_calls();
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].0, writes[1].0);
+        assert_eq!(harness.store.batches().len(), 1);
+        assert_eq!(harness.store.records().len(), 4);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!((snapshot.events_persisted, snapshot.events_lost), (4, 0));
+        assert!(set_aside_counts(&snapshot).is_empty());
+        let reports = harness.reports();
+        assert!(
+            matches!(
+                reports[..],
+                [
+                    Report::DrainFailing {
+                        cause: DrainCause::Db,
+                        ..
+                    },
+                    Report::DrainHealthy
+                ]
+            ),
+            "{reports:?}"
+        );
+    }
+
+    #[test]
+    fn a_batch_kept_and_answered_19_is_acknowledged_by_its_next_try() {
+        let store = ModelStore::new();
+        store.script_writes([WriteScript::KeepThenFail(WriteFault::Db(19))]);
+        let mut harness = tried_once(store, 4);
+        two_due_tries(&mut harness);
+        let writes = harness.store.write_calls();
+        assert_eq!(writes.len(), 2);
+        assert!(matches!(
+            writes[1].1,
+            Err(WriteFault::AlreadyWritten { .. })
+        ));
+        assert_eq!(harness.store.batches().len(), 1);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!((snapshot.events_persisted, snapshot.events_lost), (4, 0));
+        assert!(rejected(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_batch_set_aside_leaves_nothing_of_it_in_the_store_or_in_memory() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(19)));
+        let mut harness = tried_once(store, 4);
+        two_due_tries(&mut harness);
+        let writes = harness.store.write_calls();
+        assert_eq!(writes.len(), 3);
+        let set_aside = writes[0].0;
+        assert!(writes.iter().all(|(id, _)| *id == set_aside));
+        assert_eq!(harness.owner.snapshot().events_lost, 4);
+        assert!(
+            harness.owner.payload_bytes().iter().all(|byte| *byte == 0),
+            "the set-aside batch is still in the payload"
+        );
+        harness.store.fail_every_write(None);
+        harness.emit(foreground_now());
+        settled(&mut harness);
+        let batches = harness.store.batches();
+        assert_eq!(batches.len(), 1);
+        assert_ne!(batches[0].segment_id, set_aside);
+        assert_eq!(harness.store.records().len(), 1);
+    }
+
+    fn batch_through_three_tries(harness: &mut Harness, events: usize) {
+        for _ in 0..events {
+            harness.emit(foreground_now());
+        }
+        settled(harness);
+        two_due_tries(harness);
+    }
+
+    fn after_the_set_aside(reports: &[Report]) -> Option<Report> {
+        match reports {
+            [Report::DrainFailing {
+                cause: DrainCause::Db,
+                ..
+            }, Report::BatchRejected { events: 2, .. }, after] => Some(*after),
+            _ => None,
+        }
+    }
+
+    fn is_the_stop(after: Option<Report>) -> bool {
+        matches!(
+            after,
+            Some(Report::DrainFailing {
+                cause: DrainCause::Db,
+                ..
+            })
+        )
+    }
+
+    fn stopped_by(fault: WriteFault) -> (Harness, SystemTime) {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(fault));
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        let _ = harness.reports();
+        for n in 1..=2 {
+            batch_through_three_tries(&mut harness, 2);
+            let reports = harness.reports();
+            assert_eq!(
+                after_the_set_aside(&reports),
+                Some(Report::DrainHealthy),
+                "set-aside {n} of {fault:?}: {reports:?}"
+            );
+        }
+        batch_through_three_tries(&mut harness, 2);
+        let reports = harness.reports();
+        assert!(
+            is_the_stop(after_the_set_aside(&reports)),
+            "the third set-aside of {fault:?}: {reports:?}"
+        );
+        let [Report::DrainFailing { since: began, .. }, _, Report::DrainFailing { since, .. }] =
+            reports[..]
+        else {
+            panic!("{reports:?}");
+        };
+        assert_eq!(since, began, "the stop names another time: {reports:?}");
+        (harness, since)
+    }
+
+    fn three_set_asides_in_a_row_hold_the_next_batch_until_a_good_write(
+        fault: WriteFault,
+    ) -> Vec<(i32, u64)> {
+        let (mut harness, _) = stopped_by(fault);
+        assert_eq!(harness.owner.snapshot().events_lost, 6);
+        for _ in 0..2 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        for _ in 0..10 {
+            harness.clocks.advance(RETRY_MAX);
+            harness.pass();
+        }
+        assert_eq!(harness.store.write_calls().len(), 9 + 11);
+        let held = harness.owner.snapshot();
+        assert_eq!(
+            (held.events_lost, held.events_pending),
+            (6, 2),
+            "the fourth batch of {fault:?} was not held"
+        );
+        let reports = harness.reports();
+        assert!(reports.is_empty(), "{fault:?} in the hold: {reports:?}");
+        harness.store.fail_every_write(None);
+        harness.clocks.advance(RETRY_MAX);
+        harness.pass();
+        let healed = harness.owner.snapshot();
+        assert_eq!((healed.events_persisted, healed.events_pending), (2, 0));
+        assert_eq!(harness.reports(), [Report::DrainHealthy]);
+        harness.store.fail_every_write(Some(fault));
+        batch_through_three_tries(&mut harness, 2);
+        let reports = harness.reports();
+        assert_eq!(
+            after_the_set_aside(&reports),
+            Some(Report::DrainHealthy),
+            "after the good write {fault:?}: {reports:?}"
+        );
+        set_aside_counts(&harness.owner.snapshot())
+    }
+
+    #[test]
+    fn three_set_asides_in_a_row_of_19_hold_the_next_batch_until_a_good_write() {
+        let counts =
+            three_set_asides_in_a_row_hold_the_next_batch_until_a_good_write(WriteFault::Db(19));
+        assert_eq!(counts, [(19, 4)]);
+    }
+
+    #[test]
+    fn three_set_asides_in_a_row_of_11_hold_the_next_batch_until_a_good_write() {
+        let counts =
+            three_set_asides_in_a_row_hold_the_next_batch_until_a_good_write(WriteFault::Db(11));
+        assert!(counts.is_empty(), "{counts:?}");
+    }
+
+    #[test]
+    fn a_good_write_between_set_asides_starts_the_count_again() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(19)));
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        let _ = harness.reports();
+        for _ in 0..2 {
+            batch_through_three_tries(&mut harness, 2);
+            assert_eq!(
+                after_the_set_aside(&harness.reports()),
+                Some(Report::DrainHealthy)
+            );
+        }
+        harness.store.fail_every_write(None);
+        harness.emit(foreground_now());
+        assert_eq!(settled(&mut harness).events_persisted, 1);
+        harness.store.fail_every_write(Some(WriteFault::Db(19)));
+        for n in 1..=2 {
+            batch_through_three_tries(&mut harness, 2);
+            let reports = harness.reports();
+            assert_eq!(
+                after_the_set_aside(&reports),
+                Some(Report::DrainHealthy),
+                "set-aside {n} after the good write: {reports:?}"
+            );
+        }
+        batch_through_three_tries(&mut harness, 2);
+        assert!(is_the_stop(after_the_set_aside(&harness.reports())));
+    }
+
+    #[test]
+    fn sealed_or_refused_batches_neither_count_toward_the_hold_nor_end_its_count() {
+        for answer in [WriteFault::Sealed, WriteFault::Refused] {
+            let store = ModelStore::new();
+            store.fail_every_write(Some(WriteFault::Db(19)));
+            let mut harness = Harness::over(store, open_floor(), 2048);
+            resumed(&mut harness);
+            let _ = harness.reports();
+            for _ in 0..2 {
+                batch_through_three_tries(&mut harness, 2);
+            }
+            let _ = harness.reports();
+            harness.store.fail_every_write(Some(answer));
+            for _ in 0..3 {
+                harness.emit(foreground_now());
+                harness.emit(foreground_now());
+                settled(&mut harness);
+                let reports = harness.reports();
+                assert!(
+                    matches!(
+                        reports[..],
+                        [Report::BatchRejected { events: 2, fault, .. }] if fault == answer
+                    ),
+                    "{answer:?}: {reports:?}"
+                );
+            }
+            harness.store.fail_every_write(Some(WriteFault::Db(19)));
+            batch_through_three_tries(&mut harness, 2);
+            let reports = harness.reports();
+            assert!(
+                is_the_stop(after_the_set_aside(&reports)),
+                "after three {answer:?}: {reports:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_new_owner_over_the_same_store_starts_the_count_of_set_asides_at_0() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(19)));
+        let mut first = Harness::over(store.clone(), open_floor(), 2048);
+        resumed(&mut first);
+        let _ = first.reports();
+        for _ in 0..2 {
+            batch_through_three_tries(&mut first, 2);
+        }
+        assert_eq!(first.owner.snapshot().events_lost, 4);
+        drop(first);
+        let mut second = Harness::over(store, open_floor(), 2048);
+        resumed(&mut second);
+        let _ = second.reports();
+        for n in 1..=2 {
+            batch_through_three_tries(&mut second, 2);
+            let reports = second.reports();
+            assert_eq!(
+                after_the_set_aside(&reports),
+                Some(Report::DrainHealthy),
+                "set-aside {n} of the new life: {reports:?}"
+            );
+        }
+        batch_through_three_tries(&mut second, 2);
+        assert!(is_the_stop(after_the_set_aside(&second.reports())));
+    }
+
+    #[test]
+    fn a_batch_given_up_in_the_hold_ends_no_hold() {
+        for answer in [WriteFault::Refused, WriteFault::Sealed] {
+            let (mut harness, _) = stopped_by(WriteFault::Db(19));
+            harness.store.fail_every_write(Some(answer));
+            harness.emit(foreground_now());
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            let reports = harness.reports();
+            assert!(
+                matches!(
+                    reports[..],
+                    [Report::BatchRejected { events: 2, fault, .. }, Report::DrainHealthy]
+                        if fault == answer
+                ),
+                "{answer:?} in the hold: {reports:?}"
+            );
+            harness.store.fail_every_write(Some(WriteFault::Db(19)));
+            harness.emit(foreground_now());
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            for _ in 0..5 {
+                harness.clocks.advance(RETRY_MAX);
+                harness.pass();
+            }
+            let held = harness.owner.snapshot();
+            assert_eq!(
+                (held.events_lost, held.events_pending),
+                (8, 2),
+                "after {answer:?} the batch answered 19 was not held"
+            );
+            assert!(rejected(&harness).is_empty());
+        }
+    }
+
+    #[test]
+    fn the_drop_line_names_the_count_the_two_seconds_and_the_kind() {
+        let noon_nanos = 1_794_571_200_i64 * 1_000_000_000;
+        let dropped = |fault| Report::BatchRejected {
+            events: 5,
+            first_capture: noon_nanos + 999_999_999,
+            last_capture: noon_nanos + 62_000_000_000,
+            fault,
+        };
+        for fault in [
+            WriteFault::Db(19 | (8 << 8)),
+            WriteFault::Db(11),
+            WriteFault::Db(0),
+            WriteFault::Refused,
+            WriteFault::Sealed,
+        ] {
+            assert_eq!(
+                dropped(fault).drop_line().as_deref(),
+                Some(
+                    "halvo-capture: dropped events=5 first=2026-11-13T12:00:00Z \
+                     last=2026-11-13T12:01:02Z error=db"
+                ),
+                "{fault:?}"
+            );
+        }
+        let before_the_epoch = Report::BatchRejected {
+            events: 1,
+            first_capture: -1_000_000_001,
+            last_capture: -1,
+            fault: WriteFault::Db(25),
+        };
+        assert_eq!(
+            before_the_epoch.drop_line().as_deref(),
+            Some(
+                "halvo-capture: dropped events=1 first=1969-12-31T23:59:58Z \
+                 last=1969-12-31T23:59:59Z error=db"
+            )
+        );
+        for report in [
+            Report::StoreReady,
+            Report::DrainHealthy,
+            Report::DrainFailing {
+                cause: DrainCause::Db,
+                since: noon(),
+            },
+            Report::MaintenanceFailing {
+                fault: MaintFault::CheckpointIncomplete,
+            },
+            Report::MaintenanceHealthy,
+        ] {
+            assert_eq!(report.drop_line(), None, "{report:?}");
+        }
+    }
+
+    #[test]
+    fn a_batch_set_aside_gives_its_drop_line() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(21)));
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        harness.emit(foreground(&AT_NOON, Duration::from_secs(3)));
+        harness.emit(foreground(&AT_NOON, Duration::from_secs(1)));
+        settled(&mut harness);
+        two_due_tries(&mut harness);
+        let lines: Vec<String> = rejected(&harness)
+            .iter()
+            .filter_map(Report::drop_line)
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "halvo-capture: dropped events=2 first=2026-11-13T11:59:57Z \
+              last=2026-11-13T11:59:59Z error=db"
+            ]
+        );
+    }
+
+    #[test]
+    fn the_first_batch_that_the_store_takes_after_the_stop_ends_the_hold() {
+        let (mut harness, _) = stopped_by(WriteFault::Db(19));
+        assert_eq!(
+            harness.owner.wait(),
+            POLL,
+            "the owner waits less than a poll while nothing is held"
+        );
+        harness.store.fail_every_write(None);
+        harness.emit(foreground_now());
+        harness.emit(foreground_now());
+        assert_eq!(settled(&mut harness).events_persisted, 2);
+        assert_eq!(harness.reports(), [Report::DrainHealthy]);
+        harness.store.fail_every_write(Some(WriteFault::Db(19)));
+        batch_through_three_tries(&mut harness, 2);
+        assert_eq!(
+            after_the_set_aside(&harness.reports()),
+            Some(Report::DrainHealthy)
+        );
+    }
+
+    #[test]
+    fn an_io_fault_in_the_hold_reports_io_since_the_stop() {
+        let (mut harness, since) = stopped_by(WriteFault::Db(19));
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        harness.emit(foreground_now());
+        settled(&mut harness);
+        assert_eq!(
+            harness.reports(),
+            [Report::DrainFailing {
+                cause: DrainCause::Io,
+                since
+            }]
+        );
+        two_due_tries(&mut harness);
+        let held = harness.owner.snapshot();
+        assert_eq!((held.events_lost, held.events_pending), (6, 1));
+    }
+
+    #[test]
+    fn due_tries_of_11_or_26_before_19_start_the_run_of_the_eight_at_19() {
+        for before in [WriteFault::Db(11), WriteFault::Db(26)] {
+            let store = ModelStore::new();
+            store.script_writes([
+                WriteScript::Fail(before),
+                WriteScript::Fail(before),
+                WriteScript::Fail(WriteFault::Db(19)),
+                WriteScript::Fail(WriteFault::Db(19)),
+                WriteScript::Fail(WriteFault::Db(19)),
+            ]);
+            let mut harness = tried_once(store, 4);
+            two_due_tries(&mut harness);
+            assert_eq!(harness.store.write_calls().len(), 3, "{before:?}");
+            let held = harness.owner.snapshot();
+            assert_eq!(
+                (held.events_lost, held.events_pending),
+                (0, 4),
+                "{before:?}, {before:?} and 19 set the batch aside"
+            );
+            harness.clocks.advance(4 * RETRY_FIRST);
+            harness.pass();
+            assert_eq!(
+                harness.owner.snapshot().events_lost,
+                0,
+                "{before:?}, {before:?}, 19 and 19 set the batch aside"
+            );
+            harness.clocks.advance(8 * RETRY_FIRST);
+            harness.pass();
+            assert_eq!(harness.store.write_calls().len(), 5, "{before:?}");
+            let snapshot = harness.owner.snapshot();
+            assert_eq!(
+                (snapshot.events_lost, snapshot.events_pending),
+                (4, 0),
+                "{before:?}"
+            );
+            assert_eq!(set_aside_counts(&snapshot), [(19, 1)], "{before:?}");
+        }
+    }
+
+    #[test]
+    fn the_hold_tries_its_batch_after_1_2_4_8_16_32_and_60_s() {
+        let (mut harness, _) = stopped_by(WriteFault::Db(19));
+        harness.emit(foreground_now());
+        settled(&mut harness);
+        let mut writes = harness.store.write_calls().len();
+        let short = Duration::from_millis(1);
+        for wait in [1, 2, 4, 8, 16, 32, 60, 60] {
+            harness.clocks.advance(Duration::from_secs(wait) - short);
+            harness.pass();
+            assert_eq!(
+                harness.store.write_calls().len(),
+                writes,
+                "a try before {wait} s"
+            );
+            harness.clocks.advance(short);
+            harness.pass();
+            writes += 1;
+            assert_eq!(
+                harness.store.write_calls().len(),
+                writes,
+                "no try at {wait} s"
+            );
+        }
+        let held = harness.owner.snapshot();
+        assert_eq!((held.events_lost, held.events_pending), (6, 1));
+        assert!(rejected(&harness).is_empty());
+    }
+
+    fn kept_then_already_written(harness: &mut Harness) {
+        harness.store.fail_every_write(None);
+        harness
+            .store
+            .script_writes([WriteScript::KeepThenFail(WriteFault::Db(19))]);
+        harness.emit(foreground_now());
+        harness.emit(foreground_now());
+        settled(harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        let writes = harness.store.write_calls();
+        assert!(
+            matches!(
+                writes.last(),
+                Some((_, Err(WriteFault::AlreadyWritten { .. })))
+            ),
+            "{writes:?}"
+        );
+        let reports = harness.reports();
+        assert_eq!(reports.last(), Some(&Report::DrainHealthy), "{reports:?}");
+        assert_eq!(harness.owner.snapshot().events_pending, 0);
+        harness.store.fail_every_write(Some(WriteFault::Db(19)));
+    }
+
+    fn the_count_starts_again(harness: &mut Harness, place: &str) {
+        for n in 1..=2 {
+            batch_through_three_tries(harness, 2);
+            let reports = harness.reports();
+            assert_eq!(
+                after_the_set_aside(&reports),
+                Some(Report::DrainHealthy),
+                "set-aside {n} after AlreadyWritten {place}: {reports:?}"
+            );
+        }
+        batch_through_three_tries(harness, 2);
+        let reports = harness.reports();
+        assert!(
+            is_the_stop(after_the_set_aside(&reports)),
+            "the third set-aside after AlreadyWritten {place}: {reports:?}"
+        );
+    }
+
+    #[test]
+    fn an_already_written_answer_starts_the_count_of_set_asides_again_in_the_hold_and_outside_it() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Db(19)));
+        let mut harness = Harness::over(store, open_floor(), 2048);
+        resumed(&mut harness);
+        let _ = harness.reports();
+        for _ in 0..2 {
+            batch_through_three_tries(&mut harness, 2);
+            assert_eq!(
+                after_the_set_aside(&harness.reports()),
+                Some(Report::DrainHealthy)
+            );
+        }
+        kept_then_already_written(&mut harness);
+        the_count_starts_again(&mut harness, "outside the hold");
+
+        let (mut harness, _) = stopped_by(WriteFault::Db(19));
+        kept_then_already_written(&mut harness);
+        the_count_starts_again(&mut harness, "in the hold");
     }
 }
