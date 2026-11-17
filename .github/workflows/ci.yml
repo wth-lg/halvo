@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 25-r3-run-record 10-r3-layout 15-r3-test-dirs 20-r3-policy 19-home-paths 21-tree-bans 24-r7-wall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 25-r3-run-record 10-r3-layout 15-r3-test-dirs 20-r3-policy 19-home-paths 21-tree-bans 24-r7-wall
+      - name: Loop (maker, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( out=$(cargo test --locked -q -p halvo-schema --test r3_golden -- --exact the_maker_of_agent_run_writes_each_golden_run_line_key_for_key_in_order_and_byte_for_byte the_maker_leaves_every_count_0_and_playbook_model_and_each_key_of_the_run_s_list_null the_maker_writes_the_keys_of_the_type_in_the_order_of_a_golden_line_and_the_run_s_list_last a_key_of_the_run_s_list_that_the_caller_sets_is_written_and_every_other_stays_null a_made_record_is_read_back_to_itself_and_a_rule_that_it_breaks_refuses_its_text 2>&1); printf '%s\n' "$out"; grep -q 'test result: ok. 5 passed; 0 failed' <<<"$out" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop maker: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +161,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 25-r3-run-record 10-r3-layout 15-r3-test-dirs 20-r3-policy 19-home-paths 21-tree-bans 24-r7-wall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 25-r3-run-record 10-r3-layout 15-r3-test-dirs 20-r3-policy 19-home-paths 21-tree-bans 24-r7-wall
+      - name: Loop (maker, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( out=$(cargo test --locked -q -p halvo-schema --test r3_golden -- --exact the_maker_of_agent_run_writes_each_golden_run_line_key_for_key_in_order_and_byte_for_byte the_maker_leaves_every_count_0_and_playbook_model_and_each_key_of_the_run_s_list_null the_maker_writes_the_keys_of_the_type_in_the_order_of_a_golden_line_and_the_run_s_list_last a_key_of_the_run_s_list_that_the_caller_sets_is_written_and_every_other_stays_null a_made_record_is_read_back_to_itself_and_a_rule_that_it_breaks_refuses_its_text 2>&1); printf '%s\n' "$out"; grep -q 'test result: ok. 5 passed; 0 failed' <<<"$out" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop maker: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
