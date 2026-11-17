@@ -29,10 +29,10 @@ pub mod signal;
 mod stop_tests;
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use halvo_control::paths::AccountLookup;
+use halvo_control::paths::{AccountLookup, PathError};
 
 use crate::floor::{Switch, Switches};
 use crate::source::{SourceContext, SourceCounters};
@@ -90,7 +90,8 @@ pub fn stop_bound(settle_bound: Duration) -> Duration {
 pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --timed-run SECONDS --store-dir DIR [--hold-secure-input] [--switch NAME=on|off]...
        halvo-capture --verify-store --store-dir DIR --marker MARKER
-       halvo-capture --verify-deletion --store-dir DIR";
+       halvo-capture --verify-deletion --store-dir DIR
+       halvo-capture --delete-all --store-dir DIR";
 
 /// What a command line asks for. The gate's modes exist only in builds with
 /// debug assertions.
@@ -108,6 +109,50 @@ pub enum Mode {
     VerifyDeletion {
         store_dir: PathBuf,
     },
+    /// The scratch delete (contracts.md C4 item 9) of `store_dir`, the path as
+    /// the command line gave it, so that the store's delete tail meets a link
+    /// at its last part in any spelling and refuses it. Before the tail's call
+    /// the parse refuses, with exit 64, a directory that holds a data
+    /// directory's layout, an entry at the name store beside one at the name
+    /// roots, read through DIR as resolved and without following a link at
+    /// either name, and opens, changes and removes nothing in it. This look is
+    /// the one look before the tail's call: every gate trap calls this mode,
+    /// and a wrong argument must not cost a person's store its root (ruling
+    /// DM-22). A look that cannot read either name, for a cause other than its
+    /// absence or a DIR that is no folder (which the tail refuses as a link
+    /// or a file), refuses DIR too, with a line of its own (ruling DM-22
+    /// Addition 1).
+    #[cfg(debug_assertions)]
+    DeleteAll {
+        store_dir: PathBuf,
+    },
+}
+
+impl Mode {
+    /// Whether the mode reads the signal flag that [`signal::prepare`]
+    /// installs: the timed run alone, which stops its sources, settles and
+    /// reports on it.
+    #[cfg(debug_assertions)]
+    pub fn reads_the_signal_flag(&self) -> bool {
+        matches!(self, Mode::TimedRun(_))
+    }
+
+    /// Whether the mode reads the signal flag: no mode of a release build does.
+    #[cfg(not(debug_assertions))]
+    pub fn reads_the_signal_flag(&self) -> bool {
+        false
+    }
+}
+
+/// Installs the signal flag for a mode that reads it and nothing for any
+/// other mode, which SIGINT and SIGTERM then end by the system's default
+/// action (ruling DM-12 P3).
+pub fn prepare_signals(mode: &Mode) -> std::io::Result<()> {
+    if mode.reads_the_signal_flag() {
+        signal::prepare()
+    } else {
+        Ok(())
+    }
 }
 
 /// A refused command line, with its reason; the binary prints it and
@@ -116,11 +161,43 @@ pub enum Mode {
 #[error("halvo-capture: {0}\n{USAGE}")]
 pub struct Usage(pub &'static str);
 
-/// The binary's answer to a refused command line: the usage text on `err`,
-/// and exit 64.
-pub fn usage_answer(usage: &Usage, err: &mut dyn std::io::Write) -> i32 {
-    let _ = writeln!(err, "{usage}");
-    halvo_control::exit::USAGE
+/// Why a command line is not run: a refused line, which exits 64, or an
+/// account that gives no data directory to check a store directory against,
+/// which is no fault of the line and exits 1.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Refusal {
+    #[error(transparent)]
+    Usage(#[from] Usage),
+    #[error(
+        "halvo-capture: the account gives no data directory to check the store directory against: {0}"
+    )]
+    NoDataDir(PathError),
+    /// A store directory that holds a data directory's layout, by its text as
+    /// given; the scratch delete refuses it with exit 64.
+    #[error(
+        "halvo-capture: {0} holds store/ beside roots/, the layout of a data directory; the scratch delete takes a scratch store directory alone, and nothing in this one was opened or removed"
+    )]
+    DataDirLayout(String),
+    /// A store directory in which the names store and roots cannot be read,
+    /// by its text as given; the scratch delete refuses it with exit 64.
+    #[error(
+        "halvo-capture: the names store and roots in {0} cannot be read, so the scratch delete cannot tell whether it holds a data directory's layout; nothing in it was opened or removed"
+    )]
+    DataDirUnread(String),
+}
+
+/// The binary's answer to a command line that is not run: the refusal's text
+/// on `err`, and exit 64 for a refused line or a data directory's layout, or
+/// exit 1 for an account that gives no data directory.
+pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io::Write) -> i32 {
+    let refusal: Refusal = refused.clone().into();
+    let _ = writeln!(err, "{refusal}");
+    match refusal {
+        Refusal::Usage(_) | Refusal::DataDirLayout(_) | Refusal::DataDirUnread(_) => {
+            halvo_control::exit::USAGE
+        }
+        Refusal::NoDataDir(_) => halvo_control::exit::ERROR,
+    }
 }
 
 /// The binary's answer to a timed run's outcome: the report on `out`, the
@@ -143,6 +220,245 @@ pub fn outcome_answer(
     }
     match printed {
         Ok(()) => outcome.status,
+        Err(_) => halvo_control::exit::ERROR,
+    }
+}
+
+/// What the store's delete tail answered for a scratch store directory, in
+/// the scratch layout, as the binary hands it to [`scratch_delete`]. After a
+/// delete that was stopped between its root step and its file step, or when
+/// the root file was removed by other hands, the next delete says that it is
+/// not finished although nothing stays after it, because it did not itself
+/// destroy the root; the delete after that says finished (ruling DM-21).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TailAnswer {
+    /// The tail answered Ok.
+    Finished(TailReport),
+    /// The tail answered that the delete is not finished.
+    NotFinished(TailReport),
+    /// Another process holds the store.
+    Held,
+    /// Any other error of the tail, by its text, which holds no path.
+    Failed(String),
+}
+
+/// The tail's report, field by field: the store's own root, the names of the
+/// root files and partial root files that stay in the folder roots, the
+/// entries that stay there at any other name counted by kind and never
+/// named, and what stays of the store's files.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TailReport {
+    pub keyed_segments: Option<u64>,
+    pub root: TailRoot,
+    pub root_files_left: Vec<String>,
+    pub others_left: EntriesLeft,
+    pub roots_listed: bool,
+    pub roots_at_their_path: bool,
+    pub key_file_gone: bool,
+    pub database_left: bool,
+    pub files_left: u64,
+    pub not_followed: u64,
+}
+
+/// What the tail says of the store's root: destroyed by this call, left
+/// (with its id in hex when the call knows it), or named by nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TailRoot {
+    Destroyed,
+    Left(Option<String>),
+    #[default]
+    Unnamed,
+}
+
+/// The entries that stay in the folder roots at a name that is no root name
+/// and no partial name, by kind.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EntriesLeft {
+    pub root_shaped: u64,
+    pub directories: u64,
+    pub other: u64,
+}
+
+impl TailReport {
+    /// The report of a tail that refused the store directory itself, a link
+    /// or a file in any spelling: not followed, the root unread, the folder
+    /// roots not listed and nothing removed.
+    fn refused_the_store_dir(&self) -> bool {
+        self.not_followed == 1
+            && self.root == TailRoot::Left(None)
+            && !self.roots_listed
+            && self.root_files_left.is_empty()
+            && self.others_left == EntriesLeft::default()
+            && self.keyed_segments.is_none()
+            && !self.key_file_gone
+            && self.database_left
+            && self.files_left == 1
+    }
+
+    /// The report of a tail that could not open the store directory, or that
+    /// answered through its not-opened report for another cause: the root left
+    /// with no id, and store.key, the database and one file read as not removed
+    /// because the tail never looked. A removal that left exactly those three
+    /// and read no root id reads the same.
+    fn not_opened(&self) -> bool {
+        self.root == TailRoot::Left(None)
+            && !self.key_file_gone
+            && self.database_left
+            && self.files_left == 1
+            && self.keyed_segments.is_none()
+    }
+
+    /// The scratch form of the `deleted` line of contracts.md C2.6 and C3.3:
+    /// the seven keys whose values the tail's report holds, and not
+    /// `entries_removed`, `entries_left`, `unknown_entries`, `intent` or
+    /// `store_id`, which belong to a data directory's registry, its intent and
+    /// its fresh store, of which a scratch store directory has none.
+    fn deleted_line(&self) -> String {
+        let count = |n: Option<u64>| n.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
+        let (destroyed, id) = match &self.root {
+            TailRoot::Destroyed => ("yes", "-"),
+            TailRoot::Left(id) => ("no", id.as_deref().unwrap_or("-")),
+            TailRoot::Unnamed => ("unknown", "-"),
+        };
+        format!(
+            "deleted segments_shredded={} keys_destroyed={} root_destroyed={destroyed} root_id={id} files_left={} database_left={} not_followed={}\n",
+            count(self.keyed_segments),
+            count(self.keyed_segments.map(|n| n + 1)),
+            self.files_left,
+            if self.database_left { "yes" } else { "no" },
+            self.not_followed,
+        )
+    }
+
+    /// What stays, for standard error: the root files and partial root files
+    /// by their names in the folder roots, every other entry there by kind.
+    fn what_stays(&self) -> String {
+        let mut stays = Vec::new();
+        if matches!(self.root, TailRoot::Left(_)) {
+            stays.push("this call did not destroy the store's root".to_owned());
+        }
+        for name in &self.root_files_left {
+            stays.push(format!("the root file roots/{name} stays"));
+        }
+        let others = self.others_left;
+        for (n, what) in [
+            (others.root_shaped, "files that can hold a root"),
+            (others.directories, "folders"),
+            (others.other, "other entries"),
+        ] {
+            if n > 0 {
+                stays.push(format!(
+                    "{n} {what} stay in the folder roots at other names"
+                ));
+            }
+        }
+        if !self.roots_listed {
+            stays.push("the folder roots could not be listed".to_owned());
+        }
+        if !self.roots_at_their_path {
+            stays.push("the folder roots no longer stands at its path".to_owned());
+        }
+        if !self.key_file_gone {
+            stays.push("store.key stays".to_owned());
+        }
+        if self.database_left {
+            stays.push("a database file stays".to_owned());
+        }
+        if self.files_left > 0 {
+            stays.push(format!("{} other files of the store stay", self.files_left));
+        }
+        if self.not_followed > 0 {
+            stays.push(format!(
+                "{} names were a link or an entry of another kind and were not followed",
+                self.not_followed
+            ));
+        }
+        stays.join("; ")
+    }
+}
+
+fn has_a_part_that_windows_trims(path: &Path) -> bool {
+    path.components().any(|part| match part {
+        std::path::Component::Normal(name) => {
+            let name = name.to_string_lossy();
+            name.ends_with('.') || name.ends_with(' ')
+        }
+        _ => false,
+    })
+}
+
+/// The scratch delete of `--delete-all --store-dir DIR` (contracts.md C4
+/// item 9): one call of `tail` on `store_dir`, which the binary makes the
+/// store's delete tail in the scratch layout. It prints on `out`
+/// `store_dir=<the path as given>` and then `no_store` when the tail answered
+/// Ok, nothing named a root and no name was a link or an entry of another
+/// kind, or the `deleted` line of
+/// [`TailReport`]'s seven keys; on `err` the cause of an answer that is not
+/// Ok. It returns 0 only when the tail answered Ok, 1 when the delete is not
+/// finished or failed and 75 when another process holds the store; a line that
+/// cannot be written gives 1. After a run that destroyed its own root while
+/// its store.key stays, as `--verify-store` and the timed run do, the tail
+/// reads that root left, because no tail answers destroyed for a root that
+/// the call did not find and remove (ruling ST-46 K1): the first delete
+/// removes the store's files and exits 1 with `root_destroyed=no`, and the
+/// next prints `no_store` and exits 0.
+pub fn scratch_delete(
+    store_dir: &Path,
+    tail: impl FnOnce(&Path) -> TailAnswer,
+    out: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+) -> i32 {
+    let answer = tail(store_dir);
+    let shown = halvo_control::paths::one_line(&store_dir.to_string_lossy());
+    let mut text = format!("store_dir={shown}\n");
+    let (cause, status) = match &answer {
+        TailAnswer::Finished(report) => {
+            if report.root == TailRoot::Unnamed && report.not_followed == 0 {
+                text.push_str("no_store\n");
+            } else {
+                text.push_str(&report.deleted_line());
+            }
+            (None, halvo_control::exit::CLEAN)
+        }
+        TailAnswer::NotFinished(report) => {
+            text.push_str(&report.deleted_line());
+            let cause = if report.refused_the_store_dir()
+                && !(cfg!(windows) && has_a_part_that_windows_trims(store_dir))
+            {
+                format!("halvo-capture: {shown} is a link or a file, not a folder; nothing was removed; give the path of the folder itself")
+            } else if report.not_opened() {
+                "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it".to_owned()
+            } else {
+                match report.what_stays() {
+                    stays if stays.is_empty() => {
+                        "halvo-capture: the delete is not finished".to_owned()
+                    }
+                    stays => format!("halvo-capture: the delete is not finished: {stays}"),
+                }
+            };
+            (Some(cause), halvo_control::exit::ERROR)
+        }
+        TailAnswer::Held => (
+            Some(
+                "halvo-capture: another process holds the store; this request removed nothing"
+                    .to_owned(),
+            ),
+            halvo_control::exit::BUSY,
+        ),
+        TailAnswer::Failed(error) => (
+            Some(format!("halvo-capture: {error}")),
+            halvo_control::exit::ERROR,
+        ),
+    };
+    let printed = out.write_all(text.as_bytes()).and_then(|()| out.flush());
+    if let Err(error) = &printed {
+        let _ = writeln!(err, "halvo-capture: the report was not written: {error}");
+    }
+    if let Some(cause) = cause {
+        let _ = writeln!(err, "{cause}");
+    }
+    match printed {
+        Ok(()) => status,
         Err(_) => halvo_control::exit::ERROR,
     }
 }
@@ -200,7 +516,7 @@ impl SwitchFlags {
 pub fn parse(
     args: impl IntoIterator<Item = OsString>,
     account: &dyn AccountLookup,
-) -> Result<Mode, Usage> {
+) -> Result<Mode, Refusal> {
     let args = args
         .into_iter()
         .map(OsString::into_string)
@@ -215,22 +531,29 @@ pub fn parse(
         #[cfg(debug_assertions)]
         Some("--verify-store") => {
             let flags = gate::Flags::read(&args[1..], &["--store-dir", "--marker"])?;
-            let store_dir = gate::store_dir(flags.store_dir, account)?;
+            let store_dir = gate::store_dir(flags.store_dir, account)?.without_store_key()?;
             let marker = flags.marker.ok_or(Usage("--verify-store needs --marker"))?;
             if !gate::is_marker(&marker) {
-                return Err(Usage(
-                    "MARKER is not 8 to 64 of A-Z, a-z, 0-9, '.', '_' and '-'",
-                ));
+                return Err(
+                    Usage("MARKER is not 8 to 64 of A-Z, a-z, 0-9, '.', '_' and '-'").into(),
+                );
             }
             Ok(Mode::VerifyStore { store_dir, marker })
         }
         #[cfg(debug_assertions)]
         Some("--verify-deletion") => {
             let flags = gate::Flags::read(&args[1..], &["--store-dir"])?;
-            let store_dir = gate::store_dir(flags.store_dir, account)?;
+            let store_dir = gate::store_dir(flags.store_dir, account)?.without_store_key()?;
             Ok(Mode::VerifyDeletion { store_dir })
         }
-        _ => Err(Usage("no mode of this build")),
+        #[cfg(debug_assertions)]
+        Some("--delete-all") => {
+            let flags = gate::Flags::read(&args[1..], &["--store-dir"])?;
+            let store_dir =
+                gate::store_dir(flags.store_dir, account)?.without_a_data_directory_layout()?;
+            Ok(Mode::DeleteAll { store_dir })
+        }
+        _ => Err(Usage("no mode of this build").into()),
     }
 }
 
@@ -240,9 +563,9 @@ mod gate {
     use std::str::FromStr;
     use std::time::Duration;
 
-    use halvo_control::paths::{AccountLookup, ScratchDir};
+    use halvo_control::paths::{AccountLookup, DataDir, ScratchDir};
 
-    use super::{Mode, SecureInput, SwitchFlags, TimedRun, Usage, SECONDS_MAX};
+    use super::{Mode, Refusal, SecureInput, SwitchFlags, TimedRun, Usage, SECONDS_MAX};
     use crate::floor::Switch;
 
     #[derive(Default)]
@@ -307,7 +630,7 @@ mod gate {
         }
     }
 
-    pub(super) fn timed_run(args: &[String], account: &dyn AccountLookup) -> Result<Mode, Usage> {
+    pub(super) fn timed_run(args: &[String], account: &dyn AccountLookup) -> Result<Mode, Refusal> {
         let (seconds, flags) = args
             .split_first()
             .ok_or(Usage("--timed-run needs SECONDS"))?;
@@ -315,16 +638,16 @@ mod gate {
         let seconds = seconds_of(seconds)?;
         let secure_input = if flags.hold {
             if cfg!(target_os = "windows") {
-                return Err(Usage("--hold-secure-input is a flag of macOS"));
+                return Err(Usage("--hold-secure-input is a flag of macOS").into());
             }
             if seconds < 2 {
-                return Err(Usage("SECONDS is at least 2 with --hold-secure-input"));
+                return Err(Usage("SECONDS is at least 2 with --hold-secure-input").into());
             }
             SecureInput::Hold
         } else {
             SecureInput::DoNotHold
         };
-        let store_dir = store_dir(flags.store_dir, account)?;
+        let store_dir = store_dir(flags.store_dir, account)?.without_store_key()?;
         Ok(Mode::TimedRun(TimedRun {
             window: Duration::from_secs(seconds),
             secure_input,
@@ -343,22 +666,66 @@ mod gate {
         }
     }
 
+    pub(super) struct StoreDir {
+        given: PathBuf,
+        resolved: PathBuf,
+    }
+
+    impl StoreDir {
+        pub(super) fn without_a_data_directory_layout(self) -> Result<PathBuf, Refusal> {
+            let shown = || halvo_control::paths::one_line(&self.given.to_string_lossy());
+            let mut stands = 0;
+            for name in ["store", "roots"] {
+                match self.resolved.join(name).symlink_metadata() {
+                    Ok(_) => stands += 1,
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                        ) => {}
+                    Err(_) => return Err(Refusal::DataDirUnread(shown())),
+                }
+            }
+            if stands == 2 {
+                return Err(Refusal::DataDirLayout(shown()));
+            }
+            Ok(self.given)
+        }
+
+        pub(super) fn without_store_key(self) -> Result<PathBuf, Refusal> {
+            match self.resolved.join("store.key").symlink_metadata() {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    Ok(self.resolved)
+                }
+                Ok(_) => Err(Usage("DIR holds store.key").into()),
+                Err(_) => Err(Usage(
+                    "DIR/store.key cannot be read, as in a DIR that this user cannot search, so DIR may hold store.key",
+                )
+                .into()),
+            }
+        }
+    }
+
     pub(super) fn store_dir(
         dir: Option<String>,
         account: &dyn AccountLookup,
-    ) -> Result<PathBuf, Usage> {
+    ) -> Result<StoreDir, Refusal> {
         let dir = dir.ok_or(Usage("--store-dir DIR is required"))?;
-        let scratch = ScratchDir::new(PathBuf::from(dir), account)
-            .map_err(|_| Usage("DIR is no absolute directory clear of the data directory"))?;
-        match scratch.path().join("store.key").symlink_metadata() {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                Ok(scratch.path().to_path_buf())
-            }
-            Ok(_) => Err(Usage("DIR holds store.key")),
-            Err(_) => Err(Usage(
-                "DIR/store.key cannot be read, as in a DIR that this user cannot search, so DIR may hold store.key",
-            )),
+        let given = PathBuf::from(dir);
+        if !given.is_absolute()
+            || given
+                .components()
+                .any(|part| part == std::path::Component::ParentDir)
+        {
+            return Err(Usage("DIR is no absolute directory clear of the data directory").into());
         }
+        DataDir::for_account(account).map_err(Refusal::NoDataDir)?;
+        let scratch = ScratchDir::new(given.clone(), account)
+            .map_err(|_| Usage("DIR is no absolute directory clear of the data directory"))?;
+        Ok(StoreDir {
+            given,
+            resolved: scratch.path().to_path_buf(),
+        })
     }
 
     pub(super) fn is_marker(marker: &str) -> bool {
@@ -823,12 +1190,13 @@ mod tests {
         }
     }
 
-    fn timed(dirs: &Dirs, rest: &[&str]) -> Result<Mode, Usage> {
+    fn timed(dirs: &Dirs, rest: &[&str]) -> Result<Mode, Refusal> {
         let mut line = vec!["--timed-run"];
         line.extend_from_slice(rest);
         parse(args(&line), &dirs.account)
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn seconds_outside_1_to_604800_give_usage() {
         let dirs = dirs();
@@ -925,6 +1293,7 @@ mod tests {
         assert_eq!(run.window, Duration::from_secs(3));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn a_store_dir_is_required_absolute_existing_and_clear_of_the_data_directory() {
         let dirs = dirs();
@@ -1054,6 +1423,710 @@ mod tests {
         }
     }
 
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    #[test]
+    fn a_term_ends_every_mode_but_the_timed_run_by_the_default_action() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::os::unix::process::ExitStatusExt;
+        use std::time::Instant;
+
+        const NAME: &str =
+            "daemon::tests::a_term_ends_every_mode_but_the_timed_run_by_the_default_action";
+        const CHILD: &str = "HALVO_DAEMON_MODE_SIGNAL_CHILD";
+        const HOME: &str = "HALVO_DAEMON_MODE_SIGNAL_HOME";
+        const STORE: &str = "HALVO_DAEMON_MODE_SIGNAL_STORE";
+        if let Some(mode) = std::env::var_os(CHILD) {
+            let account = TestAccount(PathBuf::from(std::env::var_os(HOME).unwrap()));
+            let store = std::env::var(STORE).unwrap();
+            let line = match mode.to_str().unwrap() {
+                "timed-run" => vec!["--timed-run", "1", "--store-dir", &store],
+                "verify-store" => vec![
+                    "--verify-store",
+                    "--store-dir",
+                    &store,
+                    "--marker",
+                    "M4rker.term",
+                ],
+                "verify-deletion" => vec!["--verify-deletion", "--store-dir", &store],
+                "delete-all" => vec!["--delete-all", "--store-dir", &store],
+                other => panic!("no mode {other}"),
+            };
+            let mode = parse(args(&line), &account).unwrap();
+            prepare_signals(&mode).unwrap();
+            let mut out = std::io::stdout().lock();
+            writeln!(out, "mode-child: ready").unwrap();
+            out.flush().unwrap();
+            let until = Instant::now() + Duration::from_secs(10);
+            while !signal::flag().load(Ordering::SeqCst) && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            writeln!(
+                out,
+                "mode-child: flag={}",
+                signal::flag().load(Ordering::SeqCst)
+            )
+            .unwrap();
+            out.flush().unwrap();
+            return;
+        }
+        let dirs = dirs();
+        for (mode, ended_by_term) in [
+            ("verify-store", true),
+            ("verify-deletion", true),
+            ("delete-all", true),
+            ("timed-run", false),
+        ] {
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
+                .env(CHILD, mode)
+                .env(HOME, &dirs.account.0)
+                .env(STORE, &dirs.store)
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            let pid = child.id().to_string();
+            let (lines_tx, lines) = std::sync::mpsc::channel();
+            let stdout = child.stdout.take().unwrap();
+            let reader = std::thread::spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    if let Some(at) = line.find("mode-child: ") {
+                        let _ = lines_tx.send(line[at + "mode-child: ".len()..].to_owned());
+                    }
+                }
+            });
+            let ready = lines.recv_timeout(Duration::from_secs(15));
+            if ready.as_deref() != Ok("ready") {
+                let _ = child.kill();
+                panic!("{mode}: the child did not get ready: {ready:?}");
+            }
+            let sent = std::process::Command::new("/bin/kill")
+                .args(["-s", "TERM", &pid])
+                .status()
+                .unwrap();
+            assert!(sent.success(), "{mode}: kill answered {sent}");
+            let until = Instant::now() + Duration::from_secs(10);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if Instant::now() >= until {
+                    let _ = child.kill();
+                    panic!("{mode}: the child lived 10 s after TERM");
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            };
+            reader.join().unwrap();
+            let after: Vec<String> = lines.try_iter().collect();
+            if ended_by_term {
+                assert_eq!(
+                    status.signal(),
+                    Some(libc::SIGTERM),
+                    "{mode}: {status} after {after:?}"
+                );
+            } else {
+                assert!(status.success(), "{mode}: {status} after {after:?}");
+                assert_eq!(after, ["flag=true"], "{mode}");
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_scratch_delete_takes_its_store_dir_as_given_and_no_other_flag() {
+        let dirs = dirs();
+        let d = dirs.store.as_str();
+        std::fs::write(Path::new(d).join("store.key"), b"{}").unwrap();
+        let parse_line = |line: &[&str]| parse(args(line), &dirs.account);
+        for given in [d.to_owned(), format!("{d}/"), format!("{d}/.")] {
+            assert_eq!(
+                parse_line(&["--delete-all", "--store-dir", &given]),
+                Ok(Mode::DeleteAll {
+                    store_dir: PathBuf::from(&given)
+                }),
+                "{given}"
+            );
+        }
+        for line in [
+            &["--delete-all"][..],
+            &["--delete-all", "--store-dir"],
+            &["--delete-all", "--store-dir", "relative"],
+            &["--delete-all", "--store-dir", d, "--store-dir", d],
+            &[
+                "--delete-all",
+                "--store-dir",
+                d,
+                "--marker",
+                "M4rker.delete",
+            ],
+            &["--delete-all", "--store-dir", d, "--hold-secure-input"],
+            &["--delete-all", "--store-dir", d, "--switch", "key_class=on"],
+            &["--delete-all", "--data-dir", d],
+        ] {
+            let refused = parse_line(line);
+            assert!(
+                matches!(refused, Err(Refusal::Usage(_))),
+                "{line:?} gave {refused:?}"
+            );
+        }
+        let refused = parse(
+            args(&["--delete-all", "--store-dir", d]),
+            &FailedLookup(Ok(None)),
+        );
+        assert_eq!(refused, Err(Refusal::NoDataDir(PathError::Unset)));
+    }
+
+    fn scratch_answer(store_dir: &Path, answer: TailAnswer) -> (i32, String, String, Vec<PathBuf>) {
+        let mut calls = Vec::new();
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = scratch_delete(
+            store_dir,
+            |dir| {
+                calls.push(dir.to_path_buf());
+                answer
+            },
+            &mut out,
+            &mut err,
+        );
+        (
+            status,
+            String::from_utf8(out).unwrap(),
+            String::from_utf8(err).unwrap(),
+            calls,
+        )
+    }
+
+    fn finished_report(root: TailRoot) -> TailReport {
+        TailReport {
+            root,
+            roots_listed: true,
+            roots_at_their_path: true,
+            key_file_gone: true,
+            ..TailReport::default()
+        }
+    }
+
+    #[test]
+    fn a_scratch_delete_with_nothing_named_prints_no_store_and_exits_0() {
+        let dir = Path::new("/scratch/empty");
+        let (status, out, err, calls) = scratch_answer(
+            dir,
+            TailAnswer::Finished(finished_report(TailRoot::Unnamed)),
+        );
+        assert_eq!(status, exit::CLEAN);
+        assert_eq!(out, "store_dir=/scratch/empty\nno_store\n");
+        assert_eq!(err, "");
+        assert_eq!(calls, [dir]);
+    }
+
+    #[test]
+    fn an_ok_answer_that_met_a_link_or_an_entry_of_another_kind_prints_the_deleted_line() {
+        let report = TailReport {
+            not_followed: 1,
+            ..finished_report(TailRoot::Unnamed)
+        };
+        let (status, out, err, _) = scratch_answer(Path::new("/s"), TailAnswer::Finished(report));
+        assert_eq!(status, exit::CLEAN);
+        assert_eq!(
+            out,
+            "store_dir=/s\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=0 database_left=no not_followed=1\n"
+        );
+        assert_eq!(err, "");
+    }
+
+    #[test]
+    fn a_not_finished_answer_with_nothing_to_name_still_says_it_is_not_finished() {
+        let report = finished_report(TailRoot::Destroyed);
+        let (status, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report));
+        assert_eq!(status, exit::ERROR);
+        assert_eq!(err, "halvo-capture: the delete is not finished\n");
+    }
+
+    #[test]
+    fn a_line_fault_of_the_store_dir_is_usage_also_when_the_account_lookup_fails() {
+        let dirs = dirs();
+        let parent = format!("{}/../store", dirs.store);
+        for given in ["relative", parent.as_str()] {
+            for mode in [
+                &["--delete-all", "--store-dir", given][..],
+                &["--verify-deletion", "--store-dir", given],
+                &["--timed-run", "1", "--store-dir", given],
+            ] {
+                let refused = parse(args(mode), &FailedLookup(Err(PathError::Lookup(2))));
+                assert!(
+                    matches!(refused, Err(Refusal::Usage(_))),
+                    "{mode:?} gave {refused:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_scratch_delete_destroys_the_root_through_its_one_tail_call() {
+        let guard = test_dir();
+        let root = guard.path().join("roots").join("stand-in.root");
+        std::fs::create_dir_all(root.parent().unwrap()).unwrap();
+        std::fs::write(&root, [7u8; 32]).unwrap();
+        let mut calls = 0;
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = scratch_delete(
+            guard.path(),
+            |dir| {
+                calls += 1;
+                std::fs::remove_file(dir.join("roots").join("stand-in.root")).unwrap();
+                TailAnswer::Finished(finished_report(TailRoot::Destroyed))
+            },
+            &mut out,
+            &mut err,
+        );
+        let out = String::from_utf8(out).unwrap();
+        assert!(
+            !root.exists(),
+            "the root stays after the scratch delete: {out}"
+        );
+        assert_eq!(calls, 1);
+        assert_eq!(status, exit::CLEAN, "{out}");
+        assert_eq!(
+            out.lines().nth(1),
+            Some("deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=yes root_id=- files_left=0 database_left=no not_followed=0")
+        );
+        assert!(err.is_empty());
+    }
+
+    #[test]
+    fn the_scratch_deleted_line_has_the_seven_keys_of_the_report_and_not_the_four_of_a_data_directory(
+    ) {
+        let report = TailReport {
+            keyed_segments: Some(4),
+            root: TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
+            database_left: true,
+            files_left: 2,
+            not_followed: 3,
+            ..finished_report(TailRoot::Unnamed)
+        };
+        let (status, out, _, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report));
+        assert_eq!(status, exit::ERROR);
+        let line = out.lines().nth(1).unwrap();
+        let keys: Vec<&str> = line
+            .split(' ')
+            .skip(1)
+            .map(|token| token.split_once('=').unwrap().0)
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "segments_shredded",
+                "keys_destroyed",
+                "root_destroyed",
+                "root_id",
+                "files_left",
+                "database_left",
+                "not_followed"
+            ]
+        );
+        assert_eq!(
+            line,
+            "deleted segments_shredded=4 keys_destroyed=5 root_destroyed=no root_id=0123456789abcdef0123456789abcdef files_left=2 database_left=yes not_followed=3"
+        );
+        for absent in [
+            "entries_removed=",
+            "entries_left=",
+            "unknown_entries=",
+            "intent=",
+            "store_id=",
+        ] {
+            assert!(!out.contains(absent), "{absent} in {out}");
+        }
+    }
+
+    #[test]
+    fn a_scratch_delete_that_is_not_finished_exits_1_and_names_root_files_alone() {
+        let report = TailReport {
+            root: TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
+            root_files_left: vec!["0123456789abcdef0123456789abcdef.root".to_owned()],
+            others_left: EntriesLeft {
+                root_shaped: 2,
+                directories: 1,
+                other: 3,
+            },
+            ..finished_report(TailRoot::Unnamed)
+        };
+        let (status, out, err, _) =
+            scratch_answer(Path::new("/scratch/s"), TailAnswer::NotFinished(report));
+        assert_eq!(status, exit::ERROR);
+        assert!(out.starts_with("store_dir=/scratch/s\ndeleted "), "{out}");
+        assert!(out.contains(" root_destroyed=no root_id=0123456789abcdef0123456789abcdef "));
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: this call did not destroy the store's root; the root file roots/0123456789abcdef0123456789abcdef.root stays; 2 files that can hold a root stay in the folder roots at other names; 1 folders stay in the folder roots at other names; 3 other entries stay in the folder roots at other names\n"
+        );
+        let unlisted = TailReport {
+            root: TailRoot::Destroyed,
+            roots_listed: false,
+            roots_at_their_path: false,
+            key_file_gone: false,
+            database_left: true,
+            files_left: 2,
+            not_followed: 2,
+            ..TailReport::default()
+        };
+        let (status, out, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(unlisted));
+        assert_eq!(status, exit::ERROR);
+        assert!(out.contains(" root_destroyed=yes root_id=- "), "{out}");
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 2 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
+        );
+        let unnamed = TailReport {
+            files_left: 1,
+            ..finished_report(TailRoot::Unnamed)
+        };
+        let (status, out, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(unnamed));
+        assert_eq!(status, exit::ERROR);
+        assert!(out.contains(" root_destroyed=unknown root_id=- "), "{out}");
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: 1 other files of the store stay\n"
+        );
+    }
+
+    #[test]
+    fn a_not_opened_report_says_the_store_dir_could_not_be_opened_and_nothing_of_what_stays() {
+        let report = TailReport {
+            root: TailRoot::Left(None),
+            database_left: true,
+            files_left: 1,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        };
+        let (status, out, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report.clone()));
+        assert_eq!(status, exit::ERROR);
+        assert!(
+            out.ends_with(" files_left=1 database_left=yes not_followed=0\n"),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it\n",
+            "{report:?}"
+        );
+        let removal_left_these = TailReport {
+            root: TailRoot::Destroyed,
+            roots_listed: true,
+            database_left: true,
+            files_left: 2,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        };
+        let (_, _, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(removal_left_these));
+        assert!(
+            err.contains("store.key stays; a database file stays"),
+            "{err}"
+        );
+        let not_opened = TailReport {
+            root: TailRoot::Left(None),
+            roots_listed: true,
+            database_left: true,
+            files_left: 1,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        };
+        for (what, other) in [
+            (
+                "the key file gone",
+                TailReport {
+                    key_file_gone: true,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "no database left",
+                TailReport {
+                    database_left: false,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "the root destroyed",
+                TailReport {
+                    root: TailRoot::Destroyed,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "the root left with its id",
+                TailReport {
+                    root: TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "the segments read",
+                TailReport {
+                    keyed_segments: Some(1),
+                    ..not_opened.clone()
+                },
+            ),
+        ] {
+            let (_, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other));
+            assert!(
+                !err.contains("could not be opened")
+                    && err.contains("1 other files of the store stay"),
+                "{what}: {err}"
+            );
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_data_directory_layout_is_refused_by_the_parse_and_its_half_is_not() {
+        let dirs = dirs();
+        let d = Path::new(&dirs.store);
+        let line = |dir: &Path| {
+            parse(
+                args(&["--delete-all", "--store-dir", dir.to_str().unwrap()]),
+                &dirs.account,
+            )
+        };
+        std::fs::create_dir(d.join("store")).unwrap();
+        assert!(
+            matches!(line(d), Ok(Mode::DeleteAll { .. })),
+            "store/ alone"
+        );
+        std::fs::create_dir(d.join("roots")).unwrap();
+        let refused = line(d);
+        assert!(
+            matches!(refused, Err(ref refusal) if !matches!(refusal, Refusal::NoDataDir(_))),
+            "store/ beside roots/: {refused:?}"
+        );
+        std::fs::remove_dir(d.join("store")).unwrap();
+        assert!(
+            matches!(line(d), Ok(Mode::DeleteAll { .. })),
+            "roots/ alone"
+        );
+        std::fs::write(d.join("store"), b"a file at the name").unwrap();
+        assert!(
+            line(d).is_err(),
+            "an entry of any kind at store beside roots/"
+        );
+        #[cfg(unix)]
+        {
+            std::fs::remove_file(d.join("store")).unwrap();
+            std::os::unix::fs::symlink(d.join("nowhere"), d.join("store")).unwrap();
+            assert!(
+                line(d).is_err(),
+                "a link that leads nowhere at store, not followed"
+            );
+        }
+    }
+
+    fn refused_report() -> TailReport {
+        TailReport {
+            root: TailRoot::Left(None),
+            database_left: true,
+            files_left: 1,
+            not_followed: 1,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        }
+    }
+
+    #[test]
+    fn a_store_dir_that_the_tail_refuses_as_a_link_or_a_file_says_so_and_exits_1() {
+        let (status, out, err, _) = scratch_answer(
+            Path::new("/scratch/E-link/"),
+            TailAnswer::NotFinished(refused_report()),
+        );
+        assert_eq!(status, exit::ERROR);
+        assert!(
+            out.starts_with("store_dir=/scratch/E-link/\ndeleted "),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "halvo-capture: /scratch/E-link/ is a link or a file, not a folder; nothing was removed; give the path of the folder itself\n"
+        );
+        for other in [
+            TailReport {
+                not_followed: 0,
+                ..refused_report()
+            },
+            TailReport {
+                roots_listed: true,
+                ..refused_report()
+            },
+            TailReport {
+                files_left: 0,
+                ..refused_report()
+            },
+            TailReport {
+                key_file_gone: true,
+                ..refused_report()
+            },
+            TailReport {
+                root: TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
+                ..refused_report()
+            },
+            TailReport {
+                keyed_segments: Some(0),
+                ..refused_report()
+            },
+            TailReport {
+                database_left: false,
+                ..refused_report()
+            },
+            TailReport {
+                root_files_left: vec!["0123456789abcdef0123456789abcdef.root".to_owned()],
+                ..refused_report()
+            },
+            TailReport {
+                others_left: EntriesLeft {
+                    other: 1,
+                    ..EntriesLeft::default()
+                },
+                ..refused_report()
+            },
+        ] {
+            let (status, _, err, _) =
+                scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other.clone()));
+            assert_eq!(status, exit::ERROR);
+            assert!(
+                err.starts_with("halvo-capture: the delete is not finished: "),
+                "{other:?}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_path_with_a_part_that_windows_trims_never_reads_as_a_link_on_windows() {
+        for (path, trimmed) in [
+            ("/scratch/name./E", true),
+            ("/scratch/name /E", true),
+            ("/scratch/E.", true),
+            ("/scratch/E/", false),
+            ("/scratch/E/.", false),
+            ("/scratch/E", false),
+            ("/scratch/.hidden/E", false),
+        ] {
+            assert_eq!(
+                has_a_part_that_windows_trims(Path::new(path)),
+                trimmed,
+                "{path}"
+            );
+        }
+        let (status, _, err, _) = scratch_answer(
+            Path::new("/scratch/name./E"),
+            TailAnswer::NotFinished(refused_report()),
+        );
+        assert_eq!(status, exit::ERROR);
+        let link_line = err.contains("is a link or a file, not a folder");
+        assert_eq!(link_line, !cfg!(windows), "{err}");
+    }
+
+    #[test]
+    fn a_held_store_exits_75_and_a_failed_tail_exits_1_each_with_its_line() {
+        let (status, out, err, _) = scratch_answer(Path::new("/s"), TailAnswer::Held);
+        assert_eq!(status, exit::BUSY);
+        assert_eq!(out, "store_dir=/s\n");
+        assert_eq!(
+            err,
+            "halvo-capture: another process holds the store; this request removed nothing\n"
+        );
+        let (status, out, err, _) = scratch_answer(
+            Path::new("/s"),
+            TailAnswer::Failed("store i/o failed: permission denied".to_owned()),
+        );
+        assert_eq!(status, exit::ERROR);
+        assert_eq!(out, "store_dir=/s\n");
+        assert_eq!(err, "halvo-capture: store i/o failed: permission denied\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_scratch_delete_prints_a_control_character_of_its_path_as_a_question_mark() {
+        let (_, out, _, calls) = scratch_answer(
+            Path::new("/scratch/a\nb"),
+            TailAnswer::Finished(finished_report(TailRoot::Unnamed)),
+        );
+        assert_eq!(out, "store_dir=/scratch/a?b\nno_store\n");
+        assert_eq!(calls, [Path::new("/scratch/a\nb")]);
+    }
+
+    #[test]
+    fn a_scratch_delete_whose_lines_cannot_be_written_exits_1_after_the_tail() {
+        let (reader, mut writer) = std::io::pipe().unwrap();
+        drop(reader);
+        let mut calls = 0;
+        let mut err = Vec::new();
+        let status = scratch_delete(
+            Path::new("/s"),
+            |_| {
+                calls += 1;
+                TailAnswer::Finished(finished_report(TailRoot::Destroyed))
+            },
+            &mut writer,
+            &mut err,
+        );
+        assert_eq!((status, calls), (exit::ERROR, 1));
+        assert!(String::from_utf8(err)
+            .unwrap()
+            .starts_with("halvo-capture: the report was not written: "),);
+    }
+
+    struct FailedLookup(Result<Option<&'static str>, PathError>);
+
+    impl AccountLookup for FailedLookup {
+        fn base_dir(&self) -> Result<Option<OsString>, PathError> {
+            self.0.map(|home| home.map(OsString::from))
+        }
+
+        fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
+            Ok(None)
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn an_account_that_gives_no_data_directory_is_no_usage_refusal_and_names_no_dir() {
+        let dirs = dirs();
+        let d = dirs.store.as_str();
+        for account in [
+            FailedLookup(Err(PathError::Lookup(2))),
+            FailedLookup(Ok(None)),
+            FailedLookup(Ok(Some(""))),
+            FailedLookup(Ok(Some("relative-home"))),
+        ] {
+            for line in [
+                &["--timed-run", "1", "--store-dir", d][..],
+                &[
+                    "--verify-store",
+                    "--store-dir",
+                    d,
+                    "--marker",
+                    "M4rker.no-home",
+                ],
+                &["--verify-deletion", "--store-dir", d],
+            ] {
+                let refused = parse(args(line), &account).unwrap_err();
+                let mut err = Vec::new();
+                let status = usage_answer(&refused, &mut err);
+                let text = String::from_utf8(err).unwrap();
+                assert_eq!(status, exit::ERROR, "{line:?}: {text}");
+                assert!(
+                    text.starts_with("halvo-capture: the account gives no data directory to check the store directory against: "),
+                    "{line:?}: {text}"
+                );
+                assert!(
+                    !text.contains("DIR") && !text.contains("usage:") && !text.contains(d),
+                    "{line:?}: {text}"
+                );
+            }
+        }
+    }
+
     #[cfg(not(debug_assertions))]
     #[test]
     fn a_release_build_refuses_the_three_gate_modes_as_usage() {
@@ -1061,6 +2134,15 @@ mod tests {
         let d = dirs.store.as_str();
         for line in [
             &["--timed-run", "5", "--store-dir", d][..],
+            &["--timed-run", "5", "--store-dir", d, "--hold-secure-input"][..],
+            &[
+                "--timed-run",
+                "5",
+                "--store-dir",
+                d,
+                "--switch",
+                "screen_activity=on",
+            ][..],
             &[
                 "--verify-store",
                 "--store-dir",
@@ -1069,11 +2151,20 @@ mod tests {
                 "M4rker.release",
             ][..],
             &["--verify-deletion", "--store-dir", d][..],
+            &["--delete-all", "--store-dir", d][..],
         ] {
+            let without_a_data_dir = parse(args(line), &FailedLookup(Ok(None)));
+            assert!(
+                matches!(without_a_data_dir, Err(Refusal::Usage(_))),
+                "{line:?} gave {without_a_data_dir:?}"
+            );
             let refused = parse(args(line), &dirs.account);
-            assert!(refused.is_err(), "{line:?} gave {refused:?}");
+            let Err(refusal @ Refusal::Usage(_)) = refused else {
+                panic!("{line:?} gave {refused:?}");
+            };
+            let mut err = Vec::new();
+            assert_eq!(usage_answer(&refusal, &mut err), 64, "{line:?}");
         }
-        assert_eq!(exit::USAGE, 64, "the binary's status for a usage refusal");
     }
 
     #[cfg(unix)]

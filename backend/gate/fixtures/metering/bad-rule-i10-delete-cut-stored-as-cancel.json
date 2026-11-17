@@ -2,8 +2,8 @@
   "edits": [
     {
       "file": "src/do/entries.ts",
-      "find": "if (metered) metering.cut(open.sql, \"delete\", now, now);",
-      "replace": "if (metered) metering.cut(open.sql, \"cancel\", now, now);"
+      "find": "if (isMetered(open.sql)) metering.cut(open.sql, \"delete\", mark, now);",
+      "replace": "if (isMetered(open.sql)) metering.cut(open.sql, \"cancel\", mark, now);"
     }
   ],
   "args": [

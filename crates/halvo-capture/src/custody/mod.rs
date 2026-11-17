@@ -149,6 +149,32 @@ pub(crate) fn associated_data(root_id: RootId, label: KeyLabel) -> Vec<u8> {
     aad
 }
 
+/// The identity of a file or a directory: the volume that holds it and its
+/// number on that volume, read from an open handle, so that it names the file
+/// and none of its names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FileIdentity {
+    pub(crate) volume: u64,
+    pub(crate) file: u64,
+}
+
+/// The roots directory of a store, held open for the life of the store: the
+/// unwrap, the wrap, every cleanup and the root step of a delete reach the
+/// root files through this handle, never by the directory's path again.
+pub struct RootsHandle {
+    pub(crate) dir: crate::store::durable::Dir,
+}
+
+impl RootsHandle {
+    /// Holds the roots directory at `roots`, following no link at its last
+    /// part: [`CustodyError::RootMissing`] when nothing stands there,
+    /// [`CustodyError::RootCorrupt`] for a link or an entry of another kind.
+    pub(crate) fn open(roots: &Path) -> Result<Self, CustodyError> {
+        file_root::hold(roots).map(|dir| Self { dir })
+    }
+}
+
 /// Where the root of a store is: the custody kind and the root id that its key
 /// file records, and the roots directory that the caller passes. The store
 /// never resolves a per-user path itself.
@@ -212,6 +238,38 @@ pub trait KeyCustody {
     /// Destroy the platform root so that no key wrapped under it, of any label,
     /// can be unwrapped again.
     fn destroy_root(&self) -> Result<(), CustodyError>;
+
+    /// Wrap `key` under the root file of this custody's root id, read through
+    /// `roots`, the roots directory that the store holds: the wrapped key and
+    /// the identity of the root file that the wrap read. A custody that keeps
+    /// no root file answers [`CustodyError::NotImplemented`].
+    fn wrap_store_key_in(
+        &self,
+        roots: &RootsHandle,
+        key: &StoreKey,
+        label: KeyLabel,
+    ) -> Result<(WrappedKey, FileIdentity), CustodyError> {
+        let _ = (roots, key, label);
+        Err(CustodyError::NotImplemented(
+            "a wrap through a held roots directory",
+        ))
+    }
+
+    /// Unwrap a key under the root file of this custody's root id, read
+    /// through `roots`, the roots directory that the store holds: the key and
+    /// the identity of the root file that the unwrap read. A custody that
+    /// keeps no root file answers [`CustodyError::NotImplemented`].
+    fn unwrap_store_key_in(
+        &self,
+        roots: &RootsHandle,
+        wrapped: &WrappedKey,
+        label: KeyLabel,
+    ) -> Result<(StoreKey, FileIdentity), CustodyError> {
+        let _ = (roots, wrapped, label);
+        Err(CustodyError::NotImplemented(
+            "an unwrap through a held roots directory",
+        ))
+    }
 }
 
 pub(crate) fn opens_under_an_all_zero_root(

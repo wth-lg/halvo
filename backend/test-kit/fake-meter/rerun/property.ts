@@ -299,7 +299,11 @@ export function searchCases(): SearchCase[] {
       for (const duplicateAnswer of ["error", "same-as-recorded"] as const) {
         const narrow = { ...base, duplicateAnswer, readGranularitySeconds: READ_WIDTH_SECONDS };
         cases.push({ scenario: scenario(narrow, oneIntervalOnAnAccountThatStays), faultsOfEarlierCalls: [] });
-        cases.push({ scenario: scenario(narrow, oneIntervalOnAnAccountDeletedWithItUnsent), faultsOfEarlierCalls: [] });
+        const idLate = uniquenessWindowSeconds === DAY && readLagSeconds === 0 && duplicateAnswer === "same-as-recorded";
+        cases.push({
+          scenario: { ...scenario(narrow, oneIntervalOnAnAccountDeletedWithItUnsent), ...(idLate ? { lateSubscriptionId: [0] } : {}) },
+          faultsOfEarlierCalls: [],
+        });
       }
       const minute = { ...base, duplicateAnswer: "error" as const, readGranularitySeconds: READ_WIDTH_SECONDS };
       cases.push({ scenario: scenario(minute, inOneMinute(ONE_MINOR_UNIT_AND_A_REMAINDER, RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: theFirstIntervalIsAcknowledgedAtOnce });
@@ -433,6 +437,9 @@ export function searchCases(): SearchCase[] {
     faultsOfEarlierCalls: [{ kind: "response-lost" }],
     faults: [...searchedAfterTheSequence, ...crashes([HALF_A_WINDOW])],
   });
+  cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), listedSecondPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
+  cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), settledSecondPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
+  cases.push({ scenario: { ...scenario(exact, oneIntervalOnAnAccountDeletedWithItUnsent), unknownStoredPlan: [0] }, faultsOfEarlierCalls: [], faults: fewFaults });
   return cases;
 }
 

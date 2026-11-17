@@ -22,7 +22,7 @@ const CONFIG_KEYS = [
 ];
 const DEPLOYABLE_PATHS = ["/v1/chat", "/test/clock", "/test/seed", "/test/inspect"];
 const BUNDLE_MUST_NOT_HOLD = ["src/gateway/", "stress/", "test-kit/"];
-const SAMPLES = 32;
+const SAMPLES = 33;
 const NAMES_FLOOR = 35;
 
 const tokens = {

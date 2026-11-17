@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{HandbackReason, LogEvent};
-use halvo_schema::executable::{EffectState, FromRunner, Outcome, ToRunner};
+use halvo_schema::executable::{CheckpointState, EffectState, FromRunner, Outcome, ToRunner};
 use halvo_schema::Category;
 
-use support::{is_effect, is_op, store_error, Act, FillFiles, Supervisor, LONG};
+use support::{is_checkpoint, is_effect, is_op, store_error, Act, FillFiles, Supervisor, LONG};
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
@@ -278,10 +278,10 @@ fn kept_after_a_close_of(
     before: &[u8],
     most: usize,
 ) {
-    let tags: Vec<&'static str> = after_close.iter().map(support::tag).collect();
+    let names: Vec<String> = after_close.iter().map(support::named).collect();
     assert!(
         after_close.len() <= most,
-        "at most the frames on their way: {tags:?}"
+        "at most the frames on their way: {names:?}"
     );
     assert_eq!(files.workbook_bytes(), before, "no replace after the close");
     assert_eq!(code, Some(1), "status 1 within LINK_END");
@@ -307,7 +307,8 @@ fn load_count() -> impl FnMut(&FromRunner) -> usize {
     }
 }
 
-/// The close after the load before the edit's `prepare`.
+/// The close after the answer to the checkpoint's `made` row, the last request between the edit's load and its
+/// `propose` (A7.1, CP-98 (4)): at most the propose is on its way, and no replace follows.
 #[test]
 fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
     let files = FillFiles::new("review-close-1", 1);
@@ -315,13 +316,14 @@ fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
     let sup = fill(101, &files);
     let mut count = load_count();
     let (after, code) = close_input_after(&sup, |frame| {
-        (count(frame) == 2 && is_op(frame, "load"))
+        (count(frame) == 2 && is_checkpoint(frame, CheckpointState::Made))
             .then(|| (sup.answer(frame).expect("a reply"), true))
     });
     kept_after_a_close(&after, code, &files, &before);
+    let names: Vec<String> = after.iter().map(support::named).collect();
     assert!(
         after.iter().all(|f| is_effect(f, EffectState::Cleared)),
-        "only the propose can be on its way"
+        "only the propose can be on its way: {names:?}"
     );
 }
 
