@@ -62,7 +62,7 @@ export interface ProviderPort {
    * Ends every subscription of the customer that has not ended (contract 2): the stored id's cancel, read after a
    * refusal, unless `stored` is `settled`; one read of the customer; its list read page by page with each page's
    * cancels before the next page; and a whole list read after the last cancel (with its first page read again when it
-   * had more than one). The call ends when the customer's read shows it deleted, or on that last whole list.
+   * had more than one). The call ends only when the customer's read shows it deleted, or on that last whole list.
    * `stored` is what the object keeps for the stored id between tries (ruling P7-120, Addition 1, N1 and N2):
    * `settled` once a call ended it, read it ended, or got a second counted unknown answer for it in a later try than the
    * first; `unknown-once` after the first counted unknown answer, an answer that the provider does not know the id given
