@@ -1155,3 +1155,269 @@ fn rd123_a_retry_that_the_store_still_refuses_starts_no_run_and_keeps_the_line()
     assert!(started_of(&w, 0).is_none());
     assert_eq!(line(&w, 0), StatusLine::Record, "the shown line stays");
 }
+
+#[test]
+fn rd122_t1_an_acknowledged_body_ends_the_held_place_though_a_later_body_fails() {
+    let one = Limits {
+        request_records: 1,
+        ..Limits::PRODUCT
+    };
+    let w = world_with(&[MANUAL], one);
+    let mut l = three_waiting(&w, T0);
+    w.ports.refuse(Method::Log, refused("store"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(l.holds_place(), "class D holds the place");
+    w.ports.clear_refusals();
+    w.ports.refuse_record(second, PortError::NoService);
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(stored_slots(&w), vec![1], "the first body is stored");
+    assert_eq!(l.waiting().len(), 2);
+    assert!(
+        !l.holds_place(),
+        "the refused body is stored, so its place is no longer held"
+    );
+}
+
+#[test]
+fn rd122_t1_a_list_that_class_b_emptied_holds_no_place() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0);
+    w.ports.refuse(Method::Log, refused("store"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(l.holds_place());
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Log, refused("no_workflow"));
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    assert!(l.waiting().is_empty(), "class B empties the list");
+    assert!(!l.holds_place(), "an empty list holds no place");
+}
+
+fn owe_end_at(w: &mut World, n: u32, day: u32, at: i64) -> RunId {
+    let run = RunId::parse(&format!("{:032x}", 0x0f00 + n)).unwrap();
+    w.board.owed.push(Owed {
+        agent: agent(0),
+        workflow: flow(0),
+        what: Owing::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+            day,
+            at,
+        },
+    });
+    run
+}
+
+#[test]
+fn rd122_t1_a_second_seq_of_one_flush_after_its_read_counts() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0);
+    w.ports.refuse(Method::Log, refused("seq"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(
+        l.refused(),
+        "a seq after the read counts toward the stuck count"
+    );
+}
+
+#[test]
+fn rd122_t1_an_early_records_refusal_counts() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0 + DAY_MS);
+    w.ports.refuse_record(second, refused("malformed"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(l.holds_place());
+    assert!(l.refused(), "the early record's refusal counts");
+}
+
+#[test]
+fn rd122_t1_the_schedules_log_counts_class_c_and_a_second_seq() {
+    for name in ["malformed", "seq"] {
+        let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+        w.ports.refuse_agent(Method::Log, &agent(0), refused(name));
+        for _ in 0..3 {
+            w.act(Act::Tick);
+        }
+        assert!(
+            w.board.record_stuck(&agent(0), &w.limits),
+            "{name}: three ticks in a row make the record stuck"
+        );
+    }
+}
+
+#[test]
+fn rd122_t1_a_start_refused_with_any_name_but_seq_holds_its_defer() {
+    for name in ["malformed", "internal", "state"] {
+        let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+        w.ports.refuse_agent(Method::Log, &agent(0), refused(name));
+        for _ in 0..4 {
+            w.act(Act::Tick);
+        }
+        assert_eq!(
+            count(&w.calls(), "defer"),
+            1,
+            "{name}: one defer, before the first refused start, and none until a store is acknowledged"
+        );
+    }
+}
+
+#[test]
+fn rd122_t1_an_acknowledged_store_releases_the_held_defer() {
+    let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("store"));
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    let run = started_of(&w, 0).expect("the start after the acknowledgement");
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: Some(Outcome::Completed),
+    });
+    w.store_end(0, &run, Outcome::Completed, 0);
+    w.calls();
+    w.act(Act::Start { agent: agent(0) });
+    let calls: Vec<String> = w
+        .calls()
+        .into_iter()
+        .filter(|c| c == "defer" || c.starts_with("log run_started"))
+        .collect();
+    assert_eq!(
+        calls,
+        vec!["defer", "log run_started"],
+        "after an acknowledged store the defer goes first again"
+    );
+}
+
+#[test]
+fn rd122_t1_a_debt_whose_day_cannot_be_read_waits() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    owe_end_at(&mut w, 1, DAY, -1);
+    w.calls();
+    w.act(Act::Tick);
+    assert!(
+        !w.calls().iter().any(|c| c.starts_with("log run_ended")),
+        "a debt whose day cannot be read is not sent with its old day (RD-64 2.3)"
+    );
+    assert_eq!(w.board.owed.len(), 1, "it waits");
+}
+
+#[test]
+fn rd122_t1_a_debt_one_or_two_days_ahead_refused_malformed_stays_owed() {
+    for ahead in [1u64, 2] {
+        let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+        let at = i64::try_from(T0 + ahead * DAY_MS).unwrap() * 1_000_000;
+        owe_end_at(&mut w, 2, DAY + ahead as u32, at);
+        w.ports
+            .refuse_agent(Method::Log, &agent(0), refused("malformed"));
+        w.act(Act::Tick);
+        assert_eq!(
+            w.board.owed.len(),
+            1,
+            "{ahead} days ahead: an early debt stays owed (RD-64 2.2)"
+        );
+        assert!(
+            w.board.dropped(&agent(0)).is_none(),
+            "{ahead}: nothing counted as dropped"
+        );
+    }
+}
+
+#[test]
+fn rd122_t1_a_proof_write_refused_with_class_c_counts() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = three_waiting(&w, T0);
+    w.ports.refuse_record(second, refused("malformed"));
+    w.ports.refuse_record(rd122_third, refused("malformed"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(l.waiting().len(), 2, "nothing taken off");
+    assert!(l.refused(), "a proof write refused with class C counts");
+}
+
+#[test]
+fn rd122_t1_a_debt_of_this_life_refused_binding_ends_once_the_list_shows_its_workflow_dismissed() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    owed_run_ended(&mut w, 0);
+    w.ports.workflows.borrow_mut()[0] =
+        halvo_coord::types::Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(0),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: None,
+        });
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("binding"));
+    w.act(Act::Tick);
+    assert!(w.board.owed.is_empty(), "class B ends the debt");
+    assert!(!w.board.record_stuck(&agent(0), &w.limits));
+}
+
+#[test]
+fn rd122_t1_a_proof_write_takes_the_day_of_its_own_instant_again() {
+    let one = Limits {
+        request_records: 1,
+        ..Limits::PRODUCT
+    };
+    let w = world_with(&[MANUAL], one);
+    let mut l = ledger_of(&w);
+    w.ports.set_zone(0);
+    let at = (T0 / DAY_MS + 1) * DAY_MS - 60_000;
+    w.ports.set_now(at);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(3)]);
+    w.ports.clear_refusals();
+    w.ports.set_now(at + 120_000);
+    w.ports.set_zone(120_000);
+    w.ports.tie_days(true);
+    w.ports.refuse_record(second, refused("malformed"));
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    let days: Vec<u32> = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| slot_is(e, 3))
+        .map(|e| e.day)
+        .collect();
+    let day_now = u32::try_from((at + 120_000) / DAY_MS).unwrap();
+    assert_eq!(
+        days,
+        vec![day_now],
+        "the record sent under the refused one's seq is stored with the day of its instant now"
+    );
+}
+
+#[test]
+fn rd123_an_acknowledged_store_clears_the_mark_for_the_life() {
+    let mut w = stuck_by_refused_starts("role");
+    w.ports.clear_refusals();
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(
+        start.report.answer,
+        Ok(Answer::Ok),
+        "the person's start is acknowledged"
+    );
+    let run = started_of(&w, 0).expect("the run");
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: Some(Outcome::Completed),
+    });
+    w.store_end(0, &run, Outcome::Completed, 0);
+    w.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("store"));
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "three refused starts at the next slot"
+    );
+    w.ports.clear_refusals();
+    w.calls();
+    w.act(Act::Tick);
+    assert_eq!(
+        count(&w.calls(), "log run_started"),
+        1,
+        "refusals that can pass after the acknowledgement do not stop the tick's start"
+    );
+}

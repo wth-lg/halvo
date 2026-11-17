@@ -1660,6 +1660,26 @@ where
         st.table = st.table.stored(record);
     }
 
+    /// Whether the agent's record is stuck on the board, as the line `line.problem.record` will
+    /// read it once the unit that lands second wires it into compose (I5.7; rulings RD-64 2.5,
+    /// RD-122 T1); false where there is no board or no such agent.
+    pub fn record_stuck(&self, agent: &AgentId) -> bool {
+        let st = self.lock();
+        st.board
+            .as_ref()
+            .is_some_and(|b| b.record_stuck(agent, &self.limits))
+    }
+
+    /// The count of the agent's records taken off in this life, with the event name and the
+    /// refusal name of the last one, as the board holds them (I7.2; rulings RD-64 2.6, RD-122 T1).
+    pub fn records_dropped(&self, agent: &AgentId) -> Option<(u32, String, String)> {
+        let st = self.lock();
+        st.board
+            .as_ref()
+            .and_then(|b| b.dropped(agent))
+            .map(|(n, event, refusal)| (n, event.to_string(), refusal.to_string()))
+    }
+
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
     /// rows the page shows (I2.3). An agent that has no row, whose workflow a tick saw gone or

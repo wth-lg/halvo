@@ -2120,6 +2120,11 @@ fn rd122_c1_a_recovery_body_refused_binding_for_a_dismissed_workflow_ends_its_de
     w.ports
         .refuse_agent(Method::Log, &agent(0), refused("binding"));
     relife(&mut w, &[(run, Reaped::Gone)]);
+    assert!(
+        w.board.owed.iter().all(|o| o.agent != agent(0)),
+        "recovery's body refused binding of a dismissed workflow owes nothing: {:?}",
+        w.board.owed
+    );
     for _ in 0..3 {
         w.act(Act::Tick);
     }
@@ -2194,5 +2199,21 @@ fn rd122_c2_no_sender_logs_for_a_dismissed_agent_kept_unread() {
     assert!(
         !w.board.record_stuck(&agent(0), &w.limits),
         "no fault shown"
+    );
+}
+
+#[test]
+fn rd122_t1_recovery_owes_no_end_run_that_the_owner_refuses_with_no_workflow() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.refuse(Method::EndRun, refused("no_workflow"));
+    relife(&mut w, &[(run, Reaped::Gone)]);
+    assert!(
+        !w.board
+            .owed
+            .iter()
+            .any(|o| matches!(o.what, halvo_coord::schedule::Owing::EndRun { .. })),
+        "class B ends the end_run: {:?}",
+        w.board.owed
     );
 }

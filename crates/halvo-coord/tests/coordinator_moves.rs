@@ -8001,3 +8001,134 @@ fn rd121_the_next_lifes_first_creation_move_raises_no_setup_for_an_agent_set_asi
         "and no lapse of its earlier item before its history is read"
     );
 }
+
+fn is_item_raise(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::ItemRaised { .. })
+}
+
+#[test]
+fn rd122_a_held_place_of_the_items_list_stops_the_ticks_start_at_the_coordinator() {
+    let due = support::A {
+        person: false,
+        slotted: true,
+    };
+    let c = Coordinator::new(owner(&[due], Limits::PRODUCT), Limits::PRODUCT);
+    c.tick();
+    assert_eq!(started(&c).len(), 1, "the first slot starts");
+    let run = started(&c)[0].clone();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    c.ports().ports.refuse_record(
+        is_item_raise,
+        PortError::Refused(halvo_coord::types::Name::parse("store").unwrap()),
+    );
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    for k in 1..=3u64 {
+        c.ports()
+            .ports
+            .set_clock(T0 + k * 86_400_000, DAY + k as u32);
+        c.tick();
+    }
+    assert_eq!(
+        started(&c).len(),
+        1,
+        "a place that the items' list holds under class D stops the tick's start (RD-64 2.5)"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4 * 86_400_000, DAY + 4);
+    c.tick();
+    assert_eq!(
+        started(&c).len(),
+        2,
+        "once the store takes the row the place is free and the tick starts the agent"
+    );
+}
+
+fn refused_name(name: &str) -> PortError {
+    PortError::Refused(halvo_coord::types::Name::parse(name).unwrap())
+}
+
+#[test]
+fn rd122_a_refused_items_list_makes_the_record_stuck_and_an_acknowledged_flush_ends_it() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    for k in 1..=3u64 {
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+    }
+    assert!(
+        c.record_stuck(&agent(0)),
+        "three ticks in a row at which the items' list was refused make the record stuck"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert!(
+        !c.record_stuck(&agent(0)),
+        "a tick whose flush the owner acknowledged ends the count"
+    );
+}
+
+#[test]
+fn rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("too_large"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    let past = T0 + 3 * 86_400_000;
+    c.ports().ports.set_clock(past, DAY + 3);
+    c.tick();
+    assert_eq!(
+        c.records_dropped(&agent(0)),
+        Some((1, "item_raised".to_string(), "too_large".to_string())),
+        "a record more than two days old is taken off and counted by its event and its refusal"
+    );
+}
+
+#[test]
+fn rd122_no_sender_meets_seq_after_another_sender_of_the_agent_stored() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    let _ = c.answer(
+        &item,
+        Choice::Done,
+        None,
+        shown_step_mark_or_zero(&c, &item),
+    );
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let seq_refusals = c
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| {
+            matches!(t.call, Call::Log(_))
+                && matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq")
+        })
+        .count();
+    assert_eq!(
+        seq_refusals, 0,
+        "the ledger, the press and the schedule's log share one stored last, so no first try meets seq (RD-64 3.2)"
+    );
+}
