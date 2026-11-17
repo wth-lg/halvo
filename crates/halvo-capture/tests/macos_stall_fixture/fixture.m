@@ -25,6 +25,7 @@ static Stamp stamps[STAMP_CAP];
 static int stampCount;
 static int stampLost;
 static long autoleaveMs = -1;
+static long leaveGeneration;
 
 static int stamp_step_1_read_the_state(void) {
     return IsSecureEventInputEnabled() ? 1 : 0;
@@ -48,21 +49,43 @@ static void stamp(const char *kind, long detail) {
     stamps[stampCount++] = (Stamp){kind, detail, ns, on};
 }
 
+typedef struct {
+    const char *verb;
+    const char *kind;
+    const char *reply;
+    const char *later;
+} Verb;
+
+static const Verb VERBS[] = {
+    {"state", "cmd_state", "front=", ""},
+    {"plain", "cmd_plain", "focus=", ""},
+    {"secure", "cmd_secure", "focus=", ""},
+    {"clear", "cmd_clear", "cleared", ""},
+    {"which", "cmd_which", "which=", ""},
+    {"where", "cmd_where", "x=", ""},
+    {"stall", "cmd_stall", "waiting", "woke"},
+    {"hide", "cmd_hide", "hidden", ""},
+    {"away", "cmd_away", "away=", ""},
+    {"activate", "cmd_activate", "asked", ""},
+    {"autoleave", "cmd_autoleave", "autoleave=", ""},
+    {"stamps", "cmd_stamps", "stamps n=", ""},
+    {"quit", "cmd_quit", "", ""},
+    {"blink", "cmd_blink", "blinked", ""},
+    {"keys", "", "posted=", ""},
+    {"click", "", "clicked", ""},
+};
+
+static const Verb NOTICES[] = {
+    {"ready", "", "ready pid=", ""},
+    {"left", "", "left_secure", ""},
+};
+
 static NSString *const VERB_KEYS_TAKES_NO_STAMP = @"keys";
 static NSString *const VERB_CLICK_TAKES_NO_STAMP = @"click";
 
 static const char *commandKind(NSString *verb) {
-    static const char *const known[] = {
-        "state", "plain", "secure", "clear", "which", "where", "stall", "hide",
-        "away", "activate", "autoleave", "stamps", "quit",
-    };
-    static const char *const kinds[] = {
-        "cmd_state", "cmd_plain", "cmd_secure", "cmd_clear", "cmd_which", "cmd_where",
-        "cmd_stall", "cmd_hide", "cmd_away", "cmd_activate", "cmd_autoleave", "cmd_stamps",
-        "cmd_quit",
-    };
-    for (size_t i = 0; i < sizeof known / sizeof known[0]; i++) {
-        if (strcmp(verb.UTF8String, known[i]) == 0) return kinds[i];
+    for (size_t i = 0; i < sizeof VERBS / sizeof VERBS[0]; i++) {
+        if (VERBS[i].kind[0] != 0 && strcmp(verb.UTF8String, VERBS[i].verb) == 0) return VERBS[i].kind;
     }
     return "cmd_other";
 }
@@ -98,7 +121,7 @@ static void post_keys(NSArray<NSString *> *words) {
         posted++;
         if (i + 1 < words.count) usleep(step);
     }
-    say([NSString stringWithFormat:@"posted=%d at=%llu", posted, uptime_ns()]);
+    say([NSString stringWithFormat:@"posted=%d at_uptime_ns=%llu", posted, uptime_ns()]);
 }
 
 static void post_click(NSArray<NSString *> *words) {
@@ -112,7 +135,7 @@ static void post_click(NSArray<NSString *> *words) {
         }
         usleep(5000);
     }
-    say([NSString stringWithFormat:@"clicked at=%llu", uptime_ns()]);
+    say([NSString stringWithFormat:@"clicked at_uptime_ns=%llu", uptime_ns()]);
 }
 
 static NSString *focusName(void) {
@@ -133,7 +156,7 @@ static void focus(NSControl *field, NSString *name) {
     [window makeFirstResponder:field];
     [field.currentEditor setSelectedRange:NSMakeRange(field.stringValue.length, 0)];
     stamp(secure ? "focus_after_secure" : "focus_after_plain", 0);
-    say([NSString stringWithFormat:@"focus=%@ at=%llu", name, uptime_ns()]);
+    say([NSString stringWithFormat:@"focus=%@ at_uptime_ns=%llu", name, uptime_ns()]);
 }
 
 @interface Leaver : NSObject
@@ -146,7 +169,7 @@ static void focus(NSControl *field, NSString *name) {
     stamp("left_before", 0);
     [window makeFirstResponder:plainField];
     stamp("left_after", 0);
-    say([NSString stringWithFormat:@"left_secure at=%llu", uptime_ns()]);
+    say([NSString stringWithFormat:@"%s at_uptime_ns=%llu", NOTICES[1].reply, uptime_ns()]);
 }
 @end
 
@@ -169,8 +192,10 @@ static void focus(NSControl *field, NSString *name) {
     stamp("fr_secure", became ? 1 : 0);
     if (became && autoleaveMs >= 0) {
         long after = autoleaveMs;
+        long generation = leaveGeneration;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)after * (int64_t)NSEC_PER_MSEC),
                        dispatch_get_main_queue(), ^{
+                           if (generation != leaveGeneration) return;
                            stamp("autoleave_before", after);
                            [window makeFirstResponder:plainField];
                            stamp("autoleave_after", after);
@@ -202,6 +227,9 @@ static void giveStamps(void) {
 static void handle(NSString *line) {
     NSArray<NSString *> *words = [line componentsSeparatedByString:@" "];
     NSString *verb = words.firstObject;
+    if ([verb isEqualToString:@"clear"] || [verb isEqualToString:@"autoleave"]) {
+        leaveGeneration++;
+    }
     if ([verb isEqualToString:@"clear"]) {
         stampCount = 0;
         stampLost = 0;
@@ -243,7 +271,7 @@ static void handle(NSString *line) {
         int ms = words[1].intValue;
         BOOL itself = words.count >= 3 && [words[2] isEqualToString:@"self"];
         stamp("waiting", ms);
-        say([NSString stringWithFormat:@"waiting at=%llu", uptime_ns()]);
+        say([NSString stringWithFormat:@"waiting at_uptime_ns=%llu", uptime_ns()]);
         usleep((useconds_t)ms * 1000);
         stamp("woke", ms);
         if (itself) {
@@ -251,7 +279,7 @@ static void handle(NSString *line) {
             [window makeFirstResponder:secureField];
             stamp("self_after", 0);
         }
-        say([NSString stringWithFormat:@"woke at=%llu", uptime_ns()]);
+        say([NSString stringWithFormat:@"woke at_uptime_ns=%llu", uptime_ns()]);
     } else if ([verb isEqualToString:@"hide"]) {
         [NSApp hide:nil];
         say(@"hidden");
@@ -272,6 +300,13 @@ static void handle(NSString *line) {
     } else if ([verb isEqualToString:@"autoleave"] && words.count >= 2) {
         autoleaveMs = words[1].intValue;
         say([NSString stringWithFormat:@"autoleave=%ld", autoleaveMs]);
+    } else if ([verb isEqualToString:@"blink"]) {
+        stamp("blink_before", 0);
+        [window makeFirstResponder:secureField];
+        stamp("blink_secure", 0);
+        [window makeFirstResponder:plainField];
+        stamp("blink_after", 0);
+        say([NSString stringWithFormat:@"blinked at_uptime_ns=%llu", uptime_ns()]);
     } else if ([verb isEqualToString:@"stamps"]) {
         giveStamps();
     } else if ([verb isEqualToString:@"quit"]) {
@@ -322,7 +357,7 @@ int main(void) {
         }];
         dispatch_async(dispatch_get_main_queue(), ^{
             [window makeFirstResponder:plainField];
-            say([NSString stringWithFormat:@"ready pid=%d", getpid()]);
+            say([NSString stringWithFormat:@"%s%d", NOTICES[0].reply, getpid()]);
         });
         [NSApp run];
     }

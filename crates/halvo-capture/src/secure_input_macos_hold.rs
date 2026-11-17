@@ -52,11 +52,35 @@ pub const LATE_BOUND: Duration = Duration::from_millis(250);
 /// A time in nanoseconds on CLOCK_MONOTONIC_RAW, which goes on while the Mac
 /// sleeps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Monotonic(pub u64);
+pub struct Monotonic(pub(crate) u64);
+
+impl Monotonic {
+    /// The time `ns` nanoseconds after the clock's origin.
+    pub const fn from_nanos(ns: u64) -> Self {
+        Self(ns)
+    }
+
+    /// The nanoseconds of this time after the clock's origin.
+    pub const fn nanos(self) -> u64 {
+        self.0
+    }
+}
 
 /// A time in nanoseconds on CLOCK_UPTIME_RAW, the clock of an event's OS time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Uptime(pub u64);
+pub struct Uptime(pub(crate) u64);
+
+impl Uptime {
+    /// The time `ns` nanoseconds after the clock's origin.
+    pub const fn from_nanos(ns: u64) -> Self {
+        Self(ns)
+    }
+
+    /// The nanoseconds of this time after the clock's origin.
+    pub const fn nanos(self) -> u64 {
+        self.0
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bounds {
@@ -90,6 +114,9 @@ pub enum Cause {
     Unclocked,
     Stop,
     Refused,
+    /// A queued notice of a focus change into a secure field of the program
+    /// in front, or of a focus that did not answer in time.
+    Notice,
 }
 
 impl Cause {
@@ -158,6 +185,7 @@ pub enum Timing {
     Untimed,
     Asleep,
     Unclocked,
+    Noticed,
 }
 
 impl Timing {
@@ -169,6 +197,7 @@ impl Timing {
             Self::Untimed => Some(Cause::UntimedKey),
             Self::Asleep => Some(Cause::Sleep),
             Self::Unclocked => Some(Cause::Unclocked),
+            Self::Noticed => Some(Cause::Notice),
         }
     }
 }
@@ -198,21 +227,25 @@ pub fn timing(arrival: Uptime, os_time: Uptime, lag_bound: Duration) -> Timing {
 
 /// The timing of a key event at the end of its own reading of the state,
 /// whose after stamp is `after`. Untimed as at the entry; asleep when its OS
-/// time is not after `wake_mark`; otherwise its lag is the lag at the entry and
-/// the time from the entry's monotonic stamp to `after`, late above
-/// `lag_bound`.
+/// time is not after `wake_mark`; noticed when it is not after `notice_mark`,
+/// the uptime of the newest notice of a focus change into a secure field;
+/// otherwise its lag is the lag at the entry and the time from the entry's
+/// monotonic stamp to `after`, late above `lag_bound`.
 pub fn timing_at_reading(
     entry: Entry,
     os_time: Uptime,
     after: Monotonic,
-    wake_mark: Option<Uptime>,
+    marks: Marks,
     lag_bound: Duration,
 ) -> Timing {
     if os_time.0 == 0 || os_time > entry.uptime {
         return Timing::Untimed;
     }
-    if wake_mark.is_some_and(|mark| os_time <= mark) {
+    if marks.wake.is_some_and(|mark| os_time <= mark) {
         return Timing::Asleep;
+    }
+    if marks.notice.is_some_and(|mark| os_time <= mark) {
+        return Timing::Noticed;
     }
     let lag = Duration::from_nanos(entry.uptime.0 - os_time.0)
         + Duration::from_nanos(after.0.saturating_sub(entry.monotonic.0));
@@ -221,6 +254,15 @@ pub fn timing_at_reading(
     } else {
         Timing::InTime { lag }
     }
+}
+
+/// The two marks against which a key event's OS time is read: the uptime of
+/// the last wake of the Mac that a reading saw, and the uptime of the newest
+/// notice of a focus change into a secure field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Marks {
+    pub wake: Option<Uptime>,
+    pub notice: Option<Uptime>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -311,6 +353,15 @@ impl<T> HeldKeys<T> {
                 cause,
             },
             None => Step::Waiting,
+        }
+    }
+
+    /// Takes a notice of a focus change into a secure field: every held key is
+    /// dropped and none is released.
+    pub fn noticed(&mut self) -> Step<T> {
+        Step::Dropped {
+            keys: self.drop_all(),
+            cause: Cause::Notice,
         }
     }
 
@@ -893,6 +944,7 @@ mod tests {
             Full,
             Stop,
             Refused,
+            Notice,
         ];
         let withholding: Vec<Cause> = all.into_iter().filter(|c| c.withholds()).collect();
         assert_eq!(
@@ -905,11 +957,78 @@ mod tests {
                 UntimedKey,
                 TapSwitchedOff,
                 OwnTake,
-                Full
+                Full,
+                Notice
             ]
         );
         let timing: Vec<Cause> = all.into_iter().filter(|c| c.timing_fault()).collect();
         assert_eq!(timing, [Gap, LateKey, UntimedKey, TapSwitchedOff, Full]);
+    }
+
+    #[test]
+    fn a_notice_drops_every_held_key_with_the_cause_notice_and_releases_none() {
+        let mut hold = held(&[0, 1, 2]);
+        assert_eq!(
+            hold.noticed(),
+            Step::Dropped {
+                keys: 3,
+                cause: Cause::Notice
+            }
+        );
+        assert!(hold.is_empty());
+        assert_eq!(
+            hold.noticed(),
+            Step::Dropped {
+                keys: 0,
+                cause: Cause::Notice
+            }
+        );
+    }
+
+    #[test]
+    fn a_key_not_after_the_notice_mark_is_noticed_after_the_untimed_and_the_asleep_reads() {
+        let entry = Entry {
+            monotonic: Monotonic(100 * MS),
+            uptime: Uptime(100 * MS),
+        };
+        let after = Monotonic(101 * MS);
+        let lag = Duration::from_millis(30);
+        let notice = |ms: u64| Marks {
+            wake: None,
+            notice: Some(Uptime(ms * MS)),
+        };
+        assert_eq!(
+            timing_at_reading(entry, Uptime(90 * MS), after, notice(90), lag),
+            Timing::Noticed
+        );
+        assert_eq!(
+            timing_at_reading(entry, Uptime(89 * MS), after, notice(90), lag),
+            Timing::Noticed
+        );
+        assert_eq!(
+            timing_at_reading(entry, Uptime(91 * MS), after, notice(90), lag),
+            Timing::InTime {
+                lag: Duration::from_millis(10)
+            }
+        );
+        assert_eq!(
+            timing_at_reading(entry, Uptime(0), after, notice(90), lag),
+            Timing::Untimed
+        );
+        assert_eq!(
+            timing_at_reading(
+                entry,
+                Uptime(90 * MS),
+                after,
+                Marks {
+                    wake: Some(Uptime(95 * MS)),
+                    notice: Some(Uptime(95 * MS)),
+                },
+                lag
+            ),
+            Timing::Asleep
+        );
+        assert_eq!(Timing::Noticed.refusal(), Some(Cause::Notice));
     }
 
     #[test]

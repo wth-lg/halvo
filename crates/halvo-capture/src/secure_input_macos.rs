@@ -38,7 +38,7 @@ mod carbon {
         static SYSTEM_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(super) fn system_reads_on_this_thread() -> u64 {
         SYSTEM_READS.with(std::cell::Cell::get)
     }
@@ -83,7 +83,7 @@ mod carbon {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 pub(crate) fn system_reads_on_this_thread() -> u64 {
     carbon::system_reads_on_this_thread()
 }
@@ -140,6 +140,399 @@ pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading
 
 pub fn secure_input_reading(session: Session) -> Reading {
     reading_under(session, secure_input_active)
+}
+
+/// The queued notices of a focus change into a secure field of the program in
+/// front (rulings MA-12 E and MA-20 (7)(c)): a thread of its own follows the
+/// program in front with an Accessibility observer and, for every notice whose
+/// element is a secure text field or cannot be read within its deadline, moves
+/// the notice mark to the uptime of that notice. A page sets no Accessibility
+/// attribute here, so a browser's page gives no notice (ruling PR-30 PR15).
+pub mod notice {
+    use std::ffi::c_void;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::thread::JoinHandle;
+    use std::time::{Duration, Instant};
+
+    use core_foundation::base::{CFType, CFTypeRef, TCFType};
+    use core_foundation::runloop::{
+        kCFRunLoopDefaultMode, CFRunLoop, CFRunLoopSource, CFRunLoopSourceInvalidate,
+        CFRunLoopSourceRef,
+    };
+    use core_foundation::string::{CFString, CFStringRef};
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXUIElementCreateApplication(pid: libc::pid_t) -> CFTypeRef;
+        fn AXUIElementCopyAttributeValue(
+            element: CFTypeRef,
+            attribute: CFStringRef,
+            value: *mut CFTypeRef,
+        ) -> i32;
+        fn AXUIElementSetMessagingTimeout(element: CFTypeRef, seconds: f32) -> i32;
+        fn AXObserverCreate(
+            pid: libc::pid_t,
+            callback: ObserverCallback,
+            observer: *mut CFTypeRef,
+        ) -> i32;
+        fn AXObserverAddNotification(
+            observer: CFTypeRef,
+            element: CFTypeRef,
+            notification: CFStringRef,
+            refcon: *mut c_void,
+        ) -> i32;
+        fn AXObserverGetRunLoopSource(observer: CFTypeRef) -> CFRunLoopSourceRef;
+    }
+
+    type ObserverCallback = unsafe extern "C" fn(CFTypeRef, CFTypeRef, CFStringRef, *mut c_void);
+
+    const AX_ERROR_SUCCESS: i32 = 0;
+    const AX_ERROR_CANNOT_COMPLETE: i32 = -25204;
+    const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
+    const AX_ERROR_NO_VALUE: i32 = -25212;
+
+    /// The step at which the thread reads which program is in front.
+    pub const NOTICE_FRONT_STEP: Duration = Duration::from_millis(50);
+
+    /// The deadline of one question to the program in front: a read of an
+    /// element's subrole, of its focused element, or the registration.
+    pub const NOTICE_READ_DEADLINE: Duration = Duration::from_millis(250);
+
+    /// The subrole of a secure text field.
+    pub const SECURE_SUBROLE: &str = "AXSecureTextField";
+
+    /// What a notice, or the read at the start of a watch, says of the element
+    /// that has the focus.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Focus {
+        /// A secure text field.
+        Secure,
+        /// An element that answered and is no secure text field.
+        Other,
+        /// An element that did not answer within the deadline, or answered
+        /// with an error: a reason to drop, as a secure field is.
+        Doubt,
+    }
+
+    impl Focus {
+        /// Whether this focus moves the notice mark.
+        pub fn marks(self) -> bool {
+            self != Self::Other
+        }
+    }
+
+    /// The focus from the read of an element's subrole: its text, or the
+    /// Accessibility error of the read. No value and an unsupported attribute
+    /// are an element that is no secure field; every other error is a doubt.
+    pub fn focus_of(subrole: Result<Option<&str>, i32>) -> Focus {
+        match subrole {
+            Ok(Some(SECURE_SUBROLE)) => Focus::Secure,
+            Ok(_) => Focus::Other,
+            Err(AX_ERROR_NO_VALUE | AX_ERROR_ATTRIBUTE_UNSUPPORTED) => Focus::Other,
+            Err(_) => Focus::Doubt,
+        }
+    }
+
+    /// Where a notice came from.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Seen {
+        /// A notice of a focus change.
+        Notice,
+        /// The read of the focused element when the watch of a program began.
+        Start,
+        /// A registration that the program in front did not answer in time.
+        Unanswered,
+    }
+
+    /// The uptime in nanoseconds of the newest notice that marks, 0 before
+    /// any. It only moves forward.
+    #[derive(Clone, Default)]
+    pub struct NoticeMark(Arc<AtomicU64>);
+
+    impl NoticeMark {
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Moves the mark to `uptime` unless it already stands later.
+        pub fn mark(&self, uptime: u64) {
+            self.0.fetch_max(uptime, Ordering::SeqCst);
+        }
+
+        pub fn get(&self) -> u64 {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+
+    /// What the thread hands to its caller for each notice: where it came
+    /// from and its focus; the caller may log it.
+    pub type OnNotice = Box<dyn Fn(Seen, Focus) + Send + Sync>;
+
+    struct Context {
+        mark: NoticeMark,
+        uptime: fn() -> u64,
+        on_notice: OnNotice,
+    }
+
+    impl Context {
+        fn seen(&self, seen: Seen, focus: Focus) {
+            (self.on_notice)(seen, focus);
+            if focus.marks() {
+                self.mark.mark((self.uptime)());
+            }
+        }
+    }
+
+    fn subrole_of(element: &CFType) -> Result<Option<String>, i32> {
+        // SAFETY: `element` is a live AXUIElement for the call; the call only
+        // sets the deadline of the questions that this process asks it.
+        unsafe {
+            AXUIElementSetMessagingTimeout(
+                element.as_CFTypeRef(),
+                NOTICE_READ_DEADLINE.as_secs_f32(),
+            )
+        };
+        let attribute = CFString::from_static_string("AXSubrole");
+        let mut value: CFTypeRef = std::ptr::null();
+        // SAFETY: `element` is a live AXUIElement, `attribute` a live CFString
+        // and `value` a writable pointer that the call sets to a +1 reference
+        // on success.
+        let code = unsafe {
+            AXUIElementCopyAttributeValue(
+                element.as_CFTypeRef(),
+                attribute.as_concrete_TypeRef(),
+                &mut value,
+            )
+        };
+        if code != AX_ERROR_SUCCESS {
+            return Err(code);
+        }
+        if value.is_null() {
+            return Ok(None);
+        }
+        // SAFETY: the call succeeded and gave a +1 reference that this wrapper
+        // now owns and releases.
+        let value = unsafe { CFType::wrap_under_create_rule(value) };
+        Ok(value.downcast::<CFString>().map(|text| text.to_string()))
+    }
+
+    fn focused_of(app: &CFType) -> Result<CFType, i32> {
+        let attribute = CFString::from_static_string("AXFocusedUIElement");
+        let mut value: CFTypeRef = std::ptr::null();
+        // SAFETY: `app` is a live AXUIElement, `attribute` a live CFString and
+        // `value` a writable pointer that the call sets to a +1 reference on
+        // success.
+        let code = unsafe {
+            AXUIElementCopyAttributeValue(
+                app.as_CFTypeRef(),
+                attribute.as_concrete_TypeRef(),
+                &mut value,
+            )
+        };
+        if code != AX_ERROR_SUCCESS {
+            return Err(code);
+        }
+        if value.is_null() {
+            return Err(AX_ERROR_NO_VALUE);
+        }
+        // SAFETY: the call succeeded and gave a +1 reference that this wrapper
+        // now owns and releases.
+        Ok(unsafe { CFType::wrap_under_create_rule(value) })
+    }
+
+    unsafe extern "C" fn notice_came(
+        _observer: CFTypeRef,
+        element: CFTypeRef,
+        _notification: CFStringRef,
+        refcon: *mut c_void,
+    ) {
+        if refcon.is_null() || element.is_null() {
+            return;
+        }
+        // SAFETY: `refcon` is the Context that the watch registered, which the
+        // thread keeps alive in a box until after the observer is released.
+        let context = unsafe { &*refcon.cast::<Context>() };
+        // SAFETY: `element` is the live AXUIElement that the observer hands to
+        // its callback; retaining it under the get rule keeps it for the read.
+        let element = unsafe { CFType::wrap_under_get_rule(element) };
+        let focus = match subrole_of(&element) {
+            Ok(subrole) => focus_of(Ok(subrole.as_deref())),
+            Err(code) => focus_of(Err(code)),
+        };
+        context.seen(Seen::Notice, focus);
+    }
+
+    struct Watch {
+        pid: libc::pid_t,
+        source: CFRunLoopSource,
+        _observer: CFType,
+    }
+
+    fn watch(pid: libc::pid_t, context: &Context) -> Option<Watch> {
+        // SAFETY: AXUIElementCreateApplication takes a pid by value and returns
+        // a +1 reference or null.
+        let app = unsafe { AXUIElementCreateApplication(pid) };
+        if app.is_null() {
+            return None;
+        }
+        // SAFETY: a +1 reference that this wrapper now owns and releases.
+        let app = unsafe { CFType::wrap_under_create_rule(app) };
+        // SAFETY: `app` is a live AXUIElement; the call only sets the deadline
+        // of the questions that this process asks it.
+        unsafe {
+            AXUIElementSetMessagingTimeout(app.as_CFTypeRef(), NOTICE_READ_DEADLINE.as_secs_f32())
+        };
+        let mut observer: CFTypeRef = std::ptr::null();
+        // SAFETY: `notice_came` has the signature of an AXObserverCallback and
+        // `observer` is a writable pointer that the call sets to a +1 reference
+        // on success.
+        let code = unsafe { AXObserverCreate(pid, notice_came, &mut observer) };
+        if code != AX_ERROR_SUCCESS || observer.is_null() {
+            return None;
+        }
+        // SAFETY: a +1 reference that this wrapper now owns and releases.
+        let observer = unsafe { CFType::wrap_under_create_rule(observer) };
+        let notification = CFString::from_static_string("AXFocusedUIElementChanged");
+        // SAFETY: `observer` and `app` are live; `context` outlives the
+        // observer, which the thread releases before it drops the context.
+        let code = unsafe {
+            AXObserverAddNotification(
+                observer.as_CFTypeRef(),
+                app.as_CFTypeRef(),
+                notification.as_concrete_TypeRef(),
+                std::ptr::from_ref(context).cast_mut().cast(),
+            )
+        };
+        if code == AX_ERROR_CANNOT_COMPLETE {
+            context.seen(Seen::Unanswered, Focus::Doubt);
+        }
+        if code != AX_ERROR_SUCCESS {
+            return None;
+        }
+        // SAFETY: `observer` is a live AXObserver; the call returns its run
+        // loop source under the get rule, which the wrapper retains.
+        let source = unsafe {
+            CFRunLoopSource::wrap_under_get_rule(AXObserverGetRunLoopSource(
+                observer.as_CFTypeRef(),
+            ))
+        };
+        // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+        // CoreFoundation exports and never writes.
+        CFRunLoop::get_current().add_source(&source, unsafe { kCFRunLoopDefaultMode });
+        let focus = match focused_of(&app).and_then(|element| subrole_of(&element)) {
+            Ok(subrole) => focus_of(Ok(subrole.as_deref())),
+            Err(code) => focus_of(Err(code)),
+        };
+        context.seen(Seen::Start, focus);
+        Some(Watch {
+            pid,
+            source,
+            _observer: observer,
+        })
+    }
+
+    fn unwatch(watched: &mut Option<Watch>) {
+        if let Some(watch) = watched.take() {
+            // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::get_current().remove_source(&watch.source, unsafe { kCFRunLoopDefaultMode });
+            // SAFETY: `watch.source` is a live run loop source that this
+            // wrapper retains; invalidating it stops its callbacks.
+            unsafe { CFRunLoopSourceInvalidate(watch.source.as_concrete_TypeRef()) };
+        }
+    }
+
+    /// The thread that follows the program in front and moves the notice mark.
+    pub struct NoticeThread {
+        run_loop: CFRunLoop,
+        stop: Arc<AtomicBool>,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl NoticeThread {
+        /// Starts the thread. `front` names the process in front, `uptime`
+        /// reads CLOCK_UPTIME_RAW in nanoseconds, the clock of an event's OS
+        /// time, and `on_notice` sees every notice before the mark moves.
+        pub fn spawn(
+            front: Box<dyn Fn() -> Option<libc::pid_t> + Send>,
+            mark: NoticeMark,
+            uptime: fn() -> u64,
+            on_notice: OnNotice,
+        ) -> std::io::Result<Self> {
+            let stop = Arc::new(AtomicBool::new(false));
+            let (loop_tx, loop_rx) = std::sync::mpsc::channel();
+            let thread = {
+                let stop = stop.clone();
+                std::thread::Builder::new()
+                    .name("halvo-input-notice".into())
+                    .spawn(move || {
+                        let context = Box::new(Context {
+                            mark,
+                            uptime,
+                            on_notice,
+                        });
+                        let _ = loop_tx.send(CFRunLoop::get_current());
+                        let mut watched: Option<Watch> = None;
+                        while !stop.load(Ordering::SeqCst) {
+                            let pid = front();
+                            if watched.as_ref().map(|watch| watch.pid) != pid {
+                                unwatch(&mut watched);
+                                watched = pid.and_then(|pid| watch(pid, &context));
+                            }
+                            // SAFETY: kCFRunLoopDefaultMode is a constant
+                            // CFString that CoreFoundation exports and never
+                            // writes.
+                            CFRunLoop::run_in_mode(
+                                unsafe { kCFRunLoopDefaultMode },
+                                NOTICE_FRONT_STEP,
+                                false,
+                            );
+                        }
+                        unwatch(&mut watched);
+                        drop(context);
+                    })?
+            };
+            let run_loop = loop_rx
+                .recv()
+                .map_err(|_| std::io::Error::other("the notice thread ended at its start"))?;
+            Ok(Self {
+                run_loop,
+                stop,
+                thread: Some(thread),
+            })
+        }
+
+        /// Asks the thread to stop and waits for its end until `deadline`:
+        /// false when it did not end in time.
+        pub fn stop_within(&mut self, deadline: Duration) -> bool {
+            self.stop.store(true, Ordering::SeqCst);
+            self.run_loop.stop();
+            let called = Instant::now();
+            while self
+                .thread
+                .as_ref()
+                .is_some_and(|thread| !thread.is_finished())
+            {
+                if called.elapsed() >= deadline {
+                    return false;
+                }
+                std::thread::sleep(Duration::from_millis(2));
+                self.run_loop.stop();
+            }
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+            true
+        }
+    }
+
+    impl Drop for NoticeThread {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            self.run_loop.stop();
+        }
+    }
 }
 
 mod session {
@@ -330,6 +723,7 @@ pub(crate) mod test_support {
         }
     }
 
+    #[cfg(debug_assertions)]
     pub(crate) fn reads_on_within(reader: impl Fn() -> bool, limit: Duration) -> bool {
         let started = Instant::now();
         loop {
@@ -391,6 +785,40 @@ mod tests {
             1,
             "calls that were inside at the same time"
         );
+    }
+
+    #[test]
+    fn a_notice_marks_for_a_secure_field_and_a_doubt_and_not_for_another_element() {
+        use super::notice::{focus_of, Focus};
+        let cases = [
+            (Ok(Some("AXSecureTextField")), Focus::Secure),
+            (Ok(Some("AXTextField")), Focus::Other),
+            (Ok(Some("AXSearchField")), Focus::Other),
+            (Ok(None), Focus::Other),
+            (Err(-25212), Focus::Other),
+            (Err(-25205), Focus::Other),
+            (Err(-25204), Focus::Doubt),
+            (Err(-25202), Focus::Doubt),
+            (Err(-25211), Focus::Doubt),
+            (Err(-25200), Focus::Doubt),
+        ];
+        for (subrole, want) in cases {
+            assert_eq!(focus_of(subrole), want, "{subrole:?}");
+        }
+        assert!(Focus::Secure.marks());
+        assert!(Focus::Doubt.marks());
+        assert!(!Focus::Other.marks());
+    }
+
+    #[test]
+    fn the_notice_mark_only_moves_forward() {
+        let mark = super::notice::NoticeMark::new();
+        assert_eq!(mark.get(), 0);
+        mark.mark(10);
+        mark.mark(5);
+        assert_eq!(mark.get(), 10);
+        mark.clone().mark(20);
+        assert_eq!(mark.get(), 20, "a clone moves the same mark");
     }
 
     use super::test_support::{agreed_reading, one_hold_at_a_time};

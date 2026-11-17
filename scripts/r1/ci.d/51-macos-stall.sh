@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam, where a build without debug assertions has no DropCounts either (ruling MA-21); it runs the phase of a password typed whole ahead into a field that is secure for less than the spacing of two readings, which must read 0 recorded keys by the notice of the focus change, and the same at the product's constants, whose verdict is held, notkept or failed, and the lag phase, whose session reader the seam hands in with a delay (rulings MA-12 E, MA-20 Addition 1, MA-22 (d)); every line that a hosted test prints under its own name holds names and numbers alone (ruling MA-21); and two rules read the tree alone: EnableSecureEventInput and DisableSecureEventInput stand in crates/halvo-capture/src/secure_input_macos.rs alone, and no field or static of crates/halvo-capture/src/macos/input.rs holds a reading of the secure-input state between two events (ruling MA-14).
 # lane: alone
 set -u
 name=51-macos-stall
@@ -26,6 +26,9 @@ a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded phase
 a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded phase
 a_key_typed_on_a_return_to_a_secure_field_is_not_recorded three-way
 the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded phase
+a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of_two_readings_is_not_recorded phase
+at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded three-way
+a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded phase
 the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field phase
 at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys three-way long
 the_gap_rule_through_the_real_timer_drops_every_key_when_every_tick_is_a_gap_and_none_when_none_is phase
@@ -36,6 +39,8 @@ measured_a_password_typed_whole_ahead_at_a_persons_pace measured
 short_window_a_the_click_round_as_it_was_at_wait_150_ms measured
 short_window_a_the_click_round_as_it_was_at_wait_2000_ms measured
 short_window_b_the_leave_asked_after_n_ms not-run
+the_trial_of_the_focus_notice_reports_its_reach_and_lateness not-run
+the_probe_of_a_text_input_masked_by_style_reads_the_secure_input_state not-run
 the_mended_click_phase_counts_62_rounds_at_wait_2000_ms loop
 the_launch_path_fails_with_a_line_that_names_the_wait_that_ran_out twelve
 the_line_at_the_products_constants_starts_one_fixture_for_its_phase_and_its_control twelve
@@ -61,6 +66,8 @@ in_the_long_form_a_wait_with_no_held_round_reads_not_driven_and_takes_no_record 
 a_phase_whose_every_round_was_not_driven_reads_not_driven_in_both_forms twelve
 a_recorded_key_in_a_round_not_driven_fails_its_phase twelve
 each_judge_reads_a_round_not_driven_by_its_rule_on_a_table twelve
+the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_its_clock twelve
+the_verdict_of_a_short_on_time_at_the_products_constants_holds_each_rule_on_a_table twelve
 EOF
 }
 
@@ -72,7 +79,7 @@ notes() {
   cat <<'EOF'
 measured_a_password_typed_whole_ahead_at_machine_speed in pushes 6 and 7 the keys were held under a reading of off and dropped by a reading that fell into the on-time while the program handled them; the on-time was not printed. D2 stays an open fault (MA-12 D, ruling MA-19)
 short_window_a_the_click_round_as_it_was_at_wait_150_ms measures D2, asserts nothing and holds no promise; the listed stand-in holds D2 (ruling MA-22 L10)
-known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys holds D2 (MA-12 D3) with stand-ins at the product's gap: an on-time shorter than the spacing of two readings that are both in time releases the keys; D2 stays an open fault until a ruling names the unit that closed it (ruling MA-22 L10)
+known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_releases_the_keys holds D2 (MA-12 D3) with stand-ins at the product's gap: an on-time shorter than the spacing of two readings that are both in time releases the keys; D2 stays an open fault until a ruling names the unit that closed it (ruling MA-22 L10); the queued notice of a focus change into a secure field drops such keys of a native field on the hosted Mac at a spacing of 200 ms (19 of 20 rounds held, 18 by the notice, in run 44094620566), while at the product's constants the gap rule drops the keys and the markers first and that phase reads notkept, and a page gives no notice (rulings MA-12 E, PR-30 PR15), so D2 stays listed
 short_window_a_the_click_round_as_it_was_at_wait_2000_ms D2 stays an open fault. Its mechanism has been seen on the hosted machine at the test's gap in three of the four recorded long-form runs of the measured line: 3 of 124 rounds in run 43604085133, 2 in run 43627916230, 2 in run 43655810029, and none in run 43741572763. An on-time shorter than the spacing of two readings that are both in time releases the keys. At the product's gap of 30 ms no hosted round shows it. The cause of push 7's recorded click round is not shown (rulings MA-20 (1), (7) and MA-25 item 2)
 short_window_b_the_leave_asked_after_n_ms names the leave that the fixture was asked to make after n ms; the set on-times were not reached, because the leave ran behind the queued events, so each on-time is as measured, and the sample under 40 ms is thin (8 of 599 rounds in push 8) (ruling MA-20 (6))
 EOF
@@ -100,6 +107,50 @@ seam_manifests() {
   [ "$named" = "crates/halvo-capture/Cargo.toml " ] ||
     fail "the feature stall-seam must stand in crates/halvo-capture/Cargo.toml alone; manifests that name it: ${named:-none}"
   printf 'seam: the feature stall-seam stands in crates/halvo-capture/Cargo.toml alone\n'
+}
+
+carbon_calls() {
+  git grep --cached -n -w -E -e 'EnableSecureEventInput|DisableSecureEventInput' -- '*.rs' '*.m' '*.c' '*.h' '*.swift' >"$work/carbon" 2>/dev/null
+  case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the Carbon calls" ;; esac
+  other=$(cut -d : -f 1 "$work/carbon" | grep -v -x -F -e crates/halvo-capture/src/secure_input_macos.rs | sort -u | tr '\n' ' ')
+  [ -z "$other" ] ||
+    fail "EnableSecureEventInput or DisableSecureEventInput stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: ${other% } (ruling MA-14); call the hold of that file"
+  printf 'carbon: EnableSecureEventInput and DisableSecureEventInput stand in crates/halvo-capture/src/secure_input_macos.rs alone\n'
+}
+
+reading_places() {
+  git show ":crates/halvo-capture/src/macos/input.rs" >"$work/input-rs" 2>/dev/null ||
+    fail "crates/halvo-capture/src/macos/input.rs cannot be read from the index"
+  tr -d '\r' <"$work/input-rs" | awk '
+    /^mod tests \{/ { exit }
+    /^(pub(\([a-z]+\))? )?struct [A-Za-z_]+(<[^>]*>)? \{$/ { inside = 1; next }
+    inside && /^\}/ { inside = 0; next }
+    inside && /^    (pub(\([a-z]+\))? )?[a-z_]+: / {
+      type = $0
+      sub(/^[^:]*: /, "", type)
+      gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", type)
+      if (type ~ /(^|[^A-Za-z_])Reading([^A-Za-z_]|$)/) print NR
+      next
+    }
+    /^ *(pub(\([a-z]+\))? )?(static|thread_local!)/ && /(^|[^A-Za-z_])Reading([^A-Za-z_]|$)/ { print NR }
+  ' >"$work/reading-places" || fail "crates/halvo-capture/src/macos/input.rs cannot be read"
+  places=$(tr '\n' ' ' <"$work/reading-places")
+  [ -z "$places" ] ||
+    fail "a field or a static of crates/halvo-capture/src/macos/input.rs can keep a reading of the secure-input state between two events (lines ${places% }): the reading of an event is taken by the one function that handles the event and handed on by value (ruling MA-14)"
+  printf 'reading: no field or static of crates/halvo-capture/src/macos/input.rs holds a reading of the secure-input state\n'
+}
+
+names_and_numbers() {
+  awk -v test="$1" '
+    index($0, test " ") == 1 {
+      n = split(substr($0, length(test) + 2), field, " ")
+      for (i = 1; i <= n; i++) {
+        if (field[i] ~ /[^A-Za-z0-9_=.,:\/+-]/ || (i > 1 && field[i] !~ /[=:]/ && field[i] !~ /^[0-9.,+-]+$/)) {
+          print NR
+          exit
+        }
+      }
+    }' "$2"
 }
 
 measured_files() {
@@ -323,6 +374,8 @@ measure() {
 
   twelve_test
   seam_manifests
+  carbon_calls
+  reading_places
   printf 'session reader of the phases: %s\n' "${HALVO_STALL_SESSION:-real}"
 
   proofs=$(cut -d ' ' -f 1 "$work/proofs" | tr '\n' ' ')
@@ -340,14 +393,17 @@ measure() {
     [ "$found" -ge "$wanted" ] || fail "the proof $proof did not fail with $code ($found errors $code for $wanted proofs)"
     printf 'proof %s: refused with %s\n' "$proof" "$code"
   done <"$work/proofs"
-  proof_build seam_in_a_release_build_twin "$work/seam-twin.txt" stall-seam
+  proof_build "seam_in_a_release_build_twin drop_counts_in_a_release_build_twin" "$work/seam-twin.txt" stall-seam
   status=$?
   [ "$status" -eq 0 ] || fail "the twin of the seam proof did not build with the feature stall-seam: cargo rustc exited $status"
-  proof_build seam_in_a_release_build "$work/seam-proof.txt" stall-seam
+  proof_build "seam_in_a_release_build drop_counts_in_a_release_build" "$work/seam-proof.txt" stall-seam
   status=$?
   [ "$status" -ne 0 ] || fail "the seam proof built with the feature stall-seam: a build without debug assertions has with_seam"
   grep -q 'error\[E0599\]' "$work/seam-proof.txt" || fail "the seam proof with the feature stall-seam did not fail with E0599"
   printf 'proof seam_in_a_release_build with the feature stall-seam: refused with E0599\n'
+  grep -q 'error\[E0433\]' "$work/seam-proof.txt" ||
+    fail "the proof drop_counts_in_a_release_build with the feature stall-seam did not fail with E0433: a build without debug assertions has DropCounts (ruling MA-21)"
+  printf 'proof drop_counts_in_a_release_build with the feature stall-seam: refused with E0433\n'
 
   fixture=$work/stall-fixture
   clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics \
@@ -445,7 +501,7 @@ measure() {
       panics && !after && /thread .* panicked at / { after = 1 }
       after { print "    | " $0; next }
       index($0, test ": ") == 1 { print "    | " $0; next }
-      index($0, test " ") == 1 && substr($0, length(test) + 2) ~ /^(session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=|by_wait |not_driven_waits=)/ { print "    | " $0 }
+      index($0, test " ") == 1 && substr($0, length(test) + 2) ~ /^(session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=|by_wait |not_driven_waits=|short_on_time )/ { print "    | " $0 }
     ' "$work/lines-$index" || fail "the output of $test cannot be read"
     awk -v test="$test" '
       index($0, test " round=") == 1 || index($0, test " control=") == 1 {
@@ -478,6 +534,11 @@ measure() {
     found=$(tr -d '\r' <"$log" | sed -n -E "s/^$test drops .* unclocked=([0-9]+).*/\1/p" | sort -n | tail -n 1)
     unclocked=$((unclocked + ${found:-0}))
     judge "$code" "$kind" "$log"
+    prose=$(names_and_numbers "$test" "$work/lines-$index") || fail "the output of $test cannot be read"
+    if [ -n "$prose" ]; then
+      verdict=FAIL
+      cause="line $prose of its output holds more than names and numbers under the name of the test (ruling MA-21)"
+    fi
     case $kind in
       phase | three-way | loop | known-fault)
         if [ "$kind" != known-fault ] && [ "$recorded_here" -gt 0 ]; then
@@ -607,14 +668,15 @@ case $* in
     printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
     exit 101
     ;;
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build_twin"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build_twin" --cfg halvo_proof="drop_counts_in_a_release_build_twin"')
     spec seam-twin-fails && exit 101
     exit 0
     ;;
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build" --cfg halvo_proof="drop_counts_in_a_release_build"')
     spec seam-proof-builds && exit 0
     spec seam-proof-other-code && { printf 'error[E0308]: mismatched types\n'; exit 101; }
     printf 'error[E0599]: no function named `with_seam`\n'
+    spec drop-counts-in-a-release-build || printf 'error[E0433]: cannot find `DropCounts` in `super`\n'
     exit 101
     ;;
   'test --locked -p halvo-capture --lib --test macos_stall_fixture --no-run --message-format json')
@@ -705,7 +767,7 @@ if [ "$test" = the_form_of_the_hosted_phases ]; then
 fi
 [ -x "$HALVO_STALL_FIXTURE" ] || exit 98
 [ -n "${HALVO_STALL_GAP_MS:-}" ] && [ -n "${HALVO_STALL_FORM:-}" ] || exit 99
-handed=$(env | sed -n 's/^\(HALVO_STALL_[A-Z_]*\)=.*/\1/p' | sort | tr '\n' ' ')
+handed=$(env | sed -n 's/^\(HALVO_STALL_[A-Z_]*\)=.*/\1/p' | sort | tr '\n' ',')
 spec "prefixed-panic-$test" && { printf "test %s ... thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:101:5:\nthe session dictionary could not be read\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
 spec "prefixed-panic-$test" && { printf "test %s ... thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:101:5:\nthe session dictionary could not be read\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
 printf '%s gap_ms=%s form=%s handed=%s\n' "$test" "$HALVO_STALL_GAP_MS" "$HALVO_STALL_FORM" "$handed"
@@ -741,6 +803,8 @@ spec "waits-not-driven-$test" && {
 spec "control-not-driven-$test" && printf '%s control=0 bound_ms=1000 counted=0 landed_plain=0 landed_secure=0 plain_records=0 secure_records=0 after_records=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
 spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
 spec "long-output-$test" && printf 'a line that the check does not print\n  and a second one\n'
+spec "prose-$test" && printf '%s the session was lost\n' "$test"
+spec "debug-word-$test" && printf '%s round=2 wait_ms=150 rv=notcounted("the markers were not recorded")\n' "$test"
 spec "panic-$test" && {
   printf "thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:500:27:\nthe fixture gave no line that starts with left_secure within 3000 ms\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest %s ... FAILED\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"
   exit 101
@@ -841,7 +905,7 @@ measure dictionary=1 on_console=1 seconds=20.0 readings=701 spacing_max_us=90474
 MS gap_ms=190 source=measured spacing_max_us=90474 load1=1.00' ''
   check form-line-missing FAIL 'the_form_of_the_hosted_phases printed no line of the form short' 'no-form-line'
   check form-test-exits FAIL 'the_form_of_the_hosted_phases did not print the form: exited 101' 'form-exits'
-  check the-word-alone PASS '| phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE HALVO_STALL_FORM HALVO_STALL_GAP_MS ' ''
+  check the-word-alone PASS '| phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' ''
   check budget-line PASS 'budget=240 notices=0' ''
   check notice-of-the-measurement PASS 'budget=240 notices=1' 'measure-notice'
   check notice-of-a-late-click PASS 'budget=240 notices=1' 'late-click-phase_one'
@@ -913,7 +977,10 @@ waits-not-driven-phase_one'
   check every-round-not-driven FAIL 'phase_one: every round of the phase was not driven' 'all-not-driven-phase_one'
   check recorded-in-a-round-not-driven FAIL 'phase_one: a key was recorded in a round not driven' 'recorded-not-driven-phase_one'
   check artifacts-hold-the-output PASS 'MS phase_one result=pass' 'long-output-phase_one'
-  printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE HALVO_STALL_FORM HALVO_STALL_GAP_MS ' \
+  check prose-under-the-test-name FAIL 'phase_one: line 3 of its output holds more than names and numbers under the name of the test (ruling MA-21)' 'prose-phase_one'
+  check debug-text-under-the-test-name FAIL 'phase_two: line 3 of its output holds more than names and numbers under the name of the test (ruling MA-21)' 'debug-word-phase_two'
+  check names-and-numbers-of-a-known-fault PASS 'MS known_one result=known-fault' ''
+  printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' \
     'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
     'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
     >"$work/output-wanted" || exit 2
@@ -942,6 +1009,8 @@ waits-not-driven-phase_one'
   check seam-twin-fails FAIL 'the twin of the seam proof did not build with the feature stall-seam' 'seam-twin-fails'
   check seam-proof-builds FAIL 'the seam proof built with the feature stall-seam' 'seam-proof-builds'
   check seam-proof-other-code FAIL 'the seam proof with the feature stall-seam did not fail with E0599' 'seam-proof-other-code'
+  check drop-counts-in-a-release-build FAIL 'the proof drop_counts_in_a_release_build with the feature stall-seam did not fail with E0433' 'drop-counts-in-a-release-build'
+  check drop-counts-proof-refused PASS 'proof drop_counts_in_a_release_build with the feature stall-seam: refused with E0433' ''
   check fixture-fails FAIL 'the fixture did not compile' 'fixture-fails'
   check test-build-fails FAIL 'the test build failed' 'test-build-fails'
   check tracked-file-changed FAIL 'a tracked file differs from HEAD after the run' 'touch-phase_two'
@@ -981,6 +1050,31 @@ waits-not-driven-phase_one'
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
   check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml' ''
+  printf 'mod carbon {\n    fn EnableSecureEventInput() -> i32;\n    fn DisableSecureEventInput() -> i32;\n}\n' >"$work/repo/crates/halvo-capture/src/secure_input_macos.rs" || exit 2
+  mkdir -p "$work/repo/crates/other/src" || exit 2
+  printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  write_measured_ledger
+  check carbon-calls-in-the-lock-file PASS 'carbon: EnableSecureEventInput and DisableSecureEventInput stand in crates/halvo-capture/src/secure_input_macos.rs alone' ''
+  printf 'extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check carbon-call-outside-the-lock FAIL 'DisableSecureEventInput stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: crates/other/src/lib.rs (ruling MA-14)' ''
+  printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  printf 'struct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\nstruct HoldState {\n    keys: HeldKeys<HeldKey>,\n}\n\nmod tests {\n    struct Kept {\n        kept: Reading,\n    }\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  write_measured_ledger
+  check reading-in-a-reader-type-and-a-test PASS 'reading: no field or static of crates/halvo-capture/src/macos/input.rs holds a reading of the secure-input state' ''
+  printf 'struct HoldState {\n    keys: HeldKeys<HeldKey>,\n    kept: Option<(Reading, Stamps)>,\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check reading-kept-in-a-field FAIL 'can keep a reading of the secure-input state between two events (lines 3)' ''
+  printf 'static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check reading-kept-in-a-static FAIL 'can keep a reading of the secure-input state between two events (lines 1)' ''
+  for path in crates/halvo-capture/src/macos/input.rs crates/halvo-capture/src/secure_input_macos.rs; do
+    printf '%s\n' "$path" >"$work/repo/$path" || exit 2
+  done
+  git -C "$work/repo" add crates || exit 2
+  write_measured_ledger
   printf 'changed\n' >>"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   check ledger-blob-changed FAIL 'ran on a blob of crates/halvo-capture/src/secure_input_macos_hold.rs other than the head'"'"'s' ''
