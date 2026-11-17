@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 63-prerequisites 64-readme 26-r7-pnpm-step
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 63-prerequisites 64-readme 26-r7-pnpm-step
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +144,48 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 63-prerequisites 26-r7-pnpm-step
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 63-prerequisites 26-r7-pnpm-step
+      - name: L4 case before and after
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/l4/before/scripts" "$RUNNER_TEMP/l4/after/scripts"
+          cat >"$RUNNER_TEMP/l4/old-unpack.txt" <<'OLD'
+          unpack_cargo_release() {
+            case "$1" in
+              *.tar.gz) tar -xzf "$1" -C "$2" ;;
+              *.zip) powershell.exe -NoProfile -Command "\$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath '$(cygpath -w "$1")' -DestinationPath '$(cygpath -w "$2")' -Force" ;;
+            esac
+          }
+          OLD
+          awk '
+            /^  deny_target=\$\(prebuilt_target\) \|\| \{$/ { skip = 1 }
+            /^  if \[ "\$failures" -gt 0 \]; then$/ { skip = 0 }
+            !skip
+          ' scripts/prerequisites.sh >"$RUNNER_TEMP/l4/after/scripts/prerequisites.sh"
+          awk -v old="$RUNNER_TEMP/l4/old-unpack.txt" '
+            /^unpack_cargo_release\(\) \{$/ { while ((getline line < old) > 0) print line; skip = 1; next }
+            skip && /^}$/ { skip = 0; next }
+            !skip
+          ' "$RUNNER_TEMP/l4/after/scripts/prerequisites.sh" >"$RUNNER_TEMP/l4/before/scripts/prerequisites.sh"
+          changed=$(diff "$RUNNER_TEMP/l4/after/scripts/prerequisites.sh" "$RUNNER_TEMP/l4/before/scripts/prerequisites.sh" | grep -c '^[<>]')
+          echo "l4: lines that differ between the head copy and the copy with the old unpack function: $changed"
+          for side in before after; do
+            (cd "$RUNNER_TEMP/l4/$side" && sh scripts/prerequisites.sh --self-test) >"$RUNNER_TEMP/l4/$side.out" 2>&1
+            echo "l4 $side: self-test exit $?; apostrophe case PASS $(grep -c '^PASS on Windows an apostrophe' "$RUNNER_TEMP/l4/$side.out"), FAIL $(grep -c '^FAIL on Windows an apostrophe' "$RUNNER_TEMP/l4/$side.out"); other FAIL lines $(grep '^FAIL ' "$RUNNER_TEMP/l4/$side.out" | grep -c -v 'on Windows an apostrophe')"
+          done
+          before_fail=$(grep -c '^FAIL on Windows an apostrophe' "$RUNNER_TEMP/l4/before.out")
+          after_pass=$(grep -c '^PASS on Windows an apostrophe' "$RUNNER_TEMP/l4/after.out")
+          echo "l4: the case fails with the old unpack function: $([ "$before_fail" = 1 ] && echo true || echo false); it passes at the head: $([ "$after_pass" = 1 ] && echo true || echo false)"
+          test "$before_fail" = 1 && test "$after_pass" = 1
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
