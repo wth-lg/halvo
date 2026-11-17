@@ -7749,3 +7749,150 @@ fn a_ticks_lapse_of_a_confirmation_cancels_right_after_the_log_of_a_waiting_row_
         "the board's stop is at that reading"
     );
 }
+
+/// A run of agent 0 that waits on a stuck item whose `choice` the owner stored and acknowledged
+/// and whose `Runs::answer_handback` failed `busy`, so that the run did not take it.
+fn stuck_with_a_stored_answer_not_taken(choice: Choice) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerHandback, PortError::Busy);
+    assert_eq!(
+        c.answer(&item, choice, None, shown_step_mark_or_zero(&c, &item)),
+        Err(Cause::Busy)
+    );
+    c.ports().ports.clear_refusals();
+    assert_eq!(closing_rows(&c, &item), 1, "the answer is stored");
+    (c, run, item)
+}
+
+#[test]
+fn rd108_2_a_done_again_whose_read_before_its_kept_row_fails_answers_no_service_and_hands_nothing()
+{
+    for with_hold in [false, true] {
+        let case = format!("hold stored unseen={with_hold}");
+        let (c, _run, item) = stuck_with_a_stored_answer_not_taken(Choice::Done);
+        if with_hold {
+            switch_off_stored_unseen(&c, support::Loss::Later, &case);
+        }
+        let (m, t) = (mark(&c), c.ports().ports.tried.borrow().len());
+        c.ports().next_history_fails.set(true);
+        let out = c.answer(
+            &item,
+            Choice::Done,
+            None,
+            shown_step_mark_or_zero(&c, &item),
+        );
+        let read_made = !c.ports().next_history_fails.take();
+        assert!(
+            read_made,
+            "{case}: the press reads before the kept row's result"
+        );
+        assert_eq!(out, Err(Cause::NoService), "{case}: the read's cause");
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [],
+            "{case}: no answer at the runner"
+        );
+        assert_eq!(
+            cancels_of(&c, m, &_run),
+            0,
+            "{case}: nothing stops in this move"
+        );
+        assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+        assert_eq!(closing_rows(&c, &item), 1, "{case}: no second row");
+    }
+}
+
+#[test]
+fn rd108_2_an_allow_again_whose_read_before_its_recorded_allow_fails_answers_no_service_and_sends_no_allow(
+) {
+    use halvo_coord::types::BindResult;
+    for with_hold in [false, true] {
+        let case = format!("hold stored unseen={with_hold}");
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Taken);
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow"],
+            "{case}: the allow is stored"
+        );
+        if with_hold {
+            switch_off_stored_unseen(&c, support::Loss::Later, &case);
+        }
+        let (m, t) = (mark(&c), c.ports().ports.tried.borrow().len());
+        c.ports().next_history_fails.set(true);
+        let out = c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item),
+        );
+        let read_made = !c.ports().next_history_fails.take();
+        assert!(
+            read_made,
+            "{case}: the press reads before its recorded allow"
+        );
+        assert_eq!(out, Err(Cause::NoService), "{case}: the read's cause");
+        assert!(
+            !runner_answers_tried_since(&c, t)
+                .contains(&Call::AnswerBind(run.clone(), BindResult::Allow)),
+            "{case}: no allow at the runner"
+        );
+        if with_hold {
+            decline_before_one_cancel(&c, m, &run, &case);
+            assert_eq!(
+                step_rows(&c, &item),
+                ["allow", "lapsed:cancelled"],
+                "{case}: the read back after the press shows the hold and the step lapses"
+            );
+        } else {
+            assert_eq!(
+                runner_answers_tried_since(&c, t),
+                [],
+                "{case}: nothing at the runner"
+            );
+            assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+        }
+    }
+}
+
+#[test]
+fn rd108_2_a_done_after_a_stored_decline_that_the_run_did_not_take_reads_first_and_hands_nothing_beside_a_stored_switch_off(
+) {
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = stuck_with_a_stored_answer_not_taken(Choice::Decline);
+        switch_off_stored_unseen(&c, order, &case);
+        let (m, t, from) = (
+            mark(&c),
+            c.ports().ports.tried.borrow().len(),
+            c.ports().ports.events.borrow().len(),
+        );
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::Done,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Err(Cause::UnknownItem),
+            "{case}: as for an item no longer open"
+        );
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [],
+            "{case}: the stored decline is not handed past the switch-off"
+        );
+        assert_eq!(
+            item_rows_since(&c, from, &item),
+            Vec::<String>::new(),
+            "{case}: no row of the press; the stored decline closed the item"
+        );
+        assert_the_stop_came_first(&c, m, &run, &case);
+    }
+}
