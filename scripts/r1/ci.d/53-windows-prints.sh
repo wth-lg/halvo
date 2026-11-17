@@ -80,6 +80,32 @@ EOF
   printf 'PASS %s\n' "$name"
 }
 
+heads_log_lines() {
+  cat <<'EOF'
+running 1 test
+test a_dropped_keyboard_source_stops_capturing ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 86 filtered out; finished in 6.01s
+test c9_peak_working_set_of_sources_1_to_4_for_60_seconds has been running for over 60 seconds
+thread 'tf-c5-watch' (4132) panicked at crates\halvo-capture\tests\windows_functional.rs:5467:13:
+KNOWN-DEFECT W3-5-A2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+TF browser-swap-edge browser=edge phase=show-control round=2 part=shown printed_only=1 counted=1 letters_sent=3 landed_text=1 landed_password=2 tabs_into_password=0 tabs_into_text=0 button_downs=0 focus_after=password letters_decided=3 letters_recorded=0 tabs_recorded=0 other_recorded=0 first_letter_rule=Some(MarkAfterTheKey) first_tab_rule=None keystroke_events=0 sink_differs_from_the_seam=0 landings=tpp landed_at_ms=1262,1305,1344 freed_at_ms=-1 password_letters_recorded_by_key=0 uncounted_because=none
+TF fixture-chrome browser=chrome phase=E page_window_found=true page_window_foreground=true page_plain=40 page_password=20 page_masked=0 keystroke_events=1 gate=Some(Clear)
+TF c9 memory phase=t+5s working_set_bytes=29646848 peak_working_set_bytes=29646848 private_bytes=6701056 peak_private_bytes=6709248
+TF fixture-native-f fixture_process_started=true fixture_window_foreground=1 method=1
+TF c8 affinity_before=Ok(0) set_display_affinity=ok affinity_after=Ok(17) wda_excludefromcapture=17 set_display_affinity_null_window=error(Invalid window handle. (0x80070578))
+TF dropped env session_id_ok=true session_id=2 window_station_is_winsta0=true desktop_is_default=true input_desktop_is_default=true screen=1024x768 monitors=1 remote_session=0 foreground_window_present=true foreground_app_known=true
+TF browser-after-start-chrome browser=chrome first_typing after_the_letters handler_counts_before_the_read=5/5 uia_of_the_focused_element is_password=false legacy_state=0x100004 protected=false control_type=50004 localized_control_type=edit class_name=- framework=Chrome aria_role=textbox aria_properties=expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false automation_id=plain item_type=- handler_counts_1_s_after_the_read=5/5
+TF x14 before_anchor sample foreground_class=CASCADIA_HOSTING_WINDOW_CLASS foreground_image=WindowsTerminal.exe child_windows=3 children_of_other_processes=none anchor_foreground=true anchor_method=attach-thread-input allow_set_foreground_any=false
+child: TF child first_window_foreground=true method=SetForegroundWindow
+TF stall-click-serves-150 phase=click_with_no_wait round=0 counted=1 letters_sent=1 letters_landed=1 letters_recorded=0 tabs_recorded=0 other_recorded=0 recorded_by_the_seam=0 keystroke_events=0 letters_withheld=1 letters_late=0 tabs_withheld=0 lost_at_stop=0 rule_of_the_first_letter=4 rule_of_the_first_tab=-1 fg_at_send=1 focus_at_send=1 plain_len_at_send=0 password_len_at_send=0 plain_len_at_wake=0 password_len_at_wake=0 plain_len_after=0 password_len_after=1 letters_plain=0 letters_password=1 letters_second=0 letters_other=0 tabs_plain=0 tabs_password=0 tabs_second=0 fg_after=1 reactivated=0 aimed=1 late_events_moved_by=0 keys_withheld_before=0 keys_withheld_after=1 sink_differs_from_the_seam=0 uncounted_because=none
+TF dropped uninstall_key_before per_user_uninstall_key=native exists=false subkeys=0 values=0 first_subkeys=[]
+TF browser-renamed-firefox browser=renamed-firefox field=plain foreground=true focus_before=plain gate_while_focused=Some(Unknown) counted=1 letters_sent=5 landed_text=0 landed_password=0 tabs_into_password=0 tabs_into_text=0 button_downs=0 focus_after=plain letters_decided=5 letters_recorded=0 tabs_recorded=0 other_recorded=0 first_letter_rule=Some(StateAtTheKey) first_tab_rule=None keystroke_events=0 sink_differs_from_the_seam=0 landings=- landed_at_ms= freed_at_ms=-1 password_letters_recorded_by_key=0 uncounted_because=none framework=Gecko window_class=MozillaWindowClass file=renamed-browser.exe kind=Other is_password=0 protected=0 pid_read=1 file_read=ok
+fault code=0xc0000005 module=windows_functional-38082c0e82ee5731.exe offset=0x46f40
+left_out the rounds of every other stall phase but one, of phase E but one, of the fixtures' phases E and F but one
+EOF
+}
+
 source_case() {
   case_name=$1
   want=$2
@@ -92,6 +118,20 @@ source_case() {
   verdict "$case_name" "$want" "$got" "$read_count"
 }
 
+plant() {
+  printf '%s' "$2" >"$work/$1.log" || fail_self "the fixture $1 cannot be written"
+}
+
+log_case() {
+  case_name=$1
+  wpr_check_log "$case_name" "$work/$case_name.log" "$work/vocab" >"$work/$case_name.out"
+  got=$?
+  read_count=$(grep -c '' "$work/$case_name.log") || read_count=0
+  verdict "$case_name" "$2" "$got" "$read_count"
+  named=$(cat "$work/$case_name.out") || fail_self "the answer of $case_name cannot be read"
+  [ "$named" = "${3:-}" ] || fail_self "the fixture $case_name named another line than the one that it plants"
+}
+
 verdict() {
   lines_named=$(grep -c '' "$work/$1.out") || lines_named=0
   case $2 in
@@ -100,6 +140,12 @@ verdict() {
         fail_self "the fixture $1 was not refused: exit $3, $lines_named lines named"
       rejected=$((rejected + 1))
       printf 'case %s/%s want=refused got=refused (lines read %s, lines named %s)\n' "$name" "$1" "$4" "$lines_named"
+      ;;
+    unreadable)
+      [ "$3" -eq 2 ] && [ "$lines_named" -eq 0 ] ||
+        fail_self "the fixture $1 was read as a log: exit $3, $lines_named lines named"
+      rejected=$((rejected + 1))
+      printf 'case %s/%s want=unreadable got=unreadable\n' "$name" "$1"
       ;;
     passed)
       [ "$3" -eq 0 ] && [ "$lines_named" -eq 0 ] ||
@@ -136,6 +182,29 @@ self_test() {
     let text = "hunter2";
 }'
   [ "$read_count" -eq 0 ] || fail_self "the fixture src-not-a-print read $read_count lines of a text that no print call holds"
+  cr=$(printf '\r')
+  plant log-typed-key "TF c1 keystroke_events=1$cr
+TF c1 key=q vk=81$cr"
+  log_case log-typed-key refused 'prints-rule log-typed-key line=2 length=17 token=3'
+  plant log-window-title "TF c4 source=window_title start=ok$cr
+TF c4 title=Untitled - Notepad bytes=18$cr"
+  log_case log-window-title refused 'prints-rule log-window-title line=2 length=39 token=3'
+  plant log-field-text "TF stall plain_len=7 plain_text=hunter2$cr"
+  log_case log-field-text refused 'prints-rule log-field-text line=1 length=39 token=4'
+  printf 'TF c4 bytes=5 title=Caf\303\251\r' >"$work/log-title-outside-ascii.log" ||
+    fail_self "the fixture log-title-outside-ascii cannot be written"
+  log_case log-title-outside-ascii refused 'prints-rule log-title-outside-ascii line=1 length=25 token=4'
+  heads_log_lines >"$work/heads.txt" || fail_self "the fixture log-heads-lines cannot be written"
+  awk '{ printf "%s\r\n", $0 }' "$work/heads.txt" >"$work/log-heads-lines.log" ||
+    fail_self "the fixture log-heads-lines cannot be written"
+  log_case log-heads-lines passed
+  [ "$read_count" -ge 21 ] || fail_self "the fixture log-heads-lines read $read_count lines, fewer than 21"
+  wpr_check_log log-missing "$work/no-such.log" "$work/vocab" >"$work/log-missing.out"
+  verdict log-missing unreadable "$?" 0
+  : >"$work/empty-vocab"
+  printf 'TF c1 ok=true\n' >"$work/one.log" || fail_self "the fixture log-without-a-vocabulary cannot be written"
+  wpr_check_log log-without-a-vocabulary "$work/one.log" "$work/empty-vocab" >"$work/log-without-a-vocabulary.out"
+  verdict log-without-a-vocabulary unreadable "$?" 0
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
 }
 

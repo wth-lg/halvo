@@ -231,6 +231,11 @@ wpr_check_lines() {
   ' "$1" -
 }
 
+wpr_check_log() {
+  [ -f "$2" ] && [ -r "$2" ] && [ -s "$3" ] || return 2
+  wpr_check_lines "$3" "$1" <"$2"
+}
+
 wpr_print_literals() {
   LC_ALL=C awk -v file="$1" '
     function decode(s,    out, i, c, d) {
