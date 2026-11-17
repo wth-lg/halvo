@@ -5,6 +5,7 @@
 pub mod barrier;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod batch;
+pub mod children;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod counters;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
@@ -17,6 +18,7 @@ mod model_store;
 pub mod owner;
 #[cfg(test)]
 mod owner_props;
+pub mod permissions;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod port;
 #[rustfmt::skip]
@@ -32,6 +34,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use halvo_control::onboarding::Permission;
 use halvo_control::paths::{AccountLookup, PathError};
 
 use crate::floor::{Switch, Switches};
@@ -88,6 +91,8 @@ pub fn stop_bound(settle_bound: Duration) -> Duration {
 
 /// The text that a refused command line prints after its reason.
 pub const USAGE: &str = "usage: halvo-capture --version
+       halvo-capture --probe-permissions [PERMISSION]...
+       halvo-capture --request-permission PERMISSION
        halvo-capture --timed-run SECONDS --store-dir DIR [--hold-secure-input] [--switch NAME=on|off]...
        halvo-capture --verify-store --store-dir DIR --marker MARKER
        halvo-capture --verify-deletion --store-dir DIR
@@ -98,6 +103,11 @@ pub const USAGE: &str = "usage: halvo-capture --version
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
     Version,
+    /// `--probe-permissions [P...]`: one line for each permission named, a
+    /// check of no other (contracts.md C3.6).
+    ProbePermissions(Vec<Permission>),
+    /// `--request-permission P` (contracts.md C3.6).
+    RequestPermission(Permission),
     #[cfg(debug_assertions)]
     TimedRun(TimedRun),
     #[cfg(debug_assertions)]
@@ -526,6 +536,11 @@ pub fn parse(
     let _ = account;
     match args.first().map(String::as_str) {
         Some("--version") if args.len() == 1 => Ok(Mode::Version),
+        Some("--probe-permissions") => Ok(Mode::ProbePermissions(permissions_of(&args[1..])?)),
+        Some("--request-permission") => match permissions_of(&args[1..])?[..] {
+            [permission] => Ok(Mode::RequestPermission(permission)),
+            _ => Err(Usage("--request-permission takes one PERMISSION").into()),
+        },
         #[cfg(debug_assertions)]
         Some("--timed-run") => gate::timed_run(&args[1..], account),
         #[cfg(debug_assertions)]
@@ -555,6 +570,16 @@ pub fn parse(
         }
         _ => Err(Usage("no mode of this build").into()),
     }
+}
+
+fn permissions_of(names: &[String]) -> Result<Vec<Permission>, Usage> {
+    names
+        .iter()
+        .map(|name| {
+            name.parse::<Permission>()
+                .map_err(|_| Usage("no permission has that name"))
+        })
+        .collect()
 }
 
 #[cfg(debug_assertions)]
@@ -1072,6 +1097,30 @@ fn report_of(
     }
 }
 
+/// The answer of `--probe-permissions`: its lines on `out`, nothing on a
+/// system without a probe, and status 0.
+pub fn probe_answer(permissions: &[Permission], out: &mut dyn std::io::Write) -> i32 {
+    let text = permissions::system_probe()
+        .map(|probe| permissions::probe_lines(&*probe, permissions))
+        .unwrap_or_default();
+    write_or_error(out, &text)
+}
+
+/// The answer of `--request-permission P`: its line on `out` and status 0.
+pub fn request_answer(permission: Permission, out: &mut dyn std::io::Write) -> i32 {
+    let text = permissions::system_probe()
+        .map(|probe| permissions::request_line(&*probe, permission))
+        .unwrap_or_default();
+    write_or_error(out, &text)
+}
+
+fn write_or_error(out: &mut dyn std::io::Write, text: &str) -> i32 {
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Ok(()) => halvo_control::exit::CLEAN,
+        Err(_) => halvo_control::exit::ERROR,
+    }
+}
+
 /// Runs the gate's timed run on this system.
 #[cfg(debug_assertions)]
 pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
@@ -1194,6 +1243,44 @@ mod tests {
         let mut line = vec!["--timed-run"];
         line.extend_from_slice(rest);
         parse(args(&line), &dirs.account)
+    }
+
+    #[test]
+    fn the_permission_modes_parse_in_every_build() {
+        let dirs = dirs();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--probe-permissions"]),
+            Ok(Mode::ProbePermissions(Vec::new()))
+        );
+        assert_eq!(
+            parsed(&[
+                "--probe-permissions",
+                "screen_and_system_audio_recording",
+                "input_monitoring"
+            ]),
+            Ok(Mode::ProbePermissions(vec![
+                Permission::ScreenAndSystemAudioRecording,
+                Permission::InputMonitoring
+            ]))
+        );
+        assert_eq!(
+            parsed(&["--request-permission", "accessibility"]),
+            Ok(Mode::RequestPermission(Permission::Accessibility))
+        );
+        for line in [
+            &["--probe-permissions", "camera"][..],
+            &["--request-permission"][..],
+            &["--request-permission", "input_monitoring", "accessibility"][..],
+            &["--request-permission", "microphone"][..],
+        ] {
+            let refused = parsed(line).unwrap_err();
+            assert_eq!(
+                usage_answer(&refused, &mut Vec::new()),
+                halvo_control::exit::USAGE,
+                "{line:?}"
+            );
+        }
     }
 
     #[cfg(debug_assertions)]
