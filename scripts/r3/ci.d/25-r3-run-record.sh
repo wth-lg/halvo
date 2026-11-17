@@ -9,6 +9,7 @@ name=25-r3-run-record
 nl='
 '
 frozen=crates/halvo-schema/tests/later_kinds.rs
+bs='\'
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
@@ -31,12 +32,21 @@ pinned_paths=489507615
 program='
 function keys(text, k,    n, re) {
   n = 0
-  re = "\"" k "\"[ \t\r\n]*:"
+  re = "\\\\?\"" k "\\\\?\"[ \t\r\n]*:"
   while (match(text, re)) {
     n++
     text = substr(text, RSTART + RLENGTH)
   }
   return n
+}
+function hexval(s,    n, i) {
+  s = tolower(s)
+  n = 0
+  for (i = 1; i <= length(s); i++) n = n * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1
+  return n
+}
+function ascii(n, written) {
+  return (n > 0 && n < 128) ? sprintf("%c", n) : written
 }
 function least(a, b) {
   return a < b ? a : b
@@ -90,7 +100,18 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
           else if (d == "n") text = text "\n"
           else if (d == "t") text = text "\t"
           else if (d == "r") text = text "\r"
-          else if (d != "") text = text c d
+          else if (d == "x" && substr(line, i + 2, 2) ~ /^[0-9A-Fa-f][0-9A-Fa-f]$/) {
+            text = text ascii(hexval(substr(line, i + 2, 2)), substr(line, i, 4))
+            i += 4
+            continue
+          } else if (d == "u" && match(substr(line, i + 2), /^[{][0-9A-Fa-f_]+[}]/)) {
+            j = RLENGTH
+            q = substr(line, i + 3, j - 2)
+            gsub(/_/, "", q)
+            text = text ascii(hexval(q), substr(line, i, j + 2))
+            i += 2 + j
+            continue
+          } else if (d != "") text = text c d
           i += 2
           continue
         }
@@ -136,6 +157,10 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
         if (word != "") last = word
         word = ""
         i++
+        continue
+      }
+      if (pending && c == "." && match(substr(line, i), /^[.](to_owned|to_string|into)[(][)]/)) {
+        i += RLENGTH
         continue
       }
       if (pending && c != ")") {
@@ -346,6 +371,11 @@ measure() {
     0 | 1) ;;
     *) fail git ;;
   esac
+  git -C "$repo" -c core.quotePath=false grep -l -I -F -e "${bs}x" -e "${bs}u{" -- '*.rs' >>"$out/read"
+  case $? in
+    0 | 1) ;;
+    *) fail git ;;
+  esac
   printf '%s\n' "$frozen" >>"$out/read" || fail setup
   : >"$out/places.txt" || fail setup
   awk -v root="$repo" -v frozen="$frozen" -v placelist="$out/places.txt" \
@@ -380,14 +410,17 @@ value parses that text and may then change keys of it.
 The check is lexical: it reads tracked .rs files of the work tree as Rust tokens (line
 and block comments, string literals with escapes, raw strings, char literals), not
 Rust's syntax. It reads only the files in which git grep finds both words outcome and
-earlier_page, and crates/halvo-schema/tests/later_kinds.rs.
+earlier_page or a hex or Unicode escape, and crates/halvo-schema/tests/later_kinds.rs.
 
 A place:
   a string literal (plain, raw or byte, also a format! string) whose text holds the key
-  outcome and the key earlier_page, each a quoted name followed by a colon; a literal
-  with n of each counts n places;
+  outcome and the key earlier_page, each a quoted name followed by a colon, also with a
+  backslash before each quote (a record held as escaped text inside another text), and
+  with a quote, a colon or a letter written as a hex or Unicode escape of a plain string;
+  a literal with n of each counts n places;
   an object of a json! call, at any depth, whose own keys (a string literal, also in
-  parentheses, followed by a colon) name outcome and earlier_page; a map that changes
+  parentheses or with .to_owned(), .to_string() or .into(), followed by a colon) name
+  outcome and earlier_page; a map that changes
   both keys of a made record is such an object too: change them one key at a time.
 Not a place: a struct literal of AgentRun, a list of keys (a key followed by anything but
 a colon), a record made by AgentRun::new or by a helper that calls it and then changed
@@ -400,13 +433,15 @@ agent_run from before the run's list: there a place holds the keys outcome and
 handbacks.
 
 Forms that it does not read (each builds the record by hand and passes):
-  a key with a Unicode escape for one of its letters, split by a line continuation or
-  split between literals (concat!); white space other than space, tab and line ends
-  before a key's colon; a key that a const or a variable names inside json!; a map
-  built by insert calls or collected from pairs; a record in a file that is not .rs,
-  untracked or outside the work tree; json! under another name by use ... as, or behind
-  a macro of another name that hands its tokens on to json!; a doctest in a comment;
-  serde_json::Map or a struct of another crate that serializes to the record.
+  a key split by a line continuation or between literals (concat!, + or push_str);
+  white space other than space, tab and line ends before a key's colon; a key that a
+  const or a variable names inside json!; keys or quotes passed as format! arguments
+  ({q}outcome{q}, {:?}); a map that the maker did not make, built by insert calls or by
+  index assignment (record["outcome"] = ..) or collected from pairs; a record in a file
+  that is not .rs, that git treats as binary, untracked or outside the work tree; json!
+  under another name by use ... as, or behind a macro of another name that hands its
+  tokens on to json!; a doctest in a comment; serde_json::Map or a struct of another
+  crate that serializes to the record.
 
 The known list, known() in this script, holds each file of another run with its count of
 places. A file's count must equal its row: a new place builds the record with the maker.
@@ -507,6 +542,7 @@ self_test() {
   source=${CI_D_REPO:-.}
   wrong=
   rejected=0
+  tab=$(printf '\t')
   raw='const RECORD: &str = r#"{"v":1,"outcome":"completed","held_earlier":null,"earlier_page":null}"#;'
   map='    json!({'
   map_keys='        "mode": "replay", "outcome": "completed", "earlier_page": null,'
@@ -582,6 +618,52 @@ self_test() {
   repo a-change-map-with-both-keys
   put crates/a/tests/t.rs 'fn f(record: &mut Value) {' '    merge(record, &json!({"outcome": "failed", "earlier_page": 6}));' '}'
   case_of a-change-map-with-both-keys FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-quote-as-a-hex-escape
+  put crates/a/tests/t.rs 'const R: &str = "{'"$bs"'x22outcome'"$bs"'x22:1,'"$bs"'x22earlier_page'"$bs"'x22:null}";'
+  case_of a-quote-as-a-hex-escape FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-quote-as-a-unicode-escape
+  put crates/a/tests/t.rs 'const R: &str = "{'"$bs"'u{22}outcome'"$bs"'u{0022}:1,'"$bs"'u{22}earlier_page'"$bs"'u{22}:null}";'
+  case_of a-quote-as-a-unicode-escape FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-colon-and-a-letter-as-hex-escapes
+  put crates/a/tests/t.rs 'const R: &str = "{'"$bs"'"'"$bs"'x6futcome'"$bs"'"'"$bs"'x3a1,'"$bs"'"earlier_p'"$bs"'x61ge'"$bs"'":null}";'
+  case_of a-colon-and-a-letter-as-hex-escapes FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-json-key-with-a-method-call
+  put crates/a/tests/t.rs 'fn f(o: &str) -> Value {' '    json!({"outcome".to_owned(): o, "earlier_page".to_string() : null, "x".into(): 1})' '}'
+  case_of a-json-key-with-a-method-call FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-record-as-escaped-text-in-a-text
+  put crates/a/tests/t.rs 'const ROW: &str = r#"{"kind":"agent_run","json":"{\"outcome\":\"failed\",\"earlier_page\":null}"}"#;' 'const ROW2: &str = "{'"$bs"'"json'"$bs"'":'"$bs"'"{'"$bs$bs$bs"'"outcome'"$bs$bs$bs"'":1,'"$bs$bs$bs"'"earlier_page'"$bs$bs$bs"'":null}'"$bs"'"}";'
+  case_of a-record-as-escaped-text-in-a-text FAIL 'run-record unknown=crates/a/tests/t.rs places=2'
+
+  repo a-c-raw-text
+  put crates/a/tests/t.rs 'const R: &CStr = cr#"{"outcome":"failed","earlier_page":null}"#;'
+  case_of a-c-raw-text FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-multibyte-char-before-a-quote-char
+  put crates/a/tests/t.rs "const CS: [char; 2] = ['é','\"'];" 'const R: &str = r#"{"outcome":"failed","earlier_page":null}"#;'
+  case_of a-multibyte-char-before-a-quote-char FAIL 'run-record unknown=crates/a/tests/t.rs places=1 lines=2'
+
+  repo a-known-count-not-in-digits
+  put crates/b/src/stub.rs "$raw"
+  printf 'crates/b/src/stub.rs 1e1 a run\n' >"$work/a-known-count-not-in-digits.known" || broken known
+  case_of a-known-count-not-in-digits FAIL 'run-record known-line=1'
+
+  repo a-tracked-file-missing-from-the-work-tree
+  blob=$(git -C "$work/a-tracked-file-missing-from-the-work-tree" hash-object -w --stdin </dev/null) || broken "missing: blob"
+  git -C "$work/a-tracked-file-missing-from-the-work-tree" update-index --add --cacheinfo "100644,$blob,$frozen" || broken "missing: update-index"
+  case_of a-tracked-file-missing-from-the-work-tree FAIL "run-record file=$frozen unread"
+
+  repo a-json-call-inside-a-json-map
+  put crates/a/tests/t.rs 'fn f() -> Value {' '    json!({"outcome": "failed", "inner": json!({"a": 1}), "earlier_page": null})' '}'
+  case_of a-json-call-inside-a-json-map FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-tab-before-a-json-key-s-colon
+  put crates/a/tests/t.rs 'fn f() -> Value {' "    json!({\"outcome\"${tab}: 1, \"earlier_page\"${tab}${tab}: null})" '}'
+  case_of a-tab-before-a-json-key-s-colon FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
 
   repo crlf-before-a-key-s-colon
   put_crlf crates/a/tests/t.rs 'fn f() -> Value {' '    json!({"outcome"' '        : 1, "earlier_page"' '        : null})' '}'
