@@ -18,5 +18,8 @@ r3-web = { path = "../web" }
 serde_json = "=1.0.154"
 tokio = { version = "=1.54.1", features = ["rt", "macros", "time", "sync", "signal"] }
 
+[dev-dependencies]
+r3-web = { path = "../web", default-features = false, features = ["test-fence"] }
+
 [profile.release]
 strip = true
