@@ -343,7 +343,17 @@ impl std::fmt::Display for NoReply {
 
 const NOT_DRIVEN: &str = "a reply of the fixture did not come";
 
-const FIXTURE_SOURCE: &str = include_str!("macos_stall_fixture/fixture.m");
+fn source_of(path: &str) -> &'static str {
+    let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
+    let text = std::fs::read_to_string(&full)
+        .unwrap_or_else(|error| panic!("{path} cannot be read: {:?}", error.kind()));
+    Box::leak(text.into_boxed_str())
+}
+
+fn fixture_source() -> &'static str {
+    static SOURCE: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+    SOURCE.get_or_init(|| source_of("tests/macos_stall_fixture/fixture.m"))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Verb {
@@ -355,7 +365,7 @@ struct Verb {
 
 fn table_of(name: &str) -> Vec<Verb> {
     let head = format!("static const Verb {name}[] = {{");
-    let Some((_, rest)) = FIXTURE_SOURCE.split_once(head.as_str()) else {
+    let Some((_, rest)) = fixture_source().split_once(head.as_str()) else {
         return Vec::new();
     };
     let body = rest.split_once("};").map_or("", |(body, _)| body);
@@ -994,6 +1004,7 @@ enum Move {
     LeavingKeyUp,
     WholePassword,
     WholePasswordBurst,
+    ShortOnTime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1236,8 +1247,11 @@ impl Drive {
         } else {
             None
         };
-        let whole = matches!(how, Move::WholePassword | Move::WholePasswordBurst);
-        let step = if how == Move::WholePasswordBurst {
+        let whole = matches!(
+            how,
+            Move::WholePassword | Move::WholePasswordBurst | Move::ShortOnTime
+        );
+        let step = if matches!(how, Move::WholePasswordBurst | Move::ShortOnTime) {
             BURST_STEP
         } else {
             letter_step(wait_ms)
@@ -1254,7 +1268,7 @@ impl Drive {
             Move::Tab | Move::LeavingKeyUp => {
                 fixture.try_keys(step, &format!("{TAB} {letters}"))?
             }
-            Move::WholePassword | Move::WholePasswordBurst => {
+            Move::WholePassword | Move::WholePasswordBurst | Move::ShortOnTime => {
                 fixture.try_keys(step, &format!("{TAB} {letters} {RETURN}"))?;
             }
             Move::Click | Move::Return => {
@@ -1311,7 +1325,7 @@ impl Drive {
                 return Ok(());
             }
             fixture.try_keys(Duration::ZERO, &format!("{RETURN}u"))?;
-        } else if !whole {
+        } else if !whole || how == Move::ShortOnTime && fixture.try_state()?.focus == "secure" {
             fixture.try_focus("plain")?;
         }
         if !state_reads(false, Duration::from_secs(2)) {
@@ -1999,7 +2013,44 @@ fn judge_short_on_time(name: &str, rounds: &[Round], spacing: Option<Duration>) 
         rounds.iter().map(noticed_drops).sum::<usize>(),
         on_us.join(",")
     );
-    judge(name, rounds);
+    let failed: Vec<String> = rounds
+        .iter()
+        .filter(|round| three_way_recorded(round))
+        .map(|round| {
+            format!(
+                "wait {} ms: {}{}",
+                round.wait_ms,
+                round.ahead,
+                driven_note(round)
+            )
+        })
+        .collect();
+    assert!(
+        failed.is_empty(),
+        "{name}: recorded keys beside the markers in rounds that counted or were not driven: {}",
+        failed.join(", ")
+    );
+    for round in rounds.iter().filter(|round| !round.counted) {
+        println!(
+            "{name} notcounted wait_ms={} why={}",
+            round.wait_ms,
+            round.why_not.replace(' ', "_")
+        );
+    }
+    assert!(
+        rounds.iter().any(|round| round.counted),
+        "{name}: no round counted"
+    );
+    let inexact: Vec<String> = rounds
+        .iter()
+        .filter(|round| round.counted && round.markers != MARKERS.len())
+        .map(|round| format!("wait {} ms: {}", round.wait_ms, round.markers))
+        .collect();
+    assert!(
+        inexact.is_empty(),
+        "{name}: records of the markers other than one for each marker: {}",
+        inexact.join(", ")
+    );
     if spacing.is_some() {
         assert!(
             shorter > 0,
@@ -2015,7 +2066,7 @@ fn a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of
     let name = "a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of_two_readings_is_not_recorded";
     let rounds = phase_with(
         name,
-        Move::WholePasswordBurst,
+        Move::ShortOnTime,
         &[(300, SHORT_BOUND)],
         noticed_sparse_source,
         as_is(short_on_time_rounds()),
@@ -2057,7 +2108,7 @@ fn at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded() {
     let name = "at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded";
     let rounds = phase_with(
         name,
-        Move::WholePasswordBurst,
+        Move::ShortOnTime,
         &[(300, HOLD_BOUND)],
         noticed_product_source,
         as_is(short_on_time_product_rounds()),
@@ -3440,7 +3491,7 @@ fn the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_it
         }
         for reply in [verb.reply, verb.later] {
             assert!(
-                reply.is_empty() || FIXTURE_SOURCE.contains(&format!("@\"{reply}")),
+                reply.is_empty() || fixture_source().contains(&format!("@\"{reply}")),
                 "the fixture gives no reply {reply} of {}",
                 verb.verb
             );
@@ -3448,7 +3499,7 @@ fn the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_it
     }
     assert_eq!(notice_of("ready"), "ready pid=");
     assert_eq!(notice_of("left"), "left_secure");
-    let test_source = include_str!("macos_stall_fixture.rs");
+    let test_source = source_of("tests/macos_stall_fixture.rs");
     let mut sent = Vec::new();
     for call in [
         "ask(\"",
@@ -3477,22 +3528,22 @@ fn the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_it
     }
     assert!(sent.len() >= 10, "the verbs that the test sends: {sent:?}");
     assert!(
-        !FIXTURE_SOURCE.contains(" at=%llu"),
+        !fixture_source().contains(" at=%llu"),
         "a reply time that names no clock"
     );
     assert_eq!(
-        FIXTURE_SOURCE.matches(", uptime_ns()]").count(),
-        FIXTURE_SOURCE.matches("at_uptime_ns=%llu").count(),
+        fixture_source().matches(", uptime_ns()]").count(),
+        fixture_source().matches("at_uptime_ns=%llu").count(),
         "each reply time names CLOCK_UPTIME_RAW"
     );
     assert_eq!(
-        FIXTURE_SOURCE.matches("dispatch_after(").count(),
-        FIXTURE_SOURCE
+        fixture_source().matches("dispatch_after(").count(),
+        fixture_source()
             .matches("if (generation != leaveGeneration) return;")
             .count(),
         "each leave that the fixture schedules is cancelled by a later clear or autoleave"
     );
-    assert!(FIXTURE_SOURCE.contains(
+    assert!(fixture_source().contains(
         "if ([verb isEqualToString:@\"clear\"] || [verb isEqualToString:@\"autoleave\"]) {\n        leaveGeneration++;"
     ));
 }
