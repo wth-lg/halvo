@@ -2249,7 +2249,10 @@ set, and the root's own volume name answers the root.
   zeros are on the drive as far as the drive keeps the promise of the
   full-flush call. Not covered: no test makes a loss of power; a drive or a
   volume that answers the full-flush call without writing its cache is not
-  seen; on a volume that refuses the full-flush call every durable write of
+  seen; SQLite flushes the store folder with a plain fsync after it creates
+  a file there, by its own rule (the counting library read the store folder
+  as the file of every plain fsync of a create and of an open, and of no
+  commit), and no test makes that flush the full-flush call; on a volume that refuses the full-flush call every durable write of
   the helper refuses and every flush of the roots folder reads failed,
   while SQLite's own flushes there fall back to a plain fsync by SQLite's
   rule, and no test runs on such a volume. Check 1 reads what a write and a
