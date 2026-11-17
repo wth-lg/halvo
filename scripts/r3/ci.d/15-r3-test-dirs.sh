@@ -29,8 +29,6 @@ crates/halvo-cap/src/lock.rs 1 workflow run
 crates/halvo-cap/tests/model_lock.rs 1 workflow run
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
 crates/halvo-coord/tests/fixtures_same.rs 1 interface run
-crates/halvo-derived/src/tests.rs 1 workflow run
-crates/halvo-derived/tests/common/mod.rs 1 workflow run
 crates/halvo-route-gate/tests/cli_commands.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/import_golden.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/import_rules.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
@@ -60,9 +58,9 @@ tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=42
-pinned_places=55
-pinned_paths=2166838485
+pinned_rows=40
+pinned_places=53
+pinned_paths=1472626537
 
 program='
 function code(s) {
