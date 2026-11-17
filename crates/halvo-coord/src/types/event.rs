@@ -47,6 +47,19 @@ pub struct Event {
     pub what: What,
 }
 
+/// What the coordinator saw of the defers of a run whose whole life it saw, the keys
+/// `defer_launch` and `defer_ticks_failed` of its `run_ended` (I7.1, ruling RD-86 items 1 and 2):
+/// whether the defer of its own launch was acknowledged, and the count of the ticks at which the
+/// run stood on the board and no defer was acknowledged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Defers {
+    /// `defer_launch`: whether the defer of the run's launch was acknowledged.
+    pub launch: bool,
+    /// `defer_ticks_failed`: the ticks at which the run stood on the board and no defer was
+    /// acknowledged.
+    pub ticks_failed: u32,
+}
+
 /// The events of I7.1 with the keys that each sets; every other key is null.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum What {
@@ -65,6 +78,9 @@ pub enum What {
         run: RunId,
         /// `cause`: the end of I5.6.
         cause: RunEnd,
+        /// `defer_launch` and `defer_ticks_failed`: what this life saw of the run's defers, or
+        /// none where it did not see the run whole, which the row writes as null (ruling RD-86).
+        defers: Option<Defers>,
     },
     /// `item_raised`.
     ItemRaised {

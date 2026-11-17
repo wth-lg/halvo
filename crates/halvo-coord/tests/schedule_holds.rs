@@ -85,7 +85,11 @@ fn started(n: u32, slot: Option<u32>) -> What {
 }
 
 fn ended(n: u32, cause: RunEnd) -> What {
-    What::RunEnded { run: run(n), cause }
+    What::RunEnded {
+        run: run(n),
+        cause,
+        defers: None,
+    }
 }
 
 fn names(slots: &[&str]) -> Vec<Name> {

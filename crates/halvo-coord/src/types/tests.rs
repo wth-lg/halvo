@@ -89,6 +89,12 @@ fn web_origin_cases() -> Vec<(String, bool)> {
         "https://utility.test:443",
         "http://pay.utility.test:1",
         "https://a-b.example:65535",
+        "http://0.0.0.0:80",
+        "http://255.255.255.255:65535",
+        "http://1.2.3.a:80",
+        "https://pay.0xg:443",
+        "https://0x7f000001.test:443",
+        "https://127.1.test:443",
     ];
     let refused = [
         "http://utility.test",
@@ -113,6 +119,20 @@ fn web_origin_cases() -> Vec<(String, bool)> {
         "http://:80",
         "utility.test:80",
         "",
+        "http://127.1:80",
+        "http://2130706433:80",
+        "http://0x7f.0.0.1:80",
+        "http://0177.0.0.1:80",
+        "http://127.0.0.01:80",
+        "http://0x7f000001:80",
+        "http://1.2.3.04:80",
+        "http://127.0.0.1.1:80",
+        "http://256.0.0.1:80",
+        "https://pay.123:443",
+        "https://pay.0x:443",
+        "https://pay.0xff:443",
+        "http://1:80",
+        "http://00.0.0.0:80",
     ];
     let labels = |last: usize| {
         format!(
@@ -134,9 +154,11 @@ fn web_origin_cases() -> Vec<(String, bool)> {
 #[test]
 fn origin_parse_answers_every_input_as_web_origin_parse_of_the_agent_setup_run() {
     let cases = web_origin_cases();
-    assert_eq!(cases.len(), 29);
+    assert_eq!(cases.len(), 49);
     let mut differ = Vec::new();
     for (input, taken) in &cases {
+        let schema = halvo_schema::executable::text::WebOrigin::parse(input);
+        assert_eq!(schema.is_ok(), *taken, "the schema's answer on {input:?}");
         let got = Origin::parse(input);
         let agrees = match got {
             Ok(o) => *taken && o.as_str() == input,
@@ -704,14 +726,50 @@ fn product_limits_are_the_values_of_i0_10() {
     assert_eq!(l.coalesce_ms, 250);
     assert_eq!(l.owner_wait_s, 5);
     assert_eq!(l.roster_max, 256);
-    assert_eq!(l.request_records, 8);
-    assert_eq!(l.request_bytes, 4096);
+    assert_eq!(l.request_records, 20);
+    assert_eq!(l.request_bytes, 16_384);
     assert_eq!(l.history_runs, 5);
     assert_eq!(l.setup_params, 8);
     assert_eq!(l.setup_candidates, 8);
 }
 
-const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"setup_params\":8,\"setup_candidates\":8}";
+const PRODUCT_JSON: &str = "{\"max_live_runs\":1,\"queue_max\":4,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":6,\"items_per_run\":8,\"fails_to_pause\":3,\"catch_up_days\":7,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":20,\"request_bytes\":16384,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
+
+#[test]
+fn the_products_body_bounds_equal_the_schemas() {
+    assert_eq!(
+        Limits::PRODUCT.request_records as usize,
+        halvo_schema::coordinator::REQUEST_RECORDS
+    );
+    assert_eq!(
+        Limits::PRODUCT.request_bytes as usize,
+        halvo_schema::coordinator::REQUEST_BYTES
+    );
+    assert_eq!(
+        Limits::MOST_REQUEST_RECORDS as usize,
+        halvo_schema::coordinator::REQUEST_RECORDS
+    );
+    assert_eq!(
+        Limits::MOST_REQUEST_BYTES as usize,
+        halvo_schema::coordinator::REQUEST_BYTES
+    );
+}
+
+#[test]
+fn limits_refuse_body_bounds_above_the_schemas() {
+    for (key, most) in [("request_records", 20), ("request_bytes", 16_384)] {
+        assert!(
+            PRODUCT_JSON.contains(&format!("\"{key}\":{most}")),
+            "{key} at its bound"
+        );
+        assert!(Limits::from_json(PRODUCT_JSON).is_ok());
+        let above = PRODUCT_JSON.replace(
+            &format!("\"{key}\":{most}"),
+            &format!("\"{key}\":{}", most + 1),
+        );
+        assert_eq!(Limits::from_json(&above), Err(Cause::Malformed), "{above}");
+    }
+}
 
 #[test]
 fn limits_write_and_read_the_field_names_of_i0_10() {
@@ -720,7 +778,7 @@ fn limits_write_and_read_the_field_names_of_i0_10() {
         PRODUCT_JSON
     );
     assert_eq!(Limits::from_json(PRODUCT_JSON), Ok(Limits::PRODUCT));
-    let model = "{\"max_live_runs\":2,\"queue_max\":2,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":2,\"items_per_run\":8,\"fails_to_pause\":2,\"catch_up_days\":0,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"setup_params\":8,\"setup_candidates\":8}";
+    let model = "{\"max_live_runs\":2,\"queue_max\":2,\"wait_limit_s\":900,\"arm_ms\":500,\"cancel_grace_s\":5,\"starts_per_day\":2,\"items_per_run\":8,\"fails_to_pause\":2,\"catch_up_days\":0,\"next_wait_s\":25,\"coalesce_ms\":250,\"owner_wait_s\":5,\"roster_max\":256,\"request_records\":8,\"request_bytes\":4096,\"history_runs\":5,\"record_stuck_ticks\":3,\"setup_params\":8,\"setup_candidates\":8}";
     let l = Limits::from_json(model).unwrap();
     assert_eq!((l.max_live_runs, l.queue_max, l.catch_up_days), (2, 2, 0));
 }

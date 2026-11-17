@@ -17,7 +17,7 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | `src/fixture.rs` | The fixture server with a pipe on its input, its reset and state, and the mail face |
 | `src/body.rs` | The reply rule and the rule that counts a body |
 | `src/lines.rs` | The line forms of A13.6 and of this trial's `load` line |
-| `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`) |
+| `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`); `--check` also refuses each pair of files that `route-gate import` refuses, with its detail |
 | `rebuild.py` | Makes the block again from the raw cell files, the helper's log and the job log (`--compare`) |
 | `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines |
 | `src/bin/r3-standin.rs` | The stand-in child: no model, one action of the grammar per request, by role and name |
@@ -31,7 +31,7 @@ sh tools/r3-trials/model/fetch.sh minicpm5_2b        # the weights of a model, c
 sh tools/r3-trials/drive/run.sh --model minicpm5_2b --task bill --seed 1 \
   --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --port 18471
 sh tools/r3-trials/drive/run.sh --prompt-lines       # the prompt lines of the result file
-python3 -I tools/r3-trials/drive/verdict.py --check  # the verdict line against the lines
+python3 -I tools/r3-trials/drive/verdict.py --check  # the verdict line against the lines, and the importer's rules
 ```
 
 On this Mac every cell runs through the machine's timed-run helper, one at a time, and the
@@ -146,6 +146,44 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   `reply_tokens` have no body. A body counts when it has three words or more, no marker and no
   address; the floor of three words is this trial's alone. `bodies.txt` keeps each whole output
   with its count and its tokens. A model whose thinking carries no such mark is not cut.
+- The address rule (`names_address`, CP-173 E7, CP-219) reads the text with full-width ASCII
+  forms as ASCII and the ideographic, small and vertical ideographic full stops and the one dot
+  leader (U+3002, U+FF61, U+FE52, U+FE12, U+2024) as dots, in lower case, with every character
+  of the Unicode general categories Cf, Mn and Me left out (by the tables of icu_properties
+  2.4.0; the variation selectors are Mn), and with `[.]`, `(.)`, `[at]` and `(at)` read as a dot
+  and an at-sign. An address is then an at-sign (`@`, `﹫`, `＠`), `://`, or a run of letters,
+  digits and `.-_:[]%` that holds a host name with a dot whose last label is two letters or more
+  or an `xn--` label (labels of any script), a name with a letter followed by a port (one label
+  or a dotted name, whatever its last label; read once more with U+2010, U+2011, U+2013 and
+  U+2212 as hyphens), an IPv4 or IPv6 address, or `www.`. Words such as `Friday.Thanks`,
+  `report.pdf` and `ref:4471` read as addresses too, which can only lower a count. Forms that
+  the rule does not read, left to the planner by CP-219: a dotted name with a one-letter last
+  label and no port (`x1.y2.z`); dot and colon look-alikes other than those above (`example۔com`,
+  `localhost∶8080`); percent forms (`%2E`) and written forms other than the four above (`{at}`,
+  `[ at ]`, `[dot]`); the octal, short and decimal IPv4 forms (`0177.0.0.1`, `127.1`,
+  `2130706433`) and digits outside ASCII; an IPv4 address or a port with letters glued after it
+  (`localhost:8080now`, `192.168.0.1now`); an address split by a space or a line end.
+- The fence lint (`every_test_target_asserts_that_its_fence_is_on`, `src/main.rs`) reads the
+  crate as its manifest and its `.rs` files under `src`, `tests`, `examples` and `benches`. It
+  takes the tables `[package]` (the keys name, version, description, edition and publish),
+  `[workspace]` (no key), `[[bin]]` (the keys name and path), `[dependencies]`,
+  `[dev-dependencies]` and `[profile.release]`, and refuses any other table or key, a key
+  before the first table and a line with no `=` (a value that goes onto a second line). It finds
+  `src/main.rs`, `src/lib.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `tests/*.rs`,
+  `tests/*/main.rs` and each bin path, refuses a path that does not stand, and wants in each a
+  fence test: `#[test]` at the top of `#[cfg(test)] mod tests`, with no attribute above either,
+  and the body `assert!(r3_web::procs::fence::is_on(), "<text>");`. It refuses a source in which
+  the name `r3_web`, also written `r#r3_web`, stands anywhere but at the start of a path
+  (`r3_web::`), in code, a string or a comment alike: so a declaration, an alias, a bare use and a
+  macro argument of that name are refused; a macro that builds the name from parts is a form for
+  which a review of the diff is the gate. It refuses a source that holds the word `admit` in any
+  letter case, `from_env`, the name of the fence's variable, `fence::VAR`, a glob import written
+  `fence::*` or a `*` in a use group `fence::{...}`; a review of the diff is the gate for any
+  other way to open the fence. It refuses `include!` and a `path` attribute on a module, also
+  inside `cfg_attr`, which bring a module from a file that it does not read; `include_str!` and
+  `include_bytes!` bring no module and stay. The lint reads the text of the crate's own .rs
+  files, and a review of the diff is the gate for any other way to put a stand-in in the place
+  of the crate r3_web.
 
 ## How the cells of unit U0.6 ran
 

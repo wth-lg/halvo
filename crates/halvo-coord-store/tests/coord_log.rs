@@ -26,7 +26,11 @@ fn commits_what_the_typed_writer_writes_and_never_the_bytes() {
     let mut store = store();
     let given = row(1, TODAY)
         .replacen(r#"{"v":1,"#, "{ ", 1)
-        .replacen(r#""origin":null}"#, r#""origin" : null , "v" : 1 }"#, 1)
+        .replacen(
+            r#""defer_ticks_failed":null}"#,
+            r#""defer_ticks_failed" : null , "v" : 1 }"#,
+            1,
+        )
         .replacen(
             &format!(r#""agent":"{}""#, agent(1)),
             &format!(r#""agent":"4{}""#, &agent(1)[1..]),

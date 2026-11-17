@@ -36,7 +36,7 @@ fn the_hold_sign_in_refused_is_stored_and_read_with_the_run_that_it_answers() {
 
 fn lapsed(seq: u32, kind: &str, cause: &str) -> String {
     format!(
-        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"item_lapsed","run":null,"slot":null,"item":"{}","kind":"{kind}","effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null}}"#,
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"item_lapsed","run":null,"slot":null,"item":"{}","kind":"{kind}","effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
         wf(1),
         agent(1),
         noon(TODAY),
@@ -78,12 +78,21 @@ fn the_lapse_answer_lost_of_another_kind_is_refused() {
 }
 
 #[test]
-fn a_run_ended_with_both_defer_keys_null_is_stored_in_the_form_of_the_older_sender() {
+fn a_run_ended_of_an_older_sender_and_one_with_both_defer_keys_null_are_stored_with_both_keys_null()
+{
     let mut store = store();
-    let older = run_ended_row(1, "completed", None);
+    let older = run_ended_row(1, "completed", None)
+        .replace(r#","defer_launch":null,"defer_ticks_failed":null"#, "");
+    assert!(!older.contains("defer"), "{older}");
     let newer = run_ended_row(2, "failed", Some(("null", "null")));
-    assert_eq!(send(&mut store, &[older.clone(), newer]), stored(2));
-    assert_eq!(rows(&store), [older, run_ended_row(2, "failed", None)]);
+    assert_eq!(send(&mut store, &[older, newer]), stored(2));
+    assert_eq!(
+        rows(&store),
+        [
+            run_ended_row(1, "completed", None),
+            run_ended_row(2, "failed", None)
+        ]
+    );
 }
 
 #[test]
@@ -119,16 +128,11 @@ fn a_stored_run_ended_with_one_defer_key_null_sets_its_workflow_aside() {
 }
 
 #[test]
-fn a_run_ended_with_defer_values_is_refused_at_the_commit_until_the_kind_entry_lists_its_keys() {
+fn a_run_ended_with_defer_values_is_stored_once_the_kind_entry_lists_its_keys() {
     let mut store = store();
-    assert_eq!(
-        send(
-            &mut store,
-            &[run_ended_row(1, "completed", Some((r#""yes""#, "2")))]
-        ),
-        Err(ErrorName::Malformed)
-    );
-    assert!(rows(&store).is_empty());
+    let row = run_ended_row(1, "completed", Some((r#""yes""#, "2")));
+    assert_eq!(send(&mut store, std::slice::from_ref(&row)), stored(1));
+    assert_eq!(rows(&store), [row]);
 }
 
 #[test]

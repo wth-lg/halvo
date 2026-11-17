@@ -7,5 +7,5 @@
       - {"role":"listitem"}
         - {"level":3,"name":"Sign in for “Ordering from a shop on Site7”","role":"heading"}
         - {"role":"paragraph","text":"This agent will now work on site7.example. Allow this site only if you know it."}
-        - {"name":"Don't allow this site","role":"button"}
-        - {"name":"Allow this site","role":"button"}
+        - {"name":"Don't allow this site, and end this task","role":"button"}
+        - {"name":"Allow this site now and whenever this agent runs again","role":"button"}

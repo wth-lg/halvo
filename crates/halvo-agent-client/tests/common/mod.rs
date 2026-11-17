@@ -19,7 +19,8 @@ use halvo_schema::executable::body::{CoordinatorCall, RunnerCall};
 use halvo_schema::executable::frame::{
     ConfirmDecision, ConfirmRequest, HandbackRequest, SecretReply,
 };
-use halvo_schema::executable::names::{Answer, EffectState, Mode};
+use halvo_schema::executable::names::{Answer, EffectState, Mode, Outcome};
+use halvo_schema::executable::record::AgentRun;
 use halvo_schema::executable::text::{CreationTime, EffectId, Name, RunId, WebOrigin};
 use halvo_schema::request::{decode, CoordinatorRole, Decoded};
 use halvo_schema::{AgentId, WorkflowId};
@@ -486,13 +487,31 @@ impl Human for People {
     }
 }
 
-/// The secret store: one answer for every name, and the count of its reads.
-pub struct Vault(pub Mutex<SecretReply>, pub AtomicUsize);
+/// The secret store: the answer that it holds for an agent and a name, one answer for every other read, and each
+/// read as the agent and the name that it got.
+pub struct Vault {
+    pub held: Mutex<Vec<(AgentId, Name, SecretReply)>>,
+    pub other: Mutex<SecretReply>,
+    pub calls: Mutex<Vec<(AgentId, Name)>>,
+}
+
+impl Vault {
+    pub fn reads(&self) -> usize {
+        self.calls.lock().unwrap().len()
+    }
+}
 
 impl Secrets for Vault {
-    fn read(&self, _name: &Name) -> SecretReply {
-        self.1.fetch_add(1, Ordering::SeqCst);
-        self.0.lock().unwrap().clone()
+    fn read(&self, agent: &AgentId, name: &Name) -> SecretReply {
+        self.calls
+            .lock()
+            .unwrap()
+            .push((agent.clone(), name.clone()));
+        let held = self.held.lock().unwrap();
+        match held.iter().find(|(a, n, _)| a == agent && n == name) {
+            Some((_, _, reply)) => reply.clone(),
+            None => self.other.lock().unwrap().clone(),
+        }
     }
 }
 
@@ -534,7 +553,11 @@ impl Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
         let people = Arc::new(People::default());
-        let vault = Arc::new(Vault(Mutex::new(SecretReply::None), AtomicUsize::new(0)));
+        let vault = Arc::new(Vault {
+            held: Mutex::new(Vec::new()),
+            other: Mutex::new(SecretReply::None),
+            calls: Mutex::new(Vec::new()),
+        });
         let rec = Arc::new(Recorder::default());
         let parts = Parts {
             link: store.clone(),
@@ -670,11 +693,37 @@ pub fn effect(effect: &str, seq: u32, state: &str) -> String {
     r#"{"op":"effect","agent":"{agent}","run":"{run}","record":RECORD}"#.replace("RECORD", &record)
 }
 
-pub const RUN_RECORD: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":2,"handbacks":1,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":41,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}"#;
+/// A completed run's record made by `AgentRun::new`, with `{workflow}`, `{agent}` and `{run}` in place of its ids,
+/// which the peer fills in as it does for every body of a script.
+pub fn run_record() -> String {
+    let workflow = WorkflowId::from_random([0xf1; 16]);
+    let agent = AgentId::from_random([0xf2; 16]);
+    let run = RunId::from_random([0xf3; 16]);
+    let mut made = AgentRun::new(
+        workflow.clone(),
+        agent.clone(),
+        run.clone(),
+        20768,
+        Some(Mode::Replay),
+        Outcome::Completed,
+    );
+    made.playbook = NonZeroU32::new(1);
+    made.steps = 9;
+    made.prompts = 2;
+    made.handbacks = 1;
+    made.confirmations = 1;
+    made.effects = 1;
+    made.wall_s = 41;
+    made.to_json()
+        .expect("a made record")
+        .replacen(workflow.as_str(), "{workflow}", 1)
+        .replacen(agent.as_str(), "{agent}", 1)
+        .replacen(run.as_str(), "{run}", 1)
+}
 
 pub fn ask_finish() -> String {
     let finish = r#"{"op":"finish","agent":"{agent}","run":"{run}","record":RECORD}"#
-        .replace("RECORD", RUN_RECORD);
+        .replace("RECORD", &run_record());
     ask_store(&id(0x51), &finish)
 }
 

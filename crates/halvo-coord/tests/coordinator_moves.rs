@@ -16,6 +16,13 @@ use support::{
     agent, calls_since, coordinator, mark, owner, started, Both, DAY, MANUAL, PERSON, T0,
 };
 
+/// What a life that saw the whole run writes of its defers: the defer of its launch acknowledged
+/// and no tick at which a defer failed (ruling RD-86, RD-120).
+const SEEN_WHOLE: Option<halvo_coord::types::Defers> = Some(halvo_coord::types::Defers {
+    launch: true,
+    ticks_failed: 0,
+});
+
 fn text(key: &str) -> String {
     words::text(key, &[]).unwrap()
 }
@@ -215,7 +222,8 @@ fn the_persons_stop_of_a_waiting_run_ends_it_and_closes_its_item_for_every_kind(
         assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
-            cause: RunEnd::Cancelled
+            cause: RunEnd::Cancelled,
+            defers: SEEN_WHOLE
         }));
         assert_eq!(c.live(), 0);
     }
@@ -307,7 +315,8 @@ fn the_quit_cancels_every_live_run_refuses_every_start_and_kills_what_lives_at_i
     );
     assert!(events(&c).contains(&What::RunEnded {
         run: first.clone(),
-        cause: RunEnd::Cancelled
+        cause: RunEnd::Cancelled,
+        defers: SEEN_WHOLE
     }));
     assert_eq!(c.live(), 1);
     let ended_before = events(&c)
@@ -390,7 +399,8 @@ fn the_runners_end_of_a_waiting_run_lapses_its_item_with_run_ended_and_ends_the_
     }));
     assert!(events(&c).contains(&What::RunEnded {
         run,
-        cause: RunEnd::HandedBack
+        cause: RunEnd::HandedBack,
+        defers: SEEN_WHOLE
     }));
     assert!(c.snapshot().items.is_empty());
     assert_eq!(c.live(), 0);
@@ -612,7 +622,8 @@ fn a_recorded_confirmation_of_a_stopped_run_lapses_with_run_ended_at_the_runners
     }));
     assert!(events(&c).contains(&What::RunEnded {
         run,
-        cause: RunEnd::Cancelled
+        cause: RunEnd::Cancelled,
+        defers: SEEN_WHOLE
     }));
 }
 
@@ -1086,7 +1097,8 @@ fn ends_with(c: &Coordinator<Both>, m: usize, run: &RunId, end: RunEnd, now: u64
         .any(|call| matches!(call, Call::Kill(r) if r == run)));
     assert!(events(c).contains(&What::RunEnded {
         run: run.clone(),
-        cause: end
+        cause: end,
+        defers: SEEN_WHOLE
     }));
     assert_eq!(c.live(), 0);
 }
@@ -1347,7 +1359,8 @@ fn switching_off_an_agent_whose_run_waits_lapses_its_item_with_cancelled_and_sto
         assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
-            cause: RunEnd::Cancelled
+            cause: RunEnd::Cancelled,
+            defers: SEEN_WHOLE
         }));
         assert_eq!(c.live(), 0);
     }
@@ -1450,6 +1463,7 @@ fn a_lapse_at_the_runners_end_that_met_a_busy_owner_is_stored_at_the_next_tick_b
     let ended = What::RunEnded {
         run,
         cause: RunEnd::HandedBack,
+        defers: SEEN_WHOLE,
     };
     assert!(at(&lapse) < at(&ended), "{stored:?}");
     assert!(c.snapshot().items.is_empty());
@@ -1751,6 +1765,7 @@ fn the_next_life_raises_no_setup_for_an_agent_of_a_dismissed_workflow_or_one_wit
                 What::RunEnded {
                     run: run.clone(),
                     cause: RunEnd::Completed,
+                    defers: None,
                 },
             ),
         ]);
@@ -1830,7 +1845,8 @@ fn a_confirmation_that_waited_wait_limit_lapses_and_its_run_stops_and_ends_lapse
     );
     assert!(events(&c).contains(&What::RunEnded {
         run,
-        cause: RunEnd::Lapsed
+        cause: RunEnd::Lapsed,
+        defers: SEEN_WHOLE
     }));
     assert_eq!(c.live(), 0);
 }
@@ -1957,6 +1973,7 @@ fn a_stop_while_every_log_answers_no_service_stores_its_lapse_before_the_run_end
     let ended = What::RunEnded {
         run: run.clone(),
         cause: RunEnd::Cancelled,
+        defers: SEEN_WHOLE,
     };
     assert_eq!(stored.iter().filter(|w| **w == ended).count(), 1);
     let at = |what: &What| stored.iter().position(|w| w == what);
@@ -2026,7 +2043,8 @@ fn an_item_that_a_run_waits_on_lapses_at_wait_limit_and_its_run_ends_lapsed() {
         assert!(
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
-                cause: RunEnd::Lapsed
+                cause: RunEnd::Lapsed,
+                defers: SEEN_WHOLE
             }),
             "{reason:?}"
         );
@@ -2092,7 +2110,8 @@ fn after_a_lapse_at_wait_limit_the_person_finds_no_card_the_row_stopped_early_an
     assert_eq!(row_line(&s, 0), text("line.all_set.stopped_early"));
     assert!(events(&c).contains(&What::RunEnded {
         run: run.clone(),
-        cause: RunEnd::Lapsed
+        cause: RunEnd::Lapsed,
+        defers: SEEN_WHOLE
     }));
     let next = start(&c, 0);
     assert_ne!(next, run);
@@ -2262,6 +2281,7 @@ fn after_the_quits_first_step_a_tick_sends_what_the_board_owes() {
     let ended = What::RunEnded {
         run: run.clone(),
         cause: RunEnd::Completed,
+        defers: SEEN_WHOLE,
     };
     assert!(!events(&c).contains(&ended), "the end is owed");
     let _ = c.quit_stop();
@@ -2381,7 +2401,8 @@ fn a_run_started_whose_acknowledgement_was_lost_is_closed_in_this_life_and_count
     assert_eq!(row_line(&c.snapshot(), 0), text("line.waiting_turn.store"));
     assert!(events(&c).contains(&What::RunEnded {
         run: lost.clone(),
-        cause: RunEnd::Interrupted
+        cause: RunEnd::Interrupted,
+        defers: None
     }));
     assert!(calls_since(&c, m).contains(&Call::Send(Body::EndRun { run: lost.clone() })));
     c.ports().ports.set_clock(T0 + 2_000, DAY);
@@ -2706,7 +2727,8 @@ fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_ord
         assert!(
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
-                cause: RunEnd::Cancelled
+                cause: RunEnd::Cancelled,
+                defers: SEEN_WHOLE
             }),
             "{order:?}"
         );
@@ -2731,7 +2753,8 @@ fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in
         assert!(
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
-                cause: RunEnd::HandedBack
+                cause: RunEnd::HandedBack,
+                defers: SEEN_WHOLE
             }),
             "{order:?}: the runner's own cause"
         );
@@ -2771,7 +2794,8 @@ fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_
         assert!(
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
-                cause: RunEnd::Lapsed
+                cause: RunEnd::Lapsed,
+                defers: SEEN_WHOLE
             }),
             "{order:?}"
         );
@@ -3757,7 +3781,8 @@ fn a_lost_allow_then_the_stop_sends_decline_before_one_cancel_and_lapses_cancell
         assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{order:?}");
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
-            cause: RunEnd::Cancelled
+            cause: RunEnd::Cancelled,
+            defers: SEEN_WHOLE
         }));
         assert_eq!(allows(&c), 0, "{order:?}");
     }
@@ -3788,7 +3813,8 @@ fn a_lost_allow_then_the_wait_limit_sends_decline_and_the_run_ends_lapsed_in_bot
         c.tick();
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
-            cause: RunEnd::Lapsed
+            cause: RunEnd::Lapsed,
+            defers: SEEN_WHOLE
         }));
         assert_eq!(allows(&c), 0, "{order:?}");
     }
@@ -3798,7 +3824,11 @@ fn run_ends_of(c: &Coordinator<Both>, run: &RunId) -> Vec<RunEnd> {
     events(c)
         .iter()
         .filter_map(|w| match w {
-            What::RunEnded { run: r, cause } if r == run => Some(*cause),
+            What::RunEnded {
+                run: r,
+                cause,
+                defers: _,
+            } if r == run => Some(*cause),
             _ => None,
         })
         .collect()
@@ -5465,7 +5495,8 @@ fn rd52b_a_switch_off_whose_hold_the_read_shows_stops_and_pauses_in_the_order_of
         assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{way}");
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
-            cause: RunEnd::Cancelled
+            cause: RunEnd::Cancelled,
+            defers: SEEN_WHOLE
         }));
     }
 }
@@ -6534,6 +6565,45 @@ fn rd52d_a_read_that_first_shows_the_hold_of_a_queued_agent_drops_its_start() {
     assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
 }
 
+fn queued_with_its_ready_item(c: &Coordinator<Both>) -> ItemId {
+    start(c, 0);
+    c.tick();
+    let (item, kind) = open_item(c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.answer(&item, Choice::Start, None, 0);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.queued(), vec![(agent(1), false)], "queued with its item");
+    item
+}
+
+#[test]
+fn rd102_a_skip_on_the_card_of_a_queued_agent_drops_its_start() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[MANUAL, slotted], one);
+    let item = queued_with_its_ready_item(&c);
+    let skipped = c.answer(
+        &item,
+        Choice::Skip,
+        None,
+        shown_step_mark_or_zero(&c, &item),
+    );
+    assert_eq!(skipped, Ok(()), "the skip is stored");
+    assert_eq!(c.queued(), vec![], "the skip drops the queued start");
+    assert_eq!(
+        row_line(&c.snapshot(), 1),
+        text("line.all_set.done"),
+        "the row leaves queued in the same reply: all set, with no item and no start"
+    );
+}
+
 #[test]
 fn rd99_an_end_whose_read_first_shows_a_stored_switch_off_stops_nothing_and_sends_no_state() {
     use halvo_coord::types::Control;
@@ -6580,7 +6650,11 @@ fn rd99_an_end_whose_read_first_shows_a_stored_switch_off_stops_nothing_and_send
             let ends: Vec<RunEnd> = events(&c)
                 .iter()
                 .filter_map(|w| match w {
-                    What::RunEnded { run: r, cause } if *r == run => Some(*cause),
+                    What::RunEnded {
+                        run: r,
+                        cause,
+                        defers: _,
+                    } if *r == run => Some(*cause),
                     _ => None,
                 })
                 .collect();
@@ -6977,92 +7051,116 @@ fn rd52b_an_allow_on_a_second_step_whose_read_shows_a_stored_switch_off_stops_th
 }
 
 #[test]
-fn an_allow_on_a_confirmation_whose_read_shows_a_stored_switch_off_goes_to_the_runner_and_the_run_stops_after(
-) {
-    use halvo_coord::types::AgentState;
+fn rd101_5b_an_answer_on_a_confirmation_whose_read_shows_a_stored_switch_off_stops_the_run_first() {
     for native in [false, true] {
-        for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
-            let case = format!("native={native} {order:?}");
-            let (c, run, item) = run_waiting_on_a_confirmation(native);
-            assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
-            if native {
-                c.on_screen(&item);
-            } else {
-                assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+        for choice in [Choice::Allow, Choice::Reject] {
+            for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+                let case = format!("native={native} {choice:?} {order:?}");
+                let (c, run, item) = run_waiting_on_a_confirmation(native);
+                assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+                if native {
+                    c.on_screen(&item);
+                } else {
+                    assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+                }
+                c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+                if native {
+                    c.tick();
+                }
+                let (m, from) = (mark(&c), c.ports().ports.events.borrow().len());
+                let out = if native {
+                    let answer = if choice == Choice::Allow {
+                        ConfirmAnswer::Allow
+                    } else {
+                        ConfirmAnswer::Reject
+                    };
+                    c.answer_native(&item, answer)
+                } else {
+                    c.answer(&item, choice, None, shown_step_mark_or_zero(&c, &item))
+                };
+                assert_eq!(
+                    out,
+                    Err(Cause::UnknownItem),
+                    "{case}: as for an item no longer open"
+                );
+                no_answer_of_the_press_before_the_cancel(&c, m, &run, &case);
+                assert_eq!(
+                    item_rows_since(&c, from, &item),
+                    ["lapsed:cancelled"],
+                    "{case}: no row of the press, and the item lapses with the switch-off"
+                );
+                assert_the_stop_came_first(&c, m, &run, &case);
             }
-            c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+        }
+    }
+}
+
+/// The runner gets no decision before the run's one cancel, and every decision after it is the
+/// lapse's, which rejects each effect (rulings RD-52 (b) rule 3, RD-83, RD-101 item 5 (b)).
+fn no_answer_of_the_press_before_the_cancel(
+    c: &Coordinator<Both>,
+    m: usize,
+    run: &RunId,
+    case: &str,
+) {
+    let answered = places_of_calls_since(c, m, |call| matches!(call, Call::AnswerConfirm(..)));
+    let cancels = places_of_calls_since(c, m, |call| matches!(call, Call::Cancel(r) if r == run));
+    assert_eq!(cancels.len(), 1, "{case}: one cancel");
+    assert!(
+        answered.iter().all(|k| *k > cancels[0]),
+        "{case}: no decision before the cancel: {answered:?} {cancels:?}"
+    );
+    for call in calls_since(c, m) {
+        if let Call::AnswerConfirm(_, _, d) = call {
+            assert!(
+                d.approvals()
+                    .iter()
+                    .all(|e| e.answer == halvo_coord::types::EffectAnswer::RejectOnce),
+                "{case}: the lapse's decision allows nothing: {d:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rd101_5b_a_confirmation_whose_read_before_the_answer_fails_sends_nothing_and_the_read_back_stops_the_run_first(
+) {
+    for native in [false, true] {
+        let case = format!("native={native}");
+        let (c, run, item) = run_waiting_on_a_confirmation(native);
+        switch_off_stored_unseen(&c, support::Loss::Later, &case);
+        if native {
+            c.on_screen(&item);
+        } else {
+            assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+        }
+        c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+        if native {
+            c.tick();
+        }
+        let press = |c: &Coordinator<Both>| {
             if native {
-                c.tick();
-            }
-            let m = mark(&c);
-            let out = if native {
                 c.answer_native(&item, ConfirmAnswer::Allow)
             } else {
                 c.answer(
                     &item,
                     Choice::Allow,
                     None,
-                    shown_step_mark_or_zero(&c, &item),
+                    shown_step_mark_or_zero(c, &item),
                 )
-            };
-            assert_eq!(out, Ok(()), "{case}");
-            let calls = calls_since(&c, m);
-            let decisions: Vec<halvo_coord::types::Decision> = calls
-                .iter()
-                .filter_map(|call| match call {
-                    Call::AnswerConfirm(_, _, d) => Some(d.clone()),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(decisions.len(), 1, "{case}: the answer at the runner once");
-            let entries = decisions[0].approvals().to_vec();
-            assert!(
-                entries
-                    .iter()
-                    .all(|e| e.answer == halvo_coord::types::EffectAnswer::AllowOnce),
-                "{case}"
-            );
-            let answered =
-                places_of_calls_since(&c, m, |call| matches!(call, Call::AnswerConfirm(..)));
-            let cancels =
-                places_of_calls_since(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
-            assert_eq!(cancels.len(), 1, "{case}: one cancel");
-            assert!(
-                answered[0] < cancels[0],
-                "{case}: the answer, then the cancel"
-            );
-            assert_eq!(
-                states_sent(&c, m),
-                [AgentState::Paused],
-                "{case}: paused once"
-            );
-            assert!(
-                c.off_beside_live().is_empty(),
-                "{case}: no run live beside the hold"
-            );
-            let class = if native { Class::Sign } else { Class::Send };
-            for e in &entries {
-                for state in [
-                    halvo_coord::guard::EffectState::Approved,
-                    halvo_coord::guard::EffectState::Releasing,
-                ] {
-                    let record = halvo_coord::guard::EffectRecord {
-                        run: run.clone(),
-                        agent: agent(0),
-                        effect: e.effect.clone(),
-                        state,
-                        class,
-                        digest: e.digest.clone(),
-                        approval: Some(e.approval.clone()),
-                    };
-                    assert_eq!(
-                        c.check_record(&record),
-                        Err(halvo_coord::guard::Refusal::Approval),
-                        "{case}: {state:?} after the move"
-                    );
-                }
             }
-        }
+        };
+        let (m, from) = (mark(&c), c.ports().ports.events.borrow().len());
+        c.ports().next_history_fails.set(true);
+        assert_eq!(press(&c), Err(Cause::NoService), "{case}: the read's cause");
+        c.ports().next_history_fails.set(false);
+        no_answer_of_the_press_before_the_cancel(&c, m, &run, &case);
+        assert_eq!(
+            item_rows_since(&c, from, &item),
+            ["lapsed:cancelled"],
+            "{case}: no row of the press, and the item lapses with the switch-off"
+        );
+        assert_the_stop_came_first(&c, m, &run, &case);
     }
 }
 
@@ -7592,9 +7690,8 @@ fn an_allow_again_after_a_stored_allow_that_the_run_did_not_take_reads_first_and
 }
 
 #[test]
-fn an_allow_on_a_confirmation_whose_flush_of_its_waiting_raise_reads_a_stored_switch_off_goes_to_the_runner_and_the_run_stops_after(
+fn rd101_5b_an_allow_on_a_confirmation_whose_waiting_raise_meets_a_stored_switch_off_stops_the_run_first_and_lapses_it_after_its_raise(
 ) {
-    use halvo_coord::types::AgentState;
     for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
         let case = format!("{order:?}");
         let (c, run, item) = raised_with_no_acknowledgement("confirm");
@@ -7609,43 +7706,18 @@ fn an_allow_on_a_confirmation_whose_flush_of_its_waiting_raise_reads_a_stored_sw
                 None,
                 shown_step_mark_or_zero(&c, &item)
             ),
-            Ok(()),
-            "{case}"
+            Err(Cause::UnknownItem),
+            "{case}: as for an item no longer open"
         );
-        let answered = places_of_calls_since(&c, m, |call| matches!(call, Call::AnswerConfirm(..)));
-        let cancels =
-            places_of_calls_since(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
-        assert_eq!(answered.len(), 1, "{case}: the answer at the runner once");
-        assert_eq!(cancels.len(), 1, "{case}: one cancel");
-        assert!(
-            answered[0] < cancels[0],
-            "{case}: the answer, then the cancel"
-        );
+        no_answer_of_the_press_before_the_cancel(&c, m, &run, &case);
         assert_eq!(
             item_rows_since(&c, from, &item),
-            ["raised", "answered", "released"],
-            "{case}: the waiting raise, the answer and its release, before the stop"
+            ["raised", "lapsed:cancelled"],
+            "{case}: the waiting raise, then its lapse, and no row of the press"
         );
-        assert_eq!(
-            states_sent(&c, m),
-            [AgentState::Paused],
-            "{case}: paused once"
-        );
-        assert!(
-            c.off_beside_live().is_empty(),
-            "{case}: no run beside the hold"
-        );
-        for record in &allowed_records(&c, &run, &item) {
-            assert_eq!(
-                c.check_record(record),
-                Err(halvo_coord::guard::Refusal::Approval),
-                "{case}: {:?} after the move",
-                record.state
-            );
-        }
+        assert_the_stop_came_first(&c, m, &run, &case);
     }
 }
-
 #[test]
 fn a_ticks_lapse_of_a_confirmation_cancels_right_after_the_log_of_a_waiting_row_with_one_clock_read_between_that_stamps_the_row_and_the_stop(
 ) {
@@ -7711,4 +7783,397 @@ fn a_ticks_lapse_of_a_confirmation_cancels_right_after_the_log_of_a_waiting_row_
         1,
         "the board's stop is at that reading"
     );
+}
+
+/// A run of agent 0 that waits on a stuck item whose `choice` the owner stored and acknowledged
+/// and whose `Runs::answer_handback` failed `busy`, so that the run did not take it.
+fn stuck_with_a_stored_answer_not_taken(choice: Choice) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerHandback, PortError::Busy);
+    assert_eq!(
+        c.answer(&item, choice, None, shown_step_mark_or_zero(&c, &item)),
+        Err(Cause::Busy)
+    );
+    c.ports().ports.clear_refusals();
+    assert_eq!(closing_rows(&c, &item), 1, "the answer is stored");
+    (c, run, item)
+}
+
+#[test]
+fn rd108_2_a_done_again_whose_read_before_its_kept_row_fails_answers_no_service_and_hands_nothing()
+{
+    for with_hold in [false, true] {
+        let case = format!("hold stored unseen={with_hold}");
+        let (c, _run, item) = stuck_with_a_stored_answer_not_taken(Choice::Done);
+        if with_hold {
+            switch_off_stored_unseen(&c, support::Loss::Later, &case);
+        }
+        let (m, t) = (mark(&c), c.ports().ports.tried.borrow().len());
+        c.ports().next_history_fails.set(true);
+        let out = c.answer(
+            &item,
+            Choice::Done,
+            None,
+            shown_step_mark_or_zero(&c, &item),
+        );
+        let read_made = !c.ports().next_history_fails.take();
+        assert!(
+            read_made,
+            "{case}: the press reads before the kept row's result"
+        );
+        assert_eq!(out, Err(Cause::NoService), "{case}: the read's cause");
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [],
+            "{case}: no answer at the runner"
+        );
+        assert_eq!(
+            cancels_of(&c, m, &_run),
+            0,
+            "{case}: nothing stops in this move"
+        );
+        assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+        assert_eq!(closing_rows(&c, &item), 1, "{case}: no second row");
+    }
+}
+
+#[test]
+fn rd108_2_an_allow_again_whose_read_before_its_recorded_allow_fails_answers_no_service_and_sends_no_allow(
+) {
+    use halvo_coord::types::BindResult;
+    for with_hold in [false, true] {
+        let case = format!("hold stored unseen={with_hold}");
+        let (c, run, item) = second_step();
+        first_press(&c, &item, Choice::Allow, First::Taken);
+        assert_eq!(
+            step_rows(&c, &item),
+            ["allow"],
+            "{case}: the allow is stored"
+        );
+        if with_hold {
+            switch_off_stored_unseen(&c, support::Loss::Later, &case);
+        }
+        let (m, t) = (mark(&c), c.ports().ports.tried.borrow().len());
+        c.ports().next_history_fails.set(true);
+        let out = c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item),
+        );
+        let read_made = !c.ports().next_history_fails.take();
+        assert!(
+            read_made,
+            "{case}: the press reads before its recorded allow"
+        );
+        assert_eq!(out, Err(Cause::NoService), "{case}: the read's cause");
+        assert!(
+            !runner_answers_tried_since(&c, t)
+                .contains(&Call::AnswerBind(run.clone(), BindResult::Allow)),
+            "{case}: no allow at the runner"
+        );
+        if with_hold {
+            decline_before_one_cancel(&c, m, &run, &case);
+            assert_eq!(
+                step_rows(&c, &item),
+                ["allow", "lapsed:cancelled"],
+                "{case}: the read back after the press shows the hold and the step lapses"
+            );
+        } else {
+            assert_eq!(
+                runner_answers_tried_since(&c, t),
+                [],
+                "{case}: nothing at the runner"
+            );
+            assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+        }
+    }
+}
+
+#[test]
+fn rd108_2_a_done_after_a_stored_decline_that_the_run_did_not_take_reads_first_and_hands_nothing_beside_a_stored_switch_off(
+) {
+    for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+        let case = format!("{order:?}");
+        let (c, run, item) = stuck_with_a_stored_answer_not_taken(Choice::Decline);
+        switch_off_stored_unseen(&c, order, &case);
+        let (m, t, from) = (
+            mark(&c),
+            c.ports().ports.tried.borrow().len(),
+            c.ports().ports.events.borrow().len(),
+        );
+        assert_eq!(
+            c.answer(
+                &item,
+                Choice::Done,
+                None,
+                shown_step_mark_or_zero(&c, &item)
+            ),
+            Err(Cause::UnknownItem),
+            "{case}: as for an item no longer open"
+        );
+        assert_eq!(
+            runner_answers_tried_since(&c, t),
+            [],
+            "{case}: the stored decline is not handed past the switch-off"
+        );
+        assert_eq!(
+            item_rows_since(&c, from, &item),
+            Vec::<String>::new(),
+            "{case}: no row of the press; the stored decline closed the item"
+        );
+        assert_the_stop_came_first(&c, m, &run, &case);
+    }
+}
+
+#[test]
+fn no_writer_stores_an_item_answered_of_a_setup_with_the_answer_none() {
+    use halvo_coord::types::{Answered, SetupAnswer};
+    let (c, _made, item) = setup_agent();
+    let press = |choice: Choice, pick: Option<(Param, u32)>| {
+        c.answer(&item, choice, pick, shown_step_mark_or_zero(&c, &item))
+    };
+    let _ = press(Choice::None, None);
+    press(Choice::Choose, Some((Param::Start, 1))).unwrap();
+    let _ = press(Choice::None, None);
+    press(Choice::Choose, Some((Param::Payee, 1))).unwrap();
+    let _ = press(Choice::None, None);
+    assert_eq!(
+        c.setup_typed(
+            &item,
+            Param::Instrument,
+            "Card 4242",
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Ok(())
+    );
+    let _ = press(Choice::None, None);
+    let answers: Vec<SetupAnswer> = events(&c)
+        .iter()
+        .filter_map(|w| match w {
+            What::ItemAnswered {
+                item: i,
+                answer: Answered::Setup(a),
+            } if *i == item => Some(*a),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        answers,
+        [SetupAnswer::Choose],
+        "the setup's one closing row holds choose, never none"
+    );
+}
+
+#[test]
+fn rd121_the_next_lifes_first_creation_move_raises_no_setup_for_an_agent_set_aside() {
+    let (c, made, _old) = setup_agent();
+    let life = next_life(&c, |o| {
+        o.ports.refuse_agent(
+            Method::History,
+            &made,
+            PortError::Refused(halvo_coord::types::Name::parse("store").unwrap()),
+        )
+    });
+    let tried_for_it = life
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Log(rows) if rows.iter().any(|e| e.agent == made)))
+        .count();
+    assert_eq!(
+        tried_for_it, 0,
+        "nothing is logged for an agent whose history was not read"
+    );
+    assert_eq!(setups_raised(&life), 1, "the earlier life's raise alone");
+    assert!(
+        !events(&life)
+            .iter()
+            .any(|w| matches!(w, What::ItemLapsed { .. })),
+        "and no lapse of its earlier item before its history is read"
+    );
+}
+
+fn is_item_raise(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::ItemRaised { .. })
+}
+
+#[test]
+fn rd122_a_held_place_of_the_items_list_stops_the_ticks_start_at_the_coordinator() {
+    let due = support::A {
+        person: false,
+        slotted: true,
+    };
+    let c = Coordinator::new(owner(&[due], Limits::PRODUCT), Limits::PRODUCT);
+    c.tick();
+    assert_eq!(started(&c).len(), 1, "the first slot starts");
+    let run = started(&c)[0].clone();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    c.ports().ports.refuse_record(
+        is_item_raise,
+        PortError::Refused(halvo_coord::types::Name::parse("store").unwrap()),
+    );
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    for k in 1..=3u64 {
+        c.ports()
+            .ports
+            .set_clock(T0 + k * 86_400_000, DAY + k as u32);
+        c.tick();
+    }
+    assert_eq!(
+        started(&c).len(),
+        1,
+        "a place that the items' list holds under class D stops the tick's start (RD-64 2.5)"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4 * 86_400_000, DAY + 4);
+    c.tick();
+    assert_eq!(
+        started(&c).len(),
+        2,
+        "once the store takes the row the place is free and the tick starts the agent"
+    );
+}
+
+fn refused_name(name: &str) -> PortError {
+    PortError::Refused(halvo_coord::types::Name::parse(name).unwrap())
+}
+
+#[test]
+fn rd122_a_refused_items_list_makes_the_record_stuck_and_an_acknowledged_flush_ends_it() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    for k in 1..=3u64 {
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+    }
+    assert!(
+        c.record_stuck(&agent(0)),
+        "three ticks in a row at which the items' list was refused make the record stuck"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert!(
+        !c.record_stuck(&agent(0)),
+        "a tick whose flush the owner acknowledged ends the count"
+    );
+}
+
+#[test]
+fn rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("too_large"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    let past = T0 + 3 * 86_400_000;
+    c.ports().ports.set_clock(past, DAY + 3);
+    c.tick();
+    assert_eq!(
+        c.records_dropped(&agent(0)),
+        Some((1, "item_raised".to_string(), "too_large".to_string())),
+        "a record more than two days old is taken off and counted by its event and its refusal"
+    );
+}
+
+#[test]
+fn rd122_no_sender_meets_seq_after_another_sender_of_the_agent_stored() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    let _ = c.answer(
+        &item,
+        Choice::Done,
+        None,
+        shown_step_mark_or_zero(&c, &item),
+    );
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let seq_refusals = c
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| {
+            matches!(t.call, Call::Log(_))
+                && matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq")
+        })
+        .count();
+    assert_eq!(
+        seq_refusals, 0,
+        "the ledger, the press and the schedule's log share one stored last, so no first try meets seq (RD-64 3.2)"
+    );
+}
+
+#[test]
+fn rd124_t2d_where_the_owners_last_fell_between_a_raise_and_a_press_the_ledger_follows_the_read_and_the_press_answers_ok(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.events.borrow_mut().clear();
+    let a = c.answer(
+        &item,
+        Choice::Done,
+        None,
+        shown_step_mark_or_zero(&c, &item),
+    );
+    let b = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    let tried = c.ports().ports.tried.borrow();
+    let seq = tried
+        .iter()
+        .filter(|t| {
+            matches!(t.call, Call::Log(_))
+                && matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq")
+        })
+        .count();
+    let seqs: Vec<u32> = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .map(|e| e.seq.get())
+        .collect();
+    assert!(a.is_ok(), "the press answers Ok: {a:?}");
+    assert!(b.is_ok(), "{b:?}");
+    assert_eq!(
+        seq, 1,
+        "the press's first try meets seq once, then the ledger follows the coordinator's read (RD-64 3.2)"
+    );
+    assert_eq!(seqs, vec![1, 2], "the press and the end are stored");
 }

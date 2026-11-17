@@ -19,7 +19,7 @@ mod workflow;
 pub use cause::Cause;
 pub use config::{Budget, ConfigView};
 pub use event::{
-    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event,
+    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, Defers, DoneAnswer, Event,
     ItemLapseCause, Lapsed, LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer,
     SignInAnswer, Slot, What,
 };
