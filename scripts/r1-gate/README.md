@@ -70,7 +70,7 @@ empty, and a line that is empty is skipped.
   match that overlaps an earlier one as it was. A statement without `g`
   changes the first match alone, so it must match one place of the file as
   the statements before it leave it. The runner matches the statement's own
-  pattern, with its groups, backreferences and `\K` as they are, from the
+  pattern, with its groups and backreferences as they are, from the
   start of the file and again from one character after the start of each
   match that it finds. Two matches that end at the same position are one
   place when the text between their starts is white space, as when a
@@ -85,10 +85,14 @@ empty, and a line that is empty is skipped.
   matched; a pattern into which perl puts the value of a variable when it
   runs, such as `$@`, `$$`, `$!` or `$1`; an array in a pattern, such as
   `@b`; the escapes `\Q`, `\U`, `\L`, `\u`, `\l`, `\F` and `\E` in a
-  pattern, which perl applies to the pattern before it matches; and a
-  replacement that holds a variable other than `$1` to `$9` (also written
-  `${1}` to `${9}`) and `$&`, such as `$_`, `$0`, `@ARGV`, `$ENV{HOME}` or
-  `$FindBin::RealBin`. Write `\$` for a `$` and `\@` for an `@` of the text;
+  pattern, which perl applies to the pattern before it matches; `\K` in a
+  pattern, which is not allowed in a row's pattern: write the text before
+  it as a lookbehind or as a group that the replacement puts back with
+  `$1`; and a replacement that holds a variable other than `$1` to `$9`
+  (also written `${1}` to `${9}`) and `$&`, such as `$_`, `$0`, `@ARGV`,
+  `$ENV{HOME}` or `$FindBin::RealBin`, or `$1` to `$9` followed by `[` or
+  `{`, which perl reads as an element of an array or a hash (`${1}[` and
+  `${1}{` are the group and then text). Write `\$` for a `$` and `\@` for an `@` of the text;
   a `$` at the end of the pattern or before `)` or `|` is an anchor and
   stays. A statement that is no valid perl, or that has the modifier `r` or
   `e`, is refused too. So no variable of the runner reaches a statement.

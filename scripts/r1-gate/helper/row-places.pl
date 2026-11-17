@@ -59,7 +59,7 @@ sub case_escape {
     my ($pattern) = @_;
     while ($pattern =~ /\\(.)/gs) {
         my $escape = $1;
-        return $escape if $escape =~ /^[QULulFE]$/;
+        return $escape if $escape =~ /^[QULulFEK]$/;
     }
     return undef;
 }
@@ -71,6 +71,8 @@ sub variable_in {
         my $rest = substr($text, $at);
         if ($rest =~ /^\\./s) {
             $at += 2;
+        } elsif ($replacement && $rest =~ /^(\$[1-9](?![0-9])[\[{][^\]}]*[\]}]?)/) {
+            return $1;
         } elsif ($replacement && $rest =~ /^(\$(?:[1-9](?![0-9])|\{[1-9]\}|&))/) {
             $at += length $1;
         } elsif ($replacement && $rest =~ /^(\$(?:\{[^}]*\}?|\w+(?:::\w+)*|.?))/s) {
@@ -118,10 +120,12 @@ sub statements_of {
         die sprintf("statement %d of the substitution has the e modifier: a substitution inside its replacement counts as applied when it matched nothing\n", $index) if $flags =~ /e/;
         die sprintf("statement %d of the substitution has an empty pattern, which perl reads as the last pattern that matched\n", $index) if $pattern eq '';
         my $escape = case_escape($pattern);
+        die sprintf("statement %d of the substitution has \\K in its pattern: \\K is not allowed in a row's pattern: write the text before it as a lookbehind or as a group that the replacement puts back with \$1\n", $index) if defined $escape && $escape eq 'K';
         die sprintf("statement %d of the substitution has the escape \\%s in its pattern, which perl applies to the pattern before it matches, so the pattern is not the text written: write the text that the row means\n", $index, $escape) if defined $escape;
         my $array = $open eq "'" ? undef : variable_in($pattern, 0);
         die sprintf("statement %d of the substitution has the array %s in its pattern, which perl replaces by its value: write \\\@ for an \@ of the text\n", $index, $array) if defined $array;
         my $value = $second eq "'" ? undef : variable_in($replacement, 1);
+        die sprintf("statement %d of the substitution has %s in its replacement, which perl reads as an element of an array or a hash: write \${%s} for the group when a [ or a { follows it\n", $index, $value, substr($value, 1, 1)) if defined $value && $value =~ /^\$[1-9][\[{]/;
         die sprintf("statement %d of the substitution has %s in its replacement, which perl replaces by its value: a replacement may hold \$1 to \$9 and \$& and no other variable; write \\\$ for a \$ and \\\@ for an \@ of the text\n", $index, $value) if defined $value;
         die sprintf("statement %d of the substitution has a pattern into which perl puts the value of a variable, so it is not the text written: write \\\$ for a \$ and \\\@ for an \@ of the text\n", $index) if interpolates($text);
         push @statements, { text => $text, open => $open, close => $close, pattern => $pattern, flags => $flags };

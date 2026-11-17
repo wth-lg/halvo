@@ -99,9 +99,9 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   for each row whose substitution holds a statement without the modifier g
   that matches more than one place of its file, with the file and the line
   of each match, or a statement that perl would not read as written (an
-  empty pattern, a variable, an array or one of the escapes \Q, \U, \L, \u,
-  \l, \F and \E in a pattern, a variable but $1 to $9 and $& in a
-  replacement, no valid perl, the modifier r or e), and then ends as failed
+  empty pattern, a variable, an array, \K or one of the escapes \Q, \U, \L,
+  \u, \l, \F and \E in a pattern, a variable but $1 to $9 and $&, or $1 to
+  $9 before [ or {, in a replacement, no valid perl, the modifier r or e), and then ends as failed
   before it applies any row (scripts/r1-gate/README.md). A row
   outside the kept build that it applies is refused when a line that the
   substitution changes is in an extern block (its brace on the same or the
@@ -1742,10 +1742,13 @@ place_cases() {
   t row-with-a-numbered-backreference-that-matches-two-places-is-named PASS fixture_says backreference-two-places "FAIL mutation:backreference-two-places ($refusal)" yes
   place_fixture backreference-one-place 'echo ok\necho book\n' 's/(o)\1k/0k/'
   t row-with-a-numbered-backreference-that-matches-one-place-applies PASS fixture_says backreference-one-place 'PASS mutation:backreference-one-place (applies and builds)' yes
+  keep_refusal="statement 1 of the substitution has \\K in its pattern: \\K is not allowed in a row's pattern: write the text before it as a lookbehind or as a group that the replacement puts back with \$1"
   place_fixture keep-one-place 'echo one\necho two\n' 's/echo \Kone/1/'
-  t row-with-keep-that-matches-one-place-applies PASS fixture_says keep-one-place 'PASS mutation:keep-one-place (applies and builds)' yes
+  t row-with-keep-that-matches-one-place-is-refused-by-name PASS fixture_says keep-one-place "FAIL mutation:keep-one-place ($keep_refusal)" yes
   place_fixture keep-two-places 'echo one\necho one\n' 's/echo \Kone/1/'
-  t row-with-keep-that-matches-two-places-is-named PASS fixture_says keep-two-places "FAIL mutation:keep-two-places ($two_places)" yes
+  t row-with-keep-that-matches-two-places-is-refused-by-name PASS fixture_says keep-two-places "FAIL mutation:keep-two-places ($keep_refusal)" yes
+  place_fixture keep-copy-above 'echo a\necho a\necho a\n' 's/echo a\n\Kecho a\n/echo b\n/'
+  t row-with-keep-whose-second-start-lies-before-the-keep-is-refused-by-name PASS fixture_says keep-copy-above "FAIL mutation:keep-copy-above ($keep_refusal)" yes
   place_fixture shared-line-end 'echo a\n    x=1\n    x=1\necho b\n' 's/\n    x=1\n/\n    x=2\n/'
   place_overlap 'the substitution' 2 scripts/r1-gate/twice.sh '2 and 3'
   t row-whose-two-places-share-a-line-end-is-named PASS fixture_says shared-line-end "FAIL mutation:shared-line-end ($refusal)" yes
@@ -1834,6 +1837,17 @@ place_cases() {
   # shellcheck disable=SC2016
   place_fixture replacement-captures 'echo one\n' 's/(o)ne/${1}x$1$&/'
   t replacement-with-the-captures-applies PASS fixture_says replacement-captures 'PASS mutation:replacement-captures (applies and builds)' yes
+  # shellcheck disable=SC2016
+  place_fixture replacement-element-array 'echo one\n' 's/(o)ne/$1[0]/'
+  # shellcheck disable=SC2016
+  t replacement-with-an-element-of-an-array-is-named PASS fixture_says replacement-element-array 'FAIL mutation:replacement-element-array (statement 1 of the substitution has $1[0] in its replacement, which perl reads as an element of an array or a hash: write ${1} for the group when a [ or a { follows it)' yes
+  # shellcheck disable=SC2016
+  place_fixture replacement-element-hash 'echo one\n' 's/(o)ne/$1{x}/'
+  # shellcheck disable=SC2016
+  t replacement-with-an-element-of-a-hash-is-named PASS fixture_says replacement-element-hash 'FAIL mutation:replacement-element-hash (statement 1 of the substitution has $1{x} in its replacement, which perl reads as an element of an array or a hash: write ${1} for the group when a [ or a { follows it)' yes
+  # shellcheck disable=SC2016
+  place_fixture replacement-group-before-a-bracket 'echo one\n' 's/(o)ne/${1}[0] ${1}{x}/'
+  t replacement-with-a-braced-group-before-a-bracket-applies PASS fixture_says replacement-group-before-a-bracket 'PASS mutation:replacement-group-before-a-bracket (applies and builds)' yes
   # shellcheck disable=SC2016
   place_fixture replacement-escaped 'echo one\n' 's/one/\$x \@y/'
   t replacement-with-an-escaped-dollar-and-at-sign-applies PASS fixture_says replacement-escaped 'PASS mutation:replacement-escaped (applies and builds)' yes
