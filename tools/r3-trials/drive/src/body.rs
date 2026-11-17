@@ -51,14 +51,14 @@ pub fn names_address(text: &str) -> bool {
             .any(|token| names_host(token) || names_ipv6(token))
 }
 
-/// The ASCII form of a full-width ASCII form (U+FF01 to U+FF5E), the full stop of an ideographic
-/// or small full stop and of a one dot leader (U+3002, U+FF61, U+FE52, U+2024), and the hyphen of a
-/// hyphen or a non-breaking hyphen (U+2010, U+2011); every other character as it is.
+/// The ASCII form of a full-width ASCII form (U+FF01 to U+FF5E) and the full stop of an
+/// ideographic or small full stop and of a one dot leader (U+3002, U+FF61, U+FE52, U+2024); every
+/// other character as it is. A hyphen look-alike needs no fold: it ends a token, and the dotted
+/// part after it is still read as a host.
 pub fn fold(c: char) -> char {
     match c {
         '\u{ff01}'..='\u{ff5e}' => char::from_u32(c as u32 - 0xfee0).unwrap_or(c),
         '\u{3002}' | '\u{ff61}' | '\u{fe52}' | '\u{2024}' => '.',
-        '\u{2010}' | '\u{2011}' => '-',
         _ => c,
     }
 }
@@ -370,6 +370,7 @@ mod tests {
             "Visit \u{1d41e}\u{1d431}\u{1d41a}\u{1d426}\u{1d429}\u{1d425}\u{1d41e}.com today please.",
             "Visit \u{51d}\u{51d}\u{51d}.example today please.",
             "Visit my\u{2011}shop.com today please.",
+            "Visit \u{43f}\u{440}\u{438}\u{43c}\u{435}\u{440}.\u{440}\u{444} today please.",
             "Write to ann at people.test please.",
             "The page is at www. today.",
             "Use [fe80::1%eth0]:8080 for it.",

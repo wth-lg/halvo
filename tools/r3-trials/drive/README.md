@@ -147,7 +147,7 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   address; the floor of three words is this trial's alone. The address rule (`names_address`,
   CP-173 E7) reads the text in lower case with invisible characters and soft hyphens left out,
   full-width ASCII forms as ASCII, ideographic and small full stops and dot leaders as dots,
-  non-breaking hyphens as hyphens, and `[.]`, `(.)`, `[at]` and `(at)` as a dot and an at-sign;
+  and `[.]`, `(.)`, `[at]` and `(at)` as a dot and an at-sign;
   an address is then an at-sign (`@`, `﹫`, `＠`), `://`, or a run of letters, digits and
   `.-_:[]%` that holds a host name with a dot (labels of any script, an `xn--` last label), a
   name with a port, an IPv4 or IPv6 address, or `www.`. Words such as `Friday.Thanks`,
