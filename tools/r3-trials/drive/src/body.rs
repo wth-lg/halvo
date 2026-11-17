@@ -6,8 +6,9 @@ pub const MARKER: &str = "Zq7-halvo-marker";
 
 const INVISIBLE: [char; 5] = ['\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'];
 
-/// The forms of the at-sign: `@`, the small `﹫` (U+FE6B) and the full-width `＠` (U+FF20).
-pub const AT_SIGNS: [char; 3] = ['@', '\u{fe6b}', '\u{ff20}'];
+/// The forms of the at-sign after `fold`: `@`, which the full-width `＠` (U+FF20) folds to, and
+/// the small `﹫` (U+FE6B).
+pub const AT_SIGNS: [char; 2] = ['@', '\u{fe6b}'];
 
 /// Whether a reply body counts (A13.6): it has a visible character, holds no marker of A10.4 and
 /// names no address (`names_address`). A marker split by a line end is not seen.
@@ -62,7 +63,7 @@ pub fn names_ipv6(word: &str) -> bool {
         Some(rest) => rest.split(']').next().unwrap_or(rest),
         None => cut.trim_matches(|c: char| c == '.'),
     };
-    inner.contains(':') && inner.parse::<std::net::Ipv6Addr>().is_ok()
+    inner.parse::<std::net::Ipv6Addr>().is_ok()
 }
 
 /// The marks of a thinking block: a closed list of literal strings, the one spelling of the saved
@@ -240,6 +241,8 @@ mod tests {
             "Try example.test?ref=1 for it.",
             "Try example.test#top for it.",
             "(see example.test/pay)",
+            "Open example.test./pay now.",
+            "See (example.test)/pay now.",
         ] {
             assert!(!counts(bad), "{bad}");
         }
@@ -280,6 +283,7 @@ mod tests {
             "Use [2001:db8::7]/pay for it.",
             "Use 2001:db8::1/64 for it.",
             "Use ::ffff:10.0.0.1 for it.",
+            "Ping fe80::1. Then call me.",
         ] {
             assert!(!counts(bad), "{bad}");
         }
