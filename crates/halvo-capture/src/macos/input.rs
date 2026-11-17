@@ -3634,9 +3634,26 @@ mod tests {
 
     #[test]
     fn every_modifier_key_reads_its_press_and_release_by_its_own_bit() {
+        let iokit: [(i64, u64, u64); 10] = [
+            (0x38, 0x0000_0002, 0x0002_0000),
+            (0x3C, 0x0000_0004, 0x0002_0000),
+            (0x3B, 0x0000_0001, 0x0004_0000),
+            (0x3E, 0x0000_2000, 0x0004_0000),
+            (0x3A, 0x0000_0020, 0x0008_0000),
+            (0x3D, 0x0000_0040, 0x0008_0000),
+            (0x37, 0x0000_0008, 0x0010_0000),
+            (0x36, 0x0000_0010, 0x0010_0000),
+            (0x39, 0, 0x0001_0000),
+            (0x3F, 0, 0x0080_0000),
+        ];
+        assert_eq!(
+            MODIFIER_KEYS.map(|(code, _, _)| code),
+            iokit.map(|(code, _, _)| code),
+            "the ten keys of the table, in its order"
+        );
         let flags = CGEventType::FlagsChanged;
         let mut checked = 0;
-        for &(code, side, family) in &MODIFIER_KEYS {
+        for &(code, side, family) in &iokit {
             assert_eq!(
                 kind_of(flags, Some(code), 0),
                 Kind::Reading,

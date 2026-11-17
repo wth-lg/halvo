@@ -1087,6 +1087,7 @@ mod tests {
         static FRONT: AtomicI32 = AtomicI32::new(0);
         static OBSERVE: AtomicI32 = AtomicI32::new(0);
         static SUBROLE: AtomicI32 = AtomicI32::new(0);
+        static FOCUSED: AtomicI32 = AtomicI32::new(0);
         static NOW: AtomicU64 = AtomicU64::new(0);
         static DEADLINES: Mutex<Vec<Duration>> = Mutex::new(Vec::new());
         static OBSERVED: Mutex<Vec<(i32, Instant)>> = Mutex::new(Vec::new());
@@ -1098,6 +1099,7 @@ mod tests {
             FRONT.store(0, Ordering::SeqCst);
             OBSERVE.store(0, Ordering::SeqCst);
             SUBROLE.store(0, Ordering::SeqCst);
+            FOCUSED.store(0, Ordering::SeqCst);
             NOW.store(TEN_S, Ordering::SeqCst);
             DEADLINES
                 .lock()
@@ -1144,7 +1146,10 @@ mod tests {
         }
 
         fn focused(_app: &CFType) -> Result<CFType, i32> {
-            Ok(element("focused"))
+            match FOCUSED.load(Ordering::SeqCst) {
+                0 => Ok(element("focused")),
+                code => Err(code),
+            }
         }
 
         fn subrole(_element: &CFType) -> Result<Option<String>, i32> {
@@ -1271,6 +1276,23 @@ mod tests {
             std::thread::sleep(Duration::from_millis(200));
             assert!(!mark.doubt(), "another program in front ends it");
             assert!(thread.stop_within(Duration::from_millis(100)));
+        }
+
+        #[test]
+        fn a_registration_whose_focused_element_does_not_answer_marks_a_doubt_at_the_start() {
+            let _serial = serial();
+            FOCUSED.store(-25204, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_millis(200));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                mark.get(),
+                Some(Uptime::from_nanos(TEN_S)),
+                "a focused element that does not answer is a doubt, and the Start read marks it"
+            );
+            assert_eq!(mark.kind(), MarkKind::Start);
         }
 
         #[test]
