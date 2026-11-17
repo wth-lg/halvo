@@ -67,9 +67,8 @@ class Refusal(Exception):
 
 
 def count(text):
-    if text.isdigit() and (text == "0" or not text.startswith("0")):
-        return int(text)
-    return None
+    """An integer of a line, read as the importer reads one (`figure`)."""
+    return figure(text)
 
 
 def words(line, head, keys):
@@ -1213,6 +1212,9 @@ def self_test():
         ("a drive line of the token none", good + ["drive model=none machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0"]),
         ("bodies above 2", [l.replace("bodies=2 of=2", "bodies=20 of=2") if l.startswith("reply model=m_a machine=mac seed=1 ") else l.replace("pass=yes steps=0", "pass=no steps=0") if l.startswith("attempt model=m_a machine=mac task=reply seed=1 ") else l for l in good]),
         ("a drive line of the task reply", good + ["drive model=m_a machine=mac task=reply seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0"]),
+        ("a superscript two in a drive line", [l.replace("steps=6 ", "steps=² ", 1) if l.startswith("drive model=m_a machine=mac task=bill seed=1 ") else l for l in good]),
+        ("a superscript two in a reply line", [l.replace("bodies=2 ", "bodies=² ", 1) if l.startswith("reply model=m_a machine=mac seed=1 ") else l for l in good]),
+        ("an Arabic-Indic digit in an attempt line", [l.replace("steps=6 ", "steps=٦ ", 1) if l.startswith("attempt") else l for l in good]),
     ]
     for name, body in bad_cases:
         try:
