@@ -2,6 +2,7 @@ use std::ffi::{CStr, CString, OsStr};
 
 use super::*;
 use crate::store::durable::{self, Dir, OsFs};
+use crate::store::RootReading;
 
 const COUNTER_C: &str = r#"
 #include <errno.h>
@@ -233,6 +234,146 @@ fn checkpoint_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
     }
 }
 
+fn reading_of(answer: &StoreResult<crate::store::DeleteReport>) -> Option<RootReading> {
+    match answer {
+        Ok(report) => Some(report.root),
+        Err(StoreError::DeleteIncomplete(report)) => Some(report.root),
+        Err(_) => None,
+    }
+}
+
+fn root_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
+    for (at, case) in ["delete_all", "tail"].into_iter().enumerate() {
+        let name = format!("root-{at}");
+        let (store_dir, roots_dir, root_id) = a_store(top, &name);
+        let root_file = format!("{name}/roots/{root_id}.root");
+        let folder = format!("{name}/roots");
+        let (answer, on, _) = step(flushes, case, || {
+            if case == "tail" {
+                tail(&store_dir, &roots_dir)
+            } else {
+                let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+                store.delete_all()
+            }
+        });
+        let reading = reading_of(&answer);
+        let zero_fill = count_of(&on, &root_file);
+        let after = on
+            .iter()
+            .position(|path| *path == root_file)
+            .map_or(0, |first| {
+                on[first..].iter().filter(|path| **path == folder).count()
+            });
+        println!(
+            "FULLFLUSH root step={case} answer_ok={} root={reading:?} zero_fill_full_flushes={zero_fill} roots_folder_full_flushes_after_it={after}",
+            answer.is_ok()
+        );
+        if answer.is_err()
+            || reading != Some(RootReading::Destroyed)
+            || zero_fill != 1
+            || after == 0
+        {
+            problems.push(format!(
+                "{case}: answer ok {}, root {reading:?}, {zero_fill} full flushes of the zero-fill, {after} of the roots folder after it",
+                answer.is_ok()
+            ));
+        }
+    }
+    for (at, case) in ["delete_all", "tail"].into_iter().enumerate() {
+        let name = format!("root-failing-{at}");
+        let (store_dir, roots_dir, root_id) = a_store(top, &name);
+        let mut store = (case == "delete_all")
+            .then(|| open_over_file_root(&store_dir, &roots_dir, root_id).unwrap());
+        flushes.fail_next(1, &format!("{name}/roots"));
+        let (first, _, _) = step(
+            flushes,
+            &format!("{case} whose roots folder's full flush fails"),
+            || match store.as_mut() {
+                Some(store) => store.delete_all(),
+                None => tail(&store_dir, &roots_dir),
+            },
+        );
+        let first_root = reading_of(&first);
+        let first_listed = match &first {
+            Ok(report) => Some(report.roots.listed),
+            Err(StoreError::DeleteIncomplete(report)) => Some(report.roots.listed),
+            Err(_) => None,
+        };
+        let again = match store.as_mut() {
+            Some(store) => store.delete_all(),
+            None => tail(&store_dir, &roots_dir),
+        };
+        drop(store);
+        let after = tail(&store_dir, &roots_dir);
+        println!(
+            "FULLFLUSH root step={case} with a failed folder flush: first_ok={} first_root={first_root:?} first_listed={first_listed:?} again_ok={} again_root={:?} next_tail_ok={} next_tail_root={:?}",
+            first.is_ok(),
+            again.is_ok(),
+            reading_of(&again),
+            after.is_ok(),
+            reading_of(&after)
+        );
+        if first.is_ok() || first_root != Some(RootReading::Left(Some(root_id))) {
+            problems.push(format!(
+                "{case}: a failed flush of the roots folder answered ok {} with the root {first_root:?}",
+                first.is_ok()
+            ));
+        }
+        if after.is_err() {
+            problems.push(format!(
+                "{case}: the tail after a failed flush of the roots folder answered {}",
+                match &after {
+                    Err(e) => e.to_string(),
+                    Ok(_) => String::new(),
+                }
+            ));
+        }
+    }
+    let (store_dir, roots_dir, _) = a_store(top, "root-unnamed");
+    std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+    flushes.fail_next(1, "root-unnamed/roots");
+    let (first, _, _) = step(
+        flushes,
+        "a tail that names no root, whose roots folder's full flush fails",
+        || tail(&store_dir, &roots_dir),
+    );
+    let next = tail(&store_dir, &roots_dir);
+    println!(
+        "FULLFLUSH unnamed sweep with a failed folder flush: first_ok={} first_root={:?} next_ok={} next_root={:?}",
+        first.is_ok(),
+        reading_of(&first),
+        next.is_ok(),
+        reading_of(&next)
+    );
+    if first.is_ok() || next.is_err() {
+        problems.push(format!(
+            "a tail that names no root answered ok {} at a failed flush of its roots folder and ok {} after it",
+            first.is_ok(),
+            next.is_ok()
+        ));
+    }
+    let roots_dir = top.join("custody-roots");
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    custody.create_root().unwrap();
+    flushes.fail_next(1, "custody-roots");
+    let (first, on, _) = step(
+        flushes,
+        "the custody's destroy whose folder flush fails",
+        || custody.destroy_root(),
+    );
+    let again = custody.destroy_root();
+    println!(
+        "FULLFLUSH custody destroy with a failed folder flush: first={first:?} again={again:?} root_file_full_flushes={}",
+        count_of(&on, &format!("custody-roots/{root_id}.root"))
+    );
+    if first.is_ok() || again.is_err() {
+        problems.push(format!(
+            "the custody's destroy answered {first:?} at a failed flush of its folder and {again:?} after it"
+        ));
+    }
+}
+
 fn helper_write(dir: &Dir, temp: &str, target: &str) -> io::Result<()> {
     durable::write_durably(
         &OsFs,
@@ -326,6 +467,7 @@ fn full_flush_child_for_parent() {
         "helper" => helper_group(&top, &flushes, &mut problems),
         "commit" => commit_group(&top, &flushes, &mut problems),
         "checkpoint" => checkpoint_group(&top, &flushes, &mut problems),
+        "root" => root_group(&top, &flushes, &mut problems),
         other => panic!("no group {other}"),
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -408,4 +550,15 @@ fn each_commit_of_the_store_flushes_its_log_with_the_full_flush_call() {
 #[test]
 fn the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal() {
     run_child("checkpoint");
+}
+
+/// Ruling PR-30 PR9 (3): the root step's zero-fill makes one full flush of
+/// the root file, and the roots folder is flushed after it. When that flush
+/// fails, the delete-all and the tail read the root left and answer that the
+/// delete is not finished, the tail after it answers Ok, and the custody's
+/// destroy answers the flush's error and then Ok.
+#[test]
+fn the_root_steps_zero_fill_and_its_roots_folder_are_flushed_and_a_failed_folder_flush_reads_left()
+{
+    run_child("root");
 }

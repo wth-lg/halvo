@@ -167,7 +167,7 @@ fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     let mut file = dir.open_file_for_write(name)?;
     let len = file.metadata()?.len();
     write_zeros(&mut file, len)?;
-    file.sync_all()
+    durable::full_flush(&file)
 }
 
 fn seal(
@@ -186,7 +186,10 @@ fn seal(
 /// they stand (a root name or a partial name, which holds a root id alone: a
 /// root-file path under C0.3), the entries that stay at any other name,
 /// counted by kind and never named (ruling ST-48 U3), and whether the
-/// directory could be listed. `at_its_path` is false when the roots directory
+/// directory could be listed. `listed` is also false when the flush of the
+/// directory after the step's removals failed, so that no removal that the
+/// listing shows is known to be on the drive (ruling PR-30 PR9 (3)).
+/// `at_its_path` is false when the roots directory
 /// that the step went through no longer stood at the path that it was opened
 /// by.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,8 +324,12 @@ pub(crate) fn destroy_roots_below(
 /// be read (ruling ST-45 Addition 2 (b)); a partial name is zero-filled. A
 /// directory that cannot be listed reads not listed. The result says whether
 /// the directory still stood at the path that it was opened by after the
-/// step. A later call on a handle whose root read destroyed does not come
-/// here (ruling ST-45 H3).
+/// step. Each zero-fill ends with the full-flush call on its file, and after
+/// the removals the directory is flushed with the full-flush call; when that
+/// flush fails, the root reads left and the result reads not listed, so the
+/// delete answers that it is not finished (ruling PR-30 PR9 (3)). A later
+/// call on a handle whose root read destroyed does not come here (ruling
+/// ST-45 H3).
 pub(crate) fn destroy_roots_through(
     dir: &Dir,
     named: Option<NamedRoot>,
@@ -433,15 +440,19 @@ pub(crate) fn destroy_roots_through(
             let _ = destroy_root_entry(dir, &entry.name, EntryName::OtherName);
         }
     }
-    let _ = dir.sync();
+    let flushed = dir.sync().is_ok();
     match dir.entries() {
         Ok(entries) => {
-            let stands = roots_that_stand(&entries, at_its_path());
+            let stands = RootsLeft {
+                listed: flushed,
+                ..roots_that_stand(&entries, at_its_path())
+            };
             let reading = match named_id {
                 None => RootReading::Unnamed,
                 Some(named)
                     if own_root_file_removed
                         && every_named_entry_destroyed
+                        && flushed
                         && !stands.left.contains(&named) =>
                 {
                     RootReading::Destroyed
@@ -777,7 +788,7 @@ fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
     let mut writer = file;
     writer.seek(SeekFrom::Start(0))?;
     write_zeros(&mut writer, len)?;
-    file.sync_all()
+    durable::full_flush(file)
 }
 
 /// The size of one write of zeros of the root step: its zero-fill writes a
@@ -844,7 +855,9 @@ pub(crate) fn destroy_named_root_at(roots: &Path, root: NamedRoot) -> Result<(),
 /// is taken as done (ruling ST-48 U2); without it, every entry of the id at its root name in any
 /// letter case and at its partial names, each partial counted as the root
 /// file is (the review's N7). Answers Ok when no entry of the root stands at
-/// its look, so that a cleanup that runs again ends.
+/// its look, so that a cleanup that runs again ends, and the error of the
+/// flush of the directory after the removals when that flush fails (ruling
+/// PR-30 PR9 (3)).
 pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), CustodyError> {
     let mut fates = Vec::new();
     match root.file {
@@ -877,7 +890,7 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
             ));
         }
     }
-    let _ = dir.sync();
+    let flushed = dir.sync();
     for fate in fates {
         match fate {
             EntryFate::Gone
@@ -888,7 +901,7 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
             EntryFate::KeyMayStay(None) => return Err(CustodyError::RootDenied),
         }
     }
-    Ok(())
+    flushed.map_err(root_io)
 }
 
 impl<P: Protector> FileRoots<P> {
