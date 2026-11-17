@@ -76,6 +76,12 @@ pub(in crate::store) const SEAM_IN_THE_REFUSAL_ARM: &str =
 #[cfg(test)]
 pub(in crate::store) const SEAM_BEFORE_THE_TAILS_ROOT_STEP: &str =
     "the tail, after its look at the store and before its root step";
+/// A place where a test acts after the tail on a data directory opened that
+/// directory and before it opens the store directory from that handle
+/// (ruling ST-48 U5 (b)).
+#[cfg(test)]
+pub(in crate::store) const SEAM_AFTER_THE_DATA_DIRECTORY_OPEN: &str =
+    "the tail, after it opened the data directory";
 #[cfg(test)]
 pub(in crate::store) const SEAM_AT_THE_LOG_CHECK: &str =
     "an open, at the first instant of the log's check";
@@ -2491,6 +2497,8 @@ impl EncryptedStore {
                 ))
             }
         };
+        #[cfg(test)]
+        failpoint::seam(SEAM_AFTER_THE_DATA_DIRECTORY_OPEN);
         match parent.open_dir(OsStr::new(STORE_DIR_NAME)) {
             Ok(store) => Self::delete_through(&store, &parent),
             Err(e) if e.kind() == ErrorKind::NotFound => {
