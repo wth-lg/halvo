@@ -328,10 +328,10 @@ BEGIN {
   for (i = 1; i <= ns; i++) {
     p = seen[i]
     if (!(p in want)) {
-      printf "run-record unknown=%s places=%d lines=%s: build the record with halvo_schema::executable::record::AgentRun::new there; the known list in scripts/r3/ci.d/25-r3-run-record.sh may not grow\n", p, got[p], lines[p]
+      printf "run-record unknown=%s places=%d lines=%s: build the record with halvo_schema::executable::record::AgentRun::new there, or, for a map of changes to a made record, change one key per map (see --help); the known list in scripts/r3/ci.d/25-r3-run-record.sh may not grow\n", p, got[p], lines[p]
       faults++
     } else if (got[p] > want[p]) {
-      printf "run-record count=%s places=%d known=%d lines=%s: build the record with AgentRun::new at the new place; the known list in scripts/r3/ci.d/25-r3-run-record.sh may not grow\n", p, got[p], want[p], lines[p]
+      printf "run-record count=%s places=%d known=%d lines=%s: build the record with AgentRun::new at the new place, or, for a map of changes to a made record, change one key per map (see --help); the known list in scripts/r3/ci.d/25-r3-run-record.sh may not grow\n", p, got[p], want[p], lines[p]
       faults++
     } else if (got[p] < want[p]) {
       printf "run-record count=%s places=%d known=%d: set its row in known() to %d and lower pinned_places and pinned_paths beside it in scripts/r3/ci.d/25-r3-run-record.sh\n", p, got[p], want[p], got[p]
@@ -617,7 +617,7 @@ self_test() {
 
   repo a-change-map-with-both-keys
   put crates/a/tests/t.rs 'fn f(record: &mut Value) {' '    merge(record, &json!({"outcome": "failed", "earlier_page": 6}));' '}'
-  case_of a-change-map-with-both-keys FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+  case_of a-change-map-with-both-keys FAIL 'AgentRun::new there, or, for a map of changes to a made record, change one key per map (see --help);'
 
   repo a-quote-as-a-hex-escape
   put crates/a/tests/t.rs 'const R: &str = "{'"$bs"'x22outcome'"$bs"'x22:1,'"$bs"'x22earlier_page'"$bs"'x22:null}";'
@@ -672,7 +672,7 @@ self_test() {
   repo a-known-row-rises
   put crates/b/src/stub.rs "$raw" "$raw"
   row crates/b/src/stub.rs 1
-  case_of a-known-row-rises FAIL 'run-record count=crates/b/src/stub.rs places=2 known=1'
+  case_of a-known-row-rises FAIL 'run-record count=crates/b/src/stub.rs places=2 known=1 lines=1,2: build the record with AgentRun::new at the new place, or, for a map of changes to a made record, change one key per map (see --help);'
 
   repo a-known-row-holds
   put crates/b/src/stub.rs "$raw"
