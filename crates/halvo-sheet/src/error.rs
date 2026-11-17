@@ -95,7 +95,8 @@ pub enum Refusal {
     /// format names parts: its target does not decode (a percent sign is not followed by two hex
     /// digits, a `/` or a `\` is percent-encoded, or the bytes are not UTF-8). Or a relationship
     /// of a type that the crate or its reader reads names no entry, or its type equals such a
-    /// type only when ASCII case is ignored. Or the package's office document is not
+    /// type only when ASCII case is ignored, in its last segment or in the namespace before
+    /// its last slash. Or the package's office document is not
     /// `xl/workbook.xml`, or the crate and the reader would find the named sheet in two
     /// different parts.
     Relationship,
@@ -163,7 +164,9 @@ pub enum Error {
     /// would hold a sheet part or another entry of more than 32 MiB, entries of more than
     /// 128 MiB in all, or more than 64 MiB as a file. Refused before any write.
     FillSize,
-    /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
+    /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is, or
+    /// this process called a `replace` of the run's copy of the workbook already (one `replace`
+    /// of a workbook per run).
     Checkpoint,
     /// `prepare` could not take the lock of the workbook's directory, which another call held
     /// for the whole wait ([`LockError::Busy`]) or which could not be opened; it wrote nothing.
@@ -174,7 +177,9 @@ pub enum Error {
     /// `replace` left the workbook as it was.
     NotReplaced(Kept),
     /// `replace` left the workbook as it was, and the system refused to remove the prepared
-    /// copy (a read-only directory, an immutable file), which stays beside the workbook.
+    /// copy (a read-only directory, an immutable file), or the call could not read the file that
+    /// `prepare` made to tell that it is the copy it checked; the file stays beside the
+    /// workbook.
     CopyLeft(Kept),
 }
 

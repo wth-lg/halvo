@@ -11,6 +11,8 @@ mod lock;
 mod name;
 mod remove;
 mod run;
+#[cfg(test)]
+mod seam;
 mod walk;
 
 pub use digest::Sha256;

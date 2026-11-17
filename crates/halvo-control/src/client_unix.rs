@@ -83,7 +83,7 @@ pub(crate) fn check_server(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnixConnector {
     socket: PathBuf,
-    data_dir: PathBuf,
+    data_dir: DataDir,
     expected_pid: Option<u32>,
 }
 
@@ -96,7 +96,7 @@ impl UnixConnector {
             .map_err(|e| ClientError::Protocol(e.to_string()))?;
         Ok(Self {
             socket,
-            data_dir: data_dir.path().to_path_buf(),
+            data_dir: data_dir.clone(),
             expected_pid: None,
         })
     }
@@ -106,7 +106,7 @@ impl UnixConnector {
     pub(crate) fn at(data_dir: &DataDir) -> Self {
         Self {
             socket: data_dir.control_socket(),
-            data_dir: data_dir.path().to_path_buf(),
+            data_dir: data_dir.clone(),
             expected_pid: None,
         }
     }
@@ -122,7 +122,7 @@ impl UnixConnector {
     }
 
     /// The data directory whose instance lock the connector reads.
-    pub fn data_dir(&self) -> &Path {
+    pub fn data_dir(&self) -> &DataDir {
         &self.data_dir
     }
 
@@ -189,20 +189,43 @@ impl Connector for UnixConnector {
         self.socket.to_string_lossy().into_owned()
     }
 
-    /// Tries the connect; on each path that finds no daemon it reads the instance lock of the
-    /// data directory. Free, or no data directory: unreachable at once. Held: it waits a step
-    /// and tries again inside `timeout`, and at its end answers that the directory is in use.
+    /// Tries the connect; on each path that finds no daemon, and on an error of the transport, it
+    /// reads the instance lock of the data directory. A cause at the data folder that the read
+    /// carries answers first (ruling CT-15), so a read of the socket's directory never hides it.
+    /// Held: it waits a step and tries again inside `timeout`, and at its end answers that the
+    /// directory is in use, whatever the connect's error (ruling CT-16 C2). Free, or no data
+    /// directory: an error of the transport answers the cause that
+    /// [`DataDir::is_provisioned`] reads at the folder, or else itself (ruling CT-16 C1), and a
+    /// connect that found no daemon answers unreachable at once. Every error of the transport
+    /// that it answers is marked [`BeforeTheRequest`].
     fn connect(&self, timeout: Duration) -> Result<UnixStream, ClientError> {
         let until = std::time::Instant::now() + timeout;
         loop {
-            match self.connect_once() {
-                Err(ClientError::Unreachable { .. }) => {}
+            let missed = match self.connect_once() {
+                Err(missed @ (ClientError::Unreachable { .. } | ClientError::Io(_))) => missed,
                 other => return other,
-            }
-            match crate::instance_lock::read(&self.data_dir).map_err(ClientError::Io)? {
-                crate::instance_lock::LockRead::Free
-                | crate::instance_lock::LockRead::NoDirectory => return Err(self.unreachable()),
-                crate::instance_lock::LockRead::Held => {}
+            };
+            let read = match crate::instance_lock::read(&self.data_dir) {
+                Err(e) if crate::paths::entry_cause(&e).is_some() => {
+                    return Err(ClientError::Io(e))
+                }
+                Err(e) => {
+                    return Err(match missed {
+                        ClientError::Io(missed) => before_the_request(missed),
+                        _ => before_the_request(e),
+                    })
+                }
+                Ok(read) => read,
+            };
+            match (read, missed) {
+                (crate::instance_lock::LockRead::Held, _) => {}
+                (_, ClientError::Io(missed)) => {
+                    return Err(match self.data_dir.is_provisioned() {
+                        Err(cause) => ClientError::Io(crate::paths::cause_error(cause)),
+                        Ok(_) => before_the_request(missed),
+                    })
+                }
+                (_, _) => return Err(self.unreachable()),
             }
             let left = until.saturating_duration_since(std::time::Instant::now());
             if left.is_zero() {
@@ -217,6 +240,23 @@ impl Connector for UnixConnector {
 
 /// The step between two connects while the instance lock is held.
 pub const CONNECT_STEP_MS: u64 = 50;
+
+/// The payload of an error of the connect, which came before any byte of a request was sent; it
+/// reads as the error that it holds.
+#[derive(Debug)]
+pub(crate) struct BeforeTheRequest(std::io::Error);
+
+impl std::fmt::Display for BeforeTheRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for BeforeTheRequest {}
+
+fn before_the_request(error: std::io::Error) -> ClientError {
+    ClientError::Io(std::io::Error::new(error.kind(), BeforeTheRequest(error)))
+}
 
 impl UnixConnector {
     fn connect_once(&self) -> Result<UnixStream, ClientError> {
@@ -619,7 +659,7 @@ mod tests {
 
     fn held(dir: &DataDir) -> crate::instance_lock::InstanceLock {
         crate::testing::make_private_dir(dir.path()).unwrap();
-        crate::instance_lock::InstanceLock::try_take(dir.path())
+        crate::instance_lock::InstanceLock::try_take(dir)
             .unwrap()
             .expect("the lock is free before the test takes it")
     }
@@ -641,7 +681,7 @@ mod tests {
     fn connector_beside(data_dir: &Path, socket_dir: &DataDir) -> UnixConnector {
         UnixConnector {
             socket: socket_dir.control_socket(),
-            data_dir: data_dir.to_path_buf(),
+            data_dir: DataDir::from_flag(data_dir).unwrap(),
             expected_pid: None,
         }
     }
@@ -839,5 +879,248 @@ mod tests {
         let (_base, dir) = short_data_dir();
         let connector = UnixConnector::for_data_dir(&dir, &crate::paths::SystemAccount).unwrap();
         assert_eq!(connector.socket(), dir.control_socket());
+    }
+
+    /// Sets each path back to mode 0700 when it is dropped, on every path out of the test.
+    struct ModeBack(Vec<PathBuf>);
+
+    impl Drop for ModeBack {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            for path in &self.0 {
+                let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+            }
+        }
+    }
+
+    #[test]
+    fn ct15_ctl_prints_the_cause_at_the_data_folder_and_no_raw_os_error_at_the_name_and_below_it() {
+        use crate::paths::EntryAtDataDir;
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        let mode = |path: &Path, bits: u32| {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).unwrap()
+        };
+        let mut rows = 0;
+        for base_kind in [
+            "a file",
+            "a link to a file",
+            "a link loop",
+            "a link that leads nowhere",
+            "a link behind a closed parent",
+            "a link to a folder of mode 0000",
+            "a folder of mode 0000",
+        ] {
+            for below in [false, true] {
+                let (_root, short) = short_data_dir();
+                let root = short.path().parent().unwrap().to_path_buf();
+                let name = root.join("n");
+                let mut back = ModeBack(Vec::new());
+                let cause = match base_kind {
+                    "a file" => {
+                        std::fs::write(&name, b"x").unwrap();
+                        EntryAtDataDir::NotADirectory
+                    }
+                    "a link to a file" => {
+                        std::fs::write(root.join("f"), b"x").unwrap();
+                        symlink(root.join("f"), &name).unwrap();
+                        EntryAtDataDir::NotADirectory
+                    }
+                    "a link loop" => {
+                        symlink(&name, &name).unwrap();
+                        EntryAtDataDir::LinkLeadsNowhere
+                    }
+                    "a link that leads nowhere" => {
+                        symlink(root.join("unplugged"), &name).unwrap();
+                        EntryAtDataDir::LinkLeadsNowhere
+                    }
+                    "a link behind a closed parent" => {
+                        let closed = root.join("c");
+                        std::fs::create_dir_all(closed.join("t")).unwrap();
+                        symlink(closed.join("t"), &name).unwrap();
+                        back.0.push(closed.clone());
+                        mode(&closed, 0o000);
+                        EntryAtDataDir::CannotBeRead
+                    }
+                    "a link to a folder of mode 0000" => {
+                        let target = root.join("t");
+                        std::fs::create_dir(&target).unwrap();
+                        symlink(&target, &name).unwrap();
+                        back.0.push(target.clone());
+                        mode(&target, 0o000);
+                        EntryAtDataDir::CannotBeRead
+                    }
+                    "a folder of mode 0000" => {
+                        std::fs::create_dir(&name).unwrap();
+                        back.0.push(name.clone());
+                        mode(&name, 0o000);
+                        EntryAtDataDir::CannotBeRead
+                    }
+                    _ => unreachable!(),
+                };
+                if below && base_kind == "a folder of mode 0000" {
+                    continue;
+                }
+                let dir =
+                    DataDir::from_flag(if below { name.join("halvo") } else { name }).unwrap();
+                let answer = client_within(&dir, 300).status();
+                let printed = crate::ctl_text::print(
+                    &crate::ctl_text::Verb::Status { indicator: false },
+                    answer.map(crate::proto::Reply::Status),
+                    &dir,
+                );
+                let row = format!("{base_kind}, below: {below}");
+                assert_eq!(
+                    (printed.stderr.as_str(), printed.status),
+                    (
+                        format!("halvo-capture: {cause}: {}\n", dir.path().display()).as_str(),
+                        1
+                    ),
+                    "{row}"
+                );
+                assert!(!printed.stderr.contains("os error"), "{row}");
+                drop(back);
+                rows += 1;
+            }
+        }
+        assert_eq!(rows, 13);
+    }
+
+    #[test]
+    fn ct15_ctl_reads_a_data_folder_whose_name_is_longer_than_255_bytes_as_cannot_be_read() {
+        let (_root, short) = short_data_dir();
+        let long = short.path().parent().unwrap().join("x".repeat(256));
+        for path in [long.clone(), long.join("halvo")] {
+            let dir = DataDir::from_flag(path).unwrap();
+            for connector in [
+                UnixConnector::at(&dir),
+                UnixConnector::for_data_dir(&dir, &crate::paths::SystemAccount).unwrap(),
+            ] {
+                let mut deadlines = Deadlines::V1;
+                deadlines.read = Duration::from_millis(300);
+                let answer = Client::with_deadlines(connector, deadlines).status();
+                let printed = crate::ctl_text::print(
+                    &crate::ctl_text::Verb::Status { indicator: false },
+                    answer.map(crate::proto::Reply::Status),
+                    &dir,
+                );
+                assert_eq!(
+                    (printed.stderr, printed.status),
+                    (
+                        format!(
+                            "halvo-capture: the data directory or a folder on its path cannot be read: {}\n",
+                            dir.path().display()
+                        ),
+                        1
+                    )
+                );
+            }
+        }
+    }
+
+    fn set_mode(path: &Path, bits: u32) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).unwrap();
+    }
+
+    #[test]
+    fn ct16_c1_a_free_data_folder_that_opens_and_cannot_be_searched_prints_cannot_be_read_through_both_connectors(
+    ) {
+        for bits in [0o600, 0o400] {
+            let (_base, dir) = short_data_dir();
+            crate::testing::make_private_dir(dir.path()).unwrap();
+            let _back = ModeBack(vec![dir.path().to_path_buf()]);
+            set_mode(dir.path(), bits);
+            for connector in [
+                UnixConnector::at(&dir),
+                UnixConnector::for_data_dir(&dir, &crate::paths::SystemAccount).unwrap(),
+            ] {
+                let mut deadlines = Deadlines::V1;
+                deadlines.read = Duration::from_millis(300);
+                let answer = Client::with_deadlines(connector, deadlines).status();
+                let printed = crate::ctl_text::print(
+                    &crate::ctl_text::Verb::Status { indicator: false },
+                    answer.map(crate::proto::Reply::Status),
+                    &dir,
+                );
+                assert!(
+                    !printed.stderr.contains("os error"),
+                    "{bits:o}: {printed:?}"
+                );
+                assert_eq!(
+                    (printed.stderr, printed.status),
+                    (
+                        format!(
+                            "halvo-capture: the data directory or a folder on its path cannot be read: {}\n",
+                            dir.path().display()
+                        ),
+                        1
+                    ),
+                    "{bits:o}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ct16_c2_a_held_folder_that_cannot_be_searched_or_a_socket_that_refuses_the_connect_answers_in_use_after_the_deadline(
+    ) {
+        for bits in [0o600, 0o400] {
+            let (_base, dir) = short_data_dir();
+            let lock = held(&dir);
+            let _back = ModeBack(vec![dir.path().to_path_buf()]);
+            set_mode(dir.path(), bits);
+            let started = Instant::now();
+            let result = client_within(&dir, 300).status();
+            assert!(started.elapsed() >= Duration::from_millis(300), "{bits:o}");
+            in_use(result, &dir, &format!("held folder of mode {bits:o}"));
+            drop(lock);
+        }
+        let (_base, dir) = short_data_dir();
+        crate::testing::make_private_dir(&dir.run_dir()).unwrap();
+        let _listener = std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap();
+        let _back = ModeBack(vec![dir.control_socket()]);
+        set_mode(&dir.control_socket(), 0o000);
+        let lock = held(&dir);
+        let started = Instant::now();
+        let result = client_within(&dir, 300).status();
+        assert!(started.elapsed() >= Duration::from_millis(300));
+        in_use(result, &dir, "a socket of mode 0000 beside a held lock");
+        drop(lock);
+    }
+
+    #[test]
+    fn ct16_c3_a_delete_whose_channel_breaks_after_the_request_says_its_outcome_is_not_known() {
+        use std::io::Read;
+
+        let (_base, dir) = short_data_dir();
+        crate::testing::make_private_dir(&dir.run_dir()).unwrap();
+        let listener = std::os::unix::net::UnixListener::bind(dir.control_socket()).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let _ = stream.read_to_end(&mut request);
+            request.len()
+        });
+        let armed = Some(crate::testing::FIXTURE_STORE_ID);
+        let answer =
+            client_within(&dir, 10_000).send(&crate::proto::Request::DeleteAll { store: armed });
+        assert!(server.join().unwrap() > 0, "the request was sent");
+        let printed =
+            crate::ctl_text::print(&crate::ctl_text::Verb::DeleteAll(armed), answer, &dir);
+        assert_eq!(printed.status, 1, "{printed:?}");
+        assert!(
+            printed.stderr.starts_with(
+                "halvo-capture: whether this request deleted anything is not known; read the status; "
+            ),
+            "{printed:?}"
+        );
+        assert_eq!(printed.stderr.lines().count(), 1, "{printed:?}");
+        for claim in ["deleted nothing", "nothing was deleted"] {
+            assert!(!printed.stderr.contains(claim), "{printed:?}");
+        }
     }
 }

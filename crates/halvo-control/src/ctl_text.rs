@@ -159,6 +159,9 @@ pub fn status_text(status: &DaemonStatus) -> String {
     line(format!("started_at={}", f.started_at));
     line(format!("rss_peak_bytes={}", f.rss_peak_bytes));
     line(format!("parent={}", f.parent.as_str()));
+    if let Some(folder) = &f.data_dir_resolved {
+        line(folder.line());
+    }
     line(format!("desired={}", f.desired.as_str()));
     line(format!("capture={}", f.capture.as_str()));
     line(format!(
@@ -200,14 +203,12 @@ pub fn status_text(status: &DaemonStatus) -> String {
         "tap_disabled_user_input={}",
         f.tap_disabled_user_input
     ));
-    line(format!("late_events={}", f.late_events));
+    line(format!("late_events={}", yes_no(f.late_events)));
     line(format!("max_lag_ms={}", f.max_lag_ms));
-    if let Some(count) = f.secure_input_keystrokes {
-        line(format!("secure_input_keystrokes={count}"));
+    if let Some(met) = f.secure_input_keystrokes {
+        line(format!("secure_input_keystrokes={}", yes_no(met)));
     }
-    if let Some(withheld) = f.keys_withheld {
-        line(format!("keys_withheld={}", yes_no(withheld)));
-    }
+    line(format!("keys_withheld={}", yes_no(f.keys_withheld)));
     line(format!("title_read_errors={}", f.title_read_errors));
     line(format!("last_flush_at={}", or_dash(f.last_flush_at)));
     line(format!("expiry={}", f.expiry.as_str()));
@@ -344,6 +345,51 @@ pub fn already_deleted_text(already: &AlreadyDeleted) -> String {
 /// What ctl says on standard error for `delete_refused` (ruling PL-8 part (4)(c)).
 pub const DELETE_REFUSED_TEXT: &str = "this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again";
 
+/// What ctl says on standard error for the plain busy of a delete, which also answers while
+/// another delete runs, so it never says that nothing was deleted (contracts.md C2.6; ruling
+/// CT-14).
+pub const DELETE_BUSY_TEXT: &str =
+    "the capture service is busy; this request deleted nothing; read the status and ask again";
+
+/// What ctl says on standard error for an `already_deleted` that the client does not take for a
+/// delete: one to a delete with no id, or one that names the armed id (contracts.md C2.6).
+pub const ALREADY_DELETED_NOT_TAKEN_TEXT: &str = "the capture service answered already_deleted, which does not answer this request; this request deleted nothing; read the status and ask again";
+
+/// What ctl says on standard error when a delete got no reply within its deadline: its outcome
+/// is unknown, so it says neither that this request deleted nothing nor that nothing was
+/// deleted (contracts.md C2.6 and C2.7).
+pub fn delete_deadline_line(seconds: u64) -> String {
+    format!("no reply within {seconds} s; {DELETE_OUTCOME_NOT_KNOWN}")
+}
+
+/// What ctl says first on standard error for any error of a delete after its request was sent,
+/// with the cause after it on the same line: its outcome is unknown (ruling CT-16 C3).
+pub const DELETE_OUTCOME_NOT_KNOWN: &str =
+    "whether this request deleted anything is not known; read the status";
+
+/// `message` behind [`DELETE_OUTCOME_NOT_KNOWN`] for a delete, and as it is for any other verb.
+fn after_the_request(verb: &Verb, message: impl std::fmt::Display) -> String {
+    match verb {
+        Verb::DeleteAll(_) => format!("{DELETE_OUTCOME_NOT_KNOWN}; {message}"),
+        _ => message.to_string(),
+    }
+}
+
+/// Whether the client's io error came from the connect, before any byte of the request was sent.
+fn before_the_request(error: &std::io::Error) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        error
+            .get_ref()
+            .is_some_and(|inner| inner.is::<crate::client_unix::BeforeTheRequest>())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = error;
+        false
+    }
+}
+
 /// What ctl says on standard error for a delete whose root reads unknown (contracts.md C2.6).
 pub const ROOTS_NOT_LISTED_TEXT: &str =
     "the roots of this custody cannot be listed; a root may survive";
@@ -403,11 +449,19 @@ fn printed(stdout: String, status: i32) -> Printed {
 }
 
 /// What `ctl VERB` prints for the reply or the error of the client, with the exit codes of
-/// contracts.md C2.5 to C2.7.
+/// contracts.md C2.5 to C2.7. An error that carries a cause at the data folder prints the cause
+/// and the folder on one line and no OS error (ruling CT-15).
 pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir) -> Printed {
+    let delete = matches!(verb, Verb::DeleteAll(_));
     let reply = match result {
         Ok(reply) => reply,
         Err(ClientError::Daemon(error) | ClientError::ServiceEnding(error)) => Reply::Error(error),
+        Err(ClientError::AlreadyDeletedToThisRequest(already)) if delete => {
+            Reply::AlreadyDeleted(already)
+        }
+        Err(ClientError::Deadline { seconds }) if delete => {
+            return failed(delete_deadline_line(seconds), crate::exit::ERROR)
+        }
         Err(ClientError::Unreachable { endpoint }) => {
             return failed(
                 format!("capture service not running at {endpoint}"),
@@ -422,14 +476,37 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         }
         Err(ClientError::Protocol(text)) => {
             return failed(
-                peer_text(&format!("the reply could not be read: {text}")),
+                after_the_request(
+                    verb,
+                    peer_text(&format!("the reply could not be read: {text}")),
+                ),
                 crate::exit::ERROR,
             )
         }
+        Err(ClientError::Io(error)) => {
+            let message = match crate::paths::entry_cause(&error) {
+                Some(cause) => format!(
+                    "{cause}: {}",
+                    crate::paths::one_line(&data_dir.path().to_string_lossy())
+                ),
+                None if before_the_request(&error) => ClientError::Io(error).to_string(),
+                None => after_the_request(verb, ClientError::Io(error)),
+            };
+            return failed(message, crate::exit::ERROR);
+        }
+        Err(
+            other @ (ClientError::ReplyOfAnotherVersion { .. }
+            | ClientError::ValueUnknownToV1(_)
+            | ClientError::StateDoesNotHoldTogether(_)
+            | ClientError::UnexpectedReply { .. }),
+        ) => return failed(after_the_request(verb, other), crate::exit::ERROR),
         Err(other) => return failed(other, crate::exit::ERROR),
     };
     match (verb, reply) {
         (_, Reply::Error(error)) if error.ending() => failed(ending_line(verb), crate::exit::BUSY),
+        (Verb::DeleteAll(_), Reply::Error(error)) if error.code() == ErrorCode::Busy => {
+            failed(DELETE_BUSY_TEXT, crate::exit::BUSY)
+        }
         (_, Reply::Error(error)) => {
             let status = match error.code() {
                 ErrorCode::Busy => crate::exit::BUSY,
@@ -519,6 +596,9 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         {
             printed(already_deleted_text(&already), crate::exit::CLEAN)
         }
+        (Verb::DeleteAll(_), Reply::AlreadyDeleted(_)) => {
+            failed(ALREADY_DELETED_NOT_TAKEN_TEXT, crate::exit::ERROR)
+        }
         (Verb::DeleteAll(_), Reply::DeleteRefused) => Printed {
             stdout: "delete_refused\n".to_string(),
             stderr: format!("halvo-capture: {DELETE_REFUSED_TEXT}\n"),
@@ -526,7 +606,10 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
         },
         (Verb::SetCap(_), Reply::CapSet(set)) => printed(cap_set_text(&set), crate::exit::CLEAN),
         (_, other) => failed(
-            format!("the daemon answered {} to this verb", other.kind()),
+            after_the_request(
+                verb,
+                format!("the daemon answered {} to this verb", other.kind()),
+            ),
             crate::exit::ERROR,
         ),
     }
@@ -800,6 +883,104 @@ mod tests {
             status_text(&sample_status(Platform::Windows)),
             status_fixture(STATUS_WINDOWS)
         );
+    }
+
+    fn with_resolved_line(fixture: &str, folder: &str) -> String {
+        let text = status_fixture(fixture);
+        let at = text.find("\nparent=").unwrap() + 1;
+        let end = at + text[at..].find('\n').unwrap() + 1;
+        format!(
+            "{}data_dir_resolved={folder}\n{}",
+            &text[..end],
+            &text[end..]
+        )
+    }
+
+    #[test]
+    fn ct13_a_linked_data_directory_prints_its_resolved_folder_after_parent_and_a_plain_one_none() {
+        let linked = edited(Platform::Macos, |f| {
+            f.data_dir_resolved = Some(crate::paths::ResolvedFolder::of(std::path::Path::new(
+                "/Volumes/Daten/Halvo",
+            )));
+        });
+        assert_eq!(
+            status_text(&linked),
+            with_resolved_line(STATUS_MACOS, "/Volumes/Daten/Halvo")
+        );
+        for platform in [Platform::Macos, Platform::Windows] {
+            assert!(
+                !status_text(&sample_status(platform)).contains("data_dir_resolved"),
+                "{platform:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ct13_the_resolved_line_of_a_folder_with_a_line_break_is_one_line() {
+        let linked = edited(Platform::Macos, |f| {
+            f.data_dir_resolved = Some(crate::paths::ResolvedFolder::of(std::path::Path::new(
+                "/Volumes/a\nb\u{2028}c",
+            )));
+        });
+        assert_eq!(
+            status_text(&linked),
+            with_resolved_line(STATUS_MACOS, "/Volumes/a?b?c")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ct15_a_resolved_folder_whose_name_is_not_utf_8_prints_a_replacement_character() {
+        use std::os::unix::ffi::OsStrExt;
+        let path = std::path::Path::new(std::ffi::OsStr::from_bytes(b"/Volumes/a\xffb/Halvo"));
+        let linked = edited(Platform::Macos, |f| {
+            f.data_dir_resolved = Some(crate::paths::ResolvedFolder::of(path));
+        });
+        assert_eq!(
+            status_text(&linked),
+            with_resolved_line(STATUS_MACOS, "/Volumes/a\u{fffd}b/Halvo")
+        );
+    }
+
+    #[test]
+    fn pr10_keys_under_secure_input_late_events_and_withheld_keys_print_yes_or_no_and_never_a_digit(
+    ) {
+        let mac = edited(Platform::Macos, |f| {
+            f.secure_input_keystrokes = Some(true);
+            f.late_events = true;
+            f.keys_withheld = true;
+        });
+        let win = edited(Platform::Windows, |f| {
+            f.late_events = true;
+            f.keys_withheld = true;
+        });
+        let (mac, win) = (status_text(&mac), status_text(&win));
+        let lines = |text: &str| -> Vec<String> {
+            text.lines()
+                .filter(|l| {
+                    ["late_events=", "secure_input_keystrokes=", "keys_withheld="]
+                        .iter()
+                        .any(|key| l.starts_with(key))
+                })
+                .map(str::to_string)
+                .collect()
+        };
+        assert_eq!(
+            lines(&mac),
+            [
+                "late_events=yes",
+                "secure_input_keystrokes=yes",
+                "keys_withheld=yes"
+            ]
+        );
+        assert_eq!(lines(&win), ["late_events=yes", "keys_withheld=yes"]);
+        for platform in [Platform::Macos, Platform::Windows] {
+            let quiet = lines(&status_text(&sample_status(platform)));
+            assert!(quiet.iter().all(|l| l.ends_with("=no")), "{quiet:?}");
+        }
+        for line in lines(&mac).iter().chain(&lines(&win)) {
+            assert!(!line.bytes().any(|b| b.is_ascii_digit()), "{line}");
+        }
     }
 
     #[test]
@@ -1425,12 +1606,135 @@ mod tests {
     #[test]
     fn a_deadline_prints_no_reply_within_its_seconds_and_exits_1() {
         let printed = print(
-            &Verb::DeleteAll(None),
-            Err(ClientError::Deadline { seconds: 120 }),
+            &Verb::Stop,
+            Err(ClientError::Deadline { seconds: 20 }),
             &data_dir(),
         );
-        assert_eq!(printed.stderr, "halvo-capture: no reply within 120 s\n");
+        assert_eq!(printed.stderr, "halvo-capture: no reply within 20 s\n");
         assert_eq!(printed.status, 1);
+    }
+
+    #[test]
+    fn ct16_c3_an_error_of_a_delete_after_its_request_prints_the_clause_of_an_unknown_outcome_and_its_cause(
+    ) {
+        const CLAUSE: &str =
+            "halvo-capture: whether this request deleted anything is not known; read the status; ";
+        let pipe = || std::io::Error::from(std::io::ErrorKind::BrokenPipe);
+        for (case, error, cause) in [
+            (
+                "a broken pipe",
+                ClientError::Io(pipe()),
+                format!("the control channel failed: {}", pipe()),
+            ),
+            (
+                "a reply that ends inside its frame",
+                ClientError::Protocol("the stream ended inside a frame".into()),
+                "the reply could not be read: the stream ended inside a frame".to_string(),
+            ),
+        ] {
+            let printed = print(&Verb::DeleteAll(None), Err(error), &data_dir());
+            assert_eq!(
+                (
+                    printed.stdout.as_str(),
+                    printed.stderr.as_str(),
+                    printed.status
+                ),
+                ("", format!("{CLAUSE}{cause}\n").as_str(), 1),
+                "{case}"
+            );
+        }
+        let stop = print(&Verb::Stop, Err(ClientError::Io(pipe())), &data_dir());
+        assert_eq!(
+            stop.stderr,
+            format!("halvo-capture: the control channel failed: {}\n", pipe())
+        );
+    }
+
+    #[test]
+    fn ct14_a_plain_busy_an_already_deleted_not_taken_and_the_deadline_of_a_delete_say_what_did_not_happen(
+    ) {
+        const BUSY: &str = "halvo-capture: the capture service is busy; this request deleted nothing; read the status and ask again\n";
+        const NOT_TAKEN: &str = "halvo-capture: the capture service answered already_deleted, which does not answer this request; this request deleted nothing; read the status and ask again\n";
+        const DEADLINE: &str = "halvo-capture: no reply within 120 s; whether this request deleted anything is not known; read the status\n";
+        let busy = || ErrorReply::new(ErrorCode::Busy, "another mutation is in flight");
+        let other = AlreadyDeleted { current: FRESH };
+        let armed = AlreadyDeleted {
+            current: crate::testing::FIXTURE_STORE_ID,
+        };
+        let cases = [
+            (
+                "the plain busy to a delete with an id",
+                Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
+                Ok(Reply::Error(busy())),
+                BUSY,
+                75,
+            ),
+            (
+                "the plain busy to a delete with no id, through the client",
+                Verb::DeleteAll(None),
+                Err(ClientError::Daemon(busy())),
+                BUSY,
+                75,
+            ),
+            (
+                "already_deleted to a delete with no id",
+                Verb::DeleteAll(None),
+                Ok(Reply::AlreadyDeleted(other)),
+                NOT_TAKEN,
+                1,
+            ),
+            (
+                "already_deleted that names the armed id",
+                Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
+                Ok(Reply::AlreadyDeleted(armed)),
+                NOT_TAKEN,
+                1,
+            ),
+            (
+                "already_deleted that the client did not take",
+                Verb::DeleteAll(None),
+                Err(ClientError::AlreadyDeletedToThisRequest(other)),
+                NOT_TAKEN,
+                1,
+            ),
+            (
+                "the deadline of a delete",
+                Verb::DeleteAll(Some(crate::testing::FIXTURE_STORE_ID)),
+                Err(ClientError::Deadline { seconds: 120 }),
+                DEADLINE,
+                1,
+            ),
+        ];
+        for (case, verb, result, stderr, status) in cases {
+            let printed = print(&verb, result, &data_dir());
+            assert_eq!(
+                (
+                    printed.stdout.as_str(),
+                    printed.stderr.as_str(),
+                    printed.status
+                ),
+                ("", stderr, status),
+                "{case}"
+            );
+            assert!(!printed.stderr.contains("nothing was deleted"), "{case}");
+        }
+        assert!(!DEADLINE.contains("deleted nothing"));
+        let ending = print(
+            &Verb::DeleteAll(None),
+            Err(ClientError::ServiceEnding(
+                ErrorReply::busy_of_an_ending_life(),
+            )),
+            &data_dir(),
+        );
+        assert_eq!(
+            ending.stderr,
+            format!("halvo-capture: {}\n", ending_line(&Verb::DeleteAll(None)))
+        );
+        let pause = print(&Verb::Pause, Ok(Reply::Error(busy())), &data_dir());
+        assert_eq!(
+            pause.stderr,
+            "halvo-capture: another mutation is in flight\n"
+        );
     }
 
     #[test]
@@ -1512,7 +1816,7 @@ mod tests {
         assert_eq!(printed.stderr, "");
     }
 
-    const STATUS_AWAITING_RESUME: &str = "protocol=1\ndaemon_version=0.0.0\npid=4242\nstarted_at=2026-11-12T09:00:00Z\nrss_peak_bytes=25264128\nparent=watched\ndesired=running\ncapture=awaiting_resume\ncapture_reason=-\nlease=fresh\nstore=open\nstore_id=0123456789abcdef0123456789abcdef\nstore_error=-\nstore_retry_in_s=-\nstore_bytes=1048576\nstore_logical_bytes=524288\ncap_bytes=26843545600\ndrain=healthy\ndrain_error=-\ndrain_since=-\nevents_pending=0\nevents_lost=0\ndropped_frames=0\npointer_coalesced=0\ntap_disabled_timeout=0\ntap_disabled_user_input=0\nlate_events=0\nmax_lag_ms=0\nsecure_input_keystrokes=0\ntitle_read_errors=0\nlast_flush_at=2026-11-12T09:00:05Z\nexpiry=healthy\nexpiry_error=-\nlast_expiry_at=2026-11-12T09:00:01Z\nlast_eviction_at=-\nlast_stop=source_not_stopped\nlast_stop_newest_capture=-\nlast_stop_kind=pause\nlast_stop_lost events=3 first=2026-11-12T08:59:58Z last=2026-11-12T08:59:59Z error=- final=no\nlast_stop_source name=input error=timeout during shutdown: osstatus 0\nstate_file=ok\nplatform=macos\nenabled_sources=foreground,input\nswitch name=title_text value=on\nswitch name=key_class value=on\nswitch name=pointer_class value=on\nswitch name=screen_activity value=off\nswitch name=site_read value=off\npermission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes\npermission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes\npermission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes\nsource name=foreground state=stopped\nsource name=screen state=off\nsource name=input state=stopped\nsource name=system_audio state=off\nsource name=microphone state=off\nkind name=screen_frame dropped=0 refused=0\nkind name=keystroke dropped=0 refused=0\nkind name=pointer dropped=0 refused=0\nkind name=foreground_app dropped=0 refused=0\nkind name=window_title dropped=0 refused=0\nkind name=system_audio dropped=0 refused=0\nkind name=microphone dropped=0 refused=0\nkind name=camera dropped=0 refused=0\n";
+    const STATUS_AWAITING_RESUME: &str = "protocol=1\ndaemon_version=0.0.0\npid=4242\nstarted_at=2026-11-12T09:00:00Z\nrss_peak_bytes=25264128\nparent=watched\ndesired=running\ncapture=awaiting_resume\ncapture_reason=-\nlease=fresh\nstore=open\nstore_id=0123456789abcdef0123456789abcdef\nstore_error=-\nstore_retry_in_s=-\nstore_bytes=1048576\nstore_logical_bytes=524288\ncap_bytes=26843545600\ndrain=healthy\ndrain_error=-\ndrain_since=-\nevents_pending=0\nevents_lost=0\ndropped_frames=0\npointer_coalesced=0\ntap_disabled_timeout=0\ntap_disabled_user_input=0\nlate_events=no\nmax_lag_ms=0\nsecure_input_keystrokes=no\nkeys_withheld=no\ntitle_read_errors=0\nlast_flush_at=2026-11-12T09:00:05Z\nexpiry=healthy\nexpiry_error=-\nlast_expiry_at=2026-11-12T09:00:01Z\nlast_eviction_at=-\nlast_stop=source_not_stopped\nlast_stop_newest_capture=-\nlast_stop_kind=pause\nlast_stop_lost events=3 first=2026-11-12T08:59:58Z last=2026-11-12T08:59:59Z error=- final=no\nlast_stop_source name=input error=timeout during shutdown: osstatus 0\nstate_file=ok\nplatform=macos\nenabled_sources=foreground,input\nswitch name=title_text value=on\nswitch name=key_class value=on\nswitch name=pointer_class value=on\nswitch name=screen_activity value=off\nswitch name=site_read value=off\npermission name=screen_and_system_audio_recording grant=granted at_start=granted asked=yes once_granted=yes\npermission name=accessibility grant=granted at_start=granted asked=yes once_granted=yes\npermission name=input_monitoring grant=granted at_start=granted asked=yes once_granted=yes\nsource name=foreground state=stopped\nsource name=screen state=off\nsource name=input state=stopped\nsource name=system_audio state=off\nsource name=microphone state=off\nkind name=screen_frame dropped=0 refused=0\nkind name=keystroke dropped=0 refused=0\nkind name=pointer dropped=0 refused=0\nkind name=foreground_app dropped=0 refused=0\nkind name=window_title dropped=0 refused=0\nkind name=system_audio dropped=0 refused=0\nkind name=microphone dropped=0 refused=0\nkind name=camera dropped=0 refused=0\n";
 
     #[test]
     fn a_life_after_a_source_that_did_not_stop_prints_awaiting_resume_and_source_not_stopped() {

@@ -4,11 +4,11 @@ use std::fs::{self, File, OpenOptions, Permissions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 use halvo_checkpoint::{
-    checkpoint_name, name_units, names_fit, open_regular, own_name, regular, same_entry, LockError,
-    Locks, Mark, Marked, Root, RunId, Sha256, NAME_MAX,
+    checkpoint_name, name_units, names_fit, open_regular, own_name, regular, same_entry, same_file,
+    FileId, LockError, Locks, Mark, Marked, Root, RunId, Sha256, NAME_MAX,
 };
 
 use crate::book::{self, guarded};
@@ -32,8 +32,10 @@ use crate::xml;
 /// dropped, and the copy's mark in `agents/locks/` (a shared lock of the system on a file of
 /// Halvo's own, no handle on a file of the person's folder), so that the sweep of another
 /// `prepare` leaves the copy. Dropping one that no `replace` put in place removes its prepared
-/// copy when no link stands on the way to it and it still holds the bytes that `prepare`
-/// checked, also when the access list that it carried forbids that on macOS. It never
+/// copy when no link stands on the way to it, the file at the copy's name is the file that
+/// `prepare` made (compared by [`halvo_checkpoint::same_file`]) and it still holds the bytes
+/// that `prepare` checked, also when the access list that it carried forbids that on macOS; a
+/// file that another party put at that name, of any bytes, stays. It never
 /// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it;
 /// `remove` of the crate halvo-checkpoint removes it once the run has ended.
 pub struct Prepared {
@@ -41,6 +43,7 @@ pub struct Prepared {
     pub(crate) workbook: PathBuf,
     pub(crate) checkpoint: PathBuf,
     pub(crate) copy: PathBuf,
+    pub(crate) made: FileId,
     pub(crate) original: Vec<u8>,
     pub(crate) changed: Vec<u8>,
     pub(crate) sha256: Sha256,
@@ -98,6 +101,29 @@ impl Prepared {
     pub fn unmarked(&self) -> usize {
         self.unmarked
     }
+
+    pub(crate) fn own_copy(&self) -> CopyAt {
+        let made = |id: io::Result<FileId>| id.is_ok_and(|id| same_file(&id, &self.made));
+        let Ok(copy) = self.root.file(&self.copy) else {
+            return CopyAt::Other;
+        };
+        if !made(FileId::at(&copy)) {
+            return CopyAt::Other;
+        }
+        match open_regular(&copy) {
+            Ok(file) if made(FileId::of(&file)) && same_bytes(&file, &self.changed) => {
+                CopyAt::Own(file, copy)
+            }
+            Ok(_) => CopyAt::Other,
+            Err(_) => CopyAt::Unread,
+        }
+    }
+}
+
+pub(crate) enum CopyAt {
+    Own(File, PathBuf),
+    Unread,
+    Other,
 }
 
 impl Drop for Prepared {
@@ -105,13 +131,8 @@ impl Drop for Prepared {
         if self.answer.get() == Some(&Ok(())) {
             return;
         }
-        let Ok(copy) = self.root.file(&self.copy) else {
-            return;
-        };
-        if let Ok(file) = open_regular(&copy) {
-            if same_bytes(&file, &self.changed) {
-                let _ = remove_made(&file, &copy);
-            }
+        if let CopyAt::Own(file, copy) = self.own_copy() {
+            let _ = remove_made(&file, &copy);
         }
     }
 }
@@ -192,6 +213,9 @@ pub(crate) fn prepare(
     drop(entries);
     book::readable(&original, sheet)?;
     let checkpoint = workbook.with_file_name(checkpoint_name(&workbook, run).unwrap_or_default());
+    if replace_called(&checkpoint) {
+        return Err(Error::Checkpoint);
+    }
     let held = locks.hold(directory(&workbook)).map_err(Error::Lock)?;
     if root.file(&workbook)? != workbook {
         return Err(Error::Path(PathRefusal::Link));
@@ -211,16 +235,18 @@ pub(crate) fn prepare(
     let (copy, mark, mut file) = write_copy(&made, run, &changed, locks)?;
     drop(held);
     drop(changed);
-    let checked = read_back(&mut file).map_err(Error::from).and_then(|disk| {
+    let checked = FileId::of(&file).map_err(Error::from).and_then(|id| {
+        let disk = read_back(&mut file)?;
         check(&original, &disk, (&part, &book_part), sheet, range, values)?;
-        Ok(disk)
+        Ok((id, disk))
     });
     match checked {
-        Ok(disk) => Ok(Prepared {
+        Ok((id, disk)) => Ok(Prepared {
             root: root.clone(),
             workbook,
             checkpoint,
             copy,
+            made: id,
             sha256: Sha256::of(&original),
             original,
             changed: disk,
@@ -282,6 +308,53 @@ struct Made<'a> {
     permissions: Permissions,
 }
 
+struct Called {
+    path: PathBuf,
+    dir: Option<FileId>,
+    name: std::ffi::OsString,
+    file: Option<FileId>,
+}
+
+impl Called {
+    fn of(checkpoint: &Path) -> Called {
+        Called {
+            path: checkpoint.to_path_buf(),
+            dir: FileId::at(directory(checkpoint)).ok(),
+            name: checkpoint.file_name().unwrap_or_default().to_os_string(),
+            file: FileId::at(checkpoint).ok(),
+        }
+    }
+
+    fn names(&self, other: &Called) -> bool {
+        let same = |a: &Option<FileId>, b: &Option<FileId>| match (a, b) {
+            (Some(a), Some(b)) => same_file(a, b),
+            _ => false,
+        };
+        self.path == other.path
+            || (self.name == other.name && same(&self.dir, &other.dir))
+            || same(&self.file, &other.file)
+    }
+}
+
+static REPLACE_CALLED: Mutex<Vec<Called>> = Mutex::new(Vec::new());
+
+pub(crate) fn note_replace_called(prepared: &Prepared) {
+    let called = Called::of(&prepared.checkpoint);
+    REPLACE_CALLED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(called);
+}
+
+fn replace_called(checkpoint: &Path) -> bool {
+    let now = Called::of(checkpoint);
+    REPLACE_CALLED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .any(|called| called.names(&now))
+}
+
 pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
     let holds = |path: &Path, bytes: &[u8]| {
         regular(path).is_ok() && fs::read(path).is_ok_and(|read| read == bytes)
@@ -292,7 +365,8 @@ pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
     if !holds(&prepared.checkpoint, &prepared.original) {
         return Err(Error::NotReplaced(Kept::Checkpoint));
     }
-    if !holds(&prepared.copy, &prepared.changed) {
+    let made = FileId::at(&prepared.copy).is_ok_and(|id| same_file(&id, &prepared.made));
+    if !made || !holds(&prepared.copy, &prepared.changed) {
         return Err(Error::NotReplaced(Kept::Copy));
     }
     fs::rename(&prepared.copy, &prepared.workbook)
@@ -560,7 +634,7 @@ mod tests {
         for units in 168..=180usize {
             let workbook = PathBuf::from(format!("dir/{}.xlsx", "a".repeat(units - 5)));
             let checkpoint = checkpoint_name(&workbook, &run).expect("a checkpoint name");
-            let removing = halvo_checkpoint::removing_name(&checkpoint, u64::MAX);
+            let removing = halvo_checkpoint::removing_name(&checkpoint);
             let prepared = prepared_name(&workbook, &run, &own_part(u64::MAX), &Sha256::of(&[]));
             let longest = [
                 name_units(&checkpoint),

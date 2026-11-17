@@ -1,7 +1,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
-use crate::RunId;
+use crate::{RunId, Sha256};
 
 /// The file name of a file of Halvo's own beside the workbook at `workbook`:
 /// `<name>.halvo-<tag><ext>`, where `<ext>` is the workbook's extension with its dot (nothing
@@ -58,10 +58,14 @@ pub fn name_units(name: &OsStr) -> usize {
 }
 
 /// The name that [`crate::remove`] moves the checkpoint `checkpoint` to before it removes it:
-/// `<checkpoint>.halvo-removing-<16 hex digits of own>`, the longest name that the crate builds.
-pub fn removing_name(checkpoint: &OsStr, own: u64) -> OsString {
+/// `<checkpoint>.halvo-removing-<16 hex digits>`, the digits being the first 16 of the SHA-256
+/// of the checkpoint's name. It is one name for each checkpoint, which every pass of every
+/// process builds from the row alone, so that a later pass finds what a pass killed between
+/// the move aside and the removal left there; and it is the longest name that the crate builds.
+pub fn removing_name(checkpoint: &OsStr) -> OsString {
+    let digest = Sha256::of(checkpoint.as_encoded_bytes()).hex();
     let mut name = checkpoint.to_os_string();
-    name.push(format!(".halvo-removing-{own:016x}"));
+    name.push(format!(".halvo-removing-{}", &digest[..16]));
     name
 }
 
@@ -70,6 +74,5 @@ pub fn removing_name(checkpoint: &OsStr, own: u64) -> OsString {
 /// ([`removing_name`]), holds at most [`NAME_MAX`] units. `false` when the path has no file
 /// name.
 pub fn names_fit(workbook: &Path, run: &RunId) -> bool {
-    checkpoint_name(workbook, run)
-        .is_some_and(|name| name_units(&removing_name(&name, u64::MAX)) <= NAME_MAX)
+    checkpoint_name(workbook, run).is_some_and(|name| name_units(&removing_name(&name)) <= NAME_MAX)
 }

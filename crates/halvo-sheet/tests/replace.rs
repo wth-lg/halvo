@@ -219,17 +219,304 @@ fn a_checkpoint_gone_or_changed_keeps_the_workbook() {
 fn a_prepared_copy_gone_or_changed_keeps_the_workbook() {
     let scratch = Scratch::new("replace-copy");
     let s = setup(&scratch);
-    fs::write(
-        scratch.path(&s.copy),
-        fs::read(corpus("formulas.xlsx")).expect("read"),
-    )
-    .expect("write");
-    kept(&scratch, &s, Kept::Copy, &s.before);
-    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
+    let theirs = fs::read(corpus("formulas.xlsx")).expect("read");
+    fs::write(scratch.path(&s.copy), &theirs).expect("write");
+    let want = Err(Error::NotReplaced(Kept::Copy));
+    assert_eq!(s.folder.replace(&s.prepared), want);
+    assert_eq!(s.folder.replace(&s.prepared), want, "the second answer");
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+    assert_eq!(
+        fs::read(scratch.path(&s.copy)).expect("the copy written in place stays"),
+        theirs
+    );
+    drop(s.prepared);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, &s.copy]));
     let scratch = Scratch::new("replace-copy-gone");
     let s = setup(&scratch);
     fs::rename(scratch.path(&s.copy), scratch.path("elsewhere.xlsx")).expect("move");
     kept(&scratch, &s, Kept::Copy, &s.before);
+}
+
+#[test]
+fn a_replace_that_misses_leaves_a_file_put_at_the_copys_name_after_the_write() {
+    let theirs = fs::read(corpus("formulas.xlsx")).expect("read");
+    for put in ["other bytes", "the copy's bytes", "written in place"] {
+        let scratch = Scratch::new("replace-miss-put");
+        let s = setup(&scratch);
+        let copy = scratch.path(&s.copy);
+        let placed = match put {
+            "other bytes" => b"a file of the person's own".to_vec(),
+            "the copy's bytes" => fs::read(&copy).expect("read the copy"),
+            _ => theirs.clone(),
+        };
+        if put == "written in place" {
+            fs::write(&copy, &placed).expect("write into the copy");
+        } else {
+            let mine = scratch.path("mine.xlsx");
+            fs::write(&mine, &placed).expect("write the person's file");
+            fs::rename(&mine, &copy).expect("move it to the copy's name");
+        }
+        fs::write(scratch.path(FILE), &theirs).expect("the person saves the workbook");
+        assert_eq!(
+            s.folder.replace(&s.prepared),
+            Err(Error::NotReplaced(Kept::Workbook)),
+            "{put}"
+        );
+        assert_eq!(
+            fs::read(&copy).ok(),
+            Some(placed.clone()),
+            "{put}: the file at the copy's name stays"
+        );
+        drop(s.prepared);
+        assert_eq!(
+            fs::read(&copy).ok(),
+            Some(placed),
+            "{put}: the drop leaves it"
+        );
+        assert_eq!(fs::read(scratch.path(CHECKPOINT)).expect("read"), s.before);
+    }
+}
+
+#[test]
+fn a_prepare_of_the_run_after_a_refused_replace_of_the_workbook_answers_the_checkpoint_error() {
+    let scratch = Scratch::new("replace-refused-again");
+    let s = setup(&scratch);
+    fs::rename(scratch.path(&s.copy), scratch.path("elsewhere.xlsx")).expect("move the copy");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Copy))
+    );
+    let listing = scratch.names("");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(78.0)]];
+    let again = s
+        .folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(again.as_ref().err(), Some(&Error::Checkpoint));
+    drop(again);
+    let fresh = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
+    let again = fresh.prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(
+        again.as_ref().err(),
+        Some(&Error::Checkpoint),
+        "a new folder"
+    );
+    drop(again);
+    assert_eq!(Error::Checkpoint.cause(), Cause::StepFailed);
+    assert_eq!(scratch.names(""), listing, "nothing written");
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+    assert_eq!(fs::read(scratch.path(CHECKPOINT)).expect("read"), s.before);
+    let other = RunId::parse("fedcba9876543210fedcba9876543210").expect("a run id");
+    let theirs = fresh.prepare(Path::new(FILE), &other, "Values", range, &values);
+    assert!(theirs.is_ok(), "another run prepares: {theirs:?}");
+}
+
+#[test]
+fn a_file_of_the_copys_bytes_put_at_its_name_is_not_renamed_into_place() {
+    let scratch = Scratch::new("replace-same-bytes");
+    let s = setup(&scratch);
+    let bytes = fs::read(scratch.path(&s.copy)).expect("read the copy");
+    fs::write(scratch.path("theirs.xlsx"), &bytes).expect("write their file");
+    fs::rename(scratch.path("theirs.xlsx"), scratch.path(&s.copy)).expect("put it at the name");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Copy))
+    );
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+    assert_eq!(fs::read(scratch.path(&s.copy)).expect("their file"), bytes);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_copy_that_cannot_be_read_is_answered_as_left_and_stays() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("replace-unreadable");
+    let s = setup(&scratch);
+    let copy = scratch.path(&s.copy);
+    let mode = |m: u32| fs::set_permissions(&copy, fs::Permissions::from_mode(m)).expect("chmod");
+    mode(0o000);
+    assert!(fs::read(&copy).is_err(), "the copy cannot be read");
+    let got = s.folder.replace(&s.prepared);
+    let second = s.folder.replace(&s.prepared);
+    let after = copy.exists();
+    drop(s.prepared);
+    let dropped = copy.exists();
+    mode(0o600);
+    assert_eq!(got, Err(Error::CopyLeft(Kept::Copy)));
+    assert_eq!(second, got);
+    assert!(
+        after && dropped,
+        "the copy stays after the call and after the drop"
+    );
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_file_of_another_party_that_cannot_be_read_at_the_copys_name_is_no_copy_left() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("replace-unreadable-theirs");
+    let s = setup(&scratch);
+    let copy = scratch.path(&s.copy);
+    fs::rename(&copy, scratch.path("elsewhere.xlsx")).expect("move the copy");
+    fs::write(&copy, b"a file of another party").expect("their file");
+    let mode = |m: u32| fs::set_permissions(&copy, fs::Permissions::from_mode(m)).expect("chmod");
+    mode(0o000);
+    let got = s.folder.replace(&s.prepared);
+    drop(s.prepared);
+    mode(0o600);
+    assert_eq!(got, Err(Error::NotReplaced(Kept::Copy)));
+    assert_eq!(
+        fs::read(&copy).expect("their file"),
+        b"a file of another party"
+    );
+}
+
+#[test]
+fn a_prepare_of_the_run_after_a_replace_refused_for_its_lock_answers_the_checkpoint_error() {
+    let scratch = Scratch::new("replace-refused-lock");
+    fs::copy(corpus(FILE), scratch.path(FILE)).expect("copy");
+    let wait = std::time::Duration::from_millis(100);
+    let folder = Folder::new(&scratch.dir, common::locks_waiting(wait)).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(77.0)]];
+    let prepared = folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values)
+        .expect("prepared");
+    let held = common::locks().hold(&scratch.dir).expect("the lock");
+    let got = folder.replace(&prepared);
+    drop(held);
+    assert_eq!(
+        got,
+        Err(Error::NotReplaced(Kept::Lock(halvo_sheet::LockError::Busy)))
+    );
+    let again = folder.prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(again.as_ref().err(), Some(&Error::Checkpoint));
+}
+
+#[test]
+fn a_prepare_of_the_run_by_another_spelling_after_a_refused_replace_answers_the_checkpoint_error() {
+    let scratch = Scratch::new("replace-refused-spelling");
+    let s = setup(&scratch);
+    if !scratch.path("VALUES.xlsx").exists() {
+        println!("the volume does not fold case");
+        return;
+    }
+    fs::rename(scratch.path(&s.copy), scratch.path("elsewhere.xlsx")).expect("move the copy");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Copy))
+    );
+    let listing = scratch.names("");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(78.0)]];
+    let again = s
+        .folder
+        .prepare(Path::new("VALUES.xlsx"), &run, "Values", range, &values);
+    assert_eq!(again.as_ref().err(), Some(&Error::Checkpoint));
+    drop(again);
+    assert_eq!(scratch.names(""), listing, "nothing written");
+}
+
+fn refused_then_directory_made_again(move_away: &str) -> (Result<(), Error>, Option<Error>, bool) {
+    let scratch = Scratch::new("replace-refused-dir-again");
+    fs::create_dir(scratch.path("sub")).expect("make sub");
+    fs::copy(corpus(FILE), scratch.path("sub/values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let workbook = Path::new("sub/values.xlsx");
+    let range = Range::parse("B5").expect("a range");
+    let prepared = folder
+        .prepare(
+            workbook,
+            &run,
+            "Values",
+            range,
+            &[vec![Value::Number(77.0)]],
+        )
+        .expect("prepared");
+    let name = match move_away {
+        "checkpoint" => format!("sub/{CHECKPOINT}"),
+        _ => format!("sub/{}", copy_of(&prepared)),
+    };
+    fs::rename(scratch.path(&name), scratch.path("aside.xlsx")).expect("move it away");
+    let replaced = folder.replace(&prepared);
+    drop(prepared);
+    fs::rename(scratch.path("sub"), scratch.path("sub-old")).expect("move sub aside");
+    fs::create_dir(scratch.path("sub")).expect("make sub again");
+    fs::copy(
+        scratch.path("sub-old/values.xlsx"),
+        scratch.path("sub/values.xlsx"),
+    )
+    .expect("copy");
+    let before = scratch.names("sub");
+    let again = folder.prepare(
+        workbook,
+        &run,
+        "Values",
+        range,
+        &[vec![Value::Number(78.0)]],
+    );
+    let answer = again.as_ref().err().cloned();
+    drop(again);
+    (replaced, answer, scratch.names("sub") == before)
+}
+
+#[test]
+fn a_prepare_after_a_refused_replace_in_a_directory_made_again_answers_the_checkpoint_error() {
+    let (replaced, again, unchanged) = refused_then_directory_made_again("checkpoint");
+    assert_eq!(replaced, Err(Error::NotReplaced(Kept::Checkpoint)));
+    assert_eq!(again, Some(Error::Checkpoint));
+    assert!(unchanged, "nothing written");
+}
+
+#[test]
+fn a_prepare_after_a_refused_replace_whose_checkpoint_moved_with_its_directory_answers_the_checkpoint_error(
+) {
+    let (replaced, again, unchanged) = refused_then_directory_made_again("copy");
+    assert_eq!(replaced, Err(Error::NotReplaced(Kept::Copy)));
+    assert_eq!(again, Some(Error::Checkpoint));
+    assert!(unchanged, "nothing written");
+}
+
+#[test]
+fn a_prepare_after_a_refused_replace_answers_the_workbooks_own_refusal_before_the_checkpoint_error()
+{
+    let scratch = Scratch::new("replace-refused-order");
+    let s = setup(&scratch);
+    let theirs = fs::read(corpus("formulas.xlsx")).expect("read");
+    fs::write(scratch.path(FILE), &theirs).expect("the person saves another workbook");
+    assert_eq!(
+        s.folder.replace(&s.prepared),
+        Err(Error::NotReplaced(Kept::Workbook))
+    );
+    let listing = scratch.names("");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(78.0)]];
+    let first = s
+        .folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(
+        first.as_ref().err(),
+        Some(&Error::NoSheet),
+        "its own refusal first"
+    );
+    drop(first);
+    fs::write(scratch.path(FILE), &s.before).expect("the person goes back");
+    let second = s
+        .folder
+        .prepare(Path::new(FILE), &run, "Values", range, &values);
+    assert_eq!(
+        second.as_ref().err(),
+        Some(&Error::Checkpoint),
+        "then the checkpoint error"
+    );
+    drop(second);
+    assert_eq!(scratch.names(""), listing, "nothing written");
 }
 
 #[test]

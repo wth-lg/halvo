@@ -28,7 +28,6 @@ crates/halvo-agent-client/src/marks.rs 1 agent-setup run, U4.3
 crates/halvo-cap/src/lock.rs 1 workflow run
 crates/halvo-cap/tests/model_lock.rs 1 workflow run
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
-crates/halvo-checkpoint/tests/identity.rs 1 agent-setup run, U2.4
 crates/halvo-coord/tests/fixtures_same.rs 1 interface run
 crates/halvo-derived/src/tests.rs 1 workflow run
 crates/halvo-derived/tests/common/mod.rs 1 workflow run
@@ -45,7 +44,6 @@ crates/halvo-route-gate/tests/sequences_same.rs 1 routing run; exclusive create 
 crates/halvo-route-wire/tests/gateway_check.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-runner/tests/support/mod.rs 1 agent-setup run, U4.1
 crates/halvo-sample/tests/common/mod.rs 1 workflow run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
-crates/halvo-sheet/tests/common/mod.rs 1 agent-setup run, U2.4
 crates/halvo-web/src/child.rs 1 agent-setup run, U2.6
 crates/halvo-web/src/guard.rs 2 agent-setup run, U2.6
 src-tauri/src/tests.rs 1 capture run, app-3a
@@ -64,9 +62,9 @@ tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=46
-pinned_places=59
-pinned_paths=2013472951
+pinned_rows=44
+pinned_places=57
+pinned_paths=3825625474
 
 program='
 function code(s) {

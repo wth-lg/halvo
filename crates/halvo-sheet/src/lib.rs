@@ -222,7 +222,18 @@ impl Folder {
     /// [`Locks`] opened the same data directory.
     ///
     /// One `replace` of a workbook per run: after it, the run's checkpoint is no longer the
-    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]. `replace` holds
+    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]; and after a
+    /// `replace` that this process called for the run's checkpoint of that workbook and that
+    /// was refused, a later `prepare` of the run on the workbook answers [`Error::Checkpoint`]
+    /// too, before it takes the lock and with nothing written, and the checkpoint stays. That
+    /// answer comes after the refusals of the workbook itself in the order above: a workbook
+    /// that the person changed and that now lacks the sheet answers [`Error::NoSheet`], and
+    /// the checkpoint error comes once the workbook passes them. The process remembers each
+    /// such call for its life, and a later checkpoint is the same when its path is the path that
+    /// `prepare` built then (also in a directory made again at that path), when its name and
+    /// its directory are, or when it is the same file, compared by
+    /// [`halvo_checkpoint::same_file`] (so another spelling of the workbook on a volume that
+    /// folds case is the same): a runner is one process for one run. `replace` holds
     /// the same lock from its compare to its rename, so of two runs that prepared one workbook
     /// from the same file, the `replace` that comes second finds the workbook changed and
     /// leaves it: no edit is lost.
@@ -269,9 +280,16 @@ impl Folder {
     /// the checkpoint is not that file either, the prepared copy is not the copy that
     /// `prepare` checked, or the system refuses the rename. With
     /// [`Error::NotReplaced`] it has removed the prepared copy when it could reach it with no
-    /// link on the way, so the checkpoint is the one file that stays beside the workbook after
-    /// either end; when the system refuses that removal too (a read-only directory, an
-    /// immutable copy) the answer is [`Error::CopyLeft`] and the copy stays. A second call with
+    /// link on the way, and only when the file at the copy's name is the file that `prepare`
+    /// made and still holds the bytes that `prepare` checked: a file that another party put at
+    /// that name after the write, of any bytes, or the copy written in place with other bytes,
+    /// stays, and of Halvo's files the checkpoint is the one that stays beside the workbook
+    /// after either end; when the system refuses the removal of the copy (a read-only
+    /// directory, an immutable copy), or the file that `prepare` made cannot be read to tell
+    /// its bytes, the answer is [`Error::CopyLeft`] and the copy stays. It renames into the
+    /// workbook's place only the file that `prepare` made, compared by
+    /// [`halvo_checkpoint::same_file`], and only while it holds the bytes that were checked. A
+    /// second call with
     /// the same [`Prepared`] returns the answer of the first call that a folder holding the
     /// workbook made, and touches no file; a call refused as [`PathRefusal::Outside`] is no
     /// such first call.
@@ -280,6 +298,7 @@ impl Folder {
         prepared
             .answer
             .get_or_init(|| {
+                write::note_replace_called(prepared);
                 let held = self.locks.hold(write::directory(&prepared.workbook));
                 let done = held
                     .as_ref()
@@ -290,14 +309,14 @@ impl Folder {
                     })
                     .and_then(|_| write::replace(prepared));
                 let answer = match done {
-                    Err(Error::NotReplaced(why)) => match self.file(&prepared.copy) {
-                        Ok(copy) => match halvo_checkpoint::open_regular(&copy) {
-                            Ok(file) if write::remove_made(&file, &copy).is_ok() => {
-                                Err(Error::NotReplaced(why))
-                            }
-                            _ => Err(Error::CopyLeft(why)),
-                        },
-                        Err(_) => Err(Error::NotReplaced(why)),
+                    Err(Error::NotReplaced(why)) => match prepared.own_copy() {
+                        write::CopyAt::Own(file, copy)
+                            if write::remove_made(&file, &copy).is_err() =>
+                        {
+                            Err(Error::CopyLeft(why))
+                        }
+                        write::CopyAt::Unread => Err(Error::CopyLeft(why)),
+                        _ => Err(Error::NotReplaced(why)),
                     },
                     other => other,
                 };

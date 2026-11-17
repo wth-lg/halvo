@@ -111,6 +111,18 @@ const READ: [&str; 11] = [
     "xlIntlMacrosheet",
 ];
 
+const NAMESPACES: [&str; 3] = [
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships",
+    "http://schemas.microsoft.com/office/2006/relationships",
+];
+
+fn namespace_in_another_case(whole: &str) -> bool {
+    whole.rsplit_once('/').is_some_and(|(space, _)| {
+        !NAMESPACES.contains(&space) && NAMESPACES.iter().any(|n| n.eq_ignore_ascii_case(space))
+    })
+}
+
 /// The types of [`READ`] whose target is a sheet part that the element rules scan.
 const SHEETS: [&str; 5] = [
     "worksheet",
@@ -532,9 +544,10 @@ fn resolve(source: &str, target: &str) -> String {
 }
 
 /// A relationship as the crate reads it: its id and target as written (the reader keys and
-/// joins them so), its target's value, and the last segment of its type.
+/// joins them so), its target's value, its type and the last segment of its type.
 struct Rel {
     id: String,
+    whole: String,
     tail: String,
     target: String,
     raw: String,
@@ -557,6 +570,7 @@ fn relationships(rels: &[u8]) -> Result<Vec<Rel>, Error> {
             Event::Start(e) | Event::Empty(e) if local(e.name().as_ref()) == "Relationship" => {
                 let mut rel = Rel {
                     id: String::new(),
+                    whole: String::new(),
                     tail: String::new(),
                     target: String::new(),
                     raw: String::new(),
@@ -569,7 +583,10 @@ fn relationships(rels: &[u8]) -> Result<Vec<Rel>, Error> {
                         .map_err(|_| part())?;
                     match attribute.key.as_ref() {
                         "Id" => rel.id = attribute.value.to_string(),
-                        "Type" => rel.tail = tail(&value).to_string(),
+                        "Type" => {
+                            rel.tail = tail(&value).to_string();
+                            rel.whole = value.into_owned();
+                        }
                         "Target" => {
                             rel.target = value.into_owned();
                             rel.raw = attribute.value.to_string();
@@ -718,6 +735,9 @@ fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error
                     return Err(relationship());
                 }
                 continue;
+            }
+            if namespace_in_another_case(&rel.whole) {
+                return Err(relationship());
             }
             let target = target.ok_or_else(relationship)?;
             linked.kinds.extend(relationship_kind(tail));

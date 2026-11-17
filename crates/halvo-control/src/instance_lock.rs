@@ -6,6 +6,8 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use crate::paths::DataDir;
+
 /// The step between two tries of a take that found the lock held.
 pub const TAKE_STEP_MS: u64 = 50;
 
@@ -21,7 +23,18 @@ pub enum LockRead {
     NoDirectory,
 }
 
-/// The lock, held until the value is dropped. Its descriptor is close-on-exec.
+/// The lock, held until the value is dropped. Its descriptor is close-on-exec. The take, the try
+/// and the read take the data directory's own type, so every path that reaches the open has the
+/// whole form that [`DataDir`]'s constructors give it (ruling CT-14 K1); a path does not compile:
+///
+/// ```compile_fail,E0308
+/// let _ = halvo_control::instance_lock::InstanceLock::take(std::path::Path::new("/tmp/halvo"));
+/// ```
+///
+/// ```no_run
+/// let dir = halvo_control::paths::DataDir::from_flag("/tmp/halvo").unwrap();
+/// let _ = halvo_control::instance_lock::InstanceLock::take(&dir);
+/// ```
 #[derive(Debug)]
 pub struct InstanceLock {
     directory: std::fs::File,
@@ -58,13 +71,10 @@ fn open_with(dir: &Path, flags: libc::c_int) -> std::io::Result<std::fs::File> {
 
 /// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
 /// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
-/// open never waits; std adds close-on-exec. The path is brought to the whole form of a
-/// [`crate::paths::DataDir`] first; a relative path or a part ".." is an error of kind
-/// InvalidInput. macOS answers ENOTDIR for a link opened with `O_DIRECTORY` and `O_NOFOLLOW`.
-pub(crate) fn open(dir: &Path) -> std::io::Result<Opened> {
-    let whole = crate::paths::whole_form(dir)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
-    let dir = whole.as_path();
+/// open never waits; std adds close-on-exec. macOS answers ENOTDIR for a link opened with
+/// `O_DIRECTORY` and `O_NOFOLLOW`.
+pub(crate) fn open(dir: &DataDir) -> std::io::Result<Opened> {
+    let dir = dir.path();
     let opened = match open_with(dir, libc::O_NOFOLLOW) {
         Ok(directory) => Ok(Opened {
             directory,
@@ -83,7 +93,7 @@ pub(crate) fn open(dir: &Path) -> std::io::Result<Opened> {
 
 impl InstanceLock {
     /// One non-blocking try of the exclusive lock: `None` when another open file holds it.
-    pub fn try_take(dir: &Path) -> std::io::Result<Option<Self>> {
+    pub fn try_take(dir: &DataDir) -> std::io::Result<Option<Self>> {
         let Opened {
             directory,
             through_a_link,
@@ -96,7 +106,7 @@ impl InstanceLock {
 
     /// Takes the exclusive lock, trying again every [`TAKE_STEP_MS`] for at most
     /// [`TAKE_FOR_MS`]; `None` when it stays held for that long.
-    pub fn take(dir: &Path) -> std::io::Result<Option<Self>> {
+    pub fn take(dir: &DataDir) -> std::io::Result<Option<Self>> {
         let until = Instant::now() + Duration::from_millis(TAKE_FOR_MS);
         loop {
             if let Some(lock) = Self::try_take(dir)? {
@@ -135,7 +145,7 @@ impl Drop for InstanceLock {
 
 /// Reads the lock by a non-blocking shared flock on a descriptor of the directory that is
 /// dropped at once. It never waits.
-pub fn read(dir: &Path) -> std::io::Result<LockRead> {
+pub fn read(dir: &DataDir) -> std::io::Result<LockRead> {
     let directory = match open(dir) {
         Ok(opened) => opened.directory,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LockRead::NoDirectory),
@@ -254,6 +264,10 @@ mod tests {
         tempfile::Builder::new().prefix("il").tempdir().unwrap()
     }
 
+    fn data(path: &Path) -> DataDir {
+        DataDir::from_flag(path).unwrap()
+    }
+
     /// What sits at the data directory's path, and the FIFO that a blocked open waits on.
     fn plant(
         base: &Path,
@@ -285,14 +299,15 @@ mod tests {
         for kind in ["a FIFO", "a regular file", "a socket", "a link to a FIFO"] {
             let base = dir();
             let (path, fifo, _listener) = plant(base.path(), kind);
-            let read = planted::answer_within(&path, &fifo, |p| read(p).map_err(|e| e.kind()));
+            let read =
+                planted::answer_within(&path, &fifo, |p| read(&data(p)).map_err(|e| e.kind()));
             let try_take = planted::answer_within(&path, &fifo, |p| {
-                InstanceLock::try_take(p)
+                InstanceLock::try_take(&data(p))
                     .map(|l| l.is_some())
                     .map_err(|e| e.kind())
             });
             let take = planted::answer_within(&path, &fifo, |p| {
-                InstanceLock::take(p)
+                InstanceLock::take(&data(p))
                     .map(|l| l.is_some())
                     .map_err(|e| e.kind())
             });
@@ -325,9 +340,9 @@ mod tests {
             (&away, EntryAtDataDir::LinkLeadsNowhere),
             (&file, EntryAtDataDir::NotADirectory),
         ] {
-            let read = read(path).map(|r| format!("{r:?}"));
-            let try_take = InstanceLock::try_take(path).map(|l| l.is_some());
-            let take = InstanceLock::take(path).map(|l| l.is_some());
+            let read = read(&data(path)).map(|r| format!("{r:?}"));
+            let try_take = InstanceLock::try_take(&data(path)).map(|l| l.is_some());
+            let take = InstanceLock::take(&data(path)).map(|l| l.is_some());
             for (call, answer) in [
                 ("read", read.map_err(|e| (e.kind(), entry_cause(&e)))),
                 (
@@ -354,7 +369,7 @@ mod tests {
             }
         }
         assert_eq!(
-            read(&base.path().join("missing")).unwrap(),
+            read(&data(&base.path().join("missing"))).unwrap(),
             LockRead::NoDirectory
         );
     }
@@ -365,7 +380,7 @@ mod tests {
         let path = base.path().join("d");
         let _closed = planted::Closed::make(&path);
         assert_eq!(
-            read(&path).map_err(|e| e.kind()),
+            read(&data(&path)).map_err(|e| e.kind()),
             Err(std::io::ErrorKind::PermissionDenied),
             "an open error that is no missing directory is an error of the read (PL-8 (2)(b))"
         );
@@ -374,10 +389,10 @@ mod tests {
     #[test]
     fn two_reads_side_by_side_both_answer_free() {
         let base = dir();
-        let under_way = open(base.path()).unwrap().directory;
+        let under_way = open(&data(base.path())).unwrap().directory;
         assert!(flock(&under_way, libc::LOCK_SH).unwrap());
         assert_eq!(
-            read(base.path()).unwrap(),
+            read(&data(base.path())).unwrap(),
             LockRead::Free,
             "beside the shared lock that another read holds while it is under way, a read \
              answers free: the read's flock is shared"
@@ -393,7 +408,7 @@ mod tests {
                 std::thread::spawn(move || {
                     start.wait();
                     (0..READS)
-                        .filter(|_| read(&path).unwrap() != LockRead::Free)
+                        .filter(|_| read(&data(&path)).unwrap() != LockRead::Free)
                         .count()
                 })
             })
@@ -414,13 +429,13 @@ mod tests {
     #[test]
     fn a_read_answers_free_held_or_no_directory() {
         let base = dir();
-        assert_eq!(read(base.path()).unwrap(), LockRead::Free);
-        let held = InstanceLock::take(base.path()).unwrap().unwrap();
-        assert_eq!(read(base.path()).unwrap(), LockRead::Held);
+        assert_eq!(read(&data(base.path())).unwrap(), LockRead::Free);
+        let held = InstanceLock::take(&data(base.path())).unwrap().unwrap();
+        assert_eq!(read(&data(base.path())).unwrap(), LockRead::Held);
         drop(held);
-        assert_eq!(read(base.path()).unwrap(), LockRead::Free);
+        assert_eq!(read(&data(base.path())).unwrap(), LockRead::Free);
         assert_eq!(
-            read(&base.path().join("missing")).unwrap(),
+            read(&data(&base.path().join("missing"))).unwrap(),
             LockRead::NoDirectory
         );
     }
@@ -428,27 +443,33 @@ mod tests {
     #[test]
     fn a_take_against_a_held_lock_answers_held_after_its_steps() {
         let base = dir();
-        let _held = InstanceLock::take(base.path()).unwrap().unwrap();
+        let _held = InstanceLock::take(&data(base.path())).unwrap().unwrap();
         let started = Instant::now();
-        assert!(InstanceLock::take(base.path()).unwrap().is_none());
+        assert!(InstanceLock::take(&data(base.path())).unwrap().is_none());
         assert!(started.elapsed() >= Duration::from_millis(TAKE_FOR_MS));
-        assert!(InstanceLock::try_take(base.path()).unwrap().is_none());
+        assert!(InstanceLock::try_take(&data(base.path()))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
     fn after_a_read_a_take_succeeds_at_once() {
         let base = dir();
         for _ in 0..20 {
-            assert_eq!(read(base.path()).unwrap(), LockRead::Free);
-            assert!(InstanceLock::try_take(base.path()).unwrap().is_some());
+            assert_eq!(read(&data(base.path())).unwrap(), LockRead::Free);
+            assert!(InstanceLock::try_take(&data(base.path()))
+                .unwrap()
+                .is_some());
         }
     }
 
     #[test]
     fn a_dropped_lock_is_released() {
         let base = dir();
-        drop(InstanceLock::take(base.path()).unwrap().unwrap());
-        assert!(InstanceLock::try_take(base.path()).unwrap().is_some());
+        drop(InstanceLock::take(&data(base.path())).unwrap().unwrap());
+        assert!(InstanceLock::try_take(&data(base.path()))
+            .unwrap()
+            .is_some());
     }
 
     #[test]
@@ -467,7 +488,7 @@ mod tests {
             );
             std::thread::spawn(move || {
                 while !stop.load(Ordering::Relaxed) {
-                    read(&path).unwrap();
+                    read(&data(&path)).unwrap();
                     reads.fetch_add(1, Ordering::Relaxed);
                 }
             })
@@ -481,7 +502,7 @@ mod tests {
         let mut retried = 0;
         for i in 0..200 {
             let mut takes = 1;
-            while InstanceLock::take(&path).unwrap().is_none() {
+            while InstanceLock::take(&data(&path)).unwrap().is_none() {
                 takes += 1;
                 if takes > 10 {
                     stop.store(true, Ordering::Relaxed);
@@ -503,7 +524,7 @@ mod tests {
     #[test]
     fn the_descriptor_of_a_taken_lock_is_close_on_exec() {
         let base = dir();
-        let lock = InstanceLock::take(base.path()).unwrap().unwrap();
+        let lock = InstanceLock::take(&data(base.path())).unwrap().unwrap();
         // SAFETY: the descriptor is the open directory of `lock`; F_GETFD takes no pointer.
         let flags = unsafe { libc::fcntl(lock.as_raw_fd(), libc::F_GETFD) };
         assert!(flags >= 0);

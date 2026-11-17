@@ -1566,6 +1566,10 @@ pub struct StatusFields {
     pub started_at: UtcSecond,
     pub rss_peak_bytes: u64,
     pub parent: Parent,
+    /// The folder of a data directory reached through a link, absent otherwise; a Mac's alone
+    /// in R1 (ruling CT-13 point 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_dir_resolved: Option<crate::paths::ResolvedFolder>,
     pub desired: CaptureState,
     pub capture: Capture,
     #[serde(deserialize_with = "required")]
@@ -1594,12 +1598,18 @@ pub struct StatusFields {
     pub pointer_coalesced: u64,
     pub tap_disabled_timeout: u64,
     pub tap_disabled_user_input: u64,
-    pub late_events: u64,
+    /// Whether a key reached its source's handler more than 250 ms after its OS time, on both
+    /// systems; a yes or no and never a count, which a stall during a password would move
+    /// (ruling PR-30 PR10; W3-7 Q1 (b)). The count stays in the debug timed run's report.
+    pub late_events: bool,
     pub max_lag_ms: u64,
+    /// A Mac's alone: whether a key reached the tap while secure input was on. A yes or no and
+    /// never a count, which would be a password's length (RD-32, ruling PR-30 PR10); the count
+    /// stays in the debug timed run's report.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub secure_input_keystrokes: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub keys_withheld: Option<bool>,
+    pub secure_input_keystrokes: Option<bool>,
+    /// Whether the keyboard source withheld a key, on both systems; never a count (RD-32).
+    pub keys_withheld: bool,
     pub title_read_errors: u64,
     #[serde(deserialize_with = "required")]
     pub last_flush_at: Option<UtcSecond>,
@@ -1625,6 +1635,13 @@ pub struct StatusFields {
     pub sources: Vec<SourceLine>,
     pub kinds: Vec<KindLine>,
     pub password_guard: PasswordGuard,
+    /// The bound of the password guard in ms, which a page reads and no text holds as a number
+    /// of its own (rulings PR-30 PR10 and MA-12 G3): on a Mac how long the keyboard source holds
+    /// a key typed ahead before it records it (MA-12 B), on Windows how soon after its OS time
+    /// Halvo's detector must clear a key before the key is withheld (W3-7 Q1 (a)). `None` beside
+    /// the guard none.
+    #[serde(deserialize_with = "required")]
+    pub password_guard_bound_ms: Option<u64>,
     #[serde(deserialize_with = "required")]
     pub screen_filter_excludes_app: Option<bool>,
     pub custody: Custody,
@@ -1686,8 +1703,8 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     let fail = |why| Err(StatusError(why));
     match f.platform {
         Platform::Macos => {
-            if f.secure_input_keystrokes.is_none() || f.keys_withheld.is_some() {
-                return fail("macOS reports secure_input_keystrokes and never keys_withheld");
+            if f.secure_input_keystrokes.is_none() {
+                return fail("macOS reports secure_input_keystrokes as a yes or no");
             }
             let names: Vec<Permission> = f.permissions.iter().map(|p| p.name).collect();
             if names != Permission::R1_MACOS {
@@ -1695,13 +1712,22 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
             }
         }
         Platform::Windows => {
-            if f.keys_withheld.is_none() || f.secure_input_keystrokes.is_some() {
-                return fail("Windows reports keys_withheld and never a keystroke count");
+            if f.secure_input_keystrokes.is_some() {
+                return fail("Windows reports no secure_input_keystrokes");
             }
             if !f.permissions.is_empty() {
                 return fail("Windows reports no permission");
             }
+            if f.data_dir_resolved.is_some() {
+                return fail("Windows reports no resolved data folder");
+            }
         }
+    }
+    if (f.password_guard == PasswordGuard::None) != f.password_guard_bound_ms.is_none() {
+        return fail("a password guard reports its bound, and none reports none");
+    }
+    if f.password_guard_bound_ms == Some(0) {
+        return fail("the bound of a password guard is above zero");
     }
     let sources: Vec<SourceName> = f.sources.iter().map(|s| s.name).collect();
     if sources != SourceName::of(f.platform) {
@@ -3112,12 +3138,14 @@ stopped/kind body
     fn the_status_names_its_platform_and_carries_the_platform_s_own_lines() {
         let mac = status_json(Platform::Macos);
         assert_eq!(mac["platform"], "macos");
-        assert_eq!(mac["secure_input_keystrokes"], 0);
-        assert!(mac.get("keys_withheld").is_none());
+        assert_eq!(mac["secure_input_keystrokes"], false);
+        assert_eq!(mac["keys_withheld"], false);
+        assert_eq!(mac["late_events"], false);
         assert_eq!(mac["permissions"].as_array().unwrap().len(), 3);
         let win = status_json(Platform::Windows);
         assert_eq!(win["platform"], "windows");
         assert_eq!(win["keys_withheld"], false);
+        assert_eq!(win["late_events"], false);
         assert!(win.get("secure_input_keystrokes").is_none());
         assert_eq!(win["permissions"], serde_json::json!([]));
         assert_eq!(win["password_guard"], "none");
@@ -3125,6 +3153,111 @@ stopped/kind body
         assert_eq!(mac["custody"], "root_file");
         assert_eq!(win["custody"], "dpapi");
         assert_eq!(mac["screen_filter_excludes_app"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn ct13_a_mac_status_carries_the_resolved_folder_only_when_linked_and_a_windows_status_never() {
+        let folder = crate::paths::ResolvedFolder::of(std::path::Path::new("/Volumes/Daten/Halvo"));
+        assert!(status_json(Platform::Macos)
+            .get("data_dir_resolved")
+            .is_none());
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.data_dir_resolved = Some(folder.clone());
+        let linked = DaemonStatus::new(fields).unwrap();
+        let json = serde_json::to_value(&linked).unwrap();
+        assert_eq!(json["data_dir_resolved"], "/Volumes/Daten/Halvo");
+        assert_eq!(
+            serde_json::from_value::<DaemonStatus>(json).unwrap(),
+            linked
+        );
+        let mut fields = sample_status(Platform::Windows).into_fields();
+        fields.data_dir_resolved = Some(folder);
+        let json = serde_json::to_value(&fields).unwrap();
+        assert_eq!(
+            DaemonStatus::new(fields).map(|_| ()),
+            Err(StatusError("Windows reports no resolved data folder"))
+        );
+        assert!(serde_json::from_value::<DaemonStatus>(json).is_err());
+    }
+
+    #[test]
+    fn pr10_a_count_of_late_events_or_of_keys_under_secure_input_is_refused_on_the_wire() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            for (key, count) in [("late_events", 3), ("late_events", 1), ("keys_withheld", 1)] {
+                let mut json = status_json(platform);
+                json[key] = count.into();
+                assert!(
+                    serde_json::from_value::<DaemonStatus>(json).is_err(),
+                    "{platform:?} {key}={count}"
+                );
+            }
+        }
+        for count in [0, 3] {
+            let mut json = status_json(Platform::Macos);
+            json["secure_input_keystrokes"] = count.into();
+            assert!(
+                serde_json::from_value::<DaemonStatus>(json).is_err(),
+                "secure_input_keystrokes={count}"
+            );
+        }
+        let mut json = status_json(Platform::Macos);
+        json["secure_input_keystrokes"] = true.into();
+        json["late_events"] = true.into();
+        let read = serde_json::from_value::<DaemonStatus>(json).unwrap();
+        assert_eq!(read.fields().secure_input_keystrokes, Some(true));
+        assert!(read.fields().late_events);
+    }
+
+    #[test]
+    fn pr10_a_mac_reports_secure_input_keystrokes_as_a_yes_or_no_and_windows_reports_none() {
+        let mut mac = sample_status(Platform::Macos).into_fields();
+        mac.secure_input_keystrokes = None;
+        assert_eq!(
+            DaemonStatus::new(mac).map(|_| ()),
+            Err(StatusError(
+                "macOS reports secure_input_keystrokes as a yes or no"
+            ))
+        );
+        let mut win = sample_status(Platform::Windows).into_fields();
+        win.secure_input_keystrokes = Some(false);
+        assert_eq!(
+            DaemonStatus::new(win).map(|_| ()),
+            Err(StatusError("Windows reports no secure_input_keystrokes"))
+        );
+    }
+
+    #[test]
+    fn pr10_the_status_reports_the_password_guard_with_its_bound_and_a_guard_without_one_is_refused(
+    ) {
+        assert_eq!(
+            status_json(Platform::Macos)["password_guard_bound_ms"],
+            30_000
+        );
+        assert_eq!(
+            status_json(Platform::Windows)["password_guard_bound_ms"],
+            serde_json::Value::Null
+        );
+        let without = StatusError("a password guard reports its bound, and none reports none");
+        let mut mac = sample_status(Platform::Macos).into_fields();
+        mac.password_guard_bound_ms = None;
+        assert_eq!(DaemonStatus::new(mac).map(|_| ()), Err(without));
+        let mut win = sample_status(Platform::Windows).into_fields();
+        win.password_guard = PasswordGuard::Halvo;
+        assert_eq!(DaemonStatus::new(win.clone()).map(|_| ()), Err(without));
+        win.password_guard_bound_ms = Some(250);
+        assert!(DaemonStatus::new(win).is_ok());
+        let mut none = sample_status(Platform::Windows).into_fields();
+        none.password_guard_bound_ms = Some(250);
+        assert_eq!(DaemonStatus::new(none).map(|_| ()), Err(without));
+        let mut zero = sample_status(Platform::Macos).into_fields();
+        zero.password_guard_bound_ms = Some(0);
+        assert_eq!(
+            DaemonStatus::new(zero).map(|_| ()),
+            Err(StatusError("the bound of a password guard is above zero"))
+        );
+        let mut json = status_json(Platform::Macos);
+        json["password_guard_bound_ms"] = serde_json::Value::Null;
+        assert!(serde_json::from_value::<DaemonStatus>(json).is_err());
     }
 
     fn refused(edit: impl Fn(&mut StatusFields)) {
@@ -3149,12 +3282,10 @@ stopped/kind body
             }
         });
         refused(|f| {
-            f.secure_input_keystrokes = Some(1);
-            f.keys_withheld = Some(true);
-        });
-        refused(|f| {
-            f.secure_input_keystrokes = None;
-            f.keys_withheld = None;
+            f.secure_input_keystrokes = match f.secure_input_keystrokes {
+                Some(_) => None,
+                None => Some(false),
+            };
         });
         refused(|f| {
             if f.permissions.is_empty() {

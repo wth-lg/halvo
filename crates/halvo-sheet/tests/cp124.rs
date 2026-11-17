@@ -254,7 +254,7 @@ fn bound_case(units: usize, wide: bool) -> (bool, Vec<String>, Vec<String>, Opti
         let run = RunId::parse(RUN).expect("a run id");
         let row = Row {
             folder: &scratch.dir,
-            workbook: Path::new(&name),
+            workbook: &scratch.dir.join(&name),
             run: &run,
             expect: row_expect,
         };

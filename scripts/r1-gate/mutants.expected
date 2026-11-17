@@ -369,3 +369,7 @@ edited-page-gap-not-zeroed
 page-gap-check-reads-past-the-page
 page-gap-chain-walk-unbounded
 page-gap-plant-past-the-image-unguarded
+eight-codes-held
+eight-codes-mix-no-run
+set-asides-before-stop-raised
+hold-sets-aside
