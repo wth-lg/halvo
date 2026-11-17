@@ -1898,3 +1898,45 @@ fn st48_u3_a_root_shaped_file_that_stays_at_a_plain_name_is_not_named() {
         "the answer names a file at a plain name of the roots folder"
     );
 }
+
+/// Ruling ST-48 U5 (b), the store directory opened from the parent's handle
+/// in the tail: the data directory is moved away right after the tail opened
+/// it, and another store's data directory is put at its old path. The tail
+/// destroys the store of the directory that it opened, where it now lies,
+/// and the other store keeps its key file and reads.
+#[test]
+fn st48_u5_the_tail_opens_the_store_directory_from_the_data_directorys_handle() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let (_, _, root_id, _) = file_root_store(&data);
+    let other_parent = dir.path().join("other");
+    let (_, _, other_id, other_segment) = file_root_store(&other_parent);
+    let moved = dir.path().join("moved");
+    let (from, to, other_from) = (data.clone(), moved.clone(), other_parent.clone());
+    let _seam = crate::store::failpoint::at(
+        crate::store::db::SEAM_AFTER_THE_DATA_DIRECTORY_OPEN,
+        move || {
+            std::fs::rename(&from, &to).unwrap();
+            std::fs::rename(&other_from, &from).unwrap();
+        },
+    );
+
+    let answer = EncryptedStore::delete_data_dir(&data, crate::store::Layout::DataDirectory);
+
+    let other_reads = open_over_file_root(&data.join("store"), &data.join("roots"), other_id)
+        .map(|store| store.read_segment(other_segment, &mut Vec::new()).is_ok());
+    let own_key_left = moved.join("store").join("store.key").exists();
+    let own_root_left = moved.join("roots").join(format!("{root_id}.root")).exists();
+    println!(
+        "ST48-U5-STORE-FROM-THE-PARENT {} other_store_reads={other_reads:?} own_key_left={own_key_left} own_root_left={own_root_left}",
+        answer_line(&answer)
+    );
+    assert!(
+        matches!(other_reads, Ok(true)),
+        "the tail reached the store directory of another data directory put at the old path: {other_reads:?}"
+    );
+    assert!(
+        !own_key_left && !own_root_left,
+        "the tail left the store of the data directory that it opened"
+    );
+}
