@@ -382,13 +382,13 @@ prints-rule log-closed-values line=5 length=58 token=6'
   plant log-review-forms "TF c1 key=a$cr
 TF c1 key=f$cr
 TF c4 title=defaced$cr
-TF c1 n=12hunter$cr
-TF c1 v=0xhunter$cr"
+TF c1 count=12hunter$cr
+TF c1 value=0xhunter$cr"
   log_case log-review-forms refused 'prints-rule log-review-forms line=1 length=11 token=3
 prints-rule log-review-forms line=2 length=11 token=3
 prints-rule log-review-forms line=3 length=19 token=3
-prints-rule log-review-forms line=4 length=16 token=3
-prints-rule log-review-forms line=5 length=16 token=3'
+prints-rule log-review-forms line=4 length=20 token=3
+prints-rule log-review-forms line=5 length=20 token=3'
   heads_log_lines | sed "s/KNOWN_ID/$known_id/" >"$work/heads.txt" || fail_self "the fixture log-heads-lines cannot be written"
   awk '{ printf "%s\r\n", $0 }' "$work/heads.txt" >"$work/log-heads-lines.log" ||
     fail_self "the fixture log-heads-lines cannot be written"
