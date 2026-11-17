@@ -1777,6 +1777,7 @@ place_cases() {
   t pending-row-whose-second-statement-matches-twice-is-named PASS fixture_says pending-second-statement "FAIL mutation:pending-second-statement ($after_the_first)" yes
   place_fixture pending-interpolated 'echo "$@"\necho ""\n' 's/echo "$@"/echo x/' 'pending X-9'
   t pending-row-whose-pattern-perl-builds-from-a-variable-is-named PASS fixture_says pending-interpolated 'FAIL mutation:pending-interpolated (statement 1 of the substitution has a pattern into which perl puts the value of a variable, so it is not the text written: write \$ for a $ and \@ for an @ of the text)' yes
+  # shellcheck disable=SC2016
   place_fixture pending-second-not-perl 'echo one\necho one\n' 's/echo one/echo 1/; s/$x/y/' 'pending X-9'
   t pending-row-whose-second-statement-is-no-valid-perl-is-named PASS fixture_says pending-second-not-perl 'FAIL mutation:pending-second-not-perl (the substitution is no valid perl)' yes
   place_fixture empty-left-out 'echo one\n' 's{}{x}'
@@ -1811,6 +1812,7 @@ place_cases() {
     place_fixture "escape-$place_escape" 'echo one\n' "s/echo \\${place_escape}one/x/"
     t "pattern-with-the-escape-$place_escape-is-named" PASS fixture_says "escape-$place_escape" "FAIL mutation:escape-$place_escape (statement 1 of the substitution has the escape \\$place_escape in its pattern, which perl applies to the pattern before it matches, so the pattern is not the text written: write the text that the row means)" yes
   done
+  # shellcheck disable=SC2016
   for place_value in text:'$text' content:'$content' underscore:'$_' zero:'$0' argv:'@ARGV' env:'$ENV' package:'$FindBin::RealBin'; do
     place_name=${place_value%%:*}; place_shown=${place_value#*:}
     place_written=$place_shown
@@ -1818,8 +1820,10 @@ place_cases() {
     place_fixture "replacement-$place_name" 'echo one\n' "s/echo one/echo $place_written/"
     t "replacement-with-$place_name-is-named" PASS fixture_says "replacement-$place_name" "FAIL mutation:replacement-$place_name (statement 1 of the substitution has $place_shown in its replacement, which perl replaces by its value: a replacement may hold \$1 to \$9 and \$& and no other variable; write \\\$ for a \$ and \\@ for an @ of the text)" yes
   done
+  # shellcheck disable=SC2016
   place_fixture replacement-captures 'echo one\n' 's/(o)ne/${1}x$1$&/'
   t replacement-with-the-captures-applies PASS fixture_says replacement-captures 'PASS mutation:replacement-captures (applies and builds)' yes
+  # shellcheck disable=SC2016
   place_fixture replacement-escaped 'echo one\n' 's/one/\$x \@y/'
   t replacement-with-an-escaped-dollar-and-at-sign-applies PASS fixture_says replacement-escaped 'PASS mutation:replacement-escaped (applies and builds)' yes
 }
