@@ -534,7 +534,7 @@ mod tests {
         let scratch = scratch();
         let only_store = scratch.dir("only-store");
         drop(live_store(&only_store.join("store")));
-        let kept = files_under(&only_store);
+        let kept = files_under(&only_store.join("store"));
         assert_eq!(
             scratch.delete(&text(&only_store)),
             (
@@ -543,7 +543,7 @@ mod tests {
                 String::new()
             )
         );
-        assert_eq!(files_under(&only_store), kept);
+        assert_eq!(files_under(&only_store.join("store")), kept);
         let only_roots = scratch.dir("only-roots");
         std::fs::create_dir(only_roots.join("roots")).unwrap();
         std::fs::write(
