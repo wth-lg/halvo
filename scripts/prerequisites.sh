@@ -894,10 +894,12 @@ EOF
 
   new_main_case() {
     new_case "$1"
+    shift
+    [ "$#" -gt 0 ] || set -- git rustup curl npm node xcode-select
     mkdir "$case_dir/repo" "$case_dir/repo/scripts" "$case_dir/home" "$case_dir/tmp"
     cp "$(pwd -P)/scripts/prerequisites.sh" "$case_dir/repo/scripts/prerequisites.sh"
     printf '[toolchain]\nchannel = "1.2.3"\nprofile = "minimal"\ncomponents = ["clippy", "rustfmt", "rust-src"]\n' >"$case_dir/repo/rust-toolchain.toml"
-    for tool in git rustup curl npm node xcode-select; do
+    for tool in "$@"; do
       cat >"$case_dir/stubs/$tool" <<EOF
 #!/bin/sh
 echo "$tool \$*" >>'$case_dir/calls'
@@ -934,6 +936,43 @@ EOF
   [ "$(count_line 'rustup toolchain install 1.2.3 --profile minimal --no-self-update' "$case_dir/calls")" = 1 ] || problems="$problems; the rustup toolchain install line is not the one without flags"
   [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
   verdict "$name"
+
+  expect_stop_before_download() {
+    [ "$status" != 0 ] || problems="$problems; the script exited 0"
+    [ "$(count "prerequisites: error: $1" "$case_dir/output")" = 1 ] || problems="$problems; no line says \"prerequisites: error: $1\""
+    for tool in curl rustup npm; do
+      [ "$(count "$tool " "$case_dir/calls")" = 0 ] || problems="$problems; the stand-in $tool ran"
+    done
+  }
+
+  name='with node off PATH the script names node and stops before any download'
+  new_main_case missing-node git curl npm xcode-select
+  for directory in /usr/bin /bin; do
+    [ ! -e "$directory/node" ] || problems="$problems; $directory/node exists, so this case cannot take node off PATH"
+  done
+  run_main
+  expect_stop_before_download 'node is not on PATH'
+  verdict "$name"
+
+  case "$(uname -s)" in
+    Darwin)
+      name='on macOS, with xcode-select -p failing, the script names the Command Line Tools and stops before any download'
+      new_main_case no-command-line-tools git curl npm node
+      printf "#!/bin/sh\necho \"xcode-select \$*\" >>%s\nexit 2\n" "'$case_dir/calls'" >"$case_dir/stubs/xcode-select"
+      chmod +x "$case_dir/stubs/xcode-select"
+      run_main
+      expect_stop_before_download 'xcode-select -p finds no Xcode Command Line Tools; run xcode-select --install'
+      verdict "$name"
+      ;;
+    MINGW* | MSYS* | CYGWIN*)
+      name='on Windows the script warns that it does not check the C build tools, and goes on'
+      new_main_case c-build-tools
+      run_main
+      [ "$(count 'prerequisites: warning: this script does not check for the Visual Studio C++ build tools' "$case_dir/output")" = 1 ] || problems="$problems; no line warns about the C build tools"
+      [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
+      verdict "$name"
+      ;;
+  esac
 
   deny_target=$(prebuilt_target) || {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-deny matches $(uname -s) $(uname -m), so this platform has no case"
@@ -2616,6 +2655,30 @@ if [ "${1:-}" = --self-test ]; then
   self_test
   exit
 fi
+
+check_expected_tools() {
+  missing=0
+  for tool in curl node npm; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "prerequisites: error: $tool is not on PATH; install it, then run sh scripts/prerequisites.sh again" >&2
+      missing=1
+    fi
+  done
+  case "$(uname -s)" in
+    Darwin)
+      if ! xcode-select -p >/dev/null 2>&1; then
+        echo "prerequisites: error: xcode-select -p finds no Xcode Command Line Tools; run xcode-select --install, then run sh scripts/prerequisites.sh again" >&2
+        missing=1
+      fi
+      ;;
+    MINGW* | MSYS* | CYGWIN*)
+      echo "prerequisites: warning: this script does not check for the Visual Studio C++ build tools, which Rust needs on Windows; when a build stops at the linker, install them"
+      ;;
+  esac
+  [ "$missing" = 0 ]
+}
+
+check_expected_tools || exit 1
 
 current_directory_is_git_work_tree_root() {
   [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
