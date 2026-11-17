@@ -294,7 +294,15 @@ pub(crate) fn destroy_roots_below(
 /// that it met, and the root reads left (ruling ST-45 Addition 2 (a)). With
 /// the identity known, the form for the named root alone leaves an entry of
 /// another identity at the root's own name, which then stays and is named.
-/// The sweep destroys every root file and partial root file, named or not.
+/// The sweep destroys every root file and partial root file, named or not,
+/// and at any other name removes each regular file, writing through it only
+/// as [`written_through`] lets it (ruling ST-47 T1, ST-48 U1); a link or an
+/// entry of another kind is removed as the entry that it is, and a directory
+/// is not entered. On the path by identity the name at which the file stands
+/// decides whether it is written through, and a name removed with no write
+/// reads the root left (ruling ST-48 U2). What stays at a name that is no root
+/// name and no partial name is counted by kind and not named (ruling ST-48
+/// U3).
 /// The root reads destroyed only when one is named and this call destroyed
 /// its file: with the identity known, a file of that identity, met through a
 /// kept handle of that identity at its own look, wherever it lies in the
@@ -772,8 +780,10 @@ fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
     file.sync_all()
 }
 
-/// The size of one write of zeros: a zero-fill writes a file's length in
-/// blocks of this size and never allocates that length (ruling ST-47 T1).
+/// The size of one write of zeros of the root step: its zero-fill writes a
+/// file's length in blocks of this size and never allocates that length
+/// (ruling ST-47 T1). The key file's zero-fill is not the root step's and is
+/// not held to it.
 const ZERO_BLOCK: usize = 64 * 1024;
 
 /// Writes `len` zero bytes to `out` in blocks of at most [`ZERO_BLOCK`].
@@ -827,9 +837,11 @@ pub(crate) fn destroy_named_root_at(roots: &Path, root: NamedRoot) -> Result<(),
 }
 
 /// The destruction of one root through `dir`, for a cleanup and for the
-/// custody's destroy. With the identity of its root file known it destroys
-/// the file of that identity alone, wherever it lies in the directory, and
-/// nothing else; without it, every entry of the id at its root name in any
+/// custody's destroy. With the identity of its root file known it acts on the
+/// file of that identity alone, wherever it lies in the directory, and on
+/// nothing else, and writes through it only where the name at which it
+/// stands lets the step write; a name removed there with no write through it
+/// is taken as done (ruling ST-48 U2); without it, every entry of the id at its root name in any
 /// letter case and at its partial names, each partial counted as the root
 /// file is (the review's N7). Answers Ok when no entry of the root stands at
 /// its look, so that a cleanup that runs again ends.

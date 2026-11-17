@@ -146,10 +146,16 @@ pub enum Layout {
 }
 
 /// What a delete says of the store's root. `Destroyed`: this call, or an
-/// earlier call on the same handle, removed that root's file itself at the
-/// root's own name (a regular file that is not empty and, off Windows, of the
-/// root file's length; an all-zero file of that length counts), and the last
-/// reading of the roots directory shows none (ruling ST-45 H4). `Left`: a root may stand,
+/// earlier call on the same handle, destroyed that root's file, and the last
+/// reading of the roots directory shows no root file of it. With the identity
+/// of the root file that the open or the create read, the file of that
+/// identity wherever it lies in the roots directory, zero-filled through its
+/// kept handle or with its count read 0 through that handle after its last
+/// name was removed; a name removed with no write through it, because the
+/// name at which the file stood lets no write, is no destruction (ruling
+/// ST-48 U2). By name alone, the file at the root's own name (a regular file
+/// that is not empty and, off Windows, of the root file's length; an all-zero
+/// file of that length counts; ruling ST-45 H4). `Left`: a root may stand,
 /// the one named when the call knows its id. `Unnamed`: nothing that the call
 /// could read names a root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,9 +179,10 @@ impl RootReading {
 /// What a delete-all, or the delete tail on a directory, did: each step was
 /// attempted. `keyed_segments` is the count of keyed segments read before the
 /// root step, `None` when it could not be read. `root` reads the store's own
-/// root. `roots` names every entry that stays in the roots directory after the
-/// root step, a root file or a file of any other name, and counts the ones at
-/// a name that is no root name; `root_not_handled` names the root of a key file that
+/// root. `roots` names the root files and partial root files that stay in the
+/// roots directory after the root step, and counts by kind, naming none, the
+/// entries that stay at any other name (ruling ST-48 U3); `root_not_handled`
+/// names the root of a key file that
 /// this build cannot destroy (a key file of another version, or of a custody
 /// that keeps no root file under the roots directory). `not_followed` counts
 /// the store names, the store directory's own name among them, at which the
