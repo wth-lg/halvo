@@ -8132,3 +8132,48 @@ fn rd122_no_sender_meets_seq_after_another_sender_of_the_agent_stored() {
         "the ledger, the press and the schedule's log share one stored last, so no first try meets seq (RD-64 3.2)"
     );
 }
+
+#[test]
+fn rd124_t2d_where_the_owners_last_fell_between_a_raise_and_a_press_the_ledger_follows_the_read_and_the_press_answers_ok(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.events.borrow_mut().clear();
+    let a = c.answer(
+        &item,
+        Choice::Done,
+        None,
+        shown_step_mark_or_zero(&c, &item),
+    );
+    let b = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    let tried = c.ports().ports.tried.borrow();
+    let seq = tried
+        .iter()
+        .filter(|t| {
+            matches!(t.call, Call::Log(_))
+                && matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq")
+        })
+        .count();
+    let seqs: Vec<u32> = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .map(|e| e.seq.get())
+        .collect();
+    assert!(a.is_ok(), "the press answers Ok: {a:?}");
+    assert!(b.is_ok(), "{b:?}");
+    assert_eq!(
+        seq, 1,
+        "the press's first try meets seq once, then the ledger follows the coordinator's read (RD-64 3.2)"
+    );
+    assert_eq!(seqs, vec![1, 2], "the press and the end are stored");
+}

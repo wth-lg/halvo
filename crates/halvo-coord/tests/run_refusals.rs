@@ -1125,8 +1125,12 @@ fn rd123_a_held_place_still_stops_the_ticks_start() {
 
 #[test]
 fn rd123_a_refusal_that_cannot_pass_in_this_life_stops_the_retry() {
-    for name in ["role", "version", "unsupported"] {
+    for name in ["role", "version", "unsupported", "binding"] {
         let mut w = stuck_by_refused_starts(name);
+        assert!(
+            !w.board.workflow_dismissed(&flow(0)),
+            "{name}: the owner's list holds the workflow, so binding is class D (RD-124 T2a)"
+        );
         for _ in 0..3 {
             w.act(Act::Tick);
         }
@@ -1154,6 +1158,59 @@ fn rd123_a_retry_that_the_store_still_refuses_starts_no_run_and_keeps_the_line()
     assert_eq!(count(&calls, "start_run"), 0, "no start_run: {calls:?}");
     assert!(started_of(&w, 0).is_none());
     assert_eq!(line(&w, 0), StatusLine::Record, "the shown line stays");
+}
+
+#[test]
+fn rd124_t2b_an_end_run_debt_refused_with_a_name_that_cannot_pass_stops_the_ticks_start_for_the_life(
+) {
+    let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+    owed_end_run(&mut w);
+    w.ports.refuse(Method::EndRun, refused("role"));
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("store"));
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    let calls = w.calls();
+    assert_eq!(
+        count(&calls, "log run_started refused"),
+        3,
+        "the agent that owes the end_run takes the tick's start: {calls:?}"
+    );
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "three ticks with refusals"
+    );
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    let calls = w.calls();
+    assert!(
+        !calls.iter().any(|c| c.starts_with("log run_started")),
+        "the end_run's role cannot pass in this life, so no tick tries the start again: {calls:?}"
+    );
+    assert_eq!(line(&w, 0), StatusLine::Record);
+}
+
+#[test]
+fn rd124_t2c_a_start_refused_with_class_c_or_a_second_seq_is_tried_again_once_the_owner_takes_rows()
+{
+    for name in ["malformed", "too_large", "seq"] {
+        let mut w = stuck_by_refused_starts(name);
+        w.ports.clear_refusals();
+        w.act(Act::Tick);
+        let calls = w.calls();
+        assert_eq!(
+            count(&calls, "log run_started"),
+            1,
+            "{name}: the tick tries the start and it is stored: {calls:?}"
+        );
+        assert!(started_of(&w, 0).is_some(), "{name}: the run starts");
+        assert!(
+            !w.board.record_stuck(&agent(0), &w.limits),
+            "{name}: the stored start ends the count"
+        );
+    }
 }
 
 #[test]
