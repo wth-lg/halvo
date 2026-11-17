@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime};
@@ -16,8 +16,10 @@ use halvo_capture::macos::input::{
     Arrived, Caller, DropCounts, HoldPlan, InputCounters, InputSource, RawEntry, StallSeam,
 };
 use halvo_capture::secure_input_macos::hold::Cause;
+use halvo_capture::secure_input_macos::hold::SESSION_STEP;
 use halvo_capture::secure_input_macos::hold::{Bounds, HeldKeys, Monotonic, Stamps, Step, Timing};
 use halvo_capture::secure_input_macos::hold::{GAP_BOUND, HOLD_BOUND, READING_STEP};
+use halvo_capture::secure_input_macos::notice::{Focus, Seen as NoticeSeen};
 use halvo_capture::secure_input_macos::{read_session, secure_input_active, Reading, Session};
 use halvo_capture::sink;
 use halvo_capture::source::{CaptureSource, HealthReason, SourceContext, SourceState};
@@ -182,7 +184,26 @@ fn fault_rounds() -> usize {
     }
 }
 
-fn seamed(bound: Duration, gap: Duration, step: Duration) -> (InputSource, DropCounts) {
+static FRONT: AtomicI32 = AtomicI32::new(0);
+
+fn fixture_front() -> Option<libc::pid_t> {
+    match FRONT.load(Ordering::SeqCst) {
+        0 => None,
+        pid => Some(pid),
+    }
+}
+
+fn no_front() -> Option<libc::pid_t> {
+    None
+}
+
+fn seamed_with(
+    bound: Duration,
+    gap: Duration,
+    step: Duration,
+    session: fn() -> Session,
+    front: fn() -> Option<libc::pid_t>,
+) -> (InputSource, DropCounts) {
     let drops = DropCounts::new();
     let source = InputSource::with_seam(
         ForegroundReader::nothing_in_front(),
@@ -192,11 +213,22 @@ fn seamed(bound: Duration, gap: Duration, step: Duration) -> (InputSource, DropC
             bound,
             gap,
             step,
-            session: session_reader().unwrap_or(read_session),
+            session,
+            front,
             drops: drops.clone(),
         },
     );
     (source, drops)
+}
+
+fn seamed(bound: Duration, gap: Duration, step: Duration) -> (InputSource, DropCounts) {
+    seamed_with(
+        bound,
+        gap,
+        step,
+        session_reader().unwrap_or(read_session),
+        no_front,
+    )
 }
 
 fn source_for(bound: Duration) -> (InputSource, DropCounts) {
@@ -206,6 +238,44 @@ fn source_for(bound: Duration) -> (InputSource, DropCounts) {
 fn product_source(bound: Duration) -> (InputSource, DropCounts) {
     let _ = bound;
     seamed(HOLD_BOUND, GAP_BOUND, READING_STEP)
+}
+
+const SPARSE_STEP: Duration = Duration::from_millis(200);
+const SPARSE_GAP: Duration = Duration::from_millis(450);
+
+fn noticed_sparse_source(bound: Duration) -> (InputSource, DropCounts) {
+    seamed_with(
+        bound,
+        SPARSE_GAP,
+        SPARSE_STEP,
+        session_reader().unwrap_or(read_session),
+        fixture_front,
+    )
+}
+
+fn noticed_product_source(bound: Duration) -> (InputSource, DropCounts) {
+    let _ = bound;
+    seamed_with(
+        HOLD_BOUND,
+        GAP_BOUND,
+        READING_STEP,
+        session_reader().unwrap_or(read_session),
+        fixture_front,
+    )
+}
+
+static SESSION_DELAY_MS: AtomicU64 = AtomicU64::new(0);
+
+fn delayed_session() -> Session {
+    let delay = SESSION_DELAY_MS.swap(0, Ordering::SeqCst);
+    if delay > 0 {
+        std::thread::sleep(Duration::from_millis(delay));
+    }
+    session_reader().map_or_else(read_session, |reader| reader())
+}
+
+fn delayed_session_source(bound: Duration) -> (InputSource, DropCounts) {
+    seamed_with(bound, test_gap(), test_step(), delayed_session, no_front)
 }
 
 fn drops_line(drops: &DropCounts) -> String {
@@ -255,6 +325,75 @@ impl std::fmt::Display for NoReply {
 
 const NOT_DRIVEN: &str = "a reply of the fixture did not come";
 
+const FIXTURE_SOURCE: &str = include_str!("macos_stall_fixture/fixture.m");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Verb {
+    verb: &'static str,
+    kind: &'static str,
+    reply: &'static str,
+    later: &'static str,
+}
+
+fn table_of(name: &str) -> Vec<Verb> {
+    let head = format!("static const Verb {name}[] = {{");
+    let Some((_, rest)) = FIXTURE_SOURCE.split_once(head.as_str()) else {
+        return Vec::new();
+    };
+    let body = rest.split_once("};").map_or("", |(body, _)| body);
+    body.lines()
+        .filter_map(|line| {
+            let line = line.trim().strip_prefix('{')?.strip_suffix("},")?;
+            let fields: Vec<&'static str> = line
+                .split(", ")
+                .map(|field| field.trim_matches('"'))
+                .collect();
+            match fields[..] {
+                [verb, kind, reply, later] => Some(Verb {
+                    verb,
+                    kind,
+                    reply,
+                    later,
+                }),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn verbs() -> &'static [Verb] {
+    static VERBS: std::sync::OnceLock<Vec<Verb>> = std::sync::OnceLock::new();
+    VERBS.get_or_init(|| table_of("VERBS"))
+}
+
+fn notice_of(name: &str) -> &'static str {
+    static NOTICES: std::sync::OnceLock<Vec<Verb>> = std::sync::OnceLock::new();
+    NOTICES
+        .get_or_init(|| table_of("NOTICES"))
+        .iter()
+        .find(|notice| notice.verb == name)
+        .map_or_else(
+            || panic!("refused: {name} is no notice of the fixture's table"),
+            |notice| notice.reply,
+        )
+}
+
+fn verb_of(command: &str) -> &'static Verb {
+    let verb = command.split(' ').next().unwrap_or_default();
+    verbs()
+        .iter()
+        .find(|known| known.verb == verb)
+        .unwrap_or_else(|| panic!("refused: {verb} is no verb of the fixture's table"))
+}
+
+fn reply_of(command: &str) -> &'static str {
+    verb_of(command).reply
+}
+
+fn later_of(command: &str) -> &'static str {
+    verb_of(command).later
+}
+
 struct Fixture {
     child: Option<Child>,
     input: Box<dyn Write + Send>,
@@ -291,7 +430,7 @@ fn ready_pid(lines: &Receiver<String>, wait: Duration) -> Result<i32, String> {
             "the fixture's output ended before its ready line".to_owned()
         }
     })?;
-    line.strip_prefix("ready pid=")
+    line.strip_prefix(notice_of("ready"))
         .and_then(|pid| pid.parse().ok())
         .ok_or_else(|| "the fixture's first line was not its ready line".to_owned())
 }
@@ -539,28 +678,23 @@ impl Fixture {
             .unwrap_or_else(|no_reply| panic!("{no_reply}"))
     }
 
-    fn try_request(
-        &mut self,
-        command: &str,
-        prefix: &str,
-        within: Duration,
-    ) -> Result<String, NoReply> {
+    fn try_request(&mut self, command: &str, within: Duration) -> Result<String, NoReply> {
+        let prefix = reply_of(command);
         self.try_send(command, prefix)?;
         self.try_reply(prefix, within)
     }
 
-    fn try_ask(&mut self, command: &str, prefix: &str) -> Result<String, NoReply> {
-        self.try_request(command, prefix, self.wait)
+    fn try_ask(&mut self, command: &str) -> Result<String, NoReply> {
+        self.try_request(command, self.wait)
     }
 
-    fn ask(&mut self, command: &str, prefix: &str) -> String {
-        self.try_ask(command, prefix)
+    fn ask(&mut self, command: &str) -> String {
+        self.try_ask(command)
             .unwrap_or_else(|no_reply| panic!("{no_reply}"))
     }
 
     fn try_state(&mut self) -> Result<FixtureState, NoReply> {
-        self.try_ask("state", "front=")
-            .map(|line| FixtureState::parse(&line))
+        self.try_ask("state").map(|line| FixtureState::parse(&line))
     }
 
     fn state(&mut self) -> FixtureState {
@@ -582,7 +716,7 @@ impl Fixture {
         if until(within, || self.in_front()) {
             return Some("own");
         }
-        self.ask("activate", "asked");
+        self.ask("activate");
         if until(Duration::from_secs(1), || self.in_front()) {
             return Some("asked");
         }
@@ -591,7 +725,7 @@ impl Fixture {
     }
 
     fn try_focus(&mut self, field: &str) -> Result<(), NoReply> {
-        self.try_ask(field, "focus=").map(drop)
+        self.try_ask(field).map(drop)
     }
 
     fn focus(&mut self, field: &str) {
@@ -602,7 +736,6 @@ impl Fixture {
     fn try_keys(&mut self, step: Duration, keys: &str) -> Result<(), NoReply> {
         self.try_request(
             &format!("keys {} {keys}", step.as_millis()),
-            "posted=",
             Duration::from_secs(20),
         )
         .map(drop)
@@ -614,8 +747,7 @@ impl Fixture {
     }
 
     fn try_stamps(&mut self) -> Result<Vec<Stamp>, NoReply> {
-        self.try_ask("stamps", "stamps n=")
-            .map(|line| parse_stamps(&line))
+        self.try_ask("stamps").map(|line| parse_stamps(&line))
     }
 
     fn stamps(&mut self) -> Vec<Stamp> {
@@ -624,7 +756,7 @@ impl Fixture {
     }
 
     fn try_click(&mut self, at: &str) -> Result<(), NoReply> {
-        self.try_request(&format!("click {at}"), "clicked", Duration::from_secs(10))
+        self.try_request(&format!("click {at}"), Duration::from_secs(10))
             .map(drop)
     }
 
@@ -730,7 +862,7 @@ fn secure_field_centre(fixture: &mut Fixture) -> String {
 }
 
 fn try_secure_field_centre(fixture: &mut Fixture) -> Result<String, NoReply> {
-    let line = fixture.try_ask("where", "x=")?;
+    let line = fixture.try_ask("where")?;
     let mut point = (String::new(), String::new());
     for word in line.split(' ') {
         match word.split_once('=') {
@@ -1053,14 +1185,14 @@ impl Drive {
             bound,
             keep,
         } = *self;
-        fixture.try_ask("clear", "cleared")?;
+        fixture.try_ask("clear")?;
         if how == Move::Return {
             fixture.try_focus("secure")?;
             if !state_reads(true, Duration::from_secs(2)) {
                 round.why_not = "the secure field did not turn secure input on";
                 return Ok(());
             }
-            if fixture.try_ask("away", "away=")? != "away=1" {
+            if fixture.try_ask("away")? != "away=1" {
                 round.why_not = "no Finder to yield the front to";
                 return Ok(());
             }
@@ -1098,7 +1230,7 @@ impl Drive {
         } else {
             format!("stall {wait_ms}")
         };
-        fixture.try_request(&command, "waiting", Duration::from_secs(5))?;
+        fixture.try_request(&command, Duration::from_secs(5))?;
         let letters = codes(&LETTERS);
         match how {
             Move::Tab | Move::LeavingKeyUp => {
@@ -1114,7 +1246,7 @@ impl Drive {
             Move::Itself => fixture.try_keys(step, &letters)?,
         }
         fixture.try_reply(
-            "woke",
+            later_of("stall"),
             Duration::from_millis(wait_ms) + Duration::from_secs(5),
         )?;
         let mut no_reply = None;
@@ -1134,7 +1266,7 @@ impl Drive {
             return Err(failed);
         }
         round.which = fixture
-            .try_ask(&format!("which {LETTER_TEXT}"), "which=")?
+            .try_ask(&format!("which {LETTER_TEXT}"))?
             .trim_start_matches("which=")
             .to_owned();
         if !landed {
@@ -1153,7 +1285,7 @@ impl Drive {
         }
         if how == Move::LeavingKeyUp {
             fixture.try_keys(Duration::ZERO, &format!("{RETURN}d"))?;
-            fixture.try_reply("left_secure", Duration::from_secs(3))?;
+            fixture.try_reply(notice_of("left"), Duration::from_secs(3))?;
             if !state_reads(false, Duration::from_secs(2)) {
                 round.why_not = "secure input did not read off after the leaving key";
                 std::thread::sleep(bound + MARGIN);
@@ -1193,6 +1325,7 @@ impl Drive {
 fn started_fixture(name: &str) -> Fixture {
     println!("{name} {}", session_line());
     let (fixture, front) = Fixture::start().unwrap_or_else(|why| panic!("{name}: {why}"));
+    FRONT.store(fixture.pid, Ordering::SeqCst);
     println!(
         "{name} fixture={} front_by={}",
         fixture.by,
@@ -1273,10 +1406,7 @@ fn round_line(
         .collect();
     let run = proof_run(&found);
     let span_on = run.map_or(0, |run| on_in_span(&found, run).len());
-    let verdict = round.verdict.map_or_else(
-        || String::from("-"),
-        |verdict| format!("{verdict:?}").to_lowercase(),
-    );
+    let verdict = round.verdict.map_or("-", verdict_word);
     let case = round
         .case
         .map_or_else(|| String::from("-"), |case| format!("{case:?}"));
@@ -1779,6 +1909,484 @@ fn measured_a_password_typed_whole_ahead_at_a_persons_pace() {
     measured(name, "pace_26ms", &rounds);
 }
 
+fn short_on_time_rounds() -> usize {
+    if short_form() {
+        3
+    } else {
+        20
+    }
+}
+
+fn short_on_time_product_rounds() -> usize {
+    if short_form() {
+        1
+    } else {
+        3
+    }
+}
+
+fn noticed_drops(round: &Round) -> usize {
+    round
+        .entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry,
+                RawEntry::Dropped {
+                    cause: Cause::Notice,
+                    ..
+                }
+            )
+        })
+        .count()
+}
+
+fn on_time_ns(round: &Round) -> Option<u64> {
+    let found = evidence(&round.stamps, &round.entries, 0);
+    proof_run(&found).map(|run| {
+        let (start, end) = run.span();
+        end.saturating_sub(start)
+    })
+}
+
+fn judge_short_on_time(name: &str, rounds: &[Round], spacing: Option<Duration>) {
+    let shorter = spacing.map_or(0, |spacing| {
+        let spacing = u64::try_from(spacing.as_nanos()).unwrap_or(u64::MAX);
+        rounds
+            .iter()
+            .filter(|round| round.counted && on_time_ns(round).is_some_and(|ns| ns < spacing))
+            .count()
+    });
+    let on_us: Vec<String> = rounds
+        .iter()
+        .map(|round| {
+            on_time_ns(round)
+                .map_or(-1, |ns| (ns / 1_000) as i64)
+                .to_string()
+        })
+        .collect();
+    println!(
+        "{name} short_on_time rounds={} counted={} spacing_ms={} shorter_than_spacing={shorter} \
+         notice_drops={} on_us={}",
+        rounds.len(),
+        rounds.iter().filter(|round| round.counted).count(),
+        spacing.map_or(0, |spacing| spacing.as_millis()),
+        rounds.iter().map(noticed_drops).sum::<usize>(),
+        on_us.join(",")
+    );
+    judge(name, rounds);
+    if spacing.is_some() {
+        assert!(
+            shorter > 0,
+            "{name}: no counted round had its on-time shorter than the spacing of two readings"
+        );
+    }
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of_two_readings_is_not_recorded(
+) {
+    let name = "a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of_two_readings_is_not_recorded";
+    let rounds = phase_with(
+        name,
+        Move::WholePasswordBurst,
+        &[(300, SHORT_BOUND)],
+        noticed_sparse_source,
+        as_is(short_on_time_rounds()),
+    );
+    judge_short_on_time(name, &rounds, Some(SPARSE_STEP));
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded() {
+    let name = "at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded";
+    let rounds = phase_with(
+        name,
+        Move::WholePasswordBurst,
+        &[(300, HOLD_BOUND)],
+        noticed_product_source,
+        as_is(short_on_time_product_rounds()),
+    );
+    judge_short_on_time(name, &rounds, None);
+}
+
+const LAG_DELAY_MS: u64 = 150;
+const LEAVE_AFTER_MS: u64 = 30;
+
+fn lag_rounds() -> usize {
+    if short_form() {
+        2
+    } else {
+        10
+    }
+}
+
+#[derive(Debug, Default)]
+struct LagRound {
+    counted: bool,
+    why_not: &'static str,
+    ahead: usize,
+    markers: usize,
+    plain: usize,
+    secure: usize,
+    late: u64,
+    not_driven: Option<NoReply>,
+}
+
+fn lag_round_inner(
+    fixture: &mut Fixture,
+    recorder: &Recorder,
+    bound: Duration,
+    round: &mut LagRound,
+    ahead_from: &mut SystemTime,
+) -> Result<(), NoReply> {
+    let wait_out = |round: &mut LagRound, from: SystemTime| {
+        std::thread::sleep(bound + MARGIN);
+        round.ahead = recorder.between(from, SystemTime::now());
+    };
+    fixture.try_ask("clear")?;
+    fixture.try_focus("plain")?;
+    if !state_reads(false, NEVER_ON_WAIT) {
+        round.why_not = "secure input did not read off before the round";
+        return Ok(());
+    }
+    if !fixture.try_in_front()? {
+        round.why_not = "the fixture was not in front before the first key";
+        return Ok(());
+    }
+    fixture.try_focus("secure")?;
+    if !state_reads(true, NEVER_ON_WAIT) {
+        round.why_not = "the secure field did not turn secure input on";
+        return Ok(());
+    }
+    std::thread::sleep(SESSION_STEP + Duration::from_millis(100));
+    *ahead_from = SystemTime::now();
+    SESSION_DELAY_MS.store(LAG_DELAY_MS, Ordering::SeqCst);
+    fixture.try_ask(&format!("leave {LEAVE_AFTER_MS}"))?;
+    fixture.try_keys(Duration::ZERO, &format!("{}d", LETTERS[0]))?;
+    let left = state_reads(false, NEVER_ON_WAIT);
+    std::thread::sleep(Duration::from_millis(LAG_DELAY_MS + 150));
+    fixture.try_keys(Duration::ZERO, &format!("{}u", LETTERS[0]))?;
+    SESSION_DELAY_MS.store(0, Ordering::SeqCst);
+    let state = fixture.try_state()?;
+    round.secure = state.secure;
+    if !left {
+        round.why_not = "secure input did not read off after the leave";
+        wait_out(round, *ahead_from);
+        return Ok(());
+    }
+    if state.secure != 1 || state.focus != "plain" {
+        round.why_not = "the letter did not land in the secure field before the leave";
+        wait_out(round, *ahead_from);
+        return Ok(());
+    }
+    let markers_from = SystemTime::now();
+    fixture.try_keys(Duration::from_millis(30), &codes(&MARKERS))?;
+    std::thread::sleep(bound + MARGIN);
+    let state = fixture.try_state()?;
+    round.plain = state.plain;
+    round.ahead = recorder.between(*ahead_from, markers_from);
+    round.markers = recorder.between(markers_from, SystemTime::now());
+    if state.plain != MARKERS.len() {
+        round.why_not = "the markers did not land in the plain field";
+    } else if round.markers < MARKERS.len() {
+        round.why_not = "the markers were not recorded";
+    } else {
+        round.counted = true;
+    }
+    Ok(())
+}
+
+fn lag_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) -> LagRound {
+    let late_before = recorder.drops.of("late");
+    let _ = recorder.take_entries();
+    let mut round = LagRound::default();
+    let mut ahead_from = SystemTime::now();
+    if let Err(no_reply) = lag_round_inner(fixture, recorder, bound, &mut round, &mut ahead_from) {
+        SESSION_DELAY_MS.store(0, Ordering::SeqCst);
+        std::thread::sleep(bound + MARGIN);
+        round.counted = false;
+        round.why_not = NOT_DRIVEN;
+        round.ahead = recorder.between(ahead_from, SystemTime::now());
+        round.not_driven = Some(no_reply);
+    }
+    round.late = recorder.drops.of("late") - late_before;
+    round
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded() {
+    let name = "a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded";
+    let mut fixture = started_fixture(name);
+    println!(
+        "{name} gap_ms={} step_ms={} session_delay_ms={LAG_DELAY_MS} leave_after_ms={LEAVE_AFTER_MS} form={}",
+        test_gap().as_millis(),
+        test_step().as_millis(),
+        if short_form() { "short" } else { "long" }
+    );
+    let recorder = Recorder::start(delayed_session_source(SHORT_BOUND));
+    let mut rounds = Vec::new();
+    for number in 0..lag_rounds() {
+        let round = lag_round(&mut fixture, &recorder, SHORT_BOUND);
+        println!(
+            "{name} round={number} wait_ms=0 counted={} ahead={} markers={} plain={} secure={} \
+             late={} not_driven={}",
+            u8::from(round.counted),
+            round.ahead,
+            round.markers,
+            round.plain,
+            round.secure,
+            round.late,
+            round
+                .not_driven
+                .as_ref()
+                .map_or_else(|| String::from("-"), NoReply::word)
+        );
+        println!(
+            "{name} drops round={number} {}",
+            drops_line(&recorder.drops)
+        );
+        rounds.push(round);
+    }
+    let leaked: Vec<usize> = rounds
+        .iter()
+        .enumerate()
+        .filter(|(_, round)| round.ahead > 0 && (round.counted || round.secure > 0))
+        .map(|(number, _)| number)
+        .collect();
+    assert!(
+        leaked.is_empty(),
+        "{name}: recorded keys beside the markers in rounds that counted or were not driven: rounds {leaked:?}"
+    );
+    let not_counted: Vec<&str> = rounds
+        .iter()
+        .filter(|round| !round.counted && round.not_driven.is_none())
+        .map(|round| round.why_not)
+        .collect();
+    assert!(
+        not_counted.is_empty(),
+        "{name}: rounds that did not count: {}",
+        not_counted.join(", ")
+    );
+    assert!(
+        rounds.iter().any(|round| round.counted),
+        "{name}: every round of the phase was not driven"
+    );
+    assert!(
+        rounds
+            .iter()
+            .filter(|round| round.counted)
+            .all(|round| round.late > 0),
+        "{name}: a counted round withheld no key as late, so it did not show the lag rule"
+    );
+}
+
+fn trial_round(fixture: &mut Fixture, form: &str) -> Result<(), NoReply> {
+    fixture.try_ask("clear")?;
+    fixture.try_focus("plain")?;
+    state_reads(false, NEVER_ON_WAIT);
+    match form {
+        "blink" => {
+            fixture.try_ask("blink")?;
+        }
+        "autoleave_0" => {
+            fixture.try_ask("autoleave 0")?;
+            fixture.try_focus("secure")?;
+            std::thread::sleep(Duration::from_millis(200));
+            fixture.try_ask("autoleave -1")?;
+        }
+        "burst" => {
+            fixture.try_request("stall 300", Duration::from_secs(5))?;
+            fixture.try_keys(BURST_STEP, &format!("{TAB} {} {RETURN}", codes(&LETTERS)))?;
+            fixture.try_reply(later_of("stall"), Duration::from_secs(5))?;
+        }
+        "stay" => {
+            fixture.try_focus("secure")?;
+            std::thread::sleep(Duration::from_millis(300));
+            fixture.try_focus("plain")?;
+        }
+        _ => {
+            fixture.try_keys(Duration::from_millis(20), &codes(&LETTERS[..3]))?;
+        }
+    }
+    std::thread::sleep(Duration::from_millis(600));
+    Ok(())
+}
+
+fn percentile(sorted: &[u64], part: usize) -> i64 {
+    if sorted.is_empty() {
+        return -1;
+    }
+    let at = (sorted.len() * part / 100).min(sorted.len() - 1);
+    (sorted[at] / 1_000) as i64
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn the_trial_of_the_focus_notice_reports_its_reach_and_lateness() {
+    let name = "the_trial_of_the_focus_notice_reports_its_reach_and_lateness";
+    let mut fixture = started_fixture(name);
+    let recorder = Recorder::start(noticed_sparse_source(SHORT_BOUND));
+    std::thread::sleep(Duration::from_millis(500));
+    let start: Vec<String> = recorder
+        .take_entries()
+        .iter()
+        .filter_map(|entry| match *entry {
+            RawEntry::Notice { seen, focus, .. } => {
+                Some(format!("{}:{}", seen_word(seen), focus_word(focus)))
+            }
+            _ => None,
+        })
+        .collect();
+    println!("{name} watch_start={}", start.join(","));
+    for (form, count) in [
+        ("blink", 20),
+        ("autoleave_0", 10),
+        ("burst", 10),
+        ("stay", 5),
+        ("plain", 5),
+    ] {
+        let mut lateness = Vec::new();
+        let (mut reached, mut focused, mut driven) = (0, 0, 0);
+        for number in 0..count {
+            let _ = recorder.take_entries();
+            let from = raw_ns();
+            let outcome = trial_round(&mut fixture, form);
+            let stamps = fixture.try_stamps().unwrap_or_default();
+            let entries = recorder.take_entries();
+            let focus_in = stamps
+                .iter()
+                .find(|stamp| stamp.kind == "fr_secure" && stamp.detail == 1 && stamp.ns >= from)
+                .map(|stamp| stamp.ns);
+            let runs: Vec<String> = on_runs(&stamps)
+                .iter()
+                .map(|(first, last)| ((last - first) / 1_000).to_string())
+                .collect();
+            let notices: Vec<(u64, NoticeSeen, Focus)> = entries
+                .iter()
+                .filter_map(|entry| match *entry {
+                    RawEntry::Notice { at, seen, focus } if at >= from => Some((at, seen, focus)),
+                    _ => None,
+                })
+                .collect();
+            let count_of = |want: Focus| {
+                notices
+                    .iter()
+                    .filter(|(_, _, focus)| *focus == want)
+                    .count()
+            };
+            let first_mark = notices
+                .iter()
+                .find(|(_, _, focus)| focus.marks())
+                .map(|(at, _, _)| *at);
+            let late = focus_in
+                .zip(first_mark)
+                .map(|(focus_in, at)| at.saturating_sub(focus_in));
+            let notice_drop = entries
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        entry,
+                        RawEntry::Dropped {
+                            cause: Cause::Notice,
+                            ..
+                        }
+                    )
+                })
+                .count();
+            driven += usize::from(outcome.is_ok());
+            if focus_in.is_some() {
+                focused += 1;
+                if first_mark.is_some() {
+                    reached += 1;
+                }
+            }
+            lateness.extend(late);
+            println!(
+                "{name} form={form} round={number} driven={} focus_in={} on_runs_us={} notices={} \
+                 secure={} doubt={} other={} late_us={} notice_drops={notice_drop}",
+                u8::from(outcome.is_ok()),
+                u8::from(focus_in.is_some()),
+                if runs.is_empty() {
+                    String::from("-")
+                } else {
+                    runs.join(",")
+                },
+                notices.len(),
+                count_of(Focus::Secure),
+                count_of(Focus::Doubt),
+                count_of(Focus::Other),
+                late.map_or(-1, |ns| (ns / 1_000) as i64)
+            );
+        }
+        lateness.sort_unstable();
+        println!(
+            "{name} summary form={form} rounds={count} driven={driven} focused={focused} \
+             reached={reached} late_p50_us={} late_max_us={}",
+            percentile(&lateness, 50),
+            percentile(&lateness, 100)
+        );
+    }
+    drop(recorder);
+    drop(fixture);
+    let masked = "<!doctype html><title>style mask</title>\
+         <input id=m type=text style=\"-webkit-text-security:disc\" autofocus>\
+         <script>addEventListener('load', () => document.getElementById('m').focus())</script>";
+    style_probe("safari", &["-a", "Safari"], "com.apple.Safari", masked);
+    let profile = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("stall-trial-chrome");
+    let profile_arg = format!("--user-data-dir={}", profile.display());
+    style_probe(
+        "chrome",
+        &[
+            "-na",
+            "Google Chrome",
+            "--args",
+            "--no-first-run",
+            "--no-default-browser-check",
+            &profile_arg,
+        ],
+        "com.google.Chrome",
+        masked,
+    );
+    println!("{name} done");
+}
+
+fn style_probe(name: &str, open: &[&str], bundle: &str, body: &str) {
+    let page = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("stall-trial-style.html");
+    std::fs::write(&page, body).expect("the page is written");
+    let opened = Command::new("/usr/bin/open")
+        .args(open)
+        .arg(&page)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false);
+    let front = until(Duration::from_secs(30), || {
+        frontmost_bundle().as_deref() == Some(bundle)
+    });
+    std::thread::sleep(Duration::from_secs(3));
+    let mut on = 0;
+    let reads = 50;
+    for _ in 0..reads {
+        on += u32::from(secure_input_active());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    println!(
+        "probe style_mask page={name} opened={} front={} reads={reads} secure_on_reads={on}",
+        u8::from(opened),
+        u8::from(front)
+    );
+    if let Some(app) = NSWorkspace::sharedWorkspace()
+        .frontmostApplication()
+        .filter(|app| app.bundleIdentifier().map(|id| id.to_string()).as_deref() == Some(bundle))
+    {
+        app.forceTerminate();
+    }
+    state_reads(false, Duration::from_secs(10));
+}
+
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn short_window_a_the_click_round_as_it_was_at_wait_150_ms() {
@@ -1813,7 +2421,7 @@ fn short_window_b_the_leave_asked_after_n_ms() {
     let name = "short_window_b_the_leave_asked_after_n_ms";
     let mut fixture = started_fixture(name);
     for asked_ms in LEAVES_ASKED_AFTER_MS {
-        fixture.ask(&format!("autoleave {asked_ms}"), "autoleave=");
+        fixture.ask(&format!("autoleave {asked_ms}"));
         let (rounds, _) = phase_on(
             &mut fixture,
             name,
@@ -1828,7 +2436,7 @@ fn short_window_b_the_leave_asked_after_n_ms() {
         );
         measured(name, &format!("leave_asked_after_{asked_ms}ms"), &rounds);
     }
-    fixture.ask("autoleave -1", "autoleave=");
+    fixture.ask("autoleave -1");
 }
 
 #[test]
@@ -2013,7 +2621,7 @@ fn drive_control(
     control: &mut Control,
     window: &mut ControlWindow,
 ) -> Result<(), NoReply> {
-    fixture.try_ask("clear", "cleared")?;
+    fixture.try_ask("clear")?;
     fixture.try_focus("plain")?;
     if !state_reads(false, Duration::from_secs(2)) || !fixture.try_in_front()? {
         control.why_not = "the fixture was not in front with secure input off";
@@ -2608,7 +3216,7 @@ fn the_three_way_verdict_of_the_return_phase_holds_each_rule_on_a_table() {
 
 fn side(fixture: &mut Fixture, gap: Duration, step: Duration) -> (usize, bool, DropCounts) {
     let recorder = Recorder::start(seamed(SHORT_BOUND, gap, step));
-    fixture.ask("clear", "cleared");
+    fixture.ask("clear");
     fixture.focus("plain");
     assert!(
         state_reads(false, Duration::from_secs(2)) && fixture.in_front(),
@@ -2671,6 +3279,83 @@ fn stand_in(name: &str, body: &str) -> PathBuf {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
         .expect("the stand-in can run");
     path
+}
+
+#[test]
+fn the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_its_clock() {
+    let verbs = verbs();
+    assert!(verbs.len() >= 15, "the table of verbs: {verbs:?}");
+    for (at, verb) in verbs.iter().enumerate() {
+        assert!(
+            verbs[..at].iter().all(|other| other.verb != verb.verb),
+            "{} stands twice in the table",
+            verb.verb
+        );
+        if !verb.kind.is_empty() {
+            assert_eq!(
+                verb.kind,
+                format!("cmd_{}", verb.verb),
+                "the stamp of {}",
+                verb.verb
+            );
+        }
+        for reply in [verb.reply, verb.later] {
+            assert!(
+                reply.is_empty() || FIXTURE_SOURCE.contains(&format!("@\"{reply}")),
+                "the fixture gives no reply {reply} of {}",
+                verb.verb
+            );
+        }
+    }
+    assert_eq!(notice_of("ready"), "ready pid=");
+    assert_eq!(notice_of("left"), "left_secure");
+    let test_source = include_str!("macos_stall_fixture.rs");
+    let mut sent = Vec::new();
+    for call in [
+        "ask(\"",
+        "ask(&format!(\"",
+        "try_request(\"",
+        "try_request(&format!(\"",
+    ] {
+        for (_, rest) in test_source
+            .match_indices(call)
+            .map(|(at, _)| test_source.split_at(at + call.len()))
+        {
+            let verb: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_lowercase())
+                .collect();
+            if !verb.is_empty() {
+                sent.push(verb);
+            }
+        }
+    }
+    for verb in &sent {
+        assert!(
+            verbs.iter().any(|known| known.verb == verb.as_str()),
+            "the test sends {verb}, which is no verb of the fixture's table"
+        );
+    }
+    assert!(sent.len() >= 10, "the verbs that the test sends: {sent:?}");
+    assert!(
+        !FIXTURE_SOURCE.contains(" at=%llu"),
+        "a reply time that names no clock"
+    );
+    assert_eq!(
+        FIXTURE_SOURCE.matches(", uptime_ns()]").count(),
+        FIXTURE_SOURCE.matches("at_uptime_ns=%llu").count(),
+        "each reply time names CLOCK_UPTIME_RAW"
+    );
+    assert_eq!(
+        FIXTURE_SOURCE.matches("dispatch_after(").count(),
+        FIXTURE_SOURCE
+            .matches("if (generation != leaveGeneration) return;")
+            .count(),
+        "each leave that the fixture schedules is cancelled by a later clear or autoleave"
+    );
+    assert!(FIXTURE_SOURCE.contains(
+        "if ([verb isEqualToString:@\"clear\"] || [verb isEqualToString:@\"autoleave\"]) {\n        leaveGeneration++;"
+    ));
 }
 
 #[test]
@@ -2975,6 +3660,18 @@ fn short_case(found: &Evidence) -> Case {
     }
 }
 
+fn verdict_word(verdict: Verdict) -> &'static str {
+    match verdict {
+        Verdict::Held => "held",
+        Verdict::LateClick => "lateclick",
+        Verdict::NeverOn => "neveron",
+        Verdict::NotCounted(_) => "notcounted",
+        Verdict::NoProof => "noproof",
+        Verdict::Recorded => "recorded",
+        Verdict::NotDriven => "notdriven",
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Verdict {
     Held,
@@ -3071,7 +3768,7 @@ fn key_fates(entries: &[RawEntry]) -> Vec<(u64, String, Option<u64>)> {
                 let fate = format!("dropped_{cause:?}").to_lowercase();
                 resolve(&mut fates, &mut held, keys, fate, at);
             }
-            RawEntry::Reading { .. } => {}
+            RawEntry::Reading { .. } | RawEntry::Notice { .. } => {}
         }
     }
     fates
@@ -3091,6 +3788,22 @@ fn value_word(value: Reading) -> &'static str {
         Reading::Off => "off",
         Reading::On => "on",
         Reading::Unknown => "unknown",
+    }
+}
+
+fn seen_word(seen: NoticeSeen) -> &'static str {
+    match seen {
+        NoticeSeen::Notice => "notice",
+        NoticeSeen::Start => "start",
+        NoticeSeen::Unanswered => "unanswered",
+    }
+}
+
+fn focus_word(focus: Focus) -> &'static str {
+    match focus {
+        Focus::Secure => "secure",
+        Focus::Other => "other",
+        Focus::Doubt => "doubt",
     }
 }
 
@@ -3156,7 +3869,23 @@ fn entry_lines(
     } else {
         "readings"
     };
+    let notices: Vec<String> = entries
+        .iter()
+        .filter_map(|entry| match *entry {
+            RawEntry::Notice { at, seen, focus } => Some(format!(
+                "{}:{}:{}",
+                relative_us(at, from),
+                seen_word(seen),
+                focus_word(focus)
+            )),
+            _ => None,
+        })
+        .collect();
     vec![
+        format!(
+            "{name} entries round={number} part=notices {}",
+            notices.join(" ")
+        ),
         format!(
             "{name} entries round={number} part=fixture {}",
             fixture.join(" ")
@@ -3886,7 +4615,7 @@ fn first_on_after(at: u64, within: Duration) -> Option<u64> {
 }
 
 fn reply_time(line: &str) -> u64 {
-    line.rsplit_once("at=")
+    line.rsplit_once("at_uptime_ns=")
         .and_then(|(_, at)| at.parse().ok())
         .expect("the reply carries a time")
 }
@@ -3981,15 +4710,15 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
     }
 
     for attempt in 0..3 {
-        fixture.ask("clear", "cleared");
+        fixture.ask("clear");
         fixture.focus("plain");
         state_reads(false, Duration::from_secs(2));
-        let at = reply_time(&fixture.ask("secure", "focus="));
+        let at = reply_time(&fixture.ask("secure"));
         let on_after = first_on_after(at, Duration::from_secs(2));
         fixture.keys(Duration::from_millis(20), &codes(&LETTERS[..3]));
         std::thread::sleep(Duration::from_millis(300));
         let state = fixture.state();
-        let leave = reply_time(&fixture.ask("plain", "focus="));
+        let leave = reply_time(&fixture.ask("plain"));
         let off = until(Duration::from_secs(2), || !secure_input_active());
         println!(
             "probe secure_focus attempt={attempt} on_after_focus_us={} secure={} plain={} \
@@ -4003,11 +4732,11 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
     }
 
     for how in [Move::Tab, Move::Click, Move::Itself, Move::Return] {
-        fixture.ask("clear", "cleared");
+        fixture.ask("clear");
         if how == Move::Return {
             fixture.focus("secure");
             state_reads(true, Duration::from_secs(2));
-            fixture.ask("hide", "hidden");
+            fixture.ask("hide");
             let hidden = until(Duration::from_secs(3), || {
                 frontmost_pid() != Some(fixture.pid) && !secure_input_active()
             });
@@ -4023,7 +4752,7 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
             "stall 300"
         };
         fixture.send(command);
-        let waiting = reply_time(&fixture.reply("waiting", Duration::from_secs(5)));
+        let waiting = reply_time(&fixture.reply(reply_of("stall"), Duration::from_secs(5)));
         let letters = codes(&LETTERS[..3]);
         match how {
             Move::Tab => fixture.keys(Duration::from_millis(10), &format!("{TAB} {letters}")),
@@ -4038,7 +4767,7 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
             }
             _ => fixture.keys(Duration::from_millis(10), &letters),
         }
-        let woke = reply_time(&fixture.reply("woke", Duration::from_secs(5)));
+        let woke = reply_time(&fixture.reply(later_of("stall"), Duration::from_secs(5)));
         let on_after_wake = first_on_after(woke, Duration::from_secs(2));
         std::thread::sleep(Duration::from_millis(300));
         let state = fixture.state();
@@ -4057,12 +4786,12 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
     }
 
     for attempt in 0..5 {
-        fixture.ask("clear", "cleared");
+        fixture.ask("clear");
         fixture.focus("plain");
         state_reads(false, Duration::from_secs(2));
         let intervals = on_intervals(Duration::from_millis(1_500), || {
             fixture.send("stall 300");
-            fixture.reply("waiting", Duration::from_secs(5));
+            fixture.reply(reply_of("stall"), Duration::from_secs(5));
             fixture.keys(
                 Duration::from_millis(2),
                 &format!("{TAB} {} {RETURN}", codes(&LETTERS)),
@@ -4110,8 +4839,8 @@ fn known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_release
     let gap_ms = u64::try_from(GAP_BOUND.as_millis()).expect("the gap bound in ms");
     let hold_ms = u64::try_from(HOLD_BOUND.as_millis()).expect("the bound in ms");
     let both = |ms: u64| Stamps {
-        before: Monotonic(ms * 1_000_000),
-        after: Monotonic(ms * 1_000_000),
+        before: Monotonic::from_nanos(ms * 1_000_000),
+        after: Monotonic::from_nanos(ms * 1_000_000),
     };
     let first_tick = KEYS + 2;
     let on = (first_tick + 5, first_tick + gap_ms - 5);
@@ -4150,7 +4879,7 @@ fn known_fault_secure_input_on_for_less_than_the_spacing_of_two_readings_release
             Timing::InTime {
                 lag: Duration::ZERO,
             },
-            Monotonic(key * 1_000_000),
+            Monotonic::from_nanos(key * 1_000_000),
             key,
         );
     }
