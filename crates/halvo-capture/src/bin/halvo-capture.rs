@@ -8,10 +8,13 @@ use halvo_control::paths::SystemAccount;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() -> ExitCode {
-    if let Err(error) = daemon::signal::prepare() {
-        return fail(format_args!("the signal flag was not installed: {error}"));
+    let parsed = daemon::parse(std::env::args_os().skip(1), &SystemAccount);
+    if let Ok(mode) = &parsed {
+        if let Err(error) = daemon::prepare_signals(mode) {
+            return fail(format_args!("the signal flag was not installed: {error}"));
+        }
     }
-    match daemon::parse(std::env::args_os().skip(1), &SystemAccount) {
+    match parsed {
         Ok(Mode::Version) => {
             print_or_exit_error(&mut std::io::stdout().lock(), &format!("{VERSION}\n"))
         }

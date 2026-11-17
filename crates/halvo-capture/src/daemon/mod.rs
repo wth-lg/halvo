@@ -110,6 +110,33 @@ pub enum Mode {
     },
 }
 
+impl Mode {
+    /// Whether the mode reads the signal flag that [`signal::prepare`]
+    /// installs: the timed run alone, which stops its sources, settles and
+    /// reports on it.
+    #[cfg(debug_assertions)]
+    pub fn reads_the_signal_flag(&self) -> bool {
+        matches!(self, Mode::TimedRun(_))
+    }
+
+    /// Whether the mode reads the signal flag: no mode of a release build does.
+    #[cfg(not(debug_assertions))]
+    pub fn reads_the_signal_flag(&self) -> bool {
+        false
+    }
+}
+
+/// Installs the signal flag for a mode that reads it and nothing for any
+/// other mode, which SIGINT and SIGTERM then end by the system's default
+/// action (ruling DM-12 P3).
+pub fn prepare_signals(mode: &Mode) -> std::io::Result<()> {
+    if mode.reads_the_signal_flag() {
+        signal::prepare()
+    } else {
+        Ok(())
+    }
+}
+
 /// A refused command line, with its reason; the binary prints it and
 /// [`USAGE`] and exits 64.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -1077,6 +1104,111 @@ mod tests {
             assert_eq!(run.secure_input, SecureInput::Hold);
         } else {
             assert!(held.is_err());
+        }
+    }
+
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    #[test]
+    fn a_term_ends_every_mode_but_the_timed_run_by_the_default_action() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::os::unix::process::ExitStatusExt;
+        use std::time::Instant;
+
+        const NAME: &str =
+            "daemon::tests::a_term_ends_every_mode_but_the_timed_run_by_the_default_action";
+        const CHILD: &str = "HALVO_DAEMON_MODE_SIGNAL_CHILD";
+        const HOME: &str = "HALVO_DAEMON_MODE_SIGNAL_HOME";
+        const STORE: &str = "HALVO_DAEMON_MODE_SIGNAL_STORE";
+        if let Some(mode) = std::env::var_os(CHILD) {
+            let account = TestAccount(PathBuf::from(std::env::var_os(HOME).unwrap()));
+            let store = std::env::var(STORE).unwrap();
+            let line = match mode.to_str().unwrap() {
+                "timed-run" => vec!["--timed-run", "1", "--store-dir", &store],
+                "verify-store" => vec![
+                    "--verify-store",
+                    "--store-dir",
+                    &store,
+                    "--marker",
+                    "M4rker.term",
+                ],
+                "verify-deletion" => vec!["--verify-deletion", "--store-dir", &store],
+                other => panic!("no mode {other}"),
+            };
+            let mode = parse(args(&line), &account).unwrap();
+            prepare_signals(&mode).unwrap();
+            let mut out = std::io::stdout().lock();
+            writeln!(out, "mode-child: ready").unwrap();
+            out.flush().unwrap();
+            let until = Instant::now() + Duration::from_secs(10);
+            while !signal::flag().load(Ordering::SeqCst) && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            writeln!(
+                out,
+                "mode-child: flag={}",
+                signal::flag().load(Ordering::SeqCst)
+            )
+            .unwrap();
+            out.flush().unwrap();
+            return;
+        }
+        let dirs = dirs();
+        for (mode, ended_by_term) in [
+            ("verify-store", true),
+            ("verify-deletion", true),
+            ("timed-run", false),
+        ] {
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
+                .env(CHILD, mode)
+                .env(HOME, &dirs.account.0)
+                .env(STORE, &dirs.store)
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            let pid = child.id().to_string();
+            let (lines_tx, lines) = std::sync::mpsc::channel();
+            let stdout = child.stdout.take().unwrap();
+            let reader = std::thread::spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    if let Some(at) = line.find("mode-child: ") {
+                        let _ = lines_tx.send(line[at + "mode-child: ".len()..].to_owned());
+                    }
+                }
+            });
+            let ready = lines.recv_timeout(Duration::from_secs(15));
+            if ready.as_deref() != Ok("ready") {
+                let _ = child.kill();
+                panic!("{mode}: the child did not get ready: {ready:?}");
+            }
+            let sent = std::process::Command::new("/bin/kill")
+                .args(["-s", "TERM", &pid])
+                .status()
+                .unwrap();
+            assert!(sent.success(), "{mode}: kill answered {sent}");
+            let until = Instant::now() + Duration::from_secs(10);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if Instant::now() >= until {
+                    let _ = child.kill();
+                    panic!("{mode}: the child lived 10 s after TERM");
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            };
+            reader.join().unwrap();
+            let after: Vec<String> = lines.try_iter().collect();
+            if ended_by_term {
+                assert_eq!(
+                    status.signal(),
+                    Some(libc::SIGTERM),
+                    "{mode}: {status} after {after:?}"
+                );
+            } else {
+                assert!(status.success(), "{mode}: {status} after {after:?}");
+                assert_eq!(after, ["flag=true"], "{mode}");
+            }
         }
     }
 
