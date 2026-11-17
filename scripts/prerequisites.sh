@@ -707,6 +707,7 @@ self_test() {
   failures=0
   mkdir "$work/binary"
   echo "cargo-release $cargo_release_version" >"$work/binary/$executable"
+  chmod 755 "$work/binary/$executable"
 
   make_archive() {
     case "$3" in
@@ -826,6 +827,7 @@ EOF
   [ "$(count ' failed' "$case_dir/output")" = 0 ] || problems="$problems; a line reports a failure"
   [ "$(ls -A "$case_dir/cargo-home/bin")" = "$executable" ] || problems="$problems; bin holds another file beside $executable"
   [ "$(count "curl-args --proto =https --tlsv1.2 " "$case_dir/calls")" = 1 ] || problems="$problems; the download does not hold --proto =https --tlsv1.2"
+  [ -x "$case_dir/cargo-home/bin/$executable" ] || problems="$problems; bin/$executable is not executable"
   [ "$(grep -c -x -F "curl https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/$asset" "$case_dir/calls")" = 1 ] || problems="$problems; the one download does not name https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/$asset"
   verdict "$name"
 
