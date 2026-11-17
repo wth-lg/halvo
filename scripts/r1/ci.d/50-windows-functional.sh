@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b) and the check fails on any line that the rule prints and never prints such a log, and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b) and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 # lane: alone
 set -u
 group=${WF_GROUP:-native}
@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=65
+failing_fixtures=66
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -598,9 +598,10 @@ measure() {
     fi
     ran=$((ran + 1))
     want_id=$(awk -F '\t' -v test="$test" '$1 == test && $4 != "-" { print $4 }' "$work/plan")
-    run_test "$test" "$log"
+    run_test "$test" "$log.run"
     code=$?
-    rule_out=$(wpr_check_log "$test" "$log" "$work/vocabulary")
+    cp "$log.run" "$log" || fail "the log of $test cannot be copied for its one read"
+    rule_out=$(wpr_check_log "$test" "$log" "$work/vocabulary" 2>&1)
     rule_code=$?
     if [ "$rule_code" -eq 0 ]; then
       judge "$test" "$code" "$log" "$want_id"
@@ -928,6 +929,18 @@ case $kind in
     printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
     exit 0
     ;;
+  rule-stderr)
+    printf 'TF %s STDERR-TEXT hunter2-typed-text\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
+  late-writer)
+    printf 'TF %s SLOW-RULE source_built_by_test=keyboard\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    (
+      sleep 1
+      printf 'TF late typed=BREAKS-THE-RULE hunter2-typed-text\n'
+    ) &
+    exit 0
+    ;;
   rule-mixed)
     printf 'TF %s MIXED-ANSWER hunter2-typed-text\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
     exit 0
@@ -1081,6 +1094,14 @@ wpr_vocabulary() {
 }
 wpr_check_log() {
   [ -r "$2" ] && [ -r "$3" ] || return 2
+  if grep -q SLOW-RULE "$2"; then
+    sleep 3
+  fi
+  if grep -q STDERR-TEXT "$2"; then
+    printf 'prints-rule %s line=3 length=40 token=2\n' "$1"
+    printf 'the line read: %s\n' "$(grep STDERR-TEXT "$2")" >&2
+    return 1
+  fi
   ! grep -q RULE-CANNOT-READ "$2" || return 2
   if grep -q MIXED-ANSWER "$2"; then
     printf 'prints-rule %s line=3 length=40 token=2\n' "$1"
@@ -1443,6 +1464,10 @@ fixtures() {
     "!${nl}WF form=" "!WF left out:" "!hunter2-typed-text"
   check a-rule-answer-that-mixes-a-strict-line-and-leaky-ones-prints-the-strict-line-alone FAIL "c1_raw_input|rule-mixed${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "prints-rule c1_raw_input line=3 length=40 token=2${nl}" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" "!hunter2"
+  check the-rule-s-standard-error-is-read-and-never-printed FAIL "c1_raw_input|rule-stderr${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "prints-rule c1_raw_input line=3 length=40 token=2${nl}" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" "!hunter2-typed-text"
+  check a-line-written-after-the-test-ended-is-not-read PASS "c1_raw_input|late-writer${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}prints_rule broken_lines=0 withheld_logs=0${nl}" "${nl}PASS $name" "!hunter2-typed-text"
   check a-breaking-line-past-line-9 FAIL "c1_raw_input|rule-break-late-line${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "prints-rule c1_raw_input line=13 length=" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" "!hunter2-typed-text"
   check a-breaking-log-after-a-known-defect-names-no-id FAIL "known_defect::x1_password|defect|RR-windows-01${nl}c1_raw_input|rule-break${nl}helper_child_window|pass" \
