@@ -1116,20 +1116,26 @@ fn st47_t1_the_sweep_removes_a_hard_link_of_an_outside_file_at_a_plain_name_with
     let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
     let outside = dir.path().join("a-file-of-another-party");
     std::fs::write(&outside, [0x5bu8; 32]).unwrap();
+    let mode_before = st48_mode(&outside);
     let plain = roots_dir.join("plain");
     std::fs::hard_link(&outside, &plain).unwrap();
 
     let answer = tail(&store_dir, &roots_dir);
 
     let outside_kept = std::fs::read(&outside).ok().as_deref() == Some(&[0x5bu8; 32][..]);
+    let mode_kept = st48_mode(&outside) == mode_before;
     println!(
-        "ST47-T1-LINK {} plain_stands={} outside_kept={outside_kept}",
+        "ST47-T1-LINK {} plain_stands={} outside_kept={outside_kept} outside_mode_kept={mode_kept}",
         answer_line(&answer),
         plain.exists()
     );
     assert!(
         outside_kept,
         "the sweep wrote through a second name of another party's file"
+    );
+    assert!(
+        mode_kept,
+        "the sweep changed the mode of another party's file (ruling ST-48 U1, the review's N4)"
     );
     assert!(
         !plain.exists(),
@@ -1620,4 +1626,120 @@ fn st47_t4_a_create_over_a_live_store_answers_already_exists_before_any_cleanup(
         "a create refused over a live store removed create.pending"
     );
     assert!(opened.is_ok(), "{opened:?}");
+}
+
+/// The mode bits of the file at `path`, read without following a link.
+fn st48_mode(path: &Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::symlink_metadata(path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777
+}
+
+/// A file of another party at `dir/name`: `len` bytes that are not zero, of
+/// mode `mode`, with a read handle kept open from before the mode was set, so
+/// that its bytes can be read through it whatever the mode becomes.
+fn st48_foreign_file(
+    dir: &Path,
+    name: &str,
+    len: usize,
+    mode: u32,
+) -> (PathBuf, Vec<u8>, std::fs::File) {
+    use std::os::unix::fs::PermissionsExt;
+    let path = dir.join(name);
+    let bytes: Vec<u8> = (0..len).map(|i| 0x41 + (i % 26) as u8).collect();
+    std::fs::write(&path, &bytes).unwrap();
+    let reader = std::fs::File::open(&path).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+    (path, bytes, reader)
+}
+
+/// The bytes of the file that `reader` holds, read from its start.
+fn st48_bytes_of(reader: &std::fs::File) -> Vec<u8> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut reader = reader;
+    let mut bytes = Vec::new();
+    reader.seek(SeekFrom::Start(0)).unwrap();
+    reader.read_to_end(&mut bytes).unwrap();
+    bytes
+}
+
+/// A made mark of another root that lies in the roots folder, so that the
+/// next open of the store runs its cleanup by that mark.
+fn st48_mark_of_another_root(store_dir: &Path, roots_dir: &Path) {
+    let marked = RootId::fresh().unwrap();
+    file_root_custody(roots_dir, TestProtector::new(0x5a).0, marked)
+        .create_root()
+        .unwrap();
+    write_made_mark(
+        store_dir,
+        marked,
+        Some(&roots_dir.join(format!("{marked}.root"))),
+    );
+}
+
+/// Ruling ST-48 U1 (the review's B1, the verifier's D-1): a file of another
+/// party with a second name at a plain name of the roots folder, of a root
+/// file's length and mode 0444, and of 100 bytes and mode 0644, keeps its
+/// mode and its bytes, read through its outside name, after the tail, after
+/// the handle's delete-all and after the open's cleanup; so does a two-name
+/// file of mode 0000. A single-name file of a root file's length and mode
+/// 0000 at a plain name is zeroed and removed.
+#[test]
+fn st48_u1_no_mode_change_at_a_plain_name_before_the_count_and_the_length_pass() {
+    let mut problems = Vec::new();
+    for (len, mode) in [(32usize, 0o444u32), (100, 0o644), (32, 0o000)] {
+        for caller in ["tail", "delete_all", "the open's cleanup"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+            let (outside, bytes, reader) = st48_foreign_file(dir.path(), "outside", len, mode);
+            std::fs::hard_link(&outside, roots_dir.join("plain")).unwrap();
+            let answer = match caller {
+                "tail" => tail(&store_dir, &roots_dir).map(drop),
+                "delete_all" => {
+                    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+                    store.delete_all().map(drop)
+                }
+                _ => {
+                    st48_mark_of_another_root(&store_dir, &roots_dir);
+                    open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+                }
+            };
+            let mode_after = st48_mode(&outside);
+            let bytes_kept = st48_bytes_of(&reader) == bytes;
+            println!(
+                "ST48-U1 len={len} mode={mode:o} caller={caller} answer={answer:?} outside_mode={mode_after:o} outside_bytes_kept={bytes_kept}"
+            );
+            if mode_after != mode || !bytes_kept {
+                problems.push(format!(
+                    "{len} bytes, mode {mode:o}, {caller}: outside mode {mode_after:o}, bytes kept {bytes_kept}"
+                ));
+            }
+        }
+    }
+    for caller in ["tail", "delete_all"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let (single, _, reader) = st48_foreign_file(&roots_dir, "single", 32, 0o000);
+        let answer = match caller {
+            "tail" => tail(&store_dir, &roots_dir).map(drop),
+            _ => {
+                let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+                store.delete_all().map(drop)
+            }
+        };
+        let zeroed = st48_bytes_of(&reader).iter().all(|&b| b == 0);
+        let stands = std::fs::symlink_metadata(&single).is_ok();
+        println!(
+            "ST48-U1-SINGLE caller={caller} answer={answer:?} zeroed={zeroed} stands={stands}"
+        );
+        if !zeroed || stands {
+            problems.push(format!(
+                "a single-name file of mode 0000, {caller}: zeroed {zeroed}, stands {stands}"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
