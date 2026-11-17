@@ -24,6 +24,8 @@ use crate::secure_input_macos::hold::{
     Step, Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
 };
 #[cfg(all(debug_assertions, feature = "stall-seam"))]
+use crate::secure_input_macos::notice::MarkKind;
+#[cfg(all(debug_assertions, feature = "stall-seam"))]
 use crate::secure_input_macos::notice::{Focus, Seen};
 use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
 use crate::secure_input_macos::{
@@ -274,10 +276,10 @@ fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
     else {
         return false;
     };
-    if side != 0 && flags & MODIFIER_SIDE_BITS != 0 {
-        flags & side != 0
-    } else {
+    if side == 0 {
         flags & family != 0
+    } else {
+        flags & side != 0
     }
 }
 
@@ -467,7 +469,7 @@ struct HoldState {
     offset: Option<i128>,
     wake_mark: Option<Uptime>,
     wake_unclocked: bool,
-    notice_seen: u64,
+    notice_seen: Option<Uptime>,
 }
 
 type SharedHold = Arc<Mutex<HoldState>>;
@@ -591,6 +593,7 @@ struct DropFigures {
     by_cause: [AtomicU64; 13],
     widest_gap_ns: AtomicU64,
     late_at_entry: AtomicU64,
+    withheld_by_mark: [AtomicU64; 3],
     log: Mutex<RawLog>,
 }
 
@@ -698,6 +701,23 @@ impl DropCounts {
         if let Some(at) = CAUSES.iter().position(|&(listed, _)| listed == cause) {
             self.0.by_cause[at].fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    fn withheld_by(&self, kind: MarkKind, keys: usize) {
+        let at = match kind {
+            MarkKind::Notice => 0,
+            MarkKind::Doubt => 1,
+            MarkKind::Start => 2,
+        };
+        self.0.withheld_by_mark[at].fetch_add(keys as u64, Ordering::Relaxed);
+    }
+
+    /// The keys withheld because the notice mark moved, by what moved it last:
+    /// a notice of a focus change into a secure field, a doubt, and the read
+    /// at the start of a watch.
+    pub fn withheld_by_mark(&self) -> (u64, u64, u64) {
+        let of = |at: usize| self.0.withheld_by_mark[at].load(Ordering::Relaxed);
+        (of(0), of(1), of(2))
     }
 
     fn late_at_entry(&self) {
@@ -929,13 +949,27 @@ impl TapContext {
             }
         }
         let mark = self.notices.get();
-        if mark > state.notice_seen {
-            state.notice_seen = mark;
-            if let Step::Dropped { keys, cause } = state.keys.noticed() {
+        let doubt = self.notices.doubt();
+        if mark > state.notice_seen || doubt {
+            state.notice_seen = mark.max(state.notice_seen);
+            if let Step::Dropped { keys, cause } = state.keys.noticed(Stamps { before, after }) {
+                #[cfg(all(debug_assertions, feature = "stall-seam"))]
+                if let (Some(drops), Cause::Notice) = (&self.drops, cause) {
+                    drops.withheld_by(self.mark_kind(), keys);
+                }
                 self.dropped(keys, cause);
             }
         }
         (reading, Stamps { before, after })
+    }
+
+    #[cfg(all(debug_assertions, feature = "stall-seam"))]
+    fn mark_kind(&self) -> MarkKind {
+        if self.notices.doubt() {
+            MarkKind::Doubt
+        } else {
+            self.notices.kind()
+        }
     }
 
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1035,6 +1069,9 @@ impl TapContext {
                 #[cfg(all(debug_assertions, feature = "stall-seam"))]
                 if let Some(drops) = &self.drops {
                     drops.count(cause);
+                    if cause == Cause::Notice {
+                        drops.withheld_by(self.mark_kind(), 1);
+                    }
                 }
                 self.counters.withhold();
                 if cause.timing_fault() {
@@ -1167,7 +1204,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             at.after,
             Marks {
                 wake: state.wake_mark,
-                notice: (state.notice_seen > 0).then_some(Uptime::from_nanos(state.notice_seen)),
+                notice: state.notice_seen,
             },
             lag_bound,
         );
@@ -1278,7 +1315,7 @@ fn tap_context(
             offset: None,
             wake_mark: None,
             wake_unclocked: false,
-            notice_seen: 0,
+            notice_seen: None,
         })),
         notices: NoticeMark::new(),
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1736,7 +1773,7 @@ impl InputSource {
             ctx.drops = self.drops.clone();
         }
         let notice = if M::WATCHES_FOCUS {
-            match self.notice_thread(ctx.notices.clone()) {
+            match self.notice_thread(ctx.notices.clone(), notice_clock(&settings)) {
                 Ok(notice) => Some(notice),
                 Err(e) => {
                     self.failure = Some(e.clone());
@@ -1784,7 +1821,11 @@ impl InputSource {
         }
     }
 
-    fn notice_thread(&self, mark: NoticeMark) -> Result<NoticeThread, CaptureError> {
+    fn notice_thread(
+        &self,
+        mark: NoticeMark,
+        uptime: fn() -> Uptime,
+    ) -> Result<NoticeThread, CaptureError> {
         let front: Box<dyn Fn() -> Option<libc::pid_t> + Send> = match self.front {
             Some(front) => Box::new(front),
             None => {
@@ -1801,12 +1842,14 @@ impl InputSource {
         };
         #[cfg(not(all(debug_assertions, feature = "stall-seam")))]
         let on_notice: crate::secure_input_macos::notice::OnNotice = Box::new(|_, _| {});
-        NoticeThread::spawn(front, mark, notice_uptime, on_notice).map_err(spawn_failure)
+        NoticeThread::spawn(front, mark, uptime, on_notice).map_err(spawn_failure)
     }
 }
 
-fn notice_uptime() -> u64 {
-    uptime_raw().nanos()
+/// The clock of the notice mark: the reader that gives an event's entry its
+/// OS time, so that a mark and a key's time are read on one clock.
+fn notice_clock(settings: &TapSettings) -> fn() -> Uptime {
+    settings.clocks.os_time
 }
 
 impl CaptureSource for InputSource {
@@ -2011,7 +2054,7 @@ mod tests {
         NOTICE_AT_ASK.with(|notice| {
             if let Some((at, mark)) = &*notice.borrow() {
                 if *at == asked {
-                    mark.mark(UPTIME.with(Cell::get));
+                    mark.mark(Uptime::from_nanos(UPTIME.with(Cell::get)), MarkKind::Notice);
                 }
             }
         });
@@ -3080,7 +3123,8 @@ mod tests {
     }
 
     fn mark_now(ctx: &TapContext) {
-        ctx.notices.mark(now_uptime());
+        ctx.notices
+            .mark(Uptime::from_nanos(now_uptime()), MarkKind::Notice);
     }
 
     #[test]
@@ -3166,6 +3210,182 @@ mod tests {
             keystrokes(&held.writer),
             0,
             "every reading read off, and the notice of the focus change into the secure field dropped the keys"
+        );
+    }
+
+    fn outcome_of(held: &Held) -> (usize, bool, bool, u64) {
+        (
+            held_now(&held.ctx),
+            held.counters.figures().keys_withheld,
+            held.counters.stalled(),
+            held.counters.figures().late_events,
+        )
+    }
+
+    #[test]
+    fn a_late_key_not_after_a_notice_mark_stalls_and_counts_as_with_no_mark() {
+        let mut outcomes = Vec::new();
+        for with_mark in [false, true] {
+            let held = held(1_000);
+            key_down(&held.ctx);
+            advance(1);
+            if with_mark {
+                mark_now(&held.ctx);
+            }
+            on_tap_event(
+                &held.ctx,
+                timed(
+                    CGEventType::KeyDown,
+                    Timing::Late {
+                        lag: Duration::from_millis(300),
+                    },
+                ),
+            );
+            let outcome = outcome_of(&held);
+            ticks(&held.ctx, 2_000);
+            outcomes.push((outcome, keystrokes(&held.writer)));
+        }
+        assert_eq!(outcomes[0], outcomes[1], "with no mark, then with a mark");
+        assert!(outcomes[1].0 .2, "a late key stalls the source");
+        assert_eq!(
+            outcomes[1].0 .3, 1,
+            "a key 300 ms late counts in late_events"
+        );
+    }
+
+    #[test]
+    fn a_gap_of_readings_with_a_notice_mark_inside_it_stalls_as_with_no_mark() {
+        let mut outcomes = Vec::new();
+        for with_mark in [false, true] {
+            let held = held(1_000);
+            key_down(&held.ctx);
+            advance(31);
+            if with_mark {
+                mark_now(&held.ctx);
+            }
+            on_reading_tick(&held.ctx);
+            let outcome = outcome_of(&held);
+            ticks(&held.ctx, 2_000);
+            outcomes.push((outcome, keystrokes(&held.writer)));
+        }
+        assert_eq!(outcomes[0], outcomes[1], "with no mark, then with a mark");
+        assert!(outcomes[1].0 .2, "a gap stalls the source");
+    }
+
+    #[test]
+    fn a_key_ripe_for_release_whose_reading_sees_a_new_mark_is_dropped_and_not_released() {
+        let held = held(100);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 90);
+        assert_eq!(keystrokes(&held.writer), 0);
+        let asked_before = asked();
+        NOTICE_AT_ASK
+            .with(|at| *at.borrow_mut() = Some((asked_before + 1, held.ctx.notices.clone())));
+        tick(&held.ctx);
+        NOTICE_AT_ASK.with(|at| *at.borrow_mut() = None);
+        assert_eq!(
+            asked(),
+            asked_before + 1,
+            "one reading, at which the key was ripe"
+        );
+        assert_eq!(
+            keystrokes(&held.writer),
+            0,
+            "the reading saw the mark before any release"
+        );
+        assert_eq!(held_now(&held.ctx), 0);
+    }
+
+    #[test]
+    fn a_late_key_at_a_stop_between_the_lag_and_the_gap_bound_counts_as_late() {
+        let held = slow_held(1_000);
+        lock(&held.ctx.hold).keys = HeldKeys::new(Bounds {
+            hold: Duration::from_millis(1_000),
+            gap: Duration::from_millis(1_000),
+            lag: Duration::from_millis(30),
+            cap: 64,
+        });
+        let stop = held.ctx.stop.clone();
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, stop)));
+        advance(1);
+        let typed = now_uptime() - 300 * MS;
+        key_with_os_time(&held.ctx, typed);
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = None);
+        assert_eq!(
+            held.counters.figures().late_events,
+            1,
+            "300 ms late at a stop, under a lag bound of 30 ms and a gap bound of 1,000 ms"
+        );
+    }
+
+    #[test]
+    fn the_seam_counts_the_keys_withheld_by_each_kind_of_mark() {
+        for (kind, want) in [
+            (MarkKind::Notice, (3, 0, 0)),
+            (MarkKind::Doubt, (0, 3, 0)),
+            (MarkKind::Start, (0, 0, 3)),
+        ] {
+            let (held, drops) = seam_held(100);
+            key_down(&held.ctx);
+            key_down(&held.ctx);
+            advance(1);
+            let at = now_uptime();
+            held.ctx.notices.mark(Uptime::from_nanos(at), kind);
+            tick(&held.ctx);
+            assert_eq!(held_now(&held.ctx), 0, "{kind:?}: the reading drops both");
+            advance(1);
+            key_with_os_time(&held.ctx, at);
+            assert_eq!(
+                held_now(&held.ctx),
+                0,
+                "{kind:?}: a key not after the mark is withheld"
+            );
+            assert_eq!(drops.withheld_by_mark(), want, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn a_standing_doubt_drops_the_held_keys_at_every_reading_until_it_ends() {
+        let (held, drops) = seam_held(100);
+        held.ctx.notices.set_doubt(true);
+        for _ in 0..3 {
+            key_down(&held.ctx);
+            tick(&held.ctx);
+            assert_eq!(held_now(&held.ctx), 0, "each reading drops what was held");
+        }
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 0);
+        assert!(held.counters.figures().keys_withheld);
+        assert!(!held.counters.stalled(), "a doubt is no timing fault");
+        assert_eq!(
+            drops.withheld_by_mark().1,
+            3,
+            "counted as withheld by doubt"
+        );
+        held.ctx.notices.set_doubt(false);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 300);
+        assert_eq!(
+            keystrokes(&held.writer),
+            1,
+            "after the doubt a key is released at the bound"
+        );
+    }
+
+    #[test]
+    fn the_notice_mark_is_read_on_the_clock_of_an_events_os_time() {
+        reset_stand_ins();
+        MONOTONIC.with(|now| now.set(START + 10_000 * MS));
+        let settings = stand_in_settings();
+        let clock = notice_clock(&settings);
+        assert_eq!(
+            clock(),
+            Uptime::from_nanos(START),
+            "the uptime side, 10 s from the stamps"
+        );
+        assert_eq!(
+            (settings.clocks.stamps)(),
+            Monotonic::from_nanos(START + 10_000 * MS)
         );
     }
 
@@ -3336,8 +3556,8 @@ mod tests {
             (
                 LEFT_SHIFT,
                 shift,
-                Kind::Key,
-                "a posted shift press, with no device bits",
+                Kind::Reading,
+                "a posted shift press, with no device bits, is a reading alone (ruling MA-30 M1)",
             ),
             (LEFT_SHIFT, 0x100, Kind::Reading, "a posted shift release"),
             (0x39, 0x1_0000, Kind::Key, "caps lock turned on"),
@@ -3354,6 +3574,105 @@ mod tests {
         for (key_code, bits, kind, what) in rows {
             assert_eq!(kind_of(flags, Some(key_code), bits), kind, "{what}");
         }
+    }
+
+    #[test]
+    fn posted_shift_presses_and_a_release_while_the_other_stays_down_record_at_most_two() {
+        let shift = 0x2_0000;
+        let posted = [
+            (LEFT_SHIFT, shift | 0x100),
+            (RIGHT_SHIFT, shift | 0x100),
+            (LEFT_SHIFT, shift | 0x100),
+            (RIGHT_SHIFT, 0x100),
+        ];
+        for reading in [Reading::Off, Reading::On] {
+            let held = held(100);
+            answer(reading);
+            for (code, flags) in posted {
+                advance(1);
+                on_tap_event(&held.ctx, with_key(CGEventType::FlagsChanged, code, flags));
+            }
+            answer(Reading::Off);
+            ticks(&held.ctx, 300);
+            let recorded = keystrokes(&held.writer);
+            assert!(recorded <= 2, "{reading:?}: recorded {recorded}");
+            if reading == Reading::On {
+                assert_eq!(recorded, 0, "nothing under a reading of On");
+            }
+        }
+        assert_eq!(
+            kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), shift | 0x100),
+            Kind::Reading,
+            "the left release while the right stays down is no press"
+        );
+    }
+
+    #[test]
+    fn a_posted_release_with_no_event_before_it_reads_no_press_with_its_family_bit_clear_or_set() {
+        let shift = 0x2_0000;
+        for flags in [0x100, shift | 0x100] {
+            assert_eq!(
+                kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), flags),
+                Kind::Reading,
+                "flags {flags:#x}"
+            );
+            let held = held(100);
+            advance(1);
+            on_tap_event(
+                &held.ctx,
+                with_key(CGEventType::FlagsChanged, LEFT_SHIFT, flags),
+            );
+            assert_eq!(held_now(&held.ctx), 0, "flags {flags:#x}");
+        }
+    }
+
+    #[test]
+    fn every_modifier_key_reads_its_press_and_release_by_its_own_bit() {
+        let flags = CGEventType::FlagsChanged;
+        let mut checked = 0;
+        for &(code, side, family) in &MODIFIER_KEYS {
+            assert_eq!(
+                kind_of(flags, Some(code), 0),
+                Kind::Reading,
+                "{code:#x} released"
+            );
+            if side == 0 {
+                assert_eq!(
+                    kind_of(flags, Some(code), family),
+                    Kind::Key,
+                    "{code:#x} on by its family bit"
+                );
+                assert_eq!(
+                    kind_of(flags, Some(code), 0x100),
+                    Kind::Reading,
+                    "{code:#x} off"
+                );
+            } else {
+                assert_eq!(
+                    kind_of(flags, Some(code), family | side),
+                    Kind::Key,
+                    "{code:#x} pressed with its device bit"
+                );
+                let others = MODIFIER_SIDE_BITS & !side;
+                assert_eq!(
+                    kind_of(flags, Some(code), family | others),
+                    Kind::Reading,
+                    "{code:#x} released while the other device bits stay set"
+                );
+                assert_eq!(
+                    kind_of(flags, Some(code), family | 0x100),
+                    Kind::Reading,
+                    "{code:#x} posted with its family bit alone"
+                );
+                assert_eq!(
+                    kind_of(flags, Some(code), 0x100),
+                    Kind::Reading,
+                    "{code:#x} posted release"
+                );
+            }
+            checked += 1;
+        }
+        assert_eq!(checked, 10);
     }
 
     #[test]

@@ -52,7 +52,7 @@ pub const LATE_BOUND: Duration = Duration::from_millis(250);
 /// A time in nanoseconds on CLOCK_MONOTONIC_RAW, which goes on while the Mac
 /// sleeps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Monotonic(pub(crate) u64);
+pub struct Monotonic(u64);
 
 impl Monotonic {
     /// The time `ns` nanoseconds after the clock's origin.
@@ -68,7 +68,7 @@ impl Monotonic {
 
 /// A time in nanoseconds on CLOCK_UPTIME_RAW, the clock of an event's OS time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Uptime(pub(crate) u64);
+pub struct Uptime(u64);
 
 impl Uptime {
     /// The time `ns` nanoseconds after the clock's origin.
@@ -150,6 +150,12 @@ pub enum Verdict {
     Wait,
 }
 
+fn in_time(previous: Option<Monotonic>, at: Stamps, bounds: &Bounds) -> bool {
+    previous.is_some_and(|previous| {
+        at.after >= previous && Duration::from_nanos(at.after.0 - previous.0) <= bounds.gap
+    })
+}
+
 pub fn decide(
     oldest: Option<Monotonic>,
     previous: Option<Monotonic>,
@@ -160,10 +166,7 @@ pub fn decide(
     let Some(oldest) = oldest else {
         return Verdict::Wait;
     };
-    let in_time = previous.is_some_and(|previous| {
-        at.after >= previous && Duration::from_nanos(at.after.0 - previous.0) <= bounds.gap
-    });
-    if !in_time {
+    if !in_time(previous, at, bounds) {
         return Verdict::Drop(Cause::Gap);
     }
     match reading {
@@ -228,9 +231,10 @@ pub fn timing(arrival: Uptime, os_time: Uptime, lag_bound: Duration) -> Timing {
 /// The timing of a key event at the end of its own reading of the state,
 /// whose after stamp is `after`. Untimed as at the entry; asleep when its OS
 /// time is not after `wake_mark`; noticed when it is not after `notice_mark`,
-/// the uptime of the newest notice of a focus change into a secure field;
 /// otherwise its lag is the lag at the entry and the time from the entry's
-/// monotonic stamp to `after`, late above `lag_bound`.
+/// monotonic stamp to `after`, late above `lag_bound`; a key in time whose OS
+/// time is not after `notice_mark`, the uptime of the newest notice of a focus
+/// change into a secure field, is noticed. A notice mark hides no lateness.
 pub fn timing_at_reading(
     entry: Entry,
     os_time: Uptime,
@@ -244,16 +248,15 @@ pub fn timing_at_reading(
     if marks.wake.is_some_and(|mark| os_time <= mark) {
         return Timing::Asleep;
     }
-    if marks.notice.is_some_and(|mark| os_time <= mark) {
-        return Timing::Noticed;
-    }
     let lag = Duration::from_nanos(entry.uptime.0 - os_time.0)
         + Duration::from_nanos(after.0.saturating_sub(entry.monotonic.0));
     if lag > lag_bound {
-        Timing::Late { lag }
-    } else {
-        Timing::InTime { lag }
+        return Timing::Late { lag };
     }
+    if marks.notice.is_some_and(|mark| os_time <= mark) {
+        return Timing::Noticed;
+    }
+    Timing::InTime { lag }
 }
 
 /// The two marks against which a key event's OS time is read: the uptime of
@@ -356,12 +359,19 @@ impl<T> HeldKeys<T> {
         }
     }
 
-    /// Takes a notice of a focus change into a secure field: every held key is
-    /// dropped and none is released.
-    pub fn noticed(&mut self) -> Step<T> {
+    /// Takes a notice of a focus change into a secure field, read by the
+    /// reading whose stamps are `at`: every held key is dropped and none is
+    /// released. When that reading came further than the gap bound after the
+    /// last one, the drop has the cause gap, as the gap rule would give it.
+    pub fn noticed(&mut self, at: Stamps) -> Step<T> {
+        let cause = if !self.keys.is_empty() && !in_time(self.previous, at, &self.bounds) {
+            Cause::Gap
+        } else {
+            Cause::Notice
+        };
         Step::Dropped {
             keys: self.drop_all(),
-            cause: Cause::Notice,
+            cause,
         }
     }
 
@@ -969,15 +979,24 @@ mod tests {
     fn a_notice_drops_every_held_key_with_the_cause_notice_and_releases_none() {
         let mut hold = held(&[0, 1, 2]);
         assert_eq!(
-            hold.noticed(),
+            hold.noticed(both(at(3))),
             Step::Dropped {
                 keys: 3,
                 cause: Cause::Notice
             }
         );
         assert!(hold.is_empty());
+        let mut late = held(&[0]);
         assert_eq!(
-            hold.noticed(),
+            late.noticed(both(at(31))),
+            Step::Dropped {
+                keys: 1,
+                cause: Cause::Gap
+            },
+            "a reading out of time drops the held keys for the gap"
+        );
+        assert_eq!(
+            hold.noticed(both(at(3))),
             Step::Dropped {
                 keys: 0,
                 cause: Cause::Notice
@@ -1027,6 +1046,13 @@ mod tests {
                 lag
             ),
             Timing::Asleep
+        );
+        assert_eq!(
+            timing_at_reading(entry, Uptime(50 * MS), after, notice(90), lag),
+            Timing::Late {
+                lag: Duration::from_millis(51)
+            },
+            "a notice mark hides no lateness"
         );
         assert_eq!(Timing::Noticed.refusal(), Some(Cause::Notice));
     }
