@@ -10317,3 +10317,46 @@ fn st48_u3_no_form_of_the_answer_holds_the_name_of_a_folder_in_the_roots_folder(
         "a form of the answer holds the name of a folder that the person named"
     );
 }
+
+/// Ruling PR-30 PR9 (4): an open whose read-back of synchronous or of
+/// fullfsync differs from what it set is refused by that setting's name, and
+/// the open in which both read back as set opens with synchronous FULL and
+/// fullfsync on.
+#[test]
+fn an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut answers = Vec::new();
+    for (statement, name) in [
+        ("PRAGMA synchronous = NORMAL;", "synchronous"),
+        ("PRAGMA fullfsync = OFF;", "fullfsync"),
+    ] {
+        let opened = {
+            let _seam = super::db::read_back_seam::before_the_read_backs(move |conn| {
+                conn.execute_batch(statement).unwrap();
+            });
+            open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+        };
+        println!("PR9-READ-BACK changed={statement} answer={opened:?}");
+        answers.push((name, opened));
+    }
+    let control = open_over_file_root(&store_dir, &roots_dir, root_id);
+    let settings = control.as_ref().ok().map(|store| {
+        let db = store.db().unwrap();
+        (
+            db.pragma_int("synchronous").unwrap(),
+            db.pragma_int("fullfsync").unwrap(),
+        )
+    });
+    println!(
+        "PR9-READ-BACK control answer={:?} synchronous_and_fullfsync={settings:?}",
+        control.as_ref().map(drop)
+    );
+    for (name, opened) in answers {
+        assert!(
+            matches!(&opened, Err(StoreError::SettingNotInEffect(read)) if *read == name),
+            "an open whose {name} read back otherwise answered {opened:?}"
+        );
+    }
+    assert_eq!(settings, Some((2, 1)));
+}

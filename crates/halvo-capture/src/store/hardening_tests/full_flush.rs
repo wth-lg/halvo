@@ -169,6 +169,37 @@ fn step<T>(flushes: &Flushes, kind: &str, act: impl FnOnce() -> T) -> (T, Vec<St
     (answer, on, plain)
 }
 
+fn count_of(on: &[String], name: &str) -> usize {
+    on.iter().filter(|path| path.as_str() == name).count()
+}
+
+fn a_store(top: &Path, name: &str) -> (PathBuf, PathBuf, RootId) {
+    let (store_dir, roots_dir) = (top.join(name).join("store"), top.join(name).join("roots"));
+    std::fs::create_dir(top.join(name)).unwrap();
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    drop(EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap());
+    (store_dir, roots_dir, root_id)
+}
+
+fn commit_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
+    let ((store_dir, roots_dir, root_id), _, _) =
+        step(flushes, "create", || a_store(top, "commit"));
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    for round in 1..=2u8 {
+        let (written, on, plain) = step(flushes, &format!("write_batch {round}"), || {
+            store.write_segment(&mut Cursor::new(vec![round; 4096]))
+        });
+        let log = count_of(&on, "commit/store/store.db-wal");
+        if written.is_err() || log == 0 || plain != 0 {
+            problems.push(format!(
+                "write {round} answered {:?} with {log} full flushes of the log and {plain} plain fsync: its commit does not reach the drive",
+                written.map(drop)
+            ));
+        }
+    }
+}
+
 fn helper_write(dir: &Dir, temp: &str, target: &str) -> io::Result<()> {
     durable::write_durably(
         &OsFs,
@@ -260,6 +291,7 @@ fn full_flush_child_for_parent() {
     let mut problems = Vec::new();
     match group.as_str() {
         "helper" => helper_group(&top, &flushes, &mut problems),
+        "commit" => commit_group(&top, &flushes, &mut problems),
         other => panic!("no group {other}"),
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -326,4 +358,11 @@ fn run_child(group: &str) {
 #[test]
 fn each_write_of_the_durable_helper_makes_the_full_flush_call_and_refuses_when_it_fails() {
     run_child("helper");
+}
+
+/// Ruling PR-30 PR9 (4): the commit of each write of the store reaches the
+/// drive: its log is flushed with the full-flush call and with no plain fsync.
+#[test]
+fn each_commit_of_the_store_flushes_its_log_with_the_full_flush_call() {
+    run_child("commit");
 }
