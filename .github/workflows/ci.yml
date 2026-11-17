@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,51 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 51-macos-stall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 51-macos-stall
+      - name: Loop of the new tests
+        if: always()
+        shell: bash
+        timeout-minutes: 45
+        run: |
+          set +e
+          out=target/ci-artifacts/loop
+          mkdir -p "$out"
+          cargo test --locked -p halvo-capture --lib --test macos_stall_fixture --no-run --message-format json >"$RUNNER_TEMP/loop-build.json" 2>"$out/build.err"
+          echo "loop build exit=$?"
+          lib=$(sed -n 's/.*"kind":\["lib"\].*"name":"halvo_capture".*"executable":"\([^"]*\)".*/\1/p' "$RUNNER_TEMP/loop-build.json" | tail -n 1)
+          exe=$(sed -n 's/.*"name":"macos_stall_fixture".*"executable":"\([^"]*\)".*/\1/p' "$RUNNER_TEMP/loop-build.json" | tail -n 1)
+          clang -fobjc-arc -Wall -Wextra -Werror -O1 -framework AppKit -framework Carbon -framework CoreGraphics -o "$RUNNER_TEMP/stall-fixture" crates/halvo-capture/tests/macos_stall_fixture/fixture.m
+          bad=0
+          count_loop() {
+            name=$1; want=$2; times=$3; shift 3
+            passed=0
+            for round in $(seq 1 "$times"); do
+              "$@" >"$RUNNER_TEMP/loop-$name.txt" 2>&1
+              grep -q "^test result: ok. $want passed; 0 failed" "$RUNNER_TEMP/loop-$name.txt" && passed=$((passed + 1))
+            done
+            cp "$RUNNER_TEMP/loop-$name.txt" "$out/last-$name.txt"
+            echo "loop $name: passed $passed of $times (counted by the result line with $want passed)"
+            [ "$passed" = "$times" ] || bad=1
+          }
+          count_loop lib-unit 16 200 "$lib" --exact macos::input::tests::a_modifier_press_through_the_events_own_fields_is_read_from_its_key_code macos::input::tests::a_notice_drops_every_held_key_at_the_next_reading_and_sets_keys_withheld_and_not_the_stalled_flag macos::input::tests::a_key_whose_time_is_not_after_the_notice_mark_is_withheld_and_a_key_after_it_is_held macos::input::tests::a_notice_drops_the_held_keys_once_and_the_keys_after_it_are_released macos::input::tests::a_notice_inside_the_release_loop_drops_the_keys_behind_the_emitted_one macos::input::tests::a_notice_drops_the_keys_of_an_on_time_that_fell_between_two_readings macos::input::tests::only_the_systems_tap_maker_watches_the_focus macos::input::tests::status_never_sees_the_drop_counts_of_the_seam macos::input::tests::the_seam_counts_a_notice_drop_by_its_cause_and_enters_it secure_input::macos::tests::a_notice_marks_for_a_secure_field_and_a_doubt_and_not_for_another_element secure_input::macos::tests::the_notice_mark_only_moves_forward secure_input::macos::hold::tests::a_notice_drops_every_held_key_with_the_cause_notice_and_releases_none secure_input::macos::hold::tests::a_key_not_after_the_notice_mark_is_noticed_after_the_untimed_and_the_asleep_reads macos::input::tests::a_modifier_change_after_a_doubt_is_read_from_its_own_key_code_and_flag_bit macos::input::tests::a_modifier_release_with_no_event_before_it_reads_no_press macos::input::tests::the_source_holds_a_key_down_and_a_modifier_press_and_nothing_else_of_the_keys 
+          count_loop stall-tables 2 200 "$exe" --exact the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_its_clock the_verdict_of_a_short_on_time_at_the_products_constants_holds_each_rule_on_a_table
+          export HALVO_STALL_FIXTURE="$RUNNER_TEMP/stall-fixture" HALVO_STALL_GAP_MS=200
+          count_loop short-on-time 1 20 "$exe" --ignored --exact --nocapture --test-threads=1 a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of_two_readings_is_not_recorded
+          count_loop lag 1 20 "$exe" --ignored --exact --nocapture --test-threads=1 a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded
+          count_loop product-constants 1 20 "$exe" --ignored --exact --nocapture --test-threads=1 at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded
+          exit "$bad"
+      - name: Rows of the unit by name
+        if: always()
+        shell: bash
+        timeout-minutes: 50
+        run: sh scripts/r1-gate/mutation-test.sh --only wake-mark-against-the-entry-stamp ma24-asleep-read-after-the-lag notice-drops-nothing notice-mark-read-strictly notice-refuses-nothing notice-as-a-timing-fault notice-sets-no-keys-withheld notice-doubt-marks-nothing notice-error-read-as-another-element notice-secure-subrole-read-as-another notice-mark-moves-back lag-stamp-before-the-state-read notice-not-read-at-a-reading notice-read-again-at-every-reading notice-seen-not-kept notice-mark-not-handed-to-the-timing system-tap-maker-watches-no-focus released-modifier-recorded modifier-read-by-its-family-with-device-bits modifier-key-code-not-read modifier-of-another-key-code-read seam-count-reaches-the-status late-key-releases-the-due-key untimed-key-releases-the-due-key late-key-up-drops-nothing l4-untimed-key-up-drops-nothing session-read-at-every-reading entry-stamp-on-the-uptime-clock l5-own-take-stamp-is-not-its-own stop-not-read-at-an-event stop-not-read-at-a-tick l5-stop-at-a-tick-enters-no-drop l5-stop-at-an-event-enters-no-drop ma24-release-loop-reads-after-an-emit-before-the-stop l4-key-up-with-a-new-modifier-bit-is-a-press 
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -153,21 +180,13 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
