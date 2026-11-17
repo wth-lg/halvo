@@ -672,6 +672,8 @@ mod tests {
             format!("#[cfg(test)]\nmod tests {{\n    #[cfg(windows)]\n    mod inner {{\n    {right}    }}\n}}\n"),
             format!("#[cfg(test)]\nmod other {{\n{right}}}\n"),
             format!("mod tests {{\n{right}}}\n"),
+            format!("#![cfg(windows)]\n\nuse std::io;\n\n#[cfg(test)]\nmod tests {{\n{right}}}\n"),
+            format!("use std::io;\nmod tests {{\n{right}}}\n"),
             format!("/*\n#[cfg(test)]\nmod tests {{\n{right}}}\n*/\n"),
             format!("#[cfg(test)]\nmod tests {{\n    /*\n{right}    */\n}}\n"),
             format!("macro_rules! never {{\n    () => {{\n{right}    }};\n}}\n"),
