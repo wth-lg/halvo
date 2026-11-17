@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=52
+failing_fixtures=54
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 shutdown_line='TF shutdown source='
@@ -144,6 +144,8 @@ EOF
 ledger_paths() {
   cat <<'EOF'
 scripts/r1/ci.d/50-windows-functional.sh
+crates/halvo-control
+crates/halvo-sqlcipher
 EOF
 }
 
@@ -307,7 +309,7 @@ ledger_check() {
   [ -n "$recorded" ] || fail "$ledger records no id of the windows lines of Cargo.lock: $fix"
   [ "$recorded" = "$head_id" ] ||
     fail "the measured run $run ran on other windows lines of Cargo.lock than the head's ($recorded against $head_id): $fix"
-  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check and of the windows lines of Cargo.lock\n' "$run" "$total"
+  printf 'ledger: the measured run %s of the long form, attempt %s, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check, of crates/halvo-control and crates/halvo-sqlcipher, which the Windows build of the capture crate compiles, and of the windows lines of Cargo.lock\n' "$run" "$total"
 }
 
 loops() {
@@ -997,6 +999,11 @@ make_ledger_repo() {
   printf 'pub mod windows;\n' >"$repo/crates/halvo-capture/src/secure_input.rs" || exit 2
   printf 'fn t() {}\n' >"$repo/crates/halvo-capture/tests/windows_functional.rs" || exit 2
   printf '[package]\nname = "halvo-capture"\n' >"$repo/crates/halvo-capture/Cargo.toml" || exit 2
+  for crate in halvo-control halvo-sqlcipher halvo-route; do
+    mkdir -p "$repo/crates/$crate/src" || exit 2
+    printf '[package]\nname = "%s"\n' "$crate" >"$repo/crates/$crate/Cargo.toml" || exit 2
+    printf 'pub fn c() {}\n' >"$repo/crates/$crate/src/lib.rs" || exit 2
+  done
   printf '#!/bin/sh\n' >"$repo/scripts/r1/ci.d/50-windows-functional.sh" || exit 2
   printf '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "windows"\nversion = "0.62.2"\n' \
     >"$repo/Cargo.lock" || exit 2
@@ -1056,7 +1063,8 @@ make_ledger_repo() {
     git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
       -c commit.gpgsign=false commit -q -m "the macOS cfg line moved" || exit 2
   ) || exit 2
-  for case_repo in mac-unit-changed hold-without-path hold-named-elsewhere inner-cfg-gone build-script rust-in-fixture; do
+  for case_repo in mac-unit-changed hold-without-path hold-named-elsewhere inner-cfg-gone build-script rust-in-fixture \
+    control-changed sqlcipher-changed other-crate-changed; do
     git clone -q "$repo" "$work/repo-$case_repo" || exit 2
     mkdir -p "$work/repo-$case_repo/docs/baseline/ledger.d" || exit 2
     cp "$right_ledger" "$work/repo-$case_repo/docs/baseline/ledger.d/win-3.txt" || exit 2
@@ -1073,6 +1081,9 @@ make_ledger_repo() {
         inner-cfg-gone) printf 'fn f() {}\n' >tests/macos_stall_fixture.rs ;;
         build-script) printf 'fn main() {}\n' >build.rs ;;
         rust-in-fixture) printf 'fn g() {}\n' >tests/macos_stall_fixture/more.rs ;;
+        control-changed) printf 'pub fn c() { let _ = 4; }\n' >../halvo-control/src/lib.rs ;;
+        sqlcipher-changed) printf '[package]\nname = "halvo-sqlcipher"\nbuild = "build.rs"\n' >../halvo-sqlcipher/Cargo.toml ;;
+        other-crate-changed) printf 'pub fn c() { let _ = 5; }\n' >../halvo-route/src/lib.rs ;;
       esac || exit 2
       git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
         -c commit.gpgsign=false commit -q -m "$case_repo" || exit 2
@@ -1105,7 +1116,7 @@ self_test() {
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
   if [ "$group" = browser ]; then
     set_of_fixtures=browser_fixtures
-    failing_fixtures=5
+    failing_fixtures=6
   else
     set_of_fixtures=fixtures
   fi
@@ -1158,6 +1169,11 @@ browser_fixtures() {
   ledger_knob=$work/ledger-sums
   check the-two-scripts-lines-do-not-sum-to-the-ledgers FAIL "c1_raw_input|pass${nl}browser::a_page_test|pass" \
     "do not sum to its whole line in: known_defect"
+  expected=$mixed
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-control-changed
+  check a-changed-halvo-control-is-refused-by-the-browser-script FAIL "$mixed_spec" \
+    "FAIL 52-windows-browser (the measured run 6 ran on another crates/halvo-control than the head's"
 }
 
 fixtures() {
@@ -1305,6 +1321,17 @@ fixtures() {
   ledger_knob=$right_ledger
   repo_knob=$work/repo-rust-in-fixture
   check a-rust-file-under-the-stall-fixture-is-refused FAIL "$right" "crates/halvo-capture/tests/macos_stall_fixture holds Rust files, which a test target can compile: crates/halvo-capture/tests/macos_stall_fixture/more.rs"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-control-changed
+  check a-changed-halvo-control-is-refused FAIL "$right" "the measured run 6 ran on another crates/halvo-control than the head's"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-sqlcipher-changed
+  check a-changed-halvo-sqlcipher-is-refused FAIL "$right" "the measured run 6 ran on another crates/halvo-sqlcipher than the head's"
+  ledger_knob=$right_ledger
+  repo_knob=$work/repo-other-crate-changed
+  check a-changed-crate-outside-the-bound-trees-is-not-refused PASS "$right" \
+    "${nl}ledger: the measured run 6 of the long form, attempt 2, ran on what the head has of crates/halvo-capture without its macOS-only paths, of the check, of crates/halvo-control and crates/halvo-sqlcipher, which the Windows build of the capture crate compiles, and of the windows lines of Cargo.lock${nl}" \
+    "${nl}PASS $name"
   ledger_knob=$work/ledger-lock
   check the-ledger-holds-other-windows-lock-lines FAIL "$right" "the measured run 6 ran on other windows lines of Cargo.lock than the head's"
   ledger_knob=$work/ledger-paths
