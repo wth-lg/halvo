@@ -90,6 +90,9 @@ pub enum Cause {
     Unclocked,
     Stop,
     Refused,
+    /// A queued notice of a focus change into a secure field of the program
+    /// in front, or of a focus that did not answer in time.
+    Notice,
 }
 
 impl Cause {
@@ -158,6 +161,7 @@ pub enum Timing {
     Untimed,
     Asleep,
     Unclocked,
+    Noticed,
 }
 
 impl Timing {
@@ -169,6 +173,7 @@ impl Timing {
             Self::Untimed => Some(Cause::UntimedKey),
             Self::Asleep => Some(Cause::Sleep),
             Self::Unclocked => Some(Cause::Unclocked),
+            Self::Noticed => Some(Cause::Notice),
         }
     }
 }
@@ -198,21 +203,25 @@ pub fn timing(arrival: Uptime, os_time: Uptime, lag_bound: Duration) -> Timing {
 
 /// The timing of a key event at the end of its own reading of the state,
 /// whose after stamp is `after`. Untimed as at the entry; asleep when its OS
-/// time is not after `wake_mark`; otherwise its lag is the lag at the entry and
-/// the time from the entry's monotonic stamp to `after`, late above
-/// `lag_bound`.
+/// time is not after `wake_mark`; noticed when it is not after `notice_mark`,
+/// the uptime of the newest notice of a focus change into a secure field;
+/// otherwise its lag is the lag at the entry and the time from the entry's
+/// monotonic stamp to `after`, late above `lag_bound`.
 pub fn timing_at_reading(
     entry: Entry,
     os_time: Uptime,
     after: Monotonic,
-    wake_mark: Option<Uptime>,
+    marks: Marks,
     lag_bound: Duration,
 ) -> Timing {
     if os_time.0 == 0 || os_time > entry.uptime {
         return Timing::Untimed;
     }
-    if wake_mark.is_some_and(|mark| os_time <= mark) {
+    if marks.wake.is_some_and(|mark| os_time <= mark) {
         return Timing::Asleep;
+    }
+    if marks.notice.is_some_and(|mark| os_time <= mark) {
+        return Timing::Noticed;
     }
     let lag = Duration::from_nanos(entry.uptime.0 - os_time.0)
         + Duration::from_nanos(after.0.saturating_sub(entry.monotonic.0));
@@ -221,6 +230,15 @@ pub fn timing_at_reading(
     } else {
         Timing::InTime { lag }
     }
+}
+
+/// The two marks against which a key event's OS time is read: the uptime of
+/// the last wake of the Mac that a reading saw, and the uptime of the newest
+/// notice of a focus change into a secure field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Marks {
+    pub wake: Option<Uptime>,
+    pub notice: Option<Uptime>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -311,6 +329,15 @@ impl<T> HeldKeys<T> {
                 cause,
             },
             None => Step::Waiting,
+        }
+    }
+
+    /// Takes a notice of a focus change into a secure field: every held key is
+    /// dropped and none is released.
+    pub fn noticed(&mut self) -> Step<T> {
+        Step::Dropped {
+            keys: self.drop_all(),
+            cause: Cause::Notice,
         }
     }
 

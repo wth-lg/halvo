@@ -54,12 +54,12 @@ static NSString *const VERB_CLICK_TAKES_NO_STAMP = @"click";
 static const char *commandKind(NSString *verb) {
     static const char *const known[] = {
         "state", "plain", "secure", "clear", "which", "where", "stall", "hide",
-        "away", "activate", "autoleave", "stamps", "quit",
+        "away", "activate", "autoleave", "stamps", "quit", "blink", "leave",
     };
     static const char *const kinds[] = {
         "cmd_state", "cmd_plain", "cmd_secure", "cmd_clear", "cmd_which", "cmd_where",
         "cmd_stall", "cmd_hide", "cmd_away", "cmd_activate", "cmd_autoleave", "cmd_stamps",
-        "cmd_quit",
+        "cmd_quit", "cmd_blink", "cmd_leave",
     };
     for (size_t i = 0; i < sizeof known / sizeof known[0]; i++) {
         if (strcmp(verb.UTF8String, known[i]) == 0) return kinds[i];
@@ -272,6 +272,22 @@ static void handle(NSString *line) {
     } else if ([verb isEqualToString:@"autoleave"] && words.count >= 2) {
         autoleaveMs = words[1].intValue;
         say([NSString stringWithFormat:@"autoleave=%ld", autoleaveMs]);
+    } else if ([verb isEqualToString:@"blink"]) {
+        stamp("blink_before", 0);
+        [window makeFirstResponder:secureField];
+        stamp("blink_secure", 0);
+        [window makeFirstResponder:plainField];
+        stamp("blink_after", 0);
+        say([NSString stringWithFormat:@"blinked at=%llu", uptime_ns()]);
+    } else if ([verb isEqualToString:@"leave"] && words.count >= 2) {
+        long after = words[1].intValue;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)after * (int64_t)NSEC_PER_MSEC),
+                       dispatch_get_main_queue(), ^{
+                           stamp("leave_before", after);
+                           [window makeFirstResponder:plainField];
+                           stamp("leave_after", after);
+                       });
+        say([NSString stringWithFormat:@"leaving at=%llu", uptime_ns()]);
     } else if ([verb isEqualToString:@"stamps"]) {
         giveStamps();
     } else if ([verb isEqualToString:@"quit"]) {

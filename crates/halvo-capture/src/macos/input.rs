@@ -20,9 +20,12 @@ use crate::event::Modality;
 use crate::macos::foreground::{emit_metadata_only, Foreground, ForegroundReader, Unpersisted};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
-    timing, timing_at_reading, Admission, Bounds, Cause, Entry, HeldKeys, Monotonic, Stamps, Step,
-    Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
+    timing, timing_at_reading, Admission, Bounds, Cause, Entry, HeldKeys, Marks, Monotonic, Stamps,
+    Step, Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
 };
+#[cfg(feature = "stall-seam")]
+use crate::secure_input_macos::notice::{Focus, Seen};
+use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
 use crate::secure_input_macos::{
     hold_secure_input, read_session, secure_input_reading, Reading, SecureInputHold,
     SecureInputRefused, Session,
@@ -346,6 +349,7 @@ fn create_tap(
 trait TapMaker {
     type Tap: 'static;
     type Enabled: 'static;
+    const WATCHES_FOCUS: bool = false;
 
     fn make<F>(self, settings: TapSettings, callback: F) -> Result<Self::Tap, ()>
     where
@@ -361,6 +365,7 @@ struct SystemTapMaker;
 impl TapMaker for SystemTapMaker {
     type Tap = CGEventTap<'static>;
     type Enabled = PortClearedFirst<(CFRunLoopSource, CGEventTap<'static>)>;
+    const WATCHES_FOCUS: bool = true;
 
     fn make<F>(self, settings: TapSettings, callback: F) -> Result<Self::Tap, ()>
     where
@@ -428,6 +433,7 @@ struct HoldState {
     offset: Option<i128>,
     wake_mark: Option<Uptime>,
     wake_unclocked: bool,
+    notice_seen: u64,
 }
 
 type SharedHold = Arc<Mutex<HoldState>>;
@@ -521,6 +527,7 @@ struct TapContext {
     timers: TimerCalls,
     step: Duration,
     hold: SharedHold,
+    notices: NoticeMark,
     #[cfg(feature = "stall-seam")]
     drops: Option<DropCounts>,
 }
@@ -532,7 +539,7 @@ pub struct DropCounts(Arc<DropFigures>);
 #[cfg(feature = "stall-seam")]
 #[derive(Default)]
 struct DropFigures {
-    by_cause: [AtomicU64; 12],
+    by_cause: [AtomicU64; 13],
     widest_gap_ns: AtomicU64,
     late_at_entry: AtomicU64,
     log: Mutex<RawLog>,
@@ -582,6 +589,11 @@ pub enum RawEntry {
         keys: usize,
         unread: bool,
     },
+    Notice {
+        at: u64,
+        seen: Seen,
+        focus: Focus,
+    },
 }
 
 #[cfg(feature = "stall-seam")]
@@ -611,7 +623,7 @@ impl Default for RawLog {
 pub const RAW_LOG_CAP: usize = 65_536;
 
 #[cfg(feature = "stall-seam")]
-const CAUSES: [(Cause, &str); 12] = [
+const CAUSES: [(Cause, &str); 13] = [
     (Cause::On, "on"),
     (Cause::Unknown, "unknown"),
     (Cause::Gap, "gap"),
@@ -624,6 +636,7 @@ const CAUSES: [(Cause, &str); 12] = [
     (Cause::Unclocked, "unclocked"),
     (Cause::Stop, "stop"),
     (Cause::Refused, "refused"),
+    (Cause::Notice, "notice"),
 ];
 
 #[cfg(feature = "stall-seam")]
@@ -752,6 +765,10 @@ impl DropCounts {
         });
     }
 
+    fn notice(&self, at: u64, seen: Seen, focus: Focus) {
+        self.push(RawEntry::Notice { at, seen, focus });
+    }
+
     /// The count of raw entries dropped because the log was full.
     pub fn lost(&self) -> u64 {
         self.log().lost
@@ -764,6 +781,7 @@ pub struct StallSeam {
     pub gap: Duration,
     pub step: Duration,
     pub session: fn() -> Session,
+    pub front: fn() -> Option<libc::pid_t>,
     pub drops: DropCounts,
 }
 
@@ -857,6 +875,14 @@ impl TapContext {
             self.dropped(keys, cause);
             if keys == 0 && state.wake_unclocked && !self.stop.load(Ordering::SeqCst) {
                 self.counters.set_stalled(true);
+            }
+        }
+        let mark = self.notices.get();
+        if mark > state.notice_seen {
+            state.notice_seen = mark;
+            state.flags = None;
+            if let Step::Dropped { keys, cause } = state.keys.noticed() {
+                self.dropped(keys, cause);
             }
         }
         (reading, Stamps { before, after })
@@ -1090,7 +1116,10 @@ fn on_tap_event(ctx: &TapContext, event: TapEvent) {
             event.entry,
             event.os_time,
             at.after,
-            state.wake_mark,
+            Marks {
+                wake: state.wake_mark,
+                notice: (state.notice_seen > 0).then_some(Uptime(state.notice_seen)),
+            },
             lag_bound,
         );
         let at_reading = if at_reading == Timing::Asleep && state.wake_unclocked {
@@ -1204,7 +1233,9 @@ fn tap_context(
             offset: None,
             wake_mark: None,
             wake_unclocked: false,
+            notice_seen: 0,
         })),
+        notices: NoticeMark::new(),
         #[cfg(feature = "stall-seam")]
         drops: None,
     }
@@ -1533,10 +1564,12 @@ pub struct InputSource {
     bounds: Bounds,
     step: Duration,
     session: fn() -> Session,
+    front: Option<fn() -> Option<libc::pid_t>>,
     #[cfg(feature = "stall-seam")]
     drops: Option<DropCounts>,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     tap: Option<TapThread>,
+    notice: Option<NoticeThread>,
     failure: Option<CaptureError>,
     stopped: bool,
 }
@@ -1588,6 +1621,7 @@ impl InputSource {
         );
         source.step = seam.step;
         source.session = seam.session;
+        source.front = Some(seam.front);
         source.drops = Some(seam.drops);
         source
     }
@@ -1606,10 +1640,12 @@ impl InputSource {
             bounds,
             step: READING_STEP,
             session: read_session,
+            front: None,
             #[cfg(feature = "stall-seam")]
             drops: None,
             refusal: Arc::new(Mutex::new(None)),
             tap: None,
+            notice: None,
             failure: None,
             stopped: false,
         }
@@ -1651,6 +1687,17 @@ impl InputSource {
         {
             ctx.drops = self.drops.clone();
         }
+        let notice = if M::WATCHES_FOCUS {
+            match self.notice_thread(ctx.notices.clone()) {
+                Ok(notice) => Some(notice),
+                Err(e) => {
+                    self.failure = Some(e.clone());
+                    return Err(e);
+                }
+            }
+        } else {
+            None
+        };
         let own_take = OwnTake {
             hold: ctx.hold.clone(),
             counters: self.counters.clone(),
@@ -1674,16 +1721,44 @@ impl InputSource {
         match started {
             Ok(tap) => {
                 self.tap = Some(tap);
+                self.notice = notice;
                 self.failure = None;
                 self.stopped = false;
                 Ok(Started::Running)
             }
             Err(e) => {
+                if let Some(mut notice) = notice {
+                    notice.stop_within(INPUT_STOP_DEADLINE);
+                }
                 self.failure = Some(e.clone());
                 Err(e)
             }
         }
     }
+
+    fn notice_thread(&self, mark: NoticeMark) -> Result<NoticeThread, CaptureError> {
+        let front: Box<dyn Fn() -> Option<libc::pid_t> + Send> = match self.front {
+            Some(front) => Box::new(front),
+            None => {
+                let reader = self.foreground.clone();
+                Box::new(move || reader.get().map(|front| front.pid))
+            }
+        };
+        #[cfg(feature = "stall-seam")]
+        let on_notice: crate::secure_input_macos::notice::OnNotice = match self.drops.clone() {
+            Some(drops) => {
+                Box::new(move |seen, focus| drops.notice(monotonic_raw().0, seen, focus))
+            }
+            None => Box::new(|_, _| {}),
+        };
+        #[cfg(not(feature = "stall-seam"))]
+        let on_notice: crate::secure_input_macos::notice::OnNotice = Box::new(|_, _| {});
+        NoticeThread::spawn(front, mark, notice_uptime, on_notice).map_err(spawn_failure)
+    }
+}
+
+fn notice_uptime() -> u64 {
+    uptime_raw().0
 }
 
 impl CaptureSource for InputSource {
@@ -1696,6 +1771,9 @@ impl CaptureSource for InputSource {
             return Ok(());
         };
         let answer = tap.stop_within(INPUT_STOP_DEADLINE);
+        if let Some(mut notice) = self.notice.take() {
+            notice.stop_within(INPUT_STOP_DEADLINE);
+        }
         match &answer {
             Ok(()) => {
                 self.tap = None;
@@ -2007,7 +2085,7 @@ mod tests {
             Timing::InTime { lag } | Timing::Late { lag } => {
                 now - u64::try_from(lag.as_nanos()).expect("a lag of the tests")
             }
-            Timing::Untimed | Timing::Asleep | Timing::Unclocked => 0,
+            Timing::Untimed | Timing::Asleep | Timing::Unclocked | Timing::Noticed => 0,
         };
         TapEvent {
             os_time: Uptime(os_time),
@@ -2633,7 +2711,7 @@ mod tests {
                         fates[index] = format!("dropped {cause:?}");
                     }
                 }
-                RawEntry::Reading { .. } => {}
+                RawEntry::Reading { .. } | RawEntry::Notice { .. } => {}
             }
         }
         fates
