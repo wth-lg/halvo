@@ -21,7 +21,7 @@ use super::owner::{
 use super::permissions::{ProbeRunner, Probed};
 use super::report::FailedSource;
 use super::sources::{is_a_stop, stop_order, RunningSources, SourceFactory};
-use super::{DaemonError, RunSources};
+use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
 };
@@ -844,6 +844,24 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
     fn restart_asked(&self) -> bool {
         self.ending == Some(Ending::Restart)
     }
+
+    fn waits(&mut self) -> Option<&mut dyn Waits> {
+        Some(self)
+    }
+}
+
+impl<F: SystemSources, L: MainLoop> Waits for Supervisor<F, L> {
+    fn clock(&self) -> Duration {
+        self.main_loop.now()
+    }
+
+    fn wait_answer(&mut self, pending: &Pending, bound: Duration) -> Option<Answer> {
+        self.answer_within(pending, bound)
+    }
+
+    fn pause_for(&mut self, wait: Duration) {
+        self.main_loop.turn(wait);
+    }
 }
 
 #[cfg(test)]
@@ -877,7 +895,8 @@ mod tests {
     struct TestLoop {
         now: Rc<Cell<Duration>>,
         harness: Option<Rc<RefCell<Harness>>>,
-        real: bool,
+        real: Duration,
+        hook: Option<Box<dyn FnMut(Duration)>>,
     }
 
     impl MainLoop for TestLoop {
@@ -887,10 +906,13 @@ mod tests {
                 harness.clocks.advance(wait);
                 harness.owner.pass(Duration::ZERO);
             }
-            if self.real {
-                std::thread::sleep(wait.min(Duration::from_millis(20)));
+            if !self.real.is_zero() {
+                std::thread::sleep(wait.min(self.real));
             }
             self.now.set(self.now.get() + wait);
+            if let Some(hook) = self.hook.as_mut() {
+                hook(self.now.get());
+            }
         }
 
         fn now(&self) -> Duration {
@@ -1013,7 +1035,8 @@ mod tests {
         let main_loop = TestLoop {
             now: now.clone(),
             harness: None,
-            real: false,
+            real: Duration::ZERO,
+            hook: None,
         };
         Fixture {
             supervisor: Supervisor::new(Platform::Macos, factory, main_loop)
@@ -1040,7 +1063,8 @@ mod tests {
         let main_loop = TestLoop {
             now: now.clone(),
             harness: Some(harness.clone()),
-            real: false,
+            real: Duration::ZERO,
+            hook: None,
         };
         Fixture {
             supervisor: Supervisor::new(Platform::Macos, factory, main_loop)
@@ -1785,7 +1809,8 @@ mod tests {
         TestLoop {
             now: Rc::default(),
             harness: None,
-            real: true,
+            real: Duration::from_millis(20),
+            hook: None,
         }
     }
 
@@ -2211,6 +2236,151 @@ mod tests {
             "{text}"
         );
         assert_eq!(outcome.status, exit::TIMED_RUN_SOURCE_FAILED);
+    }
+
+    const OPEN: u8 = 0;
+    const CLOSED: u8 = 1;
+    const FAILING: u8 = 2;
+
+    /// A store whose writes wait while its mode reads CLOSED (at most 60 s),
+    /// fail at once with an I/O fault while it reads FAILING, and go to the
+    /// model store while it reads OPEN.
+    struct GateStore {
+        inner: ModelStore,
+        mode: Arc<std::sync::atomic::AtomicU8>,
+    }
+
+    impl MaintainStore for GateStore {
+        fn expire_due(
+            &mut self,
+            now: std::time::SystemTime,
+            max: usize,
+        ) -> Result<Pass, MaintFault> {
+            self.inner.expire_due(now, max)
+        }
+
+        fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+            self.inner.evict_to(bound, max)
+        }
+
+        fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+            self.inner.usage()
+        }
+    }
+
+    impl CaptureStore for GateStore {
+        fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+            let until = Instant::now() + Duration::from_secs(60);
+            while self.mode.load(Ordering::SeqCst) == CLOSED && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            if self.mode.load(Ordering::SeqCst) == FAILING {
+                return Err(WriteFault::Io(io::ErrorKind::Other));
+            }
+            self.inner.write_batch(write)
+        }
+
+        fn volume_free_bytes(&self) -> io::Result<u64> {
+            self.inner.volume_free_bytes()
+        }
+    }
+
+    /// The stop path of a timed run on the injected clock with every source
+    /// at its stop deadline (input 1 s, foreground 1 s, screen 6 s), a drain
+    /// wait that runs most of its 2 s while the store is closed, a settle whose
+    /// writes fail for its whole 5 s, and a Shutdown whose write waits: the
+    /// parts would take about 1.9 + 8 + 5 + 5 s, and the whole path ends
+    /// inside SHUTDOWN_BUDGET_MS.
+    #[test]
+    fn the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget() {
+        let mode = Arc::new(std::sync::atomic::AtomicU8::new(CLOSED));
+        let now: Rc<Cell<Duration>> = Rc::default();
+        let stopped: Rc<Cell<Option<Duration>>> = Rc::default();
+        let gate = mode.clone();
+        let main_loop = TestLoop {
+            now: now.clone(),
+            harness: None,
+            real: Duration::from_millis(1),
+            hook: Some(Box::new(move |at| {
+                if at >= Duration::from_millis(2_900) && at < Duration::from_secs(9) {
+                    gate.store(OPEN, Ordering::SeqCst);
+                }
+                if at >= Duration::from_millis(15_500) {
+                    gate.store(CLOSED, Ordering::SeqCst);
+                }
+            })),
+        };
+        let deadlines = [
+            (SourceName::Input, Duration::from_secs(1)),
+            (SourceName::Foreground, Duration::from_secs(1)),
+            (SourceName::Screen, Duration::from_secs(6)),
+        ];
+        let (stop_clock, stop_mode, first_stop) = (now.clone(), mode.clone(), stopped.clone());
+        let factory = Factory::adjusting(move |source| {
+            if source.name == SourceName::Foreground {
+                source.script = (0..600).map(|_| foreground_now()).collect();
+            }
+            let deadline = deadlines
+                .iter()
+                .find(|(name, _)| *name == source.name)
+                .map_or(Duration::ZERO, |(_, deadline)| *deadline);
+            let (clock, mode, first) = (stop_clock.clone(), stop_mode.clone(), first_stop.clone());
+            let hook: Hook = Box::new(move |_| {
+                if first.get().is_none() {
+                    first.set(Some(clock.get()));
+                }
+                mode.store(FAILING, Ordering::SeqCst);
+                clock.set(clock.get() + deadline);
+            });
+            source.on_stop = Some(hook);
+            source.stop = Err(CaptureError::Timeout {
+                stage: "stop",
+                ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
+            });
+        });
+        let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop);
+        let mut run = run_of(1);
+        run.switches =
+            crate::daemon::SwitchFlags(vec![(crate::floor::Switch::ScreenActivity, true)]);
+        let store = GateStore {
+            inner: ModelStore::new(),
+            mode: mode.clone(),
+        };
+        let outcome = run_timed(
+            &run,
+            &mut supervisor,
+            store,
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        mode.store(OPEN, Ordering::SeqCst);
+        let window = Duration::from_secs(1);
+        let path = now.get().saturating_sub(window);
+        let first_stop = stopped.get().expect("no source was stopped");
+        assert!(
+            first_stop >= window + Duration::from_millis(1_800),
+            "the drain wait ended at {first_stop:?}"
+        );
+        assert_eq!(
+            supervisor.factory().calls.of("stop "),
+            ["stop input", "stop foreground", "stop screen"]
+        );
+        assert_eq!(
+            outcome.loss.as_ref().and_then(|loss| loss.cause),
+            Some(LossCause::ShutdownUnanswered),
+            "{:?}",
+            outcome.loss
+        );
+        assert!(
+            path <= Duration::from_millis(SHUTDOWN_BUDGET_MS) + Duration::from_millis(50),
+            "the stop path took {path:?} on the injected clock"
+        );
+        assert!(
+            path >= Duration::from_millis(SHUTDOWN_BUDGET_MS) - Duration::from_millis(500),
+            "the stop path took {path:?}: the waits did not reach the budget"
+        );
     }
 
     mod review_cases {

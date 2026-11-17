@@ -1333,7 +1333,11 @@ mod tests {
                 .send(Answer::Settled(Counters::default().snapshot(4, false)))
                 .expect("the settle stopped waiting");
         });
-        let settled = crate::daemon::settle_within(&handle, Duration::from_secs(5));
+        let settled = crate::daemon::settle_within(
+            &mut crate::daemon::RealWaits,
+            &handle,
+            Duration::from_secs(5),
+        );
         stand_in.join().expect("the stand-in owner panicked");
         assert_eq!(
             settled.map(|snapshot| snapshot.events_pending),

@@ -832,6 +832,60 @@ pub trait RunSources {
     fn restart_asked(&self) -> bool {
         false
     }
+
+    /// The clock and the waits of the stop path, when the sources keep their
+    /// own: the supervisor's main loop. `None` gives the real clock.
+    #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+    fn waits(&mut self) -> Option<&mut dyn Waits> {
+        None
+    }
+}
+
+/// The clock and the waits of a timed run's stop path.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub trait Waits {
+    /// The time since a fixed start.
+    fn clock(&self) -> Duration;
+
+    /// The answer of `pending` if it comes within `bound`.
+    fn wait_answer(&mut self, pending: &owner::Pending, bound: Duration) -> Option<owner::Answer>;
+
+    /// Lets `wait` pass.
+    fn pause_for(&mut self, wait: Duration);
+}
+
+/// The process's own clock and blocking waits.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub struct RealWaits;
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+impl Waits for RealWaits {
+    fn clock(&self) -> Duration {
+        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        START.get_or_init(std::time::Instant::now).elapsed()
+    }
+
+    fn wait_answer(&mut self, pending: &owner::Pending, bound: Duration) -> Option<owner::Answer> {
+        pending.wait_for(bound)
+    }
+
+    fn pause_for(&mut self, wait: Duration) {
+        std::thread::sleep(wait);
+    }
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn waits_of<'a, P: RunSources>(sources: &'a mut P, real: &'a mut RealWaits) -> &'a mut dyn Waits {
+    match sources.waits() {
+        Some(waits) => waits,
+        None => real,
+    }
+}
+
+/// What is left of the stop path's budget, SHUTDOWN_BUDGET_MS from `start`.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn left_of(start: Duration, waits: &dyn Waits) -> Duration {
+    (start + Duration::from_millis(supervisor::SHUTDOWN_BUDGET_MS)).saturating_sub(waits.clock())
 }
 
 impl TimedRun {
@@ -852,8 +906,10 @@ impl TimedRun {
 /// in the window (at most [`DRAIN_BOUND`]), the owner pauses, the sources stop
 /// and the owner settles.
 /// The named waits of the stop path take their bounds from
-/// `StopBounds::of(settle_bound)`, and an owner that gives no answer is not
-/// joined.
+/// `StopBounds::of(settle_bound)`, each cut to what is left of
+/// SHUTDOWN_BUDGET_MS counted from the end of the window, so that the waits
+/// and the sources' stops together end inside it; an owner that gives no
+/// answer is not joined.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(
     run: &TimedRun,
@@ -904,26 +960,32 @@ where
     let mut failed = sources.start(&ctx, &wanted, run.hold_after());
     drop(ctx);
     let signalled = sources.supervise(run.window, stop, &owner);
+    let mut real = RealWaits;
+    let started = waits_of(sources, &mut real).clock();
     let counts = handle.counts();
     let emitted: u64 = crate::event::Modality::ALL
         .into_iter()
         .map(|kind| counts.of(kind).accepted)
         .sum();
-    let drained_by = std::time::Instant::now() + bounds.drain;
+    let waits = waits_of(sources, &mut real);
+    let drained_by = waits.clock() + bounds.drain.min(left_of(started, waits));
     while owner.snapshot().events_received() < emitted
-        && std::time::Instant::now() < drained_by
+        && waits.clock() < drained_by
         && supervisor::OwnerLink::is_running(&owner)
     {
-        std::thread::sleep(Duration::from_millis(5));
+        waits.pause_for(Duration::from_millis(5));
     }
     let before = owner.snapshot();
-    let paused = answer_within(&owner.handle, Command::OpenPause, bounds.pause);
+    let bound = bounds.pause.min(left_of(started, waits));
+    let paused = answer_within(waits, &owner.handle, Command::OpenPause, bound);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
     drop(handle);
     let last = match paused {
         Some(Answer::Paused(_)) => {
-            settle_within(&owner.handle, bounds.settle).ok_or(LossCause::SettleUnanswered)
+            let waits = waits_of(sources, &mut real);
+            let bound = bounds.settle.min(left_of(started, waits));
+            settle_within(waits, &owner.handle, bound).ok_or(LossCause::SettleUnanswered)
         }
         _ => Err(LossCause::PauseUnanswered),
     };
@@ -945,10 +1007,14 @@ where
         );
     }
     let last = match last {
-        Ok(_) => match answer_within(&owner.handle, Command::Shutdown, bounds.shutdown) {
-            Some(Answer::ShutDown(snapshot)) => Ok(snapshot),
-            _ => Err(LossCause::ShutdownUnanswered),
-        },
+        Ok(_) => {
+            let waits = waits_of(sources, &mut real);
+            let bound = bounds.shutdown.min(left_of(started, waits));
+            match answer_within(waits, &owner.handle, Command::Shutdown, bound) {
+                Some(Answer::ShutDown(snapshot)) => Ok(snapshot),
+                _ => Err(LossCause::ShutdownUnanswered),
+            }
+        }
         Err(cause) => Err(cause),
     };
     let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
@@ -1008,11 +1074,13 @@ fn owner_ended(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> 
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 fn answer_within(
+    waits: &mut dyn Waits,
     handle: &owner::OwnerHandle,
     command: owner::Command,
     bound: Duration,
 ) -> Option<owner::Answer> {
-    handle.ask(command).ok()?.wait_for(bound)
+    let pending = handle.ask(command).ok()?;
+    waits.wait_answer(&pending, bound)
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
@@ -1020,23 +1088,27 @@ fn answer_within(
 /// last snapshot that an ask got: a later ask that is not answered in time
 /// leaves the one before it, and only a settle whose every ask went
 /// unanswered gives `None` (ruling DM-14).
-fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counters::Snapshot> {
-    let started = std::time::Instant::now();
+fn settle_within(
+    waits: &mut dyn Waits,
+    handle: &owner::OwnerHandle,
+    bound: Duration,
+) -> Option<counters::Snapshot> {
+    let started = waits.clock();
     let mut last = None;
     loop {
         let Ok(pending) = handle.ask(owner::Command::Settle) else {
             return last;
         };
-        let left = bound.saturating_sub(started.elapsed());
-        let Some(owner::Answer::Settled(snapshot)) = pending.wait_for(left) else {
+        let left = bound.saturating_sub(waits.clock().saturating_sub(started));
+        let Some(owner::Answer::Settled(snapshot)) = waits.wait_answer(&pending, left) else {
             return last;
         };
-        let left = bound.saturating_sub(started.elapsed());
+        let left = bound.saturating_sub(waits.clock().saturating_sub(started));
         if snapshot.events_pending == 0 || left < 2 * owner::POLL {
             return Some(snapshot);
         }
         last = Some(snapshot);
-        std::thread::sleep(owner::POLL);
+        waits.pause_for(owner::POLL);
     }
 }
 
