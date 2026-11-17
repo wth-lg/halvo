@@ -1,5 +1,6 @@
 use halvo_schema_core::record::Ordinal;
 
+use crate::db::Removes;
 use crate::error::Fault;
 use crate::sql;
 use crate::Store;

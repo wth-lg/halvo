@@ -127,7 +127,9 @@ same holds for an earlier value that Halvo replaced in place, as when you approv
 workflow or a later batch changes one. Any program that runs under your account can
 find it there, and on a Mac so can anyone who has a copy of Halvo's whole data folder;
 someone who has only the file cannot read it. A delete of everything that removes the
-folder derived/ with its key leaves no such copy; no code of this version does that.
+folder derived/ with its key leaves no such copy; at this head the test host's delete of
+everything alone removes derived/.
 The mend is Halvo's own build of the database, which zeroes that space: the capture
-run's unit sqlcipher-1 builds it (ruling S-82). U5.2 of the workflow run deletes this
-note, when the mended build of the database and its test are on main.
+run's unit sqlcipher-1 builds it (ruling S-82). This note is deleted by a commit of
+words alone once a run on main shows the mended build's check and U5.2's test passing
+on macOS and Windows.

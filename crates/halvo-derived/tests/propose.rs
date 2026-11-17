@@ -4,18 +4,23 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    bodies, count, domain, episode, open_host, position, store_id, summary_id, token, Fixed,
-    Grouping, Recorder, Scratch, Seq, SignInGroup, TestClock,
+    bodies, count, domain, episode, open_host, position, raw_request, store_id, summary_id, token,
+    Fixed, Grouping, Recorder, Scratch, Seq, SignInGroup, TestClock,
 };
-use halvo_derived::{Host, IdSource, ProposalOutcome};
+use halvo_derived::{
+    Error, Handler, HandlerCx, Host, IdSource, MoveTo, ProposalOutcome, Store, Takes,
+};
 use halvo_schema_core::category::SeedCategory;
-use halvo_schema_core::ids::{RequestId, WorkflowId};
+use halvo_schema_core::ids::{AgentId, RequestId, WorkflowId};
 use halvo_schema_core::record::{
     Confidence, Episode, Proposal, Recurrence, RecurrenceStep, SummaryRead, Support, Trigger,
     Workflow, WorkflowState,
 };
-use halvo_schema_core::request::{InterfaceRead, InterfaceRole, ReplyResult};
+use halvo_schema_core::request::{
+    ErrorName, InterfaceDecision, InterfaceRead, InterfaceRole, RawRequest, ReplyResult,
+};
 use halvo_schema_core::site::{AppId, DomainSource, ObservedSite, SiteDomain, SiteValue};
+use serde_json::value::RawValue;
 
 const DAY: u32 = 20_767;
 
@@ -438,6 +443,184 @@ fn over(ids: &[u64]) -> Proposal {
     p
 }
 
+/// A handler that makes the state call that its body names:
+/// `{"op":"set_state","workflow":<id>,"state":"approved"|"active"|"paused","agent":<id>|null}`.
+struct SetState;
+
+impl Handler for SetState {
+    fn handle(
+        &self,
+        request: &RawRequest,
+        cx: &mut HandlerCx<'_>,
+    ) -> Result<Box<RawValue>, ErrorName> {
+        let body: serde_json::Value = serde_json::from_str(request.body().get()).unwrap();
+        let workflow = WorkflowId::parse(body["workflow"].as_str().unwrap()).unwrap();
+        let to = match body["state"].as_str().unwrap() {
+            "approved" => MoveTo::Approved,
+            "active" => MoveTo::Active,
+            _ => MoveTo::Paused,
+        };
+        let agent = body["agent"].as_str().map(|a| AgentId::parse(a).unwrap());
+        match cx.state(&workflow, to, agent) {
+            Ok(()) => Ok(RawValue::from_string("null".to_owned()).unwrap()),
+            Err(Error::Refused(name)) => Err(name),
+            Err(Error::Fault(_)) => Err(ErrorName::Internal),
+        }
+    }
+}
+
+fn set_state(store: &mut Store, workflow: &str, state: &str, agent: Option<&str>) {
+    let agent = agent.map_or("null".to_owned(), |a| format!("\"{a}\""));
+    let body = format!(
+        r#"{{"op":"set_state","workflow":"{workflow}","state":"{state}","agent":{agent}}}"#
+    );
+    store
+        .handle(&raw_request("coordinator_write", &body))
+        .unwrap();
+}
+
+/// The bodies of the stored workflows and of the support rows and the revision of the family `workflow`, read through
+/// the test's own connection.
+fn held(scratch: &Scratch) -> (Vec<String>, Vec<String>, i64) {
+    (
+        bodies(scratch, "workflow"),
+        bodies(scratch, "support"),
+        revision(scratch),
+    )
+}
+
+/// C2.4, the row of a kept workflow whose `agent` is not null (the coordinator's ruling S-64, point 1, item 2): a
+/// proposal with the key of a workflow that is `active`, `paused` or `approved` with an agent leaves the row, its
+/// support rows and the revision as they are, and is counted in `unchanged`; the same proposal for the same workflow
+/// with `agent` null, `approved` with no agent or `approved` after its agent was cleared, changes the row and its
+/// support rows and raises the revision by one, as before. In each case the five counts sum to the two proposals of
+/// the call, the second of which names no summary and is refused.
+#[test]
+fn a_proposal_with_the_key_of_a_workflow_that_an_agent_does_leaves_its_row_support_rows_and_revision(
+) {
+    let agent = "4".repeat(32);
+    type Moves = &'static [(&'static str, bool)];
+    let cases: [(&str, Moves, bool); 5] = [
+        ("guard-active", &[("active", true)], true),
+        ("guard-paused", &[("active", true), ("paused", true)], true),
+        ("guard-approved-agent", &[("approved", true)], true),
+        ("guard-approved", &[], false),
+        (
+            "guard-cleared",
+            &[("active", true), ("approved", false)],
+            false,
+        ),
+    ];
+    for (name, moves, guarded) in cases {
+        let scratch = Scratch::new(name);
+        let clock = TestClock::at_day(DAY);
+        let fixed = Rc::new(RefCell::new(vec![over(&[1])]));
+        let host = || {
+            Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed)))).handler(
+                "test",
+                Takes::Coordinator(&["set_state"]),
+                Box::new(SetState),
+            )
+        };
+        let mut store = open_host(&scratch, host()).unwrap();
+        let first = store
+            .commit_batch(
+                &store_id(1),
+                &[episode(1, DAY, None), episode(2, DAY, None)],
+                position(1, 0),
+                &mut Seq(100),
+            )
+            .unwrap();
+        assert_eq!(first.proposals.stored, 1, "{name}");
+        let id = minted(&mut Seq(100));
+        store
+            .decide(&InterfaceDecision::approve(
+                &InterfaceRole::claim(),
+                RequestId::from_random([2; 16]),
+                id.clone(),
+            ))
+            .unwrap();
+        for (state, with_agent) in moves {
+            set_state(
+                &mut store,
+                id.as_str(),
+                state,
+                with_agent.then_some(&agent[..]),
+            );
+        }
+        drop(store);
+        let before = held(&scratch);
+        let Workflow::Full(set) = serde_json::from_str(&before.0[0]).unwrap() else {
+            panic!("{name}: the workflow is dismissed");
+        };
+        let mut changed = over(&[1, 2]);
+        changed.trigger = Trigger::Schedule;
+        changed.confidence = Confidence(90);
+        let mut names_none = over(&[]);
+        names_none.app = AppId::parse("com.example.other").unwrap();
+        *fixed.borrow_mut() = vec![changed, names_none];
+        let mut store = open_host(&scratch, host()).unwrap();
+        let outcome = store
+            .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+            .unwrap()
+            .proposals;
+        drop(store);
+        let after = held(&scratch);
+        let sum = outcome.stored
+            + outcome.updated
+            + outcome.unchanged
+            + outcome.dismissed
+            + outcome.refused;
+        assert_eq!(sum, 2, "{name}: the counts sum to the proposals");
+        let Workflow::Full(stored) = serde_json::from_str(&after.0[0]).unwrap() else {
+            panic!("{name}: the workflow is dismissed");
+        };
+        assert_eq!(
+            (stored.id.clone(), stored.state, stored.agent.clone()),
+            (set.id.clone(), set.state, set.agent.clone()),
+            "{name}: the id, the state and the agent stay"
+        );
+        if guarded {
+            assert!(set.agent.is_some(), "{name}");
+            assert_eq!(
+                outcome,
+                ProposalOutcome {
+                    unchanged: 1,
+                    refused: 1,
+                    ..ProposalOutcome::default()
+                },
+                "{name}"
+            );
+            assert_eq!(
+                after, before,
+                "{name}: (the workflow, the support rows, the revision) stay as they were"
+            );
+        } else {
+            assert_eq!(set.agent, None, "{name}");
+            assert_eq!(
+                outcome,
+                ProposalOutcome {
+                    updated: 1,
+                    refused: 1,
+                    ..ProposalOutcome::default()
+                },
+                "{name}"
+            );
+            assert_eq!(
+                (
+                    stored.trigger,
+                    stored.confidence,
+                    stored.recurrence.count,
+                    after.1.len(),
+                    after.2
+                ),
+                (Trigger::Schedule, Confidence(90), 2, 2, before.2 + 1),
+                "{name}: (trigger, confidence, count, support rows, revision) as the proposal gives them"
+            );
+        }
+    }
+}
+
 fn support_ids(scratch: &Scratch) -> Vec<String> {
     let mut ids: Vec<String> = supports(scratch)
         .iter()
@@ -507,11 +690,14 @@ fn the_support_rows_of_an_updated_workflow_are_those_of_its_latest_proposal_alon
     assert_eq!(revision(&scratch), before + 1);
 }
 
-/// Pins the store as built: a proposal that names a stored summary outside its bound, already past it or ahead of
-/// the clock's day, is refused and counted in `refused`. No sentence of C2.4 or C2.11 says what the store does with
-/// such a proposal; the point is with the planner (DS-3, m42), and a later sentence turns this test knowingly.
+/// A proposal that names a stored summary outside its bound for the proposal check, one day past it or one of a day
+/// after the clock's day, is refused and counted in `refused`, and no workflow row and no support row comes of it,
+/// while the same proposal inside the bound is stored: the control, with the clock moved to the day of the summary
+/// that was one day ahead, stores the proposal that names that summary alone as one workflow. For this check a summary is inside its bound when its day is not
+/// after the clock's day and the clock's day less its day is less than the days of the entry in force, which every
+/// summary that the summary read of C2.11 visits meets (C2.4; the coordinator's ruling DS-5 (a), reading A).
 #[test]
-fn a_proposal_that_names_a_stored_summary_outside_its_bound_is_refused_as_built() {
+fn a_proposal_that_names_a_summary_after_the_clock_s_day_or_past_its_bound_is_refused() {
     let scratch = Scratch::new("proposal-outside");
     let clock = TestClock::at_day(DAY);
     let fixed = Rc::new(RefCell::new(Vec::new()));
@@ -730,5 +916,94 @@ fn the_summary_read_visits_a_summary_of_a_day_after_the_clock_s_day_only_once_th
     assert_eq!(
         count(&scratch, "SELECT count(*) FROM rows WHERE kind = 'summary'"),
         3
+    );
+}
+
+/// C2.4, the row of a kept workflow whose `agent` is not null, for keys that hold a site (ruling S-100, item 2): a
+/// workflow keyed by a domain seen in the address field, and one keyed by a title, whose site key the store hashed
+/// and the test reads from the stored summary, each `active` with an agent. A proposal with its key and another app,
+/// trigger, confidence and support set leaves the row, its support rows and the revision as they are and is counted
+/// in `unchanged`.
+#[test]
+fn a_proposal_with_the_key_of_a_site_keyed_workflow_that_an_agent_does_leaves_it_as_it_was() {
+    let agent = "4".repeat(32);
+    let mut seen = Vec::new();
+    for (name, site) in [
+        ("guard-domain", domain("qzguard-site.test")),
+        ("guard-title", token("qzguard-title")),
+    ] {
+        let scratch = Scratch::new(name);
+        let clock = TestClock::at_day(DAY);
+        let fixed = Rc::new(RefCell::new(Vec::new()));
+        let host = || {
+            Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed)))).handler(
+                "test",
+                Takes::Coordinator(&["set_state"]),
+                Box::new(SetState),
+            )
+        };
+        let mut store = open_host(&scratch, host()).unwrap();
+        store
+            .commit_batch(
+                &store_id(1),
+                &[episode(1, DAY, site.clone()), episode(2, DAY, site.clone())],
+                position(1, 0),
+                &mut Seq(100),
+            )
+            .unwrap();
+        drop(store);
+        let summary: halvo_schema_core::record::Summary =
+            serde_json::from_str(&bodies(&scratch, "summary")[0]).unwrap();
+        assert!(
+            summary.site.is_some(),
+            "{name}: the summary's key holds a site"
+        );
+        let keyed = |ids: &[u64]| {
+            let mut p = over(ids);
+            p.site = summary.site.clone();
+            p
+        };
+        *fixed.borrow_mut() = vec![keyed(&[1])];
+        let mut store = open_host(&scratch, host()).unwrap();
+        let made = store
+            .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+            .unwrap()
+            .proposals;
+        assert_eq!(made.stored, 1, "{name}");
+        let id = common::listed(&store)[0].workflow.id().clone();
+        store
+            .decide(&InterfaceDecision::approve(
+                &InterfaceRole::claim(),
+                RequestId::from_random([2; 16]),
+                id.clone(),
+            ))
+            .unwrap();
+        set_state(&mut store, id.as_str(), "active", Some(&agent));
+        drop(store);
+        let before = held(&scratch);
+        let mut changed = keyed(&[1, 2]);
+        changed.app = AppId::parse("com.example.qzother").unwrap();
+        changed.trigger = Trigger::Schedule;
+        changed.confidence = Confidence(90);
+        *fixed.borrow_mut() = vec![changed];
+        let mut store = open_host(&scratch, host()).unwrap();
+        let outcome = store
+            .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(300))
+            .unwrap()
+            .proposals;
+        drop(store);
+        seen.push((name, outcome, held(&scratch) == before));
+    }
+    let guarded = ProposalOutcome {
+        unchanged: 1,
+        ..ProposalOutcome::default()
+    };
+    assert_eq!(
+        seen,
+        [
+            ("guard-domain", guarded.clone(), true),
+            ("guard-title", guarded, true)
+        ],
+        "(case, outcome, the workflow, the support rows and the revision as they were)"
     );
 }
