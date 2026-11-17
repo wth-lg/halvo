@@ -89,6 +89,12 @@ fn web_origin_cases() -> Vec<(String, bool)> {
         "https://utility.test:443",
         "http://pay.utility.test:1",
         "https://a-b.example:65535",
+        "http://0.0.0.0:80",
+        "http://255.255.255.255:65535",
+        "http://1.2.3.a:80",
+        "https://pay.0xg:443",
+        "https://0x7f000001.test:443",
+        "https://127.1.test:443",
     ];
     let refused = [
         "http://utility.test",
@@ -113,6 +119,20 @@ fn web_origin_cases() -> Vec<(String, bool)> {
         "http://:80",
         "utility.test:80",
         "",
+        "http://127.1:80",
+        "http://2130706433:80",
+        "http://0x7f.0.0.1:80",
+        "http://0177.0.0.1:80",
+        "http://127.0.0.01:80",
+        "http://0x7f000001:80",
+        "http://1.2.3.04:80",
+        "http://127.0.0.1.1:80",
+        "http://256.0.0.1:80",
+        "https://pay.123:443",
+        "https://pay.0x:443",
+        "https://pay.0xff:443",
+        "http://1:80",
+        "http://00.0.0.0:80",
     ];
     let labels = |last: usize| {
         format!(
@@ -134,9 +154,11 @@ fn web_origin_cases() -> Vec<(String, bool)> {
 #[test]
 fn origin_parse_answers_every_input_as_web_origin_parse_of_the_agent_setup_run() {
     let cases = web_origin_cases();
-    assert_eq!(cases.len(), 29);
+    assert_eq!(cases.len(), 49);
     let mut differ = Vec::new();
     for (input, taken) in &cases {
+        let schema = halvo_schema::executable::text::WebOrigin::parse(input);
+        assert_eq!(schema.is_ok(), *taken, "the schema's answer on {input:?}");
         let got = Origin::parse(input);
         let agrees = match got {
             Ok(o) => *taken && o.as_str() == input,

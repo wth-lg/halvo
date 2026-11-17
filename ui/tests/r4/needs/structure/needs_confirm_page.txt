@@ -7,6 +7,7 @@
       - {"role":"listitem"}
         - {"name":"Send this?","role":"alertdialog"}
           - {"level":3,"name":"Send this?","role":"heading"}
+          - {"role":"paragraph","text":"“Writing or answering email on Site5” asks for this."}
           - {"role":"term","text":"To"}
           - {"role":"definition","text":"Ann Lee"}
           - {"role":"definition","text":"From the site"}
