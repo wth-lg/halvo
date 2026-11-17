@@ -52,6 +52,8 @@
                     - {"role":"definition","text":"Card ending 4242 You gave this"}
                     - {"role":"term","text":"Site"}
                     - {"role":"definition","text":"site1.example Set by Halvo"}
+                  - {"role":"listitem"}
+                    - {"role":"paragraph","text":"It made a payment, but Halvo cannot show its details."}
               - {"role":"listitem"}
                 - {"role":"paragraph","text":"24 September 2026"}
                 - {"role":"paragraph","text":"It found nothing to do."}

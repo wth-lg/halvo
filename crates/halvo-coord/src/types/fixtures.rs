@@ -22,7 +22,7 @@
 //! | | `spreadsheet_fill`: `all_set.nothing`; `run_now`, `switch_off`, `delete` | `active`, `schedule` every 7 days, `last` 20750, so `next` is 20764; its four slots; runs on 20750 `completed` and on 20757 `nothing_to_do`, started by the scheduler for the slot 20757 |
 //! | | `shop_order`: `all_set.done`; `run_now`, `switch_off`, `delete` | `active`; its three slots; a run on 20755 `completed` |
 //! | | `calendar_cleanup`: `all_set.done`; `run_now`, `switch_off`, `delete` | `active`, `schedule` every day, `last` 20759, so `next` is 20761; runs on 20759 `completed` and on 20760 `completed`, the second with the slot 20760 |
-//! | `card` | the agents of `ten` | the card of `utility_bill_payment`, the first agent made (agent id 2), whose two runs are the card's, the newer with one committed `payment` effect whose four kept fields are those of the item of `needs_check` (ruling H-8); the act `open_card` with its id is U3.3's |
+//! | `card` | the agents of `ten` | the card of `utility_bill_payment`, the first agent made (agent id 2), whose two runs are the card's, the newer with one committed `payment` effect whose four kept fields are those of the item of `needs_check` (ruling H-8), and after it the entry of a committed `payment` that the reader refuses, `run.effect.payment.unshown` (ruling RD-52 (f)); the act `open_card` with its id is U3.3's |
 //! | `needs_confirm_page` | `email`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `waiting` with an open `confirm` item of three effects of the class `send`, presenter `page`, `armed` `yes`, no `new_origin` |
 //! | `needs_confirm_native` | `utility_bill_payment`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `confirm` item of one effect of the class `payment`, presenter `native`, `armed` `no`, its one choice `present` |
 //! | `needs_sign_in` | `shop_order`: `needs_you.sign_in`; `stop`, `switch_off`, `delete` | `approved`, no playbook, no ended run, its three slots, a live first run `waiting` with an open `sign_in` item |
@@ -1041,6 +1041,9 @@ fn card(b: &Built) -> Card {
                     .committed
                     .map(|(class, bound)| committed(class, bound))
                     .into_iter()
+                    .chain(p.committed.map(|(class, _)| {
+                        CardEffect::unshown(class).expect("the words table holds the entry")
+                    }))
                     .collect(),
             })
             .collect(),
@@ -1135,7 +1138,9 @@ mod tests {
             (newer.day.as_str(), newer.text.as_str()),
             ("24 October 2026", "It finished the task.")
         );
-        assert_eq!(newer.effects.len(), 1);
+        assert_eq!(newer.effects.len(), 2);
+        assert_eq!(newer.effects[1].key(), "run.effect.payment.unshown");
+        assert!(newer.effects[1].fields().is_empty());
         let paid = &newer.effects[0];
         assert_eq!(
             (paid.key().as_str(), paid.text()),

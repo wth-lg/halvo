@@ -19,6 +19,6 @@
             - {"name":"Ordering from a shop on Site7","role":"button"}
           - {"role":"paragraph","text":"Problem"}
           - {"role":"paragraph","text":"Standard"}
-          - {"role":"paragraph","text":"It failed several times in a row, so Halvo switched it off."}
+          - {"role":"paragraph","text":"Halvo switched it off after several tries in a row did not work. To try again, choose Switch on."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch on","role":"button"}

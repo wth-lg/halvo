@@ -524,6 +524,9 @@ where
     P: Runs,
 {
     if ports.kill(run).is_err() {
+        if let Some(r) = board.runs.iter_mut().find(|r| &r.run == run) {
+            r.kill_refused = true;
+        }
         return false;
     }
     board.dying.retain(|d| &d.run != run);
