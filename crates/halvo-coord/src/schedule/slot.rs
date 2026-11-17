@@ -52,6 +52,7 @@ pub fn slot_open<C>(facts: &Facts<C>, slot: u32) -> bool {
         What::RunEnded {
             run,
             cause: RunEnd::Completed | RunEnd::NothingToDo,
+            defers: _,
         } => start_day(facts, run).is_some_and(|d| u64::from(d) >= from),
         _ => false,
     });

@@ -559,6 +559,7 @@ fn build(state: State) -> Vec<Built> {
                 What::RunEnded {
                     run: run.clone(),
                     cause: p.end.into(),
+                    defers: None,
                 },
             );
         }

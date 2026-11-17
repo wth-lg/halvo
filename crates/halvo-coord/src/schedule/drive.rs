@@ -602,6 +602,7 @@ where
     let mut whats = vec![What::RunEnded {
         run: run.clone(),
         cause,
+        defers: None,
     }];
     if pause {
         whats.push(What::HoldSet {

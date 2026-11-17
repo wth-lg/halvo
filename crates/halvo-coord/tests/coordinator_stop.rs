@@ -226,7 +226,8 @@ fn a_stop_with_kind_or_budget_ends_with_its_cause_in_run_step_and_in_the_stored_
         assert!(w.ports.events.borrow().iter().any(|e| e.what
             == What::RunEnded {
                 run: run.clone(),
-                cause: end
+                cause: end,
+                defers: None
             }));
     }
 }

@@ -419,7 +419,11 @@ impl<'a> Record<'a> {
                 trigger: Some(trigger.name()),
                 ..base
             },
-            What::RunEnded { run, cause } => Record {
+            What::RunEnded {
+                run,
+                cause,
+                defers: _,
+            } => Record {
                 event: "run_ended",
                 run: Some(run.as_str()),
                 cause: Some(cause.name()),

@@ -125,6 +125,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
                 What::RunEnded {
                     run: run.clone(),
                     cause: end,
+                    defers: None,
                 },
             ),
         ]);

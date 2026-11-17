@@ -172,6 +172,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
                         What::RunEnded {
                             run,
                             cause: RunEnd::Completed,
+                            defers: None,
                         },
                     ),
                 ])
@@ -2192,7 +2193,8 @@ fn a_run_ended_that_the_owner_did_not_acknowledge_is_owed_and_holds_the_agent() 
         e.what,
         What::RunEnded {
             run,
-            cause: RunEnd::Completed
+            cause: RunEnd::Completed,
+            defers: None
         }
     );
     assert_eq!(e.day, DAY, "the day of the end");

@@ -142,6 +142,7 @@ fn log_recovery_body<P: Owner, C>(
         .map(|run| What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         })
         .collect();
     whats.extend(f.step.lapsed.iter().map(|(item, lapsed)| What::ItemLapsed {

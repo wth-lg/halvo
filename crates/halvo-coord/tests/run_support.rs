@@ -99,6 +99,7 @@ pub fn finished_run(n: usize) -> (PastRun, Vec<Event>) {
             What::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ),
     ];

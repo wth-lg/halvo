@@ -44,7 +44,15 @@ fn ended(f: &mut Facts<Config>, n: u8, day: u32, cause: RunEnd) {
             slot: None,
         },
     );
-    push(f, day, What::RunEnded { run: run(n), cause });
+    push(
+        f,
+        day,
+        What::RunEnded {
+            run: run(n),
+            cause,
+            defers: None,
+        },
+    );
 }
 
 fn line(f: &Facts<Config>) -> StatusLine {
@@ -208,6 +216,7 @@ fn the_end_of_the_last_run_gives_the_line_of_all_set() {
         What::RunEnded {
             run: run(1),
             cause: RunEnd::Cancelled,
+            defers: None,
         },
     );
     assert_eq!(line(&f), StatusLine::StoppedEarly);

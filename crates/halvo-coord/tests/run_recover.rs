@@ -352,6 +352,7 @@ fn recovery_loads_every_event_of_an_agent_with_more_than_64() {
             What::RunEnded {
                 run,
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ] {
             seq += 1;
@@ -520,6 +521,7 @@ fn an_owed_run_ended_that_the_owner_stored_with_a_lost_acknowledgement_is_paid_a
         what: What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         },
     });
     w.ports.clear_refusals();
@@ -609,6 +611,7 @@ fn recover_step_owes_end_run_from_the_events_and_the_stores_last_record_alone() 
             What::RunEnded {
                 run: run(1),
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ),
         ev(3, started(2)),
@@ -886,6 +889,7 @@ fn a_recovery_body_refused_with_seq_is_read_again_from_the_owners_events_and_log
         vec![Turn::Late(What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Completed,
+            defers: None,
         })],
     );
     let life = recover(&late, &w.limits).expect("recovery");
@@ -1258,6 +1262,7 @@ fn review_w9_an_owed_run_ended_that_the_checks_read_brought_in_is_stored_once() 
         What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         },
     );
     w.ports.clear_refusals();
@@ -1319,6 +1324,7 @@ fn review_w5_owed_lapse_after_a_resync_of_its_body_is_stored_once() {
         What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         },
     );
     stored_outside(
@@ -1583,6 +1589,7 @@ fn an_owed_run_ended_refused_with_seq_for_another_event_is_logged_after_it() {
         What::RunEnded {
             run: earlier.clone(),
             cause: RunEnd::Completed,
+            defers: None,
         },
         What::RunStarted {
             run: run.clone(),

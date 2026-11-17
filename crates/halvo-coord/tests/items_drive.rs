@@ -1645,6 +1645,7 @@ fn every_form() -> Vec<What> {
         What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Completed,
+            defers: None,
         },
         What::ItemRaised {
             item: item(1),

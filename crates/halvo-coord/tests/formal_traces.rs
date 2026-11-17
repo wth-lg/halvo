@@ -201,7 +201,11 @@ fn sched_event(e: &Event, names: &Names) -> Option<Value> {
             "agent": agent, "event": "run_started", "run": names.run(run),
             "slot": slot.map_or(Value::Null, rel), "trigger": trigger.name()
         }),
-        What::RunEnded { run, cause } => json!({
+        What::RunEnded {
+            run,
+            cause,
+            defers: _,
+        } => json!({
             "agent": agent, "event": "run_ended", "run": names.run(run), "cause": cause.name()
         }),
         What::HoldSet { cause } => {
@@ -329,6 +333,7 @@ impl Sched {
                         What::RunEnded {
                             run: run.clone(),
                             cause: RunEnd::Completed,
+                            defers: None,
                         },
                     ),
                 ]);
