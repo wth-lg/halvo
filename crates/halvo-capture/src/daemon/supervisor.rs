@@ -1112,7 +1112,6 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
     }
 
     fn arm_watchdog(&mut self, status: i32) {
-        self.entered = true;
         if let Some(watchdog) = &self.watchdog {
             watchdog.arm(Duration::from_millis(SHUTDOWN_BUDGET_MS), status);
         }
@@ -3225,6 +3224,123 @@ mod tests {
         );
         assert_eq!(output.status.code(), Some(exit::SOURCE_NOT_STOPPED));
         assert!(took < Duration::from_secs(20), "{took:?}");
+    }
+
+    /// A pause answered late (the store closed through the drain wait and
+    /// most of the pause, then failing), every source at its stop deadline
+    /// and a settle whose writes fail: the settle is cut to what is left of
+    /// SHUTDOWN_BUDGET_MS, where its own part would take the path to about
+    /// 19.8 s.
+    #[test]
+    fn the_settle_after_a_late_pause_is_cut_to_the_budget() {
+        let mode = Arc::new(std::sync::atomic::AtomicU8::new(CLOSED));
+        let now: Rc<Cell<Duration>> = Rc::default();
+        let gate = mode.clone();
+        let main_loop = TestLoop {
+            now: now.clone(),
+            harness: None,
+            real: Duration::from_millis(1),
+            hook: Some(Box::new(move |at| {
+                if at >= Duration::from_millis(7_800) && at < Duration::from_secs(9) {
+                    gate.store(FAILING, Ordering::SeqCst);
+                }
+            })),
+        };
+        let deadlines = [
+            (SourceName::Input, Duration::from_secs(1)),
+            (SourceName::Foreground, Duration::from_secs(1)),
+            (SourceName::Screen, Duration::from_secs(6)),
+        ];
+        let stop_clock = now.clone();
+        let factory = Factory::adjusting(move |source| {
+            if source.name == SourceName::Foreground {
+                source.script = (0..600).map(|_| foreground_now()).collect();
+            }
+            let deadline = deadlines
+                .iter()
+                .find(|(name, _)| *name == source.name)
+                .map_or(Duration::ZERO, |(_, deadline)| *deadline);
+            let clock = stop_clock.clone();
+            let hook: Hook = Box::new(move |_| clock.set(clock.get() + deadline));
+            source.on_stop = Some(hook);
+        });
+        let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop);
+        let mut run = run_of(1);
+        run.switches =
+            crate::daemon::SwitchFlags(vec![(crate::floor::Switch::ScreenActivity, true)]);
+        let store = GateStore {
+            inner: ModelStore::new(),
+            mode: mode.clone(),
+        };
+        let outcome = run_timed(
+            &run,
+            &mut supervisor,
+            store,
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        mode.store(OPEN, Ordering::SeqCst);
+        let path = now.get().saturating_sub(Duration::from_secs(1));
+        assert_eq!(
+            outcome.loss.as_ref().and_then(|loss| loss.cause),
+            Some(LossCause::ShutdownUnanswered),
+            "{:?}",
+            outcome.loss
+        );
+        assert!(
+            path <= Duration::from_millis(SHUTDOWN_BUDGET_MS) + Duration::from_millis(50),
+            "the stop path took {path:?} on the injected clock"
+        );
+        assert!(
+            path >= Duration::from_millis(SHUTDOWN_BUDGET_MS) - Duration::from_millis(500),
+            "the stop path took {path:?}"
+        );
+    }
+
+    #[test]
+    fn a_lost_grant_draws_the_barrier_at_its_first_answer_that_is_not_a_stop() {
+        let (mut f, answers, _) = probed(fixture_on_owner(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            ModelStore::new(),
+        ));
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(Recorder::default()));
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        f.tick();
+        f.link.as_ref().unwrap().emit(2);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        f.now.set(f.now.get() + PROBE_INTERVAL);
+        let link = f.link.take().unwrap();
+        assert_eq!(
+            f.supervisor.tick(Some(&link)),
+            Some(Ending::SourceNotStopped)
+        );
+        let snapshot = link.settle();
+        assert_eq!(snapshot.discarded_by_barrier, 2, "{snapshot:?}");
+        assert_eq!(snapshot.events_persisted, 0);
     }
 
     mod review_cases {

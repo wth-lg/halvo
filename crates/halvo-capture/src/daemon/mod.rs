@@ -941,10 +941,11 @@ impl TimedRun {
 /// in the window (at most [`DRAIN_BOUND`]), the owner pauses, the sources stop
 /// and the owner settles.
 /// The named waits of the stop path take their bounds from
-/// `StopBounds::of(settle_bound)`, each cut to what is left of
-/// SHUTDOWN_BUDGET_MS counted from the end of the window, so that the waits
-/// and the sources' stops together end inside it; an owner that gives no
-/// answer is not joined.
+/// `StopBounds::of(settle_bound)`; the settle and the Shutdown, which follow
+/// the sources' stops, are cut to what is left of SHUTDOWN_BUDGET_MS counted
+/// from the end of the window, so that the waits and the stops together end
+/// inside it (the drain wait and the pause begin with 16 s or more left). An
+/// owner that gives no answer is not joined.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(
     run: &TimedRun,
@@ -1010,7 +1011,7 @@ where
         .map(|kind| counts.of(kind).accepted)
         .sum();
     let waits = waits_of(sources, &mut real);
-    let drained_by = waits.clock() + bounds.drain.min(left_of(started, waits));
+    let drained_by = waits.clock() + bounds.drain;
     while owner.snapshot().events_received() < emitted
         && waits.clock() < drained_by
         && supervisor::OwnerLink::is_running(&owner)
@@ -1018,8 +1019,7 @@ where
         waits.pause_for(Duration::from_millis(5));
     }
     let before = owner.snapshot();
-    let bound = bounds.pause.min(left_of(started, waits));
-    let paused = answer_within(waits, &owner.handle, Command::OpenPause, bound);
+    let paused = answer_within(waits, &owner.handle, Command::OpenPause, bounds.pause);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
     drop(handle);
