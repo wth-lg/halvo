@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,197 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-r7-account
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-r7-account
+      - name: jobtime-10 seconds of each hosted test at the base and the head (scratch only)
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          base=5c97fcd6889427fd1d7c8f73f52c6f83c6e0e9fd
+          file=account/crates/halvo-secrets/tests/hosted.rs
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target/account"
+          dir="$RUNNER_TEMP/jobtime10"
+          mkdir -p "$dir"
+          failed=0
+          build() {
+            code=0
+            cargo test --manifest-path account/Cargo.toml --locked --offline -p halvo-secrets --features "$1" --test hosted --no-run --message-format=json >"$dir/build.json" 2>"$dir/build.err" || code=$?
+            exe=$(jq -r 'select(.reason == "compiler-artifact" and .target.name == "hosted" and .executable != null) | .executable' "$dir/build.json" | tail -n 1)
+            echo "build $2 exit=$code"
+            if [ "$code" -ne 0 ] || [ -z "$exe" ]; then tail -n 20 "$dir/build.err"; failed=1; return 0; fi
+            cp "$exe" "$dir/$2"
+          }
+          git show "$base:$file" >"$file"
+          build hosted-store-tests,keychain base-keychain
+          build hosted-store-tests base-file
+          git checkout -- "$file"
+          build hosted-store-tests,keychain head-keychain
+          build hosted-store-tests head-file
+          echo "tracked files changed: $(git status --porcelain | wc -l | tr -d ' ')"
+          run() {
+            code=0
+            (cd account/crates/halvo-secrets && RUSTC_BOOTSTRAP=1 HALVO_SECRETS_STALE_REFERENCE_ROUNDS="$2" "$dir/$1" --test-threads=1 --nocapture -Z unstable-options --report-time) >"$dir/$1.log" 2>&1 || code=$?
+            echo "== $1 rounds=$2 exit=$code"
+            [ "$code" -eq 0 ] || failed=1
+            awk '/^test .* \.\.\. /{name=$2} match($0, /<[0-9.]+s>/){print "seconds", name, substr($0, RSTART + 1, RLENGTH - 2)}' "$dir/$1.log"
+            grep -E '^(test result|stale-reference (rounds|control))' "$dir/$1.log" || true
+            echo "round lines: $(grep -c '^stale-reference round ' "$dir/$1.log" || true)"
+            sed -n 's/^stale-reference round [0-9]* .* parent_before=\(.*\) parent=deleted-by-reference stands=\(.*\)$/parent_before=\1 stands=\2/p' "$dir/$1.log" | sort | uniq -c
+            sed -n 's/^stale-reference round [0-9]* child=\(.*\) child_saw=\([^ ]*\) .*/child=\1 child_saw=\2/p' "$dir/$1.log" | sort | uniq -c
+          }
+          run base-keychain 20
+          run base-file 20
+          run head-keychain 200
+          run head-file 200
+          echo "tracked files changed: $(git status --porcelain | wc -l | tr -d ' ')"
+          exit "$failed"
+      - name: jobtime-10 one-rule changes of tests/hosted.rs (scratch only)
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          cat >"$RUNNER_TEMP/mutate.py" <<'JOBTIME10_PY'
+          """One-rule changes of tests/hosted.rs, one at a time in one checkout.
+
+          Usage: python3 -I mutate.py compile|run <checkout> <mutants.json> [ids...]
+
+          compile: builds the hosted target with the keychain feature (--no-run) for each change.
+          run:     also runs the stale-reference test of each change that builds, with
+                   HALVO_SECRETS_STALE_REFERENCE_ROUNDS from the environment (default 10), and
+                   prints its exit code, its seconds (libtest --report-time) and its summary line.
+          Each change is applied, built (and run), and the file is restored with git checkout before
+          the next. The unchanged file runs first as m00. Prints one line per change; prints counts,
+          codes and seconds only.
+          """
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import time
+
+          mode, checkout, table = sys.argv[1], sys.argv[2], sys.argv[3]
+          only = set(sys.argv[4:])
+          rel = "account/crates/halvo-secrets/tests/hosted.rs"
+          path = os.path.join(checkout, rel)
+          test = "by_reference::a_stale_reference_between_two_processes_keeps_the_later_item"
+          with open(table, encoding="utf-8") as f:
+              mutants = json.load(f)
+          if mode not in ("compile", "run"):
+              sys.exit("mode is compile or run")
+
+
+          def restore():
+              subprocess.run(["git", "-C", checkout, "checkout", "--", rel], check=True)
+
+
+          def build():
+              out = subprocess.run(
+                  ["cargo", "test", "--manifest-path", "account/Cargo.toml", "--locked", "--offline",
+                   "-p", "halvo-secrets", "--features", "hosted-store-tests,keychain", "--test", "hosted",
+                   "--no-run", "--message-format=json"],
+                  cwd=checkout, capture_output=True, text=True)
+              exe = None
+              for line in out.stdout.splitlines():
+                  if not line.startswith("{"):
+                      continue
+                  msg = json.loads(line)
+                  if msg.get("reason") == "compiler-artifact" and msg.get("executable") and msg["target"]["name"] == "hosted":
+                      exe = msg["executable"]
+              return out.returncode, exe
+
+
+          def run(exe):
+              env = dict(os.environ)
+              env["RUSTC_BOOTSTRAP"] = "1"
+              env.setdefault("HALVO_SECRETS_STALE_REFERENCE_ROUNDS", "10")
+              start = time.monotonic()
+              out = subprocess.run(
+                  [exe, "--exact", test, "--test-threads=1", "--nocapture", "-Z", "unstable-options", "--report-time"],
+                  cwd=os.path.join(checkout, "account/crates/halvo-secrets"), env=env,
+                  capture_output=True, text=True)
+              wall = time.monotonic() - start
+              text = out.stdout + out.stderr
+              secs = re.findall(r"<(\d+\.\d+)s>", text)
+              summary = [l.strip() for l in text.splitlines() if l.strip().startswith("stale-reference rounds=")]
+              control = [l.strip() for l in text.splitlines() if l.strip().startswith("stale-reference control:")]
+              panics = [l.strip() for l in text.splitlines() if "panicked at" in l or l.strip().startswith("assertion")]
+              before = [l for l in text.splitlines() if l.startswith("stale-reference round ")]
+              codes = [len(re.findall(r"-\d+", l.split("parent_before=")[1].split(" parent=")[0])) if "parent_before=" in l else -1 for l in before]
+              return out.returncode, secs[-1] if secs else "none", wall, summary, control, panics, codes
+
+
+          with open(path, encoding="utf-8") as f:
+              original = f.read()
+          rows = [{"id": "m00", "what": "the head unchanged", "old": None, "new": None}] + mutants
+          for m in rows:
+              if only and m["id"] not in only and m["id"] != "m00":
+                  continue
+              if m["old"] is not None:
+                  n = original.count(m["old"])
+                  if n != 1:
+                      print(f"mutant {m['id']} not-applied matches={n}", flush=True)
+                      continue
+                  with open(path, "w", encoding="utf-8") as f:
+                      f.write(original.replace(m["old"], m["new"]))
+              try:
+                  code, exe = build()
+                  if mode == "compile" or code != 0 or exe is None:
+                      print(f"mutant {m['id']} build={code} ({m['what']})", flush=True)
+                      continue
+                  rc, secs, wall, summary, control, panics, codes = run(exe)
+                  print(f"mutant {m['id']} build=0 exit={rc} test_seconds={secs} wall={wall:.2f} "
+                        f"before_codes_per_round={sorted(set(codes))} ({m['what']})", flush=True)
+                  for line in control + summary + panics[:2]:
+                      print(f"  {m['id']}: {line[:300]}", flush=True)
+              finally:
+                  restore()
+          clean = subprocess.run(["git", "-C", checkout, "diff", "--quiet", "--", rel]).returncode
+          print(f"file restored to HEAD: {clean == 0}")
+          JOBTIME10_PY
+          cat >"$RUNNER_TEMP/mutants.json" <<'JOBTIME10_JSON'
+          [
+            {"id": "m01", "what": "the parent's search before its delete makes no try", "old": "let parent_before = match look(account, 1) {", "new": "let parent_before = match look(account, 0) {"},
+            {"id": "m02", "what": "the parent's search before its delete makes two tries", "old": "let parent_before = match look(account, 1) {", "new": "let parent_before = match look(account, 2) {"},
+            {"id": "m03", "what": "the parent's search before its delete makes 20 tries again", "old": "let parent_before = match look(account, 1) {", "new": "let parent_before = match look(account, 20) {"},
+            {"id": "m04", "what": "the look after the delete makes no try", "old": "let left = look(account, 20);", "new": "let left = look(account, 0);"},
+            {"id": "m05", "what": "the look after the delete makes one try", "old": "let left = look(account, 20);", "new": "let left = look(account, 1);"},
+            {"id": "m06", "what": "the child's look makes no try", "old": "let saw = match look(&account, 20) {", "new": "let saw = match look(&account, 0) {"},
+            {"id": "m07", "what": "the child's look makes one try", "old": "let saw = match look(&account, 20) {", "new": "let saw = match look(&account, 1) {"},
+            {"id": "m08", "what": "the control's look makes no try", "old": "let left = look(account, 20).map(|held| held.len());", "new": "let left = look(account, 0).map(|held| held.len());"},
+            {"id": "m09", "what": "the control's look makes one try", "old": "let left = look(account, 20).map(|held| held.len());", "new": "let left = look(account, 1).map(|held| held.len());"},
+            {"id": "m10", "what": "the pause comes before the first try and never after a refusal", "old": "if !codes.is_empty() {", "new": "if codes.is_empty() {"},
+            {"id": "m11", "what": "a pause before every try, the first one included", "old": "if !codes.is_empty() {", "new": "if true {"},
+            {"id": "m12", "what": "no pause between tries", "old": "if !codes.is_empty() {", "new": "if false {"},
+            {"id": "m13", "what": "the pause between tries is 0 ms", "old": "std::thread::sleep(std::time::Duration::from_millis(50));", "new": "std::thread::sleep(std::time::Duration::from_millis(0));"},
+            {"id": "m14", "what": "the pause between tries is 500 ms", "old": "std::thread::sleep(std::time::Duration::from_millis(50));", "new": "std::thread::sleep(std::time::Duration::from_millis(500));"},
+            {"id": "m15", "what": "every look makes one try more than asked", "old": "for _ in 0..tries {", "new": "for _ in 0..=tries {"},
+            {"id": "m16", "what": "every look makes one try fewer than asked", "old": "for _ in 0..tries {", "new": "for _ in 1..tries {"},
+            {"id": "m17", "what": "every look makes one try at most", "old": "for _ in 0..tries {", "new": "for _ in 0..tries.min(1) {"},
+            {"id": "m18", "what": "a look makes 20 tries whatever it is asked", "old": "for _ in 0..tries {", "new": "for _ in 0..20 {"},
+            {"id": "m19", "what": "a refused data search is not recorded", "old": "Err(error) => codes.push(error.code()),", "new": "Err(_) => {}"},
+            {"id": "m20", "what": "a refused data search ends the look at once", "old": "Err(error) => codes.push(error.code()),", "new": "Err(error) => return Err(format!(\"searches refused with {:?}\", [error.code()])),"},
+            {"id": "m21", "what": "a refused count search ends the tries", "old": "codes.push(error.code());\n                    continue;", "new": "codes.push(error.code());\n                    break;"},
+            {"id": "m22", "what": "a refused count search goes on to the data search", "old": "codes.push(error.code());\n                    continue;", "new": "codes.push(error.code());"},
+            {"id": "m23", "what": "the pause after a refused count search comes back", "old": "codes.push(error.code());\n                    continue;", "new": "codes.push(error.code());\n                    std::thread::sleep(std::time::Duration::from_millis(50));\n                    continue;"},
+            {"id": "m24", "what": "the pause after a refused data search comes back", "old": "Err(error) => codes.push(error.code()),", "new": "Err(error) => {\n                    codes.push(error.code());\n                    std::thread::sleep(std::time::Duration::from_millis(50));\n                }"},
+            {"id": "m25", "what": "the parent makes no search before its delete and prints an empty answer", "old": "let parent_before = match look(account, 1) {", "new": "let parent_before = match Ok::<Vec<Vec<u8>>, String>(Vec::new()) {"},
+            {"id": "m26", "what": "the pause comes only from the third try on", "old": "if !codes.is_empty() {", "new": "if codes.len() > 1 {"},
+            {"id": "m27", "what": "the number of tries is a u8", "old": "fn look(account: &str, tries: usize) -> Result<Vec<Vec<u8>>, String> {", "new": "fn look(account: &str, tries: u8) -> Result<Vec<Vec<u8>>, String> {"},
+            {"id": "m28", "what": "the look takes no number of tries", "old": "fn look(account: &str, tries: usize) -> Result<Vec<Vec<u8>>, String> {", "new": "fn look(account: &str) -> Result<Vec<Vec<u8>>, String> {"}
+          ]
+          JOBTIME10_JSON
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target/account"
+          export HALVO_SECRETS_STALE_REFERENCE_ROUNDS=10
+          python3 -I "$RUNNER_TEMP/mutate.py" run "$GITHUB_WORKSPACE" "$RUNNER_TEMP/mutants.json"
+          echo "tracked files changed: $(git status --porcelain | wc -l | tr -d ' ')"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +333,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r7-account
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-r7-account
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
