@@ -17,8 +17,8 @@ use halvo_schema::executable::names::{HandbackOutcome, HandbackReason};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, EffectState, ExecutableStep,
-    FromRunner, HandbackResult, Outcome, RunId, ToRunner, WebOrigin,
+    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, CheckpointState, EffectState,
+    ExecutableStep, FromRunner, HandbackResult, Outcome, RunId, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
 
@@ -719,6 +719,22 @@ pub fn is_op(frame: &FromRunner, op: &str) -> bool {
 
 pub fn is_effect(frame: &FromRunner, state: EffectState) -> bool {
     matches!(frame, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == state))
+}
+
+pub fn is_checkpoint(frame: &FromRunner, state: CheckpointState) -> bool {
+    matches!(frame, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Checkpoint(b) if b.record.state == state))
+}
+
+/// A frame by its tag, a `store` frame also by its call and, for an effect or a checkpoint row, by its state.
+pub fn named(frame: &FromRunner) -> String {
+    match frame {
+        FromRunner::Store(s) => match s.request.body() {
+            RunnerCall::Effect(b) => format!("store effect {:?}", b.record.state),
+            RunnerCall::Checkpoint(b) => format!("store checkpoint {:?}", b.record.state),
+            body => format!("store {}", body.op()),
+        },
+        other => tag(other).to_string(),
+    }
 }
 
 /// The cells of the fill range as the sheet executor reads them, each written as text.
