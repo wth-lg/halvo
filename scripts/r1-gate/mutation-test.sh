@@ -101,7 +101,7 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   of each match, or a statement that perl would not read as written (an
   empty pattern, a variable, an array, \K or one of the escapes \Q, \U, \L,
   \u, \l, \F and \E in a pattern, a variable but $1 to $9 and $&, or $1 to
-  $9 before [ or {, in a replacement, no valid perl, the modifier r or e), and then ends as failed
+  $9 or $& before [ or {, in a replacement, no valid perl, the modifier r or e), and then ends as failed
   before it applies any row (scripts/r1-gate/README.md). A row
   outside the kept build that it applies is refused when a line that the
   substitution changes is in an extern block (its brace on the same or the
@@ -1846,7 +1846,15 @@ place_cases() {
   # shellcheck disable=SC2016
   t replacement-with-an-element-of-a-hash-is-named PASS fixture_says replacement-element-hash 'FAIL mutation:replacement-element-hash (statement 1 of the substitution has $1{x} in its replacement, which perl reads as an element of an array or a hash: write ${1} for the group when a [ or a { follows it)' yes
   # shellcheck disable=SC2016
-  place_fixture replacement-group-before-a-bracket 'echo one\n' 's/(o)ne/${1}[0] ${1}{x}/'
+  place_fixture replacement-match-element-array 'echo one\n' 's/one/$&[0]/'
+  # shellcheck disable=SC2016
+  t replacement-with-the-match-before-a-bracket-is-named PASS fixture_says replacement-match-element-array 'FAIL mutation:replacement-match-element-array (statement 1 of the substitution has $&[0] in its replacement, which perl reads as an element of an array or a hash: write ${&} for the group when a [ or a { follows it)' yes
+  # shellcheck disable=SC2016
+  place_fixture replacement-match-element-hash 'echo one\n' 's/one/$&{x}/'
+  # shellcheck disable=SC2016
+  t replacement-with-the-match-before-a-brace-is-named PASS fixture_says replacement-match-element-hash 'FAIL mutation:replacement-match-element-hash (statement 1 of the substitution has $&{x} in its replacement, which perl reads as an element of an array or a hash: write ${&} for the group when a [ or a { follows it)' yes
+  # shellcheck disable=SC2016
+  place_fixture replacement-group-before-a-bracket 'echo one\n' 's/(o)ne/${1}[0] ${1}{x} ${&}[0] ${&}{x}/'
   t replacement-with-a-braced-group-before-a-bracket-applies PASS fixture_says replacement-group-before-a-bracket 'PASS mutation:replacement-group-before-a-bracket (applies and builds)' yes
   # shellcheck disable=SC2016
   place_fixture replacement-escaped 'echo one\n' 's/one/\$x \@y/'

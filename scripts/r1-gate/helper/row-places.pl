@@ -71,9 +71,9 @@ sub variable_in {
         my $rest = substr($text, $at);
         if ($rest =~ /^\\./s) {
             $at += 2;
-        } elsif ($replacement && $rest =~ /^(\$[1-9](?![0-9])[\[{][^\]}]*[\]}]?)/) {
+        } elsif ($replacement && $rest =~ /^(\$(?:[1-9](?![0-9])|&)[\[{][^\]}]*[\]}]?)/) {
             return $1;
-        } elsif ($replacement && $rest =~ /^(\$(?:[1-9](?![0-9])|\{[1-9]\}|&))/) {
+        } elsif ($replacement && $rest =~ /^(\$(?:[1-9](?![0-9])|\{[1-9&]\}|&))/) {
             $at += length $1;
         } elsif ($replacement && $rest =~ /^(\$(?:\{[^}]*\}?|\w+(?:::\w+)*|.?))/s) {
             return $1;
@@ -125,7 +125,7 @@ sub statements_of {
         my $array = $open eq "'" ? undef : variable_in($pattern, 0);
         die sprintf("statement %d of the substitution has the array %s in its pattern, which perl replaces by its value: write \\\@ for an \@ of the text\n", $index, $array) if defined $array;
         my $value = $second eq "'" ? undef : variable_in($replacement, 1);
-        die sprintf("statement %d of the substitution has %s in its replacement, which perl reads as an element of an array or a hash: write \${%s} for the group when a [ or a { follows it\n", $index, $value, substr($value, 1, 1)) if defined $value && $value =~ /^\$[1-9][\[{]/;
+        die sprintf("statement %d of the substitution has %s in its replacement, which perl reads as an element of an array or a hash: write \${%s} for the group when a [ or a { follows it\n", $index, $value, substr($value, 1, 1)) if defined $value && $value =~ /^\$[1-9&][\[{]/;
         die sprintf("statement %d of the substitution has %s in its replacement, which perl replaces by its value: a replacement may hold \$1 to \$9 and \$& and no other variable; write \\\$ for a \$ and \\\@ for an \@ of the text\n", $index, $value) if defined $value;
         die sprintf("statement %d of the substitution has a pattern into which perl puts the value of a variable, so it is not the text written: write \\\$ for a \$ and \\\@ for an \@ of the text\n", $index) if interpolates($text);
         push @statements, { text => $text, open => $open, close => $close, pattern => $pattern, flags => $flags };

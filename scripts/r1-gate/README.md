@@ -89,10 +89,10 @@ empty, and a line that is empty is skipped.
   pattern, which is not allowed in a row's pattern: write the text before
   it as a lookbehind or as a group that the replacement puts back with
   `$1`; and a replacement that holds a variable other than `$1` to `$9`
-  (also written `${1}` to `${9}`) and `$&`, such as `$_`, `$0`, `@ARGV`,
-  `$ENV{HOME}` or `$FindBin::RealBin`, or `$1` to `$9` followed by `[` or
-  `{`, which perl reads as an element of an array or a hash (`${1}[` and
-  `${1}{` are the group and then text). Write `\$` for a `$` and `\@` for an `@` of the text;
+  (also written `${1}` to `${9}`) and `$&` (also `${&}`), such as `$_`, `$0`, `@ARGV`,
+  `$ENV{HOME}` or `$FindBin::RealBin`, or `$1` to `$9` or `$&` followed by
+  `[` or `{`, which perl reads as an element of an array or a hash (`${1}[`,
+  `${1}{`, `${&}[` and `${&}{` are the group and then text). Write `\$` for a `$` and `\@` for an `@` of the text;
   a `$` at the end of the pattern or before `)` or `|` is an anchor and
   stays. A statement that is no valid perl, or that has the modifier `r` or
   `e`, is refused too. So no variable of the runner reaches a statement.
