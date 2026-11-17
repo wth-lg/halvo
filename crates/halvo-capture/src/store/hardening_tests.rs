@@ -9921,7 +9921,7 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
         roots: super::RootsLeft {
             left: vec![left],
             names: vec![format!("{left}.root")],
-            others_left: 0,
+            others_left: Default::default(),
             listed: true,
             at_its_path: true,
         },
@@ -10303,6 +10303,11 @@ fn st48_u3_no_form_of_the_answer_holds_the_name_of_a_folder_in_the_roots_folder(
     assert!(
         incomplete,
         "the folder in the roots folder did not keep the delete unfinished"
+    );
+    assert_eq!(
+        delete_report(&answer).roots.others_left.directories,
+        1,
+        "the folder that stays is not counted as a directory"
     );
     assert!(
         !display.contains(named) && !debug.contains(named),
