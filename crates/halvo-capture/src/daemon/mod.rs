@@ -1829,6 +1829,15 @@ mod tests {
         let d = dirs.store.as_str();
         for line in [
             &["--timed-run", "5", "--store-dir", d][..],
+            &["--timed-run", "5", "--store-dir", d, "--hold-secure-input"][..],
+            &[
+                "--timed-run",
+                "5",
+                "--store-dir",
+                d,
+                "--switch",
+                "screen_activity=on",
+            ][..],
             &[
                 "--verify-store",
                 "--store-dir",
@@ -1837,11 +1846,15 @@ mod tests {
                 "M4rker.release",
             ][..],
             &["--verify-deletion", "--store-dir", d][..],
+            &["--delete-all", "--store-dir", d][..],
         ] {
             let refused = parse(args(line), &dirs.account);
-            assert!(refused.is_err(), "{line:?} gave {refused:?}");
+            let Err(refusal @ Refusal::Usage(_)) = refused else {
+                panic!("{line:?} gave {refused:?}");
+            };
+            let mut err = Vec::new();
+            assert_eq!(usage_answer(&refusal, &mut err), 64, "{line:?}");
         }
-        assert_eq!(exit::USAGE, 64, "the binary's status for a usage refusal");
     }
 
     #[cfg(unix)]
