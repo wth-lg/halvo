@@ -135,7 +135,7 @@ check() {
 good_readme() {
   printf '# Product\n\nIntro.\n\n## Prerequisites\n\n\140\140\140sh\nsh scripts/prerequisites.sh\n\140\140\140\n\n'
   printf '## Build\n\nRun \140sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy\140 and backend/scripts/fetch-tools.sh.\n\nThe config is src-tauri/tauri.conf.json.\n\n'
-  printf '\140\140\140sh\n## not a heading inside a fence\n\140\140\140\n\n'
+  printf '\140\140\140sh\n## Version\n\140\140\140\n\n'
   printf '## Version\n\nThe version is in Cargo.toml, which is \1401.2.3\140 now.\n\n'
   printf '## Release\n\nRun release.sh.\n'
 }
@@ -221,6 +221,16 @@ self_test() {
   printf '#!/bin/sh\nprintf "FAIL 61-version (cargo metadata failed)\\n"\nexit 1\n' >"$work/version-fails/scripts/r1/ci.d/61-version.sh" || exit 2
   track version-fails
   check version-fails FAIL 'sh scripts/r1/ci.d/61-version.sh --print exited 1'
+
+  fixture version-writes
+  printf '#!/bin/sh\nprintf "x\\n" >>README.md\nprintf "1.2.3\\n"\n' >"$work/version-writes/scripts/r1/ci.d/61-version.sh" || exit 2
+  track version-writes
+  check version-writes FAIL 'a tracked file differs after sh scripts/r1/ci.d/61-version.sh --print'
+
+  fixture part-of-a-path
+  printf '\nSee ci/run-ci-d.sh.\n' >>"$work/part-of-a-path/README.md" || exit 2
+  track part-of-a-path
+  check part-of-a-path FAIL 'README.md names ci/run-ci-d.sh, which is no tracked file'
 
   fixture no-readme-entry
   edit no-readme-entry '/README/d' src-tauri/release.toml

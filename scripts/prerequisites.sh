@@ -682,6 +682,7 @@ self_test() {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-release matches $(uname -s) $(uname -m), so this platform has no case"
     return 1
   }
+  release_target=$target
   asset=$(cargo_release_asset "$target")
   release_real_tar=$(command -v tar)
   release_real_powershell=$(command -v powershell.exe || :)
@@ -746,7 +747,7 @@ EOF
     (
       PATH="$case_dir/stubs:$PATH"
       TMPDIR="$case_dir/tmp"
-      cargo_release_sha256() { echo "$release_sum"; }
+      cargo_release_sha256() { [ "$1" = "$release_target" ] && echo "$release_sum"; }
       ensure_cargo_release
     ) >>"$case_dir/output" 2>&1 || status=$?
     case "${1:-ok}:$status" in
@@ -835,6 +836,21 @@ EOF
   expect_no_binary
   verdict "$name"
 
+  if command -v chflags >/dev/null 2>&1; then
+    name='a rename that fails over the old cargo-release leaves no partial file, and the script fails and builds nothing'
+    new_case rename
+    make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+    pin_asset
+    mkdir "$CARGO_HOME/bin"
+    echo 'cargo-release 1.1.6' >"$CARGO_HOME/bin/$executable"
+    chflags uchg "$CARGO_HOME/bin/$executable"
+    expect_stop "copying the prebuilt cargo-release into $CARGO_HOME/bin failed"
+    [ ! -e "$CARGO_HOME/bin/.$executable.partial" ] || problems="$problems; the partial file was left in place"
+    chflags nouchg "$CARGO_HOME/bin/$executable"
+    [ "$(cat "$CARGO_HOME/bin/$executable")" = 'cargo-release 1.1.6' ] || problems="$problems; the old binary was written in place"
+    verdict "$name"
+  fi
+
   name='a cargo-release that exits 137 at the version check after the install fails the script, which builds nothing'
   new_case killed
   mkdir "$case_dir/binary"
@@ -908,6 +924,7 @@ case "$tool \$1" in
   'rustup --version') echo 'rustup 1.0.0' ;;
   'rustup run') echo 'cargo 1.2.3' ;;
   'xcode-select -p') echo /Library/Developer/CommandLineTools ;;
+  'xcode-select '*) exit 2 ;;
 esac
 EOF
       chmod +x "$case_dir/stubs/$tool"

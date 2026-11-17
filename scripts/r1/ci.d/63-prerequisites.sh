@@ -178,6 +178,11 @@ self_test() {
   track other-version
   check other-version FAIL 'holds no line cargo_release_version=1.1.7, the form that check 60 reads'
 
+  fixture longer-version
+  edit longer-version 's/^cargo_release_version=.*/cargo_release_version=1.1.70/' scripts/prerequisites.sh
+  track longer-version
+  check longer-version FAIL 'holds no line cargo_release_version=1.1.7, the form that check 60 reads'
+
   fixture quoted-version
   edit quoted-version 's/^cargo_release_version=.*/cargo_release_version="1.1.7"/' scripts/prerequisites.sh
   track quoted-version
