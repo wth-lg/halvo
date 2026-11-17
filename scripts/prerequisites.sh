@@ -6,14 +6,46 @@ CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 export PATH="$CARGO_HOME/bin:$PATH"
 
 cargo_release_version=1.1.7
+cargo_release_sha256_aarch64_apple_darwin=39e1121c5e9671b0ff4703692b7ce2d9576c540118869091b7ad85a15187d129
+cargo_release_sha256_x86_64_apple_darwin=9abd1bb84a581e982e4ae00a4c4413c14657b4cba8cd76b0eb003e00fe361a7a
+cargo_release_sha256_x86_64_pc_windows_msvc=7b67996840ec6d2fd8e78c67281d8807950818869f6d09e0c9678897b48f9837
+
+prebuilt_target() {
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) echo aarch64-apple-darwin ;;
+    Darwin-x86_64) echo x86_64-apple-darwin ;;
+    MINGW*|MSYS*|CYGWIN*) echo x86_64-pc-windows-msvc ;;
+    *) return 1 ;;
+  esac
+}
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sum=$(sha256sum <"$1") || return 1
+  else
+    sum=$(shasum -a 256 <"$1") || return 1
+  fi
+  sum=${sum%% *}
+  case "$sum" in
+    '' | *[!0-9a-f]*) return 1 ;;
+  esac
+  [ "${#sum}" = 64 ] || return 1
+  echo "$sum"
+}
+
+cargo_release_sha256() {
+  case "$1" in
+    aarch64-apple-darwin) echo "$cargo_release_sha256_aarch64_apple_darwin" ;;
+    x86_64-apple-darwin) echo "$cargo_release_sha256_x86_64_apple_darwin" ;;
+    x86_64-pc-windows-msvc) echo "$cargo_release_sha256_x86_64_pc_windows_msvc" ;;
+    *) return 1 ;;
+  esac
+}
 
 cargo_release_asset() {
-  prefix="cargo-release-v$cargo_release_version"
-  case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64) echo "$prefix-aarch64-apple-darwin.tar.gz" ;;
-    Darwin-x86_64) echo "$prefix-x86_64-apple-darwin.tar.gz" ;;
-    MINGW*|MSYS*|CYGWIN*) echo "$prefix-x86_64-pc-windows-msvc.zip" ;;
-    *) return 1 ;;
+  case "$1" in
+    *-windows-*) echo "cargo-release-v$cargo_release_version-$1.zip" ;;
+    *) echo "cargo-release-v$cargo_release_version-$1.tar.gz" ;;
   esac
 }
 
@@ -31,43 +63,67 @@ unpack_cargo_release() {
   esac
 }
 
-install_cargo_release_prebuilt() {
-  if ! asset=$(cargo_release_asset); then
-    echo "prerequisites: no prebuilt cargo-release matches $(uname -s) $(uname -m)"
-    return 1
-  fi
-  executable=$(cargo_release_executable)
-  url="https://github.com/crate-ci/cargo-release/releases/download/v$cargo_release_version/$asset"
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites.XXXXXX") || return 1
-  failed=
-  if ! curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$url"; then
-    failed="downloading the prebuilt cargo-release from $url"
-  elif ! unpack_cargo_release "$tmp/$asset" "$tmp"; then
-    failed="unpacking the prebuilt cargo-release $asset"
-  elif ! { mkdir -p "$CARGO_HOME/bin" && cp "$tmp/$executable" "$CARGO_HOME/bin/$executable"; }; then
-    failed="copying the prebuilt cargo-release into $CARGO_HOME/bin"
-  fi
-  rm -rf "$tmp"
-  if [ -n "$failed" ]; then
-    echo "prerequisites: $failed failed"
-    return 1
-  fi
-}
-
-install_cargo_release() {
-  echo "prerequisites: installing cargo-release $cargo_release_version into $CARGO_HOME/bin"
-  install_cargo_release_prebuilt && return
+build_cargo_release() {
   echo "prerequisites: building cargo-release $cargo_release_version with cargo install instead"
   cargo install cargo-release --version "$cargo_release_version" --locked
 }
 
-ensure_cargo_release() {
-  if cargo release --version 2>/dev/null | grep -q " $cargo_release_version\$"; then
-    echo "prerequisites: cargo-release $cargo_release_version present"
+install_cargo_release() {
+  echo "prerequisites: installing cargo-release $cargo_release_version into $CARGO_HOME/bin"
+  if ! target=$(prebuilt_target); then
+    echo "prerequisites: no prebuilt cargo-release matches $(uname -s) $(uname -m)"
+    build_cargo_release
     return
   fi
+  asset=$(cargo_release_asset "$target")
+  executable=$(cargo_release_executable)
+  url="https://github.com/crate-ci/cargo-release/releases/download/v$cargo_release_version/$asset"
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites.XXXXXX") || return 1
+  if ! curl --proto '=https' --tlsv1.2 -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$url"; then
+    rm -rf "$tmp"
+    echo "prerequisites: downloading the prebuilt cargo-release from $url failed"
+    build_cargo_release
+    return
+  fi
+  partial="$CARGO_HOME/bin/.$executable.partial"
+  failed=
+  if ! pin=$(cargo_release_sha256 "$target") || ! sum=$(sha256_of "$tmp/$asset") || [ "$sum" != "$pin" ]; then
+    failed="checking the sha256 of the prebuilt cargo-release $asset"
+  elif ! unpack_cargo_release "$tmp/$asset" "$tmp"; then
+    failed="unpacking the prebuilt cargo-release $asset"
+  elif ! { mkdir -p "$CARGO_HOME/bin" && cp "$tmp/$executable" "$partial" && mv -f "$partial" "$CARGO_HOME/bin/$executable"; }; then
+    rm -f "$partial"
+    failed="copying the prebuilt cargo-release into $CARGO_HOME/bin"
+  fi
+  rm -rf "$tmp"
+  if [ -n "$failed" ]; then
+    echo "prerequisites: $failed failed; nothing was built or installed"
+    return 1
+  fi
+}
+
+ensure_cargo_release() {
+  present=$(cargo release --version 2>/dev/null) || present=
+  case "$present" in
+    *" $cargo_release_version")
+      echo "prerequisites: cargo-release $cargo_release_version present"
+      return
+      ;;
+  esac
   install_cargo_release || return
-  version=$(cargo release --version) || return
+  version_status=0
+  version=$(cargo release --version) || version_status=$?
+  if [ "$version_status" != 0 ]; then
+    echo "prerequisites: checking the version of the installed cargo-release failed: cargo release --version exited $version_status"
+    return 1
+  fi
+  case "$version" in
+    *" $cargo_release_version") ;;
+    *)
+      echo "prerequisites: checking the version of the installed cargo-release failed: it reports $version, not $cargo_release_version"
+      return 1
+      ;;
+  esac
   echo "prerequisites: $version"
 }
 
@@ -75,15 +131,6 @@ cargo_deny_version=0.20.2
 cargo_deny_sha256_aarch64_apple_darwin=fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3
 cargo_deny_sha256_x86_64_apple_darwin=248da7f581724e470071990c088ffc55c811981715f4cbdb258621fb79f8b7a6
 cargo_deny_sha256_x86_64_pc_windows_msvc=975a22143262fd27476d19ee00c7af67978426e40e1dee94eed6bbade1cf87dc
-
-cargo_deny_target() {
-  case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64) echo aarch64-apple-darwin ;;
-    Darwin-x86_64) echo x86_64-apple-darwin ;;
-    MINGW*|MSYS*|CYGWIN*) echo x86_64-pc-windows-msvc ;;
-    *) return 1 ;;
-  esac
-}
 
 cargo_deny_sha256() {
   case "$1" in
@@ -101,17 +148,8 @@ cargo_deny_executable() {
   esac
 }
 
-cargo_deny_sha256_of() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sum=$(sha256sum <"$1") || return 1
-  else
-    sum=$(shasum -a 256 <"$1") || return 1
-  fi
-  echo "${sum%% *}"
-}
-
 install_cargo_deny_prebuilt() {
-  if ! target=$(cargo_deny_target); then
+  if ! target=$(prebuilt_target); then
     echo "prerequisites: no prebuilt cargo-deny matches $(uname -s) $(uname -m)"
     return 1
   fi
@@ -122,7 +160,7 @@ install_cargo_deny_prebuilt() {
   failed=
   if ! curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$url"; then
     failed="downloading the prebuilt cargo-deny from $url"
-  elif ! sum=$(cargo_deny_sha256_of "$tmp/$asset") || [ "$sum" != "$(cargo_deny_sha256 "$target")" ]; then
+  elif ! sum=$(sha256_of "$tmp/$asset") || [ "$sum" != "$(cargo_deny_sha256 "$target")" ]; then
     failed="checking the sha256 of the prebuilt cargo-deny $asset"
   elif ! tar -xzf "$tmp/$asset" -C "$tmp"; then
     failed="unpacking the prebuilt cargo-deny $asset"
@@ -138,7 +176,7 @@ install_cargo_deny_prebuilt() {
 
 install_cargo_deny() {
   echo "prerequisites: installing cargo-deny $cargo_deny_version into $CARGO_HOME/bin"
-  if cargo_deny_target >/dev/null; then
+  if prebuilt_target >/dev/null; then
     install_cargo_deny_prebuilt
     return
   fi
@@ -648,10 +686,14 @@ ensure_backend() {
 }
 
 self_test() {
-  asset=$(cargo_release_asset) || {
+  target=$(prebuilt_target) || {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-release matches $(uname -s) $(uname -m), so this platform has no case"
     return 1
   }
+  release_target=$target
+  asset=$(cargo_release_asset "$target")
+  release_real_tar=$(command -v tar)
+  release_real_powershell=$(command -v powershell.exe || :)
   executable=$(cargo_release_executable)
   work=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites-self-test.XXXXXX")
   failures=0
@@ -673,6 +715,7 @@ self_test() {
     : >"$case_dir/output"
     cat >"$case_dir/stubs/curl" <<EOF
 #!/bin/sh
+echo "curl-args \$*" >>'$case_dir/calls'
 out=
 while [ "\$#" -gt 1 ]; do
   if [ "\$1" = -o ]; then out=\$2; shift; fi
@@ -690,26 +733,44 @@ EOF
 #!/bin/sh
 echo "cargo \$*" >>'$case_dir/calls'
 case "\$1" in
-  release) cat '$CARGO_HOME/bin/$executable' ;;
+  release)
+    answer=\$(cat '$CARGO_HOME/bin/$executable') || exit 1
+    case "\$answer" in
+      'exit '*) exit "\${answer#exit }" ;;
+    esac
+    echo "\$answer"
+    ;;
   install) mkdir -p '$CARGO_HOME/bin' && echo "cargo-release $cargo_release_version" >'$CARGO_HOME/bin/$executable' ;;
   *) exit 2 ;;
 esac
 EOF
     chmod +x "$case_dir/stubs/curl" "$case_dir/stubs/cargo"
     problems=
+    release_sum=
   }
 
   run_ensure() {
     status=0
+    mkdir -p "$case_dir/tmp"
     (
       PATH="$case_dir/stubs:$PATH"
+      TMPDIR="$case_dir/tmp"
+      cargo_release_sha256() { [ "$1" = "$release_target" ] && echo "$release_sum"; }
       ensure_cargo_release
     ) >>"$case_dir/output" 2>&1 || status=$?
-    [ "$status" = 0 ] || problems="$problems; ensure_cargo_release exited $status"
+    case "${1:-ok}:$status" in
+      ok:0 | fails:[1-9]*) ;;
+      *) problems="$problems; ensure_cargo_release exited $status, wanted ${1:-ok}" ;;
+    esac
+    [ -z "$(ls -A "$case_dir/tmp")" ] || problems="$problems; a temporary directory was left in place"
   }
 
   count() {
     grep -c -F -- "$1" "$2" || :
+  }
+
+  pin_asset() {
+    release_sum=$(sha256_of "$case_dir/assets/$asset")
   }
 
   verdict() {
@@ -725,6 +786,7 @@ EOF
   name='a cargo home with no bin directory gets the prebuilt cargo-release, and a second run finds it and installs nothing'
   new_case prebuilt
   make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+  pin_asset
   run_ensure
   run_ensure
   cmp -s "$work/binary/$executable" "$case_dir/cargo-home/bin/$executable" || problems="$problems; bin/$executable is not the binary of the archive"
@@ -732,7 +794,20 @@ EOF
   [ "$(count 'cargo install' "$case_dir/calls")" = 0 ] || problems="$problems; cargo install ran"
   [ "$(count "prerequisites: cargo-release $cargo_release_version present" "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report the tool present"
   [ "$(count ' failed' "$case_dir/output")" = 0 ] || problems="$problems; a line reports a failure"
+  [ "$(ls -A "$case_dir/cargo-home/bin")" = "$executable" ] || problems="$problems; bin holds another file beside $executable"
+  [ "$(count "curl-args --proto =https --tlsv1.2 " "$case_dir/calls")" = 1 ] || problems="$problems; the download does not hold --proto =https --tlsv1.2"
   verdict "$name"
+
+  expect_stop() {
+    run_ensure fails
+    [ "$(count "prerequisites: $1" "$case_dir/output")" = 1 ] || problems="$problems; no line says \"prerequisites: $1\""
+    [ "$(count 'with cargo install' "$case_dir/output")" = 0 ] || problems="$problems; a line names cargo install"
+    [ "$(count 'cargo install' "$case_dir/calls")" = 0 ] || problems="$problems; cargo install ran"
+  }
+
+  expect_no_binary() {
+    [ -z "$(ls -A "$CARGO_HOME/bin" 2>/dev/null)" ] || problems="$problems; the bin directory is not empty"
+  }
 
   expect_fallback() {
     run_ensure
@@ -751,18 +826,99 @@ EOF
   expect_fallback 'downloading the prebuilt cargo-release'
   verdict "$name"
 
-  name='a failed unpacking is named, and cargo install still installs the tool'
+  name='a failed unpacking is named, and the script fails and builds nothing'
   new_case unpack
   echo 'not an archive' >"$case_dir/assets/$asset"
-  expect_fallback 'unpacking the prebuilt cargo-release'
+  pin_asset
+  expect_stop "unpacking the prebuilt cargo-release $asset failed"
+  expect_no_binary
   verdict "$name"
 
-  name='a failed copy is named, and cargo install still installs the tool'
+  name='a failed copy is named, and the script fails and builds nothing'
   new_case copy
   mkdir "$case_dir/other"
   echo 'not cargo-release' >"$case_dir/other/README.md"
   make_archive "$case_dir/other" README.md "$case_dir/assets/$asset"
-  expect_fallback 'copying the prebuilt cargo-release'
+  pin_asset
+  expect_stop "copying the prebuilt cargo-release into $CARGO_HOME/bin failed"
+  expect_no_binary
+  verdict "$name"
+
+  name='a sha256 tool that prints no digest fails the check, also against an empty pin, and the script fails and builds nothing'
+  new_case empty-digest
+  make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+  for tool in sha256sum shasum; do
+    printf '#!/bin/sh\nexit 0\n' >"$case_dir/stubs/$tool"
+    chmod +x "$case_dir/stubs/$tool"
+  done
+  expect_stop "checking the sha256 of the prebuilt cargo-release $asset failed"
+  expect_no_binary
+  verdict "$name"
+
+  name='an old cargo-release that reports 1.117 is not taken for 1.1.7, and the prebuilt replaces it'
+  new_case dotted-version
+  make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+  pin_asset
+  mkdir "$CARGO_HOME/bin"
+  echo 'cargo-release 1.117' >"$CARGO_HOME/bin/$executable"
+  run_ensure
+  [ "$(count "prerequisites: cargo-release $cargo_release_version present" "$case_dir/output")" = 0 ] || problems="$problems; 1.117 was taken for $cargo_release_version"
+  cmp -s "$work/binary/$executable" "$CARGO_HOME/bin/$executable" || problems="$problems; bin/$executable is not the binary of the archive"
+  verdict "$name"
+
+  if command -v chflags >/dev/null 2>&1; then
+    name='a rename that fails over the old cargo-release leaves no partial file, and the script fails and builds nothing'
+    new_case rename
+    make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+    pin_asset
+    mkdir "$CARGO_HOME/bin"
+    echo 'cargo-release 1.1.6' >"$CARGO_HOME/bin/$executable"
+    chflags uchg "$CARGO_HOME/bin/$executable"
+    expect_stop "copying the prebuilt cargo-release into $CARGO_HOME/bin failed"
+    [ ! -e "$CARGO_HOME/bin/.$executable.partial" ] || problems="$problems; the partial file was left in place"
+    chflags nouchg "$CARGO_HOME/bin/$executable"
+    [ "$(cat "$CARGO_HOME/bin/$executable")" = 'cargo-release 1.1.6' ] || problems="$problems; the old binary was written in place"
+    verdict "$name"
+  fi
+
+  name='a cargo-release that exits 137 at the version check after the install fails the script, which builds nothing'
+  new_case killed
+  mkdir "$case_dir/binary"
+  echo 'exit 137' >"$case_dir/binary/$executable"
+  make_archive "$case_dir/binary" "$executable" "$case_dir/assets/$asset"
+  pin_asset
+  expect_stop 'checking the version of the installed cargo-release failed: cargo release --version exited 137'
+  verdict "$name"
+
+  name='a cargo-release that reports another version after the install fails the script, which builds nothing'
+  new_case other-version
+  mkdir "$case_dir/binary"
+  echo 'cargo-release 1.1.6' >"$case_dir/binary/$executable"
+  make_archive "$case_dir/binary" "$executable" "$case_dir/assets/$asset"
+  pin_asset
+  expect_stop "checking the version of the installed cargo-release failed: it reports cargo-release 1.1.6, not $cargo_release_version"
+  verdict "$name"
+
+  name='an archive whose sha256 differs from the pinned one in one character is never unpacked, and the script fails and builds nothing'
+  new_case checksum
+  make_archive "$work/binary" "$executable" "$case_dir/assets/$asset"
+  pin_asset
+  case "$release_sum" in
+    0*) release_sum=1${release_sum#?} ;;
+    *) release_sum=0${release_sum#?} ;;
+  esac
+  for unpacker in tar powershell.exe; do
+    case "$unpacker" in
+      tar) real=$release_real_tar ;;
+      *) real=$release_real_powershell ;;
+    esac
+    [ -n "$real" ] || continue
+    printf "#!/bin/sh\necho \"unpack %s\" >>%s\nexec %s \"\$@\"\n" "$unpacker" "'$case_dir/calls'" "'$real'" >"$case_dir/stubs/$unpacker"
+    chmod +x "$case_dir/stubs/$unpacker"
+  done
+  expect_stop "checking the sha256 of the prebuilt cargo-release $asset failed"
+  expect_no_binary
+  [ "$(count 'unpack ' "$case_dir/calls")" = 0 ] || problems="$problems; the archive was unpacked"
   verdict "$name"
 
   name='a platform with no prebuilt is named, and cargo install still installs the tool'
@@ -778,7 +934,94 @@ EOF
   expect_fallback 'no prebuilt cargo-release matches Linux x86_64'
   verdict "$name"
 
-  deny_target=$(cargo_deny_target) || {
+  count_line() {
+    grep -c -x -F -- "$1" "$2" || :
+  }
+
+  new_main_case() {
+    new_case "$1"
+    shift
+    [ "$#" -gt 0 ] || set -- git rustup curl npm node xcode-select
+    mkdir "$case_dir/repo" "$case_dir/repo/scripts" "$case_dir/home" "$case_dir/tmp"
+    cp "$(pwd -P)/scripts/prerequisites.sh" "$case_dir/repo/scripts/prerequisites.sh"
+    printf '[toolchain]\nchannel = "1.2.3"\nprofile = "minimal"\ncomponents = ["clippy", "rustfmt", "rust-src"]\n' >"$case_dir/repo/rust-toolchain.toml"
+    for tool in "$@"; do
+      cat >"$case_dir/stubs/$tool" <<EOF
+#!/bin/sh
+echo "$tool \$*" >>'$case_dir/calls'
+case "$tool \$1" in
+  'git '* | 'curl '* | 'npm '*) exit 1 ;;
+  'rustup --version') echo 'rustup 1.0.0' ;;
+  'rustup run') echo 'cargo 1.2.3' ;;
+  'xcode-select -p') echo /Library/Developer/CommandLineTools ;;
+  'xcode-select '*) exit 2 ;;
+esac
+EOF
+      chmod +x "$case_dir/stubs/$tool"
+    done
+  }
+
+  run_main() {
+    status=0
+    env PATH="$case_dir/stubs:/usr/bin:/bin" HOME="$case_dir/home" CARGO_HOME="$case_dir/home/.cargo" RUSTUP_HOME="$case_dir/home/.rustup" TMPDIR="$case_dir/tmp" \
+      sh "$case_dir/repo/scripts/prerequisites.sh" >"$case_dir/output" 2>&1 || status=$?
+  }
+
+  name='the rustup line passes one --component flag for each component that rust-toolchain.toml lists'
+  new_main_case components
+  run_main
+  [ "$status" != 0 ] || problems="$problems; the script exited 0 although its stand-in npm fails"
+  [ "$(count_line 'rustup toolchain install 1.2.3 --profile minimal --no-self-update --component clippy --component rustfmt --component rust-src' "$case_dir/calls")" = 1 ] || problems="$problems; no rustup toolchain install line passes the three components"
+  [ "$(count 'rustup toolchain install' "$case_dir/calls")" = 1 ] || problems="$problems; rustup toolchain install did not run once"
+  [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
+  verdict "$name"
+
+  name='a rust-toolchain.toml with no components line gives the rustup line no --component flag'
+  new_main_case no-components
+  printf '[toolchain]\nchannel = "1.2.3"\nprofile = "minimal"\n' >"$case_dir/repo/rust-toolchain.toml"
+  run_main
+  [ "$(count_line 'rustup toolchain install 1.2.3 --profile minimal --no-self-update' "$case_dir/calls")" = 1 ] || problems="$problems; the rustup toolchain install line is not the one without flags"
+  [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
+  verdict "$name"
+
+  expect_stop_before_download() {
+    [ "$status" != 0 ] || problems="$problems; the script exited 0"
+    [ "$(count "prerequisites: error: $1" "$case_dir/output")" = 1 ] || problems="$problems; no line says \"prerequisites: error: $1\""
+    for tool in curl rustup npm; do
+      [ "$(count "$tool " "$case_dir/calls")" = 0 ] || problems="$problems; the stand-in $tool ran"
+    done
+  }
+
+  name='with node off PATH the script names node and stops before any download'
+  new_main_case missing-node git curl npm xcode-select
+  for directory in /usr/bin /bin; do
+    [ ! -e "$directory/node" ] || problems="$problems; $directory/node exists, so this case cannot take node off PATH"
+  done
+  run_main
+  expect_stop_before_download 'node is not on PATH'
+  verdict "$name"
+
+  case "$(uname -s)" in
+    Darwin)
+      name='on macOS, with xcode-select -p failing, the script names the Command Line Tools and stops before any download'
+      new_main_case no-command-line-tools git curl npm node
+      printf "#!/bin/sh\necho \"xcode-select \$*\" >>%s\nexit 2\n" "'$case_dir/calls'" >"$case_dir/stubs/xcode-select"
+      chmod +x "$case_dir/stubs/xcode-select"
+      run_main
+      expect_stop_before_download 'xcode-select -p finds no Xcode Command Line Tools; run xcode-select --install'
+      verdict "$name"
+      ;;
+    MINGW* | MSYS* | CYGWIN*)
+      name='on Windows the script warns that it does not check the C build tools, and goes on'
+      new_main_case c-build-tools
+      run_main
+      [ "$(count 'prerequisites: warning: this script does not check for the Visual Studio C++ build tools' "$case_dir/output")" = 1 ] || problems="$problems; no line warns about the C build tools"
+      [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
+      verdict "$name"
+      ;;
+  esac
+
+  deny_target=$(prebuilt_target) || {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-deny matches $(uname -s) $(uname -m), so this platform has no case"
     return 1
   }
@@ -789,7 +1032,7 @@ EOF
   mkdir "$work/deny" "$work/deny/cargo-deny-$cargo_deny_version-$deny_target"
   echo "cargo-deny $cargo_deny_version" >"$work/deny/cargo-deny-$cargo_deny_version-$deny_target/$deny_executable"
   tar -czf "$work/deny/$deny_asset" -C "$work/deny" "cargo-deny-$cargo_deny_version-$deny_target"
-  deny_archive_sum=$(cargo_deny_sha256_of "$work/deny/$deny_asset")
+  deny_archive_sum=$(sha256_of "$work/deny/$deny_asset")
 
   new_deny_case() {
     new_case "$1"
@@ -2460,6 +2703,30 @@ if [ "${1:-}" = --self-test ]; then
   exit
 fi
 
+check_expected_tools() {
+  missing=0
+  for tool in curl node npm; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "prerequisites: error: $tool is not on PATH; install it, then run sh scripts/prerequisites.sh again" >&2
+      missing=1
+    fi
+  done
+  case "$(uname -s)" in
+    Darwin)
+      if ! xcode-select -p >/dev/null 2>&1; then
+        echo "prerequisites: error: xcode-select -p finds no Xcode Command Line Tools; run xcode-select --install, then run sh scripts/prerequisites.sh again" >&2
+        missing=1
+      fi
+      ;;
+    MINGW* | MSYS* | CYGWIN*)
+      echo "prerequisites: warning: this script does not check for the Visual Studio C++ build tools, which Rust needs on Windows; when a build stops at the linker, install them"
+      ;;
+  esac
+  [ "$missing" = 0 ]
+}
+
+check_expected_tools || exit 1
+
 current_directory_is_git_work_tree_root() {
   [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
     [ -z "$(git rev-parse --show-cdup)" ]
@@ -2486,7 +2753,11 @@ else
 fi
 
 channel=$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust-toolchain.toml)
-rustup toolchain install "$channel" --profile minimal --no-self-update
+set -- "$channel" --profile minimal --no-self-update
+for component in $(sed -n 's/^components *= *\[\(.*\)\].*/\1/p' rust-toolchain.toml | tr ',"' '  '); do
+  set -- "$@" --component "$component"
+done
+rustup toolchain install "$@"
 echo "prerequisites: rust toolchain $channel present: $(rustup run "$channel" cargo --version)"
 
 echo "prerequisites: installing the Tauri CLI into node_modules/"
