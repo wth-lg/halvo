@@ -141,8 +141,18 @@ pub fn self_check_answer(ran_after: Option<Duration>) -> (String, i32) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// The ending of the crate's own tests: it panics, so that a test that
+    /// reaches the product's end fails and ends no process.
+    pub(crate) struct PanicInTests;
+
+    impl EndCall for PanicInTests {
+        fn end(&self, status: i32) {
+            panic!("a test reached the process's ending call with status {status}");
+        }
+    }
 
     #[test]
     fn a_slice_is_at_most_one_tick_and_none_after_the_end() {

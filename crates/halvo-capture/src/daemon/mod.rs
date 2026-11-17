@@ -222,7 +222,8 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
 }
 
 /// The binary's answer to a timed run's outcome: the report on `out`, the
-/// loss line on `err`, and the run's status. A report that cannot be written,
+/// loss line on `err`, and the run's status; a run that let a source go ends
+/// here by [`finish_run`] with that status. A report that cannot be written,
 /// as into a pipe whose reader is gone, gives exit 1 with a line, and the
 /// loss line still follows it.
 pub fn outcome_answer(
@@ -239,9 +240,25 @@ pub fn outcome_answer(
     if let Some(loss) = &outcome.loss {
         let _ = writeln!(err, "{loss}");
     }
-    match printed {
+    let status = match printed {
         Ok(()) => outcome.status,
         Err(_) => halvo_control::exit::ERROR,
+    };
+    finish_run(outcome, status, process_ending(), err);
+    status
+}
+
+/// The ending that [`outcome_answer`] makes for a run that let a source go:
+/// the product's in a build of the crate, and in the crate's own tests one
+/// that panics, so that no test of this crate ends its own process.
+fn process_ending() -> &'static dyn main_loop::EndCall {
+    #[cfg(not(test))]
+    {
+        &main_loop::ExitNow
+    }
+    #[cfg(test)]
+    {
+        &main_loop::tests::PanicInTests
     }
 }
 

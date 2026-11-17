@@ -32,20 +32,11 @@ fn main() -> ExitCode {
         }
         #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
-            Ok(outcome) => {
-                let code = daemon::outcome_answer(
-                    &outcome,
-                    &mut std::io::stdout().lock(),
-                    &mut std::io::stderr(),
-                );
-                daemon::finish_run(
-                    &outcome,
-                    code,
-                    &daemon::main_loop::ExitNow,
-                    &mut std::io::stderr(),
-                );
-                status(code)
-            }
+            Ok(outcome) => status(daemon::outcome_answer(
+                &outcome,
+                &mut std::io::stdout().lock(),
+                &mut std::io::stderr(),
+            )),
             Err(error) => fail(format_args!("{error}")),
         },
         #[cfg(debug_assertions)]

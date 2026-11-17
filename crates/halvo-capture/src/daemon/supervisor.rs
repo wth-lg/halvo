@@ -3138,6 +3138,33 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "a test reached the process's ending call with status 3")]
+    fn the_answer_of_a_run_that_let_a_source_go_makes_the_ending_call() {
+        let mut supervisor = Supervisor::new(
+            Platform::Macos,
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            real_loop(),
+        )
+        .with_ending(Arc::new(Recorder::default()));
+        let outcome = run_timed(
+            &run_of(1),
+            &mut supervisor,
+            ModelStore::new(),
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let _ = crate::daemon::outcome_answer(&outcome, &mut out, &mut err);
+    }
+
+    #[test]
     fn a_timed_run_whose_sources_all_stopped_returns_without_the_routine() {
         let recorder = Recorder::default();
         let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop())
