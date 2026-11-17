@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r4-core 30-r4-formal 15-r3-test-dirs 17-workflow-lint
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r4-core 30-r4-formal 15-r3-test-dirs 17-workflow-lint
+      - name: Loop (u24f-round-tests, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( { cargo test -q --locked -p halvo-coord --test coordinator_moves --test run_recover --test run_refusals -- --exact rd122_a_held_place_of_the_items_list_stops_the_ticks_start_at_the_coordinator rd122_a_refused_items_list_makes_the_record_stuck_and_an_acknowledged_flush_ends_it rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal rd122_no_sender_meets_seq_after_another_sender_of_the_agent_stored rd122_c1_a_recovery_body_refused_binding_for_a_dismissed_workflow_ends_its_debt rd122_c1_an_agent_set_aside_whose_dismissed_workflow_then_answers_binding_is_kept_unread rd122_c2_no_sender_logs_for_a_dismissed_agent_kept_unread rd122_t1_recovery_owes_no_end_run_that_the_owner_refuses_with_no_workflow rd122_c3_a_proof_write_refused_with_store_holds_the_place rd122_c3_a_proof_write_that_fails_with_no_refusal_counts_nothing rd122_c3_a_proof_takes_off_only_its_own_record_once_a_read_closes_that_records_item rd122_c1_a_body_refused_binding_where_the_board_shows_the_workflow_dismissed_leaves_the_list rd123_a_slotted_agent_stuck_by_its_refused_starts_starts_at_the_next_tick_once_the_store_takes_rows rd123_a_held_place_still_stops_the_ticks_start rd123_a_refusal_that_cannot_pass_in_this_life_stops_the_retry rd123_a_retry_that_the_store_still_refuses_starts_no_run_and_keeps_the_line rd122_t1_an_acknowledged_body_ends_the_held_place_though_a_later_body_fails rd122_t1_a_list_that_class_b_emptied_holds_no_place rd122_t1_a_second_seq_of_one_flush_after_its_read_counts rd122_t1_an_early_records_refusal_counts rd122_t1_the_schedules_log_counts_class_c_and_a_second_seq rd122_t1_a_start_refused_with_any_name_but_seq_holds_its_defer rd122_t1_an_acknowledged_store_releases_the_held_defer rd122_t1_a_debt_whose_day_cannot_be_read_waits rd122_t1_a_debt_one_or_two_days_ahead_refused_malformed_stays_owed rd122_t1_a_proof_write_refused_with_class_c_counts rd122_t1_a_debt_of_this_life_refused_binding_ends_once_the_list_shows_its_workflow_dismissed rd122_t1_a_proof_write_takes_the_day_of_its_own_instant_again rd123_an_acknowledged_store_clears_the_mark_for_the_life; } > "$RUNNER_TEMP/u24f-round-loop.txt" 2>&1; awk '/^test result:/ {p+=$4; f+=$6} END {print "loop tests=" p " fail=" f; exit !(p==29 && f==0)}' "$RUNNER_TEMP/u24f-round-loop.txt" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop u24f-round-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +161,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r4-core 20-schema 30-r4-formal 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r4-core 20-schema 30-r4-formal 15-r3-test-dirs
+      - name: Loop (u24f-round-tests, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( { cargo test -q --locked -p halvo-coord --test coordinator_moves --test run_recover --test run_refusals -- --exact rd122_a_held_place_of_the_items_list_stops_the_ticks_start_at_the_coordinator rd122_a_refused_items_list_makes_the_record_stuck_and_an_acknowledged_flush_ends_it rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal rd122_no_sender_meets_seq_after_another_sender_of_the_agent_stored rd122_c1_a_recovery_body_refused_binding_for_a_dismissed_workflow_ends_its_debt rd122_c1_an_agent_set_aside_whose_dismissed_workflow_then_answers_binding_is_kept_unread rd122_c2_no_sender_logs_for_a_dismissed_agent_kept_unread rd122_t1_recovery_owes_no_end_run_that_the_owner_refuses_with_no_workflow rd122_c3_a_proof_write_refused_with_store_holds_the_place rd122_c3_a_proof_write_that_fails_with_no_refusal_counts_nothing rd122_c3_a_proof_takes_off_only_its_own_record_once_a_read_closes_that_records_item rd122_c1_a_body_refused_binding_where_the_board_shows_the_workflow_dismissed_leaves_the_list rd123_a_slotted_agent_stuck_by_its_refused_starts_starts_at_the_next_tick_once_the_store_takes_rows rd123_a_held_place_still_stops_the_ticks_start rd123_a_refusal_that_cannot_pass_in_this_life_stops_the_retry rd123_a_retry_that_the_store_still_refuses_starts_no_run_and_keeps_the_line rd122_t1_an_acknowledged_body_ends_the_held_place_though_a_later_body_fails rd122_t1_a_list_that_class_b_emptied_holds_no_place rd122_t1_a_second_seq_of_one_flush_after_its_read_counts rd122_t1_an_early_records_refusal_counts rd122_t1_the_schedules_log_counts_class_c_and_a_second_seq rd122_t1_a_start_refused_with_any_name_but_seq_holds_its_defer rd122_t1_an_acknowledged_store_releases_the_held_defer rd122_t1_a_debt_whose_day_cannot_be_read_waits rd122_t1_a_debt_one_or_two_days_ahead_refused_malformed_stays_owed rd122_t1_a_proof_write_refused_with_class_c_counts rd122_t1_a_debt_of_this_life_refused_binding_ends_once_the_list_shows_its_workflow_dismissed rd122_t1_a_proof_write_takes_the_day_of_its_own_instant_again rd123_an_acknowledged_store_clears_the_mark_for_the_life; } > "$RUNNER_TEMP/u24f-round-loop.txt" 2>&1; awk '/^test result:/ {p+=$4; f+=$6} END {print "loop tests=" p " fail=" f; exit !(p==29 && f==0)}' "$RUNNER_TEMP/u24f-round-loop.txt" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop u24f-round-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
