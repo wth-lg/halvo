@@ -163,8 +163,8 @@ impl Owner for Silent {
         Ok(())
     }
 
-    fn history(&self, _: &AgentId, _: u32) -> Result<Vec<Event>, PortError> {
-        Ok(vec![])
+    fn history(&self, _: &AgentId, _: u32) -> Result<(Vec<Event>, u32), PortError> {
+        Ok((vec![], 0))
     }
 
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
