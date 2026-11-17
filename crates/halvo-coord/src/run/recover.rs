@@ -255,6 +255,7 @@ where
     let agents = ports.agents().map_err(|e| cause(&e))?;
     let mut found: Vec<Found<P::Config>> = Vec::new();
     let mut aside: Vec<AgentId> = Vec::new();
+    let mut unread: Vec<AgentId> = Vec::new();
     for agent in agents {
         let Some(listed) = workflows.iter().find(|w| w.id() == &agent.workflow) else {
             continue;
@@ -264,7 +265,10 @@ where
             Ok(read) => read,
             Err(PortError::Refused(name)) => match name.as_str() {
                 "no_workflow" => continue,
-                "binding" if matches!(listed, Workflow::Dismissed(_)) => (Vec::new(), 0),
+                "binding" if matches!(listed, Workflow::Dismissed(_)) => {
+                    unread.push(agent.agent.clone());
+                    (Vec::new(), 0)
+                }
                 _ => {
                     aside.push(agent.agent.clone());
                     (Vec::new(), 0)
@@ -398,6 +402,9 @@ where
     board.owed = owed;
     for agent in &aside {
         board.set_aside(agent, reaped.clone());
+    }
+    for agent in &unread {
+        board.keep_unread(agent);
     }
     let checked = raise_checks(ports, &mut board, limits, None);
     Ok(Life {

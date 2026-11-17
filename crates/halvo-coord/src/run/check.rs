@@ -53,7 +53,11 @@ where
     for i in 0..board.members.len() {
         let agent = board.members[i].facts.agent.clone();
         let gone = board.gone.contains(&board.members[i].facts.workflow.id);
-        if only.is_some_and(|a| a != &agent) || !check_due(&board.members[i].facts, gone) {
+        if only.is_some_and(|a| a != &agent)
+            || board.aside(&agent)
+            || board.dismissed_unread(&agent)
+            || !check_due(&board.members[i].facts, gone)
+        {
             continue;
         }
         let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {

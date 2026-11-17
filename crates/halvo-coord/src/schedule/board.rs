@@ -146,6 +146,7 @@ pub struct Board<C> {
     stuck: Vec<(AgentId, Stuck)>,
     lasts: Vec<(AgentId, u32, usize)>,
     defers: Vec<(RunId, Defers)>,
+    unread: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -173,7 +174,22 @@ impl<C> Board<C> {
             stuck: Vec::new(),
             lasts: Vec::new(),
             defers: Vec::new(),
+            unread: Vec::new(),
         }
+    }
+
+    /// Keeps the agent of a workflow that the owner's list shows dismissed, whose history the
+    /// owner refused with `binding`, as a member with no event read (I5.8, ruling XB-28 (a)).
+    pub(crate) fn keep_unread(&mut self, agent: &AgentId) {
+        if !self.unread.contains(agent) {
+            self.unread.push(agent.clone());
+        }
+    }
+
+    /// Whether the agent is one of a dismissed workflow that recovery kept with no event read,
+    /// for which nothing is logged (I5.8, ruling RD-121).
+    pub fn dismissed_unread(&self, agent: &AgentId) -> bool {
+        self.unread.contains(agent)
     }
 
     /// Takes a run that this life put on the board with whether the defer of its launch was
