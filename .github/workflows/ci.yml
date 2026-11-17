@@ -92,14 +92,86 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-r3-test-dirs 20-r5-rule 50-r5-drift 55-r5-routine 60-r5-privacy
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 15-r3-test-dirs 20-r5-rule 50-r5-drift 55-r5-routine 60-r5-privacy
+      - name: U2.6 loop of the added tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          rounds=${LOOP_ROUNDS:-200}
+          store_tests='tests::keyed::a_refused_learn_edit_row_under_the_key_of_b_whose_text_names_a_stops_the_edits_of_b_and_nothing_of_a
+          tests::keyed::a_refused_learn_run_row_under_the_key_of_b_whose_text_names_a_stops_the_runs_of_b_and_nothing_of_a
+          tests::keyed::a_refused_learn_routine_row_under_the_key_of_b_whose_text_names_a_stops_the_routine_of_b_and_nothing_of_a
+          tests::keyed::a_refused_row_under_the_key_of_a_whose_text_names_b_stops_a_and_nothing_of_b
+          tests::keyed::a_refused_row_held_under_no_key_is_read_by_no_workflow_and_stops_nothing
+          tests::keyed::a_refused_learn_run_row_under_the_key_of_a_run_that_was_served_answers_its_replay_put_with_the_count_0
+          tests::keyed::the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none
+          tests::keyed::while_a_run_of_a_is_held_a_refused_learn_edit_row_under_the_key_of_a_stops_nothing_of_a_run_of_b
+          tests::keyed::a_replay_put_playbook_of_a_run_whose_start_is_held_reads_no_row_of_another_workflow
+          tests::keyed::a_learn_run_row_of_no_json_under_the_key_of_a_answers_the_replay_put_of_a_with_the_count_0
+          tests::kinds::a_refused_row_whose_text_names_no_workflow_stops_only_the_workflow_under_whose_key_it_stands
+          routine::tests::fixtures::newest_of_two_rows_of_one_rev_is_the_row_of_the_later_day_in_either_order'
+          gate_tests='tests::store::the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none
+          tests::store::delete_workflow_takes_the_rows_kept_under_its_key_whatever_their_text_names'
+          binary() {
+            cargo test --locked -p "$1" "$2" --no-run --message-format=json 2>/dev/null >"$RUNNER_TEMP/u26-build.json"
+            node -e '
+              const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+              let found = "";
+              for (const line of lines) {
+                if (!line.startsWith("{")) continue;
+                const m = JSON.parse(line);
+                if (m.reason === "compiler-artifact" && m.profile && m.profile.test && m.executable) found = m.executable;
+              }
+              process.stdout.write(found.split(String.fromCharCode(92)).join("/"));
+            ' "$RUNNER_TEMP/u26-build.json"
+          }
+          fail=0
+          loop() {
+            bin=$1
+            shift
+            if [ -z "$bin" ]; then
+              echo "loop: no test binary was found"
+              fail=1
+              return
+            fi
+            for name in "$@"; do
+              ok=0
+              other=0
+              i=0
+              while [ "$i" -lt "$rounds" ]; do
+                i=$((i + 1))
+                out=$("$bin" --exact "$name" --test-threads=1 2>&1)
+                case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+                *) other=$((other + 1)) ;;
+                esac
+              done
+              echo "loop test=$name passed=$ok other=$other rounds=$rounds"
+              if [ "$ok" -ne "$rounds" ]; then
+                fail=1
+              fi
+            done
+          }
+          store_bin=$(binary halvo-learn-store --lib)
+          gate_bin=$(binary halvo-learn-gate --bin=learn-gate)
+          # shellcheck disable=SC2086
+          loop "$store_bin" $(printf '%s\n' "$store_tests")
+          # shellcheck disable=SC2086
+          loop "$gate_bin" $(printf '%s\n' "$gate_tests")
+          echo "loop result fail=$fail"
+          exit "$fail"
+      - name: U2.6 tests of the two learning crates
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: cargo test --locked -p halvo-learn-store -p halvo-learn-gate --no-fail-fast
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +232,82 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 15-r3-test-dirs 20-r5-rule 50-r5-drift 55-r5-routine 60-r5-privacy
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 15-r3-test-dirs 20-r5-rule 50-r5-drift 55-r5-routine 60-r5-privacy
+      - name: U2.6 loop of the added tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          rounds=${LOOP_ROUNDS:-200}
+          store_tests='tests::keyed::a_refused_learn_edit_row_under_the_key_of_b_whose_text_names_a_stops_the_edits_of_b_and_nothing_of_a
+          tests::keyed::a_refused_learn_run_row_under_the_key_of_b_whose_text_names_a_stops_the_runs_of_b_and_nothing_of_a
+          tests::keyed::a_refused_learn_routine_row_under_the_key_of_b_whose_text_names_a_stops_the_routine_of_b_and_nothing_of_a
+          tests::keyed::a_refused_row_under_the_key_of_a_whose_text_names_b_stops_a_and_nothing_of_b
+          tests::keyed::a_refused_row_held_under_no_key_is_read_by_no_workflow_and_stops_nothing
+          tests::keyed::a_refused_learn_run_row_under_the_key_of_a_run_that_was_served_answers_its_replay_put_with_the_count_0
+          tests::keyed::the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none
+          tests::keyed::while_a_run_of_a_is_held_a_refused_learn_edit_row_under_the_key_of_a_stops_nothing_of_a_run_of_b
+          tests::keyed::a_replay_put_playbook_of_a_run_whose_start_is_held_reads_no_row_of_another_workflow
+          tests::keyed::a_learn_run_row_of_no_json_under_the_key_of_a_answers_the_replay_put_of_a_with_the_count_0
+          tests::kinds::a_refused_row_whose_text_names_no_workflow_stops_only_the_workflow_under_whose_key_it_stands
+          routine::tests::fixtures::newest_of_two_rows_of_one_rev_is_the_row_of_the_later_day_in_either_order'
+          gate_tests='tests::store::the_keyed_read_hands_out_the_rows_committed_under_the_key_in_byte_order_and_no_row_under_another_key_or_none
+          tests::store::delete_workflow_takes_the_rows_kept_under_its_key_whatever_their_text_names'
+          binary() {
+            cargo test --locked -p "$1" "$2" --no-run --message-format=json 2>/dev/null >"$RUNNER_TEMP/u26-build.json"
+            node -e '
+              const lines = require("fs").readFileSync(process.argv[1], "utf8").split("\n");
+              let found = "";
+              for (const line of lines) {
+                if (!line.startsWith("{")) continue;
+                const m = JSON.parse(line);
+                if (m.reason === "compiler-artifact" && m.profile && m.profile.test && m.executable) found = m.executable;
+              }
+              process.stdout.write(found.split(String.fromCharCode(92)).join("/"));
+            ' "$RUNNER_TEMP/u26-build.json"
+          }
+          fail=0
+          loop() {
+            bin=$1
+            shift
+            if [ -z "$bin" ]; then
+              echo "loop: no test binary was found"
+              fail=1
+              return
+            fi
+            for name in "$@"; do
+              ok=0
+              other=0
+              i=0
+              while [ "$i" -lt "$rounds" ]; do
+                i=$((i + 1))
+                out=$("$bin" --exact "$name" --test-threads=1 2>&1)
+                case "$out" in
+                *"test result: ok. 1 passed; 0 failed;"*) ok=$((ok + 1)) ;;
+                *) other=$((other + 1)) ;;
+                esac
+              done
+              echo "loop test=$name passed=$ok other=$other rounds=$rounds"
+              if [ "$ok" -ne "$rounds" ]; then
+                fail=1
+              fi
+            done
+          }
+          store_bin=$(binary halvo-learn-store --lib)
+          gate_bin=$(binary halvo-learn-gate --bin=learn-gate)
+          # shellcheck disable=SC2086
+          loop "$store_bin" $(printf '%s\n' "$store_tests")
+          # shellcheck disable=SC2086
+          loop "$gate_bin" $(printf '%s\n' "$gate_tests")
+          echo "loop result fail=$fail"
+          exit "$fail"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
