@@ -7970,3 +7970,34 @@ fn no_writer_stores_an_item_answered_of_a_setup_with_the_answer_none() {
         "the setup's one closing row holds choose, never none"
     );
 }
+
+#[test]
+fn rd121_the_next_lifes_first_creation_move_raises_no_setup_for_an_agent_set_aside() {
+    let (c, made, _old) = setup_agent();
+    let life = next_life(&c, |o| {
+        o.ports.refuse_agent(
+            Method::History,
+            &made,
+            PortError::Refused(halvo_coord::types::Name::parse("store").unwrap()),
+        )
+    });
+    let tried_for_it = life
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Log(rows) if rows.iter().any(|e| e.agent == made)))
+        .count();
+    assert_eq!(
+        tried_for_it, 0,
+        "nothing is logged for an agent whose history was not read"
+    );
+    assert_eq!(setups_raised(&life), 1, "the earlier life's raise alone");
+    assert!(
+        !events(&life)
+            .iter()
+            .any(|w| matches!(w, What::ItemLapsed { .. })),
+        "and no lapse of its earlier item before its history is read"
+    );
+}
