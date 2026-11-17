@@ -737,6 +737,12 @@ fn flush_reading<P: Owner + Clock>(
                                     Read::Taken => continue,
                                 }
                             }
+                            Err(e) if class_of(&e, false) == Some(Class::Gone) => {
+                                ledger.waiting.drain(..2);
+                                ledger.proof = None;
+                                ledger.renumber();
+                                return Err(e);
+                            }
                             Err(e) => {
                                 ledger.refused = true;
                                 return Err(e);

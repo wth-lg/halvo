@@ -938,3 +938,38 @@ fn class_c_a_lone_record_past_its_bound_is_taken_off_at_once_and_one_at_its_boun
         }
     }
 }
+
+#[test]
+fn class_b_a_proof_write_refused_with_no_workflow_leaves_the_list_and_is_not_sent_again() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(3)]);
+    w.ports.clear_refusals();
+    fn third(e: &Event) -> bool {
+        slot_is(e, 3)
+    }
+    w.ports.refuse_record(second, refused("malformed"));
+    w.ports.refuse_record(third, refused("no_workflow"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    let sent = |w: &World| {
+        w.ports
+            .tried
+            .borrow()
+            .iter()
+            .filter(|t| matches!(&t.call, Call::Log(_)))
+            .count()
+    };
+    let before = sent(&w);
+    for _ in 0..3 {
+        let _ = flush(&w.ports, &mut l, &w.limits);
+    }
+    assert!(
+        l.waiting().is_empty(),
+        "class B: the workflow is gone, so neither record can be stored or proven (I7.2, RD-64 2.1)"
+    );
+    assert_eq!(sent(&w), before, "and nothing is sent again");
+    assert!(!l.refused(), "class B is no fault");
+    assert!(!l.holds_place());
+}
