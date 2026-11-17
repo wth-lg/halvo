@@ -1689,7 +1689,18 @@ helper_names_an_array_alone() {
   [ "$helper_said" = 'statement 1 of the substitution has the array @b in its pattern, which perl replaces by its value: write \@ for an @ of the text' ] || { printf 'apply-row.pl said: %s\n' "$helper_said"; return 1; }
 }
 
+helper_holds_a_warning_back() {
+  printf 'echo one\n' > "$gate_scratch/helper-warn.sh"
+  helper_said=$(ROW_SUBST='s/\yone/1/; s{}{x}' perl "$DIR/helper/apply-row.pl" "$gate_scratch/helper-warn.sh" 2>&1)
+  [ "$helper_said" = 'statement 2 of the substitution has an empty pattern, which perl reads as the last pattern that matched' ] || { printf 'apply-row.pl said: %s\n' "$helper_said"; return 1; }
+}
+
 place_cases() {
+  t apply-row-prints-no-warning-of-perl-ahead-of-its-refusal PASS helper_holds_a_warning_back
+  fixture_tree outside-two-places
+  printf 'echo one\necho one\n' > "$gate_scratch/outside-two-places/code/a.sh"
+  row outside-two-places/scripts/r1-gate/mutants.rows outside-twice ../../code/a.sh 's/echo one/echo 1/' leak required X-1
+  t row-outside-its-directory-is-refused-for-its-path-not-its-places PASS fixture_says outside-two-places 'FAIL mutation:outside-twice (the file ../../code/a.sh is not under the directory of scripts/r1-gate/mutants.rows)' yes
   place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 2'
   two_places=$refusal
   place_fixture two-places 'echo one\necho one\n' 's/echo one/echo 1/'
