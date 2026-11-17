@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The bootstrap script pins cargo-release's version and three digests and passes every toolchain component that rust-toolchain.toml lists, and no workflow file holds rustup component add.
+# rule: The bootstrap script pins cargo-release's version and three digests and passes every toolchain component that rust-toolchain.toml lists, no workflow file holds rustup component add, and .gitignore ignores the capture store files at the root of the checkout alone.
 # lane: free
 set -u
 name=63-prerequisites
@@ -10,6 +10,14 @@ pinned_digests='aarch64_apple_darwin=39e1121c5e9671b0ff4703692b7ce2d9576c5401188
 x86_64_apple_darwin=9abd1bb84a581e982e4ae00a4c4413c14657b4cba8cd76b0eb003e00fe361a7a
 x86_64_pc_windows_msvc=7b67996840ec6d2fd8e78c67281d8807950818869f6d09e0c9678897b48f9837'
 needed_components='clippy rustfmt'
+store_rules='/store.db*
+/store.key
+/create.pending
+/writer.lock
+/daemon.lock
+/daemon-state.json
+/delete-all.intent
+/*.seg'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -57,6 +65,18 @@ defects() {
   [ "$flags" = 1 ] || printf 'problem: scripts/prerequisites.sh holds %s lines that add a --component flag for each listed component, not 1\n' "$flags"
   installs=$(lines_matching "^rustup toolchain install \"\$@\"\$" "$script")
   [ "$installs" = 1 ] || printf 'problem: scripts/prerequisites.sh holds %s lines rustup toolchain install "$@", not 1\n' "$installs"
+  if [ -f "$root/.gitignore" ]; then
+    tr -d '\r' <"$root/.gitignore" >"$work/gitignore"
+  else
+    : >"$work/gitignore"
+  fi
+  printf '%s\n' "$store_rules" >"$work/store-rules"
+  while IFS= read -r rule; do
+    anchored=$(grep -c -x -F -e "$rule" "$work/gitignore") || anchored=0
+    [ "$anchored" = 1 ] || printf 'problem: .gitignore holds %s lines %s, not 1\n' "$anchored" "$rule"
+    loose=$(grep -c -x -F -e "${rule#/}" -e "**/${rule#/}" "$work/gitignore") || loose=0
+    [ "$loose" = 0 ] || printf 'problem: .gitignore ignores %s at every depth, not at the root alone\n' "${rule#/}"
+  done <"$work/store-rules"
   git -C "$root" ls-files -z -- .github/workflows >"$work/workflows" || {
     printf 'problem: git ls-files failed in the checkout\n'
     return
@@ -117,6 +137,7 @@ fixture() {
   good_script >"$work/$1/scripts/prerequisites.sh" || exit 2
   printf '[toolchain]\nchannel = "1.2.3"\nprofile = "minimal"\ncomponents = ["clippy", "rustfmt"]\n' >"$work/$1/rust-toolchain.toml" || exit 2
   printf 'name: ci\njobs:\n  macos:\n    steps:\n      - run: sh scripts/prerequisites.sh\n' >"$work/$1/.github/workflows/ci.yml" || exit 2
+  printf '/target/\n%s\n' "$store_rules" >"$work/$1/.gitignore" || exit 2
 }
 
 track() {
@@ -152,6 +173,36 @@ self_test() {
   printf '      - run: rustup component add clippy rustfmt\n' >>"$work/component-add/.github/workflows/ci.yml" || exit 2
   track component-add
   check component-add FAIL 'problem: .github/workflows/ci.yml:6 holds rustup component add'
+
+  fixture yaml-workflow
+  printf 'jobs:\n  lint:\n    steps:\n      - run: rustup component add rustfmt\n' >"$work/yaml-workflow/.github/workflows/lint.yaml" || exit 2
+  track yaml-workflow
+  check yaml-workflow FAIL 'problem: .github/workflows/lint.yaml:4 holds rustup component add'
+
+  fixture pin-suffix
+  edit pin-suffix 's/^\(cargo_release_sha256_aarch64_apple_darwin=.*\)$/\1x/' scripts/prerequisites.sh
+  track pin-suffix
+  check pin-suffix FAIL 'does not pin cargo_release_sha256_aarch64_apple_darwin to the digest'
+
+  fixture crlf-gitignore
+  edit crlf-gitignore 's/$/\r/' .gitignore
+  track crlf-gitignore
+  check crlf-gitignore PASS 'problems 0'
+
+  fixture loose-store-key
+  edit loose-store-key 's|^/store.key$|store.key|' .gitignore
+  track loose-store-key
+  check loose-store-key FAIL 'problem: .gitignore holds 0 lines /store.key, not 1'
+
+  fixture store-key-at-every-depth
+  printf '**/store.key\n' >>"$work/store-key-at-every-depth/.gitignore" || exit 2
+  track store-key-at-every-depth
+  check store-key-at-every-depth FAIL 'problem: .gitignore ignores store.key at every depth, not at the root alone'
+
+  fixture no-segment-rule
+  edit no-segment-rule '/^\/\*\.seg$/d' .gitignore
+  track no-segment-rule
+  check no-segment-rule FAIL 'problem: .gitignore holds 0 lines /*.seg, not 1'
 
   fixture second-workflow
   printf 'jobs:\n  lint:\n    steps:\n      - run: rustup component add rustfmt\n' >"$work/second-workflow/.github/workflows/lint.yml" || exit 2

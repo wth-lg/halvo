@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The README keeps its four fixed headings and one version anchor, and names only scripts that exist.
+# rule: The README keeps its four fixed headings and one version anchor, names only scripts that exist, and says under Prerequisites that the command uses no sudo.
 set -u
 name=64-readme
 
@@ -28,6 +28,7 @@ readme_defects() {
       seen[heading]++
       if (!(heading in first)) first[heading] = NR
     }
+    !fence && section == "Prerequisites" && /no sudo/ { no_sudo++ }
     {
       rest = $0
       while (rest != "" && match(rest, re) && RLENGTH > 0) {
@@ -50,6 +51,7 @@ readme_defects() {
           printf "problem: ## %s stands before ## %s; the fixed headings are Prerequisites, Build, Version and Release in that order\n", fixed[i], fixed[i - 1]
         }
       }
+      if (!no_sudo) print "problem: the Prerequisites section of README.md does not say that the command uses no sudo"
       if (anchors != 1) {
         printf "problem: README.md holds %d matches of the version anchor of src-tauri/release.toml, not 1\n", anchors
       } else if (anchor_section != "Version") {
@@ -133,7 +135,7 @@ check() {
 }
 
 good_readme() {
-  printf '# Product\n\nIntro.\n\n## Prerequisites\n\n\140\140\140sh\nsh scripts/prerequisites.sh\n\140\140\140\n\n'
+  printf '# Product\n\nIntro.\n\n## Prerequisites\n\n\140\140\140sh\nsh scripts/prerequisites.sh\n\140\140\140\n\nIt installs as the current user, with no sudo.\n\n'
   printf '## Build\n\nRun \140sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy\140 and tools/x/scripts/fetch.sh.\n\nThe config is src-tauri/tauri.conf.json.\n\n'
   printf '\140\140\140sh\n## Version\n\140\140\140\n\n'
   printf '## Version\n\nThe version is in Cargo.toml, which is \1401.2.3\140 now.\n\n'
@@ -231,6 +233,33 @@ self_test() {
   printf '\nSee ci/run-ci-d.sh.\n' >>"$work/part-of-a-path/README.md" || exit 2
   track part-of-a-path
   check part-of-a-path FAIL 'README.md names ci/run-ci-d.sh, which is no tracked file'
+
+  fixture no-sudo
+  edit no-sudo 's/, with no sudo\././' README.md
+  track no-sudo
+  check no-sudo FAIL 'problem: the Prerequisites section of README.md does not say that the command uses no sudo'
+
+  fixture windows-form
+  printf '\nRun sh scripts/ci/run-ci-d.sh windows 99-nothing too.\n' >>"$work/windows-form/README.md" || exit 2
+  track windows-form
+  check windows-form FAIL 'README.md names the check 99-nothing, and no scripts/*/ci.d/99-nothing.sh is tracked'
+
+  fixture self-test-form
+  printf '\nRun sh scripts/ci/run-ci-d.sh macos --self-test 99-nothing too.\n' >>"$work/self-test-form/README.md" || exit 2
+  track self-test-form
+  check self-test-form FAIL 'README.md names the check 99-nothing, and no scripts/*/ci.d/99-nothing.sh is tracked'
+
+  for ending in js mjs py; do
+    fixture "missing-$ending"
+    printf '\nRun tools/x/missing.%s too.\n' "$ending" >>"$work/missing-$ending/README.md" || exit 2
+    track "missing-$ending"
+    check "missing-$ending" FAIL "README.md names tools/x/missing.$ending, which is no tracked file"
+  done
+
+  fixture two-anchors-on-one-line
+  printf '\nIt was 1.2.3, which is \1401.2.3\140 now, which is \1401.2.3\140 now.\n' >>"$work/two-anchors-on-one-line/README.md" || exit 2
+  track two-anchors-on-one-line
+  check two-anchors-on-one-line FAIL 'README.md holds 3 matches of the version anchor of src-tauri/release.toml, not 1'
 
   fixture no-readme-entry
   edit no-readme-entry '/README/d' src-tauri/release.toml
