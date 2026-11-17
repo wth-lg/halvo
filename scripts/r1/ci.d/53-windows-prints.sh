@@ -182,7 +182,7 @@ self_test() {
   source_case src-typed-key refused 'fn c1() { println!("TF c1 key=q vk={vk}"); }'
   source_case src-window-title refused 'fn c4() { say("c4", format!("title=Untitled - Notepad bytes={n}")); }'
   source_case src-field-text refused 'fn s() { panic!("the plain field holds hunter2 after the letters"); }'
-  source_case src-title-outside-ascii refused 'fn c4() { println!("TF c4 title=Caf\u{e9} bytes={n}"); }'
+  source_case src-title-outside-ascii refused 'fn c4() { println!("TF c4 bytes={n} title=\u{65e5}\u{672c}"); }'
   source_case src-line-built-before-its-print refused 'fn x() { let evidence = format!("TF x14 title=Untitled"); println!("{evidence}"); }'
   source_case src-expect-message refused 'fn x() { open().expect("the window Untitled - Notepad"); }'
   source_case src-assert-message refused 'fn x() { assert_eq!(text, "hunter2"); }'
@@ -212,9 +212,26 @@ TF c4 title=Untitled - Notepad bytes=18$cr"
   log_case log-window-title refused 'prints-rule log-window-title line=2 length=39 token=3'
   plant log-field-text "TF stall plain_len=7 plain_text=hunter2$cr"
   log_case log-field-text refused 'prints-rule log-field-text line=1 length=39 token=4'
-  printf 'TF c4 bytes=5 title=Caf\303\251\r' >"$work/log-title-outside-ascii.log" ||
+  printf 'TF c4 bytes=6 title=\346\227\245\346\234\254\r' >"$work/log-title-outside-ascii.log" ||
     fail_self "the fixture log-title-outside-ascii cannot be written"
-  log_case log-title-outside-ascii refused 'prints-rule log-title-outside-ascii line=1 length=25 token=4'
+  log_case log-title-outside-ascii refused 'prints-rule log-title-outside-ascii line=1 length=26 token=4'
+  plant log-typed-keys "TF c1 key=s$cr
+TF c1 key=t$cr
+TF c1 keys a and q$cr
+TF c1 key=q1$cr
+TF c1 key=e5$cr
+TF browser-stall-chrome landings=pq$cr
+TF browser-stall-chrome phases E and F landings=ppt$cr"
+  log_case log-typed-keys refused 'prints-rule log-typed-keys line=1 length=11 token=3
+prints-rule log-typed-keys line=2 length=11 token=3
+prints-rule log-typed-keys line=3 length=18 token=6
+prints-rule log-typed-keys line=4 length=12 token=3
+prints-rule log-typed-keys line=5 length=12 token=3
+prints-rule log-typed-keys line=6 length=35 token=3'
+  plant log-field-text-of-a-literal "TF stall plain_len=5 plain_text=aaaaa$cr
+TF browser-stall-chrome field=secret$cr"
+  log_case log-field-text-of-a-literal refused 'prints-rule log-field-text-of-a-literal line=1 length=37 token=4
+prints-rule log-field-text-of-a-literal line=2 length=36 token=3'
   heads_log_lines >"$work/heads.txt" || fail_self "the fixture log-heads-lines cannot be written"
   awk '{ printf "%s\r\n", $0 }' "$work/heads.txt" >"$work/log-heads-lines.log" ||
     fail_self "the fixture log-heads-lines cannot be written"

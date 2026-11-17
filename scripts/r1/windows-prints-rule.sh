@@ -177,8 +177,7 @@ wpr_check_lines() {
       return 1
     }
     function letter_ok(a, before) {
-      if (prev == "phase" || prev == "phases") return 1
-      if (prev == "and" && prev2 ~ /^[a-z]$/) return 1
+      if (prev == "phase" || prev == "phases" || prev == "and" && phase2) { by_phase = 1; return 1 }
       if (tok == "a") return 1
       if (a == "s" && before == "\047") return 1
       if (tok == "fixture-native-f") return 1
@@ -186,7 +185,8 @@ wpr_check_lines() {
       return 0
     }
     function atom_ok(a, before,    n, parts, i) {
-      if (a ~ /^[0-9]+$/ || a ~ /^0x[0-9A-Fa-f]+$/ || a ~ /^[0-9]+(ms|us|ns|s|mb)$/ || a ~ /^[0-9]+x[0-9]+$/) return 1
+      by_phase = 0
+      if (a ~ /^0x[0-9A-Fa-f]+$/ || a ~ /^[0-9]+x[0-9]+$/) return 1
       if (a ~ /^[0-9a-f]+$/ && length(a) >= 7 && a ~ /[0-9]/ && a ~ /[a-f]/) return 1
       if (prev == "landings" && a ~ /^[pt]+$/) return 1
       if (a ~ /^[A-Za-z]$/) return letter_ok(a, before)
@@ -206,8 +206,9 @@ wpr_check_lines() {
         before = RSTART > 1 ? substr(rest, RSTART - 1, 1) : ""
         rest = substr(rest, RSTART + RLENGTH)
         if (!atom_ok(a, before)) return 0
-        prev2 = prev
         prev = tolower(a)
+        phase2 = phase1
+        phase1 = by_phase
       }
       return 1
     }
@@ -217,7 +218,7 @@ wpr_check_lines() {
       gsub(/\r/, "", line)
       n = split(line, toks, /[ \t]+/)
       prev = ""
-      prev2 = ""
+      phase1 = 0
       for (k = 1; k <= n; k++) {
         tok = toks[k]
         if (!token_ok()) {
