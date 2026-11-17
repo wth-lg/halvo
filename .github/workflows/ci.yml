@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,68 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 63-prerequisites 64-readme 26-r7-pnpm-step 60-release-dry-run
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 63-prerequisites 64-readme 26-r7-pnpm-step 60-release-dry-run
+      - name: Loop release-2 cases
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/loop-round.sh" <<'ROUND'
+          #!/bin/sh
+          # usage: sh loop-round.sh <job> <round dir>
+          # One round of the loop step, run from the root of a checkout. It writes a copy
+          # of scripts/prerequisites.sh whose self-test keeps the cases from the first
+          # cargo-release case up to the cargo-deny cases (the cases that release-2 adds
+          # or changes, with the unchanged download and platform cases beside them),
+          # runs that self-test, and runs the self-tests of 63-prerequisites and, in the
+          # macos job, 64-readme through the driver. A round passes only when every
+          # result line shows the expected count: <cases> PASS lines and no FAIL line in
+          # the copy's self-test with its PASS line last, and one PASS line of each
+          # self-test with at least 1 failing fixture rejected.
+          set -u
+          job=$1
+          dir=$2
+          mkdir -p "$dir/copy/scripts"
+          awk '
+            /^  deny_target=\$\(prebuilt_target\) \|\| \{$/ { skip = 1 }
+            /^  if \[ "\$failures" -gt 0 \]; then$/ { skip = 0 }
+            !skip
+          ' scripts/prerequisites.sh >"$dir/copy/scripts/prerequisites.sh"
+          case "$job" in
+            macos) want_cases=15; names='63-prerequisites 64-readme' ;;
+            *) want_cases=14; names=63-prerequisites ;;
+          esac
+          status=0
+          (cd "$dir/copy" && sh scripts/prerequisites.sh --self-test) >"$dir/copy.out" 2>&1 || status=$?
+          passes=$(grep -c '^PASS ' "$dir/copy.out") || passes=0
+          fails=$(grep -c '^FAIL ' "$dir/copy.out") || fails=0
+          last=$(tail -n 1 "$dir/copy.out")
+          ok=yes
+          [ "$status" = 0 ] && [ "$passes" = "$want_cases" ] && [ "$fails" = 0 ] && [ "$last" = 'prerequisites: self-test PASS' ] || ok=no
+          # shellcheck disable=SC2086
+          sh scripts/ci/run-ci-d.sh "$job" --self-test $names >"$dir/driver.out" 2>&1 || ok=no
+          for name in $names; do
+            grep -q -E "^PASS self-test:$name \([1-9][0-9]* failing fixtures rejected\)$" "$dir/driver.out" || ok=no
+          done
+          printf 'round: copy cases passed %s of %s, failed %s, exit %s; self-tests %s; ok=%s\n' "$passes" "$want_cases" "$fails" "$status" "$names" "$ok"
+          [ "$ok" = yes ]
+          ROUND
+          mkdir -p "$RUNNER_TEMP/loop"
+          start=$(date +%s)
+          seq 1 200 | xargs -P 4 -I{} sh "$RUNNER_TEMP/loop-round.sh" macos "$RUNNER_TEMP/loop/{}" >"$RUNNER_TEMP/loop.out" 2>&1
+          end=$(date +%s)
+          ok=$(grep -c 'ok=yes$' "$RUNNER_TEMP/loop.out")
+          full=$(grep -c '^round: copy cases passed 15 of 15, failed 0, exit 0; ' "$RUNNER_TEMP/loop.out")
+          echo "loop release-2 macos: rounds 200, rounds ok $ok, rounds with all copy cases $full, seconds $((end - start))"
+          grep -v 'ok=yes$' "$RUNNER_TEMP/loop.out" | grep '^round:' | sort | uniq -c | head -n 5
+          test "$ok" = 200 && test "$full" = 200
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -143,6 +187,22 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Digests of the three prebuilt cargo-release archives
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          fails=0
+          for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc; do
+            case $target in *-windows-*) ext=zip ;; *) ext=tar.gz ;; esac
+            asset=cargo-release-v1.1.7-$target.$ext
+            pin=$(sed -n "s/^cargo_release_sha256_$(echo $target | tr - _)=\(.*\)$/\1/p" scripts/prerequisites.sh)
+            curl --proto '=https' --tlsv1.2 -sSfL --retry 5 --retry-delay 3 -o "$RUNNER_TEMP/$asset" "https://github.com/crate-ci/cargo-release/releases/download/v1.1.7/$asset"
+            got=$(sha256sum <"$RUNNER_TEMP/$asset" | cut -d ' ' -f 1)
+            if [ -n "$pin" ] && [ "$got" = "$pin" ]; then match=true; else match=false; fails=$((fails + 1)); fi
+            echo "digest $target: pinned $([ -n "$pin" ] && echo true || echo false), downloaded archive matches the pin: $match"
+          done
+          test "$fails" = 0
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
@@ -154,14 +214,68 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 63-prerequisites 26-r7-pnpm-step
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 63-prerequisites 26-r7-pnpm-step
+      - name: Loop release-2 cases
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/loop-round.sh" <<'ROUND'
+          #!/bin/sh
+          # usage: sh loop-round.sh <job> <round dir>
+          # One round of the loop step, run from the root of a checkout. It writes a copy
+          # of scripts/prerequisites.sh whose self-test keeps the cases from the first
+          # cargo-release case up to the cargo-deny cases (the cases that release-2 adds
+          # or changes, with the unchanged download and platform cases beside them),
+          # runs that self-test, and runs the self-tests of 63-prerequisites and, in the
+          # macos job, 64-readme through the driver. A round passes only when every
+          # result line shows the expected count: <cases> PASS lines and no FAIL line in
+          # the copy's self-test with its PASS line last, and one PASS line of each
+          # self-test with at least 1 failing fixture rejected.
+          set -u
+          job=$1
+          dir=$2
+          mkdir -p "$dir/copy/scripts"
+          awk '
+            /^  deny_target=\$\(prebuilt_target\) \|\| \{$/ { skip = 1 }
+            /^  if \[ "\$failures" -gt 0 \]; then$/ { skip = 0 }
+            !skip
+          ' scripts/prerequisites.sh >"$dir/copy/scripts/prerequisites.sh"
+          case "$job" in
+            macos) want_cases=15; names='63-prerequisites 64-readme' ;;
+            *) want_cases=14; names=63-prerequisites ;;
+          esac
+          status=0
+          (cd "$dir/copy" && sh scripts/prerequisites.sh --self-test) >"$dir/copy.out" 2>&1 || status=$?
+          passes=$(grep -c '^PASS ' "$dir/copy.out") || passes=0
+          fails=$(grep -c '^FAIL ' "$dir/copy.out") || fails=0
+          last=$(tail -n 1 "$dir/copy.out")
+          ok=yes
+          [ "$status" = 0 ] && [ "$passes" = "$want_cases" ] && [ "$fails" = 0 ] && [ "$last" = 'prerequisites: self-test PASS' ] || ok=no
+          # shellcheck disable=SC2086
+          sh scripts/ci/run-ci-d.sh "$job" --self-test $names >"$dir/driver.out" 2>&1 || ok=no
+          for name in $names; do
+            grep -q -E "^PASS self-test:$name \([1-9][0-9]* failing fixtures rejected\)$" "$dir/driver.out" || ok=no
+          done
+          printf 'round: copy cases passed %s of %s, failed %s, exit %s; self-tests %s; ok=%s\n' "$passes" "$want_cases" "$fails" "$status" "$names" "$ok"
+          [ "$ok" = yes ]
+          ROUND
+          mkdir -p "$RUNNER_TEMP/loop"
+          start=$(date +%s)
+          seq 1 200 | xargs -P 4 -I{} sh "$RUNNER_TEMP/loop-round.sh" windows "$RUNNER_TEMP/loop/{}" >"$RUNNER_TEMP/loop.out" 2>&1
+          end=$(date +%s)
+          ok=$(grep -c 'ok=yes$' "$RUNNER_TEMP/loop.out")
+          full=$(grep -c '^round: copy cases passed 14 of 14, failed 0, exit 0; ' "$RUNNER_TEMP/loop.out")
+          echo "loop release-2 windows: rounds 200, rounds ok $ok, rounds with all copy cases $full, seconds $((end - start))"
+          grep -v 'ok=yes$' "$RUNNER_TEMP/loop.out" | grep '^round:' | sort | uniq -c | head -n 5
+          test "$ok" = 200 && test "$full" = 200
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
