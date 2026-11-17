@@ -670,12 +670,15 @@ fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
 }
 
 /// Destroys one entry of a roots directory. An entry that is no regular file
-/// is removed as the entry that it is. At a name that is no root name and no
-/// partial name the step first reads the file's count of names and its length
-/// by its name through the directory's handle, following no link and opening
-/// nothing; a file whose read shows more than one name, a count that cannot be
-/// read or no root file's length has its name removed with no open, no mode
-/// change and no write (ruling ST-48 U1). For a regular file that may be
+/// is removed as the entry that it is. At every name the step first reads the
+/// file's count of names and its length by its name through the directory's
+/// handle, following no link and opening nothing; a file whose read shows a
+/// count and a length that the name's rule does not write through
+/// ([`written_through`]) has its name removed with no open, no mode change and
+/// no write (ruling ST-48 U1, and at a root name and a partial name the inbox
+/// entry of 2026-11-17T02:59:55Z (1)); at any other name so does a file whose
+/// count cannot be read, and at a root name or a partial name such a file keeps
+/// its name and a key may stay (ruling ST-45 H2). For a regular file that may be
 /// written the step then sets its mode to 0600 by its name through the
 /// directory's handle, following no link (on Windows it clears the read-only
 /// attribute after the open and the test), then keeps one handle: the open for update, or the read open, or the write open
@@ -696,10 +699,10 @@ fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
 /// removed as the entry that it is with no write through it and is
 /// `NotTheRootFile`; at another root's name such a file with more than one
 /// name, or a count that cannot be read, is removed with no write through it
-/// (ruling ST-45 Addition 2 (b)); at any other name the kept handle shows again
-/// the identity, the one name and the root file's length that the read by
-/// name showed before any write, or the name is removed with no write through
-/// it ([`written_through`]).
+/// (ruling ST-45 Addition 2 (b)); at every name the kept handle shows again the
+/// identity that the read by name showed, and a count and a length that the
+/// name's rule writes through, before any write, or the name is removed with
+/// no write through it ([`written_through`]).
 fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
     let remove = |dir: &Dir| match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -716,16 +719,15 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         Ok(entry) if entry.kind != EntryKind::File => return removed_unwritten(dir),
         Ok(_) => {}
     }
-    let by_name = if at == EntryName::OtherName {
-        match dir.file_shape_at(name) {
-            Ok(shape) if written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) => {
-                Some(shape.identity)
-            }
-            Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
-            _ => return removed_unwritten(dir),
+    let by_name = match dir.file_shape_at(name) {
+        Ok(shape) if written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) => {
+            shape.identity
         }
-    } else {
-        None
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+        Err(e) if at != EntryName::OtherName && durable::refusal(&e).is_none() => {
+            return EntryFate::KeyMayStay(Some(e))
+        }
+        _ => return removed_unwritten(dir),
     };
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
@@ -743,8 +745,7 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         .metadata()
         .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
     let one_name = matches!(durable::file_link_count(&kept), Ok(1));
-    let same_file = by_name
-        .is_none_or(|identity| matches!(durable::identity_of(&kept), Ok(held) if held == identity));
+    let same_file = matches!(durable::identity_of(&kept), Ok(held) if held == by_name);
     if !(same_file && written_through(at, one_name, root_len)) {
         return removed_unwritten(dir);
     }
