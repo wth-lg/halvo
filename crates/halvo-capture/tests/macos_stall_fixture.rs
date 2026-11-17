@@ -834,6 +834,7 @@ struct FixtureState {
     focus: String,
     plain: usize,
     secure: usize,
+    second: usize,
 }
 
 impl FixtureState {
@@ -844,6 +845,7 @@ impl FixtureState {
             focus: String::new(),
             plain: 0,
             secure: 0,
+            second: 0,
         };
         for word in line.split(' ') {
             match word.split_once('=') {
@@ -852,6 +854,7 @@ impl FixtureState {
                 Some(("focus", v)) => state.focus = v.to_owned(),
                 Some(("plain", v)) => state.plain = v.parse().unwrap_or(usize::MAX),
                 Some(("secure", v)) => state.secure = v.parse().unwrap_or(usize::MAX),
+                Some(("second", v)) => state.second = v.parse().unwrap_or(usize::MAX),
                 _ => {}
             }
         }
@@ -2965,6 +2968,332 @@ fn judge_control(name: &str, rounds: &[Control]) {
 fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field() {
     let name = "the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field";
     control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), control_rounds());
+}
+
+/// Withheld keys by the kind of mark that moved last: a focus notice, a
+/// doubt, the read at the start of a watch.
+fn withheld_since(recorder: &Recorder, before: (u64, u64, u64)) -> (u64, u64, u64) {
+    let now = recorder.drops.withheld_by_mark();
+    (now.0 - before.0, now.1 - before.1, now.2 - before.2)
+}
+
+fn notices_into(entries: &[RawEntry], seen: NoticeSeen, focus: Focus) -> usize {
+    entries
+        .iter()
+        .filter(|entry| {
+            matches!(entry, RawEntry::Notice { seen: s, focus: f, .. } if *s == seen && *f == focus)
+        })
+        .count()
+}
+
+#[derive(Debug, Default)]
+struct PlainNotice {
+    counted: bool,
+    why_not: &'static str,
+    notices: usize,
+    recorded: usize,
+    landed_second: usize,
+    landed_plain: usize,
+    withheld: (u64, u64, u64),
+    not_driven: Option<NoReply>,
+}
+
+fn drive_plain_notice(
+    fixture: &mut Fixture,
+    recorder: &Recorder,
+    bound: Duration,
+    round: &mut PlainNotice,
+) -> Result<(), NoReply> {
+    fixture.try_ask("clear")?;
+    fixture.try_focus("second")?;
+    if !state_reads(false, Duration::from_secs(2)) || !fixture.try_in_front()? {
+        round.why_not = "the fixture was not in front with secure input off";
+        return Ok(());
+    }
+    let _ = recorder.take_entries();
+    let from = SystemTime::now();
+    fixture.try_keys(
+        Duration::from_millis(30),
+        &format!("{} {TAB} {}", codes(&LETTERS[..4]), codes(&LETTERS[4..])),
+    )?;
+    std::thread::sleep(bound + MARGIN);
+    round.recorded = recorder.between(from, SystemTime::now());
+    round.notices = notices_into(&recorder.take_entries(), NoticeSeen::Notice, Focus::Other);
+    let state = fixture.try_state()?;
+    round.landed_second = state.second;
+    round.landed_plain = state.plain;
+    if (state.second, state.plain) != (4, 4) {
+        round.why_not = "the letters did not land where they were typed";
+        return Ok(());
+    }
+    if round.notices == 0 {
+        round.why_not = "no notice of the focus move into the plain field came";
+        return Ok(());
+    }
+    round.counted = true;
+    Ok(())
+}
+
+fn judge_plain_notice(name: &str, rounds: &[PlainNotice]) {
+    let by_notice: Vec<String> = rounds
+        .iter()
+        .enumerate()
+        .filter(|(_, round)| round.withheld.0 > 0)
+        .map(|(number, round)| format!("round {number}: {}", round.withheld.0))
+        .collect();
+    assert!(
+        by_notice.is_empty(),
+        "{name}: a focus notice into a plain field withheld keys: {}",
+        by_notice.join(", ")
+    );
+    let why_not: Vec<String> = rounds
+        .iter()
+        .map(|round| {
+            round.not_driven.as_ref().map_or_else(
+                || round.why_not.to_owned(),
+                |no_reply| format!("not driven: {}", no_reply.word()),
+            )
+        })
+        .collect();
+    assert!(
+        rounds.iter().any(|round| round.counted),
+        "{name}: no round counted: {}",
+        why_not.join(", ")
+    );
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_focus_notice_into_a_plain_field_withholds_no_key() {
+    let name = "a_focus_notice_into_a_plain_field_withholds_no_key";
+    let mut fixture = started_fixture(name);
+    let recorder = Recorder::start(seamed_with(
+        SHORT_BOUND,
+        test_gap(),
+        test_step(),
+        session_reader().unwrap_or(read_session),
+        fixture_front,
+    ));
+    println!(
+        "{name} watch_started={}",
+        u8::from(wait_for_the_watch(&recorder))
+    );
+    let mut rounds = Vec::new();
+    for number in 0..control_rounds() {
+        let before = recorder.drops.withheld_by_mark();
+        let mut round = PlainNotice::default();
+        if let Err(no_reply) = drive_plain_notice(&mut fixture, &recorder, SHORT_BOUND, &mut round)
+        {
+            std::thread::sleep(SHORT_BOUND + MARGIN);
+            round.counted = false;
+            round.why_not = NOT_DRIVEN;
+            round.not_driven = Some(no_reply);
+        }
+        round.withheld = withheld_since(&recorder, before);
+        println!(
+            "{name} round={number} counted={} notices={} recorded={} landed_second={} \
+             landed_plain={} withheld_by_notice={} withheld_by_doubt={} withheld_by_start={} \
+             not_driven={} rv=- why_not={}",
+            u8::from(round.counted),
+            round.notices,
+            round.recorded,
+            round.landed_second,
+            round.landed_plain,
+            round.withheld.0,
+            round.withheld.1,
+            round.withheld.2,
+            round
+                .not_driven
+                .as_ref()
+                .map_or_else(|| String::from("-"), NoReply::word),
+            round.why_not.replace(' ', "_"),
+        );
+        println!(
+            "{name} drops round={number} {}",
+            drops_line(&recorder.drops)
+        );
+        rounds.push(round);
+    }
+    judge_plain_notice(name, &rounds);
+}
+
+const FRONT_STEP_MS: u64 = 50;
+const H5_BOUND: Duration = Duration::from_millis(1_500);
+const H5_GAP: Duration = Duration::from_millis(2_500);
+const H5_STEP: Duration = Duration::from_millis(1_000);
+const H5_SECURE_MS: u64 = 200;
+
+fn h5_rounds() -> usize {
+    if short_form() {
+        3
+    } else {
+        ROUNDS
+    }
+}
+
+#[derive(Debug, Default)]
+struct ComeToFront {
+    counted: bool,
+    why_not: &'static str,
+    recorded: usize,
+    landed_plain: usize,
+    on_readings: usize,
+    start_secure: usize,
+    secure_after_front_ms: u64,
+    withheld: (u64, u64, u64),
+    not_driven: Option<NoReply>,
+}
+
+fn drive_come_to_front(
+    fixture: &mut Fixture,
+    recorder: &Recorder,
+    round: &mut ComeToFront,
+) -> Result<(), NoReply> {
+    FRONT.store(0, Ordering::SeqCst);
+    std::thread::sleep(Duration::from_millis(4 * FRONT_STEP_MS));
+    fixture.try_ask("clear")?;
+    fixture.try_ask("autoleave -1")?;
+    fixture.try_focus("plain")?;
+    if !state_reads(false, Duration::from_secs(2)) || !fixture.try_in_front()? {
+        round.why_not = "the fixture was not in front with secure input off";
+        return Ok(());
+    }
+    let _ = recorder.take_entries();
+    let raw_from = raw_ns();
+    let from = SystemTime::now();
+    fixture.try_keys(Duration::from_millis(10), &codes(&LETTERS[..3]))?;
+    fixture.try_ask(&format!("autoleave {H5_SECURE_MS}"))?;
+    fixture.try_focus("secure")?;
+    let front_at = raw_ns();
+    FRONT.store(fixture.pid, Ordering::SeqCst);
+    std::thread::sleep(H5_BOUND + H5_STEP + MARGIN);
+    round.recorded = recorder.between(from, SystemTime::now());
+    let entries = recorder.take_entries();
+    round.on_readings = entries
+        .iter()
+        .filter(|entry| {
+            matches!(entry, RawEntry::Reading { before, value: Reading::On, .. } if *before >= raw_from)
+        })
+        .count();
+    round.start_secure = notices_into(&entries, NoticeSeen::Start, Focus::Secure);
+    fixture.try_ask("autoleave -1")?;
+    let stamps = fixture.try_stamps()?;
+    let left = stamps
+        .iter()
+        .find(|stamp| stamp.kind == "autoleave_before")
+        .map(|stamp| stamp.ns);
+    round.secure_after_front_ms = left.map_or(0, |left| left.saturating_sub(front_at) / 1_000_000);
+    let state = fixture.try_state()?;
+    round.landed_plain = state.plain;
+    if state.plain != 3 {
+        round.why_not = "the letters did not land in the plain field";
+        return Ok(());
+    }
+    if left.is_none() || round.secure_after_front_ms < 2 * FRONT_STEP_MS {
+        round.why_not = "the secure field had focus for less than two steps of the notice thread after the front changed";
+        return Ok(());
+    }
+    if round.on_readings > 0 {
+        round.why_not = "a reading read secure input on";
+        return Ok(());
+    }
+    round.counted = true;
+    Ok(())
+}
+
+fn judge_come_to_front(name: &str, rounds: &[ComeToFront]) {
+    let recorded: Vec<String> = rounds
+        .iter()
+        .enumerate()
+        .filter(|(_, round)| round.counted && round.recorded > 0)
+        .map(|(number, round)| format!("round {number}: {}", round.recorded))
+        .collect();
+    assert!(
+        recorded.is_empty(),
+        "{name}: keys typed ahead of a program that came to the front with its secure field \
+         focused were recorded: {}",
+        recorded.join(", ")
+    );
+    let why_not: Vec<String> = rounds
+        .iter()
+        .map(|round| {
+            round.not_driven.as_ref().map_or_else(
+                || round.why_not.to_owned(),
+                |no_reply| format!("not driven: {}", no_reply.word()),
+            )
+        })
+        .collect();
+    assert!(
+        rounds.iter().any(|round| round.counted),
+        "{name}: no round counted: {}",
+        why_not.join(", ")
+    );
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_program_that_comes_to_the_front_with_its_secure_field_focused_records_no_key_typed_ahead() {
+    let name =
+        "a_program_that_comes_to_the_front_with_its_secure_field_focused_records_no_key_typed_ahead";
+    let mut fixture = started_fixture(name);
+    let recorder = Recorder::start(seamed_with(
+        H5_BOUND,
+        H5_GAP,
+        H5_STEP,
+        session_reader().unwrap_or(read_session),
+        fixture_front,
+    ));
+    println!(
+        "{name} watch_started={}",
+        u8::from(wait_for_the_watch(&recorder))
+    );
+    let mut rounds = Vec::new();
+    for number in 0..h5_rounds() {
+        let before = recorder.drops.withheld_by_mark();
+        let mut round = ComeToFront::default();
+        if let Err(no_reply) = drive_come_to_front(&mut fixture, &recorder, &mut round) {
+            std::thread::sleep(H5_BOUND + MARGIN);
+            round.counted = false;
+            round.why_not = NOT_DRIVEN;
+            round.not_driven = Some(no_reply);
+        }
+        round.withheld = withheld_since(&recorder, before);
+        if round.counted && round.withheld.1 > 0 {
+            round.counted = false;
+            round.why_not = "a doubt dropped the keys";
+        }
+        println!(
+            "{name} round={number} counted={} recorded={} landed_plain={} on_readings={} \
+             start_reads_of_the_secure_field={} secure_after_front_ms={} withheld_by_notice={} \
+             withheld_by_doubt={} withheld_by_start={} not_driven={} rv={} why_not={}",
+            u8::from(round.counted),
+            round.recorded,
+            round.landed_plain,
+            round.on_readings,
+            round.start_secure,
+            round.secure_after_front_ms,
+            round.withheld.0,
+            round.withheld.1,
+            round.withheld.2,
+            round
+                .not_driven
+                .as_ref()
+                .map_or_else(|| String::from("-"), NoReply::word),
+            if round.not_driven.is_some() && round.recorded > 0 {
+                "recorded"
+            } else {
+                "-"
+            },
+            round.why_not.replace(' ', "_"),
+        );
+        println!(
+            "{name} drops round={number} {}",
+            drops_line(&recorder.drops)
+        );
+        rounds.push(round);
+    }
+    FRONT.store(fixture.pid, Ordering::SeqCst);
+    judge_come_to_front(name, &rounds);
 }
 
 trait Line {

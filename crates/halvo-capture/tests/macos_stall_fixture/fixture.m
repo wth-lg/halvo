@@ -7,6 +7,7 @@
 
 static NSWindow *window;
 static NSTextField *plainField;
+static NSTextField *nextPlainField;
 static NSSecureTextField *secureField;
 
 static unsigned long long uptime_ns(void) {
@@ -60,6 +61,7 @@ static const Verb VERBS[] = {
     {"state", "cmd_state", "front=", ""},
     {"plain", "cmd_plain", "focus=", ""},
     {"secure", "cmd_secure", "focus=", ""},
+    {"second", "cmd_second", "focus=", ""},
     {"clear", "cmd_clear", "cleared", ""},
     {"which", "cmd_which", "which=", ""},
     {"where", "cmd_where", "x=", ""},
@@ -144,18 +146,21 @@ static NSString *focusName(void) {
         id delegate = ((NSTextView *)first).delegate;
         if (delegate == secureField) return @"secure";
         if (delegate == plainField) return @"plain";
+        if (delegate == nextPlainField) return @"second";
     }
     if (first == secureField) return @"secure";
     if (first == plainField) return @"plain";
+    if (first == nextPlainField) return @"second";
     return @"other";
 }
 
 static void focus(NSControl *field, NSString *name) {
     BOOL secure = field == secureField;
-    stamp(secure ? "focus_before_secure" : "focus_before_plain", 0);
+    BOOL second = field == nextPlainField;
+    stamp(secure ? "focus_before_secure" : second ? "focus_before_second" : "focus_before_plain", 0);
     [window makeFirstResponder:field];
     [field.currentEditor setSelectedRange:NSMakeRange(field.stringValue.length, 0)];
-    stamp(secure ? "focus_after_secure" : "focus_after_plain", 0);
+    stamp(secure ? "focus_after_secure" : second ? "focus_after_second" : "focus_after_plain", 0);
     say([NSString stringWithFormat:@"focus=%@ at_uptime_ns=%llu", name, uptime_ns()]);
 }
 
@@ -211,7 +216,8 @@ static void focus(NSControl *field, NSString *name) {
 @implementation Lander
 - (void)controlTextDidChange:(NSNotification *)note {
     NSTextField *field = note.object;
-    stamp(field == secureField ? "land_secure" : "land_plain", (long)field.stringValue.length);
+    stamp(field == secureField ? "land_secure" : field == nextPlainField ? "land_second" : "land_plain",
+          (long)field.stringValue.length);
 }
 @end
 
@@ -238,14 +244,17 @@ static void handle(NSString *line) {
     if ([verb isEqualToString:@"state"]) {
         BOOL front = NSApp.isActive &&
             NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == getpid();
-        say([NSString stringWithFormat:@"front=%d key=%d focus=%@ plain=%lu secure=%lu",
+        say([NSString stringWithFormat:@"front=%d key=%d focus=%@ plain=%lu secure=%lu second=%lu",
              front ? 1 : 0, window.isKeyWindow ? 1 : 0, focusName(),
              (unsigned long)plainField.stringValue.length,
-             (unsigned long)secureField.stringValue.length]);
+             (unsigned long)secureField.stringValue.length,
+             (unsigned long)nextPlainField.stringValue.length]);
     } else if ([verb isEqualToString:@"plain"]) {
         focus(plainField, @"plain");
     } else if ([verb isEqualToString:@"secure"]) {
         focus(secureField, @"secure");
+    } else if ([verb isEqualToString:@"second"]) {
+        focus(nextPlainField, @"second");
     } else if ([verb isEqualToString:@"which"] && words.count >= 2) {
         NSMutableString *where = [NSMutableString string];
         NSString *plain = plainField.stringValue;
@@ -260,6 +269,7 @@ static void handle(NSString *line) {
     } else if ([verb isEqualToString:@"clear"]) {
         plainField.stringValue = @"";
         secureField.stringValue = @"";
+        nextPlainField.stringValue = @"";
         say(@"cleared");
     } else if ([verb isEqualToString:@"where"]) {
         NSRect inWindow = [secureField convertRect:secureField.bounds toView:nil];
@@ -320,22 +330,26 @@ int main(void) {
     @autoreleasepool {
         [StallApp sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-        window = [[NSWindow alloc] initWithContentRect:NSMakeRect(200, 200, 420, 160)
+        window = [[NSWindow alloc] initWithContentRect:NSMakeRect(200, 200, 420, 200)
                                              styleMask:NSWindowStyleMaskTitled
                                                backing:NSBackingStoreBuffered
                                                  defer:NO];
         plainField = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 100, 380, 24)];
         secureField = [[StallSecureField alloc] initWithFrame:NSMakeRect(20, 40, 380, 24)];
         Lander *lander = [Lander new];
+        nextPlainField = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 150, 380, 24)];
         plainField.delegate = lander;
+        nextPlainField.delegate = lander;
         secureField.delegate = lander;
         Leaver *leaver = [Leaver new];
         secureField.target = leaver;
         secureField.action = @selector(left:);
         [window.contentView addSubview:plainField];
         [window.contentView addSubview:secureField];
+        [window.contentView addSubview:nextPlainField];
         plainField.nextKeyView = secureField;
         secureField.nextKeyView = plainField;
+        nextPlainField.nextKeyView = plainField;
         window.initialFirstResponder = plainField;
         [window makeKeyAndOrderFront:nil];
         [NSApp activateIgnoringOtherApps:YES];
