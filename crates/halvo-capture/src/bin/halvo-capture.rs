@@ -637,6 +637,50 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn an_opened_dir_whose_roots_cannot_be_listed_is_never_said_to_be_unopened() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let scratch = scratch();
+        let dir = scratch.dir("roots-unlistable");
+        drop(live_store(&dir));
+        std::fs::write(dir.join("create.pending"), b"not a mark").unwrap();
+        let names = root_files(&dir);
+        let id = names[0].strip_suffix(".root").unwrap().to_owned();
+        if std::fs::metadata(&dir).unwrap().uid() == 0 {
+            println!("not run: the test runs as root, whom a mode does not stop");
+            return;
+        }
+        let before = files_under(&dir)
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect::<Vec<_>>();
+        std::fs::set_permissions(dir.join("roots"), std::fs::Permissions::from_mode(0o000))
+            .unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let answer = scratch.delete(&text(&dir));
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(dir.join("roots"), std::fs::Permissions::from_mode(0o700))
+            .unwrap();
+        let (status, out, err) = answer;
+        assert_eq!(status, 1, "{out}{err}");
+        assert!(
+            deleted_line(&out).contains(&format!(" root_destroyed=no root_id={id} ")),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: this call did not destroy the store's root; the folder roots could not be listed; store.key stays; a database file stays; 1 other files of the store stay\n"
+        );
+        assert_eq!(
+            files_under(&dir)
+                .into_iter()
+                .map(|(path, _)| path)
+                .collect::<Vec<_>>(),
+            before
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn a_store_dir_whose_names_cannot_be_read_is_refused_with_64_and_keeps_every_file() {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
         let scratch = scratch();

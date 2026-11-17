@@ -296,12 +296,12 @@ impl TailReport {
     }
 
     /// The report of a tail that could not open the store directory, or that
-    /// answered through its not-opened report for another cause: the root not
-    /// destroyed, and store.key, the database and one file read as not removed
+    /// answered through its not-opened report for another cause: the root left
+    /// with no id, and store.key, the database and one file read as not removed
     /// because the tail never looked. A removal that left exactly those three
-    /// and destroyed no root reads the same.
+    /// and read no root id reads the same.
     fn not_opened(&self) -> bool {
-        self.root != TailRoot::Destroyed
+        self.root == TailRoot::Left(None)
             && !self.key_file_gone
             && self.database_left
             && self.files_left == 1
@@ -1793,10 +1793,7 @@ mod tests {
 
     #[test]
     fn a_not_opened_report_says_the_store_dir_could_not_be_opened_and_nothing_of_what_stays() {
-        for root in [
-            TailRoot::Left(None),
-            TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
-        ] {
+        for root in [TailRoot::Left(None)] {
             let report = TailReport {
                 root,
                 database_left: true,
@@ -1858,6 +1855,13 @@ mod tests {
                 "the root destroyed",
                 TailReport {
                     root: TailRoot::Destroyed,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "the root left with its id",
+                TailReport {
+                    root: TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
                     ..not_opened.clone()
                 },
             ),
