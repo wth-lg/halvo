@@ -616,17 +616,28 @@ mod tests {
         let mut files = Vec::new();
         rust_files(&root.join("src"), &mut files);
         assert!(files.len() >= 10, "source files: {}", files.len());
-        let admits = concat!("fence::", "admit");
         let found: Vec<String> = files
             .iter()
-            .filter(|p| {
-                std::fs::read_to_string(p)
-                    .unwrap_or_default()
-                    .contains(admits)
-            })
+            .filter(|p| admits_past_the_fence(&std::fs::read_to_string(p).unwrap_or_default()))
             .map(|p| p.strip_prefix(root).unwrap_or(p).display().to_string())
             .collect();
         assert!(found.is_empty(), "sources that admit a process: {found:?}");
+        for line in [
+            concat!("let _a = r3_web::procs::fence::", "admit_process(&row);"),
+            concat!("use r3_web::procs::fence::{", "admit_below};"),
+            concat!("let a = r3_web::procs::fence::Adm", "its::default();"),
+        ] {
+            assert!(admits_past_the_fence(line), "{line}");
+        }
+        assert!(!admits_past_the_fence(
+            "assert!(r3_web::procs::fence::is_on());"
+        ));
+    }
+
+    fn admits_past_the_fence(source: &str) -> bool {
+        source.contains(concat!("fence::", "admit"))
+            || source.contains(concat!("fence::{", "admit"))
+            || source.contains(concat!("Adm", "its"))
     }
 
     #[test]
