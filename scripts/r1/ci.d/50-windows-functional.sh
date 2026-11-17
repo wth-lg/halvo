@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=60
+failing_fixtures=65
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -804,6 +804,12 @@ check() {
           *"${text#!}"*) got=$got-with-a-text-it-must-not-hold ;;
         esac
         ;;
+      '@'*)
+        case $(cat "$work/artifacts-$case_name/wf.txt" 2>/dev/null) in
+          *"${text#@}"*) ;;
+          *) got=$got-without-the-text-in-wf.txt ;;
+        esac
+        ;;
       *)
         case $out in
           *"$text"*) ;;
@@ -919,6 +925,35 @@ case $kind in
       rule-unreadable) printf 'TF %s RULE-CANNOT-READ hunter2-typed-text\n' "$test" ;;
       rule-leaky) printf 'TF %s LEAKS-TEXT hunter2-typed-text\n' "$test" ;;
     esac
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
+  rule-mixed)
+    printf 'TF %s MIXED-ANSWER hunter2-typed-text\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
+  rule-break-late-line)
+    for filler in 1 2 3 4 5 6 7 8 9 10; do
+      printf 'TF %s filler=%s\n' "$test" "$filler"
+    done
+    printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
+    exit 0
+    ;;
+  rule-break-fail)
+    printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\n' "$test"
+    panic "$thread" 'assertion failed: the field held hunter2-typed-text'
+    printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
+    exit 101
+    ;;
+  rule-break-defect)
+    printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\n' "$test"
+    panic "$thread" "KNOWN-DEFECT $id"
+    printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
+    exit 101
+    ;;
+  form-break)
+    printf 'form=%s counted_rounds_at_each_wait_ms=150:20,200:5\n' "${HALVO_WF_FORM:-unset}"
+    printf 'left_out BREAKS-THE-RULE hunter2-typed-text\n'
     printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
     exit 0
     ;;
@@ -1047,6 +1082,13 @@ wpr_vocabulary() {
 wpr_check_log() {
   [ -r "$2" ] && [ -r "$3" ] || return 2
   ! grep -q RULE-CANNOT-READ "$2" || return 2
+  if grep -q MIXED-ANSWER "$2"; then
+    printf 'prints-rule %s line=3 length=40 token=2\n' "$1"
+    printf 'prints-rule %s line=3 length=40 token=2 hunter2-after-the-token\n' "$1"
+    printf 'hunter2-before-the-name prints-rule %s line=3 length=40 token=2\n' "$1"
+    printf 'prints-rule hunter2 in-the-name line=3 length=40 token=2\n'
+    return 1
+  fi
   if grep -q LEAKS-TEXT "$2"; then
     printf 'prints-rule %s line=1 text=%s\n' "$1" "$(grep LEAKS-TEXT "$2")"
     return 1
@@ -1233,7 +1275,7 @@ browser_fixtures() {
 }
 
 fixtures() {
-  check every-test-right PASS "$right" "${nl}prints_rule broken_lines=0 withheld_logs=0${nl}" \
+  check every-test-right PASS "$right" "${nl}prints_rule broken_lines=0 withheld_logs=0${nl}" "@prints_rule broken_lines=0 withheld_logs=0" \
     "${nl}    | TF c1_raw_input source_built_by_test=keyboard${nl}" \
     "${nl}WF short controls gate_not_clear=0 late_read_no_latch=0 other=0 second_controls_taken=0 slipped_controls=0${nl}" \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
@@ -1390,7 +1432,21 @@ fixtures() {
     "!hunter2-typed-text"
   check a-log-that-the-prints-rule-cannot-read-fails FAIL "c1_raw_input|rule-unreadable${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "$name: c1_raw_input: wpr_check_log exited 2 with 0 lines that break the prints rule, so its log is not printed${nl}" \
-    "${nl}prints_rule broken_lines=0 withheld_logs=1${nl}" "!hunter2-typed-text"
+    "${nl}prints_rule broken_lines=0 withheld_logs=1${nl}" "!hunter2-typed-text" \
+    "FAIL $name (the logs of 1 tests hold 0 lines that break the prints rule of scripts/r1/windows-prints-rule.sh, and those logs are not printed"
+  check a-failing-test-and-a-known-defect-whose-logs-break-the-rule FAIL "c1_raw_input|rule-break-fail${nl}helper_child_window|pass${nl}known_defect::x1_password|rule-break-defect|RR-windows-01" \
+    "prints-rule c1_raw_input line=3 length=" "${nl}prints-rule known_defect::x1_password line=3 length=" "${nl}prints_rule broken_lines=2 withheld_logs=2${nl}" \
+    "FAIL $name (the logs of 2 tests hold 2 lines that break the prints rule" "!hunter2-typed-text" "@prints_rule broken_lines=2 withheld_logs=2"
+  expected="$small${nl}$form_test"
+  check a-form-test-log-that-breaks-the-rule-stops-before-the-form-reads FAIL "$right${nl}$form_test|form-break" \
+    "${nl}prints-rule $form_test line=4 length=" "FAIL $name (the logs of 1 tests hold 1 lines that break the prints rule" \
+    "!${nl}WF form=" "!WF left out:" "!hunter2-typed-text"
+  check a-rule-answer-that-mixes-a-strict-line-and-leaky-ones-prints-the-strict-line-alone FAIL "c1_raw_input|rule-mixed${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "prints-rule c1_raw_input line=3 length=40 token=2${nl}" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" "!hunter2"
+  check a-breaking-line-past-line-9 FAIL "c1_raw_input|rule-break-late-line${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "prints-rule c1_raw_input line=13 length=" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" "!hunter2-typed-text"
+  check a-breaking-log-after-a-known-defect-names-no-id FAIL "known_defect::x1_password|defect|RR-windows-01${nl}c1_raw_input|rule-break${nl}helper_child_window|pass" \
+    "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" "${nl}WF c1_raw_input result=FAIL${nl}" "!hunter2-typed-text"
   check a-rule-line-that-holds-text-is-not-printed FAIL "c1_raw_input|rule-leaky${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "$name: c1_raw_input: wpr_check_log exited 1 with 0 lines that break the prints rule, so its log is not printed${nl}" \
     "!hunter2-typed-text" "!LEAKS-TEXT"
