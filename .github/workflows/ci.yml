@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,60 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-mutants 30-formal-covered 30-core-boundary-proofs 30-store-ignore-reason 15-r3-test-dirs 25-store-peak-rss 31-store-full-volume 54-tag-needs-store4
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-mutants 30-formal-covered 30-core-boundary-proofs 30-store-ignore-reason 15-r3-test-dirs 25-store-peak-rss 31-store-full-volume 54-tag-needs-store4
+      - name: Loop (m200, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- --exact store::hardening_tests::full_flush::each_write_of_the_durable_helper_makes_the_full_flush_call_and_refuses_when_it_fails store::hardening_tests::full_flush::each_commit_of_the_store_flushes_its_log_with_the_full_flush_call store::hardening_tests::full_flush::the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal store::hardening_tests::full_flush::the_root_steps_zero_fill_and_its_roots_folder_are_flushed_and_a_failed_folder_flush_reads_left store::hardening_tests::full_flush::full_flush_child_for_parent store::hardening_tests::an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name store::hardening_tests::a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through store::hardening_tests::held_roots::row20_a_file_of_another_length_at_a_root_name_keeps_its_mode_and_its_bytes > "$RUNNER_TEMP/m200.out" 2>&1 && grep -q "test result: ok. 8 passed; 0 failed" "$RUNNER_TEMP/m200.out" ) >"$RUNNER_TEMP/loop-m200-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-m200-$n.log"; tail -n 60 "$RUNNER_TEMP/"*.out; fi
+          done
+          echo "loop m200: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: Loop (m20, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 20 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- --exact store::hardening_tests::held_roots::st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone > "$RUNNER_TEMP/m20.out" 2>&1 && grep -q "test result: ok. 1 passed; 0 failed" "$RUNNER_TEMP/m20.out" ) >"$RUNNER_TEMP/loop-m20-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-m20-$n.log"; tail -n 60 "$RUNNER_TEMP/"*.out; fi
+          done
+          echo "loop m20: passed $pass of 20"
+          [ "$pass" -eq 20 ]
+      - name: Full-flush counts of store-3c
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cargo test --locked -p halvo-capture --lib -- --exact store::hardening_tests::full_flush::each_write_of_the_durable_helper_makes_the_full_flush_call_and_refuses_when_it_fails store::hardening_tests::full_flush::each_commit_of_the_store_flushes_its_log_with_the_full_flush_call store::hardening_tests::full_flush::the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal store::hardening_tests::full_flush::the_root_steps_zero_fill_and_its_roots_folder_are_flushed_and_a_failed_folder_flush_reads_left --nocapture --test-threads=1 >"$RUNNER_TEMP/fullflush.out" 2>&1
+          code=$?
+          grep -o 'FULLFLUSH.*' "$RUNNER_TEMP/fullflush.out" | sed 's/ on=.*//'
+          grep 'test result:' "$RUNNER_TEMP/fullflush.out"
+          grep -q 'test result: ok. 4 passed; 0 failed' "$RUNNER_TEMP/fullflush.out" || code=1
+          exit "$code"
+      - name: Rows of store-3c by name
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          sh scripts/r1-gate/mutation-test.sh --only owed-pending-mark-destroys-its-root --only durable-file-flush-taken-out --only durable-flush-without-the-full-flag --only durable-failed-full-flush-answers-ok --only durable-directory-flush-taken-out --only open-leaves-fullfsync-off --only open-sets-synchronous-normal --only fullfsync-not-read-back --only synchronous-not-read-back --only expiry-checkpoint-after-the-key-clear-taken-out --only expiry-checkpoint-after-the-files-removal --only made-mark-named-by-the-store --only an-absent-root-name-counts-as-removed --only cleanup-by-a-made-mark-destroys-by-id --only cleanup-drops-the-fate-of-a-partial-name --only cleanup-by-identity-answers-ok-on-an-unlistable-directory --only mode-set-before-the-identity-is-compared --only mode-before-the-by-name-read-at-a-plain-name --only mode-before-the-name-decides-on-the-path-by-identity --only identity-step-writes-at-a-plain-name --only by-name-read-taken-out --only unwritten-removal-reads-destroyed --only root-zero-fill-flush-taken-out --only roots-folder-flush-taken-out --only roots-folder-flush-answer-dropped --only failed-folder-flush-still-reads-destroyed --only failed-folder-flush-still-reads-listed --only cleanup-folder-flush-answer-dropped --only mode-before-the-by-name-read-at-a-root-name --only by-name-read-at-a-plain-name-alone --only kept-handle-test-taken-out-at-a-plain-name --only kept-handle-count-ignored-on-the-path-by-identity --only mark-writes-at-a-partial-name-of-another-id --only mark-partial-rule-negated --only mark-partial-rule-on-the-stores-path --only mark-partial-of-another-id-written-through >"$RUNNER_TEMP/rows.out" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/rows.out"
+          grep -q 'mutation rows: 36 caught, 0 failed' "$RUNNER_TEMP/rows.out" || code=1
+          echo "rows step: exit $code"
+          exit "$code"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +196,26 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-formal-covered 30-core-boundary-proofs 30-store-ignore-reason 15-r3-test-dirs 54-tag-needs-store4
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-formal-covered 30-core-boundary-proofs 30-store-ignore-reason 15-r3-test-dirs 54-tag-needs-store4
+      - name: Loop (w200, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- --exact store::hardening_tests::an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name store::hardening_tests::a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through > "$RUNNER_TEMP/w200.out" 2>&1 && grep -q "test result: ok. 2 passed; 0 failed" "$RUNNER_TEMP/w200.out" ) >"$RUNNER_TEMP/loop-w200-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-w200-$n.log"; tail -n 60 "$RUNNER_TEMP/"*.out; fi
+          done
+          echo "loop w200: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
