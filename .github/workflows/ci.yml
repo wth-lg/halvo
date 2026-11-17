@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,118 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs 26-daemon-owner-growth 30-mutants
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs 26-daemon-owner-growth 30-mutants
+      - name: Loop (daemon-1b-new-tests, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( out=$(cargo test -q --locked -p halvo-capture --lib --bin halvo-capture -- --exact daemon::tests::an_account_that_gives_no_data_directory_is_no_usage_refusal_and_names_no_dir daemon::tests::a_term_ends_every_mode_but_the_timed_run_by_the_default_action daemon::tests::the_scratch_delete_takes_its_store_dir_as_given_and_no_other_flag daemon::tests::a_scratch_delete_with_nothing_named_prints_no_store_and_exits_0 daemon::tests::a_scratch_delete_destroys_the_root_through_its_one_tail_call daemon::tests::the_scratch_deleted_line_has_the_seven_keys_of_the_report_and_not_the_four_of_a_data_directory daemon::tests::a_scratch_delete_that_is_not_finished_exits_1_and_names_root_files_alone daemon::tests::a_store_dir_that_the_tail_refuses_as_a_link_or_a_file_says_so_and_exits_1 daemon::tests::a_path_with_a_part_that_windows_trims_never_reads_as_a_link_on_windows daemon::tests::a_held_store_exits_75_and_a_failed_tail_exits_1_each_with_its_line daemon::tests::a_scratch_delete_prints_a_control_character_of_its_path_as_a_question_mark daemon::tests::a_scratch_delete_whose_lines_cannot_be_written_exits_1_after_the_tail tests::an_empty_store_dir_prints_no_store_and_exits_0_twice tests::a_store_whose_root_verify_store_destroyed_loses_its_files_with_1_and_then_reads_no_store tests::a_live_store_is_held_with_75_and_once_dropped_loses_its_root_with_0 tests::a_real_folder_spelled_with_a_trailing_separator_is_deleted_as_when_named_plainly tests::a_folder_in_the_roots_folder_is_counted_and_never_named tests::a_root_file_that_cannot_be_removed_is_named_by_its_name_in_the_roots_folder tests::a_link_or_a_file_at_the_store_dir_is_refused_in_every_spelling_and_keeps_the_store tests::a_store_dir_that_reaches_the_default_data_directory_is_refused_with_64 daemon::tests::an_ok_answer_that_met_a_link_or_an_entry_of_another_kind_prints_the_deleted_line daemon::tests::a_not_finished_answer_with_nothing_to_name_still_says_it_is_not_finished daemon::tests::a_line_fault_of_the_store_dir_is_usage_also_when_the_account_lookup_fails tests::a_link_at_store_key_is_removed_and_counted_in_the_deleted_line_never_as_no_store daemon::tests::a_not_opened_report_says_the_store_dir_could_not_be_opened_and_nothing_of_what_stays daemon::tests::a_data_directory_layout_is_refused_by_the_parse_and_its_half_is_not tests::a_data_directory_layout_given_as_store_dir_is_refused_with_64_and_keeps_every_file tests::a_store_folder_alone_or_a_roots_folder_alone_is_the_scratch_layouts_to_handle tests::a_store_dir_that_cannot_be_opened_says_so_and_claims_nothing_about_what_stays 2>&1); case "$RUNNER_OS" in macOS) want="17 12 ";; *) want="15 9 ";; esac; got=$(grep -E "^test result: ok\. [0-9]+ passed; 0 failed" <<<"$out" | sed -E "s/^test result: ok\. ([0-9]+) passed.*/\1/" | tr "\n" " "); echo "counts: $got want: $want"; [ "$got" = "$want" ] ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop daemon-1b-new-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: daemon-1b row scratch-delete-keeps-the-root
+        if: always()
+        shell: bash
+        run: sh scripts/r1-gate/mutation-test.sh --only scratch-delete-keeps-the-root
+      - name: daemon-1b gate lines
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          fails=0
+          check() {
+            if [ "$1" = yes ]; then echo "PASS r1b $2"; else echo "FAIL r1b $2"; fails=$((fails + 1)); fi
+          }
+          yes_if() { if "$@"; then echo yes; else echo no; fi; }
+          case "${RUNNER_OS:-}" in
+            Windows) exe=.exe; p() { cygpath -w "$1"; } ;;
+            *) exe=; p() { printf '%s' "$1"; } ;;
+          esac
+          link_to() {
+            if [ "${RUNNER_OS:-}" = Windows ]; then MSYS=winsymlinks:nativestrict ln -s "$1" "$2"; else ln -s "$1" "$2"; fi
+          }
+          BIN=${R1B_BIN:-target/debug/halvo-capture$exe}
+          REL=${R1B_REL:-target/release/halvo-capture$exe}
+          if [ -z "${R1B_BIN:-}" ]; then
+            cargo build -q --locked -p halvo-capture --bin halvo-capture || exit 1
+            cargo build -q --locked --release -p halvo-capture --bin halvo-capture || exit 1
+          fi
+          tmpbase=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          if [ "${RUNNER_OS:-}" = Windows ]; then tmpbase=$(cygpath -u "$tmpbase"); fi
+          d=$(mktemp -d "$tmpbase/r1b.XXXXXX") || exit 1
+          mkdir "$d/empty" "$d/E" "$d/F" || exit 1
+          run() {
+            out=$("$@" 2>"$d/stderr"); rc=$?
+            err=$(cat "$d/stderr")
+            printf -- '--- %s: exit %s\n%s\n--- stderr\n%s\n' "$*" "$rc" "$out" "$err"
+          }
+          line2() { sed -n 2p <<<"$out"; }
+          roots_files() { if [ -d "$1/roots" ]; then find "$1/roots" -type f | wc -l | tr -d ' '; else echo 0; fi; }
+
+          empty=$(p "$d/empty")
+          for n in 1 2; do
+            run "$BIN" --delete-all --store-dir "$empty"
+            check "$(yes_if [ "$rc" = 0 ] && [ "$out" = "store_dir=$empty"$'\n'"no_store" ] && [ -z "$err" ])" "empty-$n: store_dir= then no_store, exit 0, nothing on stderr"
+          done
+
+          E=$(p "$d/E")
+          run "$BIN" --verify-store --store-dir "$E" --marker gate-marker-01
+          check "$(yes_if [ "$rc" = 0 ] && [ -f "$d/E/store.key" ])" "verify-store: exit 0 and E/store.key stands"
+          run "$BIN" --delete-all --store-dir "$E"
+          check "$(yes_if [ "$rc" = 1 ])" "after verify-store, first delete: exit 1"
+          check "$(yes_if [ "$(sed -n 1p <<<"$out")" = "store_dir=$E" ])" "after verify-store, first delete: store_dir= line"
+          check "$(yes_if grep -Eq '^deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=no root_id=[0-9a-f]{32} files_left=0 database_left=no not_followed=0$' <<<"$(line2)")" "after verify-store, first delete: deleted line with root_destroyed=no files_left=0 database_left=no and seven keys"
+          check "$(yes_if [ "$err" = "halvo-capture: the delete is not finished: this call did not destroy the store's root" ])" "after verify-store, first delete: the not-finished line on stderr"
+          check "$(yes_if [ ! -e "$d/E/store.key" ] && [ "$(roots_files "$d/E")" = 0 ])" "after verify-store, first delete: no E/store.key and no root file under E/roots"
+          run "$BIN" --delete-all --store-dir "$E"
+          check "$(yes_if [ "$rc" = 0 ] && [ "$out" = "store_dir=$E"$'\n'"no_store" ] && [ -z "$err" ])" "after verify-store, second delete: no_store, exit 0"
+
+          F=$(p "$d/F")
+          run "$BIN" --verify-store --store-dir "$F" --marker gate-marker-02
+          check "$(yes_if [ "$rc" = 0 ] && [ -f "$d/F/store.key" ])" "verify-store F: exit 0 and F/store.key stands"
+          link_to "$d/F" "$d/F-link"
+          check "$(yes_if [ -L "$d/F-link" ])" "F-link is a link"
+          for spelling in "" "/"; do
+            given="$(p "$d/F-link")$spelling"
+            run "$BIN" --delete-all --store-dir "$given"
+            check "$(yes_if [ "$rc" = 1 ] && [ "$err" = "halvo-capture: $given is a link or a file, not a folder; nothing was removed; give the path of the folder itself" ])" "link spelled F-link$spelling: exit 1 and the line on stderr"
+            check "$(yes_if [ -f "$d/F/store.key" ] && [ -L "$d/F-link" ])" "link spelled F-link$spelling: F/store.key and the link stand"
+          done
+
+          sums() { (cd "$1" && find . -type f -print | LC_ALL=C sort | xargs cksum); }
+          mkdir "$d/DD" "$d/DD/store" "$d/DD/roots" || exit 1
+          run "$BIN" --verify-store --store-dir "$(p "$d/DD/store")" --marker gate-marker-03
+          printf '0123456789abcdef0123456789abcdef' > "$d/DD/roots/0123456789abcdef0123456789abcdef.root"
+          DD=$(p "$d/DD")
+          before=$(sums "$d/DD")
+          run "$BIN" --delete-all --store-dir "$DD"
+          after=$(sums "$d/DD")
+          check "$(yes_if [ "$rc" = 64 ] && [ -z "$out" ] && [ "$err" = "halvo-capture: $DD holds store/ beside roots/, the layout of a data directory; the scratch delete takes a scratch store directory alone, and nothing in this one was opened or removed" ])" "a data directory's layout as --store-dir: exit 64 and the one line on stderr"
+          check "$(yes_if [ -n "$before" ] && [ "$before" = "$after" ] && [ -f "$d/DD/store/store.key" ] && [ -f "$d/DD/roots/0123456789abcdef0123456789abcdef.root" ])" "a data directory's layout as --store-dir: every file kept, byte for byte ($(printf '%s\n' "$before" | grep -c .) files)"
+          mkdir "$d/S" || exit 1
+          S=$(p "$d/S")
+          run "$BIN" --verify-store --store-dir "$S" --marker gate-marker-04
+          printf '0123456789abcdef0123456789abcdef' > "$d/S/roots/fedcba9876543210fedcba9876543210.root"
+          run "$BIN" --delete-all --store-dir "$S"
+          check "$(yes_if [ "$rc" = 1 ] && [ ! -e "$d/S/store.key" ] && [ "$(roots_files "$d/S")" = 0 ])" "the scratch layout (store.key and roots/ at DIR's top) still deletes: exit 1, no store.key, no root file"
+          run "$BIN" --delete-all --store-dir "$S"
+          check "$(yes_if [ "$rc" = 0 ] && [ "$out" = "store_dir=$S"$'\n'"no_store" ])" "the scratch layout, second delete: no_store, exit 0"
+
+          run "$REL" --delete-all --store-dir "$empty"
+          check "$(yes_if [ "$rc" = 64 ] && [ "$(sed -n 1p <<<"$err")" = "halvo-capture: no mode of this build" ])" "release build: exit 64, no mode of this build"
+
+          echo "r1b gate step: $fails failed"
+          [ "$fails" = 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +254,114 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
+      - name: Loop (daemon-1b-new-tests, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( out=$(cargo test -q --locked -p halvo-capture --lib --bin halvo-capture -- --exact daemon::tests::an_account_that_gives_no_data_directory_is_no_usage_refusal_and_names_no_dir daemon::tests::a_term_ends_every_mode_but_the_timed_run_by_the_default_action daemon::tests::the_scratch_delete_takes_its_store_dir_as_given_and_no_other_flag daemon::tests::a_scratch_delete_with_nothing_named_prints_no_store_and_exits_0 daemon::tests::a_scratch_delete_destroys_the_root_through_its_one_tail_call daemon::tests::the_scratch_deleted_line_has_the_seven_keys_of_the_report_and_not_the_four_of_a_data_directory daemon::tests::a_scratch_delete_that_is_not_finished_exits_1_and_names_root_files_alone daemon::tests::a_store_dir_that_the_tail_refuses_as_a_link_or_a_file_says_so_and_exits_1 daemon::tests::a_path_with_a_part_that_windows_trims_never_reads_as_a_link_on_windows daemon::tests::a_held_store_exits_75_and_a_failed_tail_exits_1_each_with_its_line daemon::tests::a_scratch_delete_prints_a_control_character_of_its_path_as_a_question_mark daemon::tests::a_scratch_delete_whose_lines_cannot_be_written_exits_1_after_the_tail tests::an_empty_store_dir_prints_no_store_and_exits_0_twice tests::a_store_whose_root_verify_store_destroyed_loses_its_files_with_1_and_then_reads_no_store tests::a_live_store_is_held_with_75_and_once_dropped_loses_its_root_with_0 tests::a_real_folder_spelled_with_a_trailing_separator_is_deleted_as_when_named_plainly tests::a_folder_in_the_roots_folder_is_counted_and_never_named tests::a_root_file_that_cannot_be_removed_is_named_by_its_name_in_the_roots_folder tests::a_link_or_a_file_at_the_store_dir_is_refused_in_every_spelling_and_keeps_the_store tests::a_store_dir_that_reaches_the_default_data_directory_is_refused_with_64 daemon::tests::an_ok_answer_that_met_a_link_or_an_entry_of_another_kind_prints_the_deleted_line daemon::tests::a_not_finished_answer_with_nothing_to_name_still_says_it_is_not_finished daemon::tests::a_line_fault_of_the_store_dir_is_usage_also_when_the_account_lookup_fails tests::a_link_at_store_key_is_removed_and_counted_in_the_deleted_line_never_as_no_store daemon::tests::a_not_opened_report_says_the_store_dir_could_not_be_opened_and_nothing_of_what_stays daemon::tests::a_data_directory_layout_is_refused_by_the_parse_and_its_half_is_not tests::a_data_directory_layout_given_as_store_dir_is_refused_with_64_and_keeps_every_file tests::a_store_folder_alone_or_a_roots_folder_alone_is_the_scratch_layouts_to_handle tests::a_store_dir_that_cannot_be_opened_says_so_and_claims_nothing_about_what_stays 2>&1); case "$RUNNER_OS" in macOS) want="17 12 ";; *) want="15 9 ";; esac; got=$(grep -E "^test result: ok\. [0-9]+ passed; 0 failed" <<<"$out" | sed -E "s/^test result: ok\. ([0-9]+) passed.*/\1/" | tr "\n" " "); echo "counts: $got want: $want"; [ "$got" = "$want" ] ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop daemon-1b-new-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: daemon-1b gate lines
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          fails=0
+          check() {
+            if [ "$1" = yes ]; then echo "PASS r1b $2"; else echo "FAIL r1b $2"; fails=$((fails + 1)); fi
+          }
+          yes_if() { if "$@"; then echo yes; else echo no; fi; }
+          case "${RUNNER_OS:-}" in
+            Windows) exe=.exe; p() { cygpath -w "$1"; } ;;
+            *) exe=; p() { printf '%s' "$1"; } ;;
+          esac
+          link_to() {
+            if [ "${RUNNER_OS:-}" = Windows ]; then MSYS=winsymlinks:nativestrict ln -s "$1" "$2"; else ln -s "$1" "$2"; fi
+          }
+          BIN=${R1B_BIN:-target/debug/halvo-capture$exe}
+          REL=${R1B_REL:-target/release/halvo-capture$exe}
+          if [ -z "${R1B_BIN:-}" ]; then
+            cargo build -q --locked -p halvo-capture --bin halvo-capture || exit 1
+            cargo build -q --locked --release -p halvo-capture --bin halvo-capture || exit 1
+          fi
+          tmpbase=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+          if [ "${RUNNER_OS:-}" = Windows ]; then tmpbase=$(cygpath -u "$tmpbase"); fi
+          d=$(mktemp -d "$tmpbase/r1b.XXXXXX") || exit 1
+          mkdir "$d/empty" "$d/E" "$d/F" || exit 1
+          run() {
+            out=$("$@" 2>"$d/stderr"); rc=$?
+            err=$(cat "$d/stderr")
+            printf -- '--- %s: exit %s\n%s\n--- stderr\n%s\n' "$*" "$rc" "$out" "$err"
+          }
+          line2() { sed -n 2p <<<"$out"; }
+          roots_files() { if [ -d "$1/roots" ]; then find "$1/roots" -type f | wc -l | tr -d ' '; else echo 0; fi; }
+
+          empty=$(p "$d/empty")
+          for n in 1 2; do
+            run "$BIN" --delete-all --store-dir "$empty"
+            check "$(yes_if [ "$rc" = 0 ] && [ "$out" = "store_dir=$empty"$'\n'"no_store" ] && [ -z "$err" ])" "empty-$n: store_dir= then no_store, exit 0, nothing on stderr"
+          done
+
+          E=$(p "$d/E")
+          run "$BIN" --verify-store --store-dir "$E" --marker gate-marker-01
+          check "$(yes_if [ "$rc" = 0 ] && [ -f "$d/E/store.key" ])" "verify-store: exit 0 and E/store.key stands"
+          run "$BIN" --delete-all --store-dir "$E"
+          check "$(yes_if [ "$rc" = 1 ])" "after verify-store, first delete: exit 1"
+          check "$(yes_if [ "$(sed -n 1p <<<"$out")" = "store_dir=$E" ])" "after verify-store, first delete: store_dir= line"
+          check "$(yes_if grep -Eq '^deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=no root_id=[0-9a-f]{32} files_left=0 database_left=no not_followed=0$' <<<"$(line2)")" "after verify-store, first delete: deleted line with root_destroyed=no files_left=0 database_left=no and seven keys"
+          check "$(yes_if [ "$err" = "halvo-capture: the delete is not finished: this call did not destroy the store's root" ])" "after verify-store, first delete: the not-finished line on stderr"
+          check "$(yes_if [ ! -e "$d/E/store.key" ] && [ "$(roots_files "$d/E")" = 0 ])" "after verify-store, first delete: no E/store.key and no root file under E/roots"
+          run "$BIN" --delete-all --store-dir "$E"
+          check "$(yes_if [ "$rc" = 0 ] && [ "$out" = "store_dir=$E"$'\n'"no_store" ] && [ -z "$err" ])" "after verify-store, second delete: no_store, exit 0"
+
+          F=$(p "$d/F")
+          run "$BIN" --verify-store --store-dir "$F" --marker gate-marker-02
+          check "$(yes_if [ "$rc" = 0 ] && [ -f "$d/F/store.key" ])" "verify-store F: exit 0 and F/store.key stands"
+          link_to "$d/F" "$d/F-link"
+          check "$(yes_if [ -L "$d/F-link" ])" "F-link is a link"
+          for spelling in "" "/"; do
+            given="$(p "$d/F-link")$spelling"
+            run "$BIN" --delete-all --store-dir "$given"
+            check "$(yes_if [ "$rc" = 1 ] && [ "$err" = "halvo-capture: $given is a link or a file, not a folder; nothing was removed; give the path of the folder itself" ])" "link spelled F-link$spelling: exit 1 and the line on stderr"
+            check "$(yes_if [ -f "$d/F/store.key" ] && [ -L "$d/F-link" ])" "link spelled F-link$spelling: F/store.key and the link stand"
+          done
+
+          sums() { (cd "$1" && find . -type f -print | LC_ALL=C sort | xargs cksum); }
+          mkdir "$d/DD" "$d/DD/store" "$d/DD/roots" || exit 1
+          run "$BIN" --verify-store --store-dir "$(p "$d/DD/store")" --marker gate-marker-03
+          printf '0123456789abcdef0123456789abcdef' > "$d/DD/roots/0123456789abcdef0123456789abcdef.root"
+          DD=$(p "$d/DD")
+          before=$(sums "$d/DD")
+          run "$BIN" --delete-all --store-dir "$DD"
+          after=$(sums "$d/DD")
+          check "$(yes_if [ "$rc" = 64 ] && [ -z "$out" ] && [ "$err" = "halvo-capture: $DD holds store/ beside roots/, the layout of a data directory; the scratch delete takes a scratch store directory alone, and nothing in this one was opened or removed" ])" "a data directory's layout as --store-dir: exit 64 and the one line on stderr"
+          check "$(yes_if [ -n "$before" ] && [ "$before" = "$after" ] && [ -f "$d/DD/store/store.key" ] && [ -f "$d/DD/roots/0123456789abcdef0123456789abcdef.root" ])" "a data directory's layout as --store-dir: every file kept, byte for byte ($(printf '%s\n' "$before" | grep -c .) files)"
+          mkdir "$d/S" || exit 1
+          S=$(p "$d/S")
+          run "$BIN" --verify-store --store-dir "$S" --marker gate-marker-04
+          printf '0123456789abcdef0123456789abcdef' > "$d/S/roots/fedcba9876543210fedcba9876543210.root"
+          run "$BIN" --delete-all --store-dir "$S"
+          check "$(yes_if [ "$rc" = 1 ] && [ ! -e "$d/S/store.key" ] && [ "$(roots_files "$d/S")" = 0 ])" "the scratch layout (store.key and roots/ at DIR's top) still deletes: exit 1, no store.key, no root file"
+          run "$BIN" --delete-all --store-dir "$S"
+          check "$(yes_if [ "$rc" = 0 ] && [ "$out" = "store_dir=$S"$'\n'"no_store" ])" "the scratch layout, second delete: no_store, exit 0"
+
+          run "$REL" --delete-all --store-dir "$empty"
+          check "$(yes_if [ "$rc" = 64 ] && [ "$(sed -n 1p <<<"$err")" = "halvo-capture: no mode of this build" ])" "release build: exit 64, no mode of this build"
+
+          echo "r1b gate step: $fails failed"
+          [ "$fails" = 0 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
