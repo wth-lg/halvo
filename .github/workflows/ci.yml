@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,104 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 22-daemon-no-dead-allow 23-daemon-port-only 26-daemon-owner-growth
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 26-daemon-owner-growth
+      - name: Loop (daemon-2-fast, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- daemon::supervisor daemon::sources daemon::board daemon::permissions daemon::children daemon::main_loop daemon::tests::the_permission_modes daemon::tests::the_self_check daemon::tests::timed_run_refuses daemon::tests::the_kind_of daemon::owner::tests::the_snapshot_publishes daemon::owner::tests::the_bytes_in_use_line --skip after_a_start --skip the_stop_sequence_draws --skip owner_death --skip a_grant_after_the_start --skip a_drain_failing_stop --skip the_end_of_a_timed_run_goes_through --skip a_signalled_timed_run --skip a_batch_dropped_while --skip an_owner_that_panicked --skip a_source_that_died_in_the_window --skip a_timed_run_whose --skip the_stop_path_with_every_wait --skip the_settle_after_a_late_pause --skip the_answer_of_a_run ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop daemon-2-fast: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: daemon-2 slow loop
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          passed=0
+          for round in $(seq 1 20); do
+            cargo test --locked -p halvo-capture --lib -- daemon::supervisor::tests::a_drain_failing_stop daemon::supervisor::tests::a_grant_after_the_start daemon::supervisor::tests::after_a_start daemon::supervisor::tests::owner_death daemon::supervisor::tests::review_cases::a_signalled_timed_run daemon::supervisor::tests::review_cases::the_end_of_a_timed_run daemon::supervisor::tests::the_stop_sequence_draws daemon::supervisor::tests::a_batch_dropped_while daemon::supervisor::tests::an_owner_that_panicked daemon::supervisor::tests::a_source_that_died_in_the_window daemon::supervisor::tests::a_timed_run_whose daemon::supervisor::tests::the_stop_path_with_every_wait daemon::supervisor::tests::the_settle_after_a_late_pause daemon::supervisor::tests::the_answer_of_a_run > "$RUNNER_TEMP/d2-slow-$round.txt" 2>&1
+            if grep -q '^test result: ok\. 17 passed' "$RUNNER_TEMP/d2-slow-$round.txt"; then
+              passed=$((passed + 1))
+            else
+              grep -E '^test result|FAILED' "$RUNNER_TEMP/d2-slow-$round.txt" | head -5
+            fi
+          done
+          printf 'loop daemon-2-slow: passed %s of 20\n' "$passed"
+          [ "$passed" = 20 ]
+      - name: daemon-2 gate lines
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          note() { printf 'daemon-2 %s\n' "$*"; }
+          ms_now() { perl -MTime::HiRes=time -e 'printf "%d\n", time*1000'; }
+          cargo test --locked -p halvo-capture --test main_run_loop -- --exact the_main_thread_turns_the_main_run_loop > "$RUNNER_TEMP/d2-rl.txt" 2>&1
+          code=$?
+          note "main_run_loop exit=$code $(grep -E '^test result' "$RUNNER_TEMP/d2-rl.txt")"
+          grep -q '^test result: ok\. 1 passed' "$RUNNER_TEMP/d2-rl.txt" || failed=$((failed + 1))
+          cargo test --locked -p halvo-capture --lib -- --ignored --exact daemon::supervisor::tests::the_watchdog_ends_a_blocked_process_with_its_status --nocapture > "$RUNNER_TEMP/d2-watchdog.txt" 2>&1
+          code=$?
+          note "watchdog real end exit=$code $(grep -E '^watchdog_child|^test result' "$RUNNER_TEMP/d2-watchdog.txt" | tr '\n' ' ')"
+          grep -q '^test result: ok\. 1 passed' "$RUNNER_TEMP/d2-watchdog.txt" || failed=$((failed + 1))
+          out=$(target/debug/halvo-capture --self-check run-loop)
+          code=$?
+          note "self-check debug: $out exit=$code"
+          ms=${out#run_loop_block_ms=}
+          { [ "$code" = 0 ] && [ -n "$ms" ] && [ "$ms" -le 250 ]; } || failed=$((failed + 1))
+          cargo build --locked --release -p halvo-capture --bin halvo-capture > "$RUNNER_TEMP/d2-release.txt" 2>&1
+          note "release build exit=$?"
+          target/release/halvo-capture --self-check run-loop > /dev/null 2>&1
+          code=$?
+          note "self-check release exit=$code"
+          [ "$code" = 64 ] || failed=$((failed + 1))
+          t0=$(ms_now)
+          lines=$(target/debug/halvo-capture --probe-permissions screen_and_system_audio_recording input_monitoring)
+          code=$?
+          t1=$(ms_now)
+          count=$(printf '%s\n' "$lines" | grep -c '^permission name=')
+          note "probe of two: lines=$count exit=$code ms=$((t1 - t0))"
+          printf '%s\n' "$lines" | sed -n 's/^\(permission name=[a-z_]* grant=[a-z_]*\)$/daemon-2 probe line: \1/p'
+          { [ "$count" = 2 ] && [ "$code" = 0 ] && [ $((t1 - t0)) -le 2000 ]; } || failed=$((failed + 1))
+          none=$(target/debug/halvo-capture --probe-permissions | grep -c .)
+          code=$?
+          note "probe of none: lines=$none"
+          [ "$none" = 0 ] || failed=$((failed + 1))
+          D=$(mktemp -d)
+          n=$(target/debug/halvo-capture --timed-run 5 --store-dir "$D" | grep -c '^modality=screen_frame count=0$')
+          note "default timed run: screen_frame count=0 lines=$n"
+          [ "$n" = 1 ] || failed=$((failed + 1))
+          sed -i '' 's/            self\.run_loop\.turn_for(wait);/            std::thread::sleep(wait);/' crates/halvo-capture/src/macos/mod.rs
+          note "sleeping mutant applied: $(git diff --numstat -- crates/halvo-capture/src/macos/mod.rs)"
+          cargo test --locked -p halvo-capture --test main_run_loop -- --exact the_main_thread_turns_the_main_run_loop > "$RUNNER_TEMP/d2-rl-mutant.txt" 2>&1
+          code=$?
+          note "sleeping mutant: main_run_loop exit=$code $(grep -E '^test result' "$RUNNER_TEMP/d2-rl-mutant.txt")"
+          [ "$code" != 0 ] || failed=$((failed + 1))
+          out=$(target/debug/halvo-capture --self-check run-loop)
+          code=$?
+          note "sleeping mutant: self-check $out exit=$code"
+          [ "$code" = 1 ] || failed=$((failed + 1))
+          git checkout -- crates/halvo-capture/src/macos/mod.rs
+          cargo build --locked -p halvo-capture --bin halvo-capture > /dev/null 2>&1
+          note "restored: $(git status --short | grep -c .) changed paths"
+          sh scripts/r1-gate/mutation-test.sh --only screen-stops-before-input --only sources-start-before-the-acknowledgement --only health-read-skipped --only permission-stop-skipped --only windows-keyboard-starts-without-the-flag --only tcc-probe-access-constants-swapped --only hold-read-from-drain-healthy --only writer-gone-started-again --only drop-line-not-written --only watchdog-never-ends --only capture-off-stays-up --only timed-run-returns-with-a-source-let-go --only stop-path-budget-not-counted --only first-snapshot-after-the-stops --only owner-ended-line-missing --only heap-line-held-at-the-copy --only shutdown-wait-doubled --only shutdown-wait-halved --only settle-forgets-the-last-answer > "$RUNNER_TEMP/d2-rows.txt" 2>&1
+          code=$?
+          grep -E '^(PASS|FAIL|SKIP|ERROR)' "$RUNNER_TEMP/d2-rows.txt"
+          note "rows exit=$code"
+          [ "$code" = 0 ] || failed=$((failed + 1))
+          note "failed=$failed"
+          exit "$failed"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +240,67 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 22-daemon-no-dead-allow 23-daemon-port-only
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only
+      - name: Loop (daemon-2-fast, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- daemon::supervisor daemon::sources daemon::board daemon::permissions daemon::children daemon::main_loop daemon::tests::the_permission_modes daemon::tests::the_self_check daemon::tests::timed_run_refuses daemon::tests::the_kind_of daemon::owner::tests::the_snapshot_publishes daemon::owner::tests::the_bytes_in_use_line --skip after_a_start --skip the_stop_sequence_draws --skip owner_death --skip a_grant_after_the_start --skip a_drain_failing_stop --skip the_end_of_a_timed_run_goes_through --skip a_signalled_timed_run --skip a_batch_dropped_while --skip an_owner_that_panicked --skip a_source_that_died_in_the_window --skip a_timed_run_whose --skip the_stop_path_with_every_wait --skip the_settle_after_a_late_pause --skip the_answer_of_a_run ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop daemon-2-fast: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: daemon-2 slow loop
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          passed=0
+          for round in $(seq 1 20); do
+            cargo test --locked -p halvo-capture --lib -- daemon::supervisor::tests::a_drain_failing_stop daemon::supervisor::tests::a_grant_after_the_start daemon::supervisor::tests::after_a_start daemon::supervisor::tests::owner_death daemon::supervisor::tests::review_cases::a_signalled_timed_run daemon::supervisor::tests::review_cases::the_end_of_a_timed_run daemon::supervisor::tests::the_stop_sequence_draws daemon::supervisor::tests::a_batch_dropped_while daemon::supervisor::tests::an_owner_that_panicked daemon::supervisor::tests::a_source_that_died_in_the_window daemon::supervisor::tests::a_timed_run_whose daemon::supervisor::tests::the_stop_path_with_every_wait daemon::supervisor::tests::the_settle_after_a_late_pause daemon::supervisor::tests::the_answer_of_a_run > "$RUNNER_TEMP/d2-slow-$round.txt" 2>&1
+            if grep -q '^test result: ok\. 17 passed' "$RUNNER_TEMP/d2-slow-$round.txt"; then
+              passed=$((passed + 1))
+            else
+              grep -E '^test result|FAILED' "$RUNNER_TEMP/d2-slow-$round.txt" | head -5
+            fi
+          done
+          printf 'loop daemon-2-slow: passed %s of 20\n' "$passed"
+          [ "$passed" = 20 ]
+      - name: daemon-2 gate lines
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          note() { printf 'daemon-2 %s\n' "$*"; }
+          cargo test --locked -p halvo-capture --lib -- daemon::supervisor daemon::sources daemon::board daemon::permissions daemon::children > "$RUNNER_TEMP/d2-lib.txt" 2>&1
+          code=$?
+          note "five modules exit=$code $(grep -E '^test result' "$RUNNER_TEMP/d2-lib.txt")"
+          [ "$code" = 0 ] || failed=$((failed + 1))
+          cargo test --locked -p halvo-capture --lib -- the_screen_source_is_not_started_with_screen_activity_off the_screen_source_starts_with_screen_activity_on the_windows_set_starts_the_keyboard_source_only_under_the_timed_run_flag > "$RUNNER_TEMP/d2-three.txt" 2>&1
+          code=$?
+          note "three named exit=$code $(grep -E '^test result' "$RUNNER_TEMP/d2-three.txt")"
+          grep -q '^test result: ok\. 3 passed' "$RUNNER_TEMP/d2-three.txt" || failed=$((failed + 1))
+          cargo test --locked -p halvo-capture --lib -- --ignored --exact daemon::supervisor::tests::the_watchdog_ends_a_blocked_process_with_its_status --nocapture > "$RUNNER_TEMP/d2-watchdog.txt" 2>&1
+          code=$?
+          note "watchdog real end exit=$code $(grep -E '^watchdog_child|^test result' "$RUNNER_TEMP/d2-watchdog.txt" | tr '\n' ' ')"
+          grep -q '^test result: ok\. 1 passed' "$RUNNER_TEMP/d2-watchdog.txt" || failed=$((failed + 1))
+          cargo build --locked -p halvo-capture --bin halvo-capture > /dev/null 2>&1
+          lines=$(target/debug/halvo-capture.exe --probe-permissions screen_and_system_audio_recording input_monitoring | grep -c .)
+          code=$?
+          note "probe of two on windows: lines=$lines"
+          [ "$lines" = 0 ] || failed=$((failed + 1))
+          note "failed=$failed"
+          exit "$failed"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
