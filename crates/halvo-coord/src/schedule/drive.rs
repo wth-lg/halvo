@@ -926,7 +926,7 @@ where
         }
         if let Some(i) = board.index(&live.agent) {
             board.members[i].facts.doing = Doing::Idle(None);
-            if listed.contains(&live.workflow) {
+            if listed.contains(&live.workflow) && cause != RunEnd::Deleted {
                 finish(cx, board, i, &live.run, cause);
             }
         }

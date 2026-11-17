@@ -3113,3 +3113,50 @@ fn a_tick_raises_ready_at_once_for_a_persons_agent_with_no_slot_whose_only_run_f
         assert_eq!(tick.raised, raised, "{outcome:?}");
     }
 }
+
+#[test]
+fn no_writer_stores_a_run_ended_deleted_for_a_run_whose_workflow_is_listed_again_before_its_end() {
+    for by in ["kill", "end"] {
+        let mut w = world(&[manual()]);
+        let run = ok_run(&w.start(0));
+        w.delete(0);
+        assert_eq!(w.tick().stopped, vec![run.clone()], "{by}");
+        w.ports
+            .workflows
+            .borrow_mut()
+            .push(Workflow::Full(workflow(0, &manual())));
+        w.forget();
+        let ended = if by == "kill" {
+            w.clock(T0 + w.limits.cancel_grace_s * 1000, DAY);
+            w.tick().ended
+        } else {
+            w.end_only(&run, Some(Outcome::Completed)).ended
+        };
+        assert_eq!(ended.len(), 1, "{by}: the run ends");
+        assert_eq!(
+            ended[0].cause,
+            RunEnd::Deleted,
+            "{by}: with the cause of its stop"
+        );
+        assert_eq!(
+            count(&w.stored(), "run_ended deleted"),
+            0,
+            "{by}: deleted is the cause of no stored row"
+        );
+        assert!(
+            !w.calls().iter().any(|c| c.starts_with("log run_ended")),
+            "{by}: {:?}",
+            w.calls()
+        );
+        assert!(
+            !w.board.owed.iter().any(|o| matches!(
+                o.what,
+                halvo_coord::schedule::Owing::RunEnded {
+                    cause: RunEnd::Deleted,
+                    ..
+                }
+            )),
+            "{by}: and none is owed"
+        );
+    }
+}

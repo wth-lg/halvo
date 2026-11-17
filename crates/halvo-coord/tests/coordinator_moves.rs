@@ -7896,3 +7896,42 @@ fn rd108_2_a_done_after_a_stored_decline_that_the_run_did_not_take_reads_first_a
         assert_the_stop_came_first(&c, m, &run, &case);
     }
 }
+
+#[test]
+fn no_writer_stores_an_item_answered_of_a_setup_with_the_answer_none() {
+    use halvo_coord::types::{Answered, SetupAnswer};
+    let (c, _made, item) = setup_agent();
+    let press = |choice: Choice, pick: Option<(Param, u32)>| {
+        c.answer(&item, choice, pick, shown_step_mark_or_zero(&c, &item))
+    };
+    let _ = press(Choice::None, None);
+    press(Choice::Choose, Some((Param::Start, 1))).unwrap();
+    let _ = press(Choice::None, None);
+    press(Choice::Choose, Some((Param::Payee, 1))).unwrap();
+    let _ = press(Choice::None, None);
+    assert_eq!(
+        c.setup_typed(
+            &item,
+            Param::Instrument,
+            "Card 4242",
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Ok(())
+    );
+    let _ = press(Choice::None, None);
+    let answers: Vec<SetupAnswer> = events(&c)
+        .iter()
+        .filter_map(|w| match w {
+            What::ItemAnswered {
+                item: i,
+                answer: Answered::Setup(a),
+            } if *i == item => Some(*a),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        answers,
+        [SetupAnswer::Choose],
+        "the setup's one closing row holds choose, never none"
+    );
+}
