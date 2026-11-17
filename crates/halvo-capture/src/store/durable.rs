@@ -4,6 +4,17 @@ use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
+pub(crate) use crate::custody::FileIdentity;
+
+/// What a read of a regular file by its name, following no link, gives: its
+/// identity, its count of names and its length (ruling ST-48 U1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FileShape {
+    pub(crate) identity: FileIdentity,
+    pub(crate) names: u64,
+    pub(crate) len: u64,
+}
+
 pub(crate) trait DurableFs: Send + Sync {
     fn create_new(&self, dir: &Dir, name: &OsStr) -> io::Result<File>;
     fn sync_file(&self, file: &File, dir: &Dir, name: &OsStr) -> io::Result<()>;
@@ -22,7 +33,7 @@ impl DurableFs for OsFs {
     }
 
     fn sync_file(&self, file: &File, _dir: &Dir, _name: &OsStr) -> io::Result<()> {
-        file.sync_all()
+        full_flush(file)
     }
 
     fn rename(&self, dir: &Dir, from: &OsStr, to: &OsStr) -> io::Result<()> {
@@ -158,6 +169,17 @@ impl Dir {
 #[cfg(target_os = "macos")]
 pub(crate) use unix_dir::{volume_of, EntryIdentity};
 
+/// Flushes `file` to the drive. On macOS it makes the full-flush call itself,
+/// `fcntl(F_FULLFSYNC)`, which asks the drive to write its own cache, and
+/// answers that call's error when it fails, with no plain fsync in its place
+/// (ruling PR-30 PR9); on Windows it is the standard library's sync_all.
+pub(crate) fn full_flush(file: &File) -> io::Result<()> {
+    #[cfg(target_os = "macos")]
+    return unix_dir::full_flush_of(std::os::fd::AsRawFd::as_raw_fd(file));
+    #[cfg(windows)]
+    return file.sync_all();
+}
+
 #[cfg(target_os = "macos")]
 mod unix_dir {
     use std::ffi::{CStr, CString, OsStr, OsString};
@@ -167,7 +189,7 @@ mod unix_dir {
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refusal, refused, Dir, Entry, EntryKind, Refused};
+    use super::{refusal, refused, Dir, Entry, EntryKind, FileIdentity, FileShape, Refused};
 
     fn c_name(name: &OsStr) -> io::Result<CString> {
         CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
@@ -222,6 +244,18 @@ mod unix_dir {
         Ok(st)
     }
 
+    /// The full-flush call on `fd`, `fcntl(F_FULLFSYNC)`, which asks the
+    /// drive to write its own cache: its error when it fails, with no plain
+    /// fsync in its place; an interrupted call is made again.
+    pub(crate) fn full_flush_of(fd: RawFd) -> io::Result<()> {
+        loop {
+            match checked(unsafe { libc::fcntl(fd, libc::F_FULLFSYNC) }) {
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                flushed => return flushed,
+            }
+        }
+    }
+
     fn stat_of(fd: RawFd) -> io::Result<libc::stat> {
         // SAFETY: libc::stat is plain data, for which all-zero bytes are a valid value.
         let mut st: libc::stat = unsafe { std::mem::zeroed() };
@@ -274,7 +308,13 @@ mod unix_dir {
     const LINK_THE_ENTRY_NOT_ITS_TARGET: libc::c_int = 0;
 
     impl Dir {
+        /// Opens the directory at `path` as a handle, following no link at
+        /// its last part. The path is opened as its components spell it
+        /// (ruling ST-47 T3): with no separator after its last part, so that
+        /// `link/`, `link/.` and `link//` are refused as `link` is and
+        /// `dir/` opens as `dir` does.
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
+            let path = super::by_its_components(path);
             let c = c_name(path.as_os_str())?;
             // SAFETY: c is NUL-terminated and outlives the call.
             let fd = opened(
@@ -527,6 +567,38 @@ mod unix_dir {
             Ok((st.st_dev as u64, st.st_ino))
         }
 
+        /// The identity, the count of names and the length of the regular file
+        /// at `name`, read by its name through this handle with no open and
+        /// following no link, so that no mode is needed; an entry of another
+        /// kind is refused.
+        pub(crate) fn file_shape_at(&self, name: &OsStr) -> io::Result<FileShape> {
+            let st = stat_at(self.fd.as_raw_fd(), name)?;
+            if kind(&st) != EntryKind::File {
+                return Err(refused(Refused::NotARegularFile));
+            }
+            Ok(FileShape {
+                identity: FileIdentity {
+                    volume: st.st_dev as u64,
+                    file: st.st_ino,
+                },
+                names: u64::from(st.st_nlink),
+                len: st.st_size as u64,
+            })
+        }
+
+        /// The identity of the regular file at `name`, following no link; an
+        /// entry of another kind is refused.
+        pub(crate) fn file_identity_at(&self, name: &OsStr) -> io::Result<FileIdentity> {
+            let st = stat_at(self.fd.as_raw_fd(), name)?;
+            if kind(&st) != EntryKind::File {
+                return Err(refused(Refused::NotARegularFile));
+            }
+            Ok(FileIdentity {
+                volume: st.st_dev as u64,
+                file: st.st_ino,
+            })
+        }
+
         pub(crate) fn raw_descriptor(&self) -> RawFd {
             self.fd.as_raw_fd()
         }
@@ -569,7 +641,7 @@ mod unix_dir {
         }
 
         pub(crate) fn sync(&self) -> io::Result<()> {
-            File::from(self.fd.try_clone()?).sync_all()
+            full_flush_of(self.fd.as_raw_fd())
         }
 
         pub(crate) fn names_file(&self, name: &OsStr, file: &File) -> io::Result<bool> {
@@ -606,7 +678,10 @@ mod windows_dir {
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refusal, refused, Dir, Entry, EntryKind, Refused, FILE_FLAG_OPEN_REPARSE_POINT};
+    use super::{
+        refusal, refused, Dir, Entry, EntryKind, FileIdentity, FileShape, Refused,
+        FILE_FLAG_OPEN_REPARSE_POINT,
+    };
 
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
@@ -664,6 +739,14 @@ mod windows_dir {
         // zeroed start was already a valid value of the structure.
         let information = unsafe { information.assume_init() };
         Ok(u64::from(information.links))
+    }
+
+    pub(crate) fn identity_of(file: &File) -> io::Result<FileIdentity> {
+        let (volume, file) = file_id(file)?;
+        Ok(FileIdentity {
+            volume: u64::from(volume),
+            file,
+        })
     }
 
     fn file_id(file: &File) -> io::Result<(u32, u64)> {
@@ -733,7 +816,28 @@ mod windows_dir {
     }
 
     impl Dir {
+        /// The path of the entry `name` of this directory: joined onto the
+        /// verbatim form of the directory's path when the name ends in a dot
+        /// or a space, which Win32 trims on a path that is not verbatim, so
+        /// that a call reaches that entry and never a sibling without its
+        /// last character (ruling ST-47 T1).
+        pub(crate) fn entry_path(&self, name: &OsStr) -> PathBuf {
+            let text = name.to_string_lossy();
+            if text.ends_with('.') || text.ends_with(' ') {
+                if let Some(verbatim) = super::verbatim_form(&self.path) {
+                    return verbatim.join(name);
+                }
+            }
+            self.path.join(name)
+        }
+
+        /// Opens the directory at `path` as a handle, following no reparse
+        /// point at its last part. The path is opened as its components
+        /// spell it (ruling ST-47 T3): with no separator after its last
+        /// part, so that `link\`, `link\.` and `link/` are refused as `link`
+        /// is and `dir\` opens as `dir` does.
         pub(crate) fn open(path: &Path) -> io::Result<Dir> {
+            let path = &super::by_its_components(path);
             let given = held_dir(&std::path::absolute(path)?)?;
             let path = without_verbatim_prefix(std::fs::canonicalize(path)?);
             let held = held_dir(&path)?;
@@ -752,7 +856,7 @@ mod windows_dir {
         }
 
         pub(crate) fn open_dir(&self, name: &OsStr) -> io::Result<Dir> {
-            let path = self.path.join(name);
+            let path = self.entry_path(name);
             Ok(Dir {
                 _held: held_dir(&path)?,
                 path,
@@ -760,7 +864,7 @@ mod windows_dir {
         }
 
         pub(crate) fn create_dir(&self, name: &OsStr) -> io::Result<()> {
-            match std::fs::create_dir(self.path.join(name)) {
+            match std::fs::create_dir(self.entry_path(name)) {
                 Err(e) if e.kind() != io::ErrorKind::AlreadyExists => Err(e),
                 _ => Ok(()),
             }
@@ -771,7 +875,7 @@ mod windows_dir {
         }
 
         pub(crate) fn entry(&self, name: &OsStr) -> io::Result<Entry> {
-            let meta = std::fs::symlink_metadata(self.path.join(name))?;
+            let meta = std::fs::symlink_metadata(self.entry_path(name))?;
             Ok(Entry {
                 name: name.to_os_string(),
                 kind: kind_of(&meta),
@@ -783,7 +887,7 @@ mod windows_dir {
             let mut entries = Vec::new();
             for entry in std::fs::read_dir(&self.path)? {
                 let entry = entry?;
-                let meta = match std::fs::symlink_metadata(entry.path()) {
+                let meta = match std::fs::symlink_metadata(self.entry_path(&entry.file_name())) {
                     Ok(meta) => meta,
                     Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
                     Err(_) => match entry.metadata() {
@@ -803,13 +907,13 @@ mod windows_dir {
 
         pub(crate) fn open_file(&self, name: &OsStr) -> io::Result<File> {
             held_file(
-                &self.path.join(name),
+                &self.entry_path(name),
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             )
         }
 
         pub(crate) fn hold_file(&self, name: &OsStr) -> io::Result<File> {
-            held_file(&self.path.join(name), FILE_SHARE_READ | FILE_SHARE_WRITE)
+            held_file(&self.entry_path(name), FILE_SHARE_READ | FILE_SHARE_WRITE)
         }
 
         pub(crate) fn create_new(&self, name: &OsStr) -> io::Result<File> {
@@ -817,19 +921,19 @@ mod windows_dir {
                 .write(true)
                 .create_new(true)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))
+                .open(self.entry_path(name))
         }
 
         pub(crate) fn rename(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
-            std::fs::rename(self.path.join(from), self.path.join(to))
+            std::fs::rename(self.entry_path(from), self.entry_path(to))
         }
 
         pub(crate) fn remove_file(&self, name: &OsStr) -> io::Result<()> {
-            std::fs::remove_file(self.path.join(name))
+            std::fs::remove_file(self.entry_path(name))
         }
 
         pub(crate) fn remove_dir(&self, name: &OsStr) -> io::Result<()> {
-            std::fs::remove_dir(self.path.join(name))
+            std::fs::remove_dir(self.entry_path(name))
         }
 
         /// Opens the regular file `name` for reading and writing, following
@@ -840,7 +944,7 @@ mod windows_dir {
                 .write(true)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))?;
+                .open(self.entry_path(name))?;
             match kind_of(&file.metadata()?) {
                 EntryKind::File => Ok(file),
                 _ => Err(refused(Refused::NotARegularFile)),
@@ -852,7 +956,7 @@ mod windows_dir {
                 .write(true)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))?;
+                .open(self.entry_path(name))?;
             match kind_of(&file.metadata()?) {
                 EntryKind::File => Ok(file),
                 _ => Err(refused(Refused::NotARegularFile)),
@@ -860,7 +964,7 @@ mod windows_dir {
         }
 
         pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
-            std::fs::hard_link(self.path.join(from), self.path.join(to))
+            std::fs::hard_link(self.entry_path(from), self.entry_path(to))
         }
 
         pub(crate) fn open_lock_file(&self, name: &OsStr) -> io::Result<File> {
@@ -871,7 +975,7 @@ mod windows_dir {
                 .truncate(false)
                 .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
                 .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-                .open(self.path.join(name))?;
+                .open(self.entry_path(name))?;
             match kind_of(&file.metadata()?) {
                 EntryKind::File => Ok(file),
                 EntryKind::Link => Err(refused(Refused::Link)),
@@ -890,13 +994,38 @@ mod windows_dir {
 
         pub(crate) fn names_file(&self, name: &OsStr, file: &File) -> io::Result<bool> {
             match held_file(
-                &self.path.join(name),
+                &self.entry_path(name),
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             ) {
                 Ok(named) => Ok(file_id(&named)? == file_id(file)?),
                 Err(e) if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() => Ok(false),
                 Err(e) => Err(e),
             }
+        }
+
+        /// The identity, the count of names and the length of the regular file
+        /// at `name`, read through a handle opened for reading, following no
+        /// reparse point, so that no attribute is changed; an entry of another
+        /// kind is refused.
+        pub(crate) fn file_shape_at(&self, name: &OsStr) -> io::Result<FileShape> {
+            let file = held_file(
+                &self.entry_path(name),
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            )?;
+            Ok(FileShape {
+                identity: identity_of(&file)?,
+                names: file_link_count(&file)?,
+                len: file.metadata()?.len(),
+            })
+        }
+
+        /// The identity of the regular file at `name`, following no link; an
+        /// entry of another kind is refused.
+        pub(crate) fn file_identity_at(&self, name: &OsStr) -> io::Result<FileIdentity> {
+            identity_of(&held_file(
+                &self.entry_path(name),
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            )?)
         }
 
         pub(crate) fn names(&self, name: &OsStr, _child: &Dir) -> io::Result<bool> {
@@ -973,6 +1102,16 @@ pub(crate) fn has_a_part_that_windows_trims(path: &Path) -> bool {
     })
 }
 
+/// `path` rebuilt from its components: no separator after its last part and
+/// no `.` part after its first, so that the last part of the path that an
+/// open is given is the last name that the caller wrote, and an open that
+/// follows no link at its last part follows none in any spelling of that
+/// name (ruling ST-47 T3). A path whose last component is no name (a root,
+/// a prefix, `.` or `..`) keeps what it names.
+fn by_its_components(path: &Path) -> std::path::PathBuf {
+    path.components().collect()
+}
+
 /// The verbatim form of a path, which Win32 opens without trimming: the path
 /// itself when it is verbatim; for an absolute path on a drive or a share,
 /// `\\?\` (or `\\?\UNC\`) and the path's parts joined with the system's
@@ -1018,7 +1157,18 @@ pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
 }
 
 #[cfg(windows)]
-pub(crate) use windows_dir::file_link_count;
+pub(crate) use windows_dir::{file_link_count, identity_of};
+
+/// The identity of the file that `file` holds.
+#[cfg(unix)]
+pub(crate) fn identity_of(file: &File) -> io::Result<FileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = file.metadata()?;
+    Ok(FileIdentity {
+        volume: meta.dev(),
+        file: meta.ino(),
+    })
+}
 
 #[cfg(unix)]
 pub(crate) fn file_link_count(file: &File) -> io::Result<u64> {

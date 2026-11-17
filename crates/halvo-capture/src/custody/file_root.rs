@@ -5,9 +5,50 @@ use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
-use super::{associated_data, CustodyError, KeyLabel, RootId, StoreKey, WrappedKey};
+use super::{associated_data, CustodyError, FileIdentity, KeyLabel, RootId, StoreKey, WrappedKey};
 use crate::store::durable::{self, Dir, EntryKind};
 use crate::store::RootReading;
+
+/// The root that a root step names: its id, the identity of its root file
+/// when one was read, and what named it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct NamedRoot {
+    pub(crate) id: RootId,
+    pub(crate) by: NamedBy,
+    pub(crate) file: Option<FileIdentity>,
+}
+
+/// What named the root of a root step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NamedBy {
+    /// The store: its key file, its open, its create or its custody.
+    TheStore,
+    /// A made mark of create.pending, which another program can write by
+    /// hand; on its path the step writes through at a partial name of the
+    /// mark's own id alone (ruling ST-49).
+    AMark,
+}
+
+impl NamedRoot {
+    pub(crate) fn by_id(id: RootId) -> Self {
+        Self {
+            id,
+            by: NamedBy::TheStore,
+            file: None,
+        }
+    }
+}
+
+/// Opens the roots directory at `roots` as a handle by the components of the
+/// path, following no link at its last part in any spelling (`roots/`,
+/// `roots/.`; ruling ST-47 T3).
+pub(crate) fn hold(roots: &Path) -> Result<Dir, CustodyError> {
+    Dir::open(roots).map_err(|e| match e.kind() {
+        ErrorKind::NotFound => CustodyError::RootMissing,
+        _ if durable::refusal(&e).is_some() => CustodyError::RootCorrupt,
+        _ => root_io(e),
+    })
+}
 
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
@@ -16,7 +57,6 @@ const PARTIAL_EXT: &str = "root.tmp";
 /// look at a name (ruling ST-46 K1).
 #[cfg(test)]
 pub(crate) const SEAM_AFTER_THE_LISTING: &str = "the root step, after its listing";
-
 /// The length of a root, from which the code writes a root file.
 const ROOT_LEN: usize = 32;
 
@@ -40,6 +80,9 @@ fn can_be_the_root_file(entry: &durable::Entry) -> bool {
 fn can_be_the_root_len(len: u64) -> bool {
     len > 0 && ROOT_FILE_LEN.is_none_or(|fixed| len == fixed)
 }
+
+/// A root as read from its file, with the identity of that file.
+type ReadRoot = (Zeroizing<[u8; 32]>, FileIdentity);
 
 pub(crate) trait Protector {
     fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError>;
@@ -73,6 +116,8 @@ fn root_name(root_id: RootId) -> OsString {
 fn partial_name(root_id: RootId) -> Result<OsString, CustodyError> {
     let mut tag = [0u8; 8];
     fill_random(&mut tag)?;
+    #[cfg(test)]
+    let tag = partial_tag_seam::forced().unwrap_or(tag);
     let tag: String = tag.iter().map(|b| format!("{b:02x}")).collect();
     Ok(OsString::from(format!("{root_id}.{tag}.{PARTIAL_EXT}")))
 }
@@ -135,9 +180,9 @@ pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
 
 fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     let mut file = dir.open_file_for_write(name)?;
-    let len = file.metadata()?.len() as usize;
-    file.write_all(&vec![0u8; len])?;
-    file.sync_all()
+    let len = file.metadata()?.len();
+    write_zeros(&mut file, len)?;
+    durable::full_flush(&file)
 }
 
 fn seal(
@@ -151,19 +196,62 @@ fn seal(
     Ok(WrappedKey(sealed))
 }
 
-/// What the destruction of every root file under a roots directory left: the
-/// ids of the root files and partial root files that stay, their names as
-/// they stand, and whether the directory could be listed.
+/// What a root step left in the roots directory that it went through: the
+/// ids of the root files and partial root files that stay and their names as
+/// they stand (a root name or a partial name, which holds a root id alone: a
+/// root-file path under C0.3), the entries that stay at any other name,
+/// counted by kind and never named (ruling ST-48 U3), and whether the
+/// directory could be listed. `listed` is also false when the flush of the
+/// directory after the step's removals failed, so that no removal that the
+/// listing shows is known to be on the drive (ruling PR-30 PR9 (3)).
+/// `at_its_path` is false when the roots directory
+/// that the step went through no longer stood at the path that it was opened
+/// by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootsLeft {
     pub left: Vec<RootId>,
     pub names: Vec<String>,
+    pub others_left: OthersLeft,
     pub listed: bool,
+    pub at_its_path: bool,
+}
+
+/// The entries that stay in the roots directory at a name that is no root
+/// name and no partial name, counted by kind from the last listing; no field
+/// holds a name (ruling ST-48 U3). `root_shaped` counts the regular files that
+/// can be a root file, of a root file's length off Windows and of any length
+/// above 0 on Windows: such a file can still hold a root, also the store's
+/// own root moved to that name.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OthersLeft {
+    pub root_shaped: u64,
+    pub directories: u64,
+    pub other: u64,
+}
+
+impl OthersLeft {
+    /// No entry stays at a name that is no root name and no partial name.
+    pub fn none(&self) -> bool {
+        self.root_shaped == 0 && self.directories == 0 && self.other == 0
+    }
 }
 
 impl RootsLeft {
+    /// The directory was listed and no entry stays in it: no root file, no
+    /// partial root file and nothing at any other name.
     pub fn none_left(&self) -> bool {
-        self.listed && self.left.is_empty()
+        self.listed && self.left.is_empty() && self.others_left.none()
+    }
+
+    /// Nothing counted, listed or not, with no directory that left its path.
+    pub(crate) fn none_counted(listed: bool) -> Self {
+        Self {
+            left: Vec::new(),
+            names: Vec::new(),
+            others_left: OthersLeft::default(),
+            listed,
+            at_its_path: true,
+        }
     }
 }
 
@@ -183,77 +271,134 @@ pub(crate) enum RootStepForm {
     Sweep,
 }
 
-/// The root step through one opened handle of the roots location. `named`
-/// is the root that the handle, the key file or a mark that reads made names.
-/// The step lists, destroys and reads again through that one handle. In the
-/// forms with the witness it destroys there only when the directory holds, at
-/// the named root's own name in any letter case, a file that can be the
-/// root's file; a partial name, a link, an empty file or an entry of another
-/// kind is no witness, and without the witness the step destroys nothing in
-/// that directory, also not the entry that it met, and the root reads left
-/// (ruling ST-45 Addition 2 (a)): a directory put at the old name is not
-/// touched, a roots directory that left its name is not read as destroyed,
-/// and with nothing named it opens nothing. The sweep destroys every root file and
-/// partial root file, named or not, and reads nothing at the roots path as
-/// an answer: listed and empty when nothing names a root, the root left and
-/// not listed when one is named. The root reads destroyed only when one is
-/// named and this call removed, at the root's own name in any letter case, a
-/// file that can be the root's file (a partial name alone is no witness),
-/// as `destroy_root_entry` met it at its own look and never as the listing
-/// saw it, and no entry of the root stays; a name of the root that is absent
-/// at that look reads the root left (ruling ST-46 K1); left when one is named and not removed;
-/// unnamed when nothing names one. An entry at the root's own name that
-/// cannot be its file (a link, an entry of another kind, an empty file, or
-/// off Windows a file of another length) is removed as the entry that it
-/// is, with no zero-fill and no write through it (ruling ST-45 H4); so is, in
-/// every form, a regular file at another root's name that cannot be a root
-/// file and has more than one name, or a count that cannot be read (ruling
-/// ST-45 Addition 2 (b)); a partial name is zero-filled. A roots path that
-/// stands and cannot be opened or listed reads not listed. A later call on
-/// a handle whose root read destroyed does not come here (ruling ST-45 H3).
-pub(crate) fn destroy_roots_in(
-    roots: &Path,
-    named: Option<RootId>,
+/// The name of the roots directory in the directory that holds it: a data
+/// directory, or a scratch run's store directory (C3.5, C4 item 9).
+pub(crate) const ROOTS_DIR_NAME: &str = "roots";
+
+/// The root step of a tail on the roots directory of `parent`, opened from
+/// that handle by its fixed name and never followed: the step of
+/// [`destroy_roots_through`] on that directory. A link or an entry of another
+/// kind at the name, or a directory that cannot be opened or listed, reads
+/// not listed; in the sweep nothing at the name reads listed and empty.
+pub(crate) fn destroy_roots_below(
+    parent: &Dir,
+    named: Option<NamedRoot>,
     form: RootStepForm,
 ) -> (RootReading, RootsLeft) {
-    let none_counted = |listed: bool| RootsLeft {
-        left: Vec::new(),
-        names: Vec::new(),
-        listed,
-    };
-    let unread_reading = named.map_or(RootReading::Unnamed, |id| RootReading::Left(Some(id)));
+    let unread_reading = named.map_or(RootReading::Unnamed, |n| RootReading::Left(Some(n.id)));
     if named.is_none() && form != RootStepForm::Sweep {
-        return (RootReading::Unnamed, none_counted(false));
+        return (RootReading::Unnamed, RootsLeft::none_counted(false));
     }
-    let unread = (unread_reading, none_counted(false));
-    #[cfg(windows)]
-    if durable::has_a_part_that_windows_trims(roots) {
-        return unread;
-    }
-    let dir = match Dir::open(roots) {
-        Ok(dir) => dir,
+    match parent.open_dir(OsStr::new(ROOTS_DIR_NAME)) {
+        Ok(dir) => destroy_roots_through(&dir, named, form),
         Err(e) if e.kind() == ErrorKind::NotFound && form == RootStepForm::Sweep => {
-            return (unread_reading, none_counted(named.is_none()));
+            (unread_reading, RootsLeft::none_counted(named.is_none()))
         }
-        Err(_) => return unread,
+        Err(_) => (unread_reading, RootsLeft::none_counted(false)),
+    }
+}
+
+/// The root step through one opened handle of the roots location. `named`
+/// is the root that the handle, the key file or a mark that reads made names,
+/// with the identity of its root file when the store read it. The step lists,
+/// destroys and reads again through that one handle. In the forms with the
+/// witness it destroys there only when the directory holds the named root's
+/// file: with the identity known, a regular file of that identity at any
+/// name of the directory, so that a root moved inside the directory is
+/// destroyed where it lies; without it, at the named root's own name in any
+/// letter case, a file that can be the root's file. A partial name, a link,
+/// an empty file or an entry of another kind is no witness, and without the
+/// witness the step destroys nothing in that directory, also not the entry
+/// that it met, and the root reads left (ruling ST-45 Addition 2 (a)). With
+/// the identity known, the form for the named root alone leaves an entry of
+/// another identity at the root's own name, which then stays and is named.
+/// The sweep destroys every root file and partial root file, named or not,
+/// and at any other name removes each regular file, writing through it only
+/// as [`written_through`] lets it (ruling ST-47 T1, ST-48 U1); a link or an
+/// entry of another kind is removed as the entry that it is, and a directory
+/// is not entered. On the path by identity the name at which the file stands
+/// decides whether it is written through, and a name removed with no write
+/// reads the root left (ruling ST-48 U2). What stays at a name that is no root
+/// name and no partial name is counted by kind and not named (ruling ST-48
+/// U3).
+/// The root reads destroyed only when one is named and this call destroyed
+/// its file: with the identity known, a file of that identity, met through a
+/// kept handle of that identity at its own look, wherever it lies in the
+/// directory, found again by one more listing when the name that the first
+/// listing gave was absent at that look; without it, a file at the root's own
+/// name in any letter case that can be the root's file, as
+/// `destroy_root_entry` met it at its own look and never as the listing saw
+/// it; and no entry of the root stays; a name of the root that is absent at
+/// that look reads the root left (ruling ST-46 K1); left when one is named
+/// and not destroyed; unnamed when nothing names one. An entry at the root's
+/// own name that cannot be its file (a link, an entry of another kind, an
+/// empty file, or off Windows a file of another length) is removed as the
+/// entry that it is, with no zero-fill and no write through it (ruling ST-45
+/// H4); so is, in every form, a regular file at another root's name that
+/// cannot be a root file and has more than one name, or a count that cannot
+/// be read (ruling ST-45 Addition 2 (b)); a partial name is zero-filled. A
+/// directory that cannot be listed reads not listed. The result says whether
+/// the directory still stood at the path that it was opened by after the
+/// step. Each zero-fill ends with the full-flush call on its file, and after
+/// the removals the directory is flushed with the full-flush call; when that
+/// flush fails, the root reads left and the result reads not listed, so the
+/// delete answers that it is not finished (ruling PR-30 PR9 (3)). A later
+/// call on a handle whose root read destroyed does not come here (ruling
+/// ST-45 H3).
+pub(crate) fn destroy_roots_through(
+    dir: &Dir,
+    named: Option<NamedRoot>,
+    form: RootStepForm,
+) -> (RootReading, RootsLeft) {
+    let unread_reading = named.map_or(RootReading::Unnamed, |n| RootReading::Left(Some(n.id)));
+    let at_its_path = || matches!(dir.still_named(), Ok(true));
+    let unread = || {
+        (
+            unread_reading,
+            RootsLeft {
+                at_its_path: at_its_path(),
+                ..RootsLeft::none_counted(false)
+            },
+        )
     };
+    if named.is_none() && form != RootStepForm::Sweep {
+        return (RootReading::Unnamed, RootsLeft::none_counted(false));
+    }
     let Ok(entries) = dir.entries() else {
-        return unread;
+        return unread();
     };
+    let named_id = named.map(|n| n.id);
+    let own_file = named.and_then(|n| n.file);
+    let of_named = |file: &RootFile| Some(file.id()) == named_id;
     let mut found: Vec<(RootFile, durable::Entry)> = entries
-        .into_iter()
-        .filter_map(|entry| RootFile::named_in_any_case(&entry.name).map(|file| (file, entry)))
+        .iter()
+        .filter_map(|entry| {
+            RootFile::named_in_any_case(&entry.name).map(|file| (file, entry.clone()))
+        })
         .collect();
-    let of_named = |file: &RootFile| Some(file.id()) == named;
+    let mut identified = own_file.map_or_else(Vec::new, |own| files_of(dir, &entries, own));
     if form != RootStepForm::Sweep {
-        let witness = found.iter().any(|(file, entry)| {
-            matches!(file, RootFile::Root(_)) && of_named(file) && can_be_the_root_file(entry)
-        });
+        let witness = match own_file {
+            Some(own) => {
+                if identified.is_empty() {
+                    identified = dir
+                        .entries()
+                        .map(|again| files_of(dir, &again, own))
+                        .unwrap_or_default();
+                }
+                !identified.is_empty()
+            }
+            None => found.iter().any(|(file, entry)| {
+                matches!(file, RootFile::Root(_)) && of_named(file) && can_be_the_root_file(entry)
+            }),
+        };
         if !witness {
-            return (unread_reading, none_counted(true));
+            return (unread_reading, roots_that_stand(&entries, at_its_path()));
         }
         if form == RootStepForm::NamedAlone {
-            found.retain(|(file, _)| of_named(file));
+            found.retain(|(file, _)| {
+                of_named(file) && (own_file.is_none() || matches!(file, RootFile::Partial(_)))
+            });
         }
     }
     found.sort_by_key(|(file, _)| !of_named(file));
@@ -261,55 +406,243 @@ pub(crate) fn destroy_roots_in(
     crate::store::failpoint::seam(SEAM_AFTER_THE_LISTING);
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
+    let mut handled: Vec<OsString> = Vec::new();
+    if let Some(NamedRoot {
+        id,
+        by,
+        file: Some(own),
+    }) = named
+    {
+        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own, id, by) {
+            EntryFate::Absent => false,
+            fate => {
+                handled.push(name.to_os_string());
+                fate == EntryFate::Gone
+            }
+        };
+        for name in &identified {
+            own_root_file_removed |= destroy_at(name);
+        }
+        if !own_root_file_removed {
+            let again = dir
+                .entries()
+                .map(|again| files_of(dir, &again, own))
+                .unwrap_or_default();
+            for name in again {
+                own_root_file_removed |= destroy_at(&name);
+            }
+        }
+    }
     for (file, entry) in &found {
+        if handled.contains(&entry.name) {
+            continue;
+        }
+        handled.push(entry.name.clone());
         let at = match file {
             RootFile::Root(_) if of_named(file) => EntryName::OwnRoot,
             RootFile::Root(_) => EntryName::OtherRoot,
             RootFile::Partial(_) => EntryName::Partial,
         };
-        let fate = destroy_root_entry(&dir, &entry.name, at);
-        if of_named(file) && fate != EntryFate::Gone {
+        let fate = destroy_root_entry(dir, &entry.name, at);
+        let decided_by_identity = own_file.is_some() && at == EntryName::OwnRoot;
+        if of_named(file) && !decided_by_identity && fate != EntryFate::Gone {
             every_named_entry_destroyed = false;
         }
-        if at == EntryName::OwnRoot && fate == EntryFate::Gone {
+        if at == EntryName::OwnRoot && !decided_by_identity && fate == EntryFate::Gone {
             own_root_file_removed = true;
         }
     }
-    let _ = dir.sync();
+    if form != RootStepForm::NamedAlone {
+        for entry in entries
+            .iter()
+            .filter(|entry| entry.kind != EntryKind::Dir && !handled.contains(&entry.name))
+        {
+            let _ = destroy_root_entry(dir, &entry.name, EntryName::OtherName);
+        }
+    }
+    let flushed = dir.sync().is_ok();
     match dir.entries() {
         Ok(entries) => {
-            let mut stays: Vec<(RootId, String)> = entries
-                .iter()
-                .filter_map(|entry| {
-                    RootFile::named_in_any_case(&entry.name)
-                        .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
-                })
-                .collect();
-            stays.sort_by(|a, b| a.1.cmp(&b.1));
-            let reading = match named {
+            let stands = RootsLeft {
+                listed: flushed,
+                ..roots_that_stand(&entries, at_its_path())
+            };
+            let reading = match named_id {
                 None => RootReading::Unnamed,
                 Some(named)
                     if own_root_file_removed
                         && every_named_entry_destroyed
-                        && !stays.iter().any(|(id, _)| *id == named) =>
+                        && flushed
+                        && !stands.left.contains(&named) =>
                 {
                     RootReading::Destroyed
                 }
                 Some(named) => RootReading::Left(Some(named)),
             };
-            let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
-            left.dedup();
-            let names = stays.into_iter().map(|(_, name)| name).collect();
-            (
-                reading,
-                RootsLeft {
-                    left,
-                    names,
-                    listed: true,
-                },
-            )
+            (reading, stands)
         }
-        Err(_) => unread,
+        Err(_) => unread(),
+    }
+}
+
+/// The root files and partial root files of a listing, by their names as
+/// they stand, sorted by name, and the entries at any other name counted by
+/// kind and not named (ruling ST-48 U3).
+fn roots_that_stand(entries: &[durable::Entry], at_its_path: bool) -> RootsLeft {
+    let mut stays: Vec<(RootId, String)> = entries
+        .iter()
+        .filter_map(|entry| {
+            RootFile::named_in_any_case(&entry.name)
+                .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
+        })
+        .collect();
+    stays.sort_by(|a, b| a.1.cmp(&b.1));
+    let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
+    left.dedup();
+    let mut others_left = OthersLeft::default();
+    for entry in entries
+        .iter()
+        .filter(|entry| RootFile::named_in_any_case(&entry.name).is_none())
+    {
+        match entry.kind {
+            EntryKind::File if can_be_the_root_file(entry) => others_left.root_shaped += 1,
+            EntryKind::Dir => others_left.directories += 1,
+            _ => others_left.other += 1,
+        }
+    }
+    RootsLeft {
+        left,
+        names: stays.into_iter().map(|(_, name)| name).collect(),
+        others_left,
+        listed: true,
+        at_its_path,
+    }
+}
+
+/// The names in `entries` of regular files whose identity, read through
+/// `dir` without following a link, is `own`.
+fn files_of(dir: &Dir, entries: &[durable::Entry], own: FileIdentity) -> Vec<OsString> {
+    entries
+        .iter()
+        .filter(|entry| entry.kind == EntryKind::File)
+        .filter(
+            |entry| matches!(dir.file_identity_at(&entry.name), Ok(identity) if identity == own),
+        )
+        .map(|entry| entry.name.clone())
+        .collect()
+}
+
+/// The kind of the name `name` for the root `id` that `by` named, as the
+/// destroy step reads it.
+fn entry_name_for(name: &OsStr, id: RootId, by: NamedBy) -> EntryName {
+    match RootFile::named_in_any_case(name) {
+        Some(RootFile::Root(of)) if of == id => EntryName::OwnRoot,
+        Some(RootFile::Root(_)) => EntryName::OtherRoot,
+        Some(RootFile::Partial(of)) if of != id && by == NamedBy::AMark => {
+            EntryName::PartialOfAnotherIdThanTheMarks
+        }
+        Some(RootFile::Partial(_)) => EntryName::Partial,
+        None => EntryName::OtherName,
+    }
+}
+
+/// Destroys the root file of identity `own` at `name`, wherever in the
+/// directory it lies; `id` is the root that the identity is of, which `by`
+/// named. The identity decides only which file is looked at. Whether it is
+/// written through is decided by the name at which it stands, as
+/// `destroy_root_entry` decides it for that name ([`written_through`], ruling
+/// ST-48 U2), except that on the path by a made mark a partial name of
+/// another id than the mark's lets no write (ruling ST-49): the count of names
+/// and the length are first read by the name, with no open and no mode
+/// change, and a file that may not be written there has that name removed
+/// with no write through it while the name still leads to that file, which
+/// is no destruction of the root (`NotTheRootFile`). Nothing is written
+/// unless the handle kept at this call's own look holds a file of that
+/// identity and shows again what the read by name showed; then the file is
+/// zero-filled through that handle, which reaches every name of it, and the
+/// name is removed while it still leads to that file. `Gone` when the
+/// zero-fill went through, or when the count read through the kept handle
+/// after the removal of its one name is 0; `Absent` when no file of that
+/// identity stood at the name at the look.
+fn destroy_identified(
+    dir: &Dir,
+    name: &OsStr,
+    own: FileIdentity,
+    id: RootId,
+    by: NamedBy,
+) -> EntryFate {
+    match dir.entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+        Ok(entry) if entry.kind != EntryKind::File => return EntryFate::Absent,
+        Ok(_) => {}
+    }
+    let shape = match dir.file_shape_at(name) {
+        Ok(shape) if shape.identity == own => shape,
+        Ok(_) => return EntryFate::Absent,
+        Err(e) if e.kind() == ErrorKind::NotFound || durable::refusal(&e).is_some() => {
+            return EntryFate::Absent
+        }
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+    };
+    let at = entry_name_for(name, id, by);
+    let removed_unwritten = || match dir.file_identity_at(name) {
+        Ok(identity) if identity == own => match dir.remove_entry(name) {
+            Err(e) if e.kind() != ErrorKind::NotFound => EntryFate::KeyMayStay(Some(e)),
+            _ => EntryFate::NotTheRootFile,
+        },
+        _ => EntryFate::Absent,
+    };
+    if !written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) {
+        return removed_unwritten();
+    }
+    #[cfg(test)]
+    kept_open_seam::run(name);
+    #[cfg(unix)]
+    let _ = dir.set_file_mode(name, 0o600);
+    let kept = match dir
+        .open_file_for_update(name)
+        .or_else(|_| dir.open_file(name))
+        .or_else(|_| dir.open_file_for_write(name))
+    {
+        Ok(kept) => kept,
+        Err(e) if e.kind() == ErrorKind::NotFound || durable::refusal(&e).is_some() => {
+            return EntryFate::Absent
+        }
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+    };
+    if !matches!(durable::identity_of(&kept), Ok(identity) if identity == own) {
+        return EntryFate::Absent;
+    }
+    let root_len = kept
+        .metadata()
+        .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
+    let one_name = matches!(durable::file_link_count(&kept), Ok(1));
+    if !written_through(at, one_name, root_len) {
+        return removed_unwritten();
+    }
+    #[cfg(windows)]
+    make_writable(dir, name, &kept);
+    let remove = || match dir.remove_entry(name) {
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+        other => other,
+    };
+    if zero_fill_through(dir, name, &kept).is_ok() {
+        if !matches!(dir.names_file(name, &kept), Ok(true)) {
+            return EntryFate::Gone;
+        }
+        return match remove() {
+            Ok(()) => EntryFate::Gone,
+            Err(_) => EntryFate::ZeroedAndNamed,
+        };
+    }
+    match durable::file_link_count(&kept) {
+        Ok(1) if matches!(dir.names_file(name, &kept), Ok(true)) => match remove() {
+            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
+            Ok(()) => EntryFate::KeyMayStay(None),
+            Err(e) => EntryFate::KeyMayStay(Some(e)),
+        },
+        _ => EntryFate::KeyMayStay(None),
     }
 }
 
@@ -322,6 +655,11 @@ enum EntryName {
     OtherRoot,
     /// A partial name.
     Partial,
+    /// On the path by a made mark, a partial name of another id than the
+    /// mark's (ruling ST-49).
+    PartialOfAnotherIdThanTheMarks,
+    /// A name that is no root name and no partial name (ruling ST-47 T1).
+    OtherName,
 }
 
 /// What the destruction of one entry of a roots directory met and left.
@@ -333,9 +671,11 @@ enum EntryFate {
     Gone,
     /// Nothing stood at the name at this call's own look (ruling ST-46 K1).
     Absent,
-    /// What stood at the root's own name could not be the root's file: it is
-    /// removed as the entry that it is, with no write through it, and counts
-    /// as no removal of the root (ruling ST-45 H4, ST-46 K1).
+    /// What stood at the name was removed as the entry that it is, with no
+    /// write through it, and counts as no removal of the root: at the root's
+    /// own name it could not be the root's file (ruling ST-45 H4, ST-46 K1);
+    /// on the path by identity its name let no write through it (ruling
+    /// ST-48 U2).
     NotTheRootFile,
     /// The zero-fill reached every name of the file, and the name stays.
     ZeroedAndNamed,
@@ -349,11 +689,37 @@ impl PartialEq for EntryFate {
     }
 }
 
+/// Whether the destroy step may write through a regular file that stands at a
+/// name of kind `at`, by its count of names and its length: at a partial name
+/// always, but on the path by a made mark never at a partial name of another
+/// id than the mark's (ruling ST-49); at the named root's own name only with a
+/// root file's length (ruling ST-45 H4); at another id's root name with a root
+/// file's length or with one name (ruling ST-45 Addition 2 (b)); at any other
+/// name only with one name and a root file's length (ruling ST-48 U1). Any
+/// other file has its name removed with no write through it.
+fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
+    match at {
+        EntryName::Partial => true,
+        EntryName::PartialOfAnotherIdThanTheMarks => false,
+        EntryName::OwnRoot => root_len,
+        EntryName::OtherRoot => root_len || one_name,
+        EntryName::OtherName => one_name && root_len,
+    }
+}
+
 /// Destroys one entry of a roots directory. An entry that is no regular file
-/// is removed as the entry that it is. For a regular file the step first sets
-/// its mode to 0600 by its name through the directory's handle, following no
-/// link (on Windows it clears the read-only attribute after the open), then
-/// keeps one handle: the open for update, or the read open, or the write open
+/// is removed as the entry that it is. At every name the step first reads the
+/// file's count of names and its length by its name through the directory's
+/// handle, following no link and opening nothing; a file whose read shows a
+/// count and a length that the name's rule does not write through
+/// ([`written_through`]) has its name removed with no open, no mode change and
+/// no write (ruling ST-48 U1, and at a root name and a partial name the inbox
+/// entry of 2026-11-17T02:59:55Z (1)); at any other name so does a file whose
+/// count cannot be read, and at a root name or a partial name such a file keeps
+/// its name and a key may stay (ruling ST-45 H2). For a regular file that may be
+/// written the step then sets its mode to 0600 by its name through the
+/// directory's handle, following no link (on Windows it clears the read-only
+/// attribute after the open and the test), then keeps one handle: the open for update, or the read open, or the write open
 /// of the same name, none following a link. The count, the test that the name
 /// still leads to that file and the zero-fill go through the kept handle; a
 /// kept handle that cannot write zero-fills through a write open of the name
@@ -371,7 +737,10 @@ impl PartialEq for EntryFate {
 /// removed as the entry that it is with no write through it and is
 /// `NotTheRootFile`; at another root's name such a file with more than one
 /// name, or a count that cannot be read, is removed with no write through it
-/// (ruling ST-45 Addition 2 (b)).
+/// (ruling ST-45 Addition 2 (b)); at every name the kept handle shows again the
+/// identity that the read by name showed, and a count and a length that the
+/// name's rule writes through, before any write, or the name is removed with
+/// no write through it ([`written_through`]).
 fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
     let remove = |dir: &Dir| match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -388,6 +757,18 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         Ok(entry) if entry.kind != EntryKind::File => return removed_unwritten(dir),
         Ok(_) => {}
     }
+    let by_name = match dir.file_shape_at(name) {
+        Ok(shape) if written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) => {
+            shape.identity
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+        Err(e) if at != EntryName::OtherName && durable::refusal(&e).is_none() => {
+            return EntryFate::KeyMayStay(Some(e))
+        }
+        _ => return removed_unwritten(dir),
+    };
+    #[cfg(test)]
+    kept_open_seam::run(name);
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
     let kept = match dir
@@ -400,14 +781,13 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         Err(e) if durable::refusal(&e).is_some() => return removed_unwritten(dir),
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
     };
-    if at != EntryName::Partial {
-        let root_len = kept
-            .metadata()
-            .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
-        let one_name = matches!(durable::file_link_count(&kept), Ok(1));
-        if !root_len && (at == EntryName::OwnRoot || !one_name) {
-            return removed_unwritten(dir);
-        }
+    let root_len = kept
+        .metadata()
+        .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
+    let one_name = matches!(durable::file_link_count(&kept), Ok(1));
+    let same_file = matches!(durable::identity_of(&kept), Ok(held) if held == by_name);
+    if !(same_file && written_through(at, one_name, root_len)) {
+        return removed_unwritten(dir);
     }
     #[cfg(windows)]
     make_writable(dir, name, &kept);
@@ -445,11 +825,29 @@ fn zero_fill_through(dir: &Dir, name: &OsStr, kept: &std::fs::File) -> std::io::
 
 fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
     use std::io::{Seek, SeekFrom};
-    let len = file.metadata()?.len() as usize;
+    let len = file.metadata()?.len();
     let mut writer = file;
     writer.seek(SeekFrom::Start(0))?;
-    writer.write_all(&vec![0u8; len])?;
-    file.sync_all()
+    write_zeros(&mut writer, len)?;
+    durable::full_flush(file)
+}
+
+/// The size of one write of zeros of the root step: its zero-fill writes a
+/// file's length in blocks of this size and never allocates that length
+/// (ruling ST-47 T1). The key file's zero-fill is not the root step's and is
+/// not held to it.
+const ZERO_BLOCK: usize = 64 * 1024;
+
+/// Writes `len` zero bytes to `out` in blocks of at most [`ZERO_BLOCK`].
+fn write_zeros(out: &mut impl Write, len: u64) -> std::io::Result<()> {
+    let block = [0u8; ZERO_BLOCK];
+    let mut left = len;
+    while left > 0 {
+        let now = left.min(ZERO_BLOCK as u64) as usize;
+        out.write_all(&block[..now])?;
+        left -= now as u64;
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -461,7 +859,7 @@ fn make_writable(dir: &Dir, name: &OsStr, kept: &std::fs::File) {
             reason = "a root file that the store destroys has to be writable for its zero-fill"
         )]
         permissions.set_readonly(false);
-        let _ = std::fs::set_permissions(dir.path().join(name), permissions);
+        let _ = std::fs::set_permissions(dir.entry_path(name), permissions);
     }
 }
 
@@ -475,32 +873,65 @@ pub(crate) fn root_file_may_be_present(roots: &Path, root_id: RootId) -> bool {
 }
 
 pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), CustodyError> {
+    destroy_named_root_at(roots, NamedRoot::by_id(root_id))
+}
+
+/// [`destroy_root_through`] on the roots directory at `roots`, opened here;
+/// Ok when nothing stands there.
+pub(crate) fn destroy_named_root_at(roots: &Path, root: NamedRoot) -> Result<(), CustodyError> {
     let dir = match Dir::open(roots) {
         Ok(dir) => dir,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
         Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
         Err(e) => return Err(root_io(e)),
     };
+    destroy_root_through(&dir, root)
+}
+
+/// The destruction of one root through `dir`, for a cleanup and for the
+/// custody's destroy. With the identity of its root file known it acts on the
+/// file of that identity alone, wherever it lies in the directory, and on
+/// nothing else, and writes through it only where the name at which it
+/// stands lets the step write; a name removed there with no write through it
+/// is taken as done (ruling ST-48 U2); without it, every entry of the id at its root name in any
+/// letter case and at its partial names, each partial counted as the root
+/// file is (the review's N7). Answers Ok when no entry of the root stands at
+/// its look, so that a cleanup that runs again ends, and the error of the
+/// flush of the directory after the removals when that flush fails (ruling
+/// PR-30 PR9 (3)).
+pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), CustodyError> {
     let mut fates = Vec::new();
-    if let Ok(entries) = dir.entries() {
-        for entry in entries {
-            match RootFile::named_in_any_case(&entry.name) {
-                Some(RootFile::Partial(id)) if id == root_id => {
-                    let _ = destroy_root_entry(&dir, &entry.name, EntryName::Partial);
-                }
-                Some(RootFile::Root(id)) if id == root_id && entry.name != root_name(root_id) => {
-                    fates.push(destroy_root_entry(&dir, &entry.name, EntryName::OwnRoot));
-                }
-                _ => {}
+    match root.file {
+        Some(own) => {
+            let entries = dir.entries().map_err(root_io)?;
+            for name in files_of(dir, &entries, own) {
+                fates.push(destroy_identified(dir, &name, own, root.id, root.by));
             }
         }
+        None => {
+            if let Ok(entries) = dir.entries() {
+                for entry in entries {
+                    match RootFile::named_in_any_case(&entry.name) {
+                        Some(RootFile::Partial(id)) if id == root.id => {
+                            fates.push(destroy_root_entry(dir, &entry.name, EntryName::Partial));
+                        }
+                        Some(RootFile::Root(id))
+                            if id == root.id && entry.name != root_name(root.id) =>
+                        {
+                            fates.push(destroy_root_entry(dir, &entry.name, EntryName::OwnRoot));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            fates.push(destroy_root_entry(
+                dir,
+                &root_name(root.id),
+                EntryName::OwnRoot,
+            ));
+        }
     }
-    fates.push(destroy_root_entry(
-        &dir,
-        &root_name(root_id),
-        EntryName::OwnRoot,
-    ));
-    let _ = dir.sync();
+    let flushed = dir.sync();
     for fate in fates {
         match fate {
             EntryFate::Gone
@@ -511,7 +942,7 @@ pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), Custo
             EntryFate::KeyMayStay(None) => return Err(CustodyError::RootDenied),
         }
     }
-    Ok(())
+    flushed.map_err(root_io)
 }
 
 impl<P: Protector> FileRoots<P> {
@@ -542,16 +973,31 @@ impl<P: Protector> FileRoots<P> {
             Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
             Err(e) => return Err(root_io(e)),
         };
+        Ok(self.existing_root_in(&dir, root_id)?.map(|(root, _)| root))
+    }
+
+    /// The root of `root_id` read through `dir`, with the identity of the
+    /// file that was read; `None` for no file, an empty one or an all-zero
+    /// one.
+    fn existing_root_in(
+        &self,
+        dir: &Dir,
+        root_id: RootId,
+    ) -> Result<Option<ReadRoot>, CustodyError> {
         let mut blob = Zeroizing::new(Vec::new());
         let read = dir
             .open_file(&root_name(root_id))
             .map_err(read_error)
-            .and_then(|mut file| file.read_to_end(&mut blob).map_err(read_error));
-        match read {
-            Ok(_) => {}
+            .and_then(|mut file| {
+                let identity = durable::identity_of(&file).map_err(root_io)?;
+                file.read_to_end(&mut blob).map_err(read_error)?;
+                Ok(identity)
+            });
+        let identity = match read {
+            Ok(identity) => identity,
             Err(CustodyError::RootMissing) => return Ok(None),
             Err(e) => return Err(e),
-        }
+        };
         if blob.iter().all(|&b| b == 0) {
             return Ok(None);
         }
@@ -561,7 +1007,39 @@ impl<P: Protector> FileRoots<P> {
         }
         let mut root = Zeroizing::new([0u8; 32]);
         root.copy_from_slice(&plain);
-        Ok(Some(root))
+        Ok(Some((root, identity)))
+    }
+
+    /// Wraps `key` under the root of `root_id` read through `dir`: the wrap
+    /// and the identity of the root file that it read.
+    pub(crate) fn wrap_in(
+        &self,
+        dir: &Dir,
+        root_id: RootId,
+        label: KeyLabel,
+        key: &StoreKey,
+    ) -> Result<(WrappedKey, FileIdentity), CustodyError> {
+        let (root, identity) = self
+            .existing_root_in(dir, root_id)?
+            .ok_or(CustodyError::RootMissing)?;
+        Ok((seal(root_id, label, root, key)?, identity))
+    }
+
+    /// Unwraps `wrapped` under the root of `root_id` read through `dir`: the
+    /// key and the identity of the root file that it read.
+    pub(crate) fn unwrap_in(
+        &self,
+        dir: &Dir,
+        root_id: RootId,
+        label: KeyLabel,
+        wrapped: &WrappedKey,
+    ) -> Result<(StoreKey, FileIdentity), CustodyError> {
+        let (root, identity) = self
+            .existing_root_in(dir, root_id)?
+            .ok_or(CustodyError::RootMissing)?;
+        let plain = aead_open(&root, &wrapped.0, &associated_data(root_id, label))
+            .map_err(|_| CustodyError::WrapAuthFailed)?;
+        Ok((store_key_from(plain)?, identity))
     }
 
     pub(crate) fn create_root(&self, root_id: RootId) -> Result<(), CustodyError> {
@@ -582,7 +1060,8 @@ impl<P: Protector> FileRoots<P> {
             .protect(root.as_slice(), root_id.as_bytes())?;
         let dir = self.open_private_roots_dir()?;
         let partial = partial_name(root_id)?;
-        let written = write_partial(&dir, &partial, &blob);
+        let file = dir.create_new(&partial).map_err(root_io)?;
+        let written = fill_partial(file, &blob);
         let published = written.and_then(|()| {
             dir.link(&partial, &root_name(root_id))
                 .map_err(|e| match e.kind() {
@@ -685,10 +1164,72 @@ impl<P: Protector> FileRoots<P> {
     }
 }
 
+#[cfg(test)]
 fn write_partial(dir: &Dir, partial: &OsStr, blob: &[u8]) -> Result<(), CustodyError> {
-    let mut file = dir.create_new(partial).map_err(root_io)?;
+    fill_partial(dir.create_new(partial).map_err(root_io)?, blob)
+}
+
+fn fill_partial(mut file: std::fs::File, blob: &[u8]) -> Result<(), CustodyError> {
     file.write_all(blob).map_err(root_io)?;
     file.sync_all().map_err(root_io)
+}
+
+/// A test's tag for the partial names that this thread writes next, in
+/// place of the random one (ruling S-95 (f)).
+#[cfg(test)]
+pub(crate) mod partial_tag_seam {
+    use std::cell::Cell;
+
+    thread_local! {
+        static FORCED: Cell<Option<[u8; 8]>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn force(tag: Option<[u8; 8]>) {
+        FORCED.with(|forced| forced.set(tag));
+    }
+
+    pub(crate) fn forced() -> Option<[u8; 8]> {
+        FORCED.with(|forced| forced.get())
+    }
+}
+
+/// A place where a test acts in the destroy step of one entry, with the
+/// entry's name, after the read by that name allowed a write and before the
+/// mode change and the open of the kept handle, whose own test then decides
+/// (the inbox entry of 2026-11-17T02:59:55Z (2)).
+#[cfg(test)]
+pub(crate) mod kept_open_seam {
+    use std::cell::RefCell;
+    use std::ffi::OsStr;
+
+    type Act = Box<dyn FnMut(&OsStr)>;
+
+    thread_local! {
+        static ACT: RefCell<Option<Act>> = const { RefCell::new(None) };
+    }
+
+    /// Runs `act` with the entry's name at each destroy step of this thread
+    /// until the guard is dropped.
+    pub(crate) fn at(act: impl FnMut(&OsStr) + 'static) -> Guard {
+        ACT.with(|slot| *slot.borrow_mut() = Some(Box::new(act)));
+        Guard
+    }
+
+    pub(crate) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ACT.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn run(name: &OsStr) {
+        ACT.with(|slot| {
+            if let Some(act) = slot.borrow_mut().as_mut() {
+                act(name);
+            }
+        });
+    }
 }
 
 #[cfg(test)]
@@ -827,6 +1368,25 @@ pub(crate) mod test_support {
         fn destroy_root(&self) -> Result<(), CustodyError> {
             self.roots.destroy_root(self.root_id)
         }
+
+        fn wrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            key: &StoreKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+            self.roots.wrap_in(&roots.dir, self.root_id, label, key)
+        }
+
+        fn unwrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            wrapped: &WrappedKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+            self.roots
+                .unwrap_in(&roots.dir, self.root_id, label, wrapped)
+        }
     }
 }
 
@@ -880,6 +1440,39 @@ mod tests {
         let root_id = RootId::fresh().unwrap();
         assert!(roots.create_root(root_id).is_ok());
         assert!(roots.root_exists(root_id).unwrap());
+    }
+
+    #[test]
+    fn a_zero_fill_writes_in_blocks_of_a_fixed_size_and_never_the_whole_length_at_once() {
+        struct Recorder {
+            writes: Vec<usize>,
+            zeros: bool,
+        }
+        impl Write for Recorder {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.writes.push(bytes.len());
+                self.zeros &= bytes.iter().all(|&b| b == 0);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let len = 3 * ZERO_BLOCK as u64 + 5;
+        let mut out = Recorder {
+            writes: Vec::new(),
+            zeros: true,
+        };
+        write_zeros(&mut out, len).unwrap();
+        let largest = out.writes.iter().copied().max().unwrap_or(0);
+        println!(
+            "ZERO-BLOCKS writes={} largest={largest} total={}",
+            out.writes.len(),
+            out.writes.iter().sum::<usize>()
+        );
+        assert!(out.zeros);
+        assert!(largest <= ZERO_BLOCK, "a write of {largest} bytes");
+        assert_eq!(out.writes.iter().sum::<usize>() as u64, len);
     }
 
     #[test]
@@ -965,6 +1558,38 @@ mod tests {
         assert!(path.join("occupied").exists());
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_cleanup_whose_partial_root_file_cannot_be_destroyed_answers_an_error() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh().unwrap();
+        roots.create_root(root_id).unwrap();
+        let partial = dir
+            .path()
+            .join("roots")
+            .join(format!("{root_id}.0123456789abcdef.{PARTIAL_EXT}"));
+        std::fs::write(&partial, [0x5au8; 32]).unwrap();
+        let immutable = |on: bool| {
+            let c = std::ffi::CString::new(partial.as_os_str().as_bytes()).unwrap();
+            let flags = if on { libc::UF_IMMUTABLE } else { 0 };
+            assert_eq!(unsafe { libc::chflags(c.as_ptr(), flags) }, 0);
+        };
+        immutable(true);
+        let destroyed = roots.destroy_root(root_id);
+        immutable(false);
+        let bytes = std::fs::read(&partial).ok();
+        println!(
+            "N7 destroy={destroyed:?} partial_keeps_its_bytes={}",
+            bytes.as_deref() == Some(&[0x5au8; 32][..])
+        );
+        assert!(
+            destroyed.is_err(),
+            "the cleanup answered Ok while a partial root file of its id holds the root's bytes"
+        );
+    }
+
     #[test]
     fn destroying_a_root_also_removes_a_partial_root_file_that_a_failed_write_left() {
         let dir = tempfile::tempdir().unwrap();
@@ -1047,6 +1672,40 @@ mod tests {
                 .expose(),
             &[0x61; 32]
         );
+    }
+
+    #[test]
+    fn a_root_write_whose_partial_name_another_writer_holds_leaves_that_file_and_makes_no_root() {
+        use super::partial_tag_seam;
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh().unwrap();
+        std::fs::create_dir_all(dir.path().join("roots")).unwrap();
+        let theirs = dir
+            .path()
+            .join("roots")
+            .join(format!("{root_id}.0f0f0f0f0f0f0f0f.{PARTIAL_EXT}"));
+        let in_progress = b"the blob that another create is writing";
+        std::fs::write(&theirs, in_progress).unwrap();
+        partial_tag_seam::force(Some([0x0f; 8]));
+        let made = roots.create_root(root_id);
+        partial_tag_seam::force(None);
+        let left = std::fs::read(&theirs).ok();
+        println!(
+            "S95F made={made:?} theirs_kept={} root_made={}",
+            left.as_deref() == Some(in_progress.as_slice()),
+            roots.path(root_id).exists()
+        );
+        assert!(
+            made.is_err(),
+            "the root write shared another writer's partial name"
+        );
+        assert_eq!(
+            left.as_deref(),
+            Some(in_progress.as_slice()),
+            "the root write changed or removed the partial file of another writer"
+        );
+        assert!(!roots.path(root_id).exists());
     }
 
     #[test]

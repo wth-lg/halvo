@@ -164,6 +164,25 @@ impl KeyCustody for DpapiCustody {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.roots.destroy_root(self.root_id)
     }
+
+    fn wrap_store_key_in(
+        &self,
+        roots: &super::RootsHandle,
+        key: &StoreKey,
+        label: KeyLabel,
+    ) -> Result<(WrappedKey, super::FileIdentity), CustodyError> {
+        self.roots.wrap_in(&roots.dir, self.root_id, label, key)
+    }
+
+    fn unwrap_store_key_in(
+        &self,
+        roots: &super::RootsHandle,
+        wrapped: &WrappedKey,
+        label: KeyLabel,
+    ) -> Result<(StoreKey, super::FileIdentity), CustodyError> {
+        self.roots
+            .unwrap_in(&roots.dir, self.root_id, label, wrapped)
+    }
 }
 
 #[cfg(test)]
