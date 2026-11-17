@@ -134,17 +134,17 @@ check() {
 
 good_readme() {
   printf '# Product\n\nIntro.\n\n## Prerequisites\n\n\140\140\140sh\nsh scripts/prerequisites.sh\n\140\140\140\n\n'
-  printf '## Build\n\nRun \140sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy\140 and backend/scripts/fetch-tools.sh.\n\nThe config is src-tauri/tauri.conf.json.\n\n'
+  printf '## Build\n\nRun \140sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy\140 and tools/x/scripts/fetch.sh.\n\nThe config is src-tauri/tauri.conf.json.\n\n'
   printf '\140\140\140sh\n## Version\n\140\140\140\n\n'
   printf '## Version\n\nThe version is in Cargo.toml, which is \1401.2.3\140 now.\n\n'
   printf '## Release\n\nRun release.sh.\n'
 }
 
 fixture() {
-  mkdir -p "$work/$1/scripts/ci" "$work/$1/scripts/r1/ci.d" "$work/$1/backend/scripts" "$work/$1/src-tauri" || exit 2
+  mkdir -p "$work/$1/scripts/ci" "$work/$1/scripts/r1/ci.d" "$work/$1/tools/x/scripts" "$work/$1/src-tauri" || exit 2
   good_readme >"$work/$1/README.md" || exit 2
   printf '[package]\n' >"$work/$1/Cargo.toml" || exit 2
-  for file in scripts/prerequisites.sh scripts/release.sh scripts/ci/run-ci-d.sh scripts/r1/ci.d/10-format.sh scripts/r1/ci.d/11-clippy.sh backend/scripts/fetch-tools.sh; do
+  for file in scripts/prerequisites.sh scripts/release.sh scripts/ci/run-ci-d.sh scripts/r1/ci.d/10-format.sh scripts/r1/ci.d/11-clippy.sh tools/x/scripts/fetch.sh; do
     printf '#!/bin/sh\n' >"$work/$1/$file" || exit 2
   done
   printf '#!/bin/sh\nprintf "1.2.3\\n"\n' >"$work/$1/scripts/r1/ci.d/61-version.sh" || exit 2
