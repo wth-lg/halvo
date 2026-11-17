@@ -297,7 +297,6 @@ wpr_check_lines() {
       return out t
     }
     function token_ok(    t, p, n, parts, i, m, atoms, seps, rest) {
-      if (source == "" && tok ~ /[^ -~]/ || source != "" && tok ~ /[^ -~\003]/) return 0
       if (tok !~ /[A-Za-z0-9\003]/) {
         if (source != "" && ntok == 1 && length(tok) <= 2 && tok !~ /[^-=(),;\[\]<>+#\047`"{}.:\/\\@_]/) return 1
         return tok == "[]" || tok == "-" || tok == "..." || tok == "{" || tok == "}))"

@@ -324,7 +324,8 @@ TF c1 addr=window::8080$cr
 TF c4 class=Keyboard.Window$cr
 TF c1 site=keyboard.window$cr
 TF c1 /windows/keyboard$cr
-TF c1 dir=windows/$cr"
+TF c1 dir=windows/$cr
+TF c1 /windows$cr"
   log_case log-address-and-path refused 'prints-rule log-address-and-path line=1 length=28 token=3
 prints-rule log-address-and-path line=2 length=31 token=3
 prints-rule log-address-and-path line=3 length=35 token=3
@@ -337,7 +338,8 @@ prints-rule log-address-and-path line=9 length=23 token=3
 prints-rule log-address-and-path line=10 length=27 token=3
 prints-rule log-address-and-path line=11 length=26 token=3
 prints-rule log-address-and-path line=12 length=23 token=3
-prints-rule log-address-and-path line=13 length=18 token=3'
+prints-rule log-address-and-path line=13 length=18 token=3
+prints-rule log-address-and-path line=14 length=14 token=3'
   plant log-punctuation-alone "TF ;$cr
 TF !@#\$%^&*()$cr
 TF c1 key=--$cr
@@ -349,20 +351,24 @@ prints-rule log-punctuation-alone line=4 length=14 token=3'
   plant log-known-defect-text "KNOWN-DEFECT Hunter2-Qzxvsecret-Mybanktitle$cr
 KNOWN-DEFECT Hunter$cr
 KNOWN-DEFECT $known_id Hunter-Two$cr
-TF KNOWN-DEFECT $known_id$cr"
+TF KNOWN-DEFECT $known_id$cr
+KNOWN-DEFECT $known_id $known_id$cr"
   log_case log-known-defect-text refused "prints-rule log-known-defect-text line=1 length=43 token=2
 prints-rule log-known-defect-text line=2 length=19 token=2
 prints-rule log-known-defect-text line=3 length=$((24 + ${#known_id})) token=3
-prints-rule log-known-defect-text line=4 length=$((16 + ${#known_id})) token=3"
+prints-rule log-known-defect-text line=4 length=$((16 + ${#known_id})) token=3
+prints-rule log-known-defect-text line=5 length=$((14 + 2 * ${#known_id})) token=3"
   plant log-phase-letters "TF phase h and u and n and t and e and r$cr
 TF stall phases E and F and G$cr
 TF stall phase=e$cr
 TF c9 memory phase=t+5s$cr
-TF stall phase E and F$cr"
+TF stall phase E and F$cr
+TF stall phases E keys and Q$cr"
   log_case log-phase-letters refused 'prints-rule log-phase-letters line=1 length=40 token=3
 prints-rule log-phase-letters line=2 length=29 token=8
 prints-rule log-phase-letters line=3 length=16 token=3
-prints-rule log-phase-letters line=5 length=22 token=6'
+prints-rule log-phase-letters line=5 length=22 token=6
+prints-rule log-phase-letters line=6 length=28 token=7'
   plant log-closed-values "TF c5 scanned_key=HKLM/keyboard$cr
 TF c5 scanned_key=WINDOW/native$cr
 TF browser-stall-chrome file_reads=ok:hunter,failed:0,not_read:0,no_element:0$cr
