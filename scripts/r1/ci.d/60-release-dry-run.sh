@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The documented release command works on every commit: in a throwaway clone with no remote its dry run passes on a named branch and changes nothing, --execute refuses a branch other than main, and on main it makes one commit Release <next> with every package at <next>, one tag v<next> and the changelog entries grouped by type, and leaves the tree clean; on a release commit (no Unreleased entry, the subject Release <version>) it requires instead that the dry run refuses with its no entry line and changes nothing.
+# rule: The documented release command works on every commit: in a throwaway clone with no remote its dry run passes on a named branch and changes nothing, --execute refuses a branch other than main, and on main it makes one commit Release <next> with every package at <next>, one tag v<next> and the changelog entries grouped by type, and leaves the tree clean; while 54-tag-needs-store4 refuses the coming tag, because a tracked file under crates/halvo-capture/src holds a statement that creates events_fts, it requires instead that the dry run prints release.sh: --execute would stop here: with that check's cause and that --execute on main stops with that check's line and leaves the status, HEAD, the tags and the refs of the clone as they were; on a release commit (no Unreleased entry, the subject Release <version>) it requires instead that the dry run refuses with its no entry line and changes nothing.
 set -u
 name=60-release-dry-run
 types='Added Changed Deprecated Removed Fixed Security'
@@ -58,6 +58,46 @@ with_release_line() {
 fail_after() {
   line=$(with_release_line "$1" "$2")
   fail "$line"
+}
+
+store4_cause() {
+  said=$(cd "$1" && CI_D_REPO=$1 GITHUB_REF_TYPE=tag GITHUB_REF_NAME=$2 sh scripts/r1/ci.d/54-tag-needs-store4.sh 2>&1)
+  code=$?
+  last=$(printf '%s\n' "$said" | awk 'NF { last = $0 } END { print last }')
+  case $code:$last in
+    '0:PASS 54-tag-needs-store4') return 0 ;;
+    '1:FAIL 54-tag-needs-store4 ('*')')
+      cause=${last#'FAIL 54-tag-needs-store4 ('}
+      printf '%s\n' "${cause%')'}"
+      ;;
+    *)
+      printf '54-tag-needs-store4 exited %s in the clone with the last line %s\n' "$code" "${last:-nothing}"
+      return 1
+      ;;
+  esac
+}
+
+dry_run_stop_defect() {
+  if [ -z "$2" ]; then
+    grep -q '^release.sh: --execute would stop here: ' "$1" || return 0
+    printf 'the dry run says that --execute would stop, and 54-tag-needs-store4 passes the tag\n'
+    return 1
+  fi
+  grep -q -x -F -e "release.sh: --execute would stop here: $2" "$1" && return 0
+  printf 'the dry run printed no line release.sh: --execute would stop here: <the cause of 54-tag-needs-store4>\n'
+  return 1
+}
+
+execute_stop_defect() {
+  snapshot "$1" >"$3.before"
+  (cd "$1" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$3" 2>&1
+  stopped=$?
+  snapshot "$1" >"$3.after"
+  [ "$stopped" = 1 ] || { printf 'sh scripts/release.sh --execute exited %s on main, not 1, while 54-tag-needs-store4 refuses the tag\n' "$stopped"; return 1; }
+  grep -q -x -F -e "release.sh: $2; nothing was released" "$3" ||
+    { printf '%s\n' '--execute on main did not stop with the line of 54-tag-needs-store4'; return 1; }
+  cmp -s "$3.before" "$3.after" ||
+    { printf '%s\n' '--execute on main, stopped by 54-tag-needs-store4, changed the status, HEAD, a tag or a ref of the clone'; return 1; }
 }
 
 snapshot() {
@@ -126,6 +166,10 @@ measure() {
   ! grep -E '^(next version|commit message|tag|tag message): ' "$work/dry-run.txt" | grep -q '{{' || fail_after "a line of the dry run's commit message or tag holds a template" "$work/dry-run.txt"
   cmp -s "$work/before-dry-run" "$work/after-dry-run" || fail_after "the dry run changed the status, HEAD, a tag or a ref of the clone" "$work/dry-run.txt"
   printf 'dry run on a named branch: exit 0, next version and tag lines: true, clone unchanged: true\n'
+  stop=$(store4_cause "$clone" "v$next") || fail "$stop"
+  found=$(dry_run_stop_defect "$work/dry-run.txt" "$stop") || fail_after "$found" "$work/dry-run.txt"
+  if [ -n "$stop" ]; then stands=true; else stands=false; fi
+  printf 'index statement stands: %s, the dry run says where --execute would stop: %s\n' "$stands" "$stands"
 
   (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$work/execute-off-main.txt" 2>&1
   status=$?
@@ -136,6 +180,15 @@ measure() {
   printf 'execute on a branch other than main: refused with exit %s, clone unchanged: true\n' "$status"
 
   git -C "$clone" checkout -q -B main "$head" || fail "git checkout -B main in the clone failed"
+  if [ "$stands" = true ]; then
+    found=$(execute_stop_defect "$clone" "$stop" "$work/execute-on-main.txt")
+    stopped=$?
+    cp "$work/execute-on-main.txt" "${CI_D_ARTIFACTS:-$work}/" 2>/dev/null
+    [ "$stopped" = 0 ] || fail_after "$found" "$work/execute-on-main.txt"
+    printf 'execute on main: refused by 54-tag-needs-store4 while the index statement stands: true\n'
+    printf 'PASS %s\n' "$name"
+    exit 0
+  fi
   unreleased_texts "$clone/CHANGELOG.md" >"$work/unreleased-before.txt"
   tags_before=$(git -C "$clone" tag --list | grep -c .)
   (cd "$clone" && GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid sh scripts/release.sh --execute) >"$work/execute-on-main.txt" 2>&1
@@ -184,6 +237,7 @@ self_test() {
 #!/bin/sh
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$1 $2" in
+  'release --version') printf 'cargo-release %s\n' "${STUB_RELEASE_VERSION:-0.0.0}" ;;
   'release version')
     case ${3:-} in
       patch) printf '   Upgrading halvo from 1.2.3 to 1.2.4\n' ;;
@@ -226,10 +280,16 @@ All notable changes are recorded in this file.
 
 ## [Unreleased]
 '
+  found=0
+  grep -o -E 'scripts/r1/ci\.d/[0-9][0-9]-[a-z0-9-]+\.sh' "$root/scripts/release.sh" >"$work/called-checks" || found=$?
+  [ "$found" -le 1 ] || exit 2
   repository() {
     repo=$work/repo-$1
     mkdir -p "$repo/scripts" || exit 2
     cp "$root/scripts/release.sh" "$root/scripts/check-changelog.sh" "$repo/scripts/" || exit 2
+    while IFS= read -r check; do
+      mkdir -p "$repo/${check%/*}" && cp "$root/$check" "$repo/$check" || exit 2
+    done <"$work/called-checks"
     printf '%s\n%s\n' "$intro" "$2" >"$repo/CHANGELOG.md"
     git init -q "$repo" && git -C "$repo" add -A && git -C "$repo" commit -q -m fixture || exit 2
   }
@@ -274,11 +334,11 @@ All notable changes are recorded in this file.
   help_status=0
   (cd "$repo" && sh scripts/release.sh --help) >"$work/help.txt" 2>&1 || help_status=$?
   missing=
-  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps"; do
+  for fact in '--dry-run' '--execute' 'changes no tracked file' 'target/release-commit-message.toml' 'main only' 'one commit and one tag' 'pushes nothing' 'git ls-remote' 'no remote named origin' 'carries an index flag' 'can name no committer' 'puts the clone back' 'defaults to patch' "owner's own steps" '54-tag-needs-store4' 'would stop' 'makes no commit and no tag' 'a tracked file under'; do
     grep -q -F -e "$fact" "$work/help.txt" || missing="$missing [$fact]"
   done
   got=FAIL
-  [ "$help_status" = 0 ] && [ -z "$missing" ] && got=PASS
+  [ "$help_status" = 0 ] && [ -z "$missing" ] && ! grep -q -F -e "check's line and changes nothing" "$work/help.txt" && got=PASS
   verdict help-states-what-a-person-who-runs-the-script-needs PASS "$got"
   release_case help-with-another-argument 64 no usage --help patch
   grep -q -e '--execute --no-confirm --allow-branch main' "$work/argv-dry-run-calls-cargo" && got=FAIL || got=PASS
@@ -588,6 +648,199 @@ GITSTUB
   shallow_state >"$work/shallow-after"
   cmp -s "$work/shallow-before" "$work/shallow-after" && got=PASS || got=FAIL
   verdict dry-run-in-a-shallow-clone-changes-nothing PASS "$got"
+
+  got=FAIL
+  grep -q -x -F 'scripts/r1/ci.d/54-tag-needs-store4.sh' "$work/called-checks" && got=PASS
+  verdict fixtures-hold-the-checks-that-release-sh-calls PASS "$got"
+  with_statement() {
+    mkdir -p "$repo/crates/halvo-capture/src/store" || exit 2
+    printf '%s\n' '                 CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",' >"$repo/crates/halvo-capture/src/store/db.rs"
+    printf 'target/\n' >"$repo/.gitignore"
+    git -C "$repo" add -A && git -C "$repo" commit -q -m 'Create the search index' || exit 2
+  }
+  stop_case() {
+    case_name=$1 mode=$2
+    shift 2
+    log=$work/argv-$case_name
+    snapshot "$repo" >"$work/stop-$case_name-before"
+    status=0
+    (cd "$repo" && env "$@" PATH="$work/bin:$PATH" STUB_ACTION=commit-tag STUB_LOG="$log" CARGO_HOME="$work/no-cargo-home" sh scripts/release.sh "$mode") >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$log"
+    snapshot "$repo" >"$work/stop-$case_name-after"
+    released=no
+    grep -q -E '^release (patch|minor|major) --config .* --execute' "$log" && released=yes
+    unchanged=no
+    cmp -s "$work/stop-$case_name-before" "$work/stop-$case_name-after" && unchanged=yes
+  }
+  repository index-statement "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  statement_repo=$repo
+  got=FAIL
+  cause=$(store4_cause "$repo" v1.2.4) && [ -n "$cause" ] && got=PASS
+  verdict 54-refuses-the-tag-of-the-fixture-with-the-statement PASS "$got"
+  stop_case dry-run-on-a-tree-with-the-statement --dry-run
+  got=FAIL
+  [ "$status" = 0 ] && grep -q -x -F -e "release.sh: --execute would stop here: $cause" "$work/out-dry-run-on-a-tree-with-the-statement" &&
+    grep -q -x 'next version: 1.2.4' "$work/out-dry-run-on-a-tree-with-the-statement" && [ "$unchanged" = yes ] && got=PASS
+  verdict dry-run-on-a-tree-with-the-statement-prints-the-stop-and-exits-0 PASS "$got"
+  stop_case execute-on-a-tree-with-the-statement --execute
+  got=PASS
+  [ "$status" = 1 ] && grep -q -x -F -e "release.sh: $cause; nothing was released" "$work/out-execute-on-a-tree-with-the-statement" &&
+    grep -q -x -F -e "FAIL 54-tag-needs-store4 ($cause)" "$work/out-execute-on-a-tree-with-the-statement" &&
+    grep -q '^release version patch' "$work/argv-execute-on-a-tree-with-the-statement" && [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
+  verdict execute-on-a-tree-with-the-statement FAIL "$got"
+  repository index-statement-free "$typed"
+  git -C "$repo" checkout -q -B main
+  statement_free_repo=$repo
+  repo=$statement_repo
+  stop_case execute-over-a-branch-ref-and-a-foreign-root-in-the-environment --execute GITHUB_REF_TYPE=branch GITHUB_REF_NAME=main "CI_D_REPO=$statement_free_repo"
+  got=PASS
+  [ "$status" = 1 ] && grep -q -x -F -e "release.sh: $cause; nothing was released" "$work/out-execute-over-a-branch-ref-and-a-foreign-root-in-the-environment" &&
+    [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
+  verdict execute-over-a-branch-ref-and-a-foreign-root-in-the-environment FAIL "$got"
+  repo=$statement_free_repo
+  stop_case dry-run-on-a-tree-without-the-statement-under-a-foreign-root --dry-run "CI_D_REPO=$statement_repo"
+  got=FAIL
+  [ "$status" = 0 ] && ! grep -q 'would stop here' "$work/out-dry-run-on-a-tree-without-the-statement-under-a-foreign-root" && got=PASS
+  verdict dry-run-on-a-tree-without-the-statement-under-a-foreign-root PASS "$got"
+  repository index-statement-behind-origin "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  git clone -q --bare "$repo" "$work/origin-of-index-statement.git" || exit 2
+  git -C "$repo" remote add origin "$work/origin-of-index-statement.git"
+  git -C "$repo" commit -q --allow-empty -m 'A commit that origin gets'
+  git -C "$repo" push -q origin main
+  git -C "$repo" checkout -q -B main HEAD~1
+  stop_case origin-refusal-comes-before-54 --execute
+  got=PASS
+  [ "$status" = 1 ] && grep -q 'run git pull --ff-only origin main, then run this again' "$work/out-origin-refusal-comes-before-54" &&
+    ! grep -q '54-tag-needs-store4' "$work/out-origin-refusal-comes-before-54" && [ "$released" = no ] && got=FAIL
+  verdict origin-refusal-comes-before-54 FAIL "$got"
+  repository 54-without-its-line "$typed"
+  mkdir -p "$repo/scripts/r1/ci.d" || exit 2
+  printf '%s\n' '#!/bin/sh' 'echo a stand-in of 54 that ends without its line' 'exit 3' >"$repo/scripts/r1/ci.d/54-tag-needs-store4.sh"
+  printf 'target/\n' >"$repo/.gitignore"
+  git -C "$repo" add -A && git -C "$repo" commit -q -m 'A 54 that ends without its line' || exit 2
+  git -C "$repo" checkout -q -B main
+  stop_case 54-that-ends-without-its-line --execute
+  got=PASS
+  [ "$status" = 1 ] && grep -q -F 'scripts/r1/ci.d/54-tag-needs-store4.sh exited 3' "$work/out-54-that-ends-without-its-line" && [ "$released" = no ] && [ "$unchanged" = yes ] && got=FAIL
+  verdict 54-that-ends-without-its-line-stops-execute FAIL "$got"
+  stop_at_level() {
+    case_name=$1 coming_tag=$2
+    shift 2
+    log=$work/argv-$case_name
+    level_cause=$(store4_cause "$repo" "$coming_tag") || exit 2
+    snapshot "$repo" >"$work/stop-$case_name-before"
+    status=0
+    (cd "$repo" && PATH="$work/bin:$PATH" STUB_ACTION=commit-tag STUB_LOG="$log" CARGO_HOME="$work/no-cargo-home" sh scripts/release.sh --execute "$@") >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$log"
+    snapshot "$repo" >"$work/stop-$case_name-after"
+    got=PASS
+    [ "$status" = 1 ] && [ -n "$level_cause" ] && grep -q -x -F -e "release.sh: $level_cause; nothing was released" "$work/out-$case_name" &&
+      grep -q '^release version ' "$log" && ! grep -q -E '^release (patch|minor|major) --config .* --execute' "$log" &&
+      cmp -s "$work/stop-$case_name-before" "$work/stop-$case_name-after" && got=FAIL
+    verdict "$case_name" FAIL "$got"
+  }
+  kept_repo=$repo
+  kept_cause=$cause
+  repository index-statement-with-origin "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  git clone -q --bare "$repo" "$work/origin-of-the-statement.git" || exit 2
+  git -C "$repo" remote add origin "$work/origin-of-the-statement.git"
+  git -C "$repo" fetch -q origin
+  stop_at_level execute-in-a-clone-whose-origin-holds-head-as-main v1.2.4
+  repo=$statement_repo
+  stop_at_level execute-minor-on-a-tree-with-the-statement v1.3.0 minor
+  stop_at_level execute-major-on-a-tree-with-the-statement v2.0.0 major
+  repo=$kept_repo
+  cause=$kept_cause
+  got=FAIL
+  free_cause=$(store4_cause "$statement_free_repo" v1.2.4) && [ -z "$free_cause" ] && got=PASS
+  verdict 54-passes-the-tag-of-a-fixture-without-the-statement PASS "$got"
+  got=PASS
+  store4_cause "$repo" v1.2.4 >/dev/null || got=FAIL
+  verdict 54-that-ends-without-its-line-is-no-verdict-for-check-60 FAIL "$got"
+
+  stop_line_case() {
+    case_name=$1 want=$2 text=$3 stop_cause=$4
+    printf '%s\n' '   Upgrading halvo from 1.2.3 to 1.2.4' "$text" 'next version: 1.2.4' >"$work/dry-run-$case_name.txt"
+    got=FAIL
+    dry_run_stop_defect "$work/dry-run-$case_name.txt" "$stop_cause" >"$work/dry-run-$case_name.out" && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  stop_line_case dry-run-with-the-stop-line-of-54 PASS "release.sh: --execute would stop here: $cause" "$cause"
+  stop_line_case dry-run-without-a-stop-line-while-54-refuses FAIL 'tag: v1.2.4' "$cause"
+  stop_line_case dry-run-with-the-stop-line-of-another-cause FAIL 'release.sh: --execute would stop here: another cause' "$cause"
+  stop_line_case dry-run-with-the-stop-line-indented FAIL "  release.sh: --execute would stop here: $cause" "$cause"
+  stop_line_case dry-run-with-a-stop-line-while-54-passes FAIL "release.sh: --execute would stop here: $cause" ''
+  stop_line_case dry-run-without-a-stop-line-while-54-passes PASS 'tag: v1.2.4' ''
+  got=FAIL
+  dry_run_stop_defect "$work/out-dry-run-on-a-tree-with-the-statement" "$cause" >/dev/null && got=PASS
+  verdict dry-run-of-release-sh-on-a-tree-with-the-statement-holds-the-stop-line PASS "$got"
+
+  repository execute-stopped "$typed"
+  with_statement
+  git -C "$repo" checkout -q -B main
+  got=FAIL
+  (PATH="$work/bin:$PATH" STUB_ACTION=commit-tag STUB_LOG=$work/argv-execute-stopped CARGO_HOME=$work/no-cargo-home execute_stop_defect "$repo" "$cause" "$work/out-execute-stopped") >"$work/execute-stopped.out" 2>&1 && got=PASS
+  verdict execute-of-release-sh-on-main-stopped-by-54 PASS "$got"
+  : >>"$work/argv-execute-stopped"
+  got=FAIL
+  grep -q -x 'release version patch' "$work/argv-execute-stopped" && ! grep -q -E '^release (patch|minor|major) --config .* --execute' "$work/argv-execute-stopped" && got=PASS
+  verdict execute-stopped-by-54-calls-no-cargo-release PASS "$got"
+  stopped_case() {
+    case_name=$1 want=$2
+    repo=$work/stopped-$case_name
+    mkdir -p "$repo/scripts" || exit 2
+    printf '%s\n' '#!/bin/sh' "$3" >"$repo/scripts/release.sh"
+    printf 'a tracked note\n' >"$repo/notes.txt"
+    git init -q "$repo" && git -C "$repo" add -A && git -C "$repo" commit -q -m fixture && git -C "$repo" checkout -q -B main || exit 2
+    got=FAIL
+    execute_stop_defect "$repo" "$cause" "$work/out-stopped-$case_name" >"$work/stopped-$case_name.out" && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  line="release.sh: $cause; nothing was released"
+  stopped_case stand-in-that-stops-with-the-line PASS "echo '$line' >&2; exit 1"
+  stopped_case stand-in-that-releases FAIL "git tag v1.2.4; git commit -q --allow-empty -m 'Release 1.2.4'; echo 'tag: v1.2.4'"
+  stopped_case stand-in-that-stops-with-the-line-and-exit-0 FAIL "echo '$line' >&2; exit 0"
+  stopped_case stand-in-that-stops-with-another-line FAIL "echo 'release.sh: cargo-release failed: error: a stand-in' >&2; exit 1"
+  stopped_case stand-in-that-stops-with-the-line-after-a-tag FAIL "git tag v1.2.4; echo '$line' >&2; exit 1"
+  stopped_case stand-in-that-stops-with-the-line-after-a-commit FAIL "git commit -q --allow-empty -m 'Release 1.2.4'; echo '$line' >&2; exit 1"
+  stopped_case stand-in-that-stops-with-the-line-after-a-change FAIL "printf 'x\\n' >>notes.txt; echo '$line' >&2; exit 1"
+  stopped_case stand-in-that-stops-with-the-line-after-a-new-branch FAIL "git branch release-1.2.4; echo '$line' >&2; exit 1"
+
+  self_dir=$(dirname "$0") || exit 2
+  self_dir=$(cd "$self_dir" && pwd) || exit 2
+  self=$self_dir/${0##*/}
+  measure_case() {
+    case_name=$1 want=$2
+    printf 'cargo_release_version=9.8.7\n' >"$repo/scripts/prerequisites.sh"
+    git -C "$repo" add -A && git -C "$repo" commit -q -m 'Pin the release tool' || exit 2
+    status=0
+    (
+      unset CI_D_ARTIFACTS
+      cd "$repo" && CI_D_REPO=$repo PATH="$work/bin:$PATH" STUB_RELEASE_VERSION=9.8.7 STUB_ACTION=commit-tag STUB_LOG="$work/argv-$case_name" CARGO_HOME="$work/no-cargo-home" sh "$self"
+    ) >"$work/out-$case_name" 2>&1 || status=$?
+    : >>"$work/argv-$case_name"
+    last=$(awk 'NF { last = $0 } END { print last }' "$work/out-$case_name")
+    got=FAIL
+    [ "$status" = 0 ] && [ "$last" = "PASS $name" ] &&
+      grep -q -x 'execute on main: refused by 54-tag-needs-store4 while the index statement stands: true' "$work/out-$case_name" &&
+      ! grep -q -E '^release (patch|minor|major) --config .* --execute' "$work/argv-$case_name" && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  repository measure-while-the-statement-stands "$typed"
+  with_statement
+  measure_case measure-while-the-statement-stands PASS
+  repository measure-with-a-release-sh-that-does-not-stop "$typed"
+  with_statement
+  sed 's/^    fail ".store4_cause; nothing was released"$/    :/' "$repo/scripts/release.sh" >"$work/release-that-does-not-stop.sh" || exit 2
+  cmp -s "$repo/scripts/release.sh" "$work/release-that-does-not-stop.sh" && exit 2
+  cp "$work/release-that-does-not-stop.sh" "$repo/scripts/release.sh" || exit 2
+  measure_case measure-with-a-release-sh-that-does-not-stop FAIL
 
   group_case() {
     case_name=$1 want=$2 dry=$3 version=$4 before=$5 expected=$6
