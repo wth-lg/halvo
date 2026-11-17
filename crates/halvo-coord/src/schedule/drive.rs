@@ -1451,7 +1451,11 @@ where
         let listed = list
             .iter()
             .any(|w| matches!(w, Workflow::Full(f) if f.id == facts.workflow.id));
-        if listed && facts.doing == Doing::Idle(None) && holds(facts).contains(&Hold::Setup) {
+        if listed
+            && !board.aside(&facts.agent)
+            && facts.doing == Doing::Idle(None)
+            && holds(facts).contains(&Hold::Setup)
+        {
             let _ = raise_own_item(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
         }
     }
