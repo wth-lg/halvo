@@ -521,7 +521,7 @@ mod tests {
             }
             if line.starts_with('[') {
                 if !SECTIONS.contains(&line) {
-                    return Err(format!("a table that the lint does not read: {line}"));
+                    return Err(format!("a table that the lint does not read: {line} (add it to SECTIONS of these tests, with a fixture, when it can name no target)"));
                 }
                 section = line;
                 continue;
@@ -530,6 +530,9 @@ mod tests {
                 return Err(format!("a line that the lint does not read: {line}"));
             };
             let (key, value) = (key.trim(), value.trim());
+            if section.is_empty() {
+                return Err(format!("a key before the first table: {key}"));
+            }
             match section {
                 "[package]" if !PACKAGE_KEYS.contains(&key) => {
                     return Err(format!("a package key that the lint does not read: {key}"));
@@ -580,36 +583,9 @@ mod tests {
         let ident = |c: char| c.is_alphanumeric() || c == '_';
         source.match_indices(name).any(|(i, _)| {
             let (before, after) = (&source[..i], &source[i + name.len()..]);
-            if before.chars().next_back().is_some_and(ident)
-                || after.chars().next().is_some_and(ident)
-            {
-                return false;
-            }
-            let word: String = before
-                .trim_end()
-                .chars()
-                .rev()
-                .take_while(|c| ident(*c) || *c == '!')
-                .collect::<Vec<char>>()
-                .into_iter()
-                .rev()
-                .collect();
-            [
-                "mod",
-                "struct",
-                "enum",
-                "fn",
-                "const",
-                "static",
-                "type",
-                "trait",
-                "union",
-                "as",
-                "macro_rules!",
-            ]
-            .contains(&word.as_str())
-                || ((before.trim_end().ends_with("::") || before.trim_end().ends_with(['{', ',']))
-                    && after.trim_start().starts_with([';', ',', '}']))
+            !before.chars().next_back().is_some_and(ident)
+                && !after.chars().next().is_some_and(ident)
+                && !after.trim_start().starts_with("::")
         })
     }
 
@@ -625,6 +601,10 @@ mod tests {
         .any(|word| lower.contains(word))
             || packed.contains(concat!("fence", "::*"))
             || packed.contains(concat!("fence", "::var"))
+            || packed
+                .split(concat!("fence", "::{"))
+                .skip(1)
+                .any(|group| group.split('}').next().is_some_and(|g| g.contains('*')))
     }
 
     fn lint(tree: &Tree) -> Vec<String> {
@@ -893,11 +873,40 @@ mod tests {
                 "a key in the workspace",
                 manifest.replace("[workspace]\n", "[workspace]\nmembers = [\"t\"]\n"),
             ),
+            (
+                "n1 a test array before the first table",
+                format!("test = [{{ name = \"t\", path = \"t/x.rs\" }}]\n{manifest}"),
+            ),
+            (
+                "n2 a bin array before the first table",
+                format!("bin = [{{ name = \"y\", path = \"t/x.rs\" }}]\n{manifest}"),
+            ),
+            (
+                "a dependency whose value goes onto a second line",
+                manifest.replace(
+                    "serde_json = \"=1.0.154\"\n",
+                    "serde_json = { version = \"=1.0.154\", features = [\n    \"std\",\n] }\n",
+                ),
+            ),
         ] {
             assert_ne!(changed, manifest, "{name}");
             assert!(!lint(&fixture(&changed, &files)).is_empty(), "{name}");
         }
         assert_eq!(lint(&fixture(&manifest, &files)), Vec::<String>::new());
+        let multi_line = manifest.replace(
+            "serde_json = \"=1.0.154\"\n",
+            "serde_json = { version = \"=1.0.154\", features = [\n    \"std\",\n] }\n",
+        );
+        assert_eq!(
+            manifest_targets(&multi_line),
+            Err("a line that the lint does not read: \"std\",".to_string())
+        );
+        assert_eq!(
+            manifest_targets(&format!(
+                "test = [{{ name = \"t\", path = \"t/x.rs\" }}]\n{manifest}"
+            )),
+            Err("a key before the first table: test".to_string())
+        );
     }
 
     #[test]
@@ -912,6 +921,10 @@ mod tests {
             format!("fn {name}() {{}}"),
             format!("macro_rules! {name} {{ () => {{}} }}"),
             format!("struct {name};"),
+            format!("mod r#{name} {{ pub mod procs {{ pub mod fence {{ pub fn is_on() -> bool {{ true }} }} }} }}"),
+            format!("macro_rules! shadow {{ ($n:ident) => {{ mod $n {{}} }} }}\nshadow!({name});"),
+            format!("shadow!(other, {name});"),
+            format!("extern crate {name};"),
         ] {
             assert!(declares_r3_web(&item), "{item}");
             let tree = fixture(&the_manifest(), &[("src/main.rs", &format!("{item}\n{FENCED}"))]);
@@ -920,7 +933,7 @@ mod tests {
         for not_an_item in [
             format!("use {name}::procs;"),
             format!("let x = {name}::procs::table();"),
-            format!("extern crate {name};"),
+            format!("let x = r#{name}::procs::table();"),
             format!("let {name}x = 1;"),
             FENCED.to_string(),
         ] {
@@ -953,6 +966,8 @@ mod tests {
                 concat!("V", "AR")
             ),
             format!("use r3_web::procs::fence :: {};", "*"),
+            format!("use r3_web::procs::fence::{{{}}};", "*"),
+            format!("use r3_web::procs::fence::{{is_on, {}}};", "*"),
             format!("r3_web::procs::fence::{}();", concat!("from", "_env")),
             format!(
                 "std::env::set_var(\"{}\", dir);",
