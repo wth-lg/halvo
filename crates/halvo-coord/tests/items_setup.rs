@@ -182,7 +182,7 @@ impl Owner for Lossy<'_> {
         self.inner.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.inner.history(agent, after)
     }
 
@@ -212,10 +212,6 @@ impl Clock for Lossy<'_> {
             return Err(PortError::NoService);
         }
         self.inner.now()
-    }
-
-    fn today(&self) -> Result<u32, PortError> {
-        self.inner.today()
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {

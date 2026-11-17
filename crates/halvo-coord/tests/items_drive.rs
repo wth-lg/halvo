@@ -1,10 +1,13 @@
+#[path = "run_support.rs"]
+mod run_world;
 #[path = "items_support.rs"]
 mod support;
 
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Refusal, Table};
 use halvo_coord::items::drive::{
-    answer, answer_bind, answer_handback, due, flush, issue, lapse, log_bytes, log_text, on_screen,
-    raise_bind, store, tick, BindState, Held, Ledger,
+    answer, answer_bind, answer_handback, body_len, due, flush, issue, lapse, log_bytes, log_text,
+    on_screen, raise_bind, raise_run_item, raise_run_item_reading, store, tick, BindState, Held,
+    Ledger, Read,
 };
 use halvo_coord::items::{ConfirmAnswer, ConfirmMove, ConfirmState};
 use halvo_coord::mem::{Call, Config, Method, Ports};
@@ -14,8 +17,8 @@ use halvo_coord::types::{
     CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Decision, DecisionEntry, DoneAnswer,
     EffectAnswer, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult, HoldSetCause,
     LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin, OtherLapse, Presenter, Raised,
-    ReadyAnswer, Reply, RunEnd, RunId, RunSpec, SetupAnswer, SignInAnswer, Trigger, What, Workflow,
-    WorkflowState, WorkflowTrigger,
+    ReadyAnswer, Reply, RunEnd, RunId, RunItemKind, RunSpec, SetupAnswer, SignInAnswer, Trigger,
+    What, Workflow, WorkflowState, WorkflowTrigger,
 };
 use halvo_schema::coordinator::body::CoordLog;
 use std::cell::{Cell, RefCell};
@@ -199,8 +202,8 @@ fn refusal_no_record() {
         let methods: Vec<&str> = q.calls.borrow().iter().map(|c| c.call.method()).collect();
         assert_eq!(
             methods,
-            ["log", "log", "answer_confirm", "log"],
-            "item_raised, the rows, the decision, then item_released"
+            ["log", "history", "log", "answer_confirm", "log"],
+            "item_raised, the read before the answer, the rows, the decision, then item_released"
         );
         assert!(matches!(
             held.confirmation().state(),
@@ -314,7 +317,7 @@ impl Owner for Faulty<'_> {
             Ok(())
         }
     }
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.inner.history(agent, after)
     }
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
@@ -377,9 +380,6 @@ impl Clock for Faulty<'_> {
             return Err(PortError::NoService);
         }
         self.inner.now()
-    }
-    fn today(&self) -> Result<u32, PortError> {
-        self.inner.today()
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {
@@ -1444,20 +1444,24 @@ fn logged_bodies(p: &Ports<Config>) -> Vec<Vec<Event>> {
 
 #[test]
 fn eight_rows_with_long_origins_are_cut_into_bodies_under_request_bytes() {
+    let limits = Limits {
+        request_bytes: 4096,
+        ..LIMITS
+    };
     let p = ports();
     let mut l = ledger();
     p.refuse(Method::Log, PortError::NoService);
     for n in 1..=8 {
-        assert!(store(&p, &mut l, &LIMITS, vec![long_link(n)]).is_err());
+        assert!(store(&p, &mut l, &limits, vec![long_link(n)]).is_err());
     }
     assert_eq!(l.waiting().len(), 8);
-    let bytes = LIMITS.request_bytes as usize;
+    let bytes = limits.request_bytes as usize;
     assert!(
         log_bytes(l.waiting()) > bytes,
         "eight such rows break the bound"
     );
     p.clear_refusals();
-    flush(&p, &mut l, &LIMITS).unwrap();
+    flush(&p, &mut l, &limits).unwrap();
     assert!(l.waiting().is_empty());
     assert_eq!(l.last(), 8);
     let bodies = logged_bodies(&p);
@@ -1467,7 +1471,7 @@ fn eight_rows_with_long_origins_are_cut_into_bodies_under_request_bytes() {
     let stored: Vec<u32> = p.events.borrow().iter().map(|e| e.seq.get()).collect();
     assert_eq!(stored, seqs);
     for (i, body) in bodies.iter().enumerate() {
-        assert!(body.len() <= LIMITS.request_records as usize);
+        assert!(body.len() <= limits.request_records as usize);
         assert!(
             log_bytes(body) <= bytes,
             "body {i}: {} bytes",
@@ -1520,16 +1524,21 @@ fn a_body_is_cut_at_request_records_and_at_request_bytes_whichever_comes_first()
 
 #[test]
 fn the_memory_owner_refuses_a_body_over_request_bytes_and_stores_none_of_it() {
-    let p = ports();
+    let limits = Limits {
+        request_bytes: 4096,
+        ..LIMITS
+    };
+    let p: Ports<Config> = Ports::with_limits(NOW, TODAY, limits);
+    p.workflows.borrow_mut().extend(ports().workflows.take());
     let rows: Vec<Event> = (1..=8).map(|n| row(n, long_link(n))).collect();
-    assert!(log_bytes(&rows) > LIMITS.request_bytes as usize);
+    assert!(log_bytes(&rows) > limits.request_bytes as usize);
     assert_eq!(
         p.log(&rows),
         Err(PortError::Refused(Name::parse("malformed").unwrap()))
     );
     assert!(p.events.borrow().is_empty());
     let fit = (1..=rows.len())
-        .take_while(|&k| log_bytes(&rows[..k]) <= LIMITS.request_bytes as usize)
+        .take_while(|&k| log_bytes(&rows[..k]) <= limits.request_bytes as usize)
         .last()
         .unwrap();
     assert!(fit < 8);
@@ -1562,6 +1571,43 @@ fn request_records_rows_of_a_confirmation_fit_one_body() {
         .collect();
     let bytes = log_bytes(&rows);
     assert!(bytes <= LIMITS.request_bytes as usize, "{bytes} bytes");
+    assert_eq!(rows.len(), 20);
+    assert_eq!(
+        body_len(&rows, &LIMITS),
+        rows.len(),
+        "the flush takes them in one body"
+    );
+}
+
+#[test]
+fn request_records_released_rows_of_a_confirmation_fit_one_body() {
+    let rows: Vec<Event> = (0..LIMITS.request_records)
+        .map(|n| Event {
+            seq: std::num::NonZeroU32::MAX,
+            day: u32::MAX,
+            at: i64::MAX,
+            ..row(
+                1,
+                What::ItemReleased {
+                    item: support::item_id(1),
+                    entry: DecisionEntry {
+                        approval: support::approval(n),
+                        effect: support::effect_id(n),
+                        digest: support::digest(n),
+                        answer: EffectAnswer::RejectOnce,
+                    },
+                },
+            )
+        })
+        .collect();
+    let bytes = log_bytes(&rows);
+    assert!(bytes <= LIMITS.request_bytes as usize, "{bytes} bytes");
+    assert_eq!(rows.len(), 20);
+    assert_eq!(
+        body_len(&rows, &LIMITS),
+        rows.len(),
+        "the flush takes them in one body"
+    );
 }
 
 fn row(seq: u32, what: What) -> Event {
@@ -1599,6 +1645,15 @@ fn every_form() -> Vec<What> {
         What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Completed,
+            defers: None,
+        },
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Failed,
+            defers: Some(halvo_coord::types::Defers {
+                launch: false,
+                ticks_failed: u32::MAX,
+            }),
         },
         What::ItemRaised {
             item: item(1),
@@ -1943,10 +1998,991 @@ fn log_text_writes_the_slot_of_a_slot_skipped_row() {
             r#"{{"op":"coord_log",{ids},"records":[{{"v":1,{ids},"seq":1,"day":20760,"#,
             r#""at":1793793600000000000,"event":"slot_skipped","run":null,"slot":20760,"#,
             r#""item":null,"kind":null,"effect":null,"approval":null,"digest":null,"#,
-            r#""answer":null,"cause":null,"trigger":null,"origin":null}}]}}"#
+            r#""answer":null,"cause":null,"trigger":null,"origin":null,"#,
+            r#""defer_launch":null,"defer_ticks_failed":null}}]}}"#
         ),
         ids = ids
     );
     assert_eq!(text, written);
     assert_eq!(log_bytes(std::slice::from_ref(&e)), written.len());
+}
+
+fn earlier_raise(seq: u32, item: u32, raised: Raised) -> Event {
+    Event {
+        workflow: workflow_id(1),
+        agent: agent_id(1),
+        seq: std::num::NonZeroU32::new(seq).unwrap(),
+        day: TODAY - 1,
+        at: 0,
+        what: What::ItemRaised {
+            item: support::item_id(item),
+            raised,
+        },
+    }
+}
+
+fn whats_from<C>(p: &Ports<C>, from: usize) -> Vec<What> {
+    p.events.borrow()[from..]
+        .iter()
+        .map(|e| e.what.clone())
+        .collect()
+}
+
+fn ledger_after(p: &Ports<Config>, earlier: &[Event]) -> Ledger {
+    p.events.borrow_mut().extend(earlier.iter().cloned());
+    let mut l = ledger();
+    l.take(earlier);
+    l
+}
+
+fn raised_of(kind: RunItemKind, run: RunId) -> Raised {
+    match kind {
+        RunItemKind::SignIn => Raised::SignIn(run),
+        RunItemKind::LinkAccount => Raised::LinkAccount(run),
+        RunItemKind::Stuck => Raised::Stuck(run),
+        RunItemKind::Check => Raised::Check(Some(run)),
+        RunItemKind::Show => Raised::Show(run),
+        RunItemKind::Confirm => Raised::Confirm(run),
+    }
+}
+
+fn app_ended(kind: RunItemKind) -> Lapsed {
+    match kind {
+        RunItemKind::SignIn => Lapsed::SignIn(OtherLapse::AppEnded),
+        RunItemKind::LinkAccount => Lapsed::LinkAccount(OtherLapse::AppEnded),
+        RunItemKind::Stuck => Lapsed::Stuck(OtherLapse::AppEnded),
+        RunItemKind::Check => Lapsed::Check(OtherLapse::AppEnded),
+        RunItemKind::Show => Lapsed::Show(OtherLapse::AppEnded),
+        RunItemKind::Confirm => Lapsed::Confirm(LapseCause::AppEnded),
+    }
+}
+
+const RUN_KINDS: [RunItemKind; 5] = [
+    RunItemKind::SignIn,
+    RunItemKind::LinkAccount,
+    RunItemKind::Stuck,
+    RunItemKind::Check,
+    RunItemKind::Show,
+];
+
+#[test]
+fn rd96_5b_a_run_items_raise_lapses_the_open_item_of_its_kind_of_an_earlier_run_first() {
+    for kind in RUN_KINDS {
+        let p = ports();
+        let earlier = earlier_raise(1, 9, raised_of(kind, run_id(9)));
+        let mut l = ledger_after(&p, &[earlier]);
+        let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), kind).unwrap();
+        assert_eq!(
+            whats_from(&p, 1),
+            vec![
+                What::ItemLapsed {
+                    item: support::item_id(9),
+                    lapsed: app_ended(kind),
+                },
+                What::ItemRaised {
+                    item: open.item.clone(),
+                    raised: raised_of(kind, run_id(1)),
+                },
+            ],
+            "{kind:?}: one body, the earlier item's lapse first"
+        );
+    }
+}
+
+#[test]
+fn rd96_5b_a_runs_check_raise_lapses_an_open_check_item_of_the_hold() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Check(None));
+    let mut l = ledger_after(&p, &[earlier]);
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Check).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Check(OtherLapse::AppEnded),
+            },
+            What::ItemRaised {
+                item: open.item,
+                raised: Raised::Check(Some(run_id(1))),
+            },
+        ]
+    );
+}
+
+#[test]
+fn rd96_5b_a_run_items_raise_leaves_an_open_item_of_another_kind() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::LinkAccount(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![What::ItemRaised {
+            item: open.item,
+            raised: Raised::Stuck(run_id(1)),
+        }]
+    );
+}
+
+#[test]
+fn rd96_5b_an_issue_lapses_the_open_confirmation_of_an_earlier_run_first() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+            },
+            What::ItemRaised {
+                item: held.item().clone(),
+                raised: Raised::Confirm(run_id(1)),
+            },
+        ]
+    );
+}
+
+#[test]
+fn rd96_5b_an_issue_keeps_an_open_confirmation_of_the_same_run() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(1)));
+    let mut l = ledger_after(&p, &[earlier]);
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![What::ItemRaised {
+            item: held.item().clone(),
+            raised: Raised::Confirm(run_id(1)),
+        }],
+        "an item of the raising run is no earlier item"
+    );
+}
+
+#[test]
+fn rd96_5b_a_second_sign_in_step_lapses_the_open_sign_in_of_an_earlier_run_first() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::SignIn(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    let bind = BindAsk {
+        run: run_id(1),
+        agent: agent_id(1),
+        origin: Origin::parse("https://pay.site1.example:8443").unwrap(),
+    };
+    let held = raise_bind(&p, &mut l, &Table::new(), &LIMITS, &bind).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::SignIn(OtherLapse::AppEnded),
+            },
+            What::ItemRaised {
+                item: held.item().clone(),
+                raised: Raised::SignIn(run_id(1)),
+            },
+        ]
+    );
+}
+
+#[test]
+fn rd96_5b_a_raise_writes_no_second_close_of_an_item_whose_lapse_waits_in_the_ledger() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Stuck(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    p.refuse(Method::Log, PortError::NoService);
+    let lapse = What::ItemLapsed {
+        item: support::item_id(9),
+        lapsed: Lapsed::Stuck(OtherLapse::RunEnded),
+    };
+    let _ = store(&p, &mut l, &LIMITS, vec![lapse.clone()]);
+    p.clear_refusals();
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            lapse,
+            What::ItemRaised {
+                item: open.item,
+                raised: Raised::Stuck(run_id(1)),
+            },
+        ],
+        "the waiting lapse goes first and no second lapse follows"
+    );
+}
+
+#[test]
+fn rd96_5b_a_raise_that_a_read_shows_switched_off_leaves_no_lapse_waiting() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Stuck(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    p.events.borrow_mut().push(Event {
+        workflow: workflow_id(1),
+        agent: agent_id(1),
+        seq: std::num::NonZeroU32::new(2).unwrap(),
+        day: TODAY,
+        at: 0,
+        what: What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    });
+    let raised = raise_run_item_reading(
+        &p,
+        &mut l,
+        &LIMITS,
+        &run_id(1),
+        RunItemKind::Stuck,
+        &mut |l| {
+            l.take(&p.events.borrow());
+            Read::Off
+        },
+    );
+    assert_eq!(raised.unwrap_err(), Cause::State);
+    assert!(
+        l.waiting().is_empty(),
+        "neither the raise nor the lapse waits"
+    );
+    assert_eq!(whats_from(&p, 2), vec![]);
+}
+
+#[test]
+fn rd96_5b_a_raise_writes_no_second_close_of_an_item_that_the_ledger_stored_closed() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Stuck(run_id(9)));
+    let mut l = ledger_after(&p, &[earlier]);
+    let lapse = What::ItemLapsed {
+        item: support::item_id(9),
+        lapsed: Lapsed::Stuck(OtherLapse::RunEnded),
+    };
+    store(&p, &mut l, &LIMITS, vec![lapse.clone()]).unwrap();
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            lapse,
+            What::ItemRaised {
+                item: open.item,
+                raised: Raised::Stuck(run_id(1)),
+            },
+        ],
+        "the acknowledged lapse closes the item: no second lapse"
+    );
+}
+
+#[test]
+fn rd96_5b_a_raise_leaves_an_earlier_item_that_the_events_close() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Stuck(run_id(9)));
+    let mut closed = earlier_raise(2, 9, Raised::Stuck(run_id(9)));
+    closed.what = What::ItemLapsed {
+        item: support::item_id(9),
+        lapsed: Lapsed::Stuck(OtherLapse::AppEnded),
+    };
+    let events = vec![earlier, closed];
+    p.events.borrow_mut().extend(events.iter().cloned());
+    let mut l = Ledger::new(workflow_id(1), agent_id(1), 2);
+    l.take(&events);
+    let open = raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        whats_from(&p, 2),
+        vec![What::ItemRaised {
+            item: open.item,
+            raised: Raised::Stuck(run_id(1)),
+        }],
+        "a ledger made at the agent's last event: the events' own close counts"
+    );
+}
+
+fn open_stuck(p: &Ports<Config>) -> Vec<Raised> {
+    let events = p.events.borrow();
+    events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: raised @ Raised::Stuck(_),
+            } if !events.iter().any(
+                |c| matches!(&c.what, What::ItemLapsed { item: i, .. } | What::ItemAnswered { item: i, .. } if i == item),
+            ) =>
+            {
+                Some(raised.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn rd96_5b_a_raise_whose_handed_read_brings_an_open_item_of_its_kind_closes_it() {
+    let p = ports();
+    let mut l = ledger_after(&p, &[]);
+    p.events
+        .borrow_mut()
+        .push(earlier_raise(1, 9, Raised::Stuck(run_id(9))));
+    let mut read = |l: &mut Ledger| {
+        let events: Vec<Event> = p.events.borrow().clone();
+        l.take(&events);
+        Read::Taken
+    };
+    let open = raise_run_item_reading(
+        &p,
+        &mut l,
+        &LIMITS,
+        &run_id(1),
+        RunItemKind::Stuck,
+        &mut read,
+    )
+    .unwrap();
+    assert_eq!(
+        open_stuck(&p),
+        vec![Raised::Stuck(run_id(1))],
+        "the review's case: the read after seq brings the earlier item: {:?}",
+        whats_from(&p, 0)
+    );
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Stuck(OtherLapse::AppEnded),
+            },
+            What::ItemRaised {
+                item: open.item,
+                raised: Raised::Stuck(run_id(1)),
+            },
+        ],
+        "the lapse goes before the raise"
+    );
+}
+
+#[test]
+fn rd96_5b_a_raise_whose_own_read_brings_an_open_item_of_its_kind_closes_it() {
+    let p = ports();
+    p.events
+        .borrow_mut()
+        .push(earlier_raise(1, 9, Raised::Stuck(run_id(9))));
+    let mut l = ledger();
+    raise_run_item(&p, &mut l, &LIMITS, &run_id(1), RunItemKind::Stuck).unwrap();
+    assert_eq!(
+        open_stuck(&p),
+        vec![Raised::Stuck(run_id(1))],
+        "the review's case: the ledger's own read after seq brings the earlier item: {:?}",
+        whats_from(&p, 0)
+    );
+}
+
+#[test]
+fn rd96_5b_a_ledger_made_as_the_coordinator_makes_it_lapses_the_earlier_runs_confirmation() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(9)));
+    p.events.borrow_mut().push(earlier.clone());
+    let mut l = Ledger::new(workflow_id(1), agent_id(1), 1);
+    l.take(&[earlier]);
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+            },
+            What::ItemRaised {
+                item: held.item().clone(),
+                raised: Raised::Confirm(run_id(1)),
+            },
+        ],
+        "the review's B1: a ledger that starts at the board's last seq finds the earlier item by take alone"
+    );
+}
+
+#[test]
+fn rd96_5b_a_ledger_that_takes_the_events_at_two_moves_lapses_the_earlier_item_once() {
+    let p = ports();
+    let earlier = earlier_raise(1, 9, Raised::Confirm(run_id(9)));
+    p.events.borrow_mut().push(earlier.clone());
+    let mut l = Ledger::new(workflow_id(1), agent_id(1), 1);
+    l.take(std::slice::from_ref(&earlier));
+    l.take(&[earlier]);
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
+    assert_eq!(
+        whats_from(&p, 1),
+        vec![
+            What::ItemLapsed {
+                item: support::item_id(9),
+                lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+            },
+            What::ItemRaised {
+                item: held.item().clone(),
+                raised: Raised::Confirm(run_id(1)),
+            },
+        ],
+        "the review's B2: take replaces the found items, so one lapse"
+    );
+}
+
+mod schedule_raises {
+    use super::run_world::{self, agent, flow, World, A, DAY, MANUAL};
+    use halvo_coord::mem::{Call, Method};
+    use halvo_coord::ports::PortError;
+    use halvo_coord::run::{recover, Act};
+    use halvo_coord::schedule::{drive as schedule_drive, Answer, Move, Owed, Owing};
+    use halvo_coord::types::{
+        Category, CheckAnswer, Cleared, Doing, Event, ItemId, Lapsed, OtherLapse, Outcome, OwnItem,
+        OwnItemKind, Raised, What,
+    };
+    use std::num::NonZeroU32;
+
+    const PERSON: A = A {
+        person: true,
+        slotted: true,
+    };
+
+    fn item(n: u32) -> ItemId {
+        ItemId::parse(&format!("{n:032x}")).unwrap()
+    }
+
+    fn event(n: usize, seq: u32, what: What) -> Event {
+        Event {
+            workflow: flow(n),
+            agent: agent(n),
+            seq: NonZeroU32::new(seq).unwrap(),
+            day: DAY - 1,
+            at: 0,
+            what,
+        }
+    }
+
+    fn last_seq(w: &World, n: usize) -> u32 {
+        w.ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(n))
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn earlier_item_owed(w: &mut World, n: usize, id: u32, raised: Raised, lapsed: Lapsed) {
+        let e = event(
+            n,
+            last_seq(w, n) + 1,
+            What::ItemRaised {
+                item: item(id),
+                raised,
+            },
+        );
+        w.ports.events.borrow_mut().push(e.clone());
+        w.board.members[n].facts.events.push(e);
+        w.board.owed.push(Owed {
+            agent: agent(n),
+            workflow: flow(n),
+            what: Owing::ItemLapsed {
+                item: item(id),
+                lapsed,
+                day: DAY - 1,
+                at: 0,
+            },
+        });
+    }
+
+    fn another_writers_event(w: &World, n: usize) {
+        let e = event(
+            n,
+            last_seq(w, n) + 1,
+            What::HoldCleared {
+                cause: Cleared::Person,
+            },
+        );
+        w.ports.events.borrow_mut().push(e);
+    }
+
+    fn open_of(w: &World, n: usize, kind: fn(&Raised) -> bool) -> Vec<ItemId> {
+        let events = w.ports.events.borrow();
+        let mine: Vec<&Event> = events.iter().filter(|e| e.agent == agent(n)).collect();
+        mine.iter()
+            .filter_map(|e| match &e.what {
+                What::ItemRaised { item, raised } if kind(raised) => Some(item.clone()),
+                _ => None,
+            })
+            .filter(|i| {
+                !mine.iter().any(|e| {
+                    matches!(&e.what,
+                        What::ItemLapsed { item, .. } | What::ItemAnswered { item, .. } if item == i)
+                })
+            })
+            .collect()
+    }
+
+    fn closing_rows(w: &World, n: usize, id: &ItemId) -> Vec<What> {
+        w.ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(n))
+            .filter(|e| {
+                matches!(&e.what,
+                    What::ItemLapsed { item, .. } | What::ItemAnswered { item, .. } if item == id)
+            })
+            .map(|e| e.what.clone())
+            .collect()
+    }
+
+    fn whats_after(w: &World, n: usize, seq: u32) -> Vec<What> {
+        w.ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(n) && e.seq.get() > seq)
+            .map(|e| e.what.clone())
+            .collect()
+    }
+
+    fn is_ready(r: &Raised) -> bool {
+        matches!(r, Raised::Ready)
+    }
+
+    fn is_setup(r: &Raised) -> bool {
+        matches!(r, Raised::Setup)
+    }
+
+    fn is_check(r: &Raised) -> bool {
+        matches!(r, Raised::Check(_))
+    }
+
+    #[test]
+    fn rd96_5b_a_ticks_ready_raise_lapses_the_earlier_ready_item_whose_payment_stayed_owed() {
+        let mut w = run_world::world(&[PERSON]);
+        let lapsed = Lapsed::Ready(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7301, Raised::Ready, lapsed);
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        assert_eq!(tick.report.raised, vec![agent(0)], "the tick raises ready");
+        assert_eq!(w.board.owed.len(), 1, "the payment met seq and stays owed");
+        let raised = open_of(&w, 0, is_ready);
+        assert_eq!(raised.len(), 1, "one open ready item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: item(0x7301),
+                    lapsed,
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Ready,
+                },
+            ],
+            "the raise's one body lapses the earlier item first"
+        );
+        let paid = last_seq(&w, 0);
+        w.act(Act::Tick);
+        assert!(
+            w.board.owed.is_empty(),
+            "the next tick finds the item closed"
+        );
+        assert_eq!(last_seq(&w, 0), paid, "and sends nothing for the debt");
+        assert_eq!(closing_rows(&w, 0, &item(0x7301)).len(), 1);
+    }
+
+    #[test]
+    fn rd96_5b_the_new_lifes_setup_raise_lapses_the_earlier_setup_item_whose_lapse_is_owed() {
+        let mut w = run_world::world(&[MANUAL]);
+        w.board.members[0].facts.workflow.category = Category::UtilityBillPayment;
+        let lapsed = Lapsed::Setup(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7302, Raised::Setup, lapsed);
+        let before = last_seq(&w, 0);
+        let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+        let raised = open_of(&w, 0, is_setup);
+        assert_eq!(raised.len(), 1, "one open setup item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: item(0x7302),
+                    lapsed,
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Setup,
+                },
+            ]
+        );
+        assert_eq!(
+            w.facts(0).doing,
+            Doing::Idle(Some(OwnItem {
+                item: raised[0].clone(),
+                kind: OwnItemKind::Setup,
+            }))
+        );
+    }
+
+    #[test]
+    fn rd96_5b_a_check_raise_lapses_the_earlier_check_item_whose_lapse_is_owed() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7303, Raised::Check(None), lapsed);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        assert_eq!(tick.checked, vec![agent(0)]);
+        assert_eq!(w.board.owed.len(), 1, "the payment met seq and stays owed");
+        let raised = open_of(&w, 0, is_check);
+        assert_eq!(raised.len(), 1, "one open check item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: item(0x7303),
+                    lapsed,
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Check(None),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn rd96_5b_a_raise_writes_no_second_close_of_an_owed_item_that_the_events_close() {
+        let mut w = run_world::world(&[MANUAL]);
+        w.board.members[0].facts.workflow.category = Category::UtilityBillPayment;
+        let lapsed = Lapsed::Setup(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7304, Raised::Setup, lapsed);
+        let close = event(
+            0,
+            last_seq(&w, 0) + 1,
+            What::ItemLapsed {
+                item: item(0x7304),
+                lapsed,
+            },
+        );
+        w.ports.events.borrow_mut().push(close.clone());
+        w.board.members[0].facts.events.push(close);
+        let before = last_seq(&w, 0);
+        let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+        let raised = open_of(&w, 0, is_setup);
+        assert_eq!(raised.len(), 1);
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![What::ItemRaised {
+                item: raised[0].clone(),
+                raised: Raised::Setup,
+            }],
+            "the debt's item is closed already: the raise goes alone"
+        );
+        assert_eq!(closing_rows(&w, 0, &item(0x7304)).len(), 1);
+    }
+
+    #[test]
+    fn rd96_5b_a_raise_leaves_the_owed_item_of_another_agent() {
+        let mut w = run_world::world(&[PERSON, MANUAL]);
+        let lapsed = Lapsed::Ready(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 1, 0x7305, Raised::Ready, lapsed);
+        another_writers_event(&w, 1);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        assert_eq!(tick.report.raised, vec![agent(0)]);
+        let raised = open_of(&w, 0, is_ready);
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![What::ItemRaised {
+                item: raised[0].clone(),
+                raised: Raised::Ready,
+            }],
+            "agent 0's raise writes nothing of agent 1's debt"
+        );
+        assert_eq!(w.board.owed.len(), 1, "agent 1's debt stays owed");
+    }
+
+    #[test]
+    fn rd96_5b_a_check_raise_that_meets_seq_lapses_the_owed_check_item_in_its_second_body() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7306, Raised::Check(None), lapsed);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+        w.ports.refuse(Method::Log, PortError::NoService);
+        let first = w.act(Act::Tick);
+        w.ports.clear_refusals();
+        assert!(first.checked.is_empty(), "no log is acknowledged");
+        assert_eq!(w.board.owed.len(), 1);
+        w.ports.refuse(Method::Workflows, PortError::NoService);
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        w.ports.clear_refusals();
+        assert_eq!(tick.checked, vec![agent(0)], "the second body is logged");
+        let raised = open_of(&w, 0, is_check);
+        assert_eq!(raised.len(), 1, "one open check item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: item(0x7306),
+                    lapsed,
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Check(None),
+                },
+            ],
+            "the body made again after the read lapses the earlier check item first"
+        );
+    }
+
+    #[test]
+    fn rd96_5b_a_check_that_an_answer_raises_lapses_the_earlier_check_item_whose_lapse_is_owed() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7307, Raised::Check(None), lapsed);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+        let ready = event(
+            0,
+            last_seq(&w, 0) + 1,
+            What::ItemRaised {
+                item: item(0x7308),
+                raised: Raised::Ready,
+            },
+        );
+        w.ports.events.borrow_mut().push(ready.clone());
+        w.board.members[0].facts.events.push(ready);
+        w.board.members[0].facts.doing = Doing::Idle(Some(OwnItem {
+            item: item(0x7308),
+            kind: OwnItemKind::Ready,
+        }));
+        let before = last_seq(&w, 0);
+        let answered = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            },
+        );
+        assert_eq!(answered.answer, Ok(Answer::Ok));
+        let body = whats_after(&w, 0, before);
+        assert!(
+            matches!(
+                &body[..],
+                [
+                    What::ItemLapsed { item: r, lapsed: Lapsed::Ready(OtherLapse::Check) },
+                    What::ItemLapsed { item: c, lapsed: Lapsed::Check(OtherLapse::AppEnded) },
+                    What::ItemRaised { raised: Raised::Check(None), .. },
+                    What::ItemAnswered { .. },
+                    What::HoldCleared { .. },
+                ] if *r == item(0x7308) && *c == item(0x7307)
+            ),
+            "the answer's raise lapses the earlier check item before it raises: {body:?}"
+        );
+        assert!(open_of(&w, 0, is_check).is_empty());
+    }
+
+    fn ended_with_unknown(w: &mut World) {
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.act(Act::End {
+            run: run.clone(),
+            outcome: None,
+        });
+        w.store_end(0, &run, Outcome::Failed, 1);
+    }
+
+    #[test]
+    fn rd96_5b_a_check_that_an_answer_raises_after_seq_lapses_the_owed_check_item() {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7407, Raised::Check(None), lapsed);
+        ended_with_unknown(&mut w);
+        let ready = event(
+            0,
+            last_seq(&w, 0) + 1,
+            What::ItemRaised {
+                item: item(0x7408),
+                raised: Raised::Ready,
+            },
+        );
+        w.ports.events.borrow_mut().push(ready.clone());
+        w.board.members[0].facts.events.push(ready);
+        w.board.members[0].facts.doing = Doing::Idle(Some(OwnItem {
+            item: item(0x7408),
+            kind: OwnItemKind::Ready,
+        }));
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let answered = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            },
+        );
+        assert_eq!(answered.answer, Ok(Answer::Ok));
+        let body = whats_after(&w, 0, before);
+        assert!(
+            matches!(
+                &body[..],
+                [
+                    What::ItemLapsed { item: r, lapsed: Lapsed::Ready(OtherLapse::Check) },
+                    What::ItemLapsed { item: c, lapsed: Lapsed::Check(OtherLapse::AppEnded) },
+                    What::ItemRaised { raised: Raised::Check(None), .. },
+                    What::ItemAnswered { .. },
+                    What::HoldCleared { .. },
+                ] if *r == item(0x7408) && *c == item(0x7407)
+            ),
+            "the review's B3: the answer's second body after seq lapses the earlier check item first: {body:?}"
+        );
+        assert_eq!(closing_rows(&w, 0, &item(0x7407)).len(), 1);
+        assert!(
+            open_of(&w, 0, is_check).is_empty(),
+            "no check item is left open"
+        );
+    }
+
+    #[test]
+    fn rd102_6_an_answer_for_an_agent_with_no_item_that_owes_only_a_check_lapse_stores_hold_cleared_alone(
+    ) {
+        let mut w = run_world::world(&[MANUAL]);
+        let lapsed = Lapsed::Check(OtherLapse::AppEnded);
+        earlier_item_owed(&mut w, 0, 0x7507, Raised::Check(None), lapsed);
+        ended_with_unknown(&mut w);
+        assert_eq!(w.board.members[0].facts.doing, Doing::Idle(None));
+        let before = last_seq(&w, 0);
+        let answered = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            },
+        );
+        assert_eq!(answered.answer, Ok(Answer::Ok));
+        let body = whats_after(&w, 0, before);
+        assert!(
+            matches!(&body[..], [What::HoldCleared { .. }]),
+            "the review's B4, RD-102 item 6: hold_cleared alone for an agent that holds no item and owes no ready lapse: {body:?}"
+        );
+        assert_eq!(w.board.owed.len(), 1, "the check lapse stays owed");
+    }
+
+    #[test]
+    fn rd102_a_skip_of_an_agent_that_is_not_queued_names_no_dropped_agent() {
+        let mut w = run_world::world(&[PERSON]);
+        w.act(Act::Tick);
+        assert!(
+            matches!(&w.board.members[0].facts.doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready),
+            "the tick raised the ready item: {:?}",
+            w.board.members[0].facts.doing
+        );
+        let skipped = schedule_drive(
+            &w.ports,
+            &mut w.board,
+            &w.limits,
+            Move::Skip { agent: agent(0) },
+        );
+        assert_eq!(skipped.answer, Ok(Answer::Ok));
+        assert_eq!(
+            skipped.dropped,
+            Vec::<halvo_coord::types::AgentId>::new(),
+            "the review's B5: no start was dropped"
+        );
+    }
+
+    #[test]
+    fn rd34e_a_switch_off_sends_no_second_cancel_to_a_run_whose_lapse_sent_it() {
+        let mut w = run_world::world(&[MANUAL]);
+        let done = w.act(Act::Start { agent: agent(0) });
+        let run = done.report.run.unwrap();
+        w.table = w.table.stop(&run);
+        let cancels = |w: &World| {
+            w.ports
+                .tried
+                .borrow()
+                .iter()
+                .filter(|t| matches!(&t.call, Call::Cancel(r) if *r == run))
+                .count()
+        };
+        let before = cancels(&w);
+        let off = w.act(Act::SwitchOff { agent: agent(0) });
+        assert_eq!(off.report.answer, Ok(Answer::Ok));
+        assert_eq!(
+            off.report.stopped,
+            vec![run.clone()],
+            "the switch-off stops the run"
+        );
+        assert_eq!(
+            cancels(&w),
+            before,
+            "the guard's table holds the run stopped, whose lapse sent the cancel: no second cancel"
+        );
+    }
+
+    #[test]
+    fn rd96_5b_after_a_real_recovery_the_ticks_ready_raise_lapses_the_owed_ready_item() {
+        let mut w = run_world::world(&[PERSON]);
+        w.act(Act::Tick);
+        let earlier = open_of(&w, 0, is_ready);
+        assert_eq!(earlier.len(), 1, "the first life raises ready");
+        w.ports.new_life();
+        w.forget();
+        w.ports.refuse(Method::Log, PortError::NoService);
+        let life = recover(&w.ports, &w.limits).expect("recovery");
+        w.ports.clear_refusals();
+        w.board = life.board;
+        w.table = halvo_coord::guard::Table::new();
+        assert!(
+            w.board.owed.iter().any(|o| matches!(
+                &o.what,
+                Owing::ItemLapsed { item: i, lapsed: Lapsed::Ready(OtherLapse::AppEnded), .. } if *i == earlier[0]
+            )),
+            "recovery's refused body leaves the lapse owed"
+        );
+        another_writers_event(&w, 0);
+        let before = last_seq(&w, 0);
+        let tick = w.act(Act::Tick);
+        assert_eq!(tick.report.raised, vec![agent(0)]);
+        let raised = open_of(&w, 0, is_ready);
+        assert_eq!(raised.len(), 1, "one open ready item in the owner's ledger");
+        assert_eq!(
+            whats_after(&w, 0, before),
+            vec![
+                What::ItemLapsed {
+                    item: earlier[0].clone(),
+                    lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+                },
+                What::ItemRaised {
+                    item: raised[0].clone(),
+                    raised: Raised::Ready,
+                },
+            ],
+            "the review's N5: the same rule from a debt that real recovery left"
+        );
+    }
 }

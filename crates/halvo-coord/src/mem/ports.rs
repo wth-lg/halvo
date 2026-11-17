@@ -25,6 +25,9 @@ struct Bound {
     rev: u32,
 }
 
+/// Whether a record is one that a test names for a refusal of `Owner::log`.
+pub type Names = fn(&Event) -> bool;
+
 /// A port method, by which a test makes it refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Method {
@@ -217,6 +220,9 @@ pub struct Ports<C> {
     approvals: Cell<u128>,
     bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
+    agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
+    record_refusals: RefCell<Vec<(Names, PortError)>>,
+    tie_days: Cell<bool>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
     marks: RefCell<Vec<(RunId, Reaped)>>,
@@ -247,6 +253,9 @@ impl<C> Ports<C> {
             approvals: Cell::new(0),
             bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
+            agent_refusals: RefCell::new(Vec::new()),
+            record_refusals: RefCell::new(Vec::new()),
+            tie_days: Cell::new(false),
             limits,
             created: RefCell::new(Vec::new()),
             marks: RefCell::new(Vec::new()),
@@ -423,9 +432,45 @@ impl<C> Ports<C> {
         r.push((method, error));
     }
 
+    /// Makes `method` answer `error` for the agent `agent` alone until `clear_refusals`:
+    /// `Owner::history` of that agent, and `Owner::log` of a body that holds a record of it.
+    pub fn refuse_agent(&self, method: Method, agent: &AgentId, error: PortError) {
+        let mut r = self.agent_refusals.borrow_mut();
+        r.retain(|(m, a, _)| *m != method || a != agent);
+        r.push((method, agent.clone(), error));
+    }
+
+    /// Makes `Owner::log` answer `error` for a body that holds a record that `names` names, until
+    /// `clear_refusals`.
+    pub fn refuse_record(&self, names: Names, error: PortError) {
+        self.record_refusals.borrow_mut().push((names, error));
+    }
+
+    /// Makes `Owner::log` refuse with `malformed` a body that holds a record whose `day` is not
+    /// the clock's day of its `at`, as the owner's handler ties them (the agent-setup run's
+    /// CP-122 (b)); a test sets it after its seed rows.
+    pub fn tie_days(&self, on: bool) {
+        self.tie_days.set(on);
+    }
+
     /// Makes every method do its work again.
     pub fn clear_refusals(&self) {
         self.refusals.borrow_mut().clear();
+        self.agent_refusals.borrow_mut().clear();
+        self.record_refusals.borrow_mut().clear();
+    }
+
+    fn checked_agent(&self, method: Method, agent: &AgentId, call: &Call) -> Result<(), PortError> {
+        let found = self
+            .agent_refusals
+            .borrow()
+            .iter()
+            .find(|(m, a, _)| *m == method && a == agent)
+            .map(|(_, _, e)| e.clone());
+        match found {
+            Some(e) => Err(self.note(call.clone(), e)),
+            None => Ok(()),
+        }
     }
 
     /// The decisions that `Runs::answer_confirm` sent, in order.
@@ -496,6 +541,13 @@ impl<C> Ports<C> {
                 .borrow()
                 .iter()
                 .any(|(w, a)| w == workflow && a == agent)
+    }
+
+    fn ties(&self, e: &Event) -> bool {
+        u64::try_from(e.at.div_euclid(1_000_000))
+            .ok()
+            .and_then(|ms| Clock::day(self, ms).ok())
+            == Some(e.day)
     }
 
     fn log_refusal(&self, events: &[Event]) -> Option<&'static str> {
@@ -677,6 +729,21 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         {
             self.checked(Method::LogRunStarted, &call)?;
         }
+        for agent in events.iter().map(|e| &e.agent) {
+            self.checked_agent(Method::Log, agent, &call)?;
+        }
+        let named = self
+            .record_refusals
+            .borrow()
+            .iter()
+            .find(|(names, _)| events.iter().any(names))
+            .map(|(_, e)| e.clone());
+        if let Some(e) = named {
+            return Err(self.note(call, e));
+        }
+        if self.tie_days.get() && events.iter().any(|e| !self.ties(e)) {
+            return Err(self.note(call, refusal("malformed")));
+        }
         if let Some(name) = self.log_refusal(events) {
             return Err(self.note(call, refusal(name)));
         }
@@ -685,19 +752,25 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         Ok(())
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.checked(Method::History, &Call::History(agent.clone(), after))?;
+        self.checked_agent(Method::History, agent, &Call::History(agent.clone(), after))?;
         self.record(Call::History(agent.clone(), after));
-        let mut found: Vec<Event> = self
-            .events
-            .borrow()
+        let events = self.events.borrow();
+        let last = events
+            .iter()
+            .filter(|e| &e.agent == agent)
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0);
+        let mut found: Vec<Event> = events
             .iter()
             .filter(|e| &e.agent == agent && e.seq.get() > after)
             .cloned()
             .collect();
         found.sort_by_key(|e| e.seq);
         found.truncate(HISTORY_MAX);
-        Ok(found)
+        Ok((found, last))
     }
 
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {

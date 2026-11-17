@@ -133,7 +133,7 @@ impl Owner for Both {
         }
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         if self.next_history_fails.take() {
             return Err(PortError::NoService);
         }
@@ -251,10 +251,6 @@ impl Clock for Both {
             None => {}
         }
         self.ports.now()
-    }
-
-    fn today(&self) -> Result<u32, PortError> {
-        self.ports.today()
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {

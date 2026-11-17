@@ -188,7 +188,7 @@ fn a_lost_acknowledgement_of_a_run_started_holds_the_next_start_until_its_run_is
     assert_eq!(
         count(&w, 0, |what| matches!(
             what,
-            What::RunEnded { run, cause: halvo_coord::types::RunEnd::Interrupted } if *run == lost
+            What::RunEnded { run, cause: halvo_coord::types::RunEnd::Interrupted, defers: _ } if *run == lost
         )),
         1
     );
@@ -473,6 +473,7 @@ fn an_owed_run_ended_whose_run_the_read_shows_ended_with_another_cause_is_not_lo
         What::RunEnded {
             run: run.clone(),
             cause: halvo_coord::types::RunEnd::Interrupted,
+            defers: None,
         },
     );
     w.set_clock(T0 + 10_000, DAY);
@@ -494,6 +495,7 @@ fn the_end_of_a_run_whose_log_meets_seq_logs_nothing_when_the_read_shows_the_run
         What::RunEnded {
             run: run.clone(),
             cause: halvo_coord::types::RunEnd::Interrupted,
+            defers: None,
         },
     );
     w.act(Act::End {
