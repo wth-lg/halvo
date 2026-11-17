@@ -6,14 +6,15 @@ measured earlier run=43655810029 note=the_long_form_of_scratch_push_14_before_th
 measured earlier run=43741572763 note=the_long_form_of_the_join_after_land-45_before_macos-2d
 measured earlier run=43870616726 note=the_long_form_of_macos-2d_before_ruling_MA-27
 measured earlier run=43939580104 note=the_long_form_of_macos-2d_after_ruling_MA-27_before_macos-2c
-measured run=44109444825 form=long result=pass gap_ms=200 mended_rounds_held=122 phases_not_driven=0 commit=b853a94661fa0d7a753b1ebd3131b1ebef25f9ba scratch=c901acf51c67a0b090f05218d6b478cec6b1570e figures=ms_total=18,pass=16,known_fault=2,fail=0,notdriven=1,notkept=2,rounds_counted=335,rounds_not_driven=0,phases_not_driven=0;seconds_51=1882;form_a_2000ms:rounds=124,counted=124,recorded_rounds=4,cases=A:4;form_a_150ms:rounds=40,counted=40,recorded_rounds=0;whole_burst_2ms:rounds=5,counted=5,recorded_rounds=0;whole_pace_26ms:rounds=5,counted=5,recorded_rounds=0;mended_click_loop:62_counted,passed;every_wait_of_each_mended_phase_held:3_of_3;short_on_time_at_200ms:20_of_20_held,notice_drops=20;products_constants:notkept;lag_phase:10_of_10_held;on_outside=0_in_330_round_lines;notices=0;unclocked=0;rows_by_name:35_of_35_caught;attempt=3;measure:spacing_max_us=95428,load1=12.46
-measured blob path=crates/halvo-capture/src/macos/input.rs id=e30d168fe5972bf405f3bef158fcdec8e24fa950
-measured blob path=crates/halvo-capture/src/secure_input_macos.rs id=85723f635d69eb92745520394c1f443fad0fa86b
-measured blob path=crates/halvo-capture/src/secure_input_macos_hold.rs id=81e46096d0eb87af2903dcd7432b69f6af5952a8
-measured blob path=crates/halvo-capture/tests/macos_stall_fixture.rs id=ce75f8980f9382d82ab39b3fd8db4676d2970e31
-measured blob path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m id=2b4653b3ba4047b9003ddfef76441f7cdd303aa1
+measured earlier run=44109444825 note=the_long_form_of_macos-2c_before_ruling_MA-30
+measured run=44183190050 form=long result=pass gap_ms=170 mended_rounds_held=122 phases_not_driven=0 commit=d2434faed1076f46357003ce8270c0ca7c304a23 scratch=7efcd17b0c11b6e467c987b7b576d8074b67a7c9 figures=ms_total=20,pass=18,known_fault=2,fail=0,notdriven=1,notkept=2,rounds_counted=340,rounds_not_driven=0,phases_not_driven=0;seconds_51=1864;form_a_2000ms:rounds=124,counted=124,recorded_rounds=0,cases=S:124;form_a_150ms:rounds=40,counted=40,recorded_rounds=0;whole_burst_machine:rounds=5,counted=4,recorded_rounds=0;whole_pace:rounds=5,counted=5,recorded_rounds=0;mended_click_loop:62_counted,passed;every_wait_of_each_mended_phase_held:3_of_3;short_on_time_at_200ms:20_of_20_held,notice_drops=20;products_constants:notkept;lag_phase:10_of_10_held;plain_field_notice:3_of_3,withheld_by_notice=0;come_to_front:3_of_3,recorded=0,withheld_by_start=3_each;ma30_proofs:0,0,101,101;on_outside=0_in_330_round_lines;notices=0;unclocked=0;measure:spacing_max_us=80091,load1=4.09
+measured blob path=crates/halvo-capture/src/macos/input.rs id=12d3a3706650aa5ca92dca4dc53aeb6c7afd161a
+measured blob path=crates/halvo-capture/src/secure_input_macos.rs id=2675b41d38b493aab6b679c65750904d8a16a6ac
+measured blob path=crates/halvo-capture/src/secure_input_macos_hold.rs id=9677ccafa0b2ace0911578ba94176907bc3ee528
+measured blob path=crates/halvo-capture/tests/macos_stall_fixture.rs id=6ab4b343fdd058417c4b1bec2ba210dbd78d24f2
+measured blob path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m id=d6e1b31e2eafd523ca970b2b90c4a8b6144ffd19
 measured blob path=crates/halvo-capture/src/macos/secure_input_byte.rs id=50764beea87ebdca5d7440076a6658425cff3a31
 measured blob path=crates/halvo-capture/src/macos/run_loop.rs id=4d7121e40423a676e4f783cbcd93d12474c629b4
-measured blob path=scripts/r1/ci.d/51-macos-stall.sh id=c68225fcba748cfcab9f3d81736547accc470dfc
+measured blob path=scripts/r1/ci.d/51-macos-stall.sh id=280427c2248de976069cd6ff6f50a8c5650ea8ae
 measured seam path=crates/halvo-capture/Cargo.toml table=[features] text=stall-seam = []
 measured seam path=crates/halvo-capture/Cargo.toml table=[dev-dependencies] text=halvo-capture = { path = ".", features = ["stall-seam"] }
