@@ -22,9 +22,27 @@ const ORIGIN: &str = "https://northwind-power.test:443";
 
 const HEAD: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","seq":7,"day":20767,"at":1794339000000000000,"#;
 
-const KEYS: [&str; 18] = [
-    "v", "workflow", "agent", "seq", "day", "at", "event", "run", "slot", "item", "kind", "effect",
-    "approval", "digest", "answer", "cause", "trigger", "origin",
+const KEYS: [&str; 20] = [
+    "v",
+    "workflow",
+    "agent",
+    "seq",
+    "day",
+    "at",
+    "event",
+    "run",
+    "slot",
+    "item",
+    "kind",
+    "effect",
+    "approval",
+    "digest",
+    "answer",
+    "cause",
+    "trigger",
+    "origin",
+    "defer_launch",
+    "defer_ticks_failed",
 ];
 
 fn run() -> RunId {
@@ -391,14 +409,18 @@ fn r4_record_writes_and_reads_every_shape_of_the_nine_events() {
 }
 
 #[test]
-fn r4_record_run_ended_writes_its_defers_after_origin_and_none_where_they_are_not_known() {
-    let older = line("run_ended", &[("run", &q(RUN)), ("cause", &q("failed"))]);
+fn r4_record_run_ended_writes_its_defers_after_origin_and_both_null_where_they_are_not_known() {
+    let unknown = line("run_ended", &[("run", &q(RUN)), ("cause", &q("failed"))]);
+    assert!(
+        unknown.ends_with(r#""origin":null,"defer_launch":null,"defer_ticks_failed":null}"#),
+        "{unknown}"
+    );
     let none = event(What::RunEnded {
         run: run(),
         cause: RunEnd::Failed,
         defers: None,
     });
-    assert_eq!(none.to_json().unwrap(), older);
+    assert_eq!(none.to_json().unwrap(), unknown);
     for (launch, ticks_failed) in [(YesNo::Yes, 0), (YesNo::No, 7), (YesNo::No, u32::MAX)] {
         let value = event(What::RunEnded {
             run: run(),
@@ -411,10 +433,14 @@ fn r4_record_run_ended_writes_its_defers_after_origin_and_none_where_they_are_no
         let text = value.to_json().unwrap();
         assert_eq!(
             text,
-            format!(
-                r#"{},"defer_launch":"{}","defer_ticks_failed":{ticks_failed}}}"#,
-                older.strip_suffix('}').unwrap(),
-                launch.as_str()
+            line(
+                "run_ended",
+                &[
+                    ("run", &q(RUN)),
+                    ("cause", &q("failed")),
+                    ("defer_launch", &q(launch.as_str())),
+                    ("defer_ticks_failed", &ticks_failed.to_string()),
+                ]
             )
         );
         assert_eq!(CoordEvent::parse(text.as_bytes()).unwrap(), value);

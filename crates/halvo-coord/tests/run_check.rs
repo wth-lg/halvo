@@ -684,7 +684,7 @@ fn a_read_whose_later_events_raise_and_close_an_item_takes_up_no_item() {
 }
 
 /// The end of the local day `DAY` in the zone of `world`.
-const MIDNIGHT: u64 = T0 + 6_400_000;
+const END_OF_LOCAL_DAY: u64 = T0 + 6_400_000;
 
 /// The `item_raised` row of a check that a start raises, with the clock from 8 ms before local
 /// midnight to 3 ms after it and moving on 1 ms at each read, carries the local day of its `at`
@@ -692,7 +692,7 @@ const MIDNIGHT: u64 = T0 + 6_400_000;
 #[test]
 fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     let mut days = Vec::new();
-    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+    for start in END_OF_LOCAL_DAY - 8..END_OF_LOCAL_DAY + 4 {
         let mut w = world(&[MANUAL]);
         let run = ended_unknown(&mut w, 0);
         w.store_end(0, &run, Outcome::Failed, 1);
@@ -738,7 +738,7 @@ fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
             days.push(e.day);
         }
     };
-    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+    for start in END_OF_LOCAL_DAY - 8..END_OF_LOCAL_DAY + 4 {
         let mut w = world(&[MANUAL]);
         let before = w.ports.events.borrow().len();
         w.ports.set_now(start);
@@ -1214,7 +1214,7 @@ impl<P: Owner> Owner for Late<'_, P> {
         }
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.ports.history(agent, after)
     }
 
@@ -1279,10 +1279,6 @@ impl<P: Analysis> Analysis for Late<'_, P> {
 impl<P: Clock> Clock for Late<'_, P> {
     fn now(&self) -> Result<u64, PortError> {
         self.ports.now()
-    }
-
-    fn today(&self) -> Result<u32, PortError> {
-        self.ports.today()
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {
@@ -1643,7 +1639,7 @@ fn of_two_agents_only_the_one_that_owes_lapses_its_ready_item() {
 }
 
 #[test]
-fn the_raise_writes_no_owed_lapse_of_a_check_item() {
+fn the_raise_writes_the_owed_lapse_of_a_check_item_first() {
     let mut w = world(&[MANUAL]);
     let run = ended_unknown(&mut w, 0);
     w.store_end(0, &run, Outcome::Failed, 1);
@@ -1657,17 +1653,29 @@ fn the_raise_writes_no_owed_lapse_of_a_check_item() {
         new_life_returning_checked_agents(&mut w, vec![Turn::Refuse(PortError::NoService)]);
     assert_eq!(checked, vec![agent(0)]);
     let logged = acknowledged_bodies_from(&w, 0, from);
-    let raise = logged.last().unwrap();
+    let raise = whats(&[logged.last().unwrap().clone()]).remove(0);
     assert!(
-        raise
-            .iter()
-            .all(|e| !matches!(&e.what, What::ItemLapsed { item, .. } if *item == earlier)),
-        "{raise:?}"
+        matches!(
+            &raise[..],
+            [
+                What::ItemLapsed { item, lapsed: Lapsed::Check(OtherLapse::AppEnded) },
+                What::ItemRaised { raised: Raised::Check(None), .. },
+            ] if *item == earlier
+        ),
+        "the raise's one body lapses the earlier check item first (RD-96 item 5 (b)): {raise:?}"
     );
     assert!(w.board.owed.iter().any(|o| matches!(
         &o.what,
         Owing::ItemLapsed { item, lapsed: Lapsed::Check(_), .. } if *item == earlier
     )));
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert!(w.board.owed.is_empty(), "the tick finds the item closed");
+    assert_eq!(
+        closes(&w, &earlier).len(),
+        1,
+        "and sends no second lapse for the debt"
+    );
 }
 
 fn with_a_lost_acknowledgement(w: &mut World, act: Act) -> (halvo_coord::run::Done, Vec<Event>) {
@@ -1932,7 +1940,7 @@ fn act_late(w: &mut World, turns: Vec<Turn>, act: Act) -> halvo_coord::run::Done
 }
 
 #[test]
-fn a_tick_may_raise_ready_beside_the_check_item_of_an_earlier_life_whose_lapse_is_owed() {
+fn a_tick_raises_ready_with_no_check_item_of_an_earlier_life_left_open() {
     let mut w = world(&[PERSON]);
     let ready = ready_beside_an_unread_check(&mut w, 0);
     w.set_clock(T0 + 10_000, DAY);
@@ -1950,35 +1958,46 @@ fn a_tick_may_raise_ready_beside_the_check_item_of_an_earlier_life_whose_lapse_i
         Owing::ItemLapsed { item, lapsed: Lapsed::Check(OtherLapse::AppEnded), .. } if *item == earlier
     )));
     assert_eq!(check_items(&w, 0), 2);
-    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
-    w.set_clock(T0 + 20_000, DAY);
-    let from = w.ports.tried.borrow().len();
-    act_late(&mut w, vec![Turn::Refuse(PortError::NoService)], Act::Tick);
-    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
-    assert!(
-        matches!(
-            &raised[..],
-            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Ready, .. }])
-        ),
-        "the tick raises ready: {raised:?}"
-    );
-    assert!(
-        closes(&w, &earlier).is_empty(),
-        "the earlier check item is open"
-    );
-    assert!(
-        !holds(w.facts(0)).contains(&Hold::Check),
-        "the hold does not stand"
-    );
-    w.set_clock(T0 + 30_000, DAY);
-    w.act(Act::Tick);
     assert_eq!(
         closes(&w, &earlier),
         vec![What::ItemLapsed {
             item: earlier.clone(),
             lapsed: Lapsed::Check(OtherLapse::AppEnded),
         }],
-        "after the payment the earlier item has one closing row"
+        "the new life's check raise lapsed the earlier check item in its body (RD-96 item 5 (b))"
+    );
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+    w.set_clock(T0 + 15_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    act_late(&mut w, vec![Turn::Refuse(PortError::NoService)], Act::Tick);
+    assert!(
+        w.board.owed.is_empty(),
+        "a tick whose first log is refused pays the debt all the same: the events close the item"
+    );
+    assert!(
+        acknowledged_bodies_from(&w, 0, from).is_empty(),
+        "the refused log is the ready raise, and nothing is sent for the debt"
+    );
+    w.set_clock(T0 + 20_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    w.act(Act::Tick);
+    let raised = whats(&acknowledged_bodies_from(&w, 0, from));
+    assert!(
+        matches!(
+            &raised[..],
+            [body] if matches!(&body[..], [What::ItemRaised { raised: Raised::Ready, .. }])
+        ),
+        "the next tick raises ready: {raised:?}"
+    );
+    assert!(w.board.owed.is_empty());
+    assert_eq!(
+        closes(&w, &earlier).len(),
+        1,
+        "no check item of the earlier life is open beside the ready item"
+    );
+    assert!(
+        !holds(w.facts(0)).contains(&Hold::Check),
+        "the hold does not stand"
     );
     never_ready_beside_check(&w);
 }
@@ -2123,18 +2142,23 @@ fn a_skip_after_a_queued_start_whose_answer_the_owner_stored_with_a_lost_acknowl
         Move::Skip { agent: agent(0) },
     );
     assert_eq!(skip.answer, Err(Cause::Stale), "the skip is stale");
+    assert_eq!(
+        skip.dropped,
+        vec![agent(0)],
+        "the skip drops the queued start of the card the person saw (RD-102 item 2)"
+    );
     assert!(
         acknowledged_bodies_from(&w, 0, from).is_empty() && skips(&w, 0) == 0,
         "the skip stores nothing"
     );
     assert_eq!(
         w.facts(0).doing,
-        Doing::Queued(None),
-        "the board holds the queued agent with no item"
+        Doing::Idle(None),
+        "the board holds the agent idle with no item"
     );
     assert!(
-        w.board.queue.holds(&agent(0)),
-        "the queue still holds the start"
+        !w.board.queue.holds(&agent(0)),
+        "the queue no longer holds the start"
     );
     assert_eq!(
         closes(&w, &ready),

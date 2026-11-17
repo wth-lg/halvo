@@ -156,11 +156,11 @@ pub fn stand_in(extra: Vec<String>, refusal: Option<CommitRefused>) -> StandIn {
 }
 
 /// A row `run_ended` of workflow 1 and agent 1 at noon of `TODAY` for run 1, with the cause, and with the keys
-/// `defer_launch` and `defer_ticks_failed` after `origin` where the pair of their values is given.
+/// `defer_launch` and `defer_ticks_failed` after `origin`, the pair of their values where it is given and both null
+/// where it is not (ruling RD-120).
 pub fn run_ended_row(seq: u32, cause: &str, defers: Option<(&str, &str)>) -> String {
-    let tail = defers.map_or(String::new(), |(launch, ticks)| {
-        format!(r#","defer_launch":{launch},"defer_ticks_failed":{ticks}"#)
-    });
+    let (launch, ticks) = defers.unwrap_or(("null", "null"));
+    let tail = format!(r#","defer_launch":{launch},"defer_ticks_failed":{ticks}"#);
     format!(
         r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"run_ended","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null{tail}}}"#,
         wf(1),
@@ -173,7 +173,7 @@ pub fn run_ended_row(seq: u32, cause: &str, defers: Option<(&str, &str)>) -> Str
 /// A row `hold_set` with the cause `person`.
 pub fn hold_set(w: u32, a: u32, seq: u32, day: u32, at: i64) -> String {
     format!(
-        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{at},"event":"hold_set","run":null,"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"person","trigger":null,"origin":null}}"#,
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{at},"event":"hold_set","run":null,"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"person","trigger":null,"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
         wf(w),
         agent(a)
     )
@@ -188,7 +188,7 @@ pub fn row(seq: u32, day: u32) -> String {
 pub fn hold_row(seq: u32, event: &str, cause: &str, run_n: Option<u32>) -> String {
     let run = run_n.map_or("null".to_owned(), |n| format!("\"{}\"", run(n)));
     format!(
-        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"{event}","run":{run},"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null}}"#,
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"{event}","run":{run},"slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"{cause}","trigger":null,"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
         wf(1),
         agent(1),
         noon(TODAY)
@@ -199,7 +199,7 @@ pub fn hold_row(seq: u32, event: &str, cause: &str, run_n: Option<u32>) -> Strin
 /// confirmation item 1.
 pub fn confirm_answered(seq: u32, day: u32, n: u32) -> String {
     format!(
-        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{},"event":"item_answered","run":null,"slot":null,"item":"{}","kind":"confirm","effect":"{}","approval":"{}","digest":"{}","answer":"reject_once","cause":null,"trigger":null,"origin":null}}"#,
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{day},"at":{},"event":"item_answered","run":null,"slot":null,"item":"{}","kind":"confirm","effect":"{}","approval":"{}","digest":"{}","answer":"reject_once","cause":null,"trigger":null,"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
         wf(1),
         agent(1),
         noon(day),

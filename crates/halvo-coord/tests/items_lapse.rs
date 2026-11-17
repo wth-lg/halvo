@@ -84,7 +84,7 @@ impl Owner for Panicky<'_> {
         }
         self.inner.log(events)
     }
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.inner.history(agent, after)
     }
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
@@ -134,9 +134,6 @@ impl Runs for Panicky<'_> {
 impl Clock for Panicky<'_> {
     fn now(&self) -> Result<u64, PortError> {
         self.inner.now()
-    }
-    fn today(&self) -> Result<u32, PortError> {
-        self.inner.today()
     }
     fn day(&self, at: u64) -> Result<u32, PortError> {
         self.inner.day(at)
