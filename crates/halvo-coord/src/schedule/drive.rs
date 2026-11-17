@@ -1029,7 +1029,7 @@ fn send_owed<P: Owner, C: ConfigView>(
             match log_at(cx, board, i, &[what], *day, *at) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => {
-                    read_into(cx.ports, board, i).is_ok()
+                    read_back(cx.ports, cx.limits, cx.move_stamp, board, i).is_ok()
                         && item_closed(&board.members[i].facts.events, item)
                 }
                 Err(e) => debt_refused(
@@ -1162,17 +1162,18 @@ pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
     })
 }
 
-/// After the owner refused an owed `run_ended` with `seq` (I7.2): `read_after_seq` reads the
-/// owner's events after the last one that the facts hold, and the debt is paid when those hold
-/// the run's `run_ended`, which the owner stored with an acknowledgement that was lost; else the
-/// next tick logs it after them.
-fn reread_finds_run_ended<P: Owner, C>(
+/// After the owner refused an owed `run_ended` with `seq` (I7.2): `read_back` reads the owner's
+/// events after the last one that the facts hold and closes the lost starts that they bring, and
+/// the debt is paid when those hold the run's `run_ended`, which the owner stored with an
+/// acknowledgement that was lost; else the next tick logs it after them (ruling RD-96 item 5 (c)).
+fn reread_finds_run_ended<P: Owner, C: ConfigView>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
     i: usize,
     run: &RunId,
 ) -> bool {
-    read_into(cx.ports, board, i).is_ok() && holds_end(&board.members[i].facts.events, run)
+    read_back(cx.ports, cx.limits, cx.move_stamp, board, i).is_ok()
+        && holds_end(&board.members[i].facts.events, run)
 }
 
 /// Whether the events hold a `run_ended` of the run.

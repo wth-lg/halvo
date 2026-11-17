@@ -1834,3 +1834,65 @@ fn recovery_still_ends_with_no_board_when_the_owner_does_not_answer_a_history() 
         .refuse_agent(Method::History, &agent(1), PortError::Busy);
     assert_eq!(recover(&w.ports, &w.limits).err(), Some(Cause::Busy));
 }
+
+fn lost_start_beside_a_debt(w: &mut World, lost: &RunId) {
+    stored_outside(
+        w,
+        0,
+        What::RunStarted {
+            run: lost.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    w.set_clock(T0 + 10_000, DAY);
+    w.forget();
+    w.act(Act::Tick);
+    assert_eq!(
+        ends_of(w, lost),
+        1,
+        "the debt's read brought the lost start, which the tick closes with interrupted"
+    );
+    assert!(
+        w.calls().iter().any(|c| c == "end_run"),
+        "the tick asks the store to end the lost start"
+    );
+    assert!(
+        !w.facts(0).store_ended,
+        "the agent's next start waits for the store's end of the lost start"
+    );
+}
+
+#[test]
+fn rd96_5c_an_owed_item_lapseds_read_after_seq_closes_the_lost_start_that_it_brings() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7c01)).unwrap();
+    let lost = RunId::parse(&format!("{:032x}", 0x7c02)).unwrap();
+    let mut w = owed_lapse(&item);
+    lost_start_beside_a_debt(&mut w, &lost);
+    assert_eq!(lapses_of(&w, &item), 0, "the lapse is still owed");
+}
+
+#[test]
+fn rd96_5c_an_owed_run_endeds_read_after_seq_closes_the_lost_start_that_it_brings() {
+    let mut w = world(&[MANUAL]);
+    let run = RunId::parse(&format!("{:032x}", 0x7c03)).unwrap();
+    let lost = RunId::parse(&format!("{:032x}", 0x7c04)).unwrap();
+    stored_outside(
+        &w,
+        0,
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    w.ports.clear_refusals();
+    lost_start_beside_a_debt(&mut w, &lost);
+    assert_eq!(
+        ends_of(&w, &run),
+        0,
+        "the run_ended of the earlier run is still owed"
+    );
+}
