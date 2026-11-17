@@ -177,7 +177,10 @@ pub trait Human: Send + Sync {
 pub trait Secrets: Send + Sync {
     /// Reads `name` for `agent`, the agent of the run that sent the frame `secret`, as the library started that run
     /// and never a value of the frame. An implementor answers none stored for a name that the agent's own set-up
-    /// does not list, the same answer as for a name that holds nothing (contracts.md A6.6, ruling CP-136).
+    /// does not list, the same answer as for a name that holds nothing. It never answers from a link that the
+    /// person made for another agent, and never looks a name up in a store keyed by the name alone: a sign-in that
+    /// the person linked for one agent's work is not thereby given to another agent that names the same adapter
+    /// (contracts.md A6.6, ruling CP-136).
     fn read(&self, agent: &AgentId, name: &Name) -> SecretReply;
 }
 
