@@ -1,5 +1,5 @@
 line: PASS cap: read-back=ok hold-open=1 set-below=accepted settled=1 refused-before-roll=over-cap roll=ok admitted-after-roll=1
-stamp: 2026-11-15T12:23:30Z
-load: 55.08
-tree: 59eb12ce55d8da6fc252b034336345dd6acc99db
+stamp: 2026-11-17T05:37:40Z
+load: 18.33
+tree: e5f28178f47b3e2cd9fa5efe8efca404af31890f
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3
