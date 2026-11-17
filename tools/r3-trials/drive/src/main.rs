@@ -502,11 +502,49 @@ mod tests {
         targets
     }
 
+    fn indent(line: &str) -> usize {
+        line.len() - line.trim_start().len()
+    }
+
+    fn attribute_above(lines: &[&str], n: usize) -> bool {
+        lines[..n]
+            .iter()
+            .rev()
+            .find(|l| !l.trim().is_empty() && !l.trim_start().starts_with("//"))
+            .is_some_and(|l| l.trim_end().ends_with(']'))
+    }
+
+    fn in_the_test_module(lines: &[&str], n: usize) -> bool {
+        let Some(m) = (0..n)
+            .rev()
+            .find(|&i| !lines[i].trim().is_empty() && indent(lines[i]) < indent(lines[n]))
+        else {
+            return false;
+        };
+        lines[m] == "mod tests {"
+            && m > 0
+            && lines[m - 1] == "#[cfg(test)]"
+            && !attribute_above(lines, m - 1)
+            && lines[..n]
+                .iter()
+                .map(|l| l.matches("/*").count())
+                .sum::<usize>()
+                == lines[..n]
+                    .iter()
+                    .map(|l| l.matches("*/").count())
+                    .sum::<usize>()
+    }
+
     fn reads_the_fence(source: &str) -> bool {
         let lines: Vec<&str> = source.lines().collect();
+        if lines.iter().any(|l| l.trim_start().starts_with("#![")) {
+            return false;
+        }
         (0..lines.len()).any(|n| {
             let alone = lines[n].trim() == "#[test]"
-                && (n == 0 || !lines[n - 1].trim_start().starts_with("#["));
+                && indent(lines[n]) == 4
+                && !attribute_above(&lines, n)
+                && in_the_test_module(&lines, n);
             let Some(signature) = lines.get(n + 1).map(|l| l.trim()) else {
                 return false;
             };
@@ -548,16 +586,94 @@ mod tests {
         );
         let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
         assert!(
-            manifest.lines().any(|l| l
-                == r#"r3-web = { path = "../web", default-features = false, features = ["test-fence"] }"#),
+            gives_the_fence(&manifest),
             "the manifest does not give the tests the feature test-fence of r3-web"
         );
+    }
+
+    fn gives_the_fence(manifest: &str) -> bool {
+        let lines: Vec<&str> = manifest.lines().collect();
+        lines.iter().enumerate().any(|(n, l)| {
+            *l == r#"r3-web = { path = "../web", default-features = false, features = ["test-fence"] }"#
+                && lines[..n].iter().rev().find(|h| h.starts_with('[')) == Some(&"[dev-dependencies]")
+        })
+    }
+
+    fn rust_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("a source directory") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                rust_files(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    #[test]
+    fn no_source_of_the_crate_admits_a_process_past_the_fence() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut files = Vec::new();
+        rust_files(&root.join("src"), &mut files);
+        assert!(files.len() >= 10, "source files: {}", files.len());
+        let admits = concat!("fence::", "admit");
+        let found: Vec<String> = files
+            .iter()
+            .filter(|p| {
+                std::fs::read_to_string(p)
+                    .unwrap_or_default()
+                    .contains(admits)
+            })
+            .map(|p| p.strip_prefix(root).unwrap_or(p).display().to_string())
+            .collect();
+        assert!(found.is_empty(), "sources that admit a process: {found:?}");
+    }
+
+    #[test]
+    fn the_manifest_check_reads_the_section_of_the_feature_line() {
+        let manifest = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
+        )
+        .expect("the manifest");
+        assert!(gives_the_fence(&manifest));
+        for section in [
+            "[target.'cfg(windows)'.dev-dependencies]",
+            "[build-dependencies]",
+            "[dependencies]",
+        ] {
+            let moved = manifest.replace("[dev-dependencies]", section);
+            assert!(!gives_the_fence(&moved), "{section}");
+        }
+    }
+
+    #[test]
+    fn the_fence_lint_refuses_a_test_that_is_not_compiled_or_not_run_here() {
+        let right = "    #[test]\n    fn the_fence_is_on_in_this_test_target() {\n        assert!(r3_web::procs::fence::is_on(), \"off\");\n    }\n";
+        assert!(reads_the_fence(&format!(
+            "#[cfg(test)]\nmod tests {{\n{right}}}\n"
+        )));
+        for wrong in [
+            format!("#[cfg(test)]\nmod tests {{\n    #[cfg(windows)]\n    /// The fence is on.\n{right}}}\n"),
+            format!("#[cfg(test)]\nmod tests {{\n    #[cfg(\n        windows\n    )]\n{right}}}\n"),
+            format!("#[cfg(test)]\nmod tests {{\n    #[cfg(windows)]\n\n{right}}}\n"),
+            format!("#![cfg(windows)]\n#[cfg(test)]\nmod tests {{\n{right}}}\n"),
+            format!("#[cfg(windows)]\n#[cfg(test)]\nmod tests {{\n{right}}}\n"),
+            format!("#[cfg(test)]\nmod tests {{\n    #[cfg(windows)]\n    mod inner {{\n    {right}    }}\n}}\n"),
+            format!("#[cfg(test)]\nmod other {{\n{right}}}\n"),
+            format!("mod tests {{\n{right}}}\n"),
+            format!("/*\n#[cfg(test)]\nmod tests {{\n{right}}}\n*/\n"),
+            format!("#[cfg(test)]\nmod tests {{\n    /*\n{right}    */\n}}\n"),
+            format!("macro_rules! never {{\n    () => {{\n{right}    }};\n}}\n"),
+            "#[test]\nfn the_fence_is_on_in_this_test_target() {\n    assert!(r3_web::procs::fence::is_on(), \"off\");\n}\n".to_string(),
+        ] {
+            assert!(!reads_the_fence(&wrong), "{wrong}");
+        }
     }
 
     #[test]
     fn the_fence_lint_takes_the_assertion_alone() {
         let test = |body: &str| {
-            format!("mod tests {{\n    #[test]\n    fn the_fence_is_on_in_this_test_target() {{\n{body}\n    }}\n}}\n")
+            format!("#[cfg(test)]\nmod tests {{\n    #[test]\n    fn the_fence_is_on_in_this_test_target() {{\n{body}\n    }}\n}}\n")
         };
         let right = "        assert!(\n            r3_web::procs::fence::is_on(),\n            \"the fence is off\"\n        );";
         assert!(reads_the_fence(&test(right)));
