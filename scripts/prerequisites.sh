@@ -888,6 +888,53 @@ EOF
   expect_fallback 'no prebuilt cargo-release matches Linux x86_64'
   verdict "$name"
 
+  count_line() {
+    grep -c -x -F -- "$1" "$2" || :
+  }
+
+  new_main_case() {
+    new_case "$1"
+    mkdir "$case_dir/repo" "$case_dir/repo/scripts" "$case_dir/home" "$case_dir/tmp"
+    cp "$(pwd -P)/scripts/prerequisites.sh" "$case_dir/repo/scripts/prerequisites.sh"
+    printf '[toolchain]\nchannel = "1.2.3"\nprofile = "minimal"\ncomponents = ["clippy", "rustfmt", "rust-src"]\n' >"$case_dir/repo/rust-toolchain.toml"
+    for tool in git rustup curl npm node xcode-select; do
+      cat >"$case_dir/stubs/$tool" <<EOF
+#!/bin/sh
+echo "$tool \$*" >>'$case_dir/calls'
+case "$tool \$1" in
+  'git '* | 'curl '* | 'npm '*) exit 1 ;;
+  'rustup --version') echo 'rustup 1.0.0' ;;
+  'rustup run') echo 'cargo 1.2.3' ;;
+  'xcode-select -p') echo /Library/Developer/CommandLineTools ;;
+esac
+EOF
+      chmod +x "$case_dir/stubs/$tool"
+    done
+  }
+
+  run_main() {
+    status=0
+    env PATH="$case_dir/stubs:/usr/bin:/bin" HOME="$case_dir/home" CARGO_HOME="$case_dir/home/.cargo" RUSTUP_HOME="$case_dir/home/.rustup" TMPDIR="$case_dir/tmp" \
+      sh "$case_dir/repo/scripts/prerequisites.sh" >"$case_dir/output" 2>&1 || status=$?
+  }
+
+  name='the rustup line passes one --component flag for each component that rust-toolchain.toml lists'
+  new_main_case components
+  run_main
+  [ "$status" != 0 ] || problems="$problems; the script exited 0 although its stand-in npm fails"
+  [ "$(count_line 'rustup toolchain install 1.2.3 --profile minimal --no-self-update --component clippy --component rustfmt --component rust-src' "$case_dir/calls")" = 1 ] || problems="$problems; no rustup toolchain install line passes the three components"
+  [ "$(count 'rustup toolchain install' "$case_dir/calls")" = 1 ] || problems="$problems; rustup toolchain install did not run once"
+  [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
+  verdict "$name"
+
+  name='a rust-toolchain.toml with no components line gives the rustup line no --component flag'
+  new_main_case no-components
+  printf '[toolchain]\nchannel = "1.2.3"\nprofile = "minimal"\n' >"$case_dir/repo/rust-toolchain.toml"
+  run_main
+  [ "$(count_line 'rustup toolchain install 1.2.3 --profile minimal --no-self-update' "$case_dir/calls")" = 1 ] || problems="$problems; the rustup toolchain install line is not the one without flags"
+  [ "$(count_line 'npm ci --no-audit --no-fund' "$case_dir/calls")" = 1 ] || problems="$problems; the script did not reach npm ci"
+  verdict "$name"
+
   deny_target=$(prebuilt_target) || {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-deny matches $(uname -s) $(uname -m), so this platform has no case"
     return 1
@@ -2596,7 +2643,11 @@ else
 fi
 
 channel=$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust-toolchain.toml)
-rustup toolchain install "$channel" --profile minimal --no-self-update
+set -- "$channel" --profile minimal --no-self-update
+for component in $(sed -n 's/^components *= *\[\(.*\)\].*/\1/p' rust-toolchain.toml | tr ',"' '  '); do
+  set -- "$@" --component "$component"
+done
+rustup toolchain install "$@"
 echo "prerequisites: rust toolchain $channel present: $(rustup run "$channel" cargo --version)"
 
 echo "prerequisites: installing the Tauri CLI into node_modules/"
