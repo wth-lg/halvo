@@ -63,9 +63,25 @@ empty, and a line that is empty is skipped.
   no `..` in it. For a `transitional` or a `control` row it is relative to the
   repository root.
 - **substitution**: one or more perl `s///` statements, separated by `;`. The
-  runner applies each to the whole file, so `\n` matches a line end. A
+  runner applies each to the whole file, in order, so `\n` matches a line end. A
   statement that matches nothing fails the row, and so does a substitution
-  that changes nothing.
+  that changes nothing. A statement with the modifier `g` changes every
+  match. A statement without it changes the first match alone, so it must
+  match one place of the file as the statements before it leave it; the
+  places are the matches that `g` would change, each one after the end of the
+  one before. A row names its one place by its pattern: with the text around
+  the place, as in `s/a\nb/a\nc/`, or by a lookaround, as in
+  `s/(?<=a\n)b/c/`. Before it applies any row, the runner reads every row
+  but a retired one, also a pending row, a row for another place and a row
+  that `--only` leaves out, and fails each row that has a statement without
+  `g` that matches more than one place:
+  `FAIL mutation:<name> (the substitution matches <n> places of <file>, at lines <a> and <b>, and would change the first alone: give the statement the modifier g to change every match, or write its pattern so that it matches one place)`.
+  For a row of several statements the line names `statement <i> of <k> of the substitution`,
+  and for any statement but the first it reads `at lines <a> and <b> of the file as the statements before it leave it`.
+  `--list` prints the rows and reads no substitution. A statement with an
+  empty pattern fails the row, because perl reads an empty pattern as the
+  last pattern that matched. Limit: a match that begins inside an earlier
+  match is not a place of its own, as under `g`.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and
