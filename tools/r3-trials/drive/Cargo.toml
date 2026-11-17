@@ -14,6 +14,7 @@ path = "src/main.rs"
 [dependencies]
 chromiumoxide = { version = "=0.9.1", default-features = false }
 halvo-cap = { path = "../../../crates/halvo-cap" }
+halvo-schema = { path = "../../../crates/halvo-schema" }
 r3-web = { path = "../web" }
 serde_json = "=1.0.154"
 tokio = { version = "=1.54.1", features = ["rt", "macros", "time", "sync", "signal"] }

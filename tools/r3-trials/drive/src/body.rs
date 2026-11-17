@@ -1,3 +1,4 @@
+use halvo_schema::executable::{reply_senders, same_address, Senders};
 use serde_json::Value;
 
 /// The start of every marker of A10.4: the password, the api token and the page marker.
@@ -130,23 +131,41 @@ pub fn names_host(word: &str) -> bool {
 }
 
 /// The messages that the reply rule of A1 selects, in the order of the inbox: unread, naming the
-/// account's address among `toRecipients`, and from a sender in the slot `reply_senders`.
+/// account's address among `toRecipients`, and from a sender of the slot `reply_senders`, each
+/// address held against another by halvo-schema's `same_address`. The senders are the list that
+/// `read_senders` reads; a list that it refuses selects nothing.
 pub fn selected<'a>(inbox: &'a [Value], account: &str, senders: &[String]) -> Vec<&'a Value> {
+    let Some(senders) = read_senders(senders) else {
+        return Vec::new();
+    };
     inbox
         .iter()
         .filter(|m| m["isRead"] == Value::Bool(false))
         .filter(|m| {
             m["toRecipients"].as_array().is_some_and(|to| {
-                to.iter()
-                    .any(|r| r["emailAddress"]["address"].as_str() == Some(account))
+                to.iter().any(|r| {
+                    r["emailAddress"]["address"]
+                        .as_str()
+                        .is_some_and(|a| same_address(a, account))
+                })
             })
         })
         .filter(|m| {
             m["from"]["emailAddress"]["address"]
                 .as_str()
-                .is_some_and(|a| senders.iter().any(|s| s == a))
+                .is_some_and(|a| senders.holds(a))
         })
         .collect()
+}
+
+/// The senders of the seed's list of the slot `reply_senders`, read by halvo-schema's reader
+/// `reply_senders` from the addresses joined by `, ` (CP-203). None when an address holds a comma
+/// or the reader refuses the joined text.
+pub fn read_senders(list: &[String]) -> Option<Senders> {
+    if list.iter().any(|address| address.contains(',')) {
+        return None;
+    }
+    reply_senders(&list.join(", ")).ok()
 }
 
 /// The text of a message as the model reads it: its sender, its subject and its body.
@@ -461,5 +480,78 @@ mod tests {
             .collect();
         assert_eq!(ids, ["1", "5"]);
         assert_eq!(message_text(&inbox[0]), "From: ada@x.test\nSubject: s\nb");
+    }
+
+    #[test]
+    fn each_seed_selects_its_two_messages_through_the_reader() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixture-server/variants/data");
+        for seed in 1..=3 {
+            let text = std::fs::read_to_string(data.join(format!("seed-{seed}.json")))
+                .expect("the seed file");
+            let seed: Value = serde_json::from_str(&text).expect("the seed's JSON");
+            let list: Vec<String> = seed["bindings"]["reply"]["slots"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|s| s["name"] == "reply_senders")
+                .flat_map(|s| s["value"].as_array().cloned().unwrap_or_default())
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+            let read = read_senders(&list).expect("the reader takes the seed's list");
+            assert_eq!(read.iter().collect::<Vec<_>>(), list);
+            let inbox = seed["mail"]["inbox"].as_array().expect("the inbox").clone();
+            let account = seed["mail"]["address"].as_str().expect("the account");
+            assert_eq!(selected(&inbox, account, &list).len(), 2);
+        }
+    }
+
+    fn ids_of(inbox: &[Value], account: &str, senders: &[&str]) -> Vec<String> {
+        let senders: Vec<String> = senders.iter().map(|s| s.to_string()).collect();
+        selected(inbox, account, &senders)
+            .iter()
+            .filter_map(|m| m["id"].as_str().map(String::from))
+            .collect()
+    }
+
+    #[test]
+    fn the_senders_are_read_by_the_reader_of_halvo_schema() {
+        let me = "resident.one@agent.test";
+        let inbox = vec![
+            message("1", false, me, "ada@x.test"),
+            message("2", false, "Resident.One@Agent.TEST", "bo@x.test"),
+            message("3", false, me, "cy@x.test"),
+        ];
+        assert_eq!(
+            ids_of(&inbox, me, &[" ADA@x.test\t", "bo@X.test"]),
+            ["1", "2"]
+        );
+        assert_eq!(ids_of(&inbox, me, &["\u{a0}cy@x.test\u{3000}"]), ["3"]);
+    }
+
+    #[test]
+    fn a_list_that_the_reader_refuses_selects_nothing() {
+        let me = "resident.one@agent.test";
+        let inbox = vec![
+            message("1", false, me, "ada@x.test"),
+            message("2", false, me, "bo@x.test"),
+        ];
+        for refused in [
+            &[][..],
+            &["ada@x.test", ""][..],
+            &["ada@x.test", "Bo Tarrin"][..],
+            &["ada@x.test", "ADA@x.test"][..],
+            &["ada@x.test", "bø@x.test"][..],
+            &["ada@x.test, bo@x.test"][..],
+            &["ada@x.test", "bo@x.test."][..],
+            &["ada@x.test", "bo tarrin@x.test"][..],
+            &["ada@x.test", "<bo@x.test>"][..],
+        ] {
+            assert_eq!(
+                ids_of(&inbox, me, refused),
+                Vec::<String>::new(),
+                "{refused:?}"
+            );
+        }
     }
 }
