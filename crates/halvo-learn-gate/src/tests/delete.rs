@@ -86,7 +86,7 @@ fn remove_first(store: &mut MemoryStore, kind: &str, keep_out: impl Fn(&str) -> 
         .expect("rows of the kind");
     let at = rows
         .iter()
-        .position(|r| keep_out(r))
+        .position(|r| keep_out(&r.json))
         .expect("a row to take");
     rows.remove(at);
 }
@@ -110,7 +110,7 @@ fn delete_line_misses_a_cascade_that_keeps_a_learn_row_of_the_deleted_workflow()
                 let workflow = id.as_str().to_owned();
                 let row = store.learn_rows_mut()[kind]
                     .iter()
-                    .find(|r| names(r, &workflow))
+                    .find(|r| names(&r.json, &workflow))
                     .expect("a row of the first workflow")
                     .clone();
                 let stored = store.delete_workflow(id);
@@ -182,9 +182,9 @@ fn delete_line_misses_a_cascade_that_rewrites_a_row_of_the_other_workflow() {
                 .expect("edit rows");
             let row = rows
                 .iter_mut()
-                .find(|r| names(r, &second) && r.contains("\"state\":\"active\""))
+                .find(|r| names(&r.json, &second) && r.json.contains("\"state\":\"active\""))
                 .expect("the active row of the second workflow");
-            *row = row.replacen("Zq7", "Zq8", 1);
+            row.json = row.json.replacen("Zq7", "Zq8", 1);
             stored
         },
         "a rewritten row",

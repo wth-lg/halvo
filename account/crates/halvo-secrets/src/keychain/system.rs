@@ -1,7 +1,8 @@
-use super::Keychain;
+use super::{ItemRef, Keychain};
 use security_framework::base::Error;
 use security_framework::item::{ItemClass, ItemSearchOptions, Limit, SearchResult};
 use security_framework::os::macos::keychain::SecKeychain;
+use security_framework::os::macos::passwords::find_generic_password;
 
 const PARAM: i32 = -50;
 const INTERACTION_STILL_ALLOWED: i32 = -1;
@@ -54,5 +55,23 @@ impl Keychain for SystemKeychain {
 
     fn delete(&self, service: &str, account: &str) -> Result<(), i32> {
         quiet(|| query(service, account).delete())
+    }
+
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        let (password, item) = quiet(|| find_generic_password(None, service, account))?;
+        Ok((password.to_vec(), ItemRef::System(item)))
+    }
+
+    fn delete_item(&self, item: ItemRef) {
+        match item {
+            ItemRef::System(item) => {
+                let _ = quiet(|| {
+                    item.delete();
+                    Ok(())
+                });
+            }
+            #[cfg(test)]
+            ItemRef::Fake(_) => {}
+        }
     }
 }

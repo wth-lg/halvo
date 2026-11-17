@@ -18,13 +18,34 @@ fn on_a_hosted_runner() {
     );
 }
 
+/// The store directory of `label` in this process: the first call makes a fresh parent named by
+/// the process id, the label and a count kept in the process, passing over a name that an
+/// earlier run left (a process id comes again between runs of one job); later calls of the
+/// same label give the same directory.
 fn dir(label: &str) -> PathBuf {
-    let parent = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
-        "halvo-secrets-hosted-{}-{label}",
-        std::process::id()
-    ));
-    std::fs::create_dir_all(&parent).expect("the parent of the store directory");
-    parent.join("store")
+    static MADE: std::sync::Mutex<Vec<(String, PathBuf)>> = std::sync::Mutex::new(Vec::new());
+    let mut made = MADE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((_, store)) = made.iter().find(|(made_for, _)| made_for == label) {
+        return store.clone();
+    }
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(base).expect("the target's temporary directory");
+    let mut n = made.len();
+    loop {
+        let parent = base.join(format!(
+            "halvo-secrets-hosted-{}-{label}-{n}",
+            std::process::id()
+        ));
+        match std::fs::create_dir(&parent) {
+            Ok(()) => {
+                let store = parent.join("store");
+                made.push((label.to_string(), store.clone()));
+                return store;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => n += 1,
+            Err(error) => panic!("the parent of the store directory: {error}"),
+        }
+    }
 }
 
 fn name(label: &str) -> Name {
@@ -75,6 +96,447 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
     assert!(matches!(store.read(), Read::NotStored));
     assert_eq!(store.delete(), Delete::NotStored);
     println!("\nstore={}", kind.as_str());
+}
+
+const HELD: &[u8] = b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+fn held_one_byte_off(at: usize) -> Vec<u8> {
+    let mut other = HELD.to_vec();
+    other[at] ^= 1;
+    other
+}
+
+fn other_bytes(answer: halvo_secrets::DeleteIfHolds) -> Vec<u8> {
+    match answer {
+        halvo_secrets::DeleteIfHolds::Other(secret) => secret.expose().to_vec(),
+        answer => panic!("the delete answered {answer:?}"),
+    }
+}
+
+#[test]
+fn the_store_of_this_build_deletes_only_the_bytes_that_its_caller_read() {
+    on_a_hosted_runner();
+    let store = store("holds");
+    let other = held_one_byte_off(63);
+    assert_eq!(other.len(), HELD.len());
+    assert!(matches!(
+        store.delete_if_holds(&secret(HELD)),
+        halvo_secrets::DeleteIfHolds::NotStored
+    ));
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    assert_eq!(other_bytes(store.delete_if_holds(&secret(&other))), HELD);
+    assert_eq!(found(store.read()), HELD);
+    let deleted = store.delete_if_holds(&secret(HELD));
+    assert!(
+        matches!(deleted, halvo_secrets::DeleteIfHolds::Deleted),
+        "{deleted:?}"
+    );
+    assert!(matches!(store.read(), Read::NotStored));
+    println!(
+        "\ndelete-if-holds store={} kept other bytes of 64 and answered {deleted:?} for the bytes read",
+        store.kind().as_str()
+    );
+}
+
+#[test]
+fn a_removal_by_the_name_of_this_build_s_store_removes_its_item_and_then_reads() {
+    on_a_hosted_runner();
+    let store = store("removal");
+    let kind = store.kind();
+    assert_eq!(store.write(&secret(HELD)), Write::Stored);
+    if cfg!(windows) {
+        assert!(store.remove(StoreKind::File).is_none());
+        assert!(store.remove(StoreKind::Keychain).is_none());
+    } else {
+        assert!(store.remove(StoreKind::Dpapi).is_none());
+    }
+    assert_eq!(found(store.read()), HELD);
+    let removal = store.remove(kind).expect("the store of this build");
+    assert_eq!(removal.removed, Delete::Deleted);
+    assert!(
+        matches!(removal.then, Read::NotStored),
+        "{:?}",
+        removal.then
+    );
+    println!(
+        "\nremoval store={} answered {:?} and then {:?}",
+        kind.as_str(),
+        removal.removed,
+        removal.then
+    );
+}
+
+#[cfg(target_os = "macos")]
+mod by_reference {
+    use super::*;
+    use security_framework::item::{ItemClass, ItemSearchOptions, Limit, SearchResult};
+    use security_framework::os::macos::keychain::SecKeychain;
+    use security_framework::os::macos::passwords::find_generic_password;
+
+    fn search(account: &str) -> ItemSearchOptions {
+        let mut options = ItemSearchOptions::new();
+        options
+            .class(ItemClass::generic_password())
+            .service(SERVICE)
+            .account(account);
+        options
+    }
+
+    #[cfg(feature = "keychain")]
+    fn look(account: &str) -> Result<Vec<Vec<u8>>, String> {
+        let mut codes = Vec::new();
+        for _ in 0..20 {
+            let mut count = search(account);
+            count.load_attributes(true).limit(Limit::All);
+            let items = match count.search() {
+                Ok(found) => found.len(),
+                Err(error) if error.code() == -25300 => 0,
+                Err(error) => {
+                    codes.push(error.code());
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    continue;
+                }
+            };
+            if items != 1 {
+                return Ok(vec![Vec::new(); items]);
+            }
+            let mut data = search(account);
+            data.load_data(true).limit(1);
+            match data.search() {
+                Ok(found) => {
+                    return Ok(found
+                        .into_iter()
+                        .filter_map(|result| match result {
+                            SearchResult::Data(bytes) => Some(bytes),
+                            _ => None,
+                        })
+                        .collect())
+                }
+                Err(error) => {
+                    codes.push(error.code());
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            }
+        }
+        Err(format!("searches refused with {codes:?}"))
+    }
+
+    fn datas(account: &str) -> Vec<Vec<u8>> {
+        let mut count = search(account);
+        count.load_attributes(true).limit(Limit::All);
+        let items = match count.search() {
+            Ok(found) => found.len(),
+            Err(error) if error.code() == -25300 => 0,
+            Err(error) => panic!("the count failed with {}", error.code()),
+        };
+        if items != 1 {
+            return vec![Vec::new(); items];
+        }
+        let mut data = search(account);
+        data.load_data(true).limit(1);
+        match data.search() {
+            Ok(found) => found
+                .into_iter()
+                .map(|result| match result {
+                    SearchResult::Data(bytes) => bytes,
+                    _ => panic!("a search for data gave another kind"),
+                })
+                .collect(),
+            Err(error) => panic!("the search failed with {}", error.code()),
+        }
+    }
+
+    #[test]
+    fn a_keychain_item_removed_by_its_reference_after_it_was_replaced_keeps_the_new_item() {
+        on_a_hosted_runner();
+        let account = name("by-reference");
+        let later = held_one_byte_off(0);
+        let keychain = SecKeychain::default().expect("the default keychain");
+        keychain
+            .add_generic_password(SERVICE, account.as_str(), HELD)
+            .expect("an item is added");
+        let (password, item) =
+            find_generic_password(None, SERVICE, account.as_str()).expect("the item is found");
+        assert_eq!(&*password, HELD);
+        search(account.as_str())
+            .delete()
+            .expect("the item is deleted");
+        keychain
+            .add_generic_password(SERVICE, account.as_str(), &later)
+            .expect("a new item is added");
+        item.delete();
+        let left = datas(account.as_str());
+        let kept = left == [later.clone()];
+        search(account.as_str())
+            .delete()
+            .expect("the new item is deleted");
+        assert!(
+            kept,
+            "a removal by the reference of a replaced item removed the new one"
+        );
+        println!(
+            "\na removal by the reference of a replaced keychain item kept the new item: {kept}"
+        );
+    }
+
+    #[test]
+    fn the_switch_that_keeps_a_read_from_asking_the_person_is_as_it_was_after_each_operation() {
+        on_a_hosted_runner();
+        let before = SecKeychain::user_interaction_allowed().expect("the switch is read");
+        assert!(
+            before,
+            "the switch was off before this test: a store call of an earlier test left it off"
+        );
+        let store = store("switch");
+        let mut seen = Vec::new();
+        let mut look = |op: &str| {
+            let now = SecKeychain::user_interaction_allowed().expect("the switch is read");
+            seen.push(format!("{op}={now}"));
+            assert_eq!(now, before, "the switch after {op}");
+        };
+        let _ = store.read();
+        look("read");
+        let _ = store.write(&secret(HELD));
+        look("write");
+        let _ = store.delete_if_holds(&secret(&held_one_byte_off(1)));
+        look("delete-if-holds");
+        let _ = store.remove(StoreKind::File);
+        look("remove");
+        let _ = store.delete();
+        look("delete");
+        let _ = store.remove(StoreKind::Keychain);
+        look("remove-keychain");
+        assert!(matches!(store.read(), Read::NotStored));
+        println!(
+            "\nthe switch that keeps a read from asking was {before} before and {} after",
+            seen.join(" ")
+        );
+    }
+
+    /// The control of the stale-reference test: an item deleted by a fresh reference, with no
+    /// other process and no older reference, is gone. `Err` with the codes when the search
+    /// after the delete is refused, so that the control did not run.
+    #[cfg(feature = "keychain")]
+    fn a_delete_by_a_fresh_reference_removes_the_item() -> Result<usize, String> {
+        let account = name("stale-control");
+        let account = account.as_str();
+        let _ = search(account).delete();
+        SecKeychain::default()
+            .expect("the default keychain")
+            .add_generic_password(SERVICE, account, HELD)
+            .expect("the control's item is added");
+        let (password, item) =
+            find_generic_password(None, SERVICE, account).expect("the control's item is found");
+        assert_eq!(&*password, HELD);
+        item.delete();
+        let left = look(account).map(|held| held.len());
+        let _ = search(account).delete();
+        left
+    }
+
+    #[cfg(feature = "keychain")]
+    #[test]
+    fn a_stale_reference_between_two_processes_keeps_the_later_item() {
+        const STALE_CHILD: &str = "HALVO_SECRETS_STALE_REFERENCE_CHILD";
+        const STALE_SEEN: &str = "HALVO_SECRETS_STALE_REFERENCE_SEEN";
+        const STALE_ROUNDS: &str = "HALVO_SECRETS_STALE_REFERENCE_ROUNDS";
+        on_a_hosted_runner();
+        let later = held_one_byte_off(0);
+        if let Ok(account) = std::env::var(STALE_CHILD) {
+            let seen = PathBuf::from(std::env::var(STALE_SEEN).expect("the file of what it saw"));
+            search(&account)
+                .delete()
+                .expect("the child deletes the item");
+            SecKeychain::default()
+                .expect("the default keychain")
+                .add_generic_password(SERVICE, &account, &later)
+                .expect("the child adds a later item");
+            let saw = match look(&account) {
+                Ok(held) if held.len() == 1 => [b"bytes:".as_slice(), &held[0]].concat(),
+                Ok(held) => format!("items:{}", held.len()).into_bytes(),
+                Err(codes) => format!("refused:{codes}").into_bytes(),
+            };
+            std::fs::write(&seen, saw).expect("the child writes what it saw");
+            return;
+        }
+        let rounds: usize = std::env::var(STALE_ROUNDS)
+            .ok()
+            .and_then(|rounds| rounds.parse().ok())
+            .unwrap_or(200);
+        let control = a_delete_by_a_fresh_reference_removes_the_item();
+        println!("\nstale-reference control: a delete by a fresh reference left {control:?} items");
+        match control {
+            Ok(0) => {}
+            Ok(items) => panic!("the control's delete by a fresh reference left {items} items"),
+            Err(codes) => panic!("the control did not run: {codes}"),
+        }
+        let (mut run, mut kept, mut gone, mut unknown) = (0, 0, 0, 0);
+        for round in 0..rounds {
+            let account = name(&format!("stale-{round}"));
+            let account = account.as_str();
+            let seen = dir(&format!("stale-seen-{round}")).with_file_name("seen");
+            let _ = std::fs::remove_file(&seen);
+            SecKeychain::default()
+                .expect("the default keychain")
+                .add_generic_password(SERVICE, account, HELD)
+                .expect("an item is added");
+            let (_, item) =
+                find_generic_password(None, SERVICE, account).expect("the item is found");
+            let status = std::process::Command::new(
+                std::env::current_exe().expect("the test binary"),
+            )
+            .args([
+                "--exact",
+                "by_reference::a_stale_reference_between_two_processes_keeps_the_later_item",
+                "--test-threads=1",
+            ])
+            .env(STALE_CHILD, account)
+            .env(STALE_SEEN, &seen)
+            .output()
+            .expect("the child")
+            .status;
+            let saw = std::fs::read(&seen).unwrap_or_default();
+            let added = status.success() && saw == [b"bytes:".as_slice(), &later].concat();
+            let child_saw = if added {
+                "later".to_string()
+            } else if saw.starts_with(b"bytes:") {
+                "other bytes".to_string()
+            } else {
+                String::from_utf8_lossy(&saw).into_owned()
+            };
+            let parent_before = match look(account) {
+                Ok(held) => format!("{} items", held.len()),
+                Err(codes) => codes,
+            };
+            item.delete();
+            let left = look(account);
+            let shown = match &left {
+                Ok(held) if *held == [later.clone()] => "later".to_string(),
+                Ok(held) if held.is_empty() => "none".to_string(),
+                Ok(_) => "other".to_string(),
+                Err(codes) => format!("unknown ({codes})"),
+            };
+            println!(
+                "stale-reference round {round} child={status} child_saw={child_saw} parent_before={parent_before} parent=deleted-by-reference stands={shown}"
+            );
+            if added {
+                run += 1;
+                if shown == "later" {
+                    kept += 1;
+                } else if shown.starts_with("unknown") {
+                    unknown += 1;
+                } else {
+                    gone += 1;
+                }
+            }
+            let _ = search(account).delete();
+        }
+        println!(
+            "\nstale-reference rounds={rounds} run={run} later_kept={kept} later_gone={gone} unknown={unknown} not_run={}",
+            rounds - run
+        );
+        assert_eq!(
+            gone, 0,
+            "a removal by a stale reference removed the later item"
+        );
+        assert_eq!(run, rounds, "fewer rounds ran than were asked");
+        assert_eq!(
+            kept, rounds,
+            "a round's later item was not seen after the delete"
+        );
+    }
+
+    const TWO_BINARIES_ACCOUNT: &str = "hosted-two-binaries";
+
+    fn two_binaries_note() -> PathBuf {
+        Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-secrets-two-binaries.note")
+    }
+
+    #[cfg(feature = "keychain")]
+    #[test]
+    fn two_binaries_the_keychain_build_adds_the_item_and_leaves_a_move_s_claim() {
+        on_a_hosted_runner();
+        let _ = search(TWO_BINARIES_ACCOUNT).delete();
+        let place = dir("two-binaries");
+        let account = Name::new(TWO_BINARIES_ACCOUNT).expect("a name");
+        let store = Store::new(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            account.clone(),
+        );
+        assert_eq!(store.write(&secret(HELD)), Write::Stored);
+        let file = Store::in_directory(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            account,
+        );
+        assert_eq!(file.write(&secret(HELD)), Write::Stored);
+        std::fs::rename(
+            place.join(TWO_BINARIES_ACCOUNT),
+            place.join(format!(
+                ".{TWO_BINARIES_ACCOUNT}.{}.0.claim",
+                std::process::id()
+            )),
+        )
+        .expect("the claim of a killed move");
+        std::fs::write(two_binaries_note(), place.to_string_lossy().as_bytes()).expect("the note");
+        println!("\ntwo-binaries keychain build: item added, claim left, note written");
+    }
+
+    #[cfg(not(feature = "keychain"))]
+    #[test]
+    fn two_binaries_the_file_build_removes_the_keychain_item_beside_the_claim() {
+        on_a_hosted_runner();
+        let note = std::fs::read_to_string(two_binaries_note())
+            .expect("the note of the keychain build's test, which runs first");
+        let place = PathBuf::from(note);
+        let data = {
+            let _quiet = SecKeychain::disable_user_interaction().expect("the switch");
+            find_generic_password(None, SERVICE, TWO_BINARIES_ACCOUNT).map(|_| ())
+        };
+        let refused = data.as_ref().err().map(|error| error.code());
+        let store = Store::new(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            Name::new(TWO_BINARIES_ACCOUNT).expect("a name"),
+        );
+        let removal = store.remove(StoreKind::Keychain).expect("a store of a Mac");
+        let mut names: Vec<String> = std::fs::read_dir(&place)
+            .expect("the store directory")
+            .map(|entry| {
+                entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        let items = {
+            let mut count = search(TWO_BINARIES_ACCOUNT);
+            count.load_attributes(true).limit(Limit::All);
+            count.search().map(|found| found.len()).unwrap_or(0)
+        };
+        println!(
+            "\ntwo-binaries file build: data_read_refused={refused:?} removed={:?} then={:?} names={names:?} keychain_items={items}",
+            removal.removed, removal.then
+        );
+        let file_holds = names.iter().any(|name| name == TWO_BINARIES_ACCOUNT);
+        match &removal.then {
+            Read::Found(held) => assert!(file_holds && held.expose() == HELD, "then says Found"),
+            Read::NotStored => assert!(!file_holds && items == 0, "then says NotStored"),
+            Read::Locked(halvo_secrets::Locked::OtherStore) => {
+                assert!(items > 0, "then says OtherStore")
+            }
+            then => panic!("then answered {then:?}"),
+        }
+        let _ = Store::in_directory(
+            Directory::new(place.clone()).expect("an absolute directory"),
+            Name::new(TWO_BINARIES_ACCOUNT).expect("a name"),
+        )
+        .remove(StoreKind::File);
+        let _ = search(TWO_BINARIES_ACCOUNT).delete();
+        std::fs::remove_file(two_binaries_note()).expect("the note is removed");
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -156,6 +618,55 @@ mod beside_the_keychain {
         keychain_items::remove(&name(label));
         assert!(matches!(store.read(), Read::NotStored));
         println!("\na keychain item read by a build without the feature answers {read:?}, and {both:?} beside a file");
+    }
+
+    #[test]
+    fn an_unsigned_build_leaves_other_bytes_in_both_stores_at_the_person_s_word() {
+        on_a_hosted_runner();
+        let signed = b"0123456789abcdef".repeat(4);
+        let earlier = held_one_byte_off(0);
+        assert_eq!((signed.len(), earlier.len()), (64, 64));
+        for (label, from) in [
+            ("unsigned-keeps-file", StoreKind::Keychain),
+            ("unsigned-keeps-item", StoreKind::File),
+        ] {
+            let store = store(label);
+            let file = file_store(label);
+            keychain_items::add(&name(label), &signed);
+            assert_eq!(file.write(&secret(&earlier)), Write::Stored);
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+            let removal = store.remove(from).expect("a store of a Mac");
+            assert_eq!(removal.removed, Delete::Deleted, "{label}");
+            match from {
+                StoreKind::Keychain => {
+                    assert_eq!(found(removal.then), earlier);
+                    assert_eq!(keychain_items::count(&name(label)), 0);
+                    assert_eq!(found(file.read()), earlier);
+                    assert_eq!(
+                        other_bytes(store.delete_if_holds(&secret(&signed))),
+                        earlier
+                    );
+                    assert!(matches!(
+                        store.delete_if_holds(&secret(&earlier)),
+                        halvo_secrets::DeleteIfHolds::Deleted
+                    ));
+                    assert!(matches!(file.read(), Read::NotStored));
+                }
+                _ => {
+                    assert!(
+                        matches!(removal.then, Read::Locked(Locked::OtherStore)),
+                        "{:?}",
+                        removal.then
+                    );
+                    assert!(matches!(file.read(), Read::NotStored));
+                    assert_eq!(keychain_items::count(&name(label)), 1);
+                    keychain_items::remove(&name(label));
+                }
+            }
+            assert!(matches!(store.read(), Read::NotStored), "{label}");
+            println!("\nan unsigned build with other bytes of 64 in both stores removed the {} item at the person's word and then read what stayed", from.as_str());
+        }
     }
 
     #[test]
@@ -303,6 +814,45 @@ mod moves {
         assert_eq!(found(store.read()), signed);
         assert_eq!(store.delete(), Delete::Deleted);
         println!("\nwith both places full of two credentials of 64 bytes that differ in one byte, the read answered Locked(OtherStore) twice, and so did a delete");
+    }
+
+    #[test]
+    fn a_signed_build_leaves_other_bytes_in_both_stores_at_the_person_s_word() {
+        on_a_hosted_runner();
+        let signed = b"0123456789abcdef".repeat(4);
+        let earlier = held_one_byte_off(0);
+        assert_eq!((signed.len(), earlier.len()), (64, 64));
+        for (label, from) in [
+            ("signed-keeps-item", StoreKind::File),
+            ("signed-keeps-file", StoreKind::Keychain),
+        ] {
+            let store = store(label);
+            let file = file_store(label);
+            assert_eq!(store.write(&secret(&signed)), Write::Stored);
+            assert_eq!(file.write(&secret(&earlier)), Write::Stored);
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+            let removal = store.remove(from).expect("a store of a Mac");
+            assert_eq!(removal.removed, Delete::Deleted, "{label}");
+            let stays = match from {
+                StoreKind::File => signed.clone(),
+                _ => earlier.clone(),
+            };
+            assert_eq!(found(removal.then), stays, "{label}");
+            assert!(matches!(file.read(), Read::NotStored), "{label}");
+            assert_eq!(keychain_items::count(&name(label)), 1, "{label}");
+            let other = if stays == signed { &earlier } else { &signed };
+            assert_eq!(other_bytes(store.delete_if_holds(&secret(other))), stays);
+            assert_eq!(keychain_items::count(&name(label)), 1, "{label}");
+            let deleted = store.delete_if_holds(&secret(&stays));
+            assert!(
+                matches!(deleted, halvo_secrets::DeleteIfHolds::Deleted),
+                "{deleted:?}"
+            );
+            assert_eq!(keychain_items::count(&name(label)), 0, "{label}");
+            assert!(matches!(store.read(), Read::NotStored), "{label}");
+            println!("\na signed build with other bytes of 64 in both stores removed the {} item at the person's word, read what stayed, and deleted it only for its own bytes", from.as_str());
+        }
     }
 }
 

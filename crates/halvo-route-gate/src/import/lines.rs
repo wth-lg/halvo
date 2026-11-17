@@ -326,6 +326,50 @@ pub fn named<'a>(line: &'a [u8], head: &[u8]) -> Option<&'a [u8]> {
     Some(rest.split(|byte| *byte == b' ').next().unwrap_or(rest))
 }
 
+/// A cell of the trial: the `drive` line of one model, machine, task and seed with its five
+/// attempt lines, or the `reply` line of one model, machine and seed with its one `write` line.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum Cell {
+    Drive(Model, Machine, Task, Seed),
+    Reply(Model, Machine, Seed),
+}
+
+/// The cell of a counted `drive` or `reply` line (T5.4, U0.2c): a line whose first bytes are
+/// `drive model=<token> machine=<m> task=<bill|order> seed=<n> ` or `reply model=<token>
+/// machine=<m> seed=<n> `, with values of T5.1 and T5.2. The rest of the line is not read.
+pub fn counted(line: &[u8]) -> Option<Cell> {
+    let heads = |head: &str, keys: &[&str]| -> Option<Vec<String>> {
+        let rest = std::str::from_utf8(line).ok()?.strip_prefix(head)?;
+        let mut words = rest.splitn(keys.len() + 1, ' ');
+        let values = keys
+            .iter()
+            .map(|key| {
+                let value = words.next()?.strip_prefix(key)?.strip_prefix('=')?;
+                Some(value.to_owned())
+            })
+            .collect::<Option<Vec<String>>>()?;
+        words.next().map(|_| values)
+    };
+    if let Some(v) = heads("drive ", &["model", "machine", "task", "seed"]) {
+        let task = match Task::parse(&v[2]).ok()? {
+            task @ (Task::Bill | Task::Order) => task,
+            _ => return None,
+        };
+        return Some(Cell::Drive(
+            model(&v[0])?,
+            machine(&v[1])?,
+            task,
+            Seed::parse(&v[3]).ok()?,
+        ));
+    }
+    let v = heads("reply ", &["model", "machine", "seed"])?;
+    Some(Cell::Reply(
+        model(&v[0])?,
+        machine(&v[1])?,
+        Seed::parse(&v[2]).ok()?,
+    ))
+}
+
 /// A `drive` line: one cell of the driver trial, the five runs of one task, machine and seed.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Drive {

@@ -10,7 +10,7 @@ use crate::grammar::{parse, Build};
 use crate::origin::{Backend, PageUrl, Pages};
 use crate::outcome::{Failure, Outcome};
 use crate::sign_in::SignIn;
-use halvo_secrets::{Delete, Read, Secret, Write};
+use halvo_secrets::{DeleteIfHolds, Read, Secret, Write};
 use std::ffi::OsString;
 use std::io::{ErrorKind, Read as _, Write as _};
 use std::net::{SocketAddr, TcpListener, TcpStream};
@@ -40,7 +40,7 @@ impl Keep for Holding {
         unreachable!("status writes nothing")
     }
 
-    fn delete(&self) -> Delete {
+    fn delete_if_holds(&self, _held: &Secret) -> DeleteIfHolds {
         unreachable!("status deletes nothing")
     }
 }

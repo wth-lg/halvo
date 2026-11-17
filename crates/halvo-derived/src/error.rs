@@ -60,9 +60,10 @@ pub enum OpenError {
     Setting(&'static str),
     /// The database holds a schema that is not this library's, or a schema with a table or an index missing.
     Schema,
-    /// Rows of this kind are stored that its entry cannot follow: the entry gives another retention class than they
-    /// were stored under, or a workflow key under which a row's record holds no id, or another id than the row is
-    /// deleted with. It names the kind and which of the two it is, and no id and no value of a record.
+    /// Rows of this kind are stored that its entry cannot follow: the entry gives another retention class or another
+    /// family than they were stored under, a workflow key under which a row's record holds no id, or another id than
+    /// the row is deleted with, or no workflow key while a row names the workflow that it is deleted with. It names
+    /// the kind and which fault it is, and no id and no value of a record.
     Stored {
         kind: &'static str,
         fault: StoredFault,
@@ -71,7 +72,7 @@ pub enum OpenError {
     Fault(Fault),
 }
 
-/// Which of the two ways an entry cannot follow the rows of its kind that are stored.
+/// Which of the ways an entry cannot follow the rows of its kind that are stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoredFault {
     /// The entry gives another retention class than a stored row of the kind was stored under.
@@ -79,6 +80,10 @@ pub enum StoredFault {
     /// The entry gives a workflow key under which a stored row's record holds no id, or another id than the row is
     /// deleted with.
     WorkflowKey,
+    /// The entry gives no workflow key while a stored row of the kind names the workflow that it is deleted with.
+    DroppedWorkflowKey,
+    /// The entry gives another family than a stored row of the kind was stored under.
+    Family,
 }
 
 impl fmt::Display for OpenError {
@@ -113,6 +118,20 @@ impl fmt::Display for OpenError {
             } => write!(
                 f,
                 "rows of the kind {kind} name another workflow, or none, under the workflow key of its entry"
+            ),
+            OpenError::Stored {
+                kind,
+                fault: StoredFault::DroppedWorkflowKey,
+            } => write!(
+                f,
+                "rows of the kind {kind} name a workflow while its entry gives no workflow key"
+            ),
+            OpenError::Stored {
+                kind,
+                fault: StoredFault::Family,
+            } => write!(
+                f,
+                "rows of the kind {kind} are stored under another family than its entry gives"
             ),
             OpenError::Fault(fault) => fault.fmt(f),
         }
