@@ -1495,3 +1495,20 @@ fn a_made_record_is_read_back_to_itself_and_a_rule_that_it_breaks_refuses_its_te
         ("AgentRun", "mode_null_after_finish", Some("mode"))
     );
 }
+
+#[test]
+fn the_maker_writes_the_day_that_its_caller_gives() {
+    let golden = committed("runs.jsonl");
+    let ended = golden.lines().nth(3).unwrap();
+    assert!(ended.contains(r#","day":20768,"#), "{ended}");
+    for day in [0, 1, 19_000, 20_767, 20_770, u32::MAX] {
+        let mut made = AgentRun::new(workflow(), agent(), run(), day, None, Outcome::Failed);
+        made.effects = 1;
+        made.unknown = 1;
+        assert_eq!(
+            made.to_json().unwrap(),
+            ended.replacen(r#","day":20768,"#, &format!(r#","day":{day},"#), 1),
+            "{day}"
+        );
+    }
+}
