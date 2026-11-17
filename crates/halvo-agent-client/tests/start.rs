@@ -32,7 +32,7 @@ fn a_start_that_answers_ok_has_a_complete_mark_and_a_runner_of_its_own_group_or_
         assert_eq!(runner.group, Group::Leader(runner.pid));
         assert_eq!(process::process_group(runner.pid.get()), Some(runner.pid));
     }
-    assert!(script.wait_log("args 10", SHORT), "{}", script.log());
+    assert!(script.wait_log("args 12", SHORT), "{}", script.log());
     assert_eq!(
         rig.rec.starts.lock().unwrap().as_slice(),
         std::slice::from_ref(&run)
@@ -157,6 +157,124 @@ fn a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_ex
         end.forced, None,
         "a runner that left by itself was ended by force"
     );
+}
+
+/// The lines `utc-offset <value>` of the stand-in's log.
+fn offsets_logged(script: &common::Script) -> Vec<String> {
+    script
+        .log()
+        .lines()
+        .filter_map(|l| l.strip_prefix("utc-offset ").map(str::to_owned))
+        .collect()
+}
+
+/// CP-204 D1 and D7: the command of a start holds `--utc-offset` with the caller's offset, once, as `i32` writes it.
+#[test]
+fn a_start_gives_the_runner_the_callers_offset_as_utc_offset() {
+    let rig = Rig::new("start-offset");
+    for offset in [-50_400, -1, 0, 19_800, 50_400] {
+        let script = rig.script(&["hello", "idle"]);
+        let mut spec = rig.spec(&script);
+        spec.utc_offset_s = offset;
+        let run = spec.run.clone();
+        assert_eq!(rig.sup.start(spec), Ok(()), "{offset}: {}", script.log());
+        assert!(script.wait_log("utc-offset", SHORT), "{}", script.log());
+        assert_eq!(
+            offsets_logged(&script),
+            [offset.to_string()],
+            "{offset}: {}",
+            script.log()
+        );
+        rig.sup.kill(&run).unwrap();
+    }
+}
+
+/// CP-204 D4 and D7: a start whose offset the runner refuses answers `not_started` with the runner's exit, the
+/// status 2, and leaves no runner; it never runs as UTC.
+#[test]
+fn a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_exit() {
+    let rig = Rig::new("start-offset-refused");
+    for offset in [50_401, -50_401, i32::MAX, i32::MIN] {
+        let script = rig.script(&["hello", "idle"]);
+        let mut spec = rig.spec(&script);
+        spec.utc_offset_s = offset;
+        let run = spec.run.clone();
+        assert_eq!(
+            rig.sup.start(spec),
+            Err(StartError::NotStarted(NotStarted::Runner {
+                exit: Some(RunnerExit::Status(2))
+            })),
+            "{offset}: {}",
+            script.log()
+        );
+        assert!(
+            script.wait_log("refused utc-offset", SHORT),
+            "{}",
+            script.log()
+        );
+        assert_eq!(offsets_logged(&script), [offset.to_string()], "{offset}");
+        assert_eq!(
+            script.log().lines().last(),
+            Some("refused utc-offset"),
+            "{offset}: the stand-in ran no line of its script"
+        );
+        assert_runner_gone(&script);
+        assert!(rig.rec.wait_end(&run, SHORT).is_some(), "{offset}: the end");
+    }
+}
+
+/// CP-212 V4: the stand-in runner reads `--utc-offset` as the runner does: started by hand without it, or with a value
+/// out of range or not in the form that `i32` writes (`+3600`, `007`, `-0`), it exits with the status 2 before it
+/// plays a line of its script, and with `3600` or `-50400` it plays it, so that no library test can pass on a start
+/// that the real runner refuses.
+#[test]
+fn the_stand_in_runner_refuses_an_offset_as_the_runner_does() {
+    let dir = common::scratch("stand-in-offset");
+    let cases: [(Option<&str>, bool); 7] = [
+        (None, true),
+        (Some("+3600"), true),
+        (Some("007"), true),
+        (Some("-0"), true),
+        (Some("50401"), true),
+        (Some("3600"), false),
+        (Some("-50400"), false),
+    ];
+    for (value, refused) in cases {
+        let script = common::Script::new(&dir, &["log played", "exit 0"]);
+        let mut cmd = std::process::Command::new(common::peer());
+        cmd.arg("--run")
+            .arg("offset")
+            .arg("--browser")
+            .arg(&script.path);
+        if let Some(value) = value {
+            cmd.arg("--utc-offset").arg(value);
+        }
+        let mut child = cmd
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut status = None;
+        assert!(
+            wait_until(SHORT, || {
+                status = child.try_wait().unwrap();
+                status.is_some()
+            }),
+            "{value:?}: the stand-in ended: {}",
+            script.log()
+        );
+        let code = status.and_then(|s| s.code());
+        let log = script.log();
+        if refused {
+            assert_eq!(code, Some(2), "{value:?}: {log}");
+            assert_eq!(log.lines().last(), Some("refused utc-offset"), "{value:?}");
+            assert!(!log.contains("played"), "{value:?}: {log}");
+        } else {
+            assert_eq!(code, Some(0), "{value:?}: {log}");
+            assert!(log.contains("played"), "{value:?}: {log}");
+        }
+    }
 }
 
 #[test]

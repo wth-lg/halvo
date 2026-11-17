@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 
 use crate::body::{is_link, read_stream, stream_dirs, StreamRecords};
 use crate::form::{text_lines, Refusal};
-use crate::input_copy::read_tier;
+use crate::input_copy::{read_tier, tier_fault};
 use crate::labels::{parse_row, Row};
 use crate::manifest::{parse_script_manifest, StepLine, TierManifest};
 use crate::text::{site_masked, site_name, template, tokens};
@@ -154,9 +154,8 @@ fn names_in<'a>(hay: &[u8], names: &[&'a str]) -> BTreeSet<&'a str> {
     found
 }
 
-fn names_a_link(arg: &str) -> bool {
-    let raw = Path::new(arg);
-    if is_link(raw) {
+fn names_a_link(raw: &Path) -> bool {
+    if is_link(&raw.components().collect::<PathBuf>()) {
         return true;
     }
     let mut named = PathBuf::new();
@@ -229,18 +228,20 @@ fn walk(arg: &str, path: &Path, skip: &Path, out: &mut Walk) -> Result<(), Refus
 
 /// Runs `leak` and returns the lines it prints and whether the four shared counts are 0.
 pub fn leak(tier: &Path, paths: &[String]) -> Result<(Vec<String>, bool), Refusal> {
+    if names_a_link(tier) {
+        return Err(tier_fault(tier, 0));
+    }
     let (manifest, hash) = read_tier(tier)?;
     let body = read_body(tier, "tier-files")
         .map_err(|r| Refusal::new(r.cause, tier.display().to_string()))?;
-    let skip = fs::canonicalize(tier)
-        .map_err(|_| Refusal::new("tier-manifest", tier.display().to_string()))?;
+    let skip = fs::canonicalize(tier).map_err(|_| tier_fault(tier, 0))?;
     let mut w = Walk {
         files: Vec::new(),
         bodies: Vec::new(),
         numbered: 0,
     };
     for p in paths {
-        if names_a_link(p) {
+        if names_a_link(Path::new(p)) {
             return Err(Refusal::new("path", p.clone()));
         }
         w.numbered = 0;

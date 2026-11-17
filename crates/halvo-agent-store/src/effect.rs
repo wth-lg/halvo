@@ -1,21 +1,21 @@
 use halvo_policy::{decide, effect_step, Checkpoint, Effect, EffectMove};
 use halvo_schema::executable::body::{PutEffect, Stored};
 use halvo_schema::executable::names::{Cause, EffectState};
-use halvo_schema::executable::{AgentConfig, AgentEffect, RunnerReply};
+use halvo_schema::executable::{AgentConfig, AgentEffect, ApprovalId, RunnerReply};
 use halvo_schema::ErrorName;
 
-use crate::bind;
 use crate::errors::Own;
-use crate::host::Host;
+use crate::host::{Host, Now};
 use crate::rows::{self, record};
+use crate::{bind, day};
 
-pub(crate) fn put(host: &mut dyn Host, b: &PutEffect) -> Result<RunnerReply, ErrorName> {
+pub(crate) fn put(host: &mut dyn Host, now: Now, b: &PutEffect) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(&*host, &b.agent)?;
     let row = &b.record;
     if row.workflow != workflow.id {
         return Err(Own::Binding.into());
     }
-    bind::own_run(&*host, &row.run, &row.agent)?;
+    bind::own_run(&*host, now, &row.run, &row.agent)?;
     let all = rows::effects(host.rows())?;
     let mut mine: Vec<&AgentEffect> = all.iter().filter(|r| r.effect == row.effect).collect();
     if mine
@@ -25,9 +25,7 @@ pub(crate) fn put(host: &mut dyn Host, b: &PutEffect) -> Result<RunnerReply, Err
         return Err(Own::Binding.into());
     }
     mine.sort_by_key(|r| r.seq);
-    if mine.last().is_some_and(|last| {
-        last.state == row.state && last.digest == row.digest && last.approval == row.approval
-    }) {
+    if mine.last().is_some_and(|last| repeats(last, row)) {
         return Ok(stored());
     }
     bind::open_run(&*host, &row.run)?;
@@ -35,12 +33,21 @@ pub(crate) fn put(host: &mut dyn Host, b: &PutEffect) -> Result<RunnerReply, Err
         None => first(&config, row)?,
         Some((first_row, _)) => later(&all, &mine, first_row, row)?,
     }
-    host.commit(vec![record(rows::AGENT_EFFECT, row.to_json())?])?;
+    day::commit(host, now, vec![record(rows::AGENT_EFFECT, row.to_json())?])?;
     Ok(stored())
 }
 
 fn stored() -> RunnerReply {
     RunnerReply::Stored(Stored { stored: 1 })
+}
+
+fn repeats(last: &AgentEffect, row: &AgentEffect) -> bool {
+    let dated = AgentEffect {
+        day: row.day,
+        at: row.at,
+        ..last.clone()
+    };
+    dated == *row
 }
 
 fn first(config: &AgentConfig, row: &AgentEffect) -> Result<(), ErrorName> {
@@ -103,10 +110,22 @@ fn later(
             return Err(Own::Effect.into());
         }
     };
+    if matches!(row.state, EffectState::Releasing | EffectState::Committed)
+        && row.approval.as_ref() != last_approval(mine)
+    {
+        return Err(Own::Effect.into());
+    }
     match effect_step(Some(&effect), step) {
         Ok(state) if state == row.state => Ok(()),
         _ => Err(Own::Effect.into()),
     }
+}
+
+fn last_approval<'a>(mine: &[&'a AgentEffect]) -> Option<&'a ApprovalId> {
+    mine.iter()
+        .rev()
+        .find(|r| r.state == EffectState::Approved)
+        .and_then(|r| r.approval.as_ref())
 }
 
 pub(crate) fn rebinds(mine: &[&AgentEffect]) -> u32 {

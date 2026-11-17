@@ -52,7 +52,7 @@ fn two_replies_that_carried_different_edits_for_a_step_give_it_no_clean_use() {
     let second = w.load_steps(2, 1, 1);
     assert_eq!(names(&second[1]), ["A", "Pay"]);
     assert_eq!(marked(&w, 2), [2]);
-    w.log(2, &[(1, "step_ok", 2, None)]);
+    w.log(2, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     let rows = rows(&w);
     assert_eq!(rows.len(), 1);
@@ -75,7 +75,7 @@ fn two_replies_that_carried_two_different_edits_for_a_step_give_it_no_clean_use(
     let second = w.load_steps(3, 1, 1);
     assert_eq!(names(&second[1]), ["B", "Pay"]);
     assert_eq!(marked(&w, 3), [2]);
-    w.log(3, &[(1, "step_ok", 2, None)]);
+    w.log(3, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     let second_edit: Vec<LearnEdit> = rows(&w)
         .into_iter()
@@ -99,7 +99,7 @@ fn two_replies_that_carried_different_edits_lay_a_counted_failure_on_the_edit_of
     w.replay(2);
     learn_on_step_2(&mut w, 3);
     w.load_steps(2, 1, 1);
-    w.log(2, &[(1, "step_failed", 2, Some("step_failed"))]);
+    w.log(2, &[(2, "step_failed", 2, Some("step_failed"))]);
     assert!(w.finish(2, "replay", "failed").is_ok());
     let rows = rows(&w);
     assert_eq!(rows.len(), 2);
@@ -115,7 +115,7 @@ fn a_newer_revision_of_the_same_edit_between_two_replies_leaves_the_clean_use() 
     let again = w.load_steps(3, 1, 1);
     assert_eq!(names(&again[1]), ["A", "Pay"]);
     assert!(marked(&w, 3).is_empty());
-    w.log(3, &[(1, "step_ok", 2, None)]);
+    w.log(3, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     let rows = rows(&w);
     assert_eq!(rows.len(), 3);
@@ -145,7 +145,7 @@ fn a_reply_under_another_number_than_the_loaded_one_changes_nothing_that_the_run
     assert_eq!(held(&w), before);
     assert!(marked(&w, 3).is_empty());
     let count = w.host.count();
-    w.log(3, &[(1, "step_ok", 2, None)]);
+    w.log(3, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     assert_eq!(w.host.count(), count + 1);
     assert_eq!(rows(&w).len(), 2);

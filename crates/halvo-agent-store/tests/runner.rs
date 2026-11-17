@@ -3,6 +3,7 @@ mod common;
 use common::*;
 use halvo_agent_store::MemoryStore;
 use halvo_schema::executable::body::LoadReply;
+use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerCall, RunnerReply};
 use halvo_schema::ErrorName;
 use serde_json::{json, Value};
@@ -82,8 +83,8 @@ fn log_line(seq: u32) -> Value {
         "agent": agent(1),
         "run": run(1),
         "seq": seq,
-        "day": 20_770,
-        "at": 1_794_400_000_000_000_000_i64,
+        "day": ROW_DAY,
+        "at": ROW_AT,
         "event": "step_ok",
         "step": 1,
         "cause": null,
@@ -206,7 +207,7 @@ fn put_session_stores_a_part_once_with_the_day_of_the_request() {
     );
     let rows = session_rows(&store);
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].day, NOW.day);
+    assert_eq!(rows[0].day, TODAY);
     assert_eq!(rows[0].workflow.as_str(), wf(1));
     assert_eq!(
         put_session(&mut store, origin, 1, 1, 1, vec!["QUJE".into()]),
@@ -375,29 +376,141 @@ fn load_steps_reads_at_most_sixteen_steps_from_from() {
 #[test]
 fn log_lines_are_stored_by_the_runner_body() {
     let mut store = store_with("utility_bill_payment");
+    let before = rows(&store, "agent_log").len();
     assert_eq!(
-        put_log(&mut store, vec![log_line(1), log_line(2)]),
-        Ok(stored(2))
-    );
-    assert_eq!(
-        put_log(&mut store, vec![log_line(1), log_line(2)]),
+        put_log(&mut store, vec![log_line(2), log_line(3)]),
         Ok(stored(2))
     );
     assert_eq!(
         put_log(&mut store, vec![log_line(2), log_line(3)]),
         Ok(stored(2))
     );
+    assert_eq!(
+        put_log(&mut store, vec![log_line(3), log_line(4)]),
+        Ok(stored(2))
+    );
     let lines: Vec<AgentLog> = rows(&store, "agent_log")
         .iter()
         .map(|r| AgentLog::parse(r.as_bytes()).expect("a log row"))
+        .filter(|l| l.event == LogEvent::StepOk)
         .collect();
     let mut seqs: Vec<u32> = lines.iter().map(|l| l.seq.get()).collect();
     seqs.sort_unstable();
-    assert_eq!(seqs, [1, 2, 3]);
-    let mut other = log_line(4);
+    assert_eq!(seqs, [2, 3, 4]);
+    let mut other = log_line(5);
     other["workflow"] = json!(wf(2));
     assert_eq!(put_log(&mut store, vec![other]), Err(declared("binding")));
-    assert_eq!(rows(&store, "agent_log").len(), 3);
+    assert_eq!(rows(&store, "agent_log").len(), before + 3);
+}
+
+fn runner_bodies(r: u32) -> Vec<Value> {
+    let origin = "https://pay.test:443";
+    let mut line = log_line(2);
+    line["run"] = json!(run(r));
+    let mut effect_row = row(r, 1, 1, "held", "payment", 1, None, None);
+    effect_row["run"] = json!(run(r));
+    vec![
+        json!({"op": "load", "agent": agent(1), "run": run(r)}),
+        json!({"op": "load_steps", "agent": agent(1), "run": run(r), "number": 1, "from": 1}),
+        json!({"op": "load_session", "agent": agent(1), "run": run(r), "origin": origin, "rev": 1, "part": 1}),
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": 1, "steps": navs(1, 1)}),
+        json!({"op": "put_session", "agent": agent(1), "run": run(r), "origin": origin, "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]}),
+        json!({"op": "log", "agent": agent(1), "run": run(r), "records": [line]}),
+        json!({"op": "effect", "agent": agent(1), "run": run(r), "record": effect_row}),
+        json!({"op": "finish", "agent": agent(1), "run": run(r), "record": run_record(r, Some("replay"), "failed")}),
+    ]
+}
+
+fn every_agent_row(store: &MemoryStore) -> Vec<Vec<String>> {
+    halvo_agent_store::AGENT_KINDS
+        .iter()
+        .map(|(kind, _)| rows(store, kind))
+        .collect()
+}
+
+#[test]
+fn a_log_and_a_propose_of_a_run_with_no_start_row_are_refused_with_binding_and_store_nothing() {
+    let mut store = unstarted("utility_bill_payment");
+    let before = every_agent_row(&store);
+    assert_eq!(
+        put_log(&mut store, vec![log_line(2)]),
+        Err(declared("binding"))
+    );
+    assert_eq!(
+        put(&mut store, row(1, 1, 1, "held", "payment", 1, None, None)),
+        Err(declared("binding"))
+    );
+    assert_eq!(every_agent_row(&store), before);
+}
+
+#[test]
+fn every_runner_body_of_a_run_with_no_start_row_of_its_agent_is_refused_with_binding() {
+    let mut store = unstarted("utility_bill_payment");
+    store.put_workflow(workflow(&wf(2), "utility_bill_payment", "approved", None));
+    create(&mut store, 2, 2).expect("create_agent of the second agent");
+    assert_eq!(start_at(&mut store, NOW, 2, 2, 5), Ok(accepted()));
+    let before = every_agent_row(&store);
+    for r in [1, 5] {
+        for body in runner_bodies(r) {
+            assert_eq!(
+                runner(&mut store, body.clone()),
+                Err(declared("binding")),
+                "{body}"
+            );
+        }
+    }
+    assert_eq!(every_agent_row(&store), before);
+}
+
+#[test]
+fn a_runner_body_after_the_bound_of_its_start_row_is_refused_with_binding() {
+    let mut store = store_with("utility_bill_payment");
+    let line = |days: i64| {
+        let at = NOW.at.0 + days * NANOS_PER_DAY;
+        let day = u32::try_from(at.div_euclid(NANOS_PER_DAY)).expect("a day");
+        dated(log_line(2), day, at)
+    };
+    let body =
+        |days: i64| json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line(days)]});
+    let late = at(NOW.at.0 + 93 * NANOS_PER_DAY);
+    assert_eq!(
+        runner_at(&mut store, late, body(93)),
+        Err(declared("binding"))
+    );
+    assert_eq!(
+        runner_at(
+            &mut store,
+            late,
+            json!({"op": "load", "agent": agent(1), "run": run(1)})
+        )
+        .map(|_| ()),
+        Err(declared("binding"))
+    );
+    let last = at(NOW.at.0 + 92 * NANOS_PER_DAY);
+    assert_eq!(runner_at(&mut store, last, body(92)), Ok(stored(1)));
+}
+
+#[test]
+fn a_log_body_that_carries_the_start_row_s_event_or_count_is_refused_with_effect() {
+    let mut store = store_with("utility_bill_payment");
+    let before = rows(&store, "agent_log");
+    let mut start_line = log_line(1);
+    start_line["event"] = json!("start_accepted");
+    start_line["step"] = json!(null);
+    let mut later_start = start_line.clone();
+    later_start["seq"] = json!(2);
+    assert_eq!(
+        put_log(&mut store, vec![later_start]),
+        Err(ErrorName::Malformed)
+    );
+    for body in [
+        vec![log_line(1)],
+        vec![log_line(2), log_line(1)],
+        vec![start_line],
+    ] {
+        assert_eq!(put_log(&mut store, body), Err(declared("effect")));
+    }
+    assert_eq!(rows(&store, "agent_log"), before);
 }
 
 #[test]
@@ -457,8 +570,8 @@ fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothin
         "agent": agent(1),
         "run": run(1),
         "seq": 1,
-        "day": 20_770,
-        "at": 1_794_400_000_000_000_000_i64,
+        "day": ROW_DAY,
+        "at": ROW_AT,
         "message": "msg-1",
         "draft": "draft-1",
         "effect": null,
@@ -476,5 +589,314 @@ fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothin
         );
         assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
         assert_eq!(every_row(&store), before);
+    }
+}
+
+#[test]
+fn a_log_line_is_held_to_the_day_of_its_at_and_to_the_clock_and_a_refused_body_stores_nothing() {
+    let mut store = store_with("utility_bill_payment").with_utc_offset(WEST);
+    let evening = local(ROW_DAY, 23 * 3600 + 30 * 60, WEST);
+    let line = |seq, day, at| dated(log_line(seq), day, at);
+    let ahead = NOW.at.0 + NANOS_PER_DAY;
+    let gone = local(TODAY - 93, 3600, WEST);
+    for bad in [
+        line(3, ROW_DAY + 1, evening),
+        line(3, ROW_DAY - 1, evening),
+        line(3, TODAY + 1, ahead),
+        line(3, TODAY - 93, gone),
+    ] {
+        let body = vec![line(2, ROW_DAY, evening), bad.clone()];
+        assert_eq!(put_log(&mut store, body), Err(declared("day")), "{bad}");
+        assert_eq!(rows(&store, "agent_log").len(), 1, "{bad}");
+    }
+    assert_eq!(
+        put_log(&mut store, vec![line(2, ROW_DAY, evening)]),
+        Ok(stored(1))
+    );
+    assert_eq!(rows(&store, "agent_log").len(), 2);
+}
+
+#[test]
+fn a_session_part_takes_the_local_day_of_the_request() {
+    let mut store = unstarted("utility_bill_payment").with_utc_offset(WEST);
+    let night = at(local(ROW_DAY, 21 * 3600, WEST));
+    assert_eq!(start_at(&mut store, night, 1, 1, 1), Ok(accepted()));
+    assert_eq!(night.at.0.div_euclid(NANOS_PER_DAY), i64::from(ROW_DAY) + 1);
+    let body = json!({
+        "op": "put_session", "agent": agent(1), "run": run(1), "origin": "https://pay.test:443",
+        "rev": 1, "part": 1, "of": 1, "data": ["QUJD"],
+    });
+    assert_eq!(runner_at(&mut store, night, body), Ok(stored(1)));
+    assert_eq!(session_rows(&store)[0].day, ROW_DAY);
+}
+
+#[test]
+fn a_log_line_of_the_run_that_is_no_start_row_starts_nothing() {
+    let mut store = unstarted("utility_bill_payment");
+    let mut line = log_line(2);
+    line["run"] = json!(run(3));
+    store
+        .typed_commit(vec![halvo_schema::TypedRecord {
+            kind: "agent_log",
+            json: line.to_string(),
+        }])
+        .expect("a log line stored before the start row existed");
+    let load = json!({"op": "load", "agent": agent(1), "run": run(3)});
+    assert_eq!(
+        runner(&mut store, load).map(|_| ()),
+        Err(declared("binding"))
+    );
+}
+
+#[test]
+fn a_row_whose_at_is_negative_is_refused_with_day() {
+    let mut store = unstarted("utility_bill_payment");
+    let early = at(10 * NANOS_PER_DAY);
+    assert_eq!(start_at(&mut store, early, 1, 1, 1), Ok(accepted()));
+    let before = rows(&store, "agent_effect");
+    let held = dated(row(1, 1, 1, "held", "payment", 1, None, None), 0, -1);
+    assert_eq!(put_at(&mut store, early, held), Err(declared("day")));
+    let line = dated(log_line(2), 0, -1);
+    let body = json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line]});
+    assert_eq!(runner_at(&mut store, early, body), Err(declared("day")));
+    assert_eq!(rows(&store, "agent_effect"), before);
+    let held = dated(row(1, 1, 1, "held", "payment", 1, None, None), 0, 0);
+    assert_eq!(put_at(&mut store, early, held), Ok(stored(1)));
+}
+
+fn agent_1() -> halvo_schema::AgentId {
+    halvo_schema::AgentId::parse(&agent(1)).expect("an agent id")
+}
+
+fn playbook_row(a: u32, number: u32, n: u32) -> halvo_schema::TypedRecord {
+    let row = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(a), "number": number, "n": n,
+        "step": step(n, "navigate", "read"),
+    });
+    halvo_schema::TypedRecord {
+        kind: "agent_playbook",
+        json: row.to_string(),
+    }
+}
+
+#[test]
+fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
+    let mut seed: u64 = 0x5eed_0049;
+    let mut draw = |below: u64| {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (seed >> 33) % below
+    };
+    let mut some = 0;
+    for case in 0..200 {
+        let mut store = store_with("utility_bill_payment");
+        let mut held = std::collections::BTreeSet::new();
+        for _ in 0..draw(12) {
+            let a = 1 + u32::try_from(draw(3)).expect("a small number");
+            let number = 1 + u32::try_from(draw(4)).expect("a small number");
+            let n = 1 + u32::try_from(draw(5)).expect("a small number");
+            if held.insert((a, number, n)) {
+                store
+                    .typed_commit(vec![playbook_row(a, number, n)])
+                    .expect("a playbook row");
+            }
+        }
+        let read =
+            halvo_agent_store::newest_playbook(&store, &agent_1()).expect("the rows are read");
+        let loaded = load(&mut store, 1).expect("load").playbook;
+        assert_eq!(read, loaded, "case {case}");
+        let want = held
+            .iter()
+            .filter(|(a, _, _)| *a == 1)
+            .map(|(_, number, _)| *number)
+            .max();
+        assert_eq!(read.as_ref().map(|p| p.number.get()), want, "case {case}");
+        if let Some(p) = &read {
+            let steps = held
+                .iter()
+                .filter(|(a, number, _)| *a == 1 && *number == p.number.get())
+                .count();
+            assert_eq!(p.steps.get() as usize, steps, "case {case}");
+            some += 1;
+        }
+    }
+    assert!(some > 50, "{some} of 200 cases had a playbook of the agent");
+}
+
+#[test]
+fn newest_playbook_of_an_agent_with_no_compile_number_is_none() {
+    let mut store = store_with("utility_bill_payment");
+    store
+        .typed_commit(vec![playbook_row(2, 3, 1)])
+        .expect("a playbook row of another agent");
+    let before = every_agent_row(&store);
+    assert_eq!(
+        halvo_agent_store::newest_playbook(&store, &agent_1()),
+        Ok(None)
+    );
+    assert_eq!(load(&mut store, 1).expect("load").playbook, None);
+    assert_eq!(every_agent_row(&store), before);
+    let other = halvo_schema::AgentId::parse(&agent(2)).expect("an agent id");
+    assert_eq!(
+        halvo_agent_store::newest_playbook(&store, &other),
+        Err(declared("binding"))
+    );
+    store.put_workflow(dismissed(&wf(1)));
+    assert_eq!(
+        halvo_agent_store::newest_playbook(&store, &agent_1()),
+        Err(declared("binding"))
+    );
+}
+
+fn back(days: i64) -> halvo_agent_store::Now {
+    at(NOW.at.0 - days * NANOS_PER_DAY)
+}
+
+fn start_rows_of(store: &MemoryStore, r: u32) -> usize {
+    rows(store, "agent_log")
+        .iter()
+        .map(|row| AgentLog::parse(row.as_bytes()).expect("a log row"))
+        .filter(|l| l.event == LogEvent::StartAccepted && l.run.as_str() == run(r))
+        .count()
+}
+
+#[test]
+fn a_runner_body_after_a_clock_set_back_one_day_across_midnight_is_served() {
+    let mut store = store_with("utility_bill_payment");
+    let line = dated(log_line(2), TODAY - 1, back(1).at.0);
+    let body = json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line]});
+    assert_eq!(runner_at(&mut store, back(1), body), Ok(stored(1)));
+    let load = json!({"op": "load", "agent": agent(1), "run": run(1)});
+    assert!(runner_at(&mut store, back(1), load).is_ok());
+    let ahead = dated(log_line(3), TODAY, NOW.at.0);
+    let body = json!({"op": "log", "agent": agent(1), "run": run(1), "records": [ahead]});
+    assert_eq!(
+        runner_at(&mut store, back(1), body),
+        Err(declared("day")),
+        "a row dated the day after the request's clock is refused"
+    );
+}
+
+#[test]
+fn a_start_row_two_days_ahead_of_the_request_counts_and_one_three_days_ahead_does_not() {
+    let mut store = store_with("utility_bill_payment");
+    let load = json!({"op": "load", "agent": agent(1), "run": run(1)});
+    assert!(runner_at(&mut store, back(2), load.clone()).is_ok());
+    assert_eq!(
+        runner_at(&mut store, back(3), load).map(|_| ()),
+        Err(declared("binding"))
+    );
+}
+
+#[test]
+fn a_start_run_repeated_after_a_clock_set_back_one_day_stores_nothing() {
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(start_rows_of(&store, 1), 1);
+    assert_eq!(start_at(&mut store, back(1), 1, 1, 1), Ok(accepted()));
+    assert_eq!(start_rows_of(&store, 1), 1);
+}
+
+#[test]
+fn after_a_clock_set_back_one_day_a_repeat_of_an_effect_a_checkpoint_and_a_finish_is_answered_as_the_first(
+) {
+    let mut store = store_with("spreadsheet_fill");
+    let edit = row(1, 1, 1, "cleared", "local_edit", 1, None, None);
+    assert_eq!(put_at(&mut store, NOW, edit.clone()), Ok(stored(1)));
+    let planned = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 1, "day": ROW_DAY,
+        "at": ROW_AT, "folder": ["/data/books"], "workbook": ["/data/books/book.xlsx"],
+        "copy": ["book.halvo-checkpoint.xlsx"], "sha256": null, "bytes": null, "state": "planned",
+        "left": null,
+    });
+    let checkpoint =
+        json!({"op": "checkpoint", "agent": agent(1), "run": run(1), "record": planned});
+    assert_eq!(
+        runner_at(&mut store, NOW, checkpoint.clone()),
+        Ok(stored(1))
+    );
+    let before = (
+        effects(&store).len(),
+        rows(&store, "agent_checkpoint").len(),
+    );
+    assert_eq!(put_at(&mut store, back(1), edit), Ok(stored(1)));
+    assert_eq!(runner_at(&mut store, back(1), checkpoint), Ok(stored(1)));
+    assert_eq!(
+        (
+            effects(&store).len(),
+            rows(&store, "agent_checkpoint").len()
+        ),
+        before
+    );
+    let record = run_record(1, Some("replay"), "failed");
+    let finish = json!({"op": "finish", "agent": agent(1), "run": run(1), "record": record});
+    assert_eq!(runner_at(&mut store, NOW, finish.clone()), Ok(stored(1)));
+    let ended = (effects(&store).len(), rows(&store, "agent_run").len());
+    assert_eq!(runner_at(&mut store, back(1), finish), Ok(stored(1)));
+    let new_effect = row(1, 2, 1, "cleared", "local_edit", 1, None, None);
+    assert_eq!(
+        put_at(&mut store, back(1), new_effect),
+        Err(declared("effect"))
+    );
+    assert_eq!(
+        (effects(&store).len(), rows(&store, "agent_run").len()),
+        ended
+    );
+}
+
+#[test]
+fn a_row_stamped_by_day_of_at_the_store_s_offset_is_taken_and_its_utc_stamp_is_refused() {
+    use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+    use halvo_schema::Instant;
+    for offset in [WEST, -UTC_OFFSET_S_MAX] {
+        let night = local(TODAY, 21 * 3600 + 30 * 60, offset);
+        let local_day = day_of(Instant(night), offset);
+        let utc_day = day_of(Instant(night), 0);
+        assert_eq!((local_day, utc_day), (TODAY, TODAY + 1), "{offset}");
+        let mut store = unstarted("utility_bill_payment").with_utc_offset(offset);
+        assert_eq!(
+            start_at(&mut store, at(night), 1, 1, 1),
+            Ok(accepted()),
+            "{offset}"
+        );
+        let log = |day| json!({"op": "log", "agent": agent(1), "run": run(1), "records": [dated(log_line(2), day, night)]});
+        assert_eq!(
+            runner_at(&mut store, at(night), log(utc_day)),
+            Err(declared("day")),
+            "{offset}"
+        );
+        assert_eq!(
+            runner_at(&mut store, at(night), log(local_day)),
+            Ok(stored(1)),
+            "{offset}"
+        );
+        let held = |day| dated(row(1, 1, 1, "held", "payment", 1, None, None), day, night);
+        assert_eq!(
+            put_at(&mut store, at(night), held(utc_day)),
+            Err(declared("day")),
+            "{offset}"
+        );
+        assert_eq!(
+            put_at(&mut store, at(night), held(local_day)),
+            Ok(stored(1)),
+            "{offset}"
+        );
+        let finish = |day| {
+            let mut record = run_record(1, Some("replay"), "failed");
+            record["day"] = json!(day);
+            json!({"op": "finish", "agent": agent(1), "run": run(1), "record": record})
+        };
+        assert_eq!(
+            runner_at(&mut store, at(night), finish(utc_day)),
+            Err(declared("day")),
+            "{offset}"
+        );
+        assert!(rows(&store, "agent_run").is_empty(), "{offset}");
+        assert_eq!(
+            runner_at(&mut store, at(night), finish(local_day)),
+            Ok(stored(1)),
+            "{offset}"
+        );
+        assert_eq!(rows(&store, "agent_run").len(), 1, "{offset}");
     }
 }

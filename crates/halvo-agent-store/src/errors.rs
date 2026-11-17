@@ -9,6 +9,7 @@ pub(crate) enum Own {
     Class,
     Length,
     Effect,
+    Day,
 }
 
 impl Own {
@@ -20,6 +21,7 @@ impl Own {
             Own::Class => "class",
             Own::Length => "length",
             Own::Effect => "effect",
+            Own::Day => "day",
         }
     }
 }

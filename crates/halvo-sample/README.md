@@ -68,8 +68,11 @@ row of each overlapping pair gets its `FAIL row` line.
 ## `leak`
 
 `leak` refuses a PATH argument that is a symbolic link with `path`, also when separators, `.`
-or a name and `..` follow its name; a link among the other components of an argument is
-followed. Inside a walk it follows no link. A stream directory, `streams` directory, manifest,
+or a name and `..` follow its name, and when `..` after a linked component leads to it with
+separators or `.` after its name; a link among the other components of an argument is
+followed. It refuses a TIER argument that is a symbolic link in the same forms with
+`tier-manifest`, whose detail is the argument as given. `input-copy` follows a TIER argument
+that is a link. Inside a walk `leak` follows no link. A stream directory, `streams` directory, manifest,
 day file or label file that is a link, in the tier or in a development body, is refused with
 `tier-files` or `body`, and the detail of these two refusals is the TIER argument or the PATH
 argument alone. A `HIT` line names a file as the PATH argument followed by `#<n>`: n is the
@@ -84,8 +87,17 @@ name, from 1. No name below the argument is printed, because a file's name may b
   played, as `build` does.
 - `check-labels` follows a DIR argument that is itself a symbolic link; only the entries below
   DIR are held to the rule on links.
-- The `tier-manifest` refusal of `leak` and of `input-copy` prints a path below TIER: TIER
-  joined with the path that the manifest lists.
+- The detail of the `tier-manifest` refusal of `leak` and of `input-copy` is the TIER argument
+  as given. Where listed files do not hash to their entries, ` mismatched=<n>` follows it, n
+  being the number of such files. It never holds a path that the manifest lists.
+- The detail of the `tier-files` refusal of `input-copy` is the TIER argument alone, the
+  detail of its `layers` refusal the TIER or `--layers` argument alone, and the detail of the
+  `output` refusal of `input-copy`, `build` and `compose` the DIR or `--out` argument alone,
+  never a stream directory or a file below it.
+- The `site-data` refusal of `compose`, of the fixture server and of
+  tools/fixture-server/check-sites.mjs names a site file as `SITE_DATA <n>`: n is the file's
+  number in byte order of the paths given, from 1, and equal paths keep the order given. The
+  checker's `password`, `card` and `missing` lines still print the path of a site file.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.

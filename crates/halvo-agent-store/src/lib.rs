@@ -6,7 +6,9 @@
 
 mod bind;
 mod bindings;
+mod checkpoint;
 mod coordinator;
+mod day;
 mod effect;
 mod end;
 mod errors;
@@ -19,5 +21,5 @@ mod workbook;
 pub use coordinator::coordinator;
 pub use host::{Host, Now};
 pub use memory::{CommitRefused, MemoryStore, AGENT_KINDS};
-pub use runner::runner;
+pub use runner::{newest_playbook, runner};
 pub use workbook::{workbook_path, PathForm, PathRefused};

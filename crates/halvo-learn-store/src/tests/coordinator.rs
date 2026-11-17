@@ -353,7 +353,7 @@ fn an_agent_that_the_agent_store_holds_with_no_compile_number_still_gets_its_sta
 }
 
 #[test]
-fn list_refinements_draws_a_new_run_id_for_each_call_and_no_row_log_line_or_reply_holds_one() {
+fn list_refinements_stores_no_row_and_no_log_line_and_its_reply_holds_no_run_id() {
     let mut w = active_world();
     w.learn(2, 2, "button Pay now", vec![loc("A")]);
     let kinds: Vec<&str> = halvo_schema::kinds::registry().map(|e| e.name).collect();
@@ -378,12 +378,15 @@ fn list_refinements_draws_a_new_run_id_for_each_call_and_no_row_log_line_or_repl
     let second = list(&mut w);
     let after = rows(&w);
     assert_eq!(after, before);
-    assert_eq!(w.handlers.probes.len(), 2);
-    assert_ne!(w.handlers.probes[0], w.handlers.probes[1]);
-    for probe in &w.handlers.probes {
-        let id = probe.as_str();
-        assert!(!after.iter().any(|r| r.contains(id)));
-        assert!(!first.to_string().contains(id) && !second.to_string().contains(id));
+    assert_ne!(
+        first,
+        json!({"refinements": []}),
+        "the call reads the learned edit"
+    );
+    for reply in [&first, &second] {
+        let text = reply.to_string();
+        assert!(!text.contains("\"run\""), "{text}");
+        assert!((1..=16).all(|r| !text.contains(&run(r))), "{text}");
     }
     let refused = read(
         &mut w,

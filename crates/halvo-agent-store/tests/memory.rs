@@ -1,7 +1,7 @@
 use halvo_agent_store::{CommitRefused, Host, MemoryStore, AGENT_KINDS};
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::{
-    AgentId, ErrorName, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
+    AgentId, ErrorName, Instant, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
     WorkflowState, WriterStep,
 };
 use serde_json::json;
@@ -294,4 +294,65 @@ fn the_state_call() {
     };
     assert_eq!(w.state, WorkflowState::Paused);
     assert!(store.workflow(&workflow_id(9)).is_none());
+}
+
+#[test]
+fn the_day_of_an_instant_is_the_day_of_the_store_s_calendar() {
+    let second = 1_000_000_000_i64;
+    let day = 86_400 * second;
+    let utc = MemoryStore::new();
+    assert_eq!(utc.day(Instant(20_769 * day)), 20_769);
+    assert_eq!(utc.day(Instant(20_770 * day - 1)), 20_769);
+    let west = MemoryStore::new().with_utc_offset(-5 * 3600);
+    assert_eq!(
+        west.day(Instant(20_770 * day + 5 * 3600 * second - 1)),
+        20_769
+    );
+    assert_eq!(west.day(Instant(20_770 * day + 5 * 3600 * second)), 20_770);
+    let east = MemoryStore::new().with_utc_offset(3600);
+    assert_eq!(east.day(Instant(20_770 * day - 3600 * second)), 20_770);
+    assert_eq!(east.day(Instant(20_770 * day - 3600 * second - 1)), 20_769);
+    assert_eq!(utc.day(Instant(-1)), 0);
+}
+
+#[test]
+fn the_store_s_day_is_day_of_at_the_very_offset_that_with_utc_offset_took() {
+    use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+    let second = 1_000_000_000_i64;
+    let day = 86_400 * second;
+    let max = UTC_OFFSET_S_MAX;
+    for offset in [
+        i32::MIN,
+        -max - 1,
+        -max,
+        -5 * 3600,
+        -1,
+        0,
+        1,
+        3600,
+        max,
+        max + 1,
+        i32::MAX,
+    ] {
+        let store = MemoryStore::new().with_utc_offset(offset);
+        let midnight = 20_769 * day - i64::from(offset) * second;
+        for at in [
+            i64::MIN,
+            -day,
+            -1,
+            0,
+            midnight - 1,
+            midnight,
+            midnight + 12 * 3600 * second,
+            i64::MAX,
+        ] {
+            assert_eq!(
+                store.day(Instant(at)),
+                day_of(Instant(at), offset),
+                "offset {offset}, at {at}"
+            );
+        }
+        assert_eq!(store.day(Instant(midnight)), 20_769, "{offset}");
+        assert_eq!(store.day(Instant(midnight - 1)), 20_768, "{offset}");
+    }
 }

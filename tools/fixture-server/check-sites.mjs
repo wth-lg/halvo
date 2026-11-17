@@ -26,7 +26,7 @@ function readRows(path) {
 const args = readArgs(process.argv.slice(2), '--parameters', () => true);
 if (args === null) refuse('usage', USAGE);
 const loaded = loadSites(args.files);
-if (loaded.refused !== undefined) refuse('site-data', loaded.refused);
+if (loaded.refused !== undefined) refuse('site-data', `SITE_DATA ${loaded.number}`);
 const rows = args.value === null ? null : readRows(args.value);
 
 const lines = [`checked files=${args.files.length}`];

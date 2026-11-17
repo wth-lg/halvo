@@ -206,12 +206,26 @@ fn short(detail: &str) -> Refusal {
     Refusal::new("short", detail.to_owned())
 }
 
+/// The number of the path at `index` among `paths` in byte order, from 1; equal paths keep the order in which
+/// they are given (contracts.md C11.1).
+pub fn file_number(paths: &[PathBuf], index: usize) -> usize {
+    let mut order: Vec<usize> = (0..paths.len()).collect();
+    order.sort_by(|a, b| {
+        paths[*a]
+            .as_os_str()
+            .as_encoded_bytes()
+            .cmp(paths[*b].as_os_str().as_encoded_bytes())
+    });
+    order.iter().position(|k| *k == index).map_or(0, |n| n + 1)
+}
+
 /// Reads the site data files in order; a file that is missing or not of C11.1, or that names a service an
-/// earlier file names, is refused with `site-data`.
+/// earlier file names, is refused with `site-data`, whose detail is `SITE_DATA <n>` with the file's number of
+/// [`file_number`] and never its path.
 pub fn read_services(paths: &[PathBuf]) -> Result<Vec<Service>, Refusal> {
     let mut out: Vec<Service> = Vec::new();
-    for p in paths {
-        let fault = || Refusal::new("site-data", p.display().to_string());
+    for (k, p) in paths.iter().enumerate() {
+        let fault = || Refusal::new("site-data", format!("SITE_DATA {}", file_number(paths, k)));
         let bytes = fs::read(p).map_err(|_| fault())?;
         let s = parse_service(&bytes).ok_or_else(fault)?;
         if out.iter().any(|o| o.service == s.service) {
@@ -985,7 +999,7 @@ pub fn compose(args: &ComposeArgs) -> Result<Vec<String>, Refusal> {
     for (name, text) in &files {
         let path: PathBuf = args.out.join(name);
         write_new(&path, text.as_bytes())
-            .map_err(|_| Refusal::new("output", path.display().to_string()))?;
+            .map_err(|_| Refusal::new("output", args.out.display().to_string()))?;
     }
     let per = |kind: TaskKind| -> String {
         let mut counts = [0u64; 10];

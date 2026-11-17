@@ -1,21 +1,25 @@
 //! Tests of the confirm path with a fake paused request that reads its bound values from a list, one per read, and
-//! counts what it lets leave; no fixture runs.
+//! counts what it lets leave; no fixture runs. Beside them, the tests of the day that each row of a run carries,
+//! through the seam of the wall clock, for the confirm path and for a whole fill run in this thread.
 
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
 use halvo_schema::executable::names::{
     AllowedClass, Answer, FieldName, HandbackReason, LogEvent, Source,
 };
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{
-    ActionClass, Bound, BoundField, Cause, EffectState, FromRunner, Outcome, RunnerCall, WebOrigin,
+    ActionClass, Bound, BoundField, Cause, CheckpointState, EffectState, FromRunner, Outcome,
+    RunnerCall, WebOrigin,
 };
-use halvo_schema::Category;
+use halvo_schema::{Category, Instant};
 
-use super::suite::{run_many_path, run_path, Plan, Record};
+use super::suite::{run_fill, run_many_path, run_path, Plan, Record};
 use super::{Left, MakerFacts, Paused, Replied};
+use crate::clock::{hold_wall, step_wall};
 
 #[derive(Default)]
 struct Fake {
@@ -346,6 +350,153 @@ fn reject_once_lets_no_request_of_its_effect_leave() {
     assert_eq!(released, 0);
     assert_eq!(record.states(), [EffectState::Held, EffectState::Rejected]);
     assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-204 D3 and D7: at a wall instant held at 12:00 UTC, where an offset of 14 hours either way gives another
+/// day than UTC, each row of an effect, each log line and the finish carry day_of(at, the run's offset).
+#[test]
+fn every_row_takes_the_day_of_its_instant_at_the_runs_offset_either_way() {
+    const DAY: i64 = 86_400 * 1_000_000_000;
+    let noon = Instant(20_404 * DAY + DAY / 2);
+    let mut wrong = Vec::new();
+    for offset in [UTC_OFFSET_S_MAX, -UTC_OFFSET_S_MAX] {
+        let plan = Plan {
+            answer: Answer::RejectOnce,
+            utc_offset_s: offset,
+            ..Plan::plain()
+        };
+        hold_wall(Some(noon));
+        let (record, _) = run(vec![delete("a", Source::Extract)], plan);
+        hold_wall(None);
+        let day = day_of(noon, offset);
+        assert_ne!(day, day_of(noon, 0), "{offset}");
+        let effects = record.effects();
+        let logs = record.logs();
+        assert_eq!(effects.len(), 2, "{offset}");
+        assert!(!logs.is_empty(), "{offset}");
+        for (what, row, at) in effects
+            .iter()
+            .map(|e| ("effect", e.day, e.at))
+            .chain(logs.iter().map(|l| ("log", l.day, l.at)))
+        {
+            assert_eq!(at, noon, "{offset}: {what}: the held instant");
+            if row != day {
+                wrong.push(format!("{offset}: {what} day {row}, not {day}"));
+            }
+        }
+        let finish = record.finish().expect("the finish").day;
+        if finish != day {
+            wrong.push(format!("{offset}: finish day {finish}, not {day}"));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+/// CP-204 D7, CP-212 V1: at a wall instant held at 12:00 UTC, a whole fill run at +50,400 and at -50,400 stamps its
+/// checkpoint rows `planned` and `made`, its effect rows, its log lines and its finish with day_of(at, the run's
+/// offset), which is not the UTC day there.
+#[test]
+fn a_fill_runs_checkpoint_rows_take_the_day_of_their_instant_at_the_runs_offset_either_way() {
+    const DAY: i64 = 86_400 * 1_000_000_000;
+    let noon = Instant(20_404 * DAY + DAY / 2);
+    let mut wrong = Vec::new();
+    for offset in [UTC_OFFSET_S_MAX, -UTC_OFFSET_S_MAX] {
+        let plan = Plan {
+            utc_offset_s: offset,
+            ..Plan::plain()
+        };
+        hold_wall(Some(noon));
+        let record = run_fill(plan);
+        hold_wall(None);
+        assert_eq!(record.done(), Some(Outcome::Completed), "{offset}");
+        let day = day_of(noon, offset);
+        assert_ne!(day, day_of(noon, 0), "{offset}");
+        let checkpoints = record.checkpoints();
+        assert_eq!(
+            checkpoints.iter().map(|c| c.state).collect::<Vec<_>>(),
+            [CheckpointState::Planned, CheckpointState::Made],
+            "{offset}"
+        );
+        assert!(!record.effects().is_empty() && !record.logs().is_empty());
+        for (what, row, at) in checkpoints
+            .iter()
+            .map(|c| ("checkpoint", c.day, c.at))
+            .chain(record.effects().iter().map(|e| ("effect", e.day, e.at)))
+            .chain(record.logs().iter().map(|l| ("log", l.day, l.at)))
+        {
+            assert_eq!(at, noon, "{offset}: {what}: the held instant");
+            if row != day {
+                wrong.push(format!("{offset}: {what} day {row}, not {day}"));
+            }
+        }
+        let finish = record.finish().expect("the finish").day;
+        if finish != day {
+            wrong.push(format!("{offset}: finish day {finish}, not {day}"));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+/// CP-212 V3: with a wall clock that moves a day and an hour at each read, so that any two reads fall on two local
+/// days at every offset, each log line, effect row and checkpoint row of a confirmed delete and of a fill run
+/// carries the day of its own `at` and not of another read of the clock.
+#[test]
+fn each_row_takes_the_day_of_its_own_instant_when_the_clock_moves_between_reads() {
+    const DAY: i64 = 86_400 * 1_000_000_000;
+    const HOUR: i64 = 3_600 * 1_000_000_000;
+    let first = Instant(20_404 * DAY + DAY / 2);
+    let mut wrong = Vec::new();
+    for offset in [UTC_OFFSET_S_MAX, 0, -UTC_OFFSET_S_MAX] {
+        let plan = || Plan {
+            utc_offset_s: offset,
+            ..Plan::plain()
+        };
+        step_wall(first, DAY + HOUR);
+        let (delete_run, released) = run(vec![delete("a", Source::Extract)], plan());
+        let fill_run = run_fill(plan());
+        hold_wall(None);
+        assert_eq!(released, 1, "{offset}");
+        assert_eq!(fill_run.done(), Some(Outcome::Completed), "{offset}");
+        let mut rows = Vec::new();
+        for record in [&delete_run, &fill_run] {
+            rows.extend(record.effects().iter().map(|e| ("effect", e.day, e.at)));
+            rows.extend(record.logs().iter().map(|l| ("log", l.day, l.at)));
+            rows.extend(
+                record
+                    .checkpoints()
+                    .iter()
+                    .map(|c| ("checkpoint", c.day, c.at)),
+            );
+        }
+        assert!(
+            rows.iter().filter(|(what, _, _)| *what == "effect").count() >= 7
+                && rows.iter().any(|(what, _, _)| *what == "log")
+                && rows
+                    .iter()
+                    .filter(|(what, _, _)| *what == "checkpoint")
+                    .count()
+                    == 2,
+            "{offset}: {rows:?}"
+        );
+        let mut instants: Vec<i64> = rows.iter().map(|(_, _, at)| at.0).collect();
+        instants.sort_unstable();
+        instants.dedup();
+        assert_eq!(
+            instants.len(),
+            rows.len(),
+            "{offset}: one read of the clock per row"
+        );
+        for (what, row, at) in rows {
+            if row != day_of(at, offset) {
+                wrong.push(format!(
+                    "{offset}: {what} at {} day {row}, not {}",
+                    at.0,
+                    day_of(at, offset)
+                ));
+            }
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
 }
 
 /// A9.3: a first read that `admit` refuses makes no `propose`; the run ends `failed` with `provenance`.

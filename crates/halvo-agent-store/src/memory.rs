@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::kinds::{check_record, registry};
 use halvo_schema::{
-    AgentId, ErrorName, Origin, RowRead, Summary, SummaryRead, TypedRecord, Workflow, WorkflowId,
-    WorkflowItem, WorkflowState, WriterStep,
+    AgentId, ErrorName, Instant, Origin, RowRead, Summary, SummaryRead, TypedRecord, Workflow,
+    WorkflowId, WorkflowItem, WorkflowState, WriterStep,
 };
 
 use crate::host::Host;
@@ -53,18 +54,27 @@ impl SummaryRead for NoSummaries {
 /// The store in memory behind the handler calls (A7.6's `memory-store`): the workflows that a test host puts, the
 /// rows of the family `agent`, and the host's steps. Its typed commit is the commit of a handler; `after_batch`
 /// runs the steps as the derived store does after a committed batch, and refuses a record of origin own that a step
-/// returns. It removes no row.
+/// returns. It removes no row. Its local calendar is UTC shifted by a fixed offset, 0 unless `with_utc_offset` sets
+/// one.
 #[derive(Default)]
 pub struct MemoryStore {
     workflows: BTreeMap<WorkflowId, Workflow>,
     rows: BTreeMap<&'static str, Vec<String>>,
     steps: Vec<Box<dyn WriterStep>>,
+    utc_offset: i32,
 }
 
 impl MemoryStore {
     /// A store with no workflow, no row and no step.
     pub fn new() -> MemoryStore {
         MemoryStore::default()
+    }
+
+    /// The store whose local time is UTC plus `seconds`, a time zone with no change of offset: the day of an instant
+    /// is the day of the calendar of that zone.
+    pub fn with_utc_offset(mut self, seconds: i32) -> MemoryStore {
+        self.utc_offset = seconds;
+        self
     }
 
     /// The store with one more step after the steps that it has.
@@ -193,5 +203,9 @@ impl Host for MemoryStore {
             summaries: Vec::new(),
             hint: None,
         })
+    }
+
+    fn day(&self, at: Instant) -> u32 {
+        day_of(at, self.utc_offset)
     }
 }

@@ -1,4 +1,4 @@
-use halvo_connect::{ReplyRule, Token};
+use halvo_connect::{reply_senders, ReplyRule, Token};
 use serde_json::Value;
 
 use super::fixture::repo;
@@ -38,7 +38,7 @@ impl Seed {
     }
 
     pub fn rule(&self) -> ReplyRule {
-        let senders = self
+        let senders: Vec<String> = self
             .get("/bindings/reply/slots")
             .as_array()
             .expect("the slots of reply")
@@ -49,6 +49,7 @@ impl Seed {
             .iter()
             .map(|sender| sender.as_str().expect("an address").to_owned())
             .collect();
+        let senders = reply_senders(&senders.join(", ")).expect("the seed's senders");
         ReplyRule::new(self.text("/mail/address").to_owned(), senders)
     }
 

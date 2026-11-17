@@ -3,7 +3,7 @@ use std::fmt;
 use reqwest::Method;
 use serde_json::{json, Value};
 
-use crate::address::same_address;
+use crate::address::{same_address, Senders};
 use crate::answer::{self, Ids, FORM};
 use crate::error::{AnswerFault, CallError};
 use crate::graph::{segment, Graph};
@@ -58,12 +58,24 @@ pub trait Mail {
 /// one by [`same_address`](crate::same_address).
 pub struct ReplyRule {
     account: String,
-    senders: Vec<String>,
+    senders: Senders,
 }
 
 impl ReplyRule {
-    /// The rule for the account's address `account` and the senders of the slot `reply_senders`.
-    pub fn new(account: String, senders: Vec<String>) -> ReplyRule {
+    /// The rule for the account's address `account` and the senders that [`reply_senders`](crate::reply_senders)
+    /// read from the slot `reply_senders`. It takes the reader's answer and no list of text, so that no rule
+    /// holds a sender that the reader never read:
+    ///
+    /// ```compile_fail,E0308
+    /// let senders = vec!["ann berg@people.test".to_owned()];
+    /// let rule = halvo_connect::ReplyRule::new("me@home.test".to_owned(), senders);
+    /// ```
+    ///
+    /// ```
+    /// let senders = halvo_connect::reply_senders("ann@people.test").unwrap();
+    /// let rule = halvo_connect::ReplyRule::new("me@home.test".to_owned(), senders);
+    /// ```
+    pub fn new(account: String, senders: Senders) -> ReplyRule {
         ReplyRule { account, senders }
     }
 
@@ -72,10 +84,7 @@ impl ReplyRule {
             && to
                 .iter()
                 .any(|address| same_address(address, &self.account))
-            && self
-                .senders
-                .iter()
-                .any(|address| same_address(address, sender))
+            && self.senders.holds(sender)
     }
 }
 
@@ -347,7 +356,7 @@ fn address(value: Option<&Value>) -> Result<String, CallError> {
 impl fmt::Debug for ReplyRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ReplyRule")
-            .field("senders", &self.senders.len())
+            .field("senders", &self.senders.iter().count())
             .finish_non_exhaustive()
     }
 }

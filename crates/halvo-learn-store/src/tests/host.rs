@@ -30,12 +30,14 @@ pub fn run(n: u32) -> String {
     id('5', n)
 }
 
-/// The agent store's side of the test host: the store in memory, and a switch that makes its rows read as a
-/// store fault, an `agent_config` row that its parser refuses.
+/// The agent store's side of the test host: the store in memory, a switch that makes its rows read as a store
+/// fault, an `agent_config` row that its parser refuses, and the run ids whose rows read as removed, a stand-in for
+/// the cascade of a workflow's delete or an expiry, which the store in memory does not make.
 pub struct AgentSide {
     pub store: MemoryStore,
     pub fault: bool,
     pub gone: Vec<WorkflowId>,
+    pub hidden_runs: Vec<String>,
     once: bool,
 }
 
@@ -44,7 +46,16 @@ impl RowRead for AgentSide {
         if (self.fault || self.once) && kind == "agent_config" {
             visit("{}");
         }
-        self.store.for_each(kind, visit);
+        let hidden: Vec<String> = self
+            .hidden_runs
+            .iter()
+            .map(|r| format!("\"run\":\"{r}\""))
+            .collect();
+        self.store.for_each(kind, &mut |row| {
+            if !hidden.iter().any(|h| row.contains(h.as_str())) {
+                visit(row);
+            }
+        });
     }
 }
 
@@ -72,6 +83,10 @@ impl Host for AgentSide {
         }
         self.store.workflow(id)
     }
+
+    fn day(&self, at: Instant) -> u32 {
+        self.store.day(at)
+    }
 }
 
 pub struct TestHost {
@@ -91,6 +106,7 @@ impl TestHost {
                 store: MemoryStore::new(),
                 fault: false,
                 gone: Vec::new(),
+                hidden_runs: Vec::new(),
                 once: false,
             },
             learn: Vec::new(),
@@ -210,9 +226,13 @@ impl LearnHost for TestHost {
     }
 
     fn agent_now(&self) -> Now {
+        let day = 86_400_000_000_000_i64;
         Now {
-            at: Instant(1_794_500_000_000_000_000),
-            day: self.day,
+            at: Instant(
+                i64::from(self.day)
+                    .saturating_mul(day)
+                    .saturating_add(day / 2),
+            ),
         }
     }
 
@@ -379,7 +399,7 @@ impl World {
             .map(|(seq, event, step, cause)| {
                 json!({
                     "v": 1, "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "seq": seq,
-                    "day": self.host.day, "at": 1_794_500_000_000_000_000_i64, "event": event,
+                    "day": self.host.day, "at": self.host.agent_now().at.0, "event": event,
                     "step": step, "cause": cause, "model": null, "ms": null,
                     "tokens_in": null, "tokens_out": null,
                 })
@@ -430,21 +450,21 @@ impl World {
         let proposed = with_locators(served[n as usize - 1].clone(), desc, locators);
         let reply = self.put(r, self.loaded, vec![proposed]);
         assert!(reply.is_ok(), "the replay's put_playbook: {reply:?}");
-        self.log(r, &[(1, "recovered", n, None), (2, "step_ok", n, None)]);
+        self.log(r, &[(2, "recovered", n, None), (3, "step_ok", n, None)]);
         let reply = self.finish(r, "replay", "completed");
         assert!(reply.is_ok(), "the replay's finish: {reply:?}");
     }
 
     pub fn clean_use(&mut self, r: u32, n: u32) {
         self.replay(r);
-        self.log(r, &[(1, "step_ok", n, None)]);
+        self.log(r, &[(2, "step_ok", n, None)]);
         let reply = self.finish(r, "replay", "completed");
         assert!(reply.is_ok(), "the replay's finish: {reply:?}");
     }
 
     pub fn failed_use(&mut self, r: u32, n: u32, cause: &str) {
         self.replay(r);
-        self.log(r, &[(1, "step_failed", n, Some(cause))]);
+        self.log(r, &[(2, "step_failed", n, Some(cause))]);
         let reply = self.finish(r, "replay", "failed");
         assert!(reply.is_ok(), "the replay's finish: {reply:?}");
     }
