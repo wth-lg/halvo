@@ -9,7 +9,7 @@ name=25-r3-run-record
 nl='
 '
 frozen=crates/halvo-schema/tests/later_kinds.rs
-bs='\'
+bs="\\"
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
