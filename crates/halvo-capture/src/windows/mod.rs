@@ -35,8 +35,7 @@ impl EventPlacement {
     /// the nil sentinel and the key id is 0. `byte_len` carries the decoded
     /// payload's measured size where the source knows it, so the quantity of
     /// captured data is visible in the event even before the store holds the
-    /// bytes. The nil segment id is the signal that no payload has been
-    /// persisted yet.
+    /// bytes.
     pub fn unpersisted(byte_len: u64) -> Self {
         Self {
             segment_ref: SegmentRef {
@@ -72,11 +71,74 @@ pub fn build_event(
     )
 }
 
-pub(crate) struct Packet {
-    pub(crate) kind: Modality,
-    pub(crate) app: String,
-    pub(crate) byte_len: u64,
-    pub(crate) tick: u32,
+pub(crate) use packet::{Observed, Packet};
+
+mod packet {
+    use crate::event::Modality;
+    use crate::secure_input::KeystrokeClearance;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum Observed {
+        Pointer,
+        ForegroundApp,
+        WindowTitle,
+        ScreenFrame,
+    }
+
+    pub(crate) struct Packet {
+        kind: Modality,
+        pub(crate) app: Option<String>,
+        pub(crate) byte_len: u64,
+        pub(crate) tick: u32,
+    }
+
+    impl Packet {
+        /// ```compile_fail,E0603
+        /// use halvo_capture::windows::Packet;
+        /// ```
+        /// ```
+        /// use halvo_capture::windows::EventPlacement;
+        /// let _ = EventPlacement::unpersisted(2);
+        /// ```
+        pub(crate) fn keystroke(
+            clearance: KeystrokeClearance,
+            app: Option<String>,
+            byte_len: u64,
+            tick: u32,
+        ) -> Packet {
+            let _ = clearance.key_age();
+            Packet {
+                kind: Modality::Keystroke,
+                app,
+                byte_len,
+                tick,
+            }
+        }
+
+        pub(crate) fn observed(
+            kind: Observed,
+            app: Option<String>,
+            byte_len: u64,
+            tick: u32,
+        ) -> Packet {
+            let kind = match kind {
+                Observed::Pointer => Modality::Pointer,
+                Observed::ForegroundApp => Modality::ForegroundApp,
+                Observed::WindowTitle => Modality::WindowTitle,
+                Observed::ScreenFrame => Modality::ScreenFrame,
+            };
+            Packet {
+                kind,
+                app,
+                byte_len,
+                tick,
+            }
+        }
+
+        pub(crate) fn kind(&self) -> Modality {
+            self.kind
+        }
+    }
 }
 
 #[link(name = "kernel32")]
@@ -327,8 +389,8 @@ pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutco
     let wall_clock = capture_instant(packet.tick);
     sink.emit(build_event(
         sink,
-        packet.kind,
-        packet.app,
+        packet.kind(),
+        packet.app.unwrap_or_default(),
         placement,
         wall_clock,
     ))
@@ -373,25 +435,22 @@ pub(crate) fn os_error(stage: &'static str, error: &windows::core::Error) -> Cap
 
 const PUMP_ENDED_UNREPORTED: &str = "the pump thread ended before it reported its setup";
 
-/// How long `shutdown` of the keyboard, pointer, window_title and foreground
-/// sources waits for its thread to end (C12.7, first value).
 pub const INPUT_STOP_DEADLINE: Duration = Duration::from_millis(1_000);
 
-/// How long `shutdown` of the screen source waits for its capture thread to
-/// end (C12.7, first value).
 pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
 
 const STOP_POLL: Duration = Duration::from_millis(5);
 
-/// How many messages a pump reads at its stop, after its quit message or its
-/// stop event, before it returns; input that keeps coming cannot hold a stop.
 pub const STOP_READ_LIMIT: usize = 4_096;
 
 fn deadline_ms(deadline: Duration) -> u64 {
     u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX)
 }
 
-pub(crate) struct StopSignal(windows::Win32::Foundation::HANDLE);
+pub(crate) struct StopSignal(
+    windows::Win32::Foundation::HANDLE,
+    Mutex<Option<CaptureError>>,
+);
 
 // SAFETY: an event handle names a kernel object of the process, which any of
 // its threads may set and wait on.
@@ -407,7 +466,23 @@ impl StopSignal {
         // unnamed manual-reset event, initially unset.
         let event = unsafe { CreateEventW(None, true, false, windows::core::PCWSTR::null()) }
             .map_err(|e| os_error("CreateEventW", &e))?;
-        Ok(Self(event))
+        Ok(Self(event, Mutex::new(None)))
+    }
+
+    pub(crate) fn report_removal(&self, stage: &'static str, removed: windows::core::Result<()>) {
+        if let Err(error) = removed {
+            self.1
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get_or_insert_with(|| os_error(stage, &error));
+        }
+    }
+
+    fn removal_failure(&self) -> Option<CaptureError> {
+        self.1
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     fn set(&self) {
@@ -467,7 +542,10 @@ impl PumpHandle {
         if join.join().is_err() || ended_before {
             return Err(CaptureError::ThreadEnded);
         }
-        Ok(())
+        match self.signal.removal_failure() {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
     fn has_ended(&self) -> bool {
@@ -501,6 +579,7 @@ pub(crate) struct Lifecycle {
     handoff: Option<HandOff>,
     counts: Arc<LossCounts>,
     timed_out: Option<CaptureError>,
+    removal_failed: Option<CaptureError>,
     stopped: bool,
 }
 
@@ -511,7 +590,7 @@ impl Lifecycle {
         forwarder: &str,
         spawn: impl FnOnce(Producer) -> Result<PumpHandle, CaptureError>,
     ) -> Result<Started, CaptureError> {
-        if self.pump.is_some() {
+        if self.pump.is_some() || self.removal_failed.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
         let handoff = HandOff::start(ctx.sink().clone(), forwarder, Arc::clone(&self.counts))?;
@@ -527,6 +606,9 @@ impl Lifecycle {
     }
 
     pub(crate) fn shutdown(&mut self) -> Result<(), CaptureError> {
+        if let Some(error) = &self.removal_failed {
+            return Err(error.clone());
+        }
         let Some(pump) = self.pump.as_mut() else {
             return Ok(());
         };
@@ -540,18 +622,32 @@ impl Lifecycle {
         }
         self.pump = None;
         self.timed_out = None;
+        if let Err(error @ CaptureError::Os { .. }) = &stopped {
+            self.removal_failed = Some(error.clone());
+            return stopped;
+        }
         self.stopped = true;
         stopped
     }
 
     pub(crate) fn health(&self, counters: SourceCounters) -> SourceHealth {
         let writer_gone = self.handoff.as_ref().is_some_and(HandOff::writer_gone);
+        if let Some(error) = &self.removal_failed {
+            return SourceHealth {
+                state: SourceState::Failed {
+                    reason: HealthReason::OsError,
+                    error: error.clone(),
+                },
+                counters,
+            };
+        }
         let state = match (&self.pump, &self.timed_out) {
             (Some(_), Some(timeout)) => SourceState::Failed {
                 reason: HealthReason::Timeout,
                 error: timeout.clone(),
             },
-            (Some(pump), None) if pump.has_ended() || writer_gone => thread_ended(),
+            (Some(_), None) if writer_gone => failed_with(HealthReason::WriterGone),
+            (Some(pump), None) if pump.has_ended() => thread_ended(),
             (Some(_), None) => SourceState::Running,
             (None, _) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, _) => SourceState::NotReported,
@@ -561,6 +657,10 @@ impl Lifecycle {
 
     pub(crate) fn handoff_counts(&self) -> HandOffCounts {
         self.counts.read()
+    }
+
+    pub(crate) fn removal_failed(&mut self, error: CaptureError) {
+        self.removal_failed.get_or_insert(error);
     }
 }
 
@@ -572,9 +672,17 @@ impl Drop for Lifecycle {
     }
 }
 
+pub(crate) fn app_of(cell: &Mutex<Option<String>>) -> Option<String> {
+    cell.lock().ok().and_then(|app| app.clone())
+}
+
 pub(crate) fn thread_ended() -> SourceState {
+    failed_with(HealthReason::ThreadEnded)
+}
+
+pub(crate) fn failed_with(reason: HealthReason) -> SourceState {
     SourceState::Failed {
-        reason: HealthReason::ThreadEnded,
+        reason,
         error: CaptureError::ThreadEnded,
     }
 }
@@ -725,7 +833,7 @@ pub(crate) mod tests {
         _callback: windows::Win32::UI::Accessibility::WINEVENTPROC,
     ) -> windows::Win32::UI::Accessibility::HWINEVENTHOOK {
         // SAFETY: SetWinEventHook takes the event range, no module and no
-        // callback, and passes no pointer of ours; the system refuses the hook.
+        // callback, and passes no pointer of ours.
         unsafe {
             windows::Win32::UI::Accessibility::SetWinEventHook(
                 event,
@@ -890,12 +998,12 @@ pub(crate) mod tests {
     }
 
     fn pointer(app: &str) -> Packet {
-        Packet {
-            kind: Modality::Pointer,
-            app: app.to_string(),
-            byte_len: 12,
-            tick: now_tick(),
-        }
+        Packet::observed(Observed::Pointer, Some(app.to_string()), 12, now_tick())
+    }
+
+    pub(crate) fn cleared() -> crate::secure_input::KeystrokeClearance {
+        use crate::secure_input::{check, FixedProbe, SecureInputReading};
+        check(&FixedProbe(SecureInputReading::Inactive), None).expect("an inactive reading")
     }
 
     fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
@@ -907,12 +1015,7 @@ pub(crate) mod tests {
     }
 
     fn keystroke(app: &str) -> Packet {
-        Packet {
-            kind: Modality::Keystroke,
-            app: app.to_string(),
-            byte_len: 2,
-            tick: now_tick(),
-        }
+        Packet::keystroke(cleared(), Some(app.to_string()), 2, now_tick())
     }
 
     fn wait_for(mut done: impl FnMut() -> bool) {
@@ -1068,6 +1171,32 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_source_whose_writer_is_gone_reads_failed_with_the_reason_writer_gone() {
+        let (sink, writer) = crate::sink::channel(1);
+        drop(writer);
+        let mut life = Lifecycle::default();
+        let mut producer = None;
+        let started = life.begin(&SourceContext::new(sink), "halvo-test-forward", |made| {
+            producer = Some(made);
+            quiet_pump()
+        });
+        assert_eq!(started, Ok(Started::Running));
+        let producer = producer.expect("the producer");
+        producer.push(pointer("refused"));
+        wait_until("the forwarder did not see the gone writer", || {
+            producer.writer_gone()
+        });
+        assert_eq!(
+            life.health(SourceCounters::default()).state,
+            SourceState::Failed {
+                reason: HealthReason::WriterGone,
+                error: CaptureError::ThreadEnded,
+            }
+        );
+        assert_eq!(life.shutdown(), Ok(()));
+    }
+
+    #[test]
     fn a_closed_hand_off_takes_no_packet_while_its_forwarder_is_parked() {
         let (sink, writer) = crate::sink::channel(1);
         assert!(forward_one(&sink, pointer("filler")).is_ok());
@@ -1169,6 +1298,12 @@ pub(crate) mod tests {
             waited < Duration::from_millis(250),
             "the drop waited {waited:?}"
         );
+    }
+
+    #[test]
+    fn stop_deadlines_are_the_first_values_of_c12_item_7() {
+        assert_eq!(INPUT_STOP_DEADLINE, Duration::from_millis(1_000));
+        assert_eq!(SCREEN_STOP_DEADLINE, Duration::from_millis(6_000));
     }
 
     #[test]
@@ -1318,12 +1453,7 @@ pub(crate) mod tests {
     fn an_event_carries_the_time_of_its_os_event() {
         let (sink, writer) = crate::sink::channel(4);
         let before = std::time::SystemTime::now();
-        let packet = Packet {
-            kind: Modality::Keystroke,
-            app: String::new(),
-            byte_len: 2,
-            tick: now_tick().wrapping_sub(250),
-        };
+        let packet = Packet::keystroke(cleared(), None, 2, now_tick().wrapping_sub(250));
         assert!(forward_one(&sink, packet).is_ok());
         let after = std::time::SystemTime::now();
         let received = writer.try_recv().expect("the event is queued");
