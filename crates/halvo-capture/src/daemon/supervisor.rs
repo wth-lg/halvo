@@ -499,10 +499,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     fn missing_permission(&self, name: SourceName) -> bool {
         required_permission(self.platform, name).is_some_and(|permission| {
-            self.board
-                .permissions
-                .iter()
-                .any(|(answered, grant)| *answered == permission && *grant != GrantState::Granted)
+            self.board.permissions.iter().any(|(answered, grant)| {
+                *answered == permission && *grant == GrantState::NotGranted
+            })
         })
     }
 
@@ -1446,6 +1445,121 @@ mod tests {
         assert_eq!(outcome.status, exit::ERROR);
     }
 
+    struct Emitter {
+        total: u64,
+        sent: Arc<AtomicU64>,
+        quit: Arc<AtomicBool>,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl CaptureSource for Emitter {
+        fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+            let (total, sent, quit) = (self.total, self.sent.clone(), self.quit.clone());
+            self.thread = Some(std::thread::spawn(move || {
+                for _ in 0..total {
+                    if quit.load(Ordering::SeqCst) {
+                        return;
+                    }
+                    if ctx.sink().emit_event(key()) == crate::sink::Emitted::Queued {
+                        sent.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+            }));
+            Ok(Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            self.quit.store(true, Ordering::SeqCst);
+            match self.thread.take().map(JoinHandle::join) {
+                Some(Err(_)) => Err(CaptureError::ThreadEnded),
+                Some(Ok(())) | None => Ok(()),
+            }
+        }
+    }
+
+    #[test]
+    fn a_drain_failing_stop_returns_within_2_s_with_an_emit_parked_and_every_event_is_stored() {
+        let store = ModelStore::new();
+        store.fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        let (handle, writer) = crate::sink::channel(16);
+        let thread = crate::daemon::owner::spawn(crate::daemon::owner::OwnerParts {
+            writer,
+            store: store.clone(),
+            clocks: crate::daemon::maintenance::SystemClocks::new(),
+            floor: open_floor(),
+            cap: halvo_control::model::StorageCap::DEFAULT,
+            shred_chunk: crate::daemon::maintenance::SHRED_CHUNK,
+        })
+        .unwrap();
+        let owner = Watched::new(thread, Box::new(Out::default()));
+        assert!(matches!(
+            owner.handle.call(Command::ClosePause),
+            Ok(Answer::Resumed(_))
+        ));
+        let sent = Arc::new(AtomicU64::new(0));
+        let first = Rc::new(Cell::new(true));
+        let counted = sent.clone();
+        let made = Rc::new(RefCell::new(Vec::new()));
+        let mut supervisor = Supervisor::new(
+            Platform::Macos,
+            Makes {
+                make: Box::new(move |_| {
+                    Some(Box::new(Emitter {
+                        total: if first.replace(false) { 1_500 } else { 0 },
+                        sent: counted.clone(),
+                        quit: Arc::default(),
+                        thread: None,
+                    }))
+                }),
+                made: made.clone(),
+                secure: Arc::default(),
+            },
+            real_loop(),
+        );
+        let ctx = SourceContext::with_floor(handle, open_floor());
+        supervisor.start_sources(&ctx, &[SourceName::Input]);
+        drop(ctx);
+        let waited = Instant::now();
+        let mut stop_took = None;
+        while waited.elapsed() < Duration::from_secs(20) {
+            let before = Instant::now();
+            supervisor.tick(Some(&owner));
+            if supervisor.board().capture == Capture::Stopped {
+                stop_took = Some(before.elapsed());
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let stop_took = stop_took.expect("the drain never failed");
+        assert!(
+            stop_took < Duration::from_secs(2),
+            "the stop took {stop_took:?}"
+        );
+        store.fail_every_write(None);
+        let healed = Instant::now();
+        while supervisor.board().capture == Capture::Stopped
+            && healed.elapsed() < Duration::from_secs(20)
+        {
+            supervisor.tick(Some(&owner));
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(made.borrow().len(), 2, "the sources did not start again");
+        let settled = match owner.handle.call(Command::Settle) {
+            Ok(Answer::Settled(snapshot)) => snapshot,
+            other => panic!("{other:?}"),
+        };
+        let sent = sent.load(Ordering::SeqCst);
+        assert!(sent > 512, "only {sent} events were sent");
+        assert_eq!(settled.events_lost, 0);
+        assert_eq!(settled.events_persisted, sent, "{settled:?}");
+        RunSources::stop(&mut supervisor);
+        assert!(matches!(
+            owner.handle.call(Command::Shutdown),
+            Ok(Answer::ShutDown(_))
+        ));
+        assert!(owner.join().is_ok());
+    }
+
     #[test]
     fn a_secure_input_count_survives_a_stop_and_a_start() {
         let secure = Arc::new(AtomicU64::new(0));
@@ -1557,6 +1671,24 @@ mod tests {
             .borrow()
             .iter()
             .all(|named| named == &[Permission::InputMonitoring]));
+    }
+
+    #[test]
+    fn a_permission_that_reads_not_determined_stops_no_source() {
+        let (mut f, answers, _) = probed(fixture(Factory::new()));
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotDetermined));
+        f.start(&two());
+        f.tick();
+        for _ in 0..3 {
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotDetermined));
+            f.later(PROBE_INTERVAL);
+        }
+        assert_eq!(f.state(SourceName::Input), SourceState::Running);
+        assert!(f.supervisor.factory().calls.of("stop input").is_empty());
     }
 
     #[test]
