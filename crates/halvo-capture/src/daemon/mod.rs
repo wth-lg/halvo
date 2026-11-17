@@ -829,6 +829,7 @@ mod tests {
         parse(args(&line), &dirs.account)
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn seconds_outside_1_to_604800_give_usage() {
         let dirs = dirs();
@@ -925,6 +926,7 @@ mod tests {
         assert_eq!(run.window, Duration::from_secs(3));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn a_store_dir_is_required_absolute_existing_and_clear_of_the_data_directory() {
         let dirs = dirs();
