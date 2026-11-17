@@ -187,6 +187,19 @@ self_test() {
   source_case src-expect-message refused 'fn x() { open().expect("the window Untitled - Notepad"); }'
   source_case src-assert-message refused 'fn x() { assert_eq!(text, "hunter2"); }'
   source_case src-print-tool refused 'fn q() { say(format!("q3 target={name} typed=hunter2")); }'
+  source_case src-helper-format-string refused 'fn line(&self) -> String { format!("round={} title=Untitled - Notepad", self.round) }'
+  source_case src-defect-evidence refused 'fn x() { defect!("W3-5-A2", format!("TF x14 field=hunter2 count={n}")); }'
+  source_case src-write-to-stdout refused 'fn x() { writeln!(std::io::stdout(), "title=Untitled - Notepad").unwrap(); }'
+  source_case src-dbg refused 'fn x() { dbg!("hunter2"); }'
+  source_case src-blank-before-the-bang refused 'fn x() { println !("field=hunter2"); }'
+  source_case src-paren-on-the-next-line refused 'fn x() {
+    eprintln!
+        ("field=hunter2");
+}'
+  source_case src-path-expect refused 'fn x() { Option::expect(window, "the window Untitled - Notepad"); }'
+  source_case src-panic-any refused 'fn x() { std::panic::panic_any("field=hunter2"); }'
+  source_case src-format-argument-left passed 'fn t() { let title = format!("halvo-verify-{}", "x".repeat(3)); }'
+  [ "$read_count" -eq 1 ] || fail_self "the fixture src-format-argument-left read $read_count lines, not the one format string"
   source_case src-heads-lines passed 'fn c1() {
     println!("TF c1 keystroke_events={n} ok={}", flag(ok));
     say(test, format!("phase=E rounds={r} counted_rounds={c} landings={l}"));
@@ -198,7 +211,7 @@ self_test() {
   verdict_min=5
   [ "$read_count" -ge "$verdict_min" ] || fail_self "the fixture src-heads-lines read $read_count lines, fewer than $verdict_min"
   source_case src-not-a-print passed 'fn t() {
-    let title = format!("Untitled - Notepad");
+    let title = String::from("Untitled - Notepad");
     // println!("TF c4 title=Untitled");
     let text = "hunter2";
 }'

@@ -33,6 +33,7 @@ hasactions an ARIA property name that a page test prints
 have English word of a fixed message of a test
 hosting a window class of Windows Terminal (CASCADIA_HOSTING_WINDOW_CLASS)
 ignored libtest: the summary line
+imagename the filter word IMAGENAME of tasklist.exe in a format string of the tests
 inconclusive the word INCONCLUSIVE of a test that could not run its case
 lay English word of a fixed message of a test
 mb a unit of a size
@@ -44,6 +45,7 @@ mozilla a window class of Firefox (MozillaWindowClass)
 msedge an image name of Edge (msedge.exe)
 multiline an ARIA property name that a page test prints
 multiselectable an ARIA property name that a page test prints
+nocapture the libtest flag --nocapture in the command line that a test builds
 note libtest: the line that names RUST_BACKTRACE
 panicked the panic hook: thread NAME (ID) panicked at
 passed libtest: the summary line
@@ -56,6 +58,8 @@ scanned a key of a functional test's line
 search English word of a fixed message of a test
 seconds libtest: a test that has been running for over 60 seconds
 sendinput the Windows call SendInput, in keys of the functional tests
+silently the value SilentlyContinue of PowerShell in a format string of the print tool
+slip a word of the label NAME-after-slip-N of a control of a page test
 something English word of a fixed message of a test
 sta the window station WinSta0, split at its capital letters
 stallc the prefix of the lines of the stall fixture's child
@@ -273,7 +277,8 @@ wpr_print_literals() {
     }
     function flush(raw,    text, n, parts, k) {
       text = fields(raw ? lit : decode(lit))
-      if (!sink && text !~ /^(TF|STALLC|PRINT|PRINTC) /) return
+      if (!sink && !(depth in first)) return
+      delete first[depth]
       n = split(text, parts, "\n")
       for (k = 1; k <= n; k++) print file ":" start "\t" parts[k]
     }
@@ -327,9 +332,11 @@ wpr_print_literals() {
             continue
           }
           if (atom == "b" && substr(after, 1, 1) == "\"") { mode = "str"; lit = ""; start = FNR; i += 2; continue }
-          if (!sink && (atom ~ /^(e?print(ln)?|panic|(debug_)?assert(_eq|_ne)?|unreachable|todo|unimplemented)$/ && after ~ /^![ \t]*[([{]/ ||
-              (atom == "say" || atom == "expect" && last == ".") && after ~ /^[ \t]*\(/)) {
+          if (!sink && (atom ~ /^(e?print(ln)?|dbg|panic|(debug_)?assert(_eq|_ne)?|unreachable|todo|unimplemented)$/ && after ~ /^[ \t]*!/ ||
+              (atom == "say" || atom == "panic_any" || atom == "expect" && (last == "." || last == ":")) && after ~ /^[ \t]*(\(|$)/)) {
             pending = 1
+          } else if (!sink && atom ~ /^(format|write(ln)?)$/ && after ~ /^[ \t]*!/) {
+            pending = 2
           }
           last = atom
           i += n
@@ -342,9 +349,12 @@ wpr_print_literals() {
         if (c == "\047" && match(rest, /^\047(\\[^\047]+|[^\\\047])\047/)) { i += RLENGTH; last = "char"; continue }
         if (c == "(" || c == "[" || c == "{") {
           depth++
-          if (pending) { sink = depth; pending = 0 }
+          if (pending == 1) sink = depth
+          if (pending == 2) first[depth] = 1
+          pending = 0
         } else if (c == ")" || c == "]" || c == "}") {
           if (sink == depth) sink = 0
+          delete first[depth]
           depth--
         } else if (c != "!") pending = 0
         last = c
