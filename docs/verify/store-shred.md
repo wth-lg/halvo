@@ -2334,6 +2334,11 @@ set, and the root's own volume name answers the root.
 - A forked child that runs destructors and drops its copy of the store:
   `DirLock`'s `Drop` then unlocks the lock that its parent still
   holds, and the tree has no fork without an exec.
+- A delete after a stopped delete (ruling DM-21; daemon-1b). After a delete
+  that was stopped between its root step and its file step, or when the root
+  file was removed by other hands, the next delete says that it is not
+  finished although nothing stays after it, because it did not itself
+  destroy the root; the delete after that says finished.
 
 ## Sync
 
