@@ -104,17 +104,29 @@ impl EncryptedStore {
     /// Delete-all on this handle, in the order of the contract, every step
     /// attempted whatever the others answered, each through the handle and
     /// never by its kept name, following no link: (1) the count of keyed
-    /// segments, unknown when it cannot be read; (2) the root step, which opens
-    /// the custody's roots location once and, when that directory holds the
-    /// store's root, destroys every root file there, the store's own first,
-    /// and otherwise destroys nothing and reads the root as left; once a call
-    /// on this handle read its root destroyed, a later call opens no roots
-    /// path again and reports from the listing that the earlier call kept;
-    /// (3) the handle refuses writes from here on,
+    /// segments, unknown when it cannot be read; (2) the root step, which goes
+    /// through the roots directory that the store has held since its open or
+    /// its create and, when that directory holds a regular file of the root
+    /// file's identity at any name (the witness; for a custody that keeps no
+    /// root file, the custody's own answer decides), destroys the store's own
+    /// root first and then every root file there, and removes every regular
+    /// file at any other name, zero-filling it first only when it has one name
+    /// and a root file's length, which it reads by the name before any mode
+    /// change (ruling ST-48 U1); whether a file of the root's identity is
+    /// written through is decided by the name at which it stands, and a name
+    /// removed with no write through it is no destruction of the root (ruling
+    /// ST-48 U2); it removes a link or an entry of another kind as the entry
+    /// that it is and enters no directory, and otherwise destroys nothing and
+    /// reads the root as left;
+    /// once a call on this handle read its root destroyed, a later call lists
+    /// no roots directory again and reports from the listing that the earlier
+    /// call kept; (3) the handle refuses writes from here on,
     /// whatever step 2 answered; (4) the key file, removed even when its
     /// zero-fill failed; (5) the three database files and the journal; (6)
-    /// the segments tree. `Ok` with the report when the root reads destroyed
-    /// and nothing is left, [`StoreError::DeleteIncomplete`] with it otherwise. A
+    /// the segments tree. `Ok` with the report when the root reads destroyed,
+    /// nothing stays in the roots directory at any name, that directory still
+    /// stands at its path and nothing of the store is left,
+    /// [`StoreError::DeleteIncomplete`] with it otherwise. A
     /// second call on the same handle runs the steps again where they are
     /// left, after an answer of [`StoreError::DeleteIncomplete`]. Once a call
     /// answered `Ok`, the handle is in the deleted state: every call but
