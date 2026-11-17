@@ -112,96 +112,169 @@ seam_manifests() {
 }
 
 carbon_calls() {
-  set -- '*.rs' '*.m' '*.mm' '*.c' '*.cc' '*.cpp' '*.h' '*.swift'
-  git grep --cached -n -w -E -e 'EnableSecureEventInput|DisableSecureEventInput' -- "$@" >"$work/carbon" 2>/dev/null
+  lock=crates/halvo-capture/src/secure_input_macos.rs
+  git grep --cached -I -n -E -e '(^|[^A-Za-z0-9_])_*(Enable|Disable)SecureEventInput([^A-Za-z0-9_]|$)' \
+    -- . ":(exclude)$lock" ':(exclude)docs/research/researcher-4.md' ":(exclude)scripts/r1/ci.d/$name.sh" \
+    >"$work/carbon" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the Carbon calls" ;; esac
-  git grep --cached -n -E -e 'link_name' -- "$@" >"$work/link-names" 2>/dev/null
+  git grep --cached -I -n -E -e 'link_name[[:space:]]*=' -- . ":(exclude)$lock" ":(exclude)scripts/r1/ci.d/$name.sh" \
+    >"$work/link-names" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for link_name" ;; esac
-  grep -v -E 'link_name = "[A-Za-z0-9_$]+"' "$work/link-names" >>"$work/carbon"
-  other=$(cut -d : -f 1 "$work/carbon" | grep -v -x -F -e crates/halvo-capture/src/secure_input_macos.rs | sort -u | tr '\n' ' ')
+  awk '{
+    n = split($0, part, /link_name[[:space:]]*=/)
+    for (i = 2; i <= n; i++) if (part[i] !~ /^[[:space:]]*"[A-Za-z0-9_$]+"/) { print; next }
+  }' "$work/link-names" >>"$work/carbon" || fail "the link_name lines cannot be read"
+  git grep --cached -I -n -E -e '(^|[^A-Za-z0-9_])(dlsym|dlopen|CFBundleGetFunctionPointerForName)([^A-Za-z0-9_]|$)' \
+    -- . ":(exclude)$lock" ":(exclude)scripts/r1/ci.d/$name.sh" ':(exclude)scripts/r4/ci.d/20-r4-core.sh' \
+    ':(exclude)tools/r4-trials/app/system/macos.swift' >>"$work/carbon" 2>/dev/null
+  case $? in 0 | 1) ;; *) fail "git grep could not read the tree for a lookup by name" ;; esac
+  other=$(cut -d : -f 1 "$work/carbon" | sort -u | tr '\n' ' ')
   [ -z "$other" ] ||
-    fail "EnableSecureEventInput, DisableSecureEventInput, or a link_name whose name is no plain literal (concat!, an escape, a macro), stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6); call the hold of that file"
-  printf 'carbon: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone, in the source files .rs .m .mm .c .cc .cpp .h .swift\n'
+    fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file"
+  printf 'carbon: in every tracked text file but %s, docs/research/researcher-4.md and this check, no name of the two Carbon calls (with or without leading underscores), no link_name whose name is no plain literal, and no lookup of a symbol by name (scripts/r4/ci.d/20-r4-core.sh and tools/r4-trials/app/system/macos.swift may look up others); limits: a name joined at build or run time, a lookup through a function or a crate that this check does not list, and linker arguments from outside the tree\n' "$lock"
 }
 
 reading_places_of() {
   git show ":$1" >"$work/reading-source" 2>/dev/null || fail "$1 cannot be read from the index"
   tr -d '\r' <"$work/reading-source" | awk -v seam='#[cfg(all(debug_assertions, feature = "stall-seam"))]' '
-    function opens(text) { return gsub(/\{/, "{", text) }
-    function closes(text) { return gsub(/\}/, "}", text) }
+    function count(text, pattern) { return gsub(pattern, "", text) }
+    function braces(text) { return count(text, "[{]") - count(text, "[}]") }
+    function nests(text) { return count(text, "[{(]") - count(text, "[})]") }
     function names(text) { return text ~ /(^|[^A-Za-z_])Reading([^A-Za-z_:]|$)/ }
+    function plain(text) { gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", text); return text }
+    function in_angles(text,    i, c, depth, rest) {
+      depth = 0
+      for (i = 1; i <= length(text); i++) {
+        c = substr(text, i, 1)
+        if ((c == "-" || c == "=") && substr(text, i + 1, 1) == ">") { i++; continue }
+        if (c == "<") depth++
+        else if (c == ">" && depth > 0) depth--
+        else if (depth > 0 && substr(text, i, 7) == "Reading") {
+          rest = substr(text, i + 7, 1)
+          if (substr(text, i - 1, 1) !~ /[A-Za-z_]/ && rest !~ /[A-Za-z_:]/) return 1
+        }
+      }
+      return 0
+    }
+    {
+      line = $0
+      sub(/\/\/.*$/, "", line)
+    }
     skip {
-      depth += opens($0) - closes($0)
-      if (depth <= 0) skip = 0
+      if (!opened && index(line, "{") > 0) opened = 1
+      depth += braces(line)
+      if (opened && depth <= 0) skip = 0
+      next
+    }
+    macro {
+      if (names(plain(line))) print NR
+      depth += braces(line)
+      if (depth <= 0) macro = 0
+      next
+    }
+    using {
+      text = text " " line
+      if (index(line, ";") > 0) {
+        using = 0
+        if (text ~ /(^|[^A-Za-z_])Reading[[:space:]]+as[[:space:]]/) print start
+      }
       next
     }
     item {
-      depth += opens($0) - closes($0)
-      if (depth <= 0) { item = 0; next }
-      line = $0
-      gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", line)
-      if (line !~ /^ *Reading,?$/ && names(line)) print NR
+      if (pending) {
+        if (line ~ /^[[:space:]]*$/) next
+        pending = 0
+      }
+      depth += nests(line)
+      if (!(kind == "enum" && line ~ /^[[:space:]]*Reading,?[[:space:]]*$/) && names(plain(line))) print NR
+      if (depth <= 0) item = 0
       next
     }
-    /^ *(\/\/\/|#\[)/ {
-      if ($0 ~ /^ *#\[/ && $0 ~ /test/) testattr = 1
-      if ($0 ~ /^ *#\[/ && index($0, seam) > 0) seamattr = 1
-      next
+    {
+      rest = line
+      while (match(rest, /^[[:space:]]*#\[[^]]*\][[:space:]]*/)) {
+        attr = substr(rest, RSTART, RLENGTH)
+        if (attr ~ /#\[cfg\((test\)|all\(test[,)])/) testattr = 1
+        if (index(attr, seam) > 0) seamattr = 1
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      if (rest ~ /^[[:space:]]*$/) next
+      sub(/^[[:space:]]*/, "", rest)
+      sub(/^pub(\([^)]*\))?[[:space:]]+/, "", rest)
+      held_test = testattr
+      held_seam = seamattr
+      testattr = 0
+      seamattr = 0
     }
-    /^ *(pub(\([a-z]+\))? )?mod [A-Za-z_]+ \{/ && testattr {
+    rest ~ /^mod[[:space:]]+[A-Za-z_]/ && held_test {
       skip = 1
-      depth = opens($0) - closes($0)
-      testattr = 0
-      seamattr = 0
+      opened = index(rest, "{") > 0
+      depth = braces(rest)
+      if (opened && depth <= 0) skip = 0
       next
     }
-    /^ *(pub(\([a-z]+\))? )?(struct|enum|union) / && seamattr {
-      depth = opens($0) - closes($0)
-      if (depth > 0) skip = 1
-      testattr = 0
-      seamattr = 0
-      next
-    }
-    /^ *(pub(\([a-z]+\))? )?(struct|enum|union) [A-Za-z_]+/ {
-      line = $0
-      gsub(/fn\([^)]*\) -> [A-Za-z_:<>]+/, "", line)
-      if (names(line)) print NR
-      depth = opens($0) - closes($0)
+    rest ~ /^(struct|enum|union)[[:space:]]+[A-Za-z_]/ {
+      kind = rest
+      sub(/[[:space:]].*/, "", kind)
+      header = rest
+      sub(/^(struct|enum|union)[[:space:]]+[A-Za-z0-9_]+/, "", header)
+      depth = nests(rest)
+      if (held_seam) {
+        if (depth > 0) { skip = 1; opened = 1; depth = braces(rest) }
+        next
+      }
+      if (names(plain(header))) print NR
       if (depth > 0) item = 1
-      testattr = 0
-      seamattr = 0
+      else if (rest !~ /[;{}()]/) { item = 1; pending = 1; depth = 0 }
       next
     }
-    /^ *(pub(\([a-z]+\))? )?type [A-Za-z_]+/ && names($0) { print NR }
-    /^ *(pub(\([a-z]+\))? )?(static|const) / && names($0) { print NR }
-    /^ *(pub(\([a-z]+\))? )?use / && /Reading as / { print NR }
-    /let (mut )?[A-Za-z_]+ *:/ {
-      line = $0
-      sub(/=.*/, "", line)
-      if (names(line)) print NR
+    rest ~ /^macro_rules![[:space:]]*[A-Za-z_]/ {
+      if (names(plain(rest))) print NR
+      depth = braces(rest)
+      if (depth > 0) macro = 1
+      next
     }
-    { testattr = 0; seamattr = 0 }
+    rest ~ /^use[[:space:]]/ {
+      if (index(rest, ";") > 0) {
+        if (rest ~ /(^|[^A-Za-z_])Reading[[:space:]]+as[[:space:]]/) print NR
+      } else {
+        using = 1
+        text = rest
+        start = NR
+      }
+      next
+    }
+    rest ~ /^type[[:space:]]+[A-Za-z_]/ && names(plain(rest)) { print NR; next }
+    rest ~ /^(static|const)[[:space:]]/ && rest !~ /^const[[:space:]]+(unsafe[[:space:]]+)?fn[[:space:]]/ && names(plain(rest)) { print NR; next }
+    rest ~ /thread_local!/ && names(plain(rest)) { print NR; next }
+    /let (mut )?[A-Za-z_]+[[:space:]]*:/ {
+      text = line
+      sub(/=.*/, "", text)
+      if (names(plain(text))) { print NR; next }
+    }
+    in_angles(plain(rest)) { print NR }
   ' >"$work/reading-places" || fail "$1 cannot be read"
-  places=$(tr '\n' ' ' <"$work/reading-places")
+  places=$(sort -n -u "$work/reading-places" | tr '\n' ' ')
   [ -z "$places" ] ||
-    fail "a field, a payload, an alias, a renaming use, a static or an annotated let of $1 can keep a reading of the secure-input state between two events (lines ${places% }): the reading of an event is taken by the one function that handles the event and handed on by value (rulings MA-14, MA-30 M6)"
+    fail "$1 can keep a reading of the secure-input state between two events: a field, a payload, an alias, a renaming use, a static, a thread_local, a macro_rules body, a generic argument or an annotated let names the type Reading (lines ${places% }); the reading of an event is taken by the one function that handles the event and handed on by value (rulings MA-14, MA-30 M6, MA-31 N7)"
 }
 
 reading_places() {
   for source in crates/halvo-capture/src/macos/input.rs crates/halvo-capture/src/secure_input_macos_hold.rs; do
     reading_places_of "$source"
   done
-  printf 'reading: no field, payload, alias, renaming use, static or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs holds a reading of the secure-input state; one limit stands, a cache whose type is inferred\n'
+  printf 'reading: no field, payload, alias, renaming use, static, thread_local, macro_rules body, generic argument or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs outside a test module names the type Reading; limits: a cache whose type is inferred, an alias, a wrapper or a re-export made in another file, a type made by a macro of another file or crate, and a reading kept as another type (a bool, a number, an atomic)\n'
 }
 
 clock_fields() {
   git show ":crates/halvo-capture/src/secure_input_macos_hold.rs" >"$work/hold-source" 2>/dev/null ||
     fail "crates/halvo-capture/src/secure_input_macos_hold.rs cannot be read from the index"
   for clock in Monotonic Uptime; do
-    tr -d '\r' <"$work/hold-source" | grep -q -x -F -e "pub struct $clock(u64);" ||
-      fail "the clock $clock of crates/halvo-capture/src/secure_input_macos_hold.rs is no longer exactly 'pub struct $clock(u64);': its field is public in some form, or the type moved; it stays private, made by from_nanos and read by nanos (rulings MA-21, MA-29 (2), MA-30 M10)"
+    defined=$(tr -d '\r' <"$work/hold-source" | grep -c -E "(^|[^A-Za-z0-9_])struct[[:space:]]+$clock([^A-Za-z0-9_]|$)")
+    tr -d '\r' <"$work/hold-source" | grep -q -x -F -e "pub struct $clock(u64);" && [ "$defined" = 1 ] ||
+      fail "the clock $clock of crates/halvo-capture/src/secure_input_macos_hold.rs is not defined once, as exactly 'pub struct $clock(u64);' (defined $defined times): its field is public in some form, it has a second definition, or the type moved; it stays private, made by from_nanos and read by nanos (rulings MA-21, MA-29 (2), MA-30 M10, MA-31 N7)"
   done
-  printf 'clocks: the fields of Monotonic and Uptime are private\n'
+  printf 'clocks: Monotonic and Uptime are each defined once, with a private field\n'
 }
 
 names_and_numbers() {
@@ -1120,31 +1193,54 @@ waits-not-driven-phase_one'
   write_measured_ledger
   check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml' ''
   printf 'mod carbon {\n    fn EnableSecureEventInput() -> i32;\n    fn DisableSecureEventInput() -> i32;\n    #[link_name = concat!("Is", "SecureEventInputEnabled")]\n    fn is_on() -> u8;\n}\n' >"$work/repo/crates/halvo-capture/src/secure_input_macos.rs" || exit 2
-  mkdir -p "$work/repo/crates/other/src" || exit 2
+  mkdir -p "$work/repo/crates/other/src" "$work/repo/docs/research" "$work/repo/scripts/r4/ci.d" "$work/repo/tools/r4-trials/app/system" "$work/repo/.cargo" || exit 2
   printf 'extern "C" {\n    #[link_name = "fdopendir%sINODE64"]\n    fn fdopendir() -> i32;\n}\n' "\$" >"$work/repo/crates/other/src/lib.rs" || exit 2
-  git -C "$work/repo" add crates || exit 2
+  printf 'The hold takes EnableSecureEventInput and gives it back by DisableSecureEventInput.\n' >"$work/repo/docs/research/researcher-4.md" || exit 2
+  printf '# rule: a name inside a string (link_name, dlsym)\n' >"$work/repo/scripts/r4/ci.d/20-r4-core.sh" || exit 2
+  printf 'let responsibleCall = dlsym(dlopen(nil, RTLD_NOW), "responsibility_get_pid_responsible_for_pid")\n' >"$work/repo/tools/r4-trials/app/system/macos.swift" || exit 2
+  printf 'BEGIN { link_name["a"] = 1 }\n' >"$work/repo/crates/other/names.awk" || exit 2
+  git -C "$work/repo" add -A || exit 2
   write_measured_ledger
-  check carbon-calls-and-a-plain-link-name PASS 'carbon: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone' ''
-  carbon_text='stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: crates/other/src/'
+  check carbon-calls-and-a-plain-link-name PASS 'carbon: in every tracked text file but crates/halvo-capture/src/secure_input_macos.rs' ''
+  printf 'paste::paste! {\n    extern "C" {\n        fn [<Enable SecureEventInput>]() -> i32;\n    }\n}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  git -C "$work/repo" add -A || exit 2
+  check carbon-limit-a-name-joined-at-build-time PASS 'limits: a name joined at build or run time' ''
+  carbon_text='stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: '
   n=0
-  for form in 'lib.rs:extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' \
-    'hold.mm:void hold(void) { EnableSecureEventInput(); }\n' \
-    'hold.cpp:void hold(void) { DisableSecureEventInput(); }\n' \
-    'lib.rs:extern "C" {\n    #[link_name = concat!("Enable", "SecureEventInput")]\n    fn hold() -> i32;\n}\n' \
-    'lib.rs:extern "C" {\n    #[link_name = "\\x45nableSecureEventInput"]\n    fn hold() -> i32;\n}\n'; do
-    file=${form%%:*}
-    printf '%b' "${form#*:}" >"$work/repo/crates/other/src/$file" || exit 2
-    git -C "$work/repo" add crates || exit 2
+  for form in 'crates/other/src/lib.rs:extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' \
+    'crates/other/src/hold.mm:void hold(void) { EnableSecureEventInput(); }\n' \
+    'crates/other/src/hold.cpp:void hold(void) { DisableSecureEventInput(); }\n' \
+    'crates/other/src/lib.rs:extern "C" {\n    #[link_name = concat!("Enable", "SecureEventInput")]\n    fn hold() -> i32;\n}\n' \
+    'crates/other/src/lib.rs:extern "C" {\n    #[link_name = "\\x45nableSecureEventInput"]\n    fn hold() -> i32;\n}\n' \
+    'crates/other/src/hold.c:int hold(void) __asm__("_EnableSecureEventInput");\nint take(void) { return hold(); }\n' \
+    'crates/other/src/hold.s:\t.globl _take\n_take:\n\tb _DisableSecureEventInput\n' \
+    'crates/other/build.rs:fn main() {\n    println!("cargo:rustc-link-arg=-Wl,-alias,_EnableSecureEventInput,_halvo_hold");\n}\n' \
+    '.cargo/config.toml:[build]\nrustflags = ["-C", "link-arg=-Wl,-alias,_DisableSecureEventInput,_halvo_give"]\n' \
+    'crates/other/src/hold.cxx:void hold() { EnableSecureEventInput(); }\n' \
+    'crates/other/src/hold.hpp:inline void hold(void) { EnableSecureEventInput(); }\n' \
+    'crates/other/src/hold.inc:extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' \
+    'crates/other/src/lib.rs:extern "C" { #[link_name = "fdopendir"] fn a() -> i32; #[link_name = concat!("Enable", "SecureEventInput")] fn hold() -> i32; }\n' \
+    'crates/other/src/lib.rs:fn hold(handle: *mut u8) -> *mut u8 {\n    unsafe { dlsym(handle, concat!("Enable", "SecureEventInput").as_ptr()) }\n}\n' \
+    'crates/other/src/lib.rs:fn open() -> *mut u8 {\n    unsafe { dlopen(c"/System/Library/Frameworks/Carbon.framework/Carbon".as_ptr(), 1) }\n}\n' \
+    'crates/other/src/hold.m:void *hold(CFBundleRef bundle) { return CFBundleGetFunctionPointerForName(bundle, CFSTR("Enable" "SecureEventInput")); }\n' \
+    'docs/notes.md:A later unit may call EnableSecureEventInput from its own file.\n'; do
+    path=${form%%:*}
+    printf '%b' "${form#*:}" >"$work/repo/$path" || exit 2
+    git -C "$work/repo" add -A || exit 2
     n=$((n + 1))
-    check "carbon-outside-the-lock-$n-in-$file" FAIL "$carbon_text$file" ''
-    printf '// none\n' >"$work/repo/crates/other/src/$file" || exit 2
-    git -C "$work/repo" add crates || exit 2
+    check "carbon-outside-the-lock-$n-in-${path##*/}" FAIL "$carbon_text$path (" ''
+    printf 'none\n' >"$work/repo/$path" || exit 2
+    git -C "$work/repo" add -A || exit 2
   done
   printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
-  printf 'enum Kind {\n    Key,\n    Reading,\n}\n\nstruct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\n#[cfg(all(debug_assertions, feature = "stall-seam"))]\n#[derive(Debug)]\npub enum RawEntry {\n    Reading {\n        value: Reading,\n    },\n}\n\nfn read() {\n    let reading = (self.secure)(state.session);\n    let step = Reading::Off;\n}\n\n#[cfg(all(test, debug_assertions))]\nmod tests {\n    thread_local! {\n        static ANSWER: Cell<Reading> = const { Cell::new(Reading::Off) };\n    }\n    struct Kept {\n        kept: Reading,\n    }\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  printf 'enum Kind {\n    Key,\n    Reading,\n}\n\nstruct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\n#[cfg(all(debug_assertions, feature = "stall-seam"))]\n#[derive(Debug)]\npub enum RawEntry {\n    Reading {\n        value: Reading,\n    },\n}\n\nfn read() {\n    let reading = (self.secure)(state.session);\n    let step = Reading::Off;\n}\n\nfn handed(reading: Reading, at: Stamps) -> (Reading, Stamps) {\n    (reading, at)\n}\n\n#[cfg(all(test, debug_assertions))]\nmod tests {\n    thread_local! {\n        static ANSWER: Cell<Reading> = const { Cell::new(Reading::Off) };\n    }\n    struct Kept {\n        kept: Reading,\n    }\n}\n\n#[cfg(test)]\nmod more_tests {\n    static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
-  check reading-in-a-variant-a-reader-type-the-seam-and-a-test PASS 'reading: no field, payload, alias, renaming use, static or annotated let' ''
+  check reading-in-a-variant-a-reader-type-the-seam-and-a-test PASS 'reading: no field, payload, alias, renaming use, static, thread_local, macro_rules body, generic argument or annotated let' ''
+  printf 'use super::Kept;\n\nstruct HoldState {\n    kept: Option<Kept>,\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  write_measured_ledger
+  check reading-limit-an-alias-made-in-another-file PASS 'limits: a cache whose type is inferred, an alias, a wrapper or a re-export made in another file' ''
   reading_text='can keep a reading of the secure-input state between two events'
   for form in 'field:struct HoldState {\n    keys: HeldKeys<HeldKey>,\n    kept: Option<(Reading, Stamps)>,\n}\n' \
     'closure:fn tap_callback() {\n    let kept: std::cell::Cell<Option<Reading>> = std::cell::Cell::new(None);\n}\n' \
@@ -1153,7 +1249,19 @@ waits-not-driven-phase_one'
     'use-as:use crate::secure_input_macos::Reading as State;\n\nstruct HoldState {\n    kept: Option<State>,\n}\n' \
     'enum-wrapper:enum Kept {\n    One(Reading),\n}\n' \
     'static:static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n' \
-    'static-after-the-tests:#[cfg(test)]\nmod tests {\n    fn x() {}\n}\n\nstatic LAST_READING: Mutex<Option<Reading>> = Mutex::new(None);\n'; do
+    'static-after-the-tests:#[cfg(test)]\nmod tests {\n    fn x() {}\n}\n\nstatic LAST_READING: Mutex<Option<Reading>> = Mutex::new(None);\n' \
+    'module-under-cfg-any-test:#[cfg(any(test, target_os = "macos"))]\nmod live {\n    struct HoldState {\n        kept: Option<Reading>,\n    }\n}\n' \
+    'module-under-cfg-not-test:#[cfg(not(test))]\nmod kept {\n    static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n}\n' \
+    'pub-in-path:pub(in crate::macos) struct HoldState {\n    kept: Option<Reading>,\n}\n' \
+    'attribute-on-the-item-line:#[derive(Default)] struct HoldState {\n    kept: Option<Reading>,\n}\n' \
+    'brace-on-the-next-line:struct HoldState\n{\n    kept: Option<Reading>,\n}\n' \
+    'tuple-struct-over-lines:struct LastReading(\n    Option<Reading>,\n);\n' \
+    'split-field:struct HoldState {\n    kept: Cell<\n        Option<\n            Reading,\n        >,\n    >,\n}\n' \
+    'generic-argument-of-a-parameter:struct Kept<R> {\n    last: Option<R>,\n}\n\nfn on_event(kept: &mut Kept<Reading>, reading: Reading) {\n    kept.last = Some(reading);\n}\n' \
+    'generic-argument-of-a-return:struct TapContext<R> {\n    kept: std::cell::Cell<Option<R>>,\n}\n\nfn tap_context() -> TapContext<Reading> {\n    TapContext { kept: std::cell::Cell::new(None) }\n}\n' \
+    'use-as-over-lines:use crate::secure_input_macos::{\n    Reading as State,\n};\n\nstruct HoldState {\n    kept: Option<State>,\n}\n' \
+    'thread-local-on-one-line:thread_local!(static LAST: Cell<Option<Reading>> = const { Cell::new(None) });\n' \
+    'macro-rules-body:macro_rules! kept {\n    () => {\n        Option<Reading>\n    };\n}\n\nstruct HoldState {\n    kept: kept!(),\n}\n'; do
     printf '%b' "${form#*:}" >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
     git -C "$work/repo" add crates || exit 2
     check "reading-kept-by-a-${form%%:*}" FAIL "crates/halvo-capture/src/macos/input.rs $reading_text" ''
@@ -1162,10 +1270,13 @@ waits-not-driven-phase_one'
   printf '%s\npub struct HeldKeys<T> {\n    keys: VecDeque<T>,\n    kept: Option<Reading>,\n}\n' "$clock_lines" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   check reading-kept-in-the-hold-file FAIL "crates/halvo-capture/src/secure_input_macos_hold.rs $reading_text" ''
-  for form in 'pub-crate:pub struct Monotonic(pub(crate) u64);\npub struct Uptime(u64);\n' 'pub:pub struct Monotonic(u64);\npub struct Uptime(pub u64);\n'; do
+  for form in 'pub-crate:pub struct Monotonic(pub(crate) u64);\npub struct Uptime(u64);\n' \
+    'pub:pub struct Monotonic(u64);\npub struct Uptime(pub u64);\n' \
+    'monotonic-defined-twice:#[cfg(test)]\npub struct Monotonic(u64);\n#[cfg(not(test))]\npub struct Monotonic(pub u64);\npub struct Uptime(u64);\n' \
+    'uptime-defined-twice:pub struct Monotonic(u64);\n#[cfg(test)]\npub struct Uptime(u64);\n#[cfg(not(test))]\npub struct Uptime(pub u64);\n'; do
     printf '%b' "${form#*:}" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
     git -C "$work/repo" add crates || exit 2
-    check "clock-field-made-${form%%:*}" FAIL 'its field is public in some form, or the type moved' ''
+    check "clock-${form%%:*}" FAIL 'is not defined once, as exactly' ''
   done
   for path in crates/halvo-capture/src/macos/input.rs crates/halvo-capture/src/secure_input_macos.rs; do
     printf '%s\n' "$path" >"$work/repo/$path" || exit 2
