@@ -33,6 +33,11 @@ pub const PASSWORDS_NOT_CONFIRMED: &str = "Halvo cannot confirm that it leaves o
 
 pub const KEY_TYPED_AHEAD_CAN_BE_NOTED: &str = "A key that you press before a program or page has reacted, for example while it is frozen or still loading, can be noted even if it ends up in a password field: when it was pressed, in which app and what kind of key, never which letter or digit. To be sure, pause capture before you type a password.";
 
+/// What a Mac's page says while its status reads keys_withheld yes: an item and no warning
+/// (ruling PR-30 PR10), in the coordinator's words after three plain readers, the owner's to
+/// change. A withheld key is dropped from the macOS keyboard source's queue and written nowhere.
+pub const KEYS_WITHHELD_ON_A_MAC: &str = "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything.";
+
 const PASSWORDS_WITH_SECURE_INPUT: &str = "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection.";
 
 const PASSWORDS_WITH_NO_TYPING_ON_WINDOWS: &str = "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.";
@@ -181,6 +186,10 @@ pub struct Texts {
     /// and no key elsewhere.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub typed_ahead: Option<&'static str>,
+    /// [`KEYS_WITHHELD_ON_A_MAC`] on a Mac whose status reads keys_withheld yes, and no key
+    /// elsewhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keys_withheld: Option<&'static str>,
     pub backup_limit: Option<&'static str>,
     pub limits: &'static str,
     pub custody: &'static str,
@@ -199,6 +208,8 @@ pub fn texts(status: &DaemonStatus) -> Texts {
         passwords,
         typed_ahead: (passwords == PASSWORDS_WITH_SECURE_INPUT)
             .then_some(KEY_TYPED_AHEAD_CAN_BE_NOTED),
+        keys_withheld: (f.platform == Platform::Macos && f.keys_withheld)
+            .then_some(KEYS_WITHHELD_ON_A_MAC),
         backup_limit: backup_limit(f.platform),
         limits: LIMITS,
         custody: custody_text(f.custody),
@@ -245,6 +256,43 @@ mod tests {
         include_str!("../../../scripts/r1-gate/fixtures/c2-status-macos.txt");
     const STATUS_WINDOWS: &str =
         include_str!("../../../scripts/r1-gate/fixtures/c2-status-windows.txt");
+
+    #[test]
+    fn pr10_withheld_keys_on_a_mac_are_an_item_of_the_texts_that_is_no_warning_and_windows_shows_none(
+    ) {
+        let withheld = |platform: Platform, yes: bool| {
+            let mut f = sample_status(platform).into_fields();
+            f.keys_withheld = yes;
+            texts(&DaemonStatus::new(f).unwrap())
+        };
+        assert_eq!(
+            withheld(Platform::Macos, true).keys_withheld,
+            Some(KEYS_WITHHELD_ON_A_MAC)
+        );
+        assert_eq!(
+            KEYS_WITHHELD_ON_A_MAC,
+            "Halvo did not save part of what you typed, because it may have been a password. What Halvo leaves out this way is never saved. You do not need to do anything."
+        );
+        for (platform, yes) in [
+            (Platform::Macos, false),
+            (Platform::Windows, true),
+            (Platform::Windows, false),
+        ] {
+            let shown = withheld(platform, yes);
+            assert_eq!(shown.keys_withheld, None, "{platform:?} {yes}");
+            let json = serde_json::to_value(&shown).unwrap();
+            assert!(json.get("keys_withheld").is_none(), "{platform:?} {yes}");
+        }
+        let shown = withheld(Platform::Macos, true);
+        assert_eq!(
+            shown.passwords,
+            texts(&sample_status(Platform::Macos)).passwords
+        );
+        assert_eq!(shown.typed_ahead, Some(KEY_TYPED_AHEAD_CAN_BE_NOTED));
+        for warning in ["may still", "fault", "Pause capture", "cannot confirm"] {
+            assert!(!KEYS_WITHHELD_ON_A_MAC.contains(warning), "{warning}");
+        }
+    }
 
     fn switches(on: &[SwitchName]) -> Vec<SwitchLine> {
         SwitchName::ALL
@@ -859,6 +907,7 @@ mod tests {
             .collect();
         f.switches = switches(on);
         f.password_guard = guard;
+        f.password_guard_bound_ms = (guard != PasswordGuard::None).then_some(30_000);
         f.capture = Capture::Pausing;
         f.capture_reason = None;
         DaemonStatus::new(f).expect("capture pausing takes every line and the mark")

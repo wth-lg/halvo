@@ -49,11 +49,16 @@ pub enum EntryAtDataDir {
 /// The cause at `dir`. A read that follows links comes first; only when it fails is the name read
 /// without following, and when nothing stands there the nearest name above it is read the same
 /// way. A directory there is no cause; a link whose target may not be reached for permission
-/// cannot be read, and any other link that the read cannot follow leads nowhere.
+/// cannot be read, and any other link that the read cannot follow leads nowhere. A path that the
+/// system refuses as a name, such as one with a part longer than 255 bytes, cannot be read
+/// (ruling CT-15).
 pub(crate) fn entry_fault(dir: &Path) -> Option<EntryAtDataDir> {
     let followed = match std::fs::metadata(dir) {
         Ok(target) if target.is_dir() => return None,
         Ok(_) => return Some(EntryAtDataDir::NotADirectory),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidFilename => {
+            return Some(EntryAtDataDir::CannotBeRead)
+        }
         Err(e) => e,
     };
     let Ok(named) = std::fs::symlink_metadata(dir) else {
@@ -77,16 +82,24 @@ pub fn entry_cause(error: &std::io::Error) -> Option<EntryAtDataDir> {
         .copied()
 }
 
+/// The error that carries `cause`, with the io kind that goes beside it (ruling CT-15 G3 (a)).
+#[cfg(target_os = "macos")]
+pub(crate) fn cause_error(cause: EntryAtDataDir) -> std::io::Error {
+    match cause {
+        EntryAtDataDir::NotADirectory => {
+            std::io::Error::new(std::io::ErrorKind::NotADirectory, cause)
+        }
+        EntryAtDataDir::LinkLeadsNowhere => std::io::Error::other(cause),
+        EntryAtDataDir::CannotBeRead => {
+            std::io::Error::new(std::io::ErrorKind::PermissionDenied, cause)
+        }
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) fn with_entry_cause(dir: &Path, error: std::io::Error) -> std::io::Error {
     match entry_fault(dir) {
-        Some(cause @ EntryAtDataDir::NotADirectory) => {
-            std::io::Error::new(std::io::ErrorKind::NotADirectory, cause)
-        }
-        Some(cause @ EntryAtDataDir::LinkLeadsNowhere) => std::io::Error::other(cause),
-        Some(cause @ EntryAtDataDir::CannotBeRead) => {
-            std::io::Error::new(std::io::ErrorKind::PermissionDenied, cause)
-        }
+        Some(cause) => cause_error(cause),
         None if error.kind() == std::io::ErrorKind::PermissionDenied => {
             std::io::Error::new(error.kind(), EntryAtDataDir::CannotBeRead)
         }
@@ -111,23 +124,54 @@ pub enum DataDirCheck {
 
 #[cfg(target_os = "macos")]
 impl DataDirCheck {
-    /// The line with the resolved folder, for the person's eyes and no path to open, and no
-    /// second spelling for `--data-dir` (ruling ST-36 (f)); `None` unless the directory was
-    /// reached through a link. It is one line: each control character and U+2028 and U+2029 of
-    /// the folder's name reads "?" (ruling CT-14 K5); `resolved` keeps the true path.
-    pub fn resolved_line(&self) -> Option<String> {
+    /// The folder of [`DataDirCheck::Linked`] as the status carries it; `None` unless the
+    /// directory was reached through a link.
+    pub fn resolved_folder(&self) -> Option<ResolvedFolder> {
         match self {
-            DataDirCheck::Linked { resolved } => Some(format!(
-                "data_dir_resolved={}",
-                one_line(&resolved.display().to_string())
-            )),
+            DataDirCheck::Linked { resolved } => Some(ResolvedFolder::of(resolved)),
             DataDirCheck::Missing | DataDirCheck::Own { .. } => None,
         }
     }
+
+    /// [`ResolvedFolder::line`] of the resolved folder; `None` unless the directory was reached
+    /// through a link. `resolved` keeps the true path.
+    pub fn resolved_line(&self) -> Option<String> {
+        self.resolved_folder().map(|folder| folder.line())
+    }
 }
 
-#[cfg(target_os = "macos")]
-fn one_line(text: &str) -> String {
+/// The folder that a data directory reached through a link resolves to, as a person reads it:
+/// each part of the path that is not UTF-8 reads U+FFFD. It is for the person's eyes and no path
+/// to open, and no second spelling for `--data-dir` (rulings ST-36 (f), CT-13 point 2 and
+/// CT-15).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct ResolvedFolder(String);
+
+impl ResolvedFolder {
+    pub fn of(path: &Path) -> Self {
+        Self(path.to_string_lossy().into_owned())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// `data_dir_resolved=<folder>` on one line, through [`one_line`] (ruling CT-14 K5).
+    pub fn line(&self) -> String {
+        format!("data_dir_resolved={}", one_line(&self.0))
+    }
+}
+
+/// The text on one line, for a person's eyes and no path to open: each control character and
+/// U+2028 and U+2029 reads "?", and every other character is kept, nothing cut (ruling CT-14 K5
+/// and its point for the planner). The resolved line and the offline form's `data_dir=` line
+/// print through it on both systems.
+///
+/// ```
+/// assert_eq!(halvo_control::paths::one_line("a\nb\tc é"), "a?b?c é");
+/// ```
+pub fn one_line(text: &str) -> String {
     text.chars()
         .map(|c| {
             if c.is_control() || c == '\u{2028}' || c == '\u{2029}' {
@@ -182,7 +226,7 @@ pub fn check_data_dir(
     let (directory, through_a_link) = match held {
         Some(lock) => (lock.directory(), lock.through_a_link()),
         None => {
-            opened = match crate::instance_lock::open(dir.path()) {
+            opened = match crate::instance_lock::open(dir) {
                 Ok(opened) => opened,
                 Err(e) => {
                     return match entry_cause(&e) {
@@ -407,6 +451,11 @@ pub const RESERVED_ENTRY_NAMES: [&str; 2] = ["derived", "agents"];
 pub enum RemovedBy {
     DeleteAll,
     RemoveHalvo,
+    /// The delete of the billing run's account helper, which Remove Halvo calls and a
+    /// delete-all never does: it removes what it holds once the account service has answered
+    /// (that run's P7-104 item 4; contracts.md C17). For the account helper's Keychain row,
+    /// which that run's unit 8.0 adds, and for [`ACCOUNT_HELPER_STORE`].
+    AccountHelperDelete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -459,11 +508,12 @@ const LOCAL_DATA_FOLDER: &[&str] = &[];
 #[cfg(not(windows))]
 const LOCAL_DATA_FOLDER: &[&str] = &["Library", "Application Support"];
 
-/// A saved sign-in stays through a delete-all and goes with Remove Halvo (C17 item 7).
+/// A saved sign-in stays through a delete-all and goes by the account helper's delete once the
+/// account service has answered (C17 item 7; the billing run's P7-104 item 4).
 pub const ACCOUNT_HELPER_STORE: OutsidePlace = OutsidePlace {
     name: ACCOUNT_HELPER_STORE_DIR,
     owner: "the account helper of run 20261109-halvo-r7-billing",
-    removed_by: RemovedBy::RemoveHalvo,
+    removed_by: RemovedBy::AccountHelperDelete,
 };
 
 pub const OUTSIDE_PLACES: [OutsidePlace; 1] = [ACCOUNT_HELPER_STORE];
@@ -683,8 +733,9 @@ fn checked(path: PathBuf) -> Result<PathBuf, PathError> {
 }
 
 /// The whole form that [`DataDir`] gives a path: absolute, with no part "..", built again from its
-/// parts, so that a slash at the end, a part "." and a doubled slash go.
-pub(crate) fn whole_form(path: &Path) -> Result<PathBuf, PathError> {
+/// parts, so that a slash at the end, a part "." and a doubled slash go. The instance lock takes
+/// a [`DataDir`] and so a path of this form alone (ruling CT-14 K1).
+fn whole_form(path: &Path) -> Result<PathBuf, PathError> {
     if !path.is_absolute() {
         return Err(PathError::Relative);
     }
@@ -1115,6 +1166,20 @@ mod tests {
     use super::*;
     use std::ffi::OsString;
 
+    #[test]
+    fn k5_one_line_turns_each_control_character_and_line_separator_into_a_question_mark_and_cuts_nothing(
+    ) {
+        assert_eq!(
+            crate::paths::one_line("a\nb\tc\rd\u{2028}e\u{2029}f\u{7f}g\u{85}h"),
+            "a?b?c?d?e?f?g?h"
+        );
+        assert_eq!(one_line("/Volumes/Daten é ø 文"), "/Volumes/Daten é ø 文");
+        let long = format!("/Volumes/{}", "é".repeat(150));
+        assert!(long.len() > 200);
+        assert_eq!(one_line(&long), long);
+        assert_eq!(one_line("a\u{fffd}b"), "a\u{fffd}b");
+    }
+
     struct Account {
         base: Option<&'static str>,
         temp: Option<PathBuf>,
@@ -1533,7 +1598,7 @@ mod tests {
             let name = root.path().join("d");
             std::os::unix::fs::symlink(&target, &name).unwrap();
             let data = DataDir::from_flag(&name).unwrap();
-            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&data).unwrap().unwrap();
             std::fs::remove_file(&name).unwrap();
             std::fs::rename(&target, &name).unwrap();
             let result = check_data_dir(&data, Some(&lock));
@@ -1553,7 +1618,7 @@ mod tests {
             std::fs::create_dir(&name).unwrap();
             std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o700)).unwrap();
             let data = DataDir::from_flag(&name).unwrap();
-            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&data).unwrap().unwrap();
             std::fs::rename(&name, root.path().join("old")).unwrap();
             std::fs::create_dir(&name).unwrap();
             std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -1580,7 +1645,7 @@ mod tests {
             let name = root.path().join("d");
             std::os::unix::fs::symlink(&first, &name).unwrap();
             let data = DataDir::from_flag(&name).unwrap();
-            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&data).unwrap().unwrap();
             std::fs::remove_file(&name).unwrap();
             std::os::unix::fs::symlink(&second, &name).unwrap();
             assert_eq!(
@@ -1604,7 +1669,7 @@ mod tests {
                 EntryAtDataDir::CannotBeRead => std::io::ErrorKind::PermissionDenied,
                 EntryAtDataDir::LinkLeadsNowhere => std::io::ErrorKind::Other,
             };
-            match read(path) {
+            match read(&data) {
                 Ok(LockRead::NoDirectory) => panic!("read gave NoDirectory for {path:?}"),
                 Ok(_) => panic!("read succeeded for {path:?}"),
                 Err(e) => assert_eq!(
@@ -1613,7 +1678,7 @@ mod tests {
                     "{path:?}: {e}"
                 ),
             }
-            let taken = InstanceLock::try_take(path);
+            let taken = InstanceLock::try_take(&data);
             assert!(
                 matches!(&taken, Err(e) if entry_cause(e) == Some(cause) && e.kind() == kind),
                 "{path:?}: {taken:?}"
@@ -1655,7 +1720,7 @@ mod tests {
                 std::os::unix::fs::symlink(&middle, &name).unwrap();
                 let data = DataDir::from_flag(&name).unwrap();
                 assert_eq!(data.is_provisioned(), Ok(false));
-                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                let lock = InstanceLock::take(&data).unwrap().unwrap();
                 let want = if ok {
                     Ok(DataDirCheck::Linked {
                         resolved: target.canonicalize().unwrap(),
@@ -1688,6 +1753,19 @@ mod tests {
             std::fs::write(&file, b"x").unwrap();
             caused(&file.join("halvo"), EntryAtDataDir::NotADirectory);
             caused(&file.join("a").join("halvo"), EntryAtDataDir::NotADirectory);
+        }
+
+        #[test]
+        fn ct15_a_name_longer_than_255_bytes_reads_cannot_be_read_from_the_four_and_255_bytes_do_not(
+        ) {
+            let root = tempfile::tempdir().unwrap();
+            let long = root.path().join("x".repeat(256));
+            caused(&long, EntryAtDataDir::CannotBeRead);
+            caused(&long.join("halvo"), EntryAtDataDir::CannotBeRead);
+            let longest = DataDir::from_flag(root.path().join("x".repeat(255))).unwrap();
+            assert_eq!(longest.is_provisioned(), Ok(false));
+            assert_eq!(check_data_dir(&longest, None), Ok(DataDirCheck::Missing));
+            assert_eq!(read(&longest).unwrap(), LockRead::NoDirectory);
         }
 
         fn mode(path: &Path) -> u32 {
@@ -1725,6 +1803,29 @@ mod tests {
             let long = format!("/Volumes/{}", "x".repeat(240));
             assert_eq!(line(&long), format!("data_dir_resolved={long}"));
             assert_eq!(line("/a\nb").lines().count(), 1);
+        }
+
+        #[test]
+        fn ct15_the_resolved_folder_and_its_line_read_a_name_that_is_not_utf_8_with_a_replacement_character(
+        ) {
+            use std::os::unix::ffi::OsStrExt;
+            let path = PathBuf::from(std::ffi::OsStr::from_bytes(b"/Volumes/a\xffb"));
+            let check = DataDirCheck::Linked {
+                resolved: path.clone(),
+            };
+            assert_eq!(
+                check.resolved_folder().map(|f| f.as_str().to_string()),
+                Some("/Volumes/a\u{fffd}b".to_string())
+            );
+            assert_eq!(
+                check.resolved_line(),
+                Some("data_dir_resolved=/Volumes/a\u{fffd}b".to_string())
+            );
+            assert_eq!(DataDirCheck::Missing.resolved_folder(), None);
+            assert_eq!(
+                DataDirCheck::Own { set_to_0700: false }.resolved_folder(),
+                None
+            );
         }
 
         /// Sets each path back to mode 0700, in the order given, when it is dropped, so that a
@@ -1771,7 +1872,7 @@ mod tests {
             set_mode(&dir, 0o600);
             let data = DataDir::from_flag(&dir).unwrap();
             assert_eq!(data.is_provisioned(), Err(EntryAtDataDir::CannotBeRead));
-            assert_eq!(read(&dir).unwrap(), LockRead::Free);
+            assert_eq!(read(&data).unwrap(), LockRead::Free);
             assert_eq!(
                 check_data_dir(&data, None),
                 Ok(DataDirCheck::Own { set_to_0700: true })
@@ -1794,7 +1895,9 @@ mod tests {
                     bits,
                     "{bits:o}: the fixture's mode did not hold"
                 );
-                let lock = InstanceLock::take(&dir).unwrap().unwrap();
+                let lock = InstanceLock::take(&DataDir::from_flag(&dir).unwrap())
+                    .unwrap()
+                    .unwrap();
                 let set = bits & 0o777 != 0o700;
                 assert_eq!(
                     check_data_dir(&DataDir::from_flag(&dir).unwrap(), Some(&lock)),
@@ -1813,7 +1916,7 @@ mod tests {
             let _back = ModeBack(vec![target.clone()]);
             set_mode(&target, 0o600);
             let data = link(&target, &root.path().join("d"));
-            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&data).unwrap().unwrap();
             assert_eq!(
                 check_data_dir(&data, Some(&lock)),
                 Ok(DataDirCheck::Linked {
@@ -1842,7 +1945,9 @@ mod tests {
                 let root = tempfile::tempdir().unwrap();
                 let own = root.path().join("own");
                 dir_of_mode(&own, bits);
-                let lock = InstanceLock::take(&own).unwrap().unwrap();
+                let lock = InstanceLock::take(&DataDir::from_flag(&own).unwrap())
+                    .unwrap()
+                    .unwrap();
                 assert_eq!(
                     check_data_dir(&DataDir::from_flag(&own).unwrap(), Some(&lock)),
                     Ok(DataDirCheck::Own { set_to_0700: true }),
@@ -1852,7 +1957,7 @@ mod tests {
                 let target = root.path().join("moved");
                 dir_of_mode(&target, bits);
                 let data = link(&target, &root.path().join("d"));
-                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                let lock = InstanceLock::take(&data).unwrap().unwrap();
                 assert_eq!(
                     check_data_dir(&data, Some(&lock)),
                     Err(DataDirFault::LinkedAndOpenToOthers),
@@ -1880,7 +1985,7 @@ mod tests {
             let data = DataDir::from_flag(root.path().join("a").join("halvo")).unwrap();
             assert_eq!(data.is_provisioned(), Ok(false));
             assert_eq!(check_data_dir(&data, None), Ok(DataDirCheck::Missing));
-            assert_eq!(read(data.path()).unwrap(), LockRead::NoDirectory);
+            assert_eq!(read(&data).unwrap(), LockRead::NoDirectory);
         }
 
         fn spelled(link: &Path, tail: &str) -> PathBuf {
@@ -1898,9 +2003,9 @@ mod tests {
                     let target = root.path().join("moved");
                     dir_of_mode(&target, bits);
                     let data = link(&target, &root.path().join("d"));
-                    let lock = InstanceLock::take(&spelled(data.path(), tail))
-                        .unwrap()
-                        .unwrap();
+                    let spelled = DataDir::from_flag(spelled(data.path(), tail)).unwrap();
+                    assert_eq!(spelled, data, "{tail:?}");
+                    let lock = InstanceLock::take(&spelled).unwrap().unwrap();
                     let want = if linked {
                         Ok(DataDirCheck::Linked {
                             resolved: target.canonicalize().unwrap(),
@@ -1919,27 +2024,16 @@ mod tests {
         }
 
         #[test]
-        fn k1_a_lock_on_a_path_with_a_part_dot_dot_or_a_relative_path_is_refused_as_invalid_input()
-        {
+        fn k1_a_path_with_a_part_dot_dot_or_a_relative_path_is_refused_by_the_constructor_before_any_lock(
+        ) {
             let root = tempfile::tempdir().unwrap();
             let target = root.path().join("moved");
             dir_of_mode(&target, 0o755);
             std::fs::create_dir(target.join("sub")).unwrap();
             let data = link(&target, &root.path().join("d"));
             let dotted = data.path().join("sub").join("..");
-            for path in [dotted.as_path(), Path::new("relative/d")] {
-                let taken = InstanceLock::try_take(path).map(|l| l.is_some());
-                assert_eq!(
-                    taken.map_err(|e| e.kind()),
-                    Err(std::io::ErrorKind::InvalidInput),
-                    "{path:?}"
-                );
-                assert_eq!(
-                    crate::instance_lock::read(path).map_err(|e| e.kind()),
-                    Err(std::io::ErrorKind::InvalidInput),
-                    "{path:?}"
-                );
-            }
+            assert_eq!(DataDir::from_flag(&dotted), Err(PathError::NotNormal));
+            assert_eq!(DataDir::from_flag("relative/d"), Err(PathError::Relative));
             assert_eq!(mode(&target), 0o755);
         }
 
@@ -1954,7 +2048,7 @@ mod tests {
                 resolved: resolved.clone(),
             };
             assert_eq!(check_data_dir(&data, None), Ok(want.clone()));
-            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&data).unwrap().unwrap();
             assert_eq!(check_data_dir(&data, Some(&lock)), Ok(want.clone()));
             assert_eq!(
                 want.resolved_line(),
@@ -1969,7 +2063,7 @@ mod tests {
             let target = root.path().join("moved");
             dir_of_mode(&target, 0o755);
             let data = link(&target, &root.path().join("d"));
-            let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&data).unwrap().unwrap();
             assert_eq!(
                 check_data_dir(&data, Some(&lock)),
                 Err(DataDirFault::LinkedAndOpenToOthers)
@@ -1988,7 +2082,7 @@ mod tests {
                 let path = root.path().join("d");
                 dir_of_mode(&path, bits);
                 let data = DataDir::from_flag(&path).unwrap();
-                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                let lock = InstanceLock::take(&data).unwrap().unwrap();
                 assert_eq!(
                     check_data_dir(&data, Some(&lock)),
                     Ok(DataDirCheck::Own { set_to_0700: true }),
@@ -2012,7 +2106,9 @@ mod tests {
             let root = tempfile::tempdir().unwrap();
             let path = root.path().join("d");
             dir_of_mode(&path, 0o755);
-            let lock = InstanceLock::take(&path).unwrap().unwrap();
+            let lock = InstanceLock::take(&DataDir::from_flag(&path).unwrap())
+                .unwrap()
+                .unwrap();
             let me = std::fs::metadata(&path).unwrap().uid();
             assert_eq!(
                 check_opened(
@@ -2028,7 +2124,7 @@ mod tests {
             let target = root.path().join("moved");
             dir_of_mode(&target, 0o700);
             let linked = link(&target, &root.path().join("l"));
-            let lock = InstanceLock::take(linked.path()).unwrap().unwrap();
+            let lock = InstanceLock::take(&linked).unwrap().unwrap();
             assert_eq!(
                 check_opened(
                     lock.directory(),
@@ -2058,7 +2154,9 @@ mod tests {
             let linked = link(&target, &root.path().join("d"));
             let me = std::fs::metadata(&own).unwrap().uid();
             for owner in [me, me.wrapping_add(1)] {
-                let lock = InstanceLock::take(&own).unwrap().unwrap();
+                let lock = InstanceLock::take(&DataDir::from_flag(&own).unwrap())
+                    .unwrap()
+                    .unwrap();
                 assert_eq!(
                     check_opened(
                         lock.directory(),
@@ -2076,7 +2174,7 @@ mod tests {
                     "own, owner {owner}: the check wrote the mode"
                 );
                 drop(lock);
-                let lock = InstanceLock::take(linked.path()).unwrap().unwrap();
+                let lock = InstanceLock::take(&linked).unwrap().unwrap();
                 assert_eq!(
                     check_opened(
                         lock.directory(),
@@ -2090,7 +2188,9 @@ mod tests {
                 );
                 assert_eq!(mode(&target), 0o755);
             }
-            let lock = InstanceLock::take(&own).unwrap().unwrap();
+            let lock = InstanceLock::take(&DataDir::from_flag(&own).unwrap())
+                .unwrap()
+                .unwrap();
             assert_eq!(
                 check_opened(
                     lock.directory(),
@@ -2118,7 +2218,9 @@ mod tests {
             let own = root.path().join("own");
             dir_of_mode(&own, 0o755);
             let me = std::fs::metadata(&own).unwrap().uid();
-            let lock = InstanceLock::take(&own).unwrap().unwrap();
+            let lock = InstanceLock::take(&DataDir::from_flag(&own).unwrap())
+                .unwrap()
+                .unwrap();
             assert_eq!(
                 check_opened(lock.directory(), false, me, 0, changes_nothing),
                 Err(DataDirFault::ModeDidNotTake)
@@ -2157,7 +2259,7 @@ mod tests {
                 let name = format!("d{bits:o}");
                 dir_of_mode(&real.join(&name), bits);
                 let data = DataDir::from_flag(root.path().join("p").join(&name)).unwrap();
-                let lock = InstanceLock::take(data.path()).unwrap().unwrap();
+                let lock = InstanceLock::take(&data).unwrap().unwrap();
                 assert_eq!(
                     check_data_dir(&data, Some(&lock)),
                     Ok(DataDirCheck::Own { set_to_0700 }),
@@ -2300,8 +2402,13 @@ mod tests {
     }
 
     #[test]
-    fn delete_all_leaves_a_saved_sign_in_and_remove_halvo_takes_it_away() {
-        assert_eq!(ACCOUNT_HELPER_STORE.removed_by(), RemovedBy::RemoveHalvo);
+    fn p7_104_delete_all_leaves_a_saved_sign_in_and_the_account_helper_s_delete_takes_it_away() {
+        assert_eq!(
+            ACCOUNT_HELPER_STORE.removed_by(),
+            RemovedBy::AccountHelperDelete
+        );
+        assert_ne!(RemovedBy::AccountHelperDelete, RemovedBy::RemoveHalvo);
+        assert_ne!(RemovedBy::AccountHelperDelete, RemovedBy::DeleteAll);
         for place in OUTSIDE_PLACES {
             assert!(ENTRIES.iter().all(|entry| entry.name() != place.name()));
             assert!(!RESERVED_ENTRY_NAMES.contains(&place.name()));

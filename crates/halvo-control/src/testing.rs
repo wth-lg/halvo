@@ -76,10 +76,9 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         state: SourceState::Off,
         unstopped: false,
     };
-    let (secure, withheld, permissions, sources, enabled, guard, custody) = match platform {
+    let (secure, permissions, sources, enabled, guard, custody) = match platform {
         Platform::Macos => (
-            Some(0),
-            None,
+            Some(false),
             Permission::R1_MACOS
                 .iter()
                 .map(|&name| PermissionLine {
@@ -103,7 +102,6 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         ),
         Platform::Windows => (
             None,
-            Some(false),
             Vec::new(),
             vec![
                 running(SourceName::Foreground),
@@ -133,6 +131,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         started_at: at("2026-11-12T09:00:00Z"),
         rss_peak_bytes: 25_264_128,
         parent: Parent::Watched,
+        data_dir_resolved: None,
         desired: CaptureState::Running,
         capture: Capture::Running,
         capture_reason: None,
@@ -153,10 +152,10 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
         pointer_coalesced: 0,
         tap_disabled_timeout: 0,
         tap_disabled_user_input: 0,
-        late_events: 0,
+        late_events: false,
         max_lag_ms: 0,
         secure_input_keystrokes: secure,
-        keys_withheld: withheld,
+        keys_withheld: false,
         title_read_errors: 0,
         last_flush_at: Some(at("2026-11-12T09:00:05Z")),
         expiry: Health::Healthy,
@@ -193,6 +192,7 @@ pub fn sample_status(platform: Platform) -> DaemonStatus {
             })
             .collect(),
         password_guard: guard,
+        password_guard_bound_ms: (guard == PasswordGuard::Os).then_some(30_000),
         screen_filter_excludes_app: None,
         custody,
         onboarding,
