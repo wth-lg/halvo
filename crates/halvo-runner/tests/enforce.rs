@@ -947,19 +947,15 @@ fn a_write_step_whose_file_is_not_the_slot_workbook_is_refused_before_any_prepar
     let logs: Vec<(LogEvent, Option<Cause>)> =
         seen.logs().iter().map(|l| (l.event, l.cause)).collect();
     assert_eq!(
-        logs[logs.len() - 2..],
-        [
-            (LogEvent::StepFailed, Some(Cause::Workbook)),
-            (LogEvent::Stopped, Some(Cause::Workbook))
-        ],
-        "the write step fails with workbook and the run ends with it"
+        logs,
+        [(LogEvent::Stopped, Some(Cause::Workbook))],
+        "check_playbook refuses the write step at the load and the run ends with workbook"
     );
     assert!(seen.states().is_empty(), "no effect row");
     assert_eq!(
         seen.ops(),
-        ["load", "load_steps", "log", "log", "log", "finish"],
-        "the run's load and its steps, the read's line, the write's failed line and the stopped line: no load of the \
-         edit and no checkpoint row"
+        ["load", "load_steps", "log", "finish"],
+        "the run's load and its steps and the stopped line: no step runs, no load of the edit and no checkpoint row"
     );
     assert_eq!(
         files.workbook_bytes(),
