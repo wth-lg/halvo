@@ -357,8 +357,8 @@ pub(crate) fn destroy_roots_through(
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
     let mut handled: Vec<OsString> = Vec::new();
-    if let Some(own) = own_file {
-        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own) {
+    if let (Some(own), Some(id)) = (own_file, named_id) {
+        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own, id) {
             EntryFate::Absent => false,
             fate => {
                 handled.push(name.to_os_string());
@@ -464,23 +464,58 @@ fn files_of(dir: &Dir, entries: &[durable::Entry], own: FileIdentity) -> Vec<OsS
         .collect()
 }
 
+/// The kind of the name `name` for the root `id`, as the destroy step reads
+/// it.
+fn entry_name_for(name: &OsStr, id: RootId) -> EntryName {
+    match RootFile::named_in_any_case(name) {
+        Some(RootFile::Root(of)) if of == id => EntryName::OwnRoot,
+        Some(RootFile::Root(_)) => EntryName::OtherRoot,
+        Some(RootFile::Partial(_)) => EntryName::Partial,
+        None => EntryName::OtherName,
+    }
+}
+
 /// Destroys the root file of identity `own` at `name`, wherever in the
-/// directory it lies. Nothing is removed or written unless the handle kept
-/// at this call's own look holds a file of that identity; then the file is
+/// directory it lies; `id` is the root that the identity is of. The identity
+/// decides only which file is looked at. Whether it is written through is
+/// decided by the name at which it stands, as `destroy_root_entry` decides it
+/// for that name ([`written_through`], ruling ST-48 U2): the count of names
+/// and the length are first read by the name, with no open and no mode
+/// change, and a file that may not be written there has that name removed
+/// with no write through it while the name still leads to that file, which
+/// is no destruction of the root (`NotTheRootFile`). Nothing is written
+/// unless the handle kept at this call's own look holds a file of that
+/// identity and shows again what the read by name showed; then the file is
 /// zero-filled through that handle, which reaches every name of it, and the
 /// name is removed while it still leads to that file. `Gone` when the
 /// zero-fill went through, or when the count read through the kept handle
 /// after the removal of its one name is 0; `Absent` when no file of that
 /// identity stood at the name at the look.
-fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity) -> EntryFate {
+fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) -> EntryFate {
     match dir.entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
         Ok(entry) if entry.kind != EntryKind::File => return EntryFate::Absent,
         Ok(_) => {}
     }
-    if !matches!(dir.file_identity_at(name), Ok(identity) if identity == own) {
-        return EntryFate::Absent;
+    let shape = match dir.file_shape_at(name) {
+        Ok(shape) if shape.identity == own => shape,
+        Ok(_) => return EntryFate::Absent,
+        Err(e) if e.kind() == ErrorKind::NotFound || durable::refusal(&e).is_some() => {
+            return EntryFate::Absent
+        }
+        Err(e) => return EntryFate::KeyMayStay(Some(e)),
+    };
+    let at = entry_name_for(name, id);
+    let removed_unwritten = || match dir.file_identity_at(name) {
+        Ok(identity) if identity == own => match dir.remove_entry(name) {
+            Err(e) if e.kind() != ErrorKind::NotFound => EntryFate::KeyMayStay(Some(e)),
+            _ => EntryFate::NotTheRootFile,
+        },
+        _ => EntryFate::Absent,
+    };
+    if !written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) {
+        return removed_unwritten();
     }
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
@@ -497,6 +532,13 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity) -> EntryFate {
     };
     if !matches!(durable::identity_of(&kept), Ok(identity) if identity == own) {
         return EntryFate::Absent;
+    }
+    let root_len = kept
+        .metadata()
+        .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
+    let one_name = matches!(durable::file_link_count(&kept), Ok(1));
+    if !written_through(at, one_name, root_len) {
+        return removed_unwritten();
     }
     #[cfg(windows)]
     make_writable(dir, name, &kept);
@@ -545,9 +587,11 @@ enum EntryFate {
     Gone,
     /// Nothing stood at the name at this call's own look (ruling ST-46 K1).
     Absent,
-    /// What stood at the root's own name could not be the root's file: it is
-    /// removed as the entry that it is, with no write through it, and counts
-    /// as no removal of the root (ruling ST-45 H4, ST-46 K1).
+    /// What stood at the name was removed as the entry that it is, with no
+    /// write through it, and counts as no removal of the root: at the root's
+    /// own name it could not be the root's file (ruling ST-45 H4, ST-46 K1);
+    /// on the path by identity its name let no write through it (ruling
+    /// ST-48 U2).
     NotTheRootFile,
     /// The zero-fill reached every name of the file, and the name stays.
     ZeroedAndNamed,
@@ -766,7 +810,7 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
         Some(own) => {
             let entries = dir.entries().map_err(root_io)?;
             for name in files_of(dir, &entries, own) {
-                fates.push(destroy_identified(dir, &name, own));
+                fates.push(destroy_identified(dir, &name, own, root.id));
             }
         }
         None => {
