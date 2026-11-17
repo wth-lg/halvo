@@ -30,12 +30,38 @@ load_rule() {
   wpr_vocabulary "$work/vocab" || "$1" "the vocabulary cannot be made from the crate at HEAD"
 }
 
-read_literals() {
-  : >"$2" || return 2
+head_reader() {
+  git show "HEAD:$1"
+}
+
+plain_reader() {
+  cat "$work/plain/$1"
+}
+
+scan() {
+  : >"$work/literals" || return 2
   while IFS= read -r file; do
-    git show "HEAD:$file" >"$work/source" || return 2
-    wpr_print_literals "$file" <"$work/source" >>"$2" || return 2
+    "$2" "$file" >"$work/source" || return 2
+    wpr_print_literals "$file" <"$work/source" >>"$work/literals" || return 2
   done <"$1"
+  cut -f 1 "$work/literals" >"$work/places" || return 2
+  cut -f 2- "$work/literals" >"$work/texts" || return 2
+  lines=$(grep -c '' "$work/texts") || lines=0
+  wpr_check_lines "$work/vocab" "$name" <"$work/texts" >"$work/refused"
+  status=$?
+  refused=$(grep -c '' "$work/refused") || refused=0
+  case $status in
+    0) [ "$refused" -eq 0 ] || return 2 ;;
+    1) [ "$refused" -gt 0 ] || return 2 ;;
+    *) return 2 ;;
+  esac
+  while IFS= read -r line; do
+    index=${line#* line=}
+    index=${index%% *}
+    place=$(sed -n "${index}p" "$work/places") || return 2
+    printf 'refused %s %s\n' "$place" "${line#* line=* }"
+  done <"$work/refused"
+  [ "$refused" -eq 0 ]
 }
 
 measure() {
@@ -48,36 +74,31 @@ measure() {
   done <<EOF
 $required
 EOF
-  read_literals "$work/files" "$work/literals" || fail "a file of the tests cannot be read at HEAD"
+  scan "$work/files" head_reader
+  scanned=$?
+  [ "$scanned" -le 1 ] || fail "the print calls of the tests cannot be read at HEAD"
   while IFS= read -r file; do
-    found=$(grep -c -F "$file:" "$work/literals") || found=0
+    found=$(grep -c -F "$file:" "$work/places") || found=0
     [ "$found" -gt 0 ] || fail "no print call was read in $file"
   done <<EOF
 $required
 EOF
-  cut -f 1 "$work/literals" >"$work/places" || fail "the places of the literals cannot be written"
-  cut -f 2- "$work/literals" >"$work/texts" || fail "the texts of the literals cannot be written"
   files=$(grep -c '' "$work/files") || files=0
-  lines=$(grep -c '' "$work/texts") || lines=0
   words=$(grep -c '' "$work/vocab") || words=0
-  printf 'prints: files=%s literal_lines=%s vocabulary_words=%s\n' "$files" "$lines" "$words"
-  wpr_check_lines "$work/vocab" "$name" <"$work/texts" >"$work/refused"
-  status=$?
-  refused=$(grep -c '' "$work/refused") || refused=0
-  case $status in
-    0) ;;
-    1) [ "$refused" -gt 0 ] || fail "the rule exited 1 and named no line" ;;
-    *) fail "the rule could not read the literals: exit $status" ;;
-  esac
-  while IFS= read -r line; do
-    index=${line#* line=}
-    index=${index%% *}
-    place=$(sed -n "${index}p" "$work/places")
-    printf 'refused %s %s\n' "$place" "${line#* line=* }"
-  done <"$work/refused"
-  [ "$refused" -eq 0 ] ||
+  printf 'prints: files=%s literal_lines=%s vocabulary_words=%s refused=%s\n' "$files" "$lines" "$words" "$refused"
+  [ "$scanned" -eq 0 ] ||
     fail "$refused literal lines of print calls break the rule; each is named above by its file and line, without its text: print a count, a flag or a fixed name in its place"
   printf 'PASS %s\n' "$name"
+}
+
+tree_case() {
+  scan "$work/plain/list" plain_reader >"$work/$1.out"
+  got=$?
+  [ "$got" -eq "$2" ] || fail_self "the fixture $1 scanned with exit $got, not $2"
+  named=$(cat "$work/$1.out") || fail_self "the answer of $1 cannot be read"
+  [ "$named" = "$3" ] || fail_self "the fixture $1 named another place than the one that it plants"
+  [ "$got" -eq 0 ] || rejected=$((rejected + 1))
+  printf 'case %s/%s want=exit-%s got=exit-%s (lines read %s, lines named %s)\n' "$name" "$1" "$2" "$got" "$lines" "$refused"
 }
 
 heads_log_lines() {
@@ -205,6 +226,14 @@ TF c4 title=Untitled - Notepad bytes=18$cr"
   printf 'TF c1 ok=true\n' >"$work/one.log" || fail_self "the fixture log-without-a-vocabulary cannot be written"
   wpr_check_log log-without-a-vocabulary "$work/one.log" "$work/empty-vocab" >"$work/log-without-a-vocabulary.out"
   verdict log-without-a-vocabulary unreadable "$?" 0
+  mkdir "$work/plain" || fail_self "the fixture tree cannot be made"
+  printf 'a.rs\nb.rs\n' >"$work/plain/list" || fail_self "the fixture tree cannot be written"
+  printf 'fn a() {\n    println!("TF c1 ok={}", flag(ok));\n}\n' >"$work/plain/a.rs" || fail_self "the fixture tree cannot be written"
+  printf 'fn b() {\n    say("c4", "start=ok");\n    say("c4", format!("bytes={n} title=Untitled - Notepad"));\n}\n' >"$work/plain/b.rs" ||
+    fail_self "the fixture tree cannot be written"
+  tree_case tree-with-a-planted-title 1 'refused b.rs:3 length=32 token=2'
+  printf 'fn b() {\n    say("c4", "start=ok");\n}\n' >"$work/plain/b.rs" || fail_self "the fixture tree cannot be written"
+  tree_case tree-without-a-planted-title 0 ''
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
 }
 
