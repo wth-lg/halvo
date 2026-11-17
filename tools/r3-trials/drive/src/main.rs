@@ -465,41 +465,193 @@ mod tests {
         );
     }
 
-    fn test_targets(root: &std::path::Path) -> Vec<PathBuf> {
-        let mut targets = Vec::new();
-        for file in ["src/main.rs", "src/lib.rs"] {
-            if root.join(file).is_file() {
-                targets.push(root.join(file));
+    struct Tree {
+        manifest: String,
+        files: Vec<(String, String)>,
+    }
+
+    fn rust_files(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<(String, String)>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                rust_files(root, &path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let relative = path.strip_prefix(root).expect("a path below the root");
+                let name: Vec<String> = relative
+                    .components()
+                    .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                    .collect();
+                let text = std::fs::read_to_string(&path).expect("a source file");
+                out.push((name.join("/"), text));
             }
         }
-        for dir in ["src/bin", "tests"] {
-            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+    }
+
+    fn tree_of(root: &std::path::Path) -> Tree {
+        let mut files = Vec::new();
+        for dir in ["src", "tests", "examples", "benches"] {
+            rust_files(root, &root.join(dir), &mut files);
+        }
+        files.sort();
+        Tree {
+            manifest: std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest"),
+            files,
+        }
+    }
+
+    const SECTIONS: [&str; 6] = [
+        "[package]",
+        "[workspace]",
+        "[[bin]]",
+        "[dependencies]",
+        "[dev-dependencies]",
+        "[profile.release]",
+    ];
+    const PACKAGE_KEYS: [&str; 5] = ["name", "version", "description", "edition", "publish"];
+
+    fn manifest_targets(manifest: &str) -> Result<Vec<String>, String> {
+        let mut section = "";
+        let mut paths = Vec::new();
+        for line in manifest.lines().map(str::trim) {
+            if line.is_empty() || line.starts_with('#') {
                 continue;
+            }
+            if line.starts_with('[') {
+                if !SECTIONS.contains(&line) {
+                    return Err(format!("a table that the lint does not read: {line}"));
+                }
+                section = line;
+                continue;
+            }
+            let Some((key, value)) = line.split_once('=') else {
+                return Err(format!("a line that the lint does not read: {line}"));
             };
-            for entry in entries {
-                let path = entry.expect("an entry").path();
-                if path.extension().is_some_and(|e| e == "rs") {
-                    targets.push(path);
-                } else if path.join("main.rs").is_file() {
-                    targets.push(path.join("main.rs"));
+            let (key, value) = (key.trim(), value.trim());
+            match section {
+                "[package]" if !PACKAGE_KEYS.contains(&key) || value.starts_with(['[', '{']) => {
+                    return Err(format!("a package key that the lint does not read: {key}"));
                 }
+                "[workspace]" => {
+                    return Err(format!(
+                        "a workspace key that the lint does not read: {key}"
+                    ));
+                }
+                "[[bin]]" => match key {
+                    "name" => {}
+                    "path" => paths.push(value.trim_matches('"').to_string()),
+                    _ => return Err(format!("a target key that the lint does not read: {key}")),
+                },
+                _ => {}
             }
         }
-        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
-        for line in manifest.lines() {
-            if let Some(path) = line
-                .trim()
-                .strip_prefix("path = \"")
-                .and_then(|p| p.strip_suffix('"'))
+        Ok(paths)
+    }
+
+    fn target_roots(tree: &Tree) -> Result<Vec<String>, String> {
+        let mut roots = manifest_targets(&tree.manifest)?;
+        for (path, _) in &tree.files {
+            let parts: Vec<&str> = path.split('/').collect();
+            let root = match parts.as_slice() {
+                ["src", "main.rs"] | ["src", "lib.rs"] => true,
+                ["src", "bin", file] | ["tests", file] => file.ends_with(".rs"),
+                ["src", "bin", _, "main.rs"] | ["tests", _, "main.rs"] => true,
+                _ => false,
+            };
+            if root {
+                roots.push(path.clone());
+            }
+        }
+        roots.sort();
+        roots.dedup();
+        match roots
+            .iter()
+            .find(|r| !tree.files.iter().any(|(p, _)| p == *r))
+        {
+            Some(missing) => Err(format!("a target path that does not stand: {missing}")),
+            None => Ok(roots),
+        }
+    }
+
+    fn declares_r3_web(source: &str) -> bool {
+        let name = concat!("r3", "_web");
+        let ident = |c: char| c.is_alphanumeric() || c == '_';
+        source.match_indices(name).any(|(i, _)| {
+            let (before, after) = (&source[..i], &source[i + name.len()..]);
+            if before.chars().next_back().is_some_and(ident)
+                || after.chars().next().is_some_and(ident)
             {
-                if !path.starts_with('.') {
-                    targets.push(root.join(path));
+                return false;
+            }
+            let word: String = before
+                .trim_end()
+                .chars()
+                .rev()
+                .take_while(|c| ident(*c) || *c == '!')
+                .collect::<Vec<char>>()
+                .into_iter()
+                .rev()
+                .collect();
+            [
+                "mod",
+                "struct",
+                "enum",
+                "fn",
+                "const",
+                "static",
+                "type",
+                "trait",
+                "union",
+                "as",
+                "macro_rules!",
+            ]
+            .contains(&word.as_str())
+                || ((before.trim_end().ends_with("::") || before.trim_end().ends_with(['{', ',']))
+                    && after.trim_start().starts_with([';', ',', '}']))
+        })
+    }
+
+    fn opens_the_fence(source: &str) -> bool {
+        let lower = source.to_lowercase();
+        let packed: String = lower.chars().filter(|c| !c.is_whitespace()).collect();
+        [
+            concat!("adm", "it"),
+            concat!("from", "_env"),
+            concat!("r3_web_fence", "_below"),
+        ]
+        .iter()
+        .any(|word| lower.contains(word))
+            || packed.contains(concat!("fence", "::*"))
+            || packed.contains(concat!("fence", "::var"))
+    }
+
+    fn lint(tree: &Tree) -> Vec<String> {
+        let mut problems = Vec::new();
+        match target_roots(tree) {
+            Err(why) => problems.push(why),
+            Ok(roots) => {
+                for root in roots {
+                    let source = tree.files.iter().find(|(p, _)| *p == root).map(|(_, s)| s);
+                    if !source.is_some_and(|s| reads_the_fence(s)) {
+                        problems.push(format!("a test target with no fence test: {root}"));
+                    }
                 }
             }
         }
-        targets.sort();
-        targets.dedup();
-        targets
+        if !gives_the_fence(&tree.manifest) {
+            problems.push("the manifest does not give the tests the feature test-fence".into());
+        }
+        for (path, source) in &tree.files {
+            if declares_r3_web(source) {
+                problems.push(format!("an item named after the crate r3-web: {path}"));
+            }
+            if opens_the_fence(source) {
+                problems.push(format!("a call that opens the fence: {path}"));
+            }
+        }
+        problems
     }
 
     fn indent(line: &str) -> usize {
@@ -572,23 +724,247 @@ mod tests {
 
     #[test]
     fn every_test_target_asserts_that_its_fence_is_on() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let targets = test_targets(root);
-        assert!(targets.len() >= 2, "test targets: {}", targets.len());
-        let missing: Vec<String> = targets
+        let tree = tree_of(std::path::Path::new(env!("CARGO_MANIFEST_DIR")));
+        assert!(tree.files.len() >= 10, "source files: {}", tree.files.len());
+        assert_eq!(
+            target_roots(&tree),
+            Ok(vec![
+                "src/bin/r3-standin.rs".to_string(),
+                "src/main.rs".to_string()
+            ])
+        );
+        assert_eq!(lint(&tree), Vec::<String>::new());
+    }
+
+    const FENCED: &str = "#[cfg(test)]\nmod tests {\n    #[test]\n    fn the_fence_is_on_in_this_test_target() {\n        assert!(r3_web::procs::fence::is_on(), \"off\");\n    }\n}\n";
+
+    fn fixture(manifest: &str, files: &[(&str, &str)]) -> Tree {
+        let mut files: Vec<(String, String)> = files
             .iter()
-            .filter(|p| !reads_the_fence(&std::fs::read_to_string(p).unwrap_or_default()))
-            .map(|p| p.strip_prefix(root).unwrap_or(p).display().to_string())
+            .map(|(p, s)| (p.to_string(), s.to_string()))
             .collect();
-        assert!(
-            missing.is_empty(),
-            "test targets with no test that asserts the fence's state: {missing:?}"
+        files.sort();
+        Tree {
+            manifest: manifest.to_string(),
+            files,
+        }
+    }
+
+    fn the_manifest() -> String {
+        std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+            .expect("the manifest")
+    }
+
+    #[test]
+    fn the_lint_finds_each_kind_of_test_target() {
+        let manifest = the_manifest();
+        assert_eq!(
+            lint(&fixture(&manifest, &[("src/main.rs", FENCED)])),
+            Vec::<String>::new()
         );
-        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
-        assert!(
-            gives_the_fence(&manifest),
-            "the manifest does not give the tests the feature test-fence of r3-web"
+        for target in [
+            "src/lib.rs",
+            "src/bin/x.rs",
+            "src/bin/y/main.rs",
+            "tests/t.rs",
+            "tests/u/main.rs",
+        ] {
+            let bare = fixture(
+                &manifest,
+                &[("src/main.rs", FENCED), (target, "fn main() {}\n")],
+            );
+            assert_eq!(
+                lint(&bare),
+                vec![format!("a test target with no fence test: {target}")]
+            );
+            let fenced = fixture(&manifest, &[("src/main.rs", FENCED), (target, FENCED)]);
+            assert_eq!(lint(&fenced), Vec::<String>::new(), "{target}");
+        }
+        for not_a_target in [
+            "src/body.rs",
+            "src/bin/y/other.rs",
+            "tests/u/helper.rs",
+            "examples/e.rs",
+            "benches/b.rs",
+        ] {
+            let tree = fixture(
+                &manifest,
+                &[("src/main.rs", FENCED), (not_a_target, "fn x() {}\n")],
+            );
+            assert_eq!(lint(&tree), Vec::<String>::new(), "{not_a_target}");
+        }
+        let other = manifest.replace(
+            "[[bin]]\nname = \"r3-drive\"\npath = \"src/main.rs\"\n",
+            "[[bin]]\nname = \"r3-drive\"\npath = \"src/main.rs\"\n\n[[bin]]\nname = \"other\"\npath = \"other/start.rs\"\n",
         );
+        assert_ne!(other, manifest);
+        let tree = fixture(
+            &other,
+            &[
+                ("src/main.rs", FENCED),
+                ("other/start.rs", "fn main() {}\n"),
+            ],
+        );
+        assert_eq!(
+            lint(&tree),
+            vec!["a test target with no fence test: other/start.rs".to_string()]
+        );
+        let gone = fixture(&other, &[("src/main.rs", FENCED)]);
+        assert_eq!(
+            lint(&gone),
+            vec!["a target path that does not stand: other/start.rs".to_string()]
+        );
+    }
+
+    #[test]
+    fn the_lint_refuses_a_manifest_that_it_does_not_read() {
+        let manifest = the_manifest();
+        let files = [
+            ("src/main.rs", FENCED),
+            ("t/x.rs", "fn x() {}\n"),
+            ("examples/e.rs", "fn main() {}\n"),
+        ];
+        let bin = "[[bin]]\nname = \"r3-drive\"\npath = \"src/main.rs\"\n";
+        let package_end = "publish = false\n";
+        for (name, changed) in [
+            (
+                "l01 a test table, path without spaces",
+                manifest.replace(
+                    bin,
+                    &format!("{bin}\n[[test]]\nname = \"t\"\npath=\"t/x.rs\"\n"),
+                ),
+            ),
+            (
+                "l02 a test table, path with a dot",
+                manifest.replace(
+                    bin,
+                    &format!("{bin}\n[[test]]\nname = \"t\"\npath = \"./t/x.rs\"\n"),
+                ),
+            ),
+            (
+                "l03 harness = false on the bin",
+                manifest.replace(bin, &format!("{bin}harness = false\n")),
+            ),
+            (
+                "l03 harness = false on a test",
+                manifest.replace(
+                    bin,
+                    &format!("{bin}\n[[test]]\nname = \"t\"\npath = \"t/x.rs\"\nharness = false\n"),
+                ),
+            ),
+            (
+                "l05 an inline target table",
+                manifest.replace(
+                    package_end,
+                    &format!("{package_end}test = [{{ name = \"t\", path = \"t/x.rs\" }}]\n"),
+                ),
+            ),
+            (
+                "l06 a test table, path after a tab",
+                manifest.replace(
+                    bin,
+                    &format!("{bin}\n[[test]]\nname = \"t\"\npath\t= \"t/x.rs\"\n"),
+                ),
+            ),
+            (
+                "l10 an example with test = true",
+                manifest.replace(
+                    bin,
+                    &format!("{bin}\n[[example]]\nname = \"e\"\ntest = true\n"),
+                ),
+            ),
+            (
+                "a lib table",
+                manifest.replace(bin, &format!("{bin}\n[lib]\npath = \"t/x.rs\"\n")),
+            ),
+            (
+                "a bench table",
+                manifest.replace(bin, &format!("{bin}\n[[bench]]\nname = \"b\"\n")),
+            ),
+            (
+                "autotests in the package",
+                manifest.replace(package_end, &format!("{package_end}autotests = false\n")),
+            ),
+            (
+                "a bin path with a dot",
+                manifest.replace("path = \"src/main.rs\"", "path = \"./src/main.rs\""),
+            ),
+            (
+                "a key in the workspace",
+                manifest.replace("[workspace]\n", "[workspace]\nmembers = [\"t\"]\n"),
+            ),
+        ] {
+            assert_ne!(changed, manifest, "{name}");
+            assert!(!lint(&fixture(&changed, &files)).is_empty(), "{name}");
+        }
+        assert_eq!(lint(&fixture(&manifest, &files)), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_lint_refuses_an_item_named_after_the_crate() {
+        let name = concat!("r3", "_web");
+        for item in [
+            format!("mod {name} {{ pub mod procs {{ pub mod fence {{ pub fn is_on() -> bool {{ true }} }} }} }}"),
+            format!("use crate::stand_in as {name};"),
+            format!("extern crate std as {name};"),
+            format!("use crate::shadow::{name};"),
+            format!("use crate::shadow::{{{name}, other}};"),
+            format!("fn {name}() {{}}"),
+            format!("macro_rules! {name} {{ () => {{}} }}"),
+            format!("struct {name};"),
+        ] {
+            assert!(declares_r3_web(&item), "{item}");
+            let tree = fixture(&the_manifest(), &[("src/main.rs", &format!("{item}\n{FENCED}"))]);
+            assert_eq!(lint(&tree).len(), 1, "{item}");
+        }
+        for not_an_item in [
+            format!("use {name}::procs;"),
+            format!("let x = {name}::procs::table();"),
+            format!("extern crate {name};"),
+            format!("let {name}x = 1;"),
+            FENCED.to_string(),
+        ] {
+            assert!(!declares_r3_web(&not_an_item), "{not_an_item}");
+        }
+    }
+
+    #[test]
+    fn the_lint_refuses_each_spelling_that_opens_the_fence() {
+        let a = concat!("adm", "it");
+        for source in [
+            format!("use r3_web::procs::fence::{{is_on, {a}_below}};"),
+            format!("use r3_web::procs::fence as f;\nlet _x = f::{a}_below(dir);"),
+            format!(
+                "std::env::set_var(\"{}\", dir);\nr3_web::procs::fence::{}();",
+                concat!("R3_WEB_FENCE", "_BELOW"),
+                concat!("from", "_env")
+            ),
+            format!(
+                "use r3_web::procs::fence::{};\nlet _x = {a}_process(&row);",
+                "*"
+            ),
+            format!("let _x = r3_web::procs::fence :: {a}_below(dir);"),
+            format!(
+                "let _x = r3_web::procs::fence::{}::default();",
+                concat!("Adm", "its")
+            ),
+            format!(
+                "std::env::set_var(r3_web::procs::fence::{}, dir);",
+                concat!("V", "AR")
+            ),
+            format!("use r3_web::procs::fence :: {};", "*"),
+        ] {
+            assert!(opens_the_fence(&source), "{source}");
+            let tree = fixture(
+                &the_manifest(),
+                &[("src/main.rs", FENCED), ("src/other.rs", &source)],
+            );
+            assert_eq!(
+                lint(&tree),
+                vec!["a call that opens the fence: src/other.rs".to_string()]
+            );
+        }
+        assert!(!opens_the_fence(FENCED));
     }
 
     fn gives_the_fence(manifest: &str) -> bool {
@@ -599,53 +975,9 @@ mod tests {
         })
     }
 
-    fn rust_files(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
-        for entry in std::fs::read_dir(dir).expect("a source directory") {
-            let path = entry.expect("an entry").path();
-            if path.is_dir() {
-                rust_files(&path, out);
-            } else if path.extension().is_some_and(|e| e == "rs") {
-                out.push(path);
-            }
-        }
-    }
-
     #[test]
-    fn no_source_of_the_crate_admits_a_process_past_the_fence() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut files = Vec::new();
-        rust_files(&root.join("src"), &mut files);
-        assert!(files.len() >= 10, "source files: {}", files.len());
-        let found: Vec<String> = files
-            .iter()
-            .filter(|p| admits_past_the_fence(&std::fs::read_to_string(p).unwrap_or_default()))
-            .map(|p| p.strip_prefix(root).unwrap_or(p).display().to_string())
-            .collect();
-        assert!(found.is_empty(), "sources that admit a process: {found:?}");
-        for line in [
-            concat!("let _a = r3_web::procs::fence::", "admit_process(&row);"),
-            concat!("use r3_web::procs::fence::{", "admit_below};"),
-            concat!("let a = r3_web::procs::fence::Adm", "its::default();"),
-        ] {
-            assert!(admits_past_the_fence(line), "{line}");
-        }
-        assert!(!admits_past_the_fence(
-            "assert!(r3_web::procs::fence::is_on());"
-        ));
-    }
-
-    fn admits_past_the_fence(source: &str) -> bool {
-        source.contains(concat!("fence::", "admit"))
-            || source.contains(concat!("fence::{", "admit"))
-            || source.contains(concat!("Adm", "its"))
-    }
-
-    #[test]
-    fn the_manifest_check_reads_the_section_of_the_feature_line() {
-        let manifest = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
-        )
-        .expect("the manifest");
+    fn the_manifest_check_reads_the_section_and_the_feature_of_the_line() {
+        let manifest = the_manifest();
         assert!(gives_the_fence(&manifest));
         for section in [
             "[target.'cfg(windows)'.dev-dependencies]",
@@ -655,6 +987,16 @@ mod tests {
             let moved = manifest.replace("[dev-dependencies]", section);
             assert!(!gives_the_fence(&moved), "{section}");
         }
+        let without = manifest.replace(
+            r#"default-features = false, features = ["test-fence"] }"#,
+            "default-features = false }",
+        );
+        assert_ne!(without, manifest);
+        assert!(!gives_the_fence(&without));
+        assert_eq!(
+            lint(&fixture(&without, &[("src/main.rs", FENCED)])),
+            vec!["the manifest does not give the tests the feature test-fence".to_string()]
+        );
     }
 
     #[test]
@@ -678,6 +1020,7 @@ mod tests {
             format!("#[cfg(test)]\nmod tests {{\n    /*\n{right}    */\n}}\n"),
             format!("macro_rules! never {{\n    () => {{\n{right}    }};\n}}\n"),
             "#[test]\nfn the_fence_is_on_in_this_test_target() {\n    assert!(r3_web::procs::fence::is_on(), \"off\");\n}\n".to_string(),
+            "#[cfg(test)]\nmod tests {\n        #[test]\n        fn the_fence_is_on_in_this_test_target() {\n            assert!(r3_web::procs::fence::is_on(), \"off\");\n        }\n}\n".to_string(),
         ] {
             assert!(!reads_the_fence(&wrong), "{wrong}");
         }
