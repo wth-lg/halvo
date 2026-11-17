@@ -14,7 +14,7 @@ use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::custody::file_root::{self, NamedRoot, RootStepForm, RootsLeft};
+use crate::custody::file_root::{self, NamedBy, NamedRoot, RootStepForm, RootsLeft};
 use crate::custody::{
     custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, FileIdentity, KeyCustody,
     KeyLabel, RootId, RootsHandle, StoreKey, WrappedKey,
@@ -1108,6 +1108,7 @@ impl Pending {
         match (self.reading, self.root_file) {
             (PendingReading::Made, Some(file)) => Some(NamedRoot {
                 id: self.root_id,
+                by: NamedBy::AMark,
                 file: Some(file),
             }),
             _ => None,
@@ -1959,6 +1960,7 @@ impl RootKeeping {
         match self {
             RootKeeping::Held { root_file, .. } => NamedRoot {
                 id,
+                by: NamedBy::TheStore,
                 file: Some(*root_file),
             },
             RootKeeping::NoRootFile => NamedRoot::by_id(id),

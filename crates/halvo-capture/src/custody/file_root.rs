@@ -9,17 +9,33 @@ use super::{associated_data, CustodyError, FileIdentity, KeyLabel, RootId, Store
 use crate::store::durable::{self, Dir, EntryKind};
 use crate::store::RootReading;
 
-/// The root that a root step names: its id and, when the store read it, the
-/// identity of its root file.
+/// The root that a root step names: its id, the identity of its root file
+/// when one was read, and what named it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct NamedRoot {
     pub(crate) id: RootId,
+    pub(crate) by: NamedBy,
     pub(crate) file: Option<FileIdentity>,
+}
+
+/// What named the root of a root step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NamedBy {
+    /// The store: its key file, its open, its create or its custody.
+    TheStore,
+    /// A made mark of create.pending, which another program can write by
+    /// hand; on its path the step writes through at a partial name of the
+    /// mark's own id alone (ruling ST-49).
+    AMark,
 }
 
 impl NamedRoot {
     pub(crate) fn by_id(id: RootId) -> Self {
-        Self { id, file: None }
+        Self {
+            id,
+            by: NamedBy::TheStore,
+            file: None,
+        }
     }
 }
 
@@ -391,8 +407,13 @@ pub(crate) fn destroy_roots_through(
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
     let mut handled: Vec<OsString> = Vec::new();
-    if let (Some(own), Some(id)) = (own_file, named_id) {
-        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own, id) {
+    if let Some(NamedRoot {
+        id,
+        by,
+        file: Some(own),
+    }) = named
+    {
+        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own, id, by) {
             EntryFate::Absent => false,
             fate => {
                 handled.push(name.to_os_string());
@@ -511,22 +532,27 @@ fn files_of(dir: &Dir, entries: &[durable::Entry], own: FileIdentity) -> Vec<OsS
         .collect()
 }
 
-/// The kind of the name `name` for the root `id`, as the destroy step reads
-/// it.
-fn entry_name_for(name: &OsStr, id: RootId) -> EntryName {
+/// The kind of the name `name` for the root `id` that `by` named, as the
+/// destroy step reads it.
+fn entry_name_for(name: &OsStr, id: RootId, by: NamedBy) -> EntryName {
     match RootFile::named_in_any_case(name) {
         Some(RootFile::Root(of)) if of == id => EntryName::OwnRoot,
         Some(RootFile::Root(_)) => EntryName::OtherRoot,
+        Some(RootFile::Partial(of)) if of != id && by == NamedBy::AMark => {
+            EntryName::PartialOfAnotherIdThanTheMarks
+        }
         Some(RootFile::Partial(_)) => EntryName::Partial,
         None => EntryName::OtherName,
     }
 }
 
 /// Destroys the root file of identity `own` at `name`, wherever in the
-/// directory it lies; `id` is the root that the identity is of. The identity
-/// decides only which file is looked at. Whether it is written through is
-/// decided by the name at which it stands, as `destroy_root_entry` decides it
-/// for that name ([`written_through`], ruling ST-48 U2): the count of names
+/// directory it lies; `id` is the root that the identity is of, which `by`
+/// named. The identity decides only which file is looked at. Whether it is
+/// written through is decided by the name at which it stands, as
+/// `destroy_root_entry` decides it for that name ([`written_through`], ruling
+/// ST-48 U2), except that on the path by a made mark a partial name of
+/// another id than the mark's lets no write (ruling ST-49): the count of names
 /// and the length are first read by the name, with no open and no mode
 /// change, and a file that may not be written there has that name removed
 /// with no write through it while the name still leads to that file, which
@@ -538,7 +564,13 @@ fn entry_name_for(name: &OsStr, id: RootId) -> EntryName {
 /// zero-fill went through, or when the count read through the kept handle
 /// after the removal of its one name is 0; `Absent` when no file of that
 /// identity stood at the name at the look.
-fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) -> EntryFate {
+fn destroy_identified(
+    dir: &Dir,
+    name: &OsStr,
+    own: FileIdentity,
+    id: RootId,
+    by: NamedBy,
+) -> EntryFate {
     match dir.entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
@@ -553,7 +585,7 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) ->
         }
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
     };
-    let at = entry_name_for(name, id);
+    let at = entry_name_for(name, id, by);
     let removed_unwritten = || match dir.file_identity_at(name) {
         Ok(identity) if identity == own => match dir.remove_entry(name) {
             Err(e) if e.kind() != ErrorKind::NotFound => EntryFate::KeyMayStay(Some(e)),
@@ -623,6 +655,9 @@ enum EntryName {
     OtherRoot,
     /// A partial name.
     Partial,
+    /// On the path by a made mark, a partial name of another id than the
+    /// mark's (ruling ST-49).
+    PartialOfAnotherIdThanTheMarks,
     /// A name that is no root name and no partial name (ruling ST-47 T1).
     OtherName,
 }
@@ -656,14 +691,16 @@ impl PartialEq for EntryFate {
 
 /// Whether the destroy step may write through a regular file that stands at a
 /// name of kind `at`, by its count of names and its length: at a partial name
-/// always; at the named root's own name only with a root file's length
-/// (ruling ST-45 H4); at another id's root name with a root file's length or
-/// with one name (ruling ST-45 Addition 2 (b)); at any other name only with
-/// one name and a root file's length (ruling ST-48 U1). Any other file has its
-/// name removed with no write through it.
+/// always, but on the path by a made mark never at a partial name of another
+/// id than the mark's (ruling ST-49); at the named root's own name only with a
+/// root file's length (ruling ST-45 H4); at another id's root name with a root
+/// file's length or with one name (ruling ST-45 Addition 2 (b)); at any other
+/// name only with one name and a root file's length (ruling ST-48 U1). Any
+/// other file has its name removed with no write through it.
 fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
     match at {
         EntryName::Partial => true,
+        EntryName::PartialOfAnotherIdThanTheMarks => false,
         EntryName::OwnRoot => root_len,
         EntryName::OtherRoot => root_len || one_name,
         EntryName::OtherName => one_name && root_len,
@@ -868,7 +905,7 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
         Some(own) => {
             let entries = dir.entries().map_err(root_io)?;
             for name in files_of(dir, &entries, own) {
-                fates.push(destroy_identified(dir, &name, own, root.id));
+                fates.push(destroy_identified(dir, &name, own, root.id, root.by));
             }
         }
         None => {
