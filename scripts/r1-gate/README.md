@@ -63,9 +63,39 @@ empty, and a line that is empty is skipped.
   no `..` in it. For a `transitional` or a `control` row it is relative to the
   repository root.
 - **substitution**: one or more perl `s///` statements, separated by `;`. The
-  runner applies each to the whole file, so `\n` matches a line end. A
+  runner applies each to the whole file, in order, so `\n` matches a line end. A
   statement that matches nothing fails the row, and so does a substitution
-  that changes nothing.
+  that changes nothing. A statement with the modifier `g` changes every
+  match. A statement without it changes the first match alone, so it must
+  match one place of the file as the statements before it leave it. The
+  runner tries the pattern at every position of that file: matches that end
+  at the same position are one place, as when a pattern starts with `\s*`,
+  and every other match is a place of its own, also one that overlaps
+  another, as two copies of a line do for a pattern that starts and ends with
+  `\n`. A row names its one place by its pattern: with the text around
+  the place, as in `s/a\nb/a\nc/`, or by a lookaround, as in
+  `s/(?<=a\n)b/c/`. Before it applies any row, the runner reads every row
+  but a retired one, also a pending row, a row for another place and a row
+  that `--only` leaves out, and fails each row that has a statement without
+  `g` that matches more than one place:
+  `FAIL mutation:<name> (the substitution matches <n> places of <file>, at lines <a> and <b>, and would change the first alone: give the statement the modifier g to change every match, or write its pattern so that it matches one place)`.
+  For a row of several statements the line names `statement <i> of <k> of the substitution`,
+  and for any statement but the first it reads `at lines <a> and <b> of the file as the statements before it leave it`.
+  The line of a match is the line of its first character that is no line
+  end; a match at the very end of the file reads `the end of the file`.
+  `--list` prints the rows and reads no substitution. A statement with an
+  empty pattern fails the row, because perl reads an empty pattern as the
+  last pattern that matched, and so does a statement whose pattern perl
+  builds when it runs, from a variable such as `$@`, `$$`, `$!` or `$1` or
+  from an escape such as `\Q`: such a pattern is not the text that the row
+  writes. Write `\$` for a `$` and `\@` for an `@` of the text; a `$` at
+  the end of the pattern or before `)` or `|` is an anchor and stays. The
+  substitution runs where no variable of the runner is in sight, so a name
+  such as `$text` in it is no valid perl. Limits: the replacement is not
+  read, so a variable in it, `$@` for one, gives its value where the row may
+  mean the text; and the runner counts the places of a pattern with `\G`
+  where its scan tries it, while a statement without `g` reads `\G` as the
+  start of the file: write no `\G`.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and
@@ -112,16 +142,23 @@ named halvo-sqlcipher and a file named build.rs, in any case, keep the cargo
 build there too, because the link decides such a mutant. The row line of a
 type-checked row reads `PASS mutation:<name> (applies and type-checks)`, and that
 of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
-`(applies and builds)`. `FAIL mutation:<name> (the mutant does not build)` and
+`(applies and builds)`, and that of a row whose file no compile of the cargo
+build reads (its dep-info does not list it) reads
+`(applies; no compile of the build reads <file>)`. `FAIL mutation:<name> (the mutant does not build)` and
 `FAIL mutation:<name> (the mutant does not type-check)` are never caught mutants.
 
 What the runs prove for a row. On each pull request and each push, the macos
 job's `scripts/r1/ci.d/30-mutants.sh` applies each row that a run would apply
 here and compiles its mutant as above, so the mutant of a cargo row that keeps no build is type-checked and
 not built. On a push to
-main it then builds the rows that start within its budget, in an order that the
-commit decides, runs each against its verdict and prints how many rows ran,
-less those whose line says that the mutant does not build. The
+main it then builds the rows that start within its budget, in the sorted order of
+the row names rotated to start at the first-parent commit count of main times
+the stride 6, modulo the row count, runs each against its verdict and prints how
+many rows ran, how many of them it built a mutant for (`built mutation:<name>`,
+printed only when the build compiled the mutated file, which for a cargo row is
+read from the build's dep-info) and, counted apart, how many no compile of the
+build read (`not-compiled mutation:<name>`); when the push ran fewer rows than the
+stride it says how many rows after them were not started in this turn. The
 whole list is built and run against its verdicts only in a full run on the
 measuring Mac. So a mutant that passes the type check and fails only at the
 link, after monomorphization or in code generation is found on main when the
@@ -180,11 +217,11 @@ check of the copy:
   constant of the runner, for the test to end; or
   `... the running case did not end within 60 s and was killed`, and what that
   case made may be left. During a gate check or the cargo build or type check
-  of the copy that does not end within 60 s of the signal:
-  `STOPPED mutation:<row> (signal <name>; the running check-<name> did not end within 60 s and was killed)`,
-  or `... the running build of the copy did not end ...`, or
-  `... the running type check of the copy did not end ...`, and what that step
-  made may be left. A KILL of the runner itself leaves its scratch, the
+  of the copy that the bound ended, because it did not end within 60 s of the
+  signal, the fifth form:
+  `STOPPED mutation:<row> (signal <name>; the running <step> did not end within 60 s and was killed)`,
+  where `<step>` is `check-<name>`, `build of the copy` or
+  `type check of the copy`, and what that step made may be left. A KILL of the runner itself leaves its scratch, the
   throwaway copy and its build directory, as well. A shielded step or test
   that was running then goes on with TERM, INT and HUP ignored; a step that
   the kill at the bound had already stopped stays stopped while its process
@@ -222,7 +259,12 @@ check of the copy:
   verify child past its deadline ends by the check's KILL 5 s later.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM
   lets a case end only when the case ends within those seconds: give a run of
-  rows a time limit above the time of its rows.
+  rows a time limit above the time of its rows. The helper for timed runs
+  sends TERM and then KILL 5 s later, so under it a shielded step, a gate check
+  or the cargo build or type check of the copy, gets at most 5 s and not the
+  runner's 60 s. Whether check-store ends within 5 s is not known, because no
+  real check has run under a stop, so a check-store that needs longer is
+  killed and leaves its root.
 
 ## What a run changes on a Mac
 
