@@ -2887,6 +2887,43 @@ mod tests {
     }
 
     #[test]
+    fn a_stop_for_capture_off_draws_the_barrier_before_its_first_stop() {
+        let mut f = fixture_on_owner(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            ModelStore::new(),
+        );
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(Recorder::default()));
+        f.start(&two());
+        f.tick();
+        f.link.as_ref().unwrap().emit(2);
+        let link = f.link.take().unwrap();
+        let outcome = f
+            .supervisor
+            .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+        assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+        let snapshot = link.settle();
+        assert_eq!(snapshot.discarded_by_barrier, 2, "{snapshot:?}");
+        assert_eq!(snapshot.events_persisted, 0);
+    }
+
+    #[test]
     fn a_stop_for_capture_off_that_meets_an_os_error_ends_the_same_way() {
         let (_f, recorder, _records, outcome) = capture_off_case(
             Factory::adjusting(|source| {
