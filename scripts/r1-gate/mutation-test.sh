@@ -1725,6 +1725,16 @@ place_cases() {
   row transitional-places/scripts/r1-gate/mutants.rows moved-twice code/a.sh 's/echo one/echo 1/' leak transitional X-1
   place_refusal 'the substitution' 2 code/a.sh '1 and 2'
   t transitional-row-that-matches-two-places-names-its-file-from-the-root PASS fixture_says transitional-places "FAIL mutation:moved-twice ($refusal)" yes
+  fixture_tree control-places
+  printf 'echo one\necho one\n' > "$gate_scratch/control-places/code/a.sh"
+  row control-places/scripts/r1-gate/mutants.rows control-twice code/a.sh 's/echo one/if then/' leak control X-1
+  place_refusal 'the substitution' 2 code/a.sh '1 and 2'
+  t control-row-that-matches-two-places-names-its-file-from-the-root PASS fixture_says control-places "FAIL mutation:control-twice ($refusal)" yes
+  place_fixture pending-unapplied 'echo one\n' 's/no such text/x/' 'pending X-9'
+  t pending-row-that-matches-nothing-stays-open PASS fixture_says pending-unapplied 'OPEN mutation:pending-unapplied (X-9)' yes
+  t pending-row-that-matches-nothing-fails-no-run PASS fixture_run pending-unapplied yes
+  place_fixture escaped-delimiter 'echo a/b\n' 's/a\/b/a\/c/'
+  t pattern-with-an-escaped-delimiter-applies PASS fixture_says escaped-delimiter 'PASS mutation:escaped-delimiter (applies and builds)' yes
   place_fixture empty-pattern 'echo one\n' 's{}{x}'
   t statement-with-an-empty-pattern-is-named PASS fixture_says empty-pattern 'FAIL mutation:empty-pattern (statement 1 of the substitution has an empty pattern, which perl reads as the last pattern that matched)' yes
   place_fixture interpolated 'echo "$@"\necho ""\n' 's/echo "$@"/echo x/'
