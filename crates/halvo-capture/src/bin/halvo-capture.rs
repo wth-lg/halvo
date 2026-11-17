@@ -297,7 +297,36 @@ mod tests {
                 scratch.delete(&dir),
                 (0, format!("store_dir={dir}\nno_store\n"), String::new())
             );
+            assert_eq!(top_level(Path::new(&dir)), what_the_tail_leaves(&[]));
         }
+    }
+
+    fn top_level(dir: &Path) -> Vec<(String, u64)> {
+        let mut names: Vec<(String, u64)> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                (
+                    entry.file_name().into_string().unwrap(),
+                    entry.metadata().unwrap().len(),
+                )
+            })
+            .filter(|(name, _)| name != "roots")
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn what_the_tail_leaves(kept: &[&str]) -> Vec<(String, u64)> {
+        let mut names: Vec<(String, u64)> = kept
+            .iter()
+            .map(|name| ((*name).to_owned(), u64::MAX))
+            .collect();
+        if cfg!(windows) {
+            names.push(("writer.lock".to_owned(), 0));
+        }
+        names.sort();
+        names
     }
 
     #[test]
@@ -544,6 +573,22 @@ mod tests {
             )
         );
         assert_eq!(files_under(&only_store.join("store")), kept);
+        let mut left = top_level(&only_store);
+        for (name, len) in &mut left {
+            if name == "store" {
+                *len = u64::MAX;
+            }
+        }
+        assert_eq!(left, what_the_tail_leaves(&["store"]));
+        assert_eq!(
+            scratch.delete(&text(&only_store)).0,
+            0,
+            "a second call on the same folder"
+        );
+        assert_eq!(
+            top_level(&only_store).len(),
+            what_the_tail_leaves(&["store"]).len()
+        );
         let only_roots = scratch.dir("only-roots");
         std::fs::create_dir(only_roots.join("roots")).unwrap();
         std::fs::write(
