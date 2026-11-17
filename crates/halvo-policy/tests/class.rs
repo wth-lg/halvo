@@ -2,7 +2,7 @@ mod common;
 
 use std::num::NonZeroU32;
 
-use common::{api, file, web, web_credential, web_request};
+use common::{api, extract, file, parse_step, step_json, web, web_credential, web_request};
 use halvo_policy::{check_playbook, class_of};
 use halvo_schema::executable::names::{Cause, StepEffect, Verb};
 use halvo_schema::executable::ActionClass as C;
@@ -261,5 +261,117 @@ fn check_playbook_refuses_with_class_at_the_first_stored_class_that_differs() {
     assert_eq!(
         check_playbook(S::SpreadsheetFill, &steps).map_err(|r| r.n),
         Err(n(1))
+    );
+}
+
+fn write_to(n: u32, slot: &str) -> halvo_schema::executable::ExecutableStep {
+    parse_step(&step_json(
+        n,
+        "file",
+        "write",
+        Some(format!(
+            r#"{{"file":"{slot}","sheet":"sheet","range":"range"}}"#
+        )),
+        &[extract("values", "rows")],
+        "none",
+        C::LocalEdit,
+    ))
+}
+
+fn refusal(
+    category: S,
+    steps: &[halvo_schema::executable::ExecutableStep],
+) -> Option<(u32, Cause)> {
+    check_playbook(category, steps)
+        .err()
+        .map(|r| (r.n.get(), r.cause()))
+}
+
+#[test]
+fn check_playbook_refuses_a_write_step_whose_file_is_not_the_slot_workbook() {
+    let read = file(1, "read", C::Read);
+    for &category in S::ALL {
+        let fill = [read.clone(), write_to(2, "workbook")];
+        assert_eq!(refusal(category, &fill), None, "{category:?}");
+        for slot in ["dest", "source", "workbooks"] {
+            let other = [read.clone(), write_to(2, slot)];
+            assert_eq!(
+                refusal(category, &other),
+                Some((2, Cause::Workbook)),
+                "{slot} in {category:?}"
+            );
+        }
+    }
+    let steps = [
+        read.clone(),
+        write_to(2, "workbook"),
+        write_to(3, "dest"),
+        write_to(4, "other"),
+    ];
+    assert_eq!(
+        refusal(S::SpreadsheetFill, &steps),
+        Some((3, Cause::Workbook)),
+        "the first write step to another file"
+    );
+
+    let mut no_target = write_to(2, "workbook");
+    no_target.target = None;
+    assert_eq!(
+        refusal(S::SpreadsheetFill, &[read.clone(), no_target]),
+        Some((2, Cause::Workbook)),
+        "a write step with no file names no workbook"
+    );
+    let mut api_target = write_to(2, "workbook");
+    api_target.target = api(2, "mail_list", C::Read).target;
+    assert_eq!(
+        refusal(S::SpreadsheetFill, &[read.clone(), api_target]),
+        Some((2, Cause::Workbook))
+    );
+    let mut credential = write_to(2, "dest");
+    credential.verb = Verb::Click;
+    credential.class = C::Credential;
+    assert_eq!(
+        refusal(S::SpreadsheetFill, &[read.clone(), credential]),
+        Some((2, Cause::Workbook)),
+        "a file step that is no read goes to the runner's write"
+    );
+
+    let mut web_write = web(2, "fill", C::Prepare);
+    web_write.target = write_to(2, "dest").target;
+    assert_eq!(
+        refusal(S::Email, &[web(1, "navigate", C::Read), web_write.clone()]),
+        Some((2, Cause::Workbook)),
+        "a step with a file target that is no read goes to the runner's write"
+    );
+    web_write.target = write_to(2, "workbook").target;
+    assert_eq!(
+        refusal(S::Email, &[web(1, "navigate", C::Read), web_write]),
+        None
+    );
+    let mut web_read = web(2, "navigate", C::Read);
+    web_read.target = write_to(2, "dest").target;
+    assert_eq!(
+        refusal(S::Email, &[web(1, "navigate", C::Read), web_read]),
+        None,
+        "a read of another file is no write"
+    );
+    let mut read_other = file(1, "read", C::Read);
+    read_other.target = write_to(1, "dest").target;
+    assert_eq!(
+        refusal(S::SpreadsheetFill, &[read_other, write_to(2, "workbook")]),
+        None
+    );
+
+    let steps = [write_to(1, "dest"), web(2, "fill", C::Read)];
+    assert_eq!(
+        refusal(S::Email, &steps),
+        Some((2, Cause::Class)),
+        "a stored class that differs is refused before any write step to another file"
+    );
+    let mut stored_read = write_to(1, "dest");
+    stored_read.class = C::Read;
+    assert_eq!(
+        refusal(S::SpreadsheetFill, &[stored_read]),
+        Some((1, Cause::Class))
     );
 }
