@@ -44,22 +44,29 @@ const TASK: Limits = Limits {
     model_tokens: 0,
 };
 
+const PATH_B: Limits = Limits {
+    steps: 40,
+    wall_s: 300,
+    model_tokens: 0,
+};
+
 const DEFERRED: Limits = Limits {
     steps: 1,
     wall_s: 1,
     model_tokens: 0,
 };
 
-/// The table. Until the trial file of the driver exists, every category with a task has 20, 120 and 0, and a
-/// deferred category 1, 1 and 0 (A1.3).
+/// The table, from the verdict line `driver=none path=B writer=none` of the driver's trial file, which holds no
+/// `limits` line (A1.3): `bill` and `order` have 40, 300 and 0, every other category with a task 20, 120 and 0, and
+/// a deferred category 1, 1 and 0.
 pub const LIMITS: LimitTable = LimitTable {
-    utility_bill_payment: TASK,
+    utility_bill_payment: PATH_B,
     tenant_rent: DEFERRED,
     lease_renewal_or_change: DEFERRED,
     tenant_application_review: DEFERRED,
     email: TASK,
     spreadsheet_fill: TASK,
-    shop_order: TASK,
+    shop_order: PATH_B,
     calendar_cleanup: TASK,
     ride_order: DEFERRED,
     daily_chart_check: DEFERRED,
