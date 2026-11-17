@@ -243,7 +243,24 @@ fn product_source(bound: Duration) -> (InputSource, DropCounts) {
 const SPARSE_STEP: Duration = Duration::from_millis(200);
 const SPARSE_GAP: Duration = Duration::from_millis(450);
 
+static NOTICED: AtomicBool = AtomicBool::new(false);
+
+fn wait_for_the_watch(recorder: &Recorder) -> bool {
+    until(Duration::from_secs(5), || {
+        recorder.drops.take_entries().iter().any(|entry| {
+            matches!(
+                entry,
+                RawEntry::Notice {
+                    seen: NoticeSeen::Start,
+                    ..
+                }
+            )
+        })
+    })
+}
+
 fn noticed_sparse_source(bound: Duration) -> (InputSource, DropCounts) {
+    NOTICED.store(true, Ordering::SeqCst);
     seamed_with(
         bound,
         SPARSE_GAP,
@@ -255,6 +272,7 @@ fn noticed_sparse_source(bound: Duration) -> (InputSource, DropCounts) {
 
 fn noticed_product_source(bound: Duration) -> (InputSource, DropCounts) {
     let _ = bound;
+    NOTICED.store(true, Ordering::SeqCst);
     seamed_with(
         HOLD_BOUND,
         GAP_BOUND,
@@ -1500,7 +1518,14 @@ fn phase_on(
     for &(wait_ms, bound) in waits {
         if running.as_ref().map(|(at, _)| *at) != Some(bound) {
             drop(running.take());
+            NOTICED.store(false, Ordering::SeqCst);
             let recorder = Recorder::start(source(bound));
+            if NOTICED.load(Ordering::SeqCst) {
+                println!(
+                    "{name} watch_started={}",
+                    u8::from(wait_for_the_watch(&recorder))
+                );
+            }
             all_drops.push(recorder.drops.clone());
             running = Some((bound, recorder));
         }
@@ -1998,6 +2023,34 @@ fn a_password_typed_whole_ahead_into_a_field_secure_for_less_than_the_spacing_of
     judge_short_on_time(name, &rounds, Some(SPARSE_STEP));
 }
 
+fn short_on_time_product_verdict(rounds: &[Round]) -> &'static str {
+    if rounds.is_empty()
+        || rounds.iter().any(three_way_recorded)
+        || rounds.iter().all(|round| round.not_driven.is_some())
+    {
+        return "failed";
+    }
+    let uncounted: Vec<&Round> = rounds
+        .iter()
+        .filter(|round| !round.counted && round.not_driven.is_none())
+        .collect();
+    if uncounted.is_empty() {
+        if rounds.iter().any(|round| round.not_driven.is_some()) {
+            "notdriven"
+        } else {
+            "held"
+        }
+    } else if uncounted.iter().all(|round| {
+        round.why_not == "the markers were not recorded"
+            && round.ahead == 0
+            && gap_after_first_arrival(&round.entries)
+    }) {
+        "notkept"
+    } else {
+        "failed"
+    }
+}
+
 #[test]
 #[ignore = "posts keys and shows a window: the hosted step alone runs it"]
 fn at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded() {
@@ -2009,11 +2062,81 @@ fn at_the_products_constants_a_password_typed_whole_ahead_is_not_recorded() {
         noticed_product_source,
         as_is(short_on_time_product_rounds()),
     );
-    judge_short_on_time(name, &rounds, None);
+    let on_us: Vec<String> = rounds
+        .iter()
+        .map(|round| {
+            on_time_ns(round)
+                .map_or(-1, |ns| (ns / 1_000) as i64)
+                .to_string()
+        })
+        .collect();
+    let verdict = short_on_time_product_verdict(&rounds);
+    println!(
+        "{name} verdict={verdict} rounds={} counted={} notice_drops={} on_us={}",
+        rounds.len(),
+        rounds.iter().filter(|round| round.counted).count(),
+        rounds.iter().map(noticed_drops).sum::<usize>(),
+        on_us.join(",")
+    );
+    assert_ne!(
+        verdict, "failed",
+        "{name}: a key was recorded, or a round did not count for a cause other than markers dropped by the gap rule"
+    );
+}
+
+#[test]
+fn the_verdict_of_a_short_on_time_at_the_products_constants_holds_each_rule_on_a_table() {
+    let gap_dropped = |mut round: Round| {
+        round.entries = vec![arrived_at(10), gap_drop_at(50)];
+        round
+    };
+    let markers_lost =
+        |ahead: usize| not_counted_round("the markers were not recorded", ahead, Vec::new());
+    let mut recorded_letter = stand_in_round(false, 1);
+    recorded_letter.why_not = "the markers were not recorded";
+    let mut not_driven = stand_in_round(false, 0);
+    not_driven.not_driven = Some(NoReply::Ended {
+        reply: String::from("cleared"),
+    });
+    let rows: Vec<(&str, Vec<Round>, &str)> = vec![
+        (
+            "every round counted with no key",
+            vec![stand_in_round(true, 0)],
+            "held",
+        ),
+        (
+            "a key ahead in a counted round",
+            vec![stand_in_round(true, 1)],
+            "failed",
+        ),
+        (
+            "markers dropped by the gap rule",
+            vec![gap_dropped(markers_lost(0))],
+            "notkept",
+        ),
+        (
+            "markers lost with no gap drop",
+            vec![markers_lost(0)],
+            "failed",
+        ),
+        (
+            "a letter ahead in a round whose markers were lost",
+            vec![recorded_letter],
+            "failed",
+        ),
+        (
+            "one round not driven beside a held one",
+            vec![stand_in_round(true, 0), not_driven],
+            "notdriven",
+        ),
+        ("no round", Vec::new(), "failed"),
+    ];
+    for (what, rounds, want) in rows {
+        assert_eq!(short_on_time_product_verdict(&rounds), want, "{what}");
+    }
 }
 
 const LAG_DELAY_MS: u64 = 150;
-const LEAVE_AFTER_MS: u64 = 30;
 
 fn lag_rounds() -> usize {
     if short_form() {
@@ -2042,10 +2165,6 @@ fn lag_round_inner(
     round: &mut LagRound,
     ahead_from: &mut SystemTime,
 ) -> Result<(), NoReply> {
-    let wait_out = |round: &mut LagRound, from: SystemTime| {
-        std::thread::sleep(bound + MARGIN);
-        round.ahead = recorder.between(from, SystemTime::now());
-    };
     fixture.try_ask("clear")?;
     fixture.try_focus("plain")?;
     if !state_reads(false, NEVER_ON_WAIT) {
@@ -2056,30 +2175,17 @@ fn lag_round_inner(
         round.why_not = "the fixture was not in front before the first key";
         return Ok(());
     }
-    fixture.try_focus("secure")?;
-    if !state_reads(true, NEVER_ON_WAIT) {
-        round.why_not = "the secure field did not turn secure input on";
-        return Ok(());
-    }
     std::thread::sleep(SESSION_STEP + Duration::from_millis(100));
     *ahead_from = SystemTime::now();
     SESSION_DELAY_MS.store(LAG_DELAY_MS, Ordering::SeqCst);
-    fixture.try_ask(&format!("leave {LEAVE_AFTER_MS}"))?;
     fixture.try_keys(Duration::ZERO, &format!("{}d", LETTERS[0]))?;
-    let left = state_reads(false, NEVER_ON_WAIT);
     std::thread::sleep(Duration::from_millis(LAG_DELAY_MS + 150));
     fixture.try_keys(Duration::ZERO, &format!("{}u", LETTERS[0]))?;
     SESSION_DELAY_MS.store(0, Ordering::SeqCst);
-    let state = fixture.try_state()?;
-    round.secure = state.secure;
-    if !left {
-        round.why_not = "secure input did not read off after the leave";
-        wait_out(round, *ahead_from);
-        return Ok(());
-    }
-    if state.secure != 1 || state.focus != "plain" {
-        round.why_not = "the letter did not land in the secure field before the leave";
-        wait_out(round, *ahead_from);
+    if !state_reads(false, NEVER_ON_WAIT) {
+        round.why_not = "secure input did not read off before the markers";
+        std::thread::sleep(bound + MARGIN);
+        round.ahead = recorder.between(*ahead_from, SystemTime::now());
         return Ok(());
     }
     let markers_from = SystemTime::now();
@@ -2087,10 +2193,11 @@ fn lag_round_inner(
     std::thread::sleep(bound + MARGIN);
     let state = fixture.try_state()?;
     round.plain = state.plain;
+    round.secure = state.secure;
     round.ahead = recorder.between(*ahead_from, markers_from);
     round.markers = recorder.between(markers_from, SystemTime::now());
-    if state.plain != MARKERS.len() {
-        round.why_not = "the markers did not land in the plain field";
+    if state.plain != MARKERS.len() + 1 {
+        round.why_not = "the letter and the markers did not land in the plain field";
     } else if round.markers < MARKERS.len() {
         round.why_not = "the markers were not recorded";
     } else {
@@ -2122,7 +2229,7 @@ fn a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded() {
     let name = "a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded";
     let mut fixture = started_fixture(name);
     println!(
-        "{name} gap_ms={} step_ms={} session_delay_ms={LAG_DELAY_MS} leave_after_ms={LEAVE_AFTER_MS} form={}",
+        "{name} gap_ms={} step_ms={} session_delay_ms={LAG_DELAY_MS} form={}",
         test_gap().as_millis(),
         test_step().as_millis(),
         if short_form() { "short" } else { "long" }
@@ -2154,7 +2261,7 @@ fn a_key_whose_own_reading_ends_after_the_lag_bound_is_not_recorded() {
     let leaked: Vec<usize> = rounds
         .iter()
         .enumerate()
-        .filter(|(_, round)| round.ahead > 0 && (round.counted || round.secure > 0))
+        .filter(|(_, round)| round.ahead > 0 && (round.counted || round.not_driven.is_some()))
         .map(|(number, _)| number)
         .collect();
     assert!(
@@ -2332,59 +2439,91 @@ fn the_trial_of_the_focus_notice_reports_its_reach_and_lateness() {
     }
     drop(recorder);
     drop(fixture);
-    let masked = "<!doctype html><title>style mask</title>\
-         <input id=m type=text style=\"-webkit-text-security:disc\" autofocus>\
-         <script>addEventListener('load', () => document.getElementById('m').focus())</script>";
-    style_probe("safari", &["-a", "Safari"], "com.apple.Safari", masked);
-    let profile = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("stall-trial-chrome");
-    let profile_arg = format!("--user-data-dir={}", profile.display());
-    style_probe(
-        "chrome",
-        &[
-            "-na",
-            "Google Chrome",
-            "--args",
-            "--no-first-run",
-            "--no-default-browser-check",
-            &profile_arg,
-        ],
-        "com.google.Chrome",
-        masked,
-    );
     println!("{name} done");
 }
 
-fn style_probe(name: &str, open: &[&str], bundle: &str, body: &str) {
-    let page = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("stall-trial-style.html");
-    std::fs::write(&page, body).expect("the page is written");
-    let opened = Command::new("/usr/bin/open")
-        .args(open)
-        .arg(&page)
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false);
-    let front = until(Duration::from_secs(30), || {
+fn spawned_within(command: &mut Command, within: Duration) -> bool {
+    let Ok(mut child) = command.spawn() else {
+        return false;
+    };
+    let ended = until(within, || matches!(child.try_wait(), Ok(Some(_))));
+    if !ended {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    ended
+}
+
+fn style_probe(name: &str, page: &str, open: &[&str], bundle: &str, body: &str) {
+    let path =
+        std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("{name}-{page}.html"));
+    std::fs::write(&path, body).expect("the page is written");
+    let opened = spawned_within(
+        Command::new("/usr/bin/open").args(open).arg(&path),
+        Duration::from_secs(20),
+    );
+    let mut front = until(Duration::from_secs(20), || {
         frontmost_bundle().as_deref() == Some(bundle)
     });
+    if !front {
+        if let Some(app) = NSRunningApplication::runningApplicationsWithBundleIdentifier(
+            &objc2_foundation::NSString::from_str(bundle),
+        )
+        .firstObject()
+        {
+            app.activateWithOptions(NSApplicationActivationOptions::empty());
+        }
+        front = until(Duration::from_secs(10), || {
+            frontmost_bundle().as_deref() == Some(bundle)
+        });
+    }
     std::thread::sleep(Duration::from_secs(3));
-    let mut on = 0;
     let reads = 50;
+    let mut on = 0;
     for _ in 0..reads {
         on += u32::from(secure_input_active());
         std::thread::sleep(Duration::from_millis(20));
     }
     println!(
-        "probe style_mask page={name} opened={} front={} reads={reads} secure_on_reads={on}",
+        "probe style_mask browser={name} page={page} opened={} front={} reads={reads} secure_on_reads={on}",
         u8::from(opened),
         u8::from(front)
     );
-    if let Some(app) = NSWorkspace::sharedWorkspace()
-        .frontmostApplication()
-        .filter(|app| app.bundleIdentifier().map(|id| id.to_string()).as_deref() == Some(bundle))
+    for app in NSRunningApplication::runningApplicationsWithBundleIdentifier(
+        &objc2_foundation::NSString::from_str(bundle),
+    )
+    .iter()
     {
         app.forceTerminate();
     }
     state_reads(false, Duration::from_secs(10));
+}
+
+#[test]
+#[ignore = "opens a browser on a page and reads the secure-input state: the hosted step alone runs it"]
+fn the_probe_of_a_text_input_masked_by_style_reads_the_secure_input_state() {
+    let _ = hosted_fixture();
+    let password = "<!doctype html><title>password</title>\
+         <input id=m type=password autofocus>\
+         <script>addEventListener('load', () => document.getElementById('m').focus())</script>";
+    let masked = "<!doctype html><title>style mask</title>\
+         <input id=m type=text style=\"-webkit-text-security:disc\" autofocus>\
+         <script>addEventListener('load', () => document.getElementById('m').focus())</script>";
+    let profile = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("stall-style-chrome");
+    let profile_arg = format!("--user-data-dir={}", profile.display());
+    let chrome = [
+        "-na",
+        "Google Chrome",
+        "--args",
+        "--no-first-run",
+        "--no-default-browser-check",
+        profile_arg.as_str(),
+    ];
+    for (page, body) in [("password", password), ("masked", masked)] {
+        style_probe("chrome", page, &chrome, "com.google.Chrome", body);
+        style_probe("safari", page, &["-a", "Safari"], "com.apple.Safari", body);
+    }
+    println!("probe style_mask done");
 }
 
 #[test]

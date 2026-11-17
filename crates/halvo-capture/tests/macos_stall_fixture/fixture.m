@@ -71,7 +71,6 @@ static const Verb VERBS[] = {
     {"stamps", "cmd_stamps", "stamps n=", ""},
     {"quit", "cmd_quit", "", ""},
     {"blink", "cmd_blink", "blinked", ""},
-    {"leave", "cmd_leave", "leaving", ""},
     {"keys", "", "posted=", ""},
     {"click", "", "clicked", ""},
 };
@@ -308,17 +307,6 @@ static void handle(NSString *line) {
         [window makeFirstResponder:plainField];
         stamp("blink_after", 0);
         say([NSString stringWithFormat:@"blinked at_uptime_ns=%llu", uptime_ns()]);
-    } else if ([verb isEqualToString:@"leave"] && words.count >= 2) {
-        long after = words[1].intValue;
-        long generation = leaveGeneration;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)after * (int64_t)NSEC_PER_MSEC),
-                       dispatch_get_main_queue(), ^{
-                           if (generation != leaveGeneration) return;
-                           stamp("leave_before", after);
-                           [window makeFirstResponder:plainField];
-                           stamp("leave_after", after);
-                       });
-        say([NSString stringWithFormat:@"leaving at_uptime_ns=%llu", uptime_ns()]);
     } else if ([verb isEqualToString:@"stamps"]) {
         giveStamps();
     } else if ([verb isEqualToString:@"quit"]) {
