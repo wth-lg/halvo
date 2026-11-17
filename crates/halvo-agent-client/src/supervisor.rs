@@ -673,11 +673,12 @@ impl Running<'_> {
         }
     }
 
-    /// Writes the answer of `Secrets::read` as the answer of the same name, but one that no frame can carry as
-    /// `unreadable` with `fault`.
+    /// Writes the answer of `Secrets::read` for the run's agent as the answer of the same name, but one that no frame
+    /// can carry as `unreadable` with `fault`.
     fn secret(&mut self, name: &Name) -> Flow {
         let fault = ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault));
-        let reply = ToRunner::SecretReply(self.inner.parts.secrets.read(name));
+        let secrets = &self.inner.parts.secrets;
+        let reply = ToRunner::SecretReply(secrets.read(&self.slot.spec.agent, name));
         let reply = if reply.to_json().is_ok() {
             reply
         } else {
@@ -1014,7 +1015,7 @@ mod tests {
         }
 
         impl Secrets for Calls {
-            fn read(&self, _: &Name) -> SecretReply {
+            fn read(&self, _: &AgentId, _: &Name) -> SecretReply {
                 self.note("secret");
                 SecretReply::None
             }

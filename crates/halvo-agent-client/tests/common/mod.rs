@@ -486,13 +486,31 @@ impl Human for People {
     }
 }
 
-/// The secret store: one answer for every name, and the count of its reads.
-pub struct Vault(pub Mutex<SecretReply>, pub AtomicUsize);
+/// The secret store: the answer that it holds for an agent and a name, one answer for every other read, and each
+/// read as the agent and the name that it got.
+pub struct Vault {
+    pub held: Mutex<Vec<(AgentId, Name, SecretReply)>>,
+    pub other: Mutex<SecretReply>,
+    pub calls: Mutex<Vec<(AgentId, Name)>>,
+}
+
+impl Vault {
+    pub fn reads(&self) -> usize {
+        self.calls.lock().unwrap().len()
+    }
+}
 
 impl Secrets for Vault {
-    fn read(&self, _name: &Name) -> SecretReply {
-        self.1.fetch_add(1, Ordering::SeqCst);
-        self.0.lock().unwrap().clone()
+    fn read(&self, agent: &AgentId, name: &Name) -> SecretReply {
+        self.calls
+            .lock()
+            .unwrap()
+            .push((agent.clone(), name.clone()));
+        let held = self.held.lock().unwrap();
+        match held.iter().find(|(a, n, _)| a == agent && n == name) {
+            Some((_, _, reply)) => reply.clone(),
+            None => self.other.lock().unwrap().clone(),
+        }
     }
 }
 
@@ -534,7 +552,11 @@ impl Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
         let people = Arc::new(People::default());
-        let vault = Arc::new(Vault(Mutex::new(SecretReply::None), AtomicUsize::new(0)));
+        let vault = Arc::new(Vault {
+            held: Mutex::new(Vec::new()),
+            other: Mutex::new(SecretReply::None),
+            calls: Mutex::new(Vec::new()),
+        });
         let rec = Arc::new(Recorder::default());
         let parts = Parts {
             link: store.clone(),

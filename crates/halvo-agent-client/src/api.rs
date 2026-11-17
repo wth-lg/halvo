@@ -175,7 +175,10 @@ pub trait Human: Send + Sync {
 
 /// The supervisor's secret store: the secret, none stored, or unreadable with its member.
 pub trait Secrets: Send + Sync {
-    fn read(&self, name: &Name) -> SecretReply;
+    /// Reads `name` for `agent`, the agent of the run that sent the frame `secret`, as the library started that run
+    /// and never a value of the frame. An implementor answers none stored for a name that the agent's own set-up
+    /// does not list, the same answer as for a name that holds nothing (contracts.md A6.6, ruling CP-136).
+    fn read(&self, agent: &AgentId, name: &Name) -> SecretReply;
 }
 
 /// How a run's end stood with the owner when the library had done with it.
