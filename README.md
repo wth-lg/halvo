@@ -52,15 +52,17 @@ Then it:
   A digest that differs, an archive that does not unpack, a copy that fails or an
   installed cargo-release that does not report the pinned version stops the command.
   Only a failed download, or a platform with no prebuilt archive, makes it build
-  cargo-release with `cargo install` instead;
+  cargo-release with `cargo install` instead. A version check that fails after
+  the install leaves the new binary in place, and the next run's presence check
+  installs again;
 - installs cargo-deny from its prebuilt archive after the same kind of sha256 check,
   fetches the crates of `account/Cargo.lock`, and
   sets up the backend: the pinned pnpm, the packages of its lock, its pinned tools
   and the licences of its packages.
 
 rustup is installed with `--no-modify-path`, so after a first install `cargo` is not
-on the PATH of the shell. Every command that this file documents puts `~/.cargo/bin`
-on its own PATH, so none of them needs that. To run `cargo` yourself, add
+on the PATH of the shell. Every command that this file documents and that runs cargo
+puts `~/.cargo/bin` on its own PATH, so none of them needs that. To run `cargo` yourself, add
 `~/.cargo/bin` to PATH.
 
 Supported systems: macOS 14 or later on Apple silicon (arm64), with no build for Intel
@@ -125,7 +127,8 @@ sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
 One version covers every package of the workspace and both binaries, `halvo` and
 `halvo-capture`. `cargo metadata` reports it for both binaries from the `version`
 of `[workspace.package]` in the root `Cargo.toml`, which is `0.0.0` now. The other
-packages of the workspace write the same value in their own manifests, and the
+packages of the workspace inherit that value or write the same value in their own
+manifests, and the
 check `61-version` fails when any package reports another.
 
 - Both binaries read it at compile time through `env!("CARGO_PKG_VERSION")`, in
