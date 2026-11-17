@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No tracked .rs file outside crates/halvo-schema and crates/halvo-schema-core builds the stored agent_run record by hand, read lexically: a place is a string literal whose text holds the keys outcome and earlier_page, or a json! map that holds both as keys, counted per file, and each file's count equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it, crates/halvo-schema/tests/later_kinds.rs read on its frozen form by the keys outcome and handbacks: the list may shrink with its pins and may not grow, and new code builds the record with AgentRun::new (U1.10).
+# rule: A tracked .rs file outside crates/halvo-schema and crates/halvo-schema-core that builds the stored agent_run record by hand fails the check in the forms that it reads lexically, which --help lists with the forms that it does not read: a place is a string literal whose text holds the keys outcome and earlier_page, or a json! object that holds both as keys, counted per file, and each file's count equals its row in known(), whose rows, places and sorted path and count pairs equal the pins beside it, crates/halvo-schema/tests/later_kinds.rs read on its frozen form by the keys outcome and handbacks; a known row passes when its pins rise in the same diff, and the review of the diff is that gate; new code builds the record with AgentRun::new (U1.10).
 # lane: free
 set -u
 LC_ALL=C
