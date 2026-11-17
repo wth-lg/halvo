@@ -211,7 +211,9 @@ impl<C> Board<C> {
     /// A store of the agent was acknowledged.
     pub fn acknowledged(&mut self, agent: &AgentId) {
         self.defer_held.retain(|a| a != agent);
-        self.stuck_of(agent).acked = true;
+        let s = self.stuck_of(agent);
+        s.acked = true;
+        s.refused = false;
     }
 
     fn stuck_of(&mut self, agent: &AgentId) -> &mut Stuck {

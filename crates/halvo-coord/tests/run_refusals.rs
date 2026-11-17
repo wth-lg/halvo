@@ -578,3 +578,251 @@ fn recoverys_body_under_the_products_limits_is_one_body() {
     w.board = life.board;
     assert_eq!(recovery_bodies(&w), vec![(9, true)]);
 }
+#[test]
+fn an_aside_agent_is_given_no_seq_already_stored_and_no_run_by_any_move() {
+    let mut w = world_with(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let used = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    w.ports.new_life();
+    let before = w.ports.tried.borrow().len();
+    let life = recover(&w.ports, &w.limits).expect("recovery");
+    w.board = life.board;
+    w.act(Act::Start { agent: agent(0) });
+    w.act(Act::Tick);
+    w.act(Act::SwitchOff { agent: agent(0) });
+    w.act(Act::Tick);
+    w.act(Act::Start { agent: agent(0) });
+    let tried = w.ports.tried.borrow();
+    let reused: Vec<u32> = tried[before..]
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::Log(events) => Some(events.clone()),
+            _ => None,
+        })
+        .flatten()
+        .filter(|e| e.agent == agent(0) && e.seq.get() <= used)
+        .map(|e| e.seq.get())
+        .collect();
+    assert!(reused.is_empty(), "seqs given again: {reused:?}");
+    assert!(
+        !w.board.runs.iter().any(|r| r.agent == agent(0)),
+        "no run is handed out for an agent read as nothing"
+    );
+}
+#[test]
+fn class_c_a_proof_spent_on_the_next_record_takes_no_later_record_off() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    w.ports.clear_refusals();
+    w.ports.refuse_record(second, refused("malformed"));
+    assert!(
+        flush(&w.ports, &mut l, &w.limits).is_err(),
+        "the lone record is kept for its proof"
+    );
+    assert_eq!(l.waiting().len(), 1);
+    store(&w.ports, &mut l, &w.limits, vec![skip(3)]).unwrap();
+    assert_eq!(
+        stored_slots(&w),
+        vec![3],
+        "the third goes under the second's seq"
+    );
+    assert_eq!(
+        l.taken_off().len(),
+        1,
+        "the second is proven and counted once"
+    );
+    assert!(l.waiting().is_empty());
+    w.ports.refuse(Method::Log, refused("seq"));
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(4)]);
+    w.ports.clear_refusals();
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    assert!(
+        l.taken_off().is_empty(),
+        "the proof that was spent takes no later record off at the read after a seq"
+    );
+    assert_eq!(
+        stored_slots(&w),
+        vec![3, 4],
+        "the fourth, which nobody refused, is stored"
+    );
+}
+#[test]
+fn class_c_a_proof_write_whose_acknowledgement_was_lost_is_not_sent_under_that_seq_for_ever() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(3)]);
+    w.ports.clear_refusals();
+    assert_eq!(l.waiting().len(), 2);
+    fn third(e: &Event) -> bool {
+        matches!(e.what, What::SlotSkipped { slot: Some(3) })
+    }
+    w.ports.refuse_record(second, refused("malformed"));
+    w.ports.refuse_record(third, PortError::NoService);
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(
+        l.waiting().len(),
+        2,
+        "no answer for the write under the second's seq"
+    );
+    let mut lost = l.waiting()[1].clone();
+    lost.seq = l.waiting()[0].seq;
+    w.ports.events.borrow_mut().push(lost);
+    w.ports.clear_refusals();
+    w.ports.refuse_record(second, refused("malformed"));
+    for _ in 0..4 {
+        let _ = flush(&w.ports, &mut l, &w.limits);
+    }
+    assert!(
+        l.waiting().is_empty(),
+        "the owner holds the third under the second's seq, so neither waits for ever"
+    );
+    assert_eq!(stored_slots(&w), vec![3], "the third is stored once");
+    assert_eq!(l.taken_off().len(), 1, "the second is proven and counted");
+}
+#[test]
+fn class_c_an_early_record_that_comes_due_and_waits_for_its_proof_holds_no_place() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.ports.set_now(T0 + DAY_MS);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    w.ports.set_now(T0);
+    w.ports.clear_refusals();
+    w.ports.refuse_record(second, refused("malformed"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(l.holds_place(), "early: it keeps its place");
+    w.ports.set_now(T0 + DAY_MS);
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(l.waiting().len(), 1, "on its day it waits for its proof");
+    assert!(
+        !l.holds_place(),
+        "a lone record that waits for its proof holds nothing, so a tick can start the agent whose write proves it"
+    );
+    assert!(!l.refused());
+}
+#[test]
+fn class_c_a_record_kept_whole_under_class_d_then_waiting_for_its_proof_holds_no_place() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    w.ports.refuse(Method::Log, refused("store"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(l.holds_place(), "class D keeps its place");
+    w.ports.clear_refusals();
+    w.ports.refuse_record(second, refused("malformed"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert_eq!(l.waiting().len(), 1);
+    assert!(
+        !l.holds_place(),
+        "once it waits for its proof alone it holds nothing, or no later write can ever prove it"
+    );
+}
+#[test]
+fn class_b_a_record_dropped_while_it_waits_for_its_proof_leaves_no_proof_behind() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(2)]);
+    w.ports.clear_refusals();
+    w.ports.refuse_record(second, refused("malformed"));
+    assert!(
+        flush(&w.ports, &mut l, &w.limits).is_err(),
+        "kept for its proof"
+    );
+    w.ports.refuse(Method::Log, refused("no_workflow"));
+    assert!(flush(&w.ports, &mut l, &w.limits).is_err());
+    assert!(l.waiting().is_empty(), "class B drops it");
+    w.ports.clear_refusals();
+    store(&w.ports, &mut l, &w.limits, vec![skip(3)]).unwrap();
+    assert_eq!(
+        stored_slots(&w),
+        vec![3],
+        "the third takes the dropped record's seq"
+    );
+    w.ports.refuse(Method::Log, refused("seq"));
+    let _ = store(&w.ports, &mut l, &w.limits, vec![skip(4)]);
+    w.ports.clear_refusals();
+    let _ = flush(&w.ports, &mut l, &w.limits);
+    assert!(
+        l.taken_off().is_empty(),
+        "no record was refused alone after the drop, so none is taken off"
+    );
+    assert_eq!(stored_slots(&w), vec![3, 4], "the fourth is stored");
+}
+fn owed_end_run(w: &mut World) -> RunId {
+    let run = RunId::parse(&format!("{:032x}", 0x0d03)).unwrap();
+    w.board.owed.push(Owed {
+        agent: agent(0),
+        workflow: flow(0),
+        what: Owing::EndRun { run: run.clone() },
+    });
+    run
+}
+
+#[test]
+fn an_end_run_debt_refused_with_class_d_at_every_tick_is_told() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    owed_end_run(&mut w);
+    w.ports.refuse(Method::EndRun, refused("internal"));
+    for _ in 0..(Limits::PRODUCT.record_stuck_ticks + 1) {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.owed.is_empty() || w.board.record_stuck(&agent(0), &w.limits),
+        "an end_run refused by name at every tick stays owed and counts nothing: {:?}",
+        w.board.owed
+    );
+}
+
+#[test]
+fn an_end_run_debt_refused_with_class_c_is_not_owed_for_ever_untold() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    owed_end_run(&mut w);
+    w.ports.refuse(Method::EndRun, refused("malformed"));
+    for _ in 0..(Limits::PRODUCT.record_stuck_ticks + 1) {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.owed.is_empty() || w.board.record_stuck(&agent(0), &w.limits),
+        "an end_run refused malformed at every tick stays owed and counts nothing: {:?}",
+        w.board.owed
+    );
+}
+#[test]
+fn a_tick_that_pays_a_refused_end_and_refuses_nothing_does_not_count_toward_stuck() {
+    let limits = Limits {
+        record_stuck_ticks: 1,
+        ..Limits::PRODUCT
+    };
+    let mut w = world_with(&[SLOTTED], limits);
+    w.act(Act::Tick);
+    let run = started_of(&w, 0).expect("the agent's run");
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("internal"));
+    w.act(Act::End {
+        run,
+        outcome: Some(Outcome::Completed),
+    });
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(w.board.owed.is_empty(), "the tick paid the end");
+    assert_ne!(
+        line(&w, 0),
+        StatusLine::Record,
+        "the refusal came at an end between ticks, and the tick itself acknowledged a store and refused none"
+    );
+}

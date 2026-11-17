@@ -570,6 +570,7 @@ impl Ledger {
         self.keep_acknowledged_closing_rows(&sent);
         self.acked = true;
         self.held = false;
+        self.proof = None;
     }
 
     fn take_off(&mut self, k: usize, refusal: &PortError) {
@@ -661,6 +662,7 @@ fn flush_reading<P: Owner + Clock>(
             }
             Some(Class::Gone) => {
                 ledger.waiting.drain(..n);
+                ledger.proof = None;
                 ledger.renumber();
                 return Err(error);
             }
@@ -685,14 +687,32 @@ fn flush_reading<P: Owner + Clock>(
                                 _ => String::new(),
                             };
                             ledger.proof = Some((ledger.waiting[0].seq.get(), name));
+                            ledger.held = false;
                             return Err(error);
                         }
                         let mut next = ledger.waiting[1].clone();
                         next.seq = ledger.waiting[0].seq;
                         next.day = day_of(ports, next.at)?;
-                        if let Err(e) = ports.log(std::slice::from_ref(&next)) {
-                            ledger.refused = true;
-                            return Err(e);
+                        match ports.log(std::slice::from_ref(&next)) {
+                            Ok(()) => {}
+                            Err(e) if class_of(&e, false) == Some(Class::Seq) && !resynced => {
+                                resynced = true;
+                                one = false;
+                                let name = match &error {
+                                    PortError::Refused(n) => n.as_str().to_string(),
+                                    _ => String::new(),
+                                };
+                                ledger.proof = Some((ledger.waiting[0].seq.get(), name));
+                                match read(ledger) {
+                                    Read::Failed => return Err(e),
+                                    Read::Off => return Ok(false),
+                                    Read::Taken => continue,
+                                }
+                            }
+                            Err(e) => {
+                                ledger.refused = true;
+                                return Err(e);
+                            }
                         }
                         ledger.take_off(0, &error);
                         ledger.acknowledge(1);

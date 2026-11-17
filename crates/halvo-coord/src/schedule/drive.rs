@@ -982,7 +982,12 @@ fn send_owed<P: Owner, C: ConfigView>(
     match &owed.what {
         Owing::EndRun { run } => match cx.ports.send(&Body::EndRun { run: run.clone() }) {
             Ok(_) => true,
-            Err(e) => gone_refusal(&e),
+            Err(e) => {
+                if matches!(class_of(&e, false), Some(Class::One | Class::Whole)) {
+                    board.refused(&owed.agent);
+                }
+                gone_refusal(&e)
+            }
         },
         Owing::RunEnded {
             run,
@@ -1655,6 +1660,9 @@ where
     let Some(i) = board.index(&agent) else {
         return refused(Cause::UnknownAgent);
     };
+    if board.aside(&agent) {
+        return refused(Cause::NoService);
+    }
     let list = listing(cx, board, Some(i));
     let read = fresh(cx, board, Some(i));
     let facts = &board.members[i].facts;
