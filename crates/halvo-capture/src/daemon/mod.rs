@@ -32,7 +32,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use halvo_control::paths::AccountLookup;
+use halvo_control::paths::{AccountLookup, PathError};
 
 use crate::floor::{Switch, Switches};
 use crate::source::{SourceContext, SourceCounters};
@@ -116,11 +116,29 @@ pub enum Mode {
 #[error("halvo-capture: {0}\n{USAGE}")]
 pub struct Usage(pub &'static str);
 
-/// The binary's answer to a refused command line: the usage text on `err`,
-/// and exit 64.
-pub fn usage_answer(usage: &Usage, err: &mut dyn std::io::Write) -> i32 {
-    let _ = writeln!(err, "{usage}");
-    halvo_control::exit::USAGE
+/// Why a command line is not run: a refused line, which exits 64, or an
+/// account that gives no data directory to check a store directory against,
+/// which is no fault of the line and exits 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum Refusal {
+    #[error(transparent)]
+    Usage(#[from] Usage),
+    #[error(
+        "halvo-capture: the account gives no data directory to check the store directory against: {0}"
+    )]
+    NoDataDir(PathError),
+}
+
+/// The binary's answer to a command line that is not run: the refusal's text
+/// on `err`, and exit 64 for a refused line or exit 1 for an account that
+/// gives no data directory.
+pub fn usage_answer<R: Copy + Into<Refusal>>(refused: &R, err: &mut dyn std::io::Write) -> i32 {
+    let refusal: Refusal = (*refused).into();
+    let _ = writeln!(err, "{refusal}");
+    match refusal {
+        Refusal::Usage(_) => halvo_control::exit::USAGE,
+        Refusal::NoDataDir(_) => halvo_control::exit::ERROR,
+    }
 }
 
 /// The binary's answer to a timed run's outcome: the report on `out`, the
@@ -200,7 +218,7 @@ impl SwitchFlags {
 pub fn parse(
     args: impl IntoIterator<Item = OsString>,
     account: &dyn AccountLookup,
-) -> Result<Mode, Usage> {
+) -> Result<Mode, Refusal> {
     let args = args
         .into_iter()
         .map(OsString::into_string)
@@ -220,7 +238,8 @@ pub fn parse(
             if !gate::is_marker(&marker) {
                 return Err(Usage(
                     "MARKER is not 8 to 64 of A-Z, a-z, 0-9, '.', '_' and '-'",
-                ));
+                )
+                .into());
             }
             Ok(Mode::VerifyStore { store_dir, marker })
         }
@@ -230,7 +249,7 @@ pub fn parse(
             let store_dir = gate::store_dir(flags.store_dir, account)?;
             Ok(Mode::VerifyDeletion { store_dir })
         }
-        _ => Err(Usage("no mode of this build")),
+        _ => Err(Usage("no mode of this build").into()),
     }
 }
 
@@ -240,9 +259,9 @@ mod gate {
     use std::str::FromStr;
     use std::time::Duration;
 
-    use halvo_control::paths::{AccountLookup, ScratchDir};
+    use halvo_control::paths::{AccountLookup, DataDir, ScratchDir};
 
-    use super::{Mode, SecureInput, SwitchFlags, TimedRun, Usage, SECONDS_MAX};
+    use super::{Mode, Refusal, SecureInput, SwitchFlags, TimedRun, Usage, SECONDS_MAX};
     use crate::floor::Switch;
 
     #[derive(Default)]
@@ -307,7 +326,10 @@ mod gate {
         }
     }
 
-    pub(super) fn timed_run(args: &[String], account: &dyn AccountLookup) -> Result<Mode, Usage> {
+    pub(super) fn timed_run(
+        args: &[String],
+        account: &dyn AccountLookup,
+    ) -> Result<Mode, Refusal> {
         let (seconds, flags) = args
             .split_first()
             .ok_or(Usage("--timed-run needs SECONDS"))?;
@@ -315,10 +337,10 @@ mod gate {
         let seconds = seconds_of(seconds)?;
         let secure_input = if flags.hold {
             if cfg!(target_os = "windows") {
-                return Err(Usage("--hold-secure-input is a flag of macOS"));
+                return Err(Usage("--hold-secure-input is a flag of macOS").into());
             }
             if seconds < 2 {
-                return Err(Usage("SECONDS is at least 2 with --hold-secure-input"));
+                return Err(Usage("SECONDS is at least 2 with --hold-secure-input").into());
             }
             SecureInput::Hold
         } else {
@@ -346,18 +368,20 @@ mod gate {
     pub(super) fn store_dir(
         dir: Option<String>,
         account: &dyn AccountLookup,
-    ) -> Result<PathBuf, Usage> {
+    ) -> Result<PathBuf, Refusal> {
         let dir = dir.ok_or(Usage("--store-dir DIR is required"))?;
+        DataDir::for_account(account).map_err(Refusal::NoDataDir)?;
         let scratch = ScratchDir::new(PathBuf::from(dir), account)
             .map_err(|_| Usage("DIR is no absolute directory clear of the data directory"))?;
         match scratch.path().join("store.key").symlink_metadata() {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 Ok(scratch.path().to_path_buf())
             }
-            Ok(_) => Err(Usage("DIR holds store.key")),
+            Ok(_) => Err(Usage("DIR holds store.key").into()),
             Err(_) => Err(Usage(
                 "DIR/store.key cannot be read, as in a DIR that this user cannot search, so DIR may hold store.key",
-            )),
+            )
+            .into()),
         }
     }
 
@@ -823,7 +847,7 @@ mod tests {
         }
     }
 
-    fn timed(dirs: &Dirs, rest: &[&str]) -> Result<Mode, Usage> {
+    fn timed(dirs: &Dirs, rest: &[&str]) -> Result<Mode, Refusal> {
         let mut line = vec!["--timed-run"];
         line.extend_from_slice(rest);
         parse(args(&line), &dirs.account)
@@ -1053,6 +1077,51 @@ mod tests {
             assert_eq!(run.secure_input, SecureInput::Hold);
         } else {
             assert!(held.is_err());
+        }
+    }
+
+    struct FailedLookup(Result<Option<&'static str>, PathError>);
+
+    impl AccountLookup for FailedLookup {
+        fn base_dir(&self) -> Result<Option<OsString>, PathError> {
+            self.0.map(|home| home.map(OsString::from))
+        }
+
+        fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
+            Ok(None)
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn an_account_that_gives_no_data_directory_is_no_usage_refusal_and_names_no_dir() {
+        let dirs = dirs();
+        let d = dirs.store.as_str();
+        for account in [
+            FailedLookup(Err(PathError::Lookup(2))),
+            FailedLookup(Ok(None)),
+            FailedLookup(Ok(Some(""))),
+            FailedLookup(Ok(Some("relative-home"))),
+        ] {
+            for line in [
+                &["--timed-run", "1", "--store-dir", d][..],
+                &["--verify-store", "--store-dir", d, "--marker", "M4rker.no-home"],
+                &["--verify-deletion", "--store-dir", d],
+            ] {
+                let refused = parse(args(line), &account).unwrap_err();
+                let mut err = Vec::new();
+                let status = usage_answer(&refused, &mut err);
+                let text = String::from_utf8(err).unwrap();
+                assert_eq!(status, exit::ERROR, "{line:?}: {text}");
+                assert!(
+                    text.starts_with("halvo-capture: the account gives no data directory to check the store directory against: "),
+                    "{line:?}: {text}"
+                );
+                assert!(
+                    !text.contains("DIR") && !text.contains("usage:") && !text.contains(d),
+                    "{line:?}: {text}"
+                );
+            }
         }
     }
 
