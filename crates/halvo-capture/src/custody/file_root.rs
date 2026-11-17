@@ -41,7 +41,6 @@ const PARTIAL_EXT: &str = "root.tmp";
 /// look at a name (ruling ST-46 K1).
 #[cfg(test)]
 pub(crate) const SEAM_AFTER_THE_LISTING: &str = "the root step, after its listing";
-
 /// The length of a root, from which the code writes a root file.
 const ROOT_LEN: usize = 32;
 
@@ -565,6 +564,8 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) ->
     if !written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) {
         return removed_unwritten();
     }
+    #[cfg(test)]
+    kept_open_seam::run(name);
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
     let kept = match dir
@@ -729,6 +730,8 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         }
         _ => return removed_unwritten(dir),
     };
+    #[cfg(test)]
+    kept_open_seam::run(name);
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
     let kept = match dir
@@ -1150,6 +1153,45 @@ pub(crate) mod partial_tag_seam {
 
     pub(crate) fn forced() -> Option<[u8; 8]> {
         FORCED.with(|forced| forced.get())
+    }
+}
+
+/// A place where a test acts in the destroy step of one entry, with the
+/// entry's name, after the read by that name allowed a write and before the
+/// mode change and the open of the kept handle, whose own test then decides
+/// (the inbox entry of 2026-11-17T02:59:55Z (2)).
+#[cfg(test)]
+pub(crate) mod kept_open_seam {
+    use std::cell::RefCell;
+    use std::ffi::OsStr;
+
+    type Act = Box<dyn FnMut(&OsStr)>;
+
+    thread_local! {
+        static ACT: RefCell<Option<Act>> = const { RefCell::new(None) };
+    }
+
+    /// Runs `act` with the entry's name at each destroy step of this thread
+    /// until the guard is dropped.
+    pub(crate) fn at(act: impl FnMut(&OsStr) + 'static) -> Guard {
+        ACT.with(|slot| *slot.borrow_mut() = Some(Box::new(act)));
+        Guard
+    }
+
+    pub(crate) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ACT.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn run(name: &OsStr) {
+        ACT.with(|slot| {
+            if let Some(act) = slot.borrow_mut().as_mut() {
+                act(name);
+            }
+        });
     }
 }
 

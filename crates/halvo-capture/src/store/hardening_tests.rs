@@ -10360,3 +10360,97 @@ fn an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its
     }
     assert_eq!(settings, Some((2, 1)));
 }
+
+/// A made mark of create.pending that records the identity of the file at
+/// `path`, written as another program could write it.
+#[cfg(unix)]
+fn a_made_mark_of_the_file_at(store_dir: &Path, root_id: RootId, path: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::symlink_metadata(path).unwrap();
+    std::fs::write(
+        store_dir.join("create.pending"),
+        format!(
+            "{{\"custody_kind\":\"dpapi\",\"root_id\":\"{root_id}\",\"reading\":\"made\",\"root_file\":{{\"volume\":{},\"file\":{}}}}}",
+            meta.dev(),
+            meta.ino()
+        ),
+    )
+    .unwrap();
+}
+
+/// The inbox entry of 2026-11-17T02:59:55Z (2), ruling ST-48 Addition 2 point
+/// 3: a file that gains a second name between the destroy step's read by its
+/// name and its write is not written through, because the kept handle's own
+/// test reads two names, and its name in the roots folder is removed unwritten.
+/// On the step by name (a file of another party with one name and a root
+/// file's length at a plain name, under the tail and under the handle's
+/// delete-all) and on the step by identity (the store's own root renamed to a
+/// plain name, under the handle's delete-all; and off Windows a file of
+/// another party whose identity a made mark records, under the tail), the
+/// second name keeps the bytes and no call reads that file as a destroyed
+/// root.
+#[test]
+fn a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through() {
+    let mut cases = vec![
+        "by name, the tail",
+        "by name, the handle's delete-all",
+        "by identity, the handle's delete-all",
+    ];
+    if cfg!(unix) {
+        cases.push("by identity, the tail by a made mark");
+    }
+    let mut problems = Vec::new();
+    for case in cases {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let plain = roots_dir.join("plain");
+        let second = dir.path().join("second-name");
+        let mut store = case
+            .ends_with("delete-all")
+            .then(|| open_over_file_root(&store_dir, &roots_dir, root_id).unwrap());
+        if case == "by identity, the handle's delete-all" {
+            std::fs::rename(roots_dir.join(format!("{root_id}.root")), &plain).unwrap();
+        } else {
+            std::fs::write(&plain, [0x61u8; 32]).unwrap();
+        }
+        #[cfg(unix)]
+        if case.ends_with("made mark") {
+            std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+            a_made_mark_of_the_file_at(&store_dir, RootId::fresh().unwrap(), &plain);
+        }
+        let bytes = std::fs::read(&plain).unwrap();
+        let (from, to) = (plain.clone(), second.clone());
+        let _seam = crate::custody::file_root::kept_open_seam::at(move |name| {
+            if name == "plain" && !to.exists() {
+                std::fs::hard_link(&from, &to).unwrap();
+            }
+        });
+        let answer = match store.as_mut() {
+            Some(store) => store.delete_all(),
+            None => tail(&store_dir, &roots_dir),
+        };
+        drop(_seam);
+        let second_bytes = std::fs::read(&second).ok();
+        let read_destroyed = case.starts_with("by identity")
+            && match &answer {
+                Ok(report) => report.root_destroyed(),
+                Err(StoreError::DeleteIncomplete(report)) => report.root_destroyed(),
+                Err(_) => false,
+            };
+        println!(
+            "KEPT-OPEN case={case} answer_ok={} second_name_stands={} second_keeps_the_bytes={} plain_stands={} identity_read_destroyed={read_destroyed}",
+            answer.is_ok(),
+            second_bytes.is_some(),
+            second_bytes.as_deref() == Some(bytes.as_slice()),
+            plain.exists()
+        );
+        if second_bytes.as_deref() != Some(bytes.as_slice()) || plain.exists() || read_destroyed {
+            problems.push(format!(
+                "{case}: the second name keeps the bytes {}, the plain name stands {}, the identity read destroyed {read_destroyed}",
+                second_bytes.as_deref() == Some(bytes.as_slice()),
+                plain.exists()
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
