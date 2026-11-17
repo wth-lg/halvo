@@ -435,7 +435,8 @@ handbacks.
 Forms that it does not read (each builds the record by hand and passes):
   a key split by a line continuation or between literals (concat!, + or push_str);
   white space other than space, tab and line ends before a key's colon; a key that a
-  const or a variable names inside json!; keys or quotes passed as format! arguments
+  const or a variable names inside json!; a json! key with any other method call or a
+  chain of calls; a record escaped more than once; keys or quotes passed as format! arguments
   ({q}outcome{q}, {:?}); a map that the maker did not make, built by insert calls or by
   index assignment (record["outcome"] = ..) or collected from pairs; a record in a file
   that is not .rs, that git treats as binary, untracked or outside the work tree; json!
@@ -664,6 +665,22 @@ self_test() {
   repo a-tab-before-a-json-key-s-colon
   put crates/a/tests/t.rs 'fn f() -> Value {' "    json!({\"outcome\"${tab}: 1, \"earlier_page\"${tab}${tab}: null})" '}'
   case_of a-tab-before-a-json-key-s-colon FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo underscores-in-a-unicode-escape
+  put crates/a/tests/t.rs 'const R: &str = "{'"$bs"'u{0_0_2_2}outcome'"$bs"'u{22}:1,'"$bs"'u{22}earlier_page'"$bs"'u{2_2}:null}";'
+  case_of underscores-in-a-unicode-escape FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo upper-case-hex-escapes
+  put crates/a/tests/t.rs 'const R: &[u8] = b"{'"$bs"'x22outcome'"$bs"'x22'"$bs"'x3A1,'"$bs"'x22earlier_page'"$bs"'x22'"$bs"'x3Anull}";'
+  case_of upper-case-hex-escapes FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo into-on-both-keys
+  put crates/a/tests/t.rs 'fn f() -> Value {' '    json!({"outcome".into(): "failed", "earlier_page" .into(): null})' '}'
+  case_of into-on-both-keys FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo letters-as-unicode-escapes-alone
+  put crates/a/tests/t.rs 'const R: &str = "{'"$bs"'u{22}'"$bs"'u{6f}utcome'"$bs"'u{22}:1,'"$bs"'u{22}earlier_p'"$bs"'u{61}ge'"$bs"'u{22}:null}";'
+  case_of letters-as-unicode-escapes-alone FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
 
   repo crlf-before-a-key-s-colon
   put_crlf crates/a/tests/t.rs 'fn f() -> Value {' '    json!({"outcome"' '        : 1, "earlier_page"' '        : null})' '}'

@@ -101,8 +101,8 @@ macro_rules! agent_run {
             /// in place of a record written by hand: the ids, the day, the mode and the outcome that the caller
             /// gives, every count 0, and `playbook`, `model` and every key of `RUN_LIST_KEYS` null until the caller
             /// sets its field. `to_json` writes its text in the order of A7.4; a caller that needs a JSON value
-            /// parses that text. `to_json` refuses a record that breaks a rule of A7.4; a refusal test parses a
-            /// made text and changes its keys one at a time.
+            /// parses that text. `to_json` refuses a record that breaks one of the four rules of its type; a
+            /// refusal test parses a made text and changes its keys one at a time.
             pub fn new(
                 workflow: WorkflowId,
                 agent: AgentId,
