@@ -1214,6 +1214,69 @@ fn rd124_t2c_a_start_refused_with_class_c_or_a_second_seq_is_tried_again_once_th
 }
 
 #[test]
+fn rd125_a_start_refused_with_no_workflow_stops_the_ticks_start_for_the_life_and_counts_nothing() {
+    let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("no_workflow"));
+    for _ in 0..3 {
+        w.act(Act::Tick);
+        assert!(
+            !w.board.workflow_dismissed(&flow(0)),
+            "the owner lists the workflow"
+        );
+    }
+    let calls = w.calls();
+    assert_eq!(
+        count(&calls, "log run_started refused"),
+        1,
+        "class B: the start is not tried again: {calls:?}"
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "class B counts nothing toward the stuck line"
+    );
+    assert_ne!(line(&w, 0), StatusLine::Record, "and shows no line");
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    let calls = w.calls();
+    assert!(
+        !calls.iter().any(|c| c.starts_with("log run_started")),
+        "no further try in this life: {calls:?}"
+    );
+    assert!(started_of(&w, 0).is_none());
+    assert_ne!(line(&w, 0), StatusLine::Record);
+}
+
+#[test]
+fn rd125_control_a_start_refused_with_a_class_that_can_pass_counts_and_is_tried_again() {
+    for name in ["store", "malformed"] {
+        let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+        w.ports.refuse_agent(Method::Log, &agent(0), refused(name));
+        for _ in 0..3 {
+            w.act(Act::Tick);
+        }
+        let calls = w.calls();
+        assert_eq!(
+            count(&calls, "log run_started refused"),
+            3,
+            "{name}: tried at each tick: {calls:?}"
+        );
+        assert!(
+            w.board.record_stuck(&agent(0), &w.limits),
+            "{name}: it counts"
+        );
+        assert_eq!(line(&w, 0), StatusLine::Record, "{name}: the line shows");
+        w.act(Act::Tick);
+        assert_eq!(
+            count(&w.calls(), "log run_started refused"),
+            1,
+            "{name}: tried again"
+        );
+    }
+}
+
+#[test]
 fn rd122_t1_an_acknowledged_body_ends_the_held_place_though_a_later_body_fails() {
     let one = Limits {
         request_records: 1,

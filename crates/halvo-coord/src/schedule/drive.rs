@@ -423,8 +423,13 @@ fn log_at<P: Owner, C>(
         .collect();
     let agent = facts.agent.clone();
     if let Err(e) = cx.ports.log(&events) {
+        let start = whats.iter().any(|w| matches!(w, What::RunStarted { .. }));
         if lasts_the_life(&e, dismissed) {
-            board.refused_for_life(&agent);
+            if start && class_of(&e, dismissed) == Some(Class::Gone) {
+                board.start_gone(&agent);
+            } else {
+                board.refused_for_life(&agent);
+            }
         } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
             board.refused(&agent);
         }
