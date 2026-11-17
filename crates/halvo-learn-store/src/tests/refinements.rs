@@ -45,7 +45,7 @@ fn of_two_routine_rows_of_one_rev_list_refinements_takes_the_row_of_the_later_da
     assert_eq!(visited, [LATER, LATER - 1]);
     let workflow = WorkflowId::parse(&wf(1)).expect("a workflow id");
     let agent_id = AgentId::parse(&agent(1)).expect("an agent id");
-    let Read::Rows(routines) = rows::routines(w.host.rows(), &workflow) else {
+    let Read::Rows(routines) = rows::routines(&w.host, &workflow) else {
         panic!("the routine rows are read");
     };
     let newest = rows::newest_routine(&routines, &workflow, &agent_id).expect("a newest row");

@@ -29,6 +29,13 @@ pub trait LearnHost: Clock {
     /// The rows of the family `learn` as they stand at the call (W-C2.11).
     fn rows(&self) -> &dyn RowRead;
 
+    /// Visits the rows of the kind `kind` of the family `learn` that the store keeps under the workflow key
+    /// `workflow`, each once, in ascending byte order of the serialized rows, as they stand at the call: the read of
+    /// one kind under one workflow that the workflow run's C2.11 gives a handler (`Rows::for_each_under` of
+    /// halvo-derived; contracts.md L4.4, the coordinator's ruling LM-58 (c)). A row names a workflow by the key that
+    /// the store set at its commit, never by a parse of its text, and a row held under no key is not visited.
+    fn for_each_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str));
+
     /// The item of the read `workflows` for one stored workflow, or none where it is not stored (W-C2.10).
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem>;
 }

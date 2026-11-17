@@ -344,19 +344,25 @@ fn a_refused_learn_routine_row_stops_the_routine_rows_of_its_workflow_and_no_run
 }
 
 #[test]
-fn a_refused_row_whose_workflow_cannot_be_read_stops_its_kind_for_every_workflow() {
+fn a_refused_row_whose_text_names_no_workflow_stops_only_the_workflow_under_whose_key_it_stands() {
     let mut w = active_world();
     w.add_pair(2);
     w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
     w.pair = 2;
     w.learn(3, 2, "button Pay now", vec![loc("B"), pay()]);
-    w.host.put_raw("learn_edit", r#"{"v":1,"workflow":7}"#);
-    for n in [1, 2] {
-        w.pair = n;
-        let served = w.replay(10 + n);
-        assert_eq!(names(&served[1]), ["Pay"]);
-        assert_eq!(list(&mut w, n), Err(Refused::Error(ErrorName::Store)));
-    }
+    w.host
+        .put_raw_under("learn_edit", Some(&wf(1)), r#"{"v":1,"workflow":7}"#);
+    w.pair = 1;
+    let served = w.replay(11);
+    assert_eq!(names(&served[1]), ["Pay"]);
+    assert_eq!(list(&mut w, 1), Err(Refused::Error(ErrorName::Store)));
+    w.pair = 2;
+    let served = w.replay(12);
+    assert_eq!(names(&served[1]), ["B", "Pay"]);
+    assert!(matches!(
+        list(&mut w, 2),
+        Ok(CoordinatorAnswer::Refinements(_))
+    ));
 }
 
 #[test]

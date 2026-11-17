@@ -130,7 +130,7 @@ impl LearnHandlers {
         compiled: &[ExecutableStep],
         verdict: Result<(), RunCause>,
     ) -> Result<(), Fault> {
-        let Read::Rows(runs) = rows::runs(host.rows(), &facts.workflow) else {
+        let Read::Rows(runs) = rows::runs(host, &facts.workflow) else {
             return Ok(());
         };
         let Some(started) = rows::newest_run(&runs, run.as_str()).cloned() else {
@@ -147,7 +147,7 @@ impl LearnHandlers {
             verdict,
         };
         let mut records = Vec::new();
-        let run_row = match Edits::read(host.rows(), &facts.workflow) {
+        let run_row = match Edits::read(host, &facts.workflow) {
             Read::Rows(stored) => {
                 let (edits, run_row) =
                     ended.rows(&stored, || EditId::from_random(self.ids.bytes()))?;
