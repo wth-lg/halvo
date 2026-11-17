@@ -422,6 +422,24 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn a_link_at_store_key_is_removed_and_counted_in_the_deleted_line_never_as_no_store() {
+        let scratch = scratch();
+        let dir = scratch.dir("key-link");
+        let outside = scratch.root.path().join("outside-key");
+        std::fs::write(&outside, b"kept").unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join("store.key")).unwrap();
+        let (status, out, err) = scratch.delete(&text(&dir));
+        assert_eq!(status, 0, "{out}{err}");
+        assert_eq!(
+            deleted_line(&out),
+            "deleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=0 database_left=no not_followed=1"
+        );
+        assert!(std::fs::symlink_metadata(dir.join("store.key")).is_err());
+        assert_eq!(std::fs::read(&outside).unwrap(), b"kept");
+    }
+
     fn link_to_a_folder(folder: &Path, link: &Path) {
         #[cfg(unix)]
         std::os::unix::fs::symlink(folder, link).unwrap();

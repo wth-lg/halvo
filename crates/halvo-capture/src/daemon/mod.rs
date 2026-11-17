@@ -351,7 +351,8 @@ fn has_a_part_that_windows_trims(path: &Path) -> bool {
 /// item 9): one call of `tail` on `store_dir`, which the binary makes the
 /// store's delete tail in the scratch layout. It prints on `out`
 /// `store_dir=<the path as given>` and then `no_store` when the tail answered
-/// Ok and nothing named a root, or the `deleted` line of
+/// Ok, nothing named a root and no name was a link or an entry of another
+/// kind, or the `deleted` line of
 /// [`TailReport`]'s seven keys; on `err` the cause of an answer that is not
 /// Ok. It returns 0 only when the tail answered Ok, 1 when the delete is not
 /// finished or failed and 75 when another process holds the store; a line that
@@ -372,7 +373,7 @@ pub fn scratch_delete(
     let mut text = format!("store_dir={shown}\n");
     let (cause, status) = match &answer {
         TailAnswer::Finished(report) => {
-            if report.root == TailRoot::Unnamed {
+            if report.root == TailRoot::Unnamed && report.not_followed == 0 {
                 text.push_str("no_store\n");
             } else {
                 text.push_str(&report.deleted_line());
@@ -386,10 +387,12 @@ pub fn scratch_delete(
             {
                 format!("halvo-capture: {shown} is a link or a file, not a folder; nothing was removed; give the path of the folder itself")
             } else {
-                format!(
-                    "halvo-capture: the delete is not finished: {}",
-                    report.what_stays()
-                )
+                match report.what_stays() {
+                    stays if stays.is_empty() => {
+                        "halvo-capture: the delete is not finished".to_owned()
+                    }
+                    stays => format!("halvo-capture: the delete is not finished: {stays}"),
+                }
             };
             (Some(cause), halvo_control::exit::ERROR)
         }
@@ -645,8 +648,15 @@ mod gate {
         account: &dyn AccountLookup,
     ) -> Result<StoreDir, Refusal> {
         let dir = dir.ok_or(Usage("--store-dir DIR is required"))?;
-        DataDir::for_account(account).map_err(Refusal::NoDataDir)?;
         let given = PathBuf::from(dir);
+        if !given.is_absolute()
+            || given
+                .components()
+                .any(|part| part == std::path::Component::ParentDir)
+        {
+            return Err(Usage("DIR is no absolute directory clear of the data directory").into());
+        }
+        DataDir::for_account(account).map_err(Refusal::NoDataDir)?;
         let scratch = ScratchDir::new(given.clone(), account)
             .map_err(|_| Usage("DIR is no absolute directory clear of the data directory"))?;
         Ok(StoreDir {
@@ -1546,6 +1556,48 @@ mod tests {
     }
 
     #[test]
+    fn an_ok_answer_that_met_a_link_or_an_entry_of_another_kind_prints_the_deleted_line() {
+        let report = TailReport {
+            not_followed: 1,
+            ..finished_report(TailRoot::Unnamed)
+        };
+        let (status, out, err, _) = scratch_answer(Path::new("/s"), TailAnswer::Finished(report));
+        assert_eq!(status, exit::CLEAN);
+        assert_eq!(
+            out,
+            "store_dir=/s\ndeleted segments_shredded=unknown keys_destroyed=unknown root_destroyed=unknown root_id=- files_left=0 database_left=no not_followed=1\n"
+        );
+        assert_eq!(err, "");
+    }
+
+    #[test]
+    fn a_not_finished_answer_with_nothing_to_name_still_says_it_is_not_finished() {
+        let report = finished_report(TailRoot::Destroyed);
+        let (status, _, err, _) = scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report));
+        assert_eq!(status, exit::ERROR);
+        assert_eq!(err, "halvo-capture: the delete is not finished\n");
+    }
+
+    #[test]
+    fn a_line_fault_of_the_store_dir_is_usage_also_when_the_account_lookup_fails() {
+        let dirs = dirs();
+        let parent = format!("{}/../store", dirs.store);
+        for given in ["relative", parent.as_str()] {
+            for mode in [
+                &["--delete-all", "--store-dir", given][..],
+                &["--verify-deletion", "--store-dir", given],
+                &["--timed-run", "1", "--store-dir", given],
+            ] {
+                let refused = parse(args(mode), &FailedLookup(Err(PathError::Lookup(2))));
+                assert!(
+                    matches!(refused, Err(Refusal::Usage(_))),
+                    "{mode:?} gave {refused:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_scratch_delete_destroys_the_root_through_its_one_tail_call() {
         let guard = test_dir();
         let root = guard.path().join("roots").join("stand-in.root");
@@ -1906,6 +1958,11 @@ mod tests {
             &["--verify-deletion", "--store-dir", d][..],
             &["--delete-all", "--store-dir", d][..],
         ] {
+            let without_a_data_dir = parse(args(line), &FailedLookup(Ok(None)));
+            assert!(
+                matches!(without_a_data_dir, Err(Refusal::Usage(_))),
+                "{line:?} gave {without_a_data_dir:?}"
+            );
             let refused = parse(args(line), &dirs.account);
             let Err(refusal @ Refusal::Usage(_)) = refused else {
                 panic!("{line:?} gave {refused:?}");
