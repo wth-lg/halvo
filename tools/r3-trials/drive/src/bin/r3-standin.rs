@@ -453,4 +453,12 @@ mod tests {
         assert!(ask("Step 6 of the saved steps found no control on this page: click button \"Pay now\". Give the action that does this step on this page.", page)
             .contains("\"ref\":\"e3\""));
     }
+
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            r3_web::procs::fence::is_on(),
+            "the fence is off in the test target of r3-standin"
+        );
+    }
 }
