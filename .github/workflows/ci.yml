@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job's proof (the windows job runs 10-format alone)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +33,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +83,39 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-mutants
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-mutants
+      - name: mutants-6 rows by name (scratch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set -u
+          export TMPDIR="$RUNNER_TEMP"
+          rows="lag-judged-by-the-gap-bound late-key-not-counted ma24-late-key-at-a-stop-not-counted"
+          args=
+          for row in $rows; do args="$args --only $row"; done
+          out=$(sh scripts/r1-gate/mutation-test.sh $args 2>&1)
+          code=$?
+          printf '%s\n' "$out"
+          echo "mutants-6: mutation-test.sh exit $code"
+          n=0
+          for row in $rows; do
+            if printf '%s\n' "$out" | grep -q -e "^PASS mutation:$row (test .*: the one test failed)\$"; then
+              n=$((n + 1))
+              echo "mutants-6: caught by name: $row"
+            else
+              echo "mutants-6: not caught by name: $row"
+            fi
+          done
+          echo "mutants-6: rows caught by name: $n of 3"
+          [ "$code" = 0 ] && [ "$n" = 3 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -153,21 +169,13 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
