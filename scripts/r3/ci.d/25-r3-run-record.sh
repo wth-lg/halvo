@@ -55,6 +55,12 @@ function literal_end(text, at,    n) {
     pending = 1
   }
 }
+function open_object(at) {
+  level++
+  oka[level] = 0
+  okb[level] = 0
+  ost[level] = at
+}
 function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
   file = root "/" path
   ka = "outcome"
@@ -63,6 +69,7 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
   where = ""
   state = 0
   jdepth = 0
+  level = 0
   jwait = 0
   pending = 0
   word = ""
@@ -80,6 +87,9 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
         if (c == "\\") {
           d = substr(line, i + 1, 1)
           if (d == "\"" || d == "\\") text = text d
+          else if (d == "n") text = text "\n"
+          else if (d == "t") text = text "\t"
+          else if (d == "r") text = text "\r"
           else if (d != "") text = text c d
           i += 2
           continue
@@ -92,7 +102,7 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
         continue
       }
       if (state == 2) {
-        if (c == "\"" && substr(line, i + 1, h) == substr(hashes, 1, h)) {
+        if (c == "\"" && substr(line, i + 1, h) == closing) {
           state = 0
           i += 1 + h
           literal_end(text, start)
@@ -128,20 +138,19 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
         i++
         continue
       }
-      if (pending) {
+      if (pending && c != ")") {
         pending = 0
-        if (c == ":" && substr(line, i + 1, 1) != ":") {
-          if (pend == ka) jka++
-          if (pend == kb) jkb++
+        if (c == ":" && substr(line, i + 1, 1) != ":" && level) {
+          if (pend == ka) oka[level]++
+          if (pend == kb) okb[level]++
         }
       }
       if (jwait && c != "!") {
         jwait = 0
         if (c == "(" || c == "[" || c == "{") {
           jdepth = 1
-          jka = 0
-          jkb = 0
-          jstart = lineno
+          level = 0
+          if (c == "{") open_object(lineno)
           i++
           continue
         }
@@ -155,8 +164,10 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
         i++
         continue
       }
-      if ((c == "r" || ((c == "b" || c == "c") && substr(line, i + 1, 1) == "r")) && !ident(substr(line, i - 1, 1)) && match(substr(line, i + (c == "r" ? 1 : 2)), /^#*"/)) {
+      if ((c == "r" || ((c == "b" || c == "c") && substr(line, i + 1, 1) == "r")) && (i == 1 || !ident(substr(line, i - 1, 1))) && match(substr(line, i + (c == "r" ? 1 : 2)), /^#*"/)) {
         h = RLENGTH - 1
+        closing = ""
+        for (j = 0; j < h; j++) closing = closing "#"
         state = 2
         text = ""
         start = lineno
@@ -190,16 +201,19 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
       if (c == "!" && last == "json" && !jdepth) jwait = 1
       else last = ""
       if (jdepth) {
+        if (c == "{") open_object(lineno)
+        if (c == "}" && level) {
+          q = least(oka[level], okb[level])
+          if (q) {
+            count += q
+            where = where (where == "" ? "" : ",") ost[level]
+          }
+          level--
+        }
         if (c == "(" || c == "[" || c == "{") jdepth++
         else if (c == ")" || c == "]" || c == "}") {
           jdepth--
-          if (!jdepth) {
-            q = least(jka, jkb)
-            if (q) {
-              count += q
-              where = where (where == "" ? "" : ",") jstart
-            }
-          }
+          if (!jdepth) level = 0
         }
       }
       i++
@@ -216,7 +230,6 @@ function scan(path,    file, line, r, i, n, c, d, q, j, h, lineno) {
   return count
 }
 BEGIN {
-  hashes = "################################################################"
   k = 0
   while ((r = (getline line < knownlist)) > 0) {
     k++
@@ -373,11 +386,12 @@ A place:
   a string literal (plain, raw or byte, also a format! string) whose text holds the key
   outcome and the key earlier_page, each a quoted name followed by a colon; a literal
   with n of each counts n places;
-  a json! call whose keys, a string literal followed by a colon anywhere inside it,
-  name outcome and earlier_page; a call with n of each counts n places.
+  an object of a json! call, at any depth, whose own keys (a string literal, also in
+  parentheses, followed by a colon) name outcome and earlier_page; a map that changes
+  both keys of a made record is such an object too: change them one key at a time.
 Not a place: a struct literal of AgentRun, a list of keys (a key followed by anything but
 a colon), a record made by AgentRun::new or by a helper that calls it and then changed
-by its keys, and any text in a comment.
+by its keys one at a time, and any text in a comment.
 
 Not read: crates/halvo-schema and crates/halvo-schema-core, the form's own source (the
 record's type, its tests, its golden files and the kinds' entry), but
@@ -386,11 +400,13 @@ agent_run from before the run's list: there a place holds the keys outcome and
 handbacks.
 
 Forms that it does not read (each builds the record by hand and passes):
-  a key written with an escape (earlier_page) or split between literals (concat!);
-  a key that a const or a variable names inside json!; a map built by insert calls; a
-  record in a file that is not .rs, untracked or outside the work tree; json! under
-  another name by use ... as; serde_json::Map or a struct of another crate that
-  serializes to the record.
+  a key with a Unicode escape for one of its letters, split by a line continuation or
+  split between literals (concat!); white space other than space, tab and line ends
+  before a key's colon; a key that a const or a variable names inside json!; a map
+  built by insert calls or collected from pairs; a record in a file that is not .rs,
+  untracked or outside the work tree; json! under another name by use ... as, or behind
+  a macro of another name that hands its tokens on to json!; a doctest in a comment;
+  serde_json::Map or a struct of another crate that serializes to the record.
 
 The known list, known() in this script, holds each file of another run with its count of
 places. A file's count must equal its row: a new place builds the record with the maker.
@@ -542,6 +558,30 @@ self_test() {
   repo crlf
   put_crlf crates/a/tests/t.rs 'fn f() -> Value {' "$map" "$map_keys" '    })' '}'
   case_of crlf FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-raw-text-in-column-one
+  put crates/a/tests/t.rs 'const R: &str =' 'r#"{"outcome":"failed","earlier_page":null}"#;' 'const B: &[u8] =' 'br#"{"outcome":"failed","earlier_page":null}"#;'
+  case_of a-raw-text-in-column-one FAIL 'run-record unknown=crates/a/tests/t.rs places=2 lines=2,4'
+
+  repo an-escaped-newline-before-a-colon
+  put crates/a/tests/t.rs 'const R: &str = "{\"outcome\"\n: \"failed\",\t\"earlier_page\"\t:null}";'
+  case_of an-escaped-newline-before-a-colon FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo keys-in-parentheses
+  put crates/a/tests/t.rs 'fn f(o: &str) -> Value {' '    json!({("outcome"): o, ( "earlier_page" ) : null})' '}'
+  case_of keys-in-parentheses FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
+
+  repo a-record-in-a-body
+  put crates/a/tests/t.rs 'fn f() -> Value {' '    json!({"op": "finish", "outcome": "x", "record": {' '        "outcome": "failed", "earlier_page": null' '    }})' '}'
+  case_of a-record-in-a-body FAIL 'run-record unknown=crates/a/tests/t.rs places=1 lines=2'
+
+  repo one-key-changes-in-one-call
+  put crates/a/tests/t.rs 'fn f(record: &mut Value) {' '    for change in json!([{"outcome": "failed"}, {"earlier_page": 6}]).as_array().unwrap() {' '        merge(record, change);' '    }' '}'
+  case_of one-key-changes-in-one-call PASS 'run-record files=1 read=1 places=0 known=0 faults=0'
+
+  repo a-change-map-with-both-keys
+  put crates/a/tests/t.rs 'fn f(record: &mut Value) {' '    merge(record, &json!({"outcome": "failed", "earlier_page": 6}));' '}'
+  case_of a-change-map-with-both-keys FAIL 'run-record unknown=crates/a/tests/t.rs places=1'
 
   repo crlf-before-a-key-s-colon
   put_crlf crates/a/tests/t.rs 'fn f() -> Value {' '    json!({"outcome"' '        : 1, "earlier_page"' '        : null})' '}'
