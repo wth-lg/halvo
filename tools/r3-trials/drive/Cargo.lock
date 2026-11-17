@@ -700,6 +700,7 @@ dependencies = [
  "chromiumoxide",
  "halvo-cap",
  "halvo-schema",
+ "icu_properties",
  "r3-web",
  "serde_json",
  "tokio",

@@ -4,9 +4,22 @@ use serde_json::Value;
 /// The start of every marker of A10.4: the password, the api token and the page marker.
 pub const MARKER: &str = "Zq7-halvo-marker";
 
-const INVISIBLE: [char; 6] = [
-    '\u{ad}', '\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}',
-];
+/// Whether a character renders as nothing on its own: its Unicode general category, by the
+/// tables of `icu_properties` 2.4.0, is Cf (a format character: the soft hyphen, the zero-width
+/// characters, the direction marks and isolates, the invisible operators, the tag characters),
+/// Mn (a nonspacing mark: the combining accents, the variation selectors U+FE00 to U+FE0F and
+/// U+E0100 to U+E01EF, the combining grapheme joiner) or Me (an enclosing mark).
+pub fn renders_as_nothing(c: char) -> bool {
+    use icu_properties::props::GeneralCategory;
+    matches!(
+        icu_properties::CodePointMapData::<GeneralCategory>::new().get(c),
+        GeneralCategory::Format | GeneralCategory::NonspacingMark | GeneralCategory::EnclosingMark
+    )
+}
+
+/// The hyphen look-alikes that `names_address` also reads as `-`: the hyphen, the non-breaking
+/// hyphen, the en dash and the minus sign (U+2010, U+2011, U+2013, U+2212).
+pub const HYPHENS: [char; 4] = ['\u{2010}', '\u{2011}', '\u{2013}', '\u{2212}'];
 
 /// The forms of the at-sign after `fold`: `@`, which the full-width `＠` (U+FF20) folds to, and
 /// the small `﹫` (U+FE6B).
@@ -23,42 +36,53 @@ pub const HOST_MARKS: [char; 7] = ['.', '-', '_', ':', '[', ']', '%'];
 pub fn counts(body: &str) -> bool {
     let visible = body
         .chars()
-        .any(|c| !c.is_whitespace() && !c.is_control() && !INVISIBLE.contains(&c));
+        .any(|c| !c.is_whitespace() && !c.is_control() && !renders_as_nothing(c));
     visible && !body.contains(MARKER) && !names_address(body)
 }
 
-/// Whether a text names an address. The text is read with each character of `INVISIBLE` (the
-/// soft hyphen among them) left out, each character as `fold` reads it, in lower case, and with
-/// each form of `WRITTEN` read as its dot or at-sign. It names an address when it then holds an
-/// at-sign of `AT_SIGNS` or `://`, or when a token, a run of letters, digits and `HOST_MARKS` that
-/// any other character ends (a space, `/`, `\`, `?`, `#`, `,`, `=`, `(`, an apostrophe and every
-/// other mark), names a host (`names_host`) or an IPv6 address (`names_ipv6`). An address split
-/// by a line end or a space is not seen.
+/// Whether a text names an address. The text is read with each character as `fold` reads it, in
+/// lower case, then with each character that `renders_as_nothing` left out (so that a mark stays
+/// inside its token, also the dot above that the lower case of `İ` leaves), and with each form of
+/// `WRITTEN` read as its dot or at-sign. It names an address when it then holds an at-sign of
+/// `AT_SIGNS` or `://`, or when a token names a host (`names_host`) or an IPv6 address
+/// (`names_ipv6`). A token is a run of letters, digits and `HOST_MARKS` that any other character
+/// ends (a space, `/`, `\`, `?`, `#`, `,`, `=`, `(`, an apostrophe and every other mark); the
+/// tokens are read twice, once with each of `HYPHENS` as such an end and once with it read as
+/// `-`. An address split by a line end or a space is not seen.
 pub fn names_address(text: &str) -> bool {
     let mut normal = text
         .chars()
-        .filter(|c| !INVISIBLE.contains(c))
         .map(fold)
         .collect::<String>()
-        .to_lowercase();
+        .to_lowercase()
+        .chars()
+        .filter(|c| !renders_as_nothing(*c))
+        .collect::<String>();
     for (form, read) in WRITTEN {
         normal = normal.replace(form, read);
     }
+    let hyphened: String = normal
+        .chars()
+        .map(|c| if HYPHENS.contains(&c) { '-' } else { c })
+        .collect();
+    let tokens_name = |text: &str| {
+        text.split(|c: char| !c.is_alphanumeric() && !HOST_MARKS.contains(&c))
+            .any(|token| names_host(token) || names_ipv6(token))
+    };
     normal.contains(&AT_SIGNS[..])
         || normal.contains("://")
-        || normal
-            .split(|c: char| !c.is_alphanumeric() && !HOST_MARKS.contains(&c))
-            .any(|token| names_host(token) || names_ipv6(token))
+        || tokens_name(&normal)
+        || tokens_name(&hyphened)
 }
 
 /// The ASCII form of a full-width ASCII form (U+FF01 to U+FF5E) and the full stop of an
-/// ideographic or small full stop and of a one dot leader (U+3002, U+FF61, U+FE52, U+2024); every
-/// other character as it is. A hyphen look-alike needs no fold: it ends a token, and the dotted
-/// part after it is still read as a host.
+/// ideographic, small or vertical ideographic full stop and of a one dot leader (U+3002, U+FF61,
+/// U+FE52, U+FE12, U+2024); every other character as it is. Hyphen look-alikes are read by
+/// `names_address` through `HYPHENS`, not here.
 pub fn fold(c: char) -> char {
     match c {
         '\u{ff01}'..='\u{ff5e}' => char::from_u32(c as u32 - 0xfee0).unwrap_or(c),
-        '\u{3002}' | '\u{ff61}' | '\u{fe52}' | '\u{2024}' => '.',
+        '\u{3002}' | '\u{ff61}' | '\u{fe52}' | '\u{fe12}' | '\u{2024}' => '.',
         _ => c,
     }
 }
@@ -143,13 +167,14 @@ fn dotted_or_ipv4(part: &str) -> bool {
 /// Whether a token names a host: it starts with `www.`, or a part of it between colons, trimmed of
 /// `.`, `-`, `_`, `[` and `]`, is an IPv4 address or a dotted name of labels of letters, digits,
 /// `-` and `_` whose last label is two letters or more or an `xn--` label, or a name with a letter
-/// is followed by a part of digits alone, its port.
+/// is followed by a part of digits alone, its port. That name is one label or a dotted name of
+/// such labels whatever its last label (`a.b:80`, `shop.1:8080`).
 pub fn names_host(token: &str) -> bool {
     let parts: Vec<&str> = token
         .split(':')
         .map(|p| p.trim_matches(|c: char| matches!(c, '.' | '-' | '_' | '[' | ']')))
         .collect();
-    let name = |p: &str| label(p) && p.chars().any(char::is_alphabetic);
+    let name = |p: &str| p.split('.').all(label) && p.chars().any(char::is_alphabetic);
     let port = |p: &str| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit());
     token.starts_with("www.")
         || parts.iter().any(|p| dotted_or_ipv4(p))
@@ -387,6 +412,98 @@ mod tests {
         ] {
             assert!(counts(good), "{good}");
         }
+    }
+
+    fn none_counts(texts: &[&str]) {
+        for text in texts {
+            assert!(!counts(text), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn a_format_character_inside_a_host_is_left_out() {
+        none_counts(&[
+            "visit example\u{200e}.com today please",
+            "visit example.\u{200f}com today please",
+            "visit example\u{2062}.com today please",
+            "visit example\u{2063}.com today please",
+            "visit example.\u{2061}com today please",
+            "visit example\u{2064}.com today please",
+            "visit example\u{180e}.com today please",
+            "visit example\u{2066}.com today please",
+            "visit example.c\u{2066}om today please",
+            "visit example\u{202e}.com today please",
+            "visit example\u{61c}.com today please",
+            "visit example\u{e0061}.com today please",
+            "visit example\u{1d173}.com today please",
+            "visit exam\u{200e}ple.com today please",
+            "write ann\u{200e}@x.test please now",
+            "call 10.0.0.1\u{200e}:22 now please",
+        ]);
+    }
+
+    #[test]
+    fn a_nonspacing_mark_stays_inside_its_host() {
+        none_counts(&[
+            "visit cafe\u{301}.fr today please",
+            "visit jose\u{301}.com today please",
+            "visit example.c\u{301}om today please",
+            "visit example\u{34f}.com today please",
+            "visit example\u{180b}.com today please",
+            "visit example\u{17b4}.com today please",
+        ]);
+    }
+
+    #[test]
+    fn an_enclosing_mark_stays_inside_its_host() {
+        none_counts(&[
+            "visit example\u{20dd}.com today please",
+            "visit exam\u{20e3}ple.com today please",
+        ]);
+    }
+
+    #[test]
+    fn a_variation_selector_stays_inside_its_host() {
+        none_counts(&[
+            "visit example\u{fe0f}.com today please",
+            "visit example\u{fe00}.com today please",
+            "visit example\u{e0100}.com today please",
+        ]);
+    }
+
+    #[test]
+    fn the_lower_case_of_a_dotted_capital_i_keeps_the_host_whole() {
+        none_counts(&["visit B\u{130}LG\u{130}.COM today please"]);
+        assert!(!names_host("bi\u{307}lgi\u{307}.com"));
+    }
+
+    #[test]
+    fn a_dotted_name_with_a_port_is_an_address_whatever_its_last_label() {
+        none_counts(&[
+            "visit a.b:80 today please",
+            "visit x1.y2.z:8443/pay today",
+            "visit shop.1:8080 now please",
+            "the page x1.y2.z:8443/ now please",
+            "go to (x1.y2.z:80) and pay",
+            "go to [a.b]:80 and pay",
+        ]);
+        assert!(counts("We met at 10.30:00 and 1.2:80 then."));
+    }
+
+    #[test]
+    fn a_name_with_a_port_after_a_hyphen_look_alike_is_an_address() {
+        none_counts(&[
+            "connect to db\u{2010}2:5432 today please",
+            "connect to db\u{2011}2:5432 today please",
+            "connect to node\u{2212}1:8080 today please",
+            "connect to node\u{2013}1:8080 today please",
+        ]);
+        none_counts(&["Open shop.example\u{2013}it is quick."]);
+    }
+
+    #[test]
+    fn a_vertical_ideographic_full_stop_is_a_dot() {
+        none_counts(&["visit example\u{fe12}com today please"]);
     }
 
     #[test]
