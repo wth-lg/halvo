@@ -1079,13 +1079,6 @@ pub(crate) fn has_a_part_that_windows_trims(path: &Path) -> bool {
     })
 }
 
-/// The verbatim form of a path, which Win32 opens without trimming: the path
-/// itself when it is verbatim; for an absolute path on a drive or a share,
-/// `\\?\` (or `\\?\UNC\`) and the path's parts joined with the system's
-/// separator, whatever separator the path was written with, a doubled
-/// separator and a `.` part dropped (ruling ST-45 H6 (a)); nothing for a
-/// relative path, a path on a drive with no root and a path with a `..`
-/// part.
 /// `path` rebuilt from its components: no separator after its last part and
 /// no `.` part after its first, so that the last part of the path that an
 /// open is given is the last name that the caller wrote, and an open that
@@ -1096,6 +1089,13 @@ fn by_its_components(path: &Path) -> std::path::PathBuf {
     path.components().collect()
 }
 
+/// The verbatim form of a path, which Win32 opens without trimming: the path
+/// itself when it is verbatim; for an absolute path on a drive or a share,
+/// `\\?\` (or `\\?\UNC\`) and the path's parts joined with the system's
+/// separator, whatever separator the path was written with, a doubled
+/// separator and a `.` part dropped (ruling ST-45 H6 (a)); nothing for a
+/// relative path, a path on a drive with no root and a path with a `..`
+/// part.
 #[cfg(windows)]
 pub(crate) fn verbatim_form(path: &Path) -> Option<std::path::PathBuf> {
     use std::path::{Component, Prefix};

@@ -109,9 +109,15 @@ impl EncryptedStore {
     /// its create and, when that directory holds a regular file of the root
     /// file's identity at any name (the witness; for a custody that keeps no
     /// root file, the custody's own answer decides), destroys the store's own
-    /// root first and then every regular file there at any name, removes a
-    /// link or an entry of another kind as the entry that it is and enters no
-    /// directory, and otherwise destroys nothing and reads the root as left;
+    /// root first and then every root file there, and removes every regular
+    /// file at any other name, zero-filling it first only when it has one name
+    /// and a root file's length, which it reads by the name before any mode
+    /// change (ruling ST-48 U1); whether a file of the root's identity is
+    /// written through is decided by the name at which it stands, and a name
+    /// removed with no write through it is no destruction of the root (ruling
+    /// ST-48 U2); it removes a link or an entry of another kind as the entry
+    /// that it is and enters no directory, and otherwise destroys nothing and
+    /// reads the root as left;
     /// once a call on this handle read its root destroyed, a later call lists
     /// no roots directory again and reports from the listing that the earlier
     /// call kept; (3) the handle refuses writes from here on,

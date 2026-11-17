@@ -1269,14 +1269,21 @@ What the code does since store-3, each sentence with the test that shows it.
   nothing at the roots path (with nothing named) or a listing after the
   removals in which nothing stays at any name: a directory in the roots
   directory, which the step does not enter, and a file that it could not
-  remove are named and answer `DeleteIncomplete` on every call while they
-  stand (ruling ST-47 T1; test
+  remove are counted by kind and answer `DeleteIncomplete` on every call
+  while they stand (ruling ST-47 T1, ST-48 U3; test
   `st47_t1_a_root_moved_into_a_directory_of_the_roots_folder_keeps_every_delete_incomplete`). Named, and no directory
   at the roots location: `DeleteIncomplete`, the root left, the roots
   location not listed. A roots path that stands and cannot be opened or
   listed reads not listed and answers `DeleteIncomplete` on every call,
-  named or not; an entry that stays is named under its real name on every
-  call. So after a delete that was stopped between its root step and its
+  named or not; a root file or a partial root file that stays is named
+  under its real name on every call, and an entry that stays at any other
+  name is counted by kind (`others_left`: `root_shaped`, `directories`,
+  `other`) and never named, in no field and no Display or Debug form, so a
+  root that stays at a plain name is counted as root-shaped and not named
+  (ruling ST-48 U3, which narrows ruling ST-45 H1's naming to root names and
+  partial names; tests
+  `st48_u3_no_form_of_the_answer_holds_the_name_of_a_folder_in_the_roots_folder`,
+  `st48_u3_a_root_shaped_file_that_stays_at_a_plain_name_is_not_named`). So after a delete that was stopped between its root step and its
   file step, the first tail answers `DeleteIncomplete` (not found) and the
   next `Ok` (unnamed). A key file of version 1, of a newer version whose
   version field parses, or of a custody kind that keeps no root file under
@@ -1341,7 +1348,8 @@ What the code does since store-3, each sentence with the test that shows it.
 - The root step destroys, and its last reading counts, every entry of the
   roots directory whose name, with its ASCII letters lowered, is a root name
   or a partial name of a root, on every volume; the report names a file that
-  stays by the name it has. The removal of `store.key.tmp` is counted:
+  stays there by the name it has, and counts by kind, naming none, what stays
+  at any other name (ruling ST-48 U3). The removal of `store.key.tmp` is counted:
   `key_file_gone` reads no while it stays. `key_file_gone` means that no
   entry stands at `store.key` and `store.key.tmp` after the call, never that
   this call removed a key file (ruling ST-46 K1). A directory of the store that
@@ -1494,8 +1502,12 @@ set, and the root's own volume name answers the root.
   itself; the create holds the directory by its path after create_root
   answered, so a directory moved between the two leaves the root that
   create_root made, which wraps no key, and the wrap through the held
-  directory answers `RootMissing`. The cleanup by a made mark destroys only
-  the file of the identity that the mark records, wherever it reaches it.
+  directory answers `RootMissing`. The cleanup by a made mark acts only on
+  the file of the identity that the mark records, wherever it reaches it,
+  and writes through it only where the name at which it stands lets the
+  step write: a file of that identity at a name that is no root name and no
+  partial name, with a second name, has that name removed with no write
+  through it, and the cleanup takes that removal as done (ruling ST-48 U2).
   From the hold on (store-3b), the wrap, the unwrap, the open's cleanup,
   `abandon_create` and the root step of delete-all go through the held
   handle: a roots directory moved while a store holds it loses its root
@@ -1587,15 +1599,44 @@ set, and the root's own volume name answers the root.
   length at a root name (any length above 0 on Windows) or stands at a
   partial name, a file which can be the key file of another Halvo store on
   this computer, whose recordings then can no longer be opened; nothing
-  becomes readable; at a name that is no root name and no partial name a
-  file is removed with no write through it when it cannot be a root file or
-  has more than one name (ruling ST-47 T1); at a root name a file of another length is removed with no
+  becomes readable; a file at a partial name, or of a root file's length at
+  a root name, is zeroed through every name; at a name that is no root name
+  and no partial name a file is removed with no write and no mode change
+  when it cannot be a root file or has more than one name (ruling ST-47 T1,
+  ST-48 U1); at a root name a file of another length is removed with no
   write through it, at the named root's own name always and at another
   root's name when it has more than one name (found by the review of
-  store-3 and left so for the root's length and the partial name). Before the open the root step sets the entry's mode to 0600 by
-  its name through the directory's handle, following no link, and only for
-  an entry that reads as a regular file at a root name or a partial name
-  (on Windows it clears the read-only attribute after the open). It keeps
+  store-3 and left so for the root's length and the partial name). A made
+  mark, or the identity that the open or the create read, decides only
+  which file the step looks at: whether that file is written through is
+  decided by the name at which it stands, as above, so a mark written by
+  hand that records the identity of another party's file with a second name
+  in the roots folder writes through it only where that name lets the step
+  write, and no call reads the root destroyed for a name that it removed
+  with no write (ruling ST-48 U2; tests
+  `st48_u2_a_hand_written_mark_never_writes_through_another_partys_file`,
+  and on Windows
+  `st48_u2_a_hand_written_mark_writes_through_no_read_only_file_of_another_party`).
+  At a name that is no root name and no partial name the root step first
+  reads the file's count of names, its length and its identity by its name
+  through the directory's handle, following no link and opening nothing
+  (on Windows through a handle opened for reading); only when that read
+  shows one name and a root file's length does it set the mode to 0600 and
+  open the kept handle, which shows the same identity, one name and that
+  length again before any write (on Windows the read-only attribute is
+  cleared after that test); a mode change that a program racing the step
+  causes between that read and the open is this limit (ruling ST-48 U1;
+  test `st48_u1_no_mode_change_at_a_plain_name_before_the_count_and_the_length_pass`).
+  On the path by identity the count and the length are read by the name
+  first at every name, so no mode is changed on a file that the step then
+  removes with no write. At a root name or a partial name the step by name
+  sets the entry's mode to 0600 by its name through the directory's handle,
+  following no link, before the open (ruling ST-45 H2; on Windows it clears
+  the read-only attribute after the open), and so row 20 of
+  reports/verifier-162.md: at a root name or a partial name the root step
+  sets mode 0600 before it reads the count of names, so a file of another
+  length that is then removed there without a write through it keeps its
+  bytes and leaves with mode 0600. It keeps
   one handle: the open for update, or else the read open, or else the write
   open of the same name, none following a link; the count, the test that
   the name still leads to that file and the zero-fill go through the kept
@@ -1622,18 +1663,34 @@ set, and the root's own volume name answers the root.
   of the right length put at its name, reads destroyed by that name,
   because the key file records no identity. No delete answers Ok while a
   regular file that can be a root file stands in the roots folder at any
-  name: wherever the root step sweeps it destroys every regular file
-  there, so a root renamed inside the folder, or renamed aside with a file
-  put at its name, does not unwrap after an Ok; the arms that destroy the
-  named root alone or nothing answer DeleteIncomplete; two stores must not
-  share one roots folder (ruling ST-47 T1; tests
+  name: wherever the root step sweeps it removes every regular file there,
+  and zero-fills one at a name that is no root name and no partial name only
+  when it has one name and a root file's length (ruling ST-48 U1), so a root
+  renamed inside the folder, or renamed aside with a file put at its name,
+  does not unwrap after an Ok; the arms that destroy the named root alone
+  or nothing answer DeleteIncomplete; a later delete-all on a handle that
+  already answered Ok replays that Ok and reads no folder (ruling ST-45
+  H3), so a file put into the roots folder after that answer is destroyed
+  by the next tail and not by that handle; two stores must not share one
+  roots folder (ruling ST-47 T1; tests
   `st47_t1_no_delete_answers_ok_while_a_root_renamed_inside_the_roots_folder_unwraps`,
   `st47_t1_the_sweep_removes_a_hard_link_of_an_outside_file_at_a_plain_name_without_writing_through_it`,
   and on Windows, for a name that ends in a dot, which the listing reaches
   through the verbatim form of the held directory's path,
   `st47_t1_a_root_renamed_to_a_name_that_ends_in_a_dot_is_seen_by_the_delete`).
   What stays outside this: a root moved out of the folder, copied, or with
-  a second name outside it (docs/privacy-limits.md line 25); the roots
+  a second name outside it (docs/privacy-limits.md line 25). Under that
+  limit, beside a copy: the store's own root, renamed inside the roots
+  folder to a name that is no root name and no partial name while it has a
+  second name outside the folder, is removed there with no write through it
+  by the handle's delete-all and by a cleanup or a tail by a made mark; that
+  call answers DeleteIncomplete with the root left, the tail after it
+  answers Ok, and the file stays at its outside name with the root's bytes,
+  where with an earlier copy of the store's files it opens those
+  recordings; so a DeleteIncomplete followed by an Ok can mean that the root
+  file keeps a name outside the roots folder (ruling ST-48 U2; test
+  `st48_u2_the_stores_root_at_a_plain_name_with_a_second_name_outside_is_removed_unwritten`).
+  Also outside it: the roots
   folder itself renamed or moved inside the data folder while no handle
   held it (line 27's second sentence, whether or not Halvo ran); two
   stores that share one roots folder, of which a delete of one destroys
@@ -1727,9 +1784,13 @@ set, and the root's own volume name answers the root.
   stopped create runs that tail), and while it stands a create under that root
   id answers `RootExists`. (ii) From store-3b a mark that reads made
   records the identity of the root file that the create's wrap read, and a
-  cleanup by the mark destroys the file of that identity alone, never a
+  cleanup by the mark acts on the file of that identity alone, never a
   file of another identity at the root's name and never the root file that
-  the open read for `store.key`; a mark that reads made without an identity
+  the open read for `store.key`, and writes through it only where the name
+  at which it stands lets the step write: such a file at a name that is no
+  root name and no partial name, with a second name, has that name removed
+  with no write through it, and the cleanup takes that as done (ruling
+  ST-48 U2); a mark that reads made without an identity
   reads owed. A cleanup by identity in a held directory that it cannot list
   answers the listing's error, so the mark stays beside the root that
   stays (tests

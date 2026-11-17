@@ -2429,10 +2429,14 @@ impl EncryptedStore {
     /// owed. With the lock held, with nothing at the store's name, and in the
     /// data layout after it removed a link or an entry of another kind at the
     /// store's name (counted as not followed), the root step sweeps the roots
-    /// directory: it destroys every regular file there at any name, named or
-    /// not, writing through none that cannot be a root file or that has a
-    /// second name, removes a link or an entry of another kind as the entry
-    /// that it is, and enters no directory; in the scratch layout nothing is
+    /// directory: it destroys every root file and partial root file there,
+    /// named or not, and removes every regular file at any other name,
+    /// zero-filling it first only when it has one name and a root file's
+    /// length, which it reads by the name before any mode change (ruling
+    /// ST-48 U1); by a made mark the file of its identity is written through
+    /// only where the name at which it stands lets a write (ruling ST-48 U2);
+    /// it removes a link or an entry of another kind as the entry that it is,
+    /// and enters no directory; in the scratch layout nothing is
     /// swept where no store directory stands, because its roots lie inside it.
     /// A link, or an entry of another kind, at the roots directory's name is
     /// not followed: the roots read as not listed. A data directory that is a
