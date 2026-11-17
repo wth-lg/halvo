@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it, the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the nine files of the hold, 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam.
 # lane: alone
 set -u
 name=51-macos-stall
@@ -48,6 +48,19 @@ the_waits_rounds_and_kept_time_of_both_forms_are_the_ruled_ones twelve
 the_case_of_a_short_window_round_holds_each_rule_on_a_table_of_entries twelve
 the_on_time_and_the_fates_of_the_keys_are_read_from_the_raw_entries twelve
 a_reading_of_on_outside_every_span_is_counted_from_the_rounds_first_stamp twelve
+a_round_whose_fixture_output_ends_before_a_reply_is_not_driven twelve
+a_round_whose_reply_comes_after_its_wait_is_not_driven twelve
+a_round_whose_stamps_reply_does_not_come_is_not_driven twelve
+a_key_ahead_in_a_round_not_driven_whose_first_stamp_reads_on_fails_its_phase twelve
+the_late_reply_of_one_round_is_not_taken_as_the_reply_of_the_next twelve
+a_round_whose_last_stamps_reply_comes_late_after_its_markers_records_nothing twelve
+a_round_whose_output_ended_before_its_last_stamps_reply_records_nothing twelve
+a_round_not_driven_after_its_markers_reads_recorded_by_its_own_keys_alone twelve
+in_the_short_form_one_held_round_passes_a_phase_and_rounds_not_driven_are_printed_by_wait twelve
+in_the_long_form_a_wait_with_no_held_round_reads_not_driven_and_takes_no_record twelve
+a_phase_whose_every_round_was_not_driven_reads_not_driven_in_both_forms twelve
+a_recorded_key_in_a_round_not_driven_fails_its_phase twelve
+each_judge_reads_a_round_not_driven_by_its_rule_on_a_table twelve
 EOF
 }
 
@@ -98,14 +111,28 @@ crates/halvo-capture/tests/macos_stall_fixture.rs
 crates/halvo-capture/tests/macos_stall_fixture/fixture.m
 crates/halvo-capture/src/macos/secure_input_byte.rs
 crates/halvo-capture/src/macos/run_loop.rs
-crates/halvo-capture/Cargo.toml
 scripts/r1/ci.d/51-macos-stall.sh
 EOF
 }
 
+seam_lines() {
+  git show ":crates/halvo-capture/Cargo.toml" >"$work/manifest" 2>/dev/null ||
+    fail "crates/halvo-capture/Cargo.toml cannot be read from the index"
+  tr -d '\r' <"$work/manifest" >"$work/manifest-lines" || fail "crates/halvo-capture/Cargo.toml cannot be read"
+  awk '
+    /^[[:space:]]*\[/ { table = $0 }
+    /stall-seam/ {
+      line = $0
+      if (match(line, /features[[:space:]]*=[[:space:]]*\[[^]]*\]/))
+        line = substr(line, 1, RSTART - 1) "features = [\"stall-seam\"]" substr(line, RSTART + RLENGTH)
+      printf "measured seam path=crates/halvo-capture/Cargo.toml table=%s text=%s\n", table, line
+    }
+  ' "$work/manifest-lines" >"$work/seam-head" || fail "crates/halvo-capture/Cargo.toml cannot be read"
+}
+
 ledger_check() {
   ledger=docs/baseline/ledger.d/macos-2b.txt
-  fix="run the long form (HALVO_STALL_FORM=long) on a scratch push of this head, then record that run with form=long, result=pass, its figures and the blob ids of the nine files of the hold in $ledger (rulings MA-22 L10, MA-23)"
+  fix="run the long form (HALVO_STALL_FORM=long) on a scratch push of this head, then record that run with form=long, result=pass, its figures, the blob ids of the eight files of the hold and the stall-seam lines of crates/halvo-capture/Cargo.toml in $ledger (rulings MA-22 L10, MA-23; the inbox entry of 2026-11-16T10:12:55Z)"
   [ -f "$ledger" ] || fail "$ledger is missing: $fix"
   tr -d '\r' <"$ledger" >"$work/ledger" || fail "$ledger cannot be read"
   runs=$(sed -n 's/^measured run=\([0-9][0-9]*\) .*/\1/p' "$work/ledger" | tr '\n' ' ')
@@ -116,11 +143,13 @@ ledger_check() {
     *' '*) fail "$ledger names more than one measured run ($run): $fix" ;;
   esac
   [ "$long" = 1 ] || fail "$ledger names the measured run $run without form=long and result=pass: $fix"
+  grep -q -E "^measured run=$run (.* )?phases_not_driven=0( |\$)" "$work/ledger" ||
+    fail "$ledger names the measured run $run without phases_not_driven=0: a long form with a wait that held no round takes no record: $fix"
   sed -n 's/^measured blob path=\([^ ]*\) id=[0-9a-f]*$/\1/p' "$work/ledger" | sort >"$work/ledger-paths" ||
     fail "$ledger cannot be read"
-  measured_files | sort >"$work/measured-paths" || fail "the list of the nine files cannot be read"
+  measured_files | sort >"$work/measured-paths" || fail "the list of the eight files cannot be read"
   cmp -s "$work/ledger-paths" "$work/measured-paths" ||
-    fail "$ledger records the blobs of files other than the nine of the hold, once each: $fix"
+    fail "$ledger records the blobs of files other than the eight of the hold, once each: $fix"
   while read -r path; do
     recorded=$(awk -v path="$path" '$1 == "measured" && $2 == "blob" && $3 == "path=" path { sub(/^id=/, "", $4); print $4 }' "$work/ledger")
     staged=$(git ls-files --stage -- "$path" | cut -d ' ' -f 2)
@@ -128,7 +157,14 @@ ledger_check() {
     [ "$recorded" = "$staged" ] ||
       fail "the measured run $run ran on a blob of $path other than the head's ($recorded against $staged): $fix"
   done <"$work/measured-paths"
-  printf 'ledger: the measured run %s of the long form ran on the blobs that the head has of the nine files of the hold\n' "$run"
+  sed -n '/^measured seam /p' "$work/ledger" >"$work/seam-ledger" || fail "$ledger cannot be read"
+  [ -s "$work/seam-ledger" ] || fail "$ledger names no stall-seam line of crates/halvo-capture/Cargo.toml: $fix"
+  seam_lines
+  if ! cmp -s "$work/seam-ledger" "$work/seam-head"; then
+    head_lines=$(sed 's/^measured seam path=[^ ]* //' "$work/seam-head" | tr '\n' '|')
+    fail "the stall-seam lines of crates/halvo-capture/Cargo.toml differ from those that the measured run $run ran on (the head has: ${head_lines%|}): $fix"
+  fi
+  printf 'ledger: the measured run %s of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml\n' "$run"
 }
 
 tracked_changes() {
@@ -180,6 +216,7 @@ lib_gap() {
   perl -e 'alarm shift; exec @ARGV or exit 127' 150 "$lib" --ignored --exact --nocapture "macos::input::tests::$1" \
     </dev/null >"$work/gap-$2.txt" 2>&1
   code=$?
+  cp "$work/gap-$2.txt" "$artifacts/tests/$1-$2.txt" || fail "the output of $1 cannot be kept in $artifacts/tests"
   tr -d '\r' <"$work/gap-$2.txt" >"$work/gap-$2-lines.txt" || fail "the output of $1 cannot be read"
   [ "$code" -eq 0 ] || fail "the gap of the test's own could not be measured: $1 exited $code"
   grep '^measure' "$work/gap-$2-lines.txt"
@@ -350,8 +387,11 @@ measure() {
   [ -z "$extra" ] || fail "the test executable lists tests that this script's list does not hold: ${extra% }"
 
   : >"$artifacts/ms.txt" || fail "ms.txt cannot be written"
-  "$exe" --ignored --exact --nocapture "$form_test" </dev/null >"$work/form.txt" 2>&1 ||
-    fail "$form_test did not print the form: exited $?"
+  mkdir -p "$artifacts/tests" || fail "the directory of the tests' outputs cannot be made"
+  "$exe" --ignored --exact --nocapture "$form_test" </dev/null >"$work/form.txt" 2>&1
+  code=$?
+  cp "$work/form.txt" "$artifacts/tests/$form_test.txt" || fail "the output of $form_test cannot be kept in $artifacts/tests"
+  [ "$code" -eq 0 ] || fail "$form_test did not print the form: exited $code"
   form_line=$(tr -d '\r' <"$work/form.txt" | sed -E -n 's/^(.* )?(form=(short|long) )/\2/p' | tail -n 1)
   case $form_line in
     "form=$form "*) ;;
@@ -369,6 +409,9 @@ measure() {
   failed=0
   not_driven=0
   not_kept=0
+  rounds_counted=0
+  rounds_not_driven=0
+  phases_not_driven=0
   index=0
   while read -r test kind only; do
     case $kind in
@@ -396,12 +439,62 @@ measure() {
     run_test "$test" "$log" "$limit"
     code=$?
     seconds=$(($(date +%s) - started))
-    tr -d '\r' <"$log" | grep -E "^$test (session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=)|^$test: " | sed 's/^/    | /'
+    cp "$log" "$artifacts/tests/$test.txt" || fail "the output of $test cannot be kept in $artifacts/tests"
+    tr -d '\r' <"$log" >"$work/lines-$index" || fail "the output of $test cannot be read"
+    awk -v test="$test" -v panics="$((code == 101))" '
+      panics && !after && /thread .* panicked at / { after = 1 }
+      after { print "    | " $0; next }
+      index($0, test ": ") == 1 { print "    | " $0; next }
+      index($0, test " ") == 1 && substr($0, length(test) + 2) ~ /^(session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=|by_wait |not_driven_waits=)/ { print "    | " $0 }
+    ' "$work/lines-$index" || fail "the output of $test cannot be read"
+    awk -v test="$test" '
+      index($0, test " round=") == 1 || index($0, test " control=") == 1 {
+        kind = index($0, test " round=") == 1 ? "round" : "control"
+        lines[kind]++
+        if ($0 ~ / counted=1( |$)/) counted++
+        if ($0 ~ / not_driven=[^- ]/) { not_driven[kind]++; if ($0 ~ / rv=recorded( |$)/) recorded++ }
+        if (kind == "round" && match($0, / wait_ms=[0-9]+/)) {
+          wait = substr($0, RSTART + 9, RLENGTH - 9)
+          if (!(wait in held)) { order[++waits] = wait; held[wait] = 0; missed[wait] = 0 }
+          if ($0 ~ / counted=1( |$)/) held[wait]++
+          if ($0 ~ / not_driven=[^- ]/) missed[wait]++
+        }
+      }
+      END {
+        by = ""
+        for (i = 1; i <= waits; i++) by = by (i > 1 ? "," : "") order[i] ":" held[order[i]] "/" missed[order[i]]
+        printf "%d %d %d %d %d %d %s\n", lines["round"], lines["control"], counted,
+          not_driven["round"], not_driven["control"], recorded, (by == "" ? "-" : by)
+      }' "$work/lines-$index" >"$work/rounds-$index" ||
+      fail "the round lines of $test cannot be read"
+    read -r round_lines control_lines counted_here not_driven_rounds not_driven_controls recorded_here by_wait \
+      <"$work/rounds-$index" || fail "the round lines of $test cannot be read"
+    waits_not_driven=$(sed -n "s/^$test not_driven_waits=//p" "$work/lines-$index" | tail -n 1)
+    not_driven_here=$((not_driven_rounds + not_driven_controls))
+    rounds_counted=$((rounds_counted + counted_here))
+    rounds_not_driven=$((rounds_not_driven + not_driven_here))
     found=$(tr -d '\r' <"$log" | grep -c -E "^$test (late_click |drops .* sleep=[1-9])")
     notices=$((notices + found))
     found=$(tr -d '\r' <"$log" | sed -n -E "s/^$test drops .* unclocked=([0-9]+).*/\1/p" | sort -n | tail -n 1)
     unclocked=$((unclocked + ${found:-0}))
     judge "$code" "$kind" "$log"
+    case $kind in
+      phase | three-way | loop | known-fault)
+        if [ "$kind" != known-fault ] && [ "$recorded_here" -gt 0 ]; then
+          verdict=FAIL
+          cause="a key was recorded in a round not driven ($recorded_here rounds)"
+        elif [ "$round_lines" -gt 0 ] && [ "$not_driven_rounds" -eq "$round_lines" ]; then
+          verdict=not-driven
+          cause="every round of the phase was not driven ($round_lines rounds)"
+        elif [ "$control_lines" -gt 0 ] && [ "$not_driven_controls" -eq "$control_lines" ]; then
+          verdict=not-driven
+          cause="every round of the control was not driven ($control_lines rounds)"
+        elif [ -n "$waits_not_driven" ]; then
+          verdict=not-driven
+          cause="not driven at waits $waits_not_driven (the long form takes no record from this run)"
+        fi
+        ;;
+    esac
     three=
     if [ "$kind" = three-way ] && [ "$verdict" = pass ]; then
       three=$(tr -d '\r' <"$log" | sed -n -E "s/^$test verdict=(held|notdriven|notkept) .*/\1/p" | tail -n 1)
@@ -417,13 +510,15 @@ measure() {
     fi
     case $verdict in
       pass) passed=$((passed + 1)) ;;
+      not-driven) phases_not_driven=$((phases_not_driven + 1)) ;;
       known-fault) known=$((known + 1)) ;;
       FIXED-BUT-LISTED) fixed=$((fixed + 1)) ;;
       *) failed=$((failed + 1)) ;;
     esac
     [ -z "$cause" ] || printf '%s: %s: %s\n' "$name" "$test" "$cause"
-    line="MS $test result=$verdict${three:+ verdict=$three} seconds=$seconds limit=$limit"
+    line="MS $test result=$verdict${three:+ verdict=$three} counted=$counted_here not_driven=$not_driven_here seconds=$seconds limit=$limit"
     [ "$kind" != measured ] || line="$line asserts=nothing"
+    [ "$by_wait" = - ] || line="$line by_wait=$by_wait"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
     note=$(notes | sed -n "s/^$test //p")
@@ -433,7 +528,7 @@ measure() {
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
   history_note | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
-  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed))"
+  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed)) rounds_counted=$rounds_counted rounds_not_driven=$rounds_not_driven phases_not_driven=$phases_not_driven"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   seconds=$(($(date +%s) - check_started))
@@ -448,6 +543,8 @@ measure() {
   printf '%s\n' "$line" | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
   [ "$fixed" -eq 0 ] || fail "$fixed listed known faults passed (FIXED-BUT-LISTED): take each out of this script's list"
   [ "$failed" -eq 0 ] || fail "$failed tests failed"
+  [ "$phases_not_driven" -eq 0 ] ||
+    fail "$phases_not_driven tests read not driven, which is never a pass (ruling MA-27 item 2)"
   ledger_check
   printf 'PASS %s\n' "$name"
 }
@@ -609,6 +706,8 @@ fi
 [ -x "$HALVO_STALL_FIXTURE" ] || exit 98
 [ -n "${HALVO_STALL_GAP_MS:-}" ] && [ -n "${HALVO_STALL_FORM:-}" ] || exit 99
 handed=$(env | sed -n 's/^\(HALVO_STALL_[A-Z_]*\)=.*/\1/p' | sort | tr '\n' ' ')
+spec "prefixed-panic-$test" && { printf "test %s ... thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:101:5:\nthe session dictionary could not be read\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
+spec "prefixed-panic-$test" && { printf "test %s ... thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:101:5:\nthe session dictionary could not be read\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"; exit 101; }
 printf '%s gap_ms=%s form=%s handed=%s\n' "$test" "$HALVO_STALL_GAP_MS" "$HALVO_STALL_FORM" "$handed"
 spec "late-click-$test" && printf '%s late_click wait_ms=150 ahead=8\n' "$test"
 spec "sleep-$test" && printf '%s drops round=0 on=1 gap=0 sleep=1 stop=0\n' "$test"
@@ -621,7 +720,31 @@ case $test in
     fi
     ;;
 esac
-printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8\n' "$test"
+if spec "all-not-driven-$test"; then
+  printf '%s round=0 wait_ms=150 bound_ms=1000 counted=0 ahead=0 markers=0 plain=0 secure=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
+else
+  printf '%s round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0\n' "$test"
+fi
+spec "one-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=0 markers=0 plain=0 secure=8 rv=notdriven not_driven=late_reply_left_secure_within_3000_ms phase_counted=1 phase_not_driven=1\n' "$test"
+spec "control-line-$test" && printf '%s control=0 bound_ms=1000 counted=1 landed_plain=5 landed_secure=0 plain_records=5 secure_records=0 after_records=3 rv=- not_driven=- phase_counted=1 phase_not_driven=0\n' "$test"
+if spec "one-held-rest-not-driven-$test"; then
+  for wait in 300 600 850 2000; do
+    for number in 1 2; do
+      printf '%s round=%s wait_ms=%s bound_ms=1000 counted=0 ahead=0 markers=0 plain=0 secure=8 rv=notdriven not_driven=late_reply_left_secure_within_3000_ms phase_counted=1 phase_not_driven=1\n' "$test" "$number" "$wait"
+    done
+  done
+fi
+spec "waits-not-driven-$test" && {
+  printf "%s not_driven_waits=300,600,850,2000\nthread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:1600:9:\n%s: not driven at wait 300 ms, wait 600 ms, wait 850 ms, wait 2000 ms\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test" "$test"
+  exit 101
+}
+spec "control-not-driven-$test" && printf '%s control=0 bound_ms=1000 counted=0 landed_plain=0 landed_secure=0 plain_records=0 secure_records=0 after_records=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
+spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
+spec "long-output-$test" && printf 'a line that the check does not print\n  and a second one\n'
+spec "panic-$test" && {
+  printf "thread '%s' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:500:27:\nthe fixture gave no line that starts with left_secure within 3000 ms\nnote: run with RUST_BACKTRACE=1 environment variable to display a backtrace\ntest %s ... FAILED\ntest result: FAILED. 0 passed; 1 failed; 0 ignored\n" "$test" "$test"
+  exit 101
+}
 spec "touch-$test" && printf 'changed\n' >>"$CI_D_REPO/tracked.txt"
 spec "hang-$test" && sleep 5
 spec "slow-$test" && sleep 1
@@ -650,6 +773,12 @@ EOF
   chmod +x "$work/bin/cargo" "$work/bin/clang" "$work/bin/stall-stub" "$work/bin/halvo_capture-stub" || exit 2
 }
 
+manifest_case() {
+  printf '%b' "$4" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  check "$1" "$2" "$3" ''
+}
+
 write_measured_ledger() {
   ledger_file=$work/repo/docs/baseline/ledger.d/macos-2b.txt
   mkdir -p "$work/repo/docs/baseline/ledger.d" "$work/repo/crates/halvo-capture/src/macos" \
@@ -658,12 +787,15 @@ write_measured_ledger() {
     [ -f "$work/repo/$path" ] || printf '%s\n' "$path" >"$work/repo/$path" || exit 2
     git -C "$work/repo" add -- "$path" || exit 2
   done
-  printf '%s\n' "${ledger_run_line:-measured run=1 form=long result=pass gap_ms=190 mended_rounds_held=60 commit=0 figures=none}" >"$ledger_file" || exit 2
+  printf '%s\n' "${ledger_run_line:-measured run=1 form=long result=pass gap_ms=190 mended_rounds_held=60 phases_not_driven=0 commit=0 figures=none}" >"$ledger_file" || exit 2
   measured_files | while read -r path; do
     entry=$(git -C "$work/repo" ls-files --stage -- "$path") || exit 2
     blob=${entry#* }
     printf 'measured blob path=%s id=%s\n' "$path" "${blob%% *}"
   done >>"$ledger_file" || exit 2
+  printf '%s\n' 'measured seam path=crates/halvo-capture/Cargo.toml table=[features] text=stall-seam = []' \
+    'measured seam path=crates/halvo-capture/Cargo.toml table=[dev-dependencies] text=halvo-capture = { path = ".", features = ["stall-seam"] }' \
+    >>"$ledger_file" || exit 2
   git -C "$work/repo" add docs || exit 2
 }
 
@@ -680,7 +812,8 @@ self_test() {
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
-  printf '[features]\nstall-seam = []\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  seam_manifest='[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n'
+  printf '%b' "$seam_manifest" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   printf '[dependencies]\n' >"$work/repo/crates/other/Cargo.toml" || exit 2
   git -C "$work/repo" add tracked.txt crates || exit 2
   write_measured_ledger
@@ -753,6 +886,45 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   check three-way-not-kept PASS 'MS three_one result=pass verdict=notkept' 'notkept-three_one'
   check three-way-not-driven PASS 'MS three_one result=pass verdict=notdriven' 'notdriven-three_one'
   check three-way-without-a-verdict FAIL 'printed no verdict line of held, notdriven or notkept' 'silent-three_one'
+  check panic-line FAIL "    | thread 'phase_one' (1234) panicked at crates/halvo-capture/tests/macos_stall_fixture.rs:500:27:
+    | the fixture gave no line that starts with left_secure within 3000 ms" 'panic-phase_one'
+  check panic-line-after-the-test-name FAIL '    | the session dictionary could not be read' 'prefixed-panic-phase_one'
+  check every-phase-round-not-driven-beside-a-control FAIL 'three_one: every round of the phase was not driven' 'all-not-driven-three_one
+control-line-three_one'
+  check every-control-round-not-driven FAIL 'phase_two: every round of the control was not driven' 'control-not-driven-phase_two'
+  check every-round-reads-not-driven FAIL 'MS phase_one result=not-driven counted=0 not_driven=1 seconds=' 'all-not-driven-phase_one'
+  check short-form-one-held-round-passes PASS 'MS phase_one result=pass counted=1 not_driven=8 seconds=' 'one-held-rest-not-driven-phase_one'
+  check short-form-prints-by-wait PASS ' by_wait=150:1/0,300:0/2,600:0/2,850:0/2,2000:0/2' 'one-held-rest-not-driven-phase_one'
+  check short-form-total-names-no-phase-not-driven PASS 'rounds_not_driven=8 phases_not_driven=0' 'one-held-rest-not-driven-phase_one'
+  HALVO_STALL_FORM=long
+  export HALVO_STALL_FORM
+  check long-form-waits-not-driven FAIL 'MS phase_one result=not-driven counted=1 not_driven=8 seconds=' 'one-held-rest-not-driven-phase_one
+waits-not-driven-phase_one'
+  check long-form-waits-not-driven-named FAIL 'phase_one: not driven at waits 300,600,850,2000 (the long form takes no record from this run)' 'one-held-rest-not-driven-phase_one
+waits-not-driven-phase_one'
+  check long-form-total-names-the-phase FAIL 'phases_not_driven=1' 'one-held-rest-not-driven-phase_one
+waits-not-driven-phase_one'
+  check long-form-every-round-reads-not-driven FAIL 'MS phase_one result=not-driven counted=0 not_driven=1 seconds=' 'all-not-driven-phase_one'
+  unset HALVO_STALL_FORM
+  check panic-line-after-the-test-name FAIL '    | the session dictionary could not be read' 'prefixed-panic-phase_one'
+  check one-round-not-driven PASS 'MS phase_one result=pass counted=1 not_driven=1 seconds=' 'one-not-driven-phase_one'
+  check known-fault-recorded-in-a-round-not-driven PASS 'MS known_one result=known-fault counted=1 not_driven=1 seconds=' 'recorded-not-driven-known_one'
+  check rounds-not-driven-in-the-total PASS 'MS total=4 pass=3 known_fault=1 notdriven=0 notkept=0 fail=0 rounds_counted=4 rounds_not_driven=1' 'one-not-driven-phase_one'
+  check every-round-not-driven FAIL 'phase_one: every round of the phase was not driven' 'all-not-driven-phase_one'
+  check recorded-in-a-round-not-driven FAIL 'phase_one: a key was recorded in a round not driven' 'recorded-not-driven-phase_one'
+  check artifacts-hold-the-output PASS 'MS phase_one result=pass' 'long-output-phase_one'
+  printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE HALVO_STALL_FORM HALVO_STALL_GAP_MS ' \
+    'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
+    'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
+    >"$work/output-wanted" || exit 2
+  kept=$work/artifacts-artifacts-hold-the-output/tests
+  if cmp -s "$work/output-wanted" "$kept/phase_one.txt" && [ -s "$kept/the_form_of_the_hosted_phases.txt" ] &&
+    [ -s "$kept/measure_the_readings_of_the_hold-first.txt" ]; then
+    printf 'case %s/artifacts-hold-the-whole-output want=PASS got=PASS\n' "$name"
+  else
+    printf 'case %s/artifacts-hold-the-whole-output want=PASS got=another-output\n' "$name"
+    wrong="$wrong artifacts-hold-the-whole-output"
+  fi
   check phase-fails FAIL 'FAIL 51-macos-stall (1 tests failed)' 'fail-phase_one'
   check phase-runs-no-test FAIL 'phase_two: exit 0, and not one test ran and passed' 'empty-phase_two'
   check known-fault-passes FAIL 'FIXED-BUT-LISTED' 'pass-known_one'
@@ -805,10 +977,10 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   printf '[features]\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   git -C "$work/repo" add crates || exit 2
   check seam-in-no-manifest FAIL 'manifests that name it: none' ''
-  printf '[features]\nstall-seam = []\n' >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  printf '%b' "$seam_manifest" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
-  check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the nine files of the hold' ''
+  check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml' ''
   printf 'changed\n' >>"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   check ledger-blob-changed FAIL 'ran on a blob of crates/halvo-capture/src/secure_input_macos_hold.rs other than the head'"'"'s' ''
@@ -820,7 +992,7 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   write_measured_ledger
   grep -v 'path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m ' "$work/repo/docs/baseline/ledger.d/macos-2b.txt" >"$work/ledger-four" || exit 2
   cp "$work/ledger-four" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
-  check ledger-four-files FAIL 'records the blobs of files other than the nine of the hold' ''
+  check ledger-four-files FAIL 'records the blobs of files other than the eight of the hold' ''
   write_measured_ledger
   printf 'measured run=2 form=long result=pass commit=0 figures=none\n' >>"$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
   check ledger-two-runs FAIL 'names more than one measured run (1 2)' ''
@@ -835,6 +1007,33 @@ MS gap_ms=190 source=measured' 'measure-above-once'
   printf 'changed\n' >>"$work/repo/scripts/r1/ci.d/51-macos-stall.sh" || exit 2
   git -C "$work/repo" add scripts || exit 2
   check ledger-ninth-file-changed FAIL 'ran on a blob of scripts/r1/ci.d/51-macos-stall.sh other than the head' ''
+  write_measured_ledger
+  seam_text='the stall-seam lines of crates/halvo-capture/Cargo.toml differ from those that the measured run 1 ran on'
+  manifest_case ledger-seam-line-changed FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = ["other"]\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n'
+  manifest_case ledger-seam-line-moved FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n\n[dev-dependencies]\n'
+  manifest_case ledger-seam-line-dropped FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = "." }\n'
+  manifest_case ledger-seam-line-gains-win-3s-feature PASS 'ledger: the measured run 1 of the long form ran on' \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\ntest-seam = []\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam", "test-seam"] }\n'
+  manifest_case ledger-seam-dependency-on-another-path FAIL "$seam_text" \
+    '[package]\nname = "halvo-capture"\n\n[features]\nstall-seam = []\n\n[dependencies]\n\n[dev-dependencies]\nhalvo-capture = { path = "../other", features = ["stall-seam", "test-seam"] }\n'
+  manifest_case ledger-unrelated-manifest-line PASS 'ledger: the measured run 1 of the long form ran on' \
+    '[package]\nname = "halvo-capture"\nversion = "0.2.0"\n\n[features]\nstall-seam = []\n\n[dependencies]\nlibc = "0.2"\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["stall-seam"] }\n'
+  printf '%b' "$seam_manifest" >"$work/repo/crates/halvo-capture/Cargo.toml" || exit 2
+  git -C "$work/repo" add crates || exit 2
+  write_measured_ledger
+  grep -v '^measured seam ' "$work/repo/docs/baseline/ledger.d/macos-2b.txt" >"$work/ledger-without-seam" || exit 2
+  cp "$work/ledger-without-seam" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
+  check ledger-names-no-seam-line FAIL 'names no stall-seam line of crates/halvo-capture/Cargo.toml' ''
+  ledger_run_line='measured run=1 form=long result=pass gap_ms=190 mended_rounds_held=60 phases_not_driven=1 commit=0 figures=none'
+  write_measured_ledger
+  check ledger-run-with-a-phase-not-driven FAIL 'names the measured run 1 without phases_not_driven=0' ''
+  ledger_run_line='measured run=1 form=long result=pass gap_ms=190 mended_rounds_held=60 commit=0 figures=none'
+  write_measured_ledger
+  check ledger-run-without-the-phases-not-driven FAIL 'names the measured run 1 without phases_not_driven=0' ''
+  ledger_run_line=
   write_measured_ledger
   d2_note=$(
     unset MS_NOTES_FILE

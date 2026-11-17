@@ -1,5 +1,5 @@
-use crate::daemon::DaemonError;
-use crate::secure_input_macos::SecureInputRefused;
+#[cfg(any(debug_assertions, test))]
+use crate::{daemon::DaemonError, secure_input_macos::SecureInputRefused};
 
 pub(crate) fn secure_input_on(byte: u8) -> bool {
     byte != 0
@@ -21,6 +21,7 @@ pub(crate) fn release_hold(disable: fn() -> i32) {
     disable();
 }
 
+#[cfg(any(debug_assertions, test))]
 pub(crate) fn refusal_or_none(refusal: Option<SecureInputRefused>) -> Result<(), DaemonError> {
     match refusal {
         None => Ok(()),
