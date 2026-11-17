@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/do/entries.ts",
-      "find": "      if (last !== \"delete\") return last;\n      await host.deleteAll();\n",
-      "replace": "      if (last !== \"delete\") return last;\n      host.step((sql) => {\n        sql.exec(\"DELETE FROM account\");\n      });\n      host.setAlarm(null);\n"
+      "find": "    try {\n      await host.deleteAll();\n    } catch (error) {\n",
+      "replace": "    try {\n      host.step((sql) => {\n        sql.exec(\"DELETE FROM account\");\n      });\n      host.setAlarm(null);\n    } catch (error) {\n"
     }
   ],
   "line": [

@@ -49,11 +49,19 @@ export type RecordedEvent = MeterEvent & { readonly receivedAt: UnixSeconds };
 
 export type Period = { readonly index: number; readonly start: UnixSeconds; readonly end: UnixSeconds };
 
-type Subscription = { readonly start: UnixSeconds; end: UnixSeconds | null };
+/** The provider's statuses that the fake holds: `incomplete_expired` and `canceled` have ended and bill nothing. */
+export type PlanStatus = "active" | "incomplete_expired" | "canceled";
+
+export type Plan = { readonly id: string; readonly account: string; readonly status: PlanStatus };
+
+/** The id that `subscribe` gives an account's subscription when the caller names none. */
+export const FIRST_SUBSCRIPTION = "sub_1";
+
+type Subscription = { readonly id: string; readonly start: UnixSeconds; end: UnixSeconds | null; status: PlanStatus };
 
 export class FakeMeter {
   readonly config: FakeMeterConfig;
-  private readonly subscriptions = new Map<string, Subscription>();
+  private readonly subscriptions = new Map<string, Subscription[]>();
   private readonly events: RecordedEvent[] = [];
   private readonly lastRecordedAt = new Map<string, number>();
   private readonly counts = {
@@ -82,16 +90,41 @@ export class FakeMeter {
     this.config = config;
   }
 
-  subscribe(account: string, now: UnixSeconds): void {
-    if (this.subscriptions.has(account)) throw new Error(`${account} is already subscribed`);
-    this.subscriptions.set(account, { start: now, end: null });
+  /**
+   * Starts a subscription of the account at `now`, under `id`; one that starts as `incomplete_expired` has ended at its
+   * start and bills no period.
+   */
+  subscribe(account: string, now: UnixSeconds, id: string = FIRST_SUBSCRIPTION, status: "active" | "incomplete_expired" = "active"): void {
+    const held = this.subscriptions.get(account) ?? [];
+    if (held.some((each) => each.id === id)) throw new Error(`${account} is already subscribed under ${id}`);
+    held.push({ id, start: now, end: status === "active" ? null : now, status });
+    this.subscriptions.set(account, held);
   }
 
-  endSubscription(account: string, now: UnixSeconds): number {
-    const subscription = this.subscriptions.get(account);
-    if (subscription === undefined) throw new Error(`${account} is not subscribed`);
-    if (subscription.end === null) subscription.end = now + 1;
+  /** Ends the account's subscription `id`, its first when no id is named, at `now` plus one second, once. */
+  endSubscription(account: string, now: UnixSeconds, id?: string): number {
+    const held = this.subscriptions.get(account) ?? [];
+    const subscription = id === undefined ? held[0] : held.find((each) => each.id === id);
+    if (subscription === undefined) throw new Error(`${account} is not subscribed${id === undefined ? "" : ` under ${id}`}`);
+    if (subscription.end === null) {
+      subscription.end = now + 1;
+      subscription.status = "canceled";
+    }
     return subscription.end;
+  }
+
+  /** Every subscription of the account, in the order of their start. */
+  plans(account: string): Plan[] {
+    return (this.subscriptions.get(account) ?? []).map((each) => ({ id: each.id, account, status: each.status }));
+  }
+
+  /** The subscription `id` of any account, or null when the fake holds none. */
+  plan(id: string): Plan | null {
+    for (const [account, held] of this.subscriptions) {
+      const found = held.find((each) => each.id === id);
+      if (found !== undefined) return { id, account, status: found.status };
+    }
+    return null;
   }
 
   send(event: MeterEvent, now: UnixSeconds): SendResult {
@@ -162,16 +195,17 @@ export class FakeMeter {
     return this.events.filter((e) => e.account === account);
   }
 
+  /** The billing periods begun by `now` of every subscription of the account, each subscription's in order, in the order of `plans`. */
   periods(account: string, now: UnixSeconds): Period[] {
-    const subscription = this.subscriptions.get(account);
-    if (subscription === undefined) return [];
     const length = this.config.invoicePeriodSeconds;
-    const stop = subscription.end ?? Number.POSITIVE_INFINITY;
     const periods: Period[] = [];
-    for (let index = 0; ; index += 1) {
-      const start = subscription.start + index * length;
-      if (start > now || start >= stop) break;
-      periods.push({ index, start, end: Math.min(start + length, stop) });
+    for (const subscription of this.subscriptions.get(account) ?? []) {
+      const stop = subscription.end ?? Number.POSITIVE_INFINITY;
+      for (let index = 0; ; index += 1) {
+        const start = subscription.start + index * length;
+        if (start > now || start >= stop) break;
+        periods.push({ index, start, end: Math.min(start + length, stop) });
+      }
     }
     return periods;
   }

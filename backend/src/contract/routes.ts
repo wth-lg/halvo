@@ -51,6 +51,7 @@ export const routeTable = {
         active: [],
         "payment-failed": [],
         cancelled: [],
+        closing: [],
         "no-such-account": [],
         "credential-mismatch": [],
       },

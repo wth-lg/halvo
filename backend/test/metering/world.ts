@@ -5,7 +5,7 @@ import { makeLedger } from "../../src/ledger/index.ts";
 import { makeMetering } from "../../src/metering/index.ts";
 import type { Ms, Step } from "../../src/types.ts";
 import { FakeMeter, type FakeMeterConfig } from "../../test-kit/fake-meter/fake-meter.ts";
-import { type Fault, type MeterCall, meterPort } from "../../test-kit/fake-meter/port.ts";
+import { type CancelFault, type CustomerModel, type Fault, type MeterCall, meterPort } from "../../test-kit/fake-meter/port.ts";
 import { makeTestHost } from "../../test-kit/sql/node.ts";
 
 export const ACCOUNT = "00000000-0000-4000-8000-0000000000a1";
@@ -14,13 +14,29 @@ export const START: Ms = 1_800_000_017_000;
 export const HOUR: Ms = 3_600_000;
 export const DAY: Ms = 86_400_000;
 export const UNIT = { input: 1_000_000, output: 1_000_000 };
+export const CUSTOMER = "cus_1";
 
 type Row = Record<string, string | number | null>;
+
+/**
+ * The customer at the provider, for a world whose port lists the customer's subscriptions (contract 2): `plans` are
+ * subscriptions beside the account's own `sub_1`, each started at `at` (START when not given); `known: false` is a
+ * customer that the provider does not know; the other fields are the customer model's.
+ */
+export interface ListedCustomer {
+  plans?: { id: string; status?: "active" | "incomplete_expired"; at?: Ms }[];
+  known?: boolean;
+  deleted?: boolean;
+  refused?: string[];
+  perCall?: number;
+  faults?: CancelFault[];
+}
 
 export interface World {
   meter: FakeMeter;
   calls: MeterCall[];
   faults: Fault[];
+  cancelFaults: CancelFault[];
   host: Host;
   entries(): Entries;
   restart(): void;
@@ -33,6 +49,8 @@ export interface World {
   tables(): Promise<Record<string, Row[]>>;
   intervals(): Promise<Row[]>;
   stopNextStep(when: "before" | "after"): void;
+  /** Ends every pause that the host's timer holds, as the passing of the paused time does. */
+  endPauses(): void;
   lines: string[];
   close(): void;
 }
@@ -48,7 +66,8 @@ export async function world(o: {
   seed?: boolean;
   checkout?: { sessionId: string; url: string };
   session?: CompletedSession;
-  cancel?: () => Promise<{ kind: "cancelled" } | { kind: "nothing-to-cancel" } | { kind: "failed" }>;
+  cancel?: () => Promise<{ kind: "cancelled" } | { kind: "nothing-to-cancel" } | { kind: "failed"; cancelled?: number }>;
+  listed?: ListedCustomer;
 } = {}): Promise<World> {
   let now = START;
   const meter = new FakeMeter({
@@ -61,7 +80,18 @@ export async function world(o: {
     ...o.meter,
   });
   if (o.subscribed !== false) meter.subscribe(ACCOUNT, Math.floor(START / 1000));
-  const made = meterPort({ meter, now: () => now, faults: o.faults ?? [], always: o.always, cancel: o.cancel, checkout: o.checkout, session: o.session });
+  for (const plan of o.listed?.plans ?? []) meter.subscribe(ACCOUNT, Math.floor((plan.at ?? START) / 1000), plan.id, plan.status ?? "active");
+  const customer: CustomerModel | undefined =
+    o.listed === undefined
+      ? undefined
+      : {
+          customers: o.listed.known === false ? {} : { [CUSTOMER]: ACCOUNT },
+          deleted: o.listed.deleted === true ? [CUSTOMER] : [],
+          refused: o.listed.refused,
+          perCall: o.listed.perCall,
+          faults: o.listed.faults ?? [],
+        };
+  const made = meterPort({ meter, now: () => now, faults: o.faults ?? [], always: o.always, cancel: o.cancel, customer, checkout: o.checkout, session: o.session });
   const test = makeTestHost({ port: made.port, clock: () => now, config: o.config });
   const host = test.host;
   let stop: "before" | "after" | null = null;
@@ -94,7 +124,7 @@ export async function world(o: {
     accountId: ACCOUNT,
     hash: HASH,
     subscription: "active",
-    customerId: o.customer === false ? undefined : "cus_1",
+    customerId: o.customer === false ? undefined : CUSTOMER,
     cap: { amount: 100_000_000, period: "month" },
     ...(o.testClock === false ? {} : { time: START }),
   });
@@ -103,6 +133,7 @@ export async function world(o: {
     meter,
     calls: made.calls,
     faults: made.faults,
+    cancelFaults: made.cancelFaults,
     host,
     entries: () => entries,
     restart() {
@@ -146,6 +177,7 @@ export async function world(o: {
     stopNextStep(when) {
       stop = when;
     },
+    endPauses: test.endPauses,
     lines,
     close: test.close,
   };
