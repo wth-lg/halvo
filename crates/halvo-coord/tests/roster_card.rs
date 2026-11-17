@@ -633,6 +633,7 @@ fn rd48c_the_coordinators_own_row_decides_the_line_only_for_an_end_that_the_coor
             What::RunEnded {
                 run: run_of(2),
                 cause: own,
+                defers: None,
             },
         );
         let mut h = history(2, store);
@@ -726,6 +727,7 @@ fn rd101i_a_lapse_after_a_switch_off_that_still_stands_has_the_line_of_a_stopped
                 _ => What::RunEnded {
                     run: run_of(2),
                     cause: RunEnd::Lapsed,
+                    defers: None,
                 },
             };
             row(&mut f, what);
@@ -767,6 +769,7 @@ fn own(cause: RunEnd) -> What {
     What::RunEnded {
         run: run_of(2),
         cause,
+        defers: None,
     }
 }
 
@@ -869,6 +872,7 @@ fn rd116_r4_the_newest_own_row_of_this_run_decides_and_another_runs_row_does_not
         What::RunEnded {
             run: run_of(3),
             cause: RunEnd::Cancelled,
+            defers: None,
         },
     );
     let mut older = history(2, Outcome::Declined);
