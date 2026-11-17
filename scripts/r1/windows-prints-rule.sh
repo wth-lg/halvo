@@ -3,13 +3,16 @@
 wpr_fixed_words() {
   cat <<'EOF'
 about English word of a fixed message of a test
+allocated English word of a fixed message of a test
 ambient a window class of the hosted runner's desktop
 application an image name and a window class of Windows (ApplicationFrameHost.exe, ApplicationFrameWindow)
 applicationframehost the image name ApplicationFrameHost.exe in a key of a functional test's line
 autofocus the HTML attribute autofocus in a fixed message of a page test
 backtrace libtest: the line that names RUST_BACKTRACE
 been libtest: a test that has been running for over 60 seconds
+but English word of the left_out lines of the stall tests
 cascadia a window class of Windows Terminal (CASCADIA_HOSTING_WINDOW_CLASS)
+come English word of a fixed message of a page test
 compares English word of a fixed message of a test
 could English word of a fixed message of a test
 covering English word of a fixed message of a test
@@ -23,6 +26,7 @@ expanded an ARIA property name that a page test prints
 explorer an image name of Windows (explorer.exe)
 failures libtest: the list of failed tests
 fewer English word of a fixed message of a test
+fg the key fg (the foreground flag) of the stall tests' lines, a word of Windows code only inside string literals
 filtered libtest: the summary line
 finished libtest: the summary line
 fixtures English word of a fixed message of a test
@@ -36,6 +40,7 @@ ignored libtest: the summary line
 imagename the filter word IMAGENAME of tasklist.exe in a format string of the tests
 inconclusive the word INCONCLUSIVE of a test that could not run its case
 lay English word of a fixed message of a test
+loops English word of the left_out lines of the stall tests
 mb a unit of a size
 mean English word of a fixed message of a test
 measured libtest: the summary line
@@ -145,9 +150,67 @@ wpr_words() {
   '
 }
 
+wpr_forms() {
+  cat <<'EOF'
+A printed line is split at blanks into tokens. A token passes when it is one of these forms, and the line passes when every token passes.
+Every byte is printable ASCII, and the punctuation of a token is drawn from = - ( ) , ; [ ] < > + # ' ` " { } . : / \ @ alone.
+Number forms, each a run of letters and digits of its own:
+  integer           digits: 42
+  decimal           digits, one dot, digits, with no other dot beside them: 6.01
+  hex               0x and hex digits alone: 0x80070578
+  duration or size  an integer or a decimal and one unit of ns us ms s mb: 150ms 6.01s
+  screen size       digits x digits: 1024x768
+  hash              7 or more of 0-9 and a-f with at least one digit and one letter: 38082c0e
+A word: a run whose parts, split at _ and at capital letters, are each a word of the vocabulary, or such a word with digits at its end.
+  The vocabulary holds the parts of the identifiers of the Rust code of crates/halvo-capture at HEAD outside string literals and
+  comments, and the parts of its file paths, both read in the Windows view that the ledger of check 50 binds (no path that the
+  list macos_only_paths of check 50 names), and the fixed list of wpr_fixed_words, each word with its reason.
+A lone letter passes only as: an upper-case letter right after the word phase, or after phases and then after and once more
+  (at most two for one phase word); the token a; the s of 's; the f of the token fixture-native-f; the t of t+Ns; and the
+  letters p and t of the value of landings.
+Punctuation between runs: = - ( ) , ; [ ] < > + # ' ` " { } join anything. The others pass only so:
+  .   inside a decimal, at the end of a token, in a program's image name NAME.exe, and in a class name Windows.Name.Name
+  :   at the end of a token, before a run that starts with a letter (one : or ):), as :: between two runs that start with a
+      letter, as ): or : before a comma, and as one : between two integers that no other : stands beside (a wait in ms and
+      its count of rounds)
+  /   between two integers (a count of a count), or before a key that = follows
+  @   between a run or a ) and an integer (an event and its time)
+  \   only in the panic hook's place token crates\PATH.rs:LINE:COLUMN: whose PATH is a .rs path of the Windows view
+  %   never
+A token with no letter and no digit passes only as [] - ... { or })), and the value after an = with no letter and no digit
+  only as [] or - or nothing.
+Two whole values pass as they are: a registry hive and its view (HKLM or HKCU, then /, then native or wow6432node), and
+  the counts file_reads=ok:N,failed:N,not_read:N,no_element:N of the page tests.
+The token after KNOWN-DEFECT, in the second place of its line alone, passes only as an id that the list expected_tests of
+  check 50 names.
+So an IPv4 or IPv6 address, a Unix or a Windows path and a URL fail, also when they are made of source words and numbers.
+The source read of check 53 reads the format strings with each placeholder as a field that matches a letter or a digit, does
+  not hold the punctuation at the two ends of a literal to the end rules, and passes a literal of one or two punctuation marks
+  alone (a separator of a join or a replace).
+EOF
+}
+
+wpr_view_tree() {
+  wpr_tree=$1
+  wpr_skip=$2
+  LC_ALL=C awk -F '\t' 'NR == FNR { skip[$1] = 1; next }
+    {
+      path = $2
+      for (prefix in skip) if (path == prefix || index(path, prefix "/") == 1) next
+      print
+    }' "$wpr_skip" "$wpr_tree"
+}
+
 wpr_vocabulary() {
   wpr_out=$1
-  git ls-tree -r HEAD -- crates/halvo-capture >"$wpr_out.tree" || return 2
+  git show HEAD:scripts/r1/ci.d/50-windows-functional.sh >"$wpr_out.check50" || return 2
+  sed -n '/^macos_only_paths() {$/,/^}$/p' "$wpr_out.check50" >"$wpr_out.macos-lines" || return 2
+  LC_ALL=C awk -F '\t' '$1 ~ /^crates\/halvo-capture\// { print $1 }' "$wpr_out.macos-lines" >"$wpr_out.macos" || return 2
+  [ -s "$wpr_out.macos" ] || return 2
+  sed -n '/^expected_tests() {$/,/^EOF$/p' "$wpr_out.check50" >"$wpr_out.expected" || return 2
+  LC_ALL=C awk '/^EOF$/ { inside = 0 } inside { for (i = 2; i <= NF; i++) if ($i !~ /^(group|scope)=/) print "id:" $i } /<<.EOF.$/ { inside = 1 }' "$wpr_out.expected" >"$wpr_out.ids" || return 2
+  git ls-tree -r HEAD -- crates/halvo-capture >"$wpr_out.all" || return 2
+  wpr_view_tree "$wpr_out.all" "$wpr_out.macos" >"$wpr_out.tree" || return 2
   LC_ALL=C awk -F '\t' '$1 ~ / blob / && $2 ~ /\.rs$/ { split($1, f, " "); print f[3] }' "$wpr_out.tree" >"$wpr_out.blobs" || return 2
   [ -s "$wpr_out.blobs" ] || return 2
   git cat-file --batch='//wpr-blob' <"$wpr_out.blobs" >"$wpr_out.src" || return 2
@@ -156,15 +219,20 @@ wpr_vocabulary() {
   wpr_words <"$wpr_out.paths" >>"$wpr_out.words" || return 2
   wpr_fixed_words >"$wpr_out.fixed" || return 2
   LC_ALL=C awk '{ print $1 }' "$wpr_out.fixed" >>"$wpr_out.words" || return 2
+  LC_ALL=C awk -F '\t' '$2 ~ /\.rs$/ { print "path:" $2 }' "$wpr_out.tree" >>"$wpr_out.words" || return 2
+  cat "$wpr_out.ids" >>"$wpr_out.words" || return 2
   LC_ALL=C sort -u "$wpr_out.words" >"$wpr_out" || return 2
   [ -s "$wpr_out" ] || return 2
 }
 
 wpr_check_lines() {
-  LC_ALL=C awk -v name="$2" '
+  LC_ALL=C awk -v name="$2" -v source="${3:-}" '
+    function number_ok(p) {
+      if (p ~ /^[0-9]+$/ || p ~ /^[0-9]+(ns|us|ms|s|mb)$/ || p ~ /^0x[0-9A-Fa-f]+$/ || p ~ /^[0-9]+x[0-9]+$/) return 1
+      return p ~ /^[0-9a-f]+$/ && length(p) >= 7 && p ~ /[0-9]/ && p ~ /[a-f]/
+    }
     function stem_ok(p,    s) {
-      if (p in vocab) return 1
-      if (p ~ /^[0-9]+(ms|us|ns|s|mb)?$/) return 1
+      if (p in vocab || number_ok(p)) return 1
       s = p
       sub(/[0-9]+$/, "", s)
       if (s != p && length(s) >= 2 && (s in vocab)) return 1
@@ -180,51 +248,105 @@ wpr_check_lines() {
       for (j = 1; j <= n; j++) if (!stem_ok(subs[j])) return 0
       return 1
     }
-    function letter_ok(a, before) {
-      if (prev == "phase" || prev == "phases" || prev == "and" && phase2) { by_phase = 1; return 1 }
+    function letter_ok(a, before, after) {
+      if (a ~ /^[A-Z]$/ && (prev == "phase" || prev == "phases")) { phase_word = prev; phase_count = 1; by_phase = 1; return 1 }
+      if (a ~ /^[A-Z]$/ && prev == "and" && phase2 && phase_word == "phases" && phase_count < 2) { phase_count++; by_phase = 1; return 1 }
       if (tok == "a") return 1
       if (a == "s" && before == "\047") return 1
       if (tok == "fixture-native-f") return 1
-      if (a == "t" && tok ~ /^t\+[0-9]+s$/) return 1
+      if (a == "t" && (after ~ /^\+[0-9]+s$/ || source != "" && after == "+\003")) return 1
       return 0
     }
-    function atom_ok(a, before,    n, parts, i) {
+    function atom_ok(a, before, after,    n, parts, i) {
       by_phase = 0
-      if (a ~ /^0x[0-9A-Fa-f]+$/ || a ~ /^[0-9]+x[0-9]+$/) return 1
-      if (a ~ /^[0-9a-f]+$/ && length(a) >= 7 && a ~ /[0-9]/ && a ~ /[a-f]/) return 1
+      if (source != "" && a == "\003") return 1
       if (prev == "landings" && a ~ /^[pt]+$/) return 1
-      if (a ~ /^[A-Za-z]$/) return letter_ok(a, before)
+      if (a ~ /^[A-Za-z]$/) return letter_ok(a, before, after)
       n = split(a, parts, "_")
       for (i = 1; i <= n; i++) {
-        if (parts[i] == "" || parts[i] ~ /^[0-9]+$/) continue
+        if (parts[i] == "" || number_ok(parts[i])) continue
         if (!part_ok(parts[i])) return 0
       }
       return 1
     }
-    function token_ok(    rest, a, before) {
-      if (tok ~ /[^ -~]/) return 0
-      if (k == 2 && toks[1] == "KNOWN-DEFECT" && tok ~ /^[A-Z][A-Za-z0-9]*(-[A-Za-z0-9]+)+$/) return 1
-      rest = tok
-      while (match(rest, /[A-Za-z0-9_]+/)) {
-        a = substr(rest, RSTART, RLENGTH)
-        before = RSTART > 1 ? substr(rest, RSTART - 1, 1) : ""
+    function digits(x) {
+      return x ~ /^[0-9]+$/ || source != "" && x == "\003"
+    }
+    function sep_ok(s, where, left, right, next_sep, prev_sep) {
+      if (s ~ /[^-=(),;\[\]<>+#\047`"{}.:\/\\@]/) return 0
+      if (s !~ /[.:\/\\@]/) return 1
+      if (source != "" && where != "mid") return 1
+      if (where == "end") return s ~ /^[)\]"]*[.:][)\]"`\047,;]*$/
+      if (where == "start") return 0
+      if (s == ":" && left ~ /^[0-9]+$/ && right ~ /^[0-9]+$/) return prev_sep !~ /:/ && next_sep !~ /:/
+      if (s == ":" || s == "):") return right ~ /^[A-Za-z]/ || source != "" && right == "\003"
+      if (s == "::") return left ~ /^[A-Za-z]/ && right ~ /^[A-Za-z]/
+      if (s == "):," || s == ":,") return 1
+      if (s == "/") return digits(left) && digits(right) || next_sep ~ /^=/
+      if (s == "@" || s == ")@") return digits(right)
+      return 0
+    }
+    function undot(t, re,    out, m) {
+      out = ""
+      while (match(t, re)) {
+        m = substr(t, RSTART, RLENGTH)
+        gsub(/\./, "_", m)
+        out = out substr(t, 1, RSTART - 1) m
+        t = substr(t, RSTART + RLENGTH)
+      }
+      return out t
+    }
+    function token_ok(    t, p, n, parts, i, m, atoms, seps, rest) {
+      if (tok !~ /[A-Za-z0-9\003]/) {
+        if (source != "" && ntok == 1 && length(tok) <= 2 && tok !~ /[^-=(),;\[\]<>+#\047`"{}.:\/\\@_]/) return 1
+        return tok == "[]" || tok == "-" || tok == "..." || tok == "{" || tok == "}))"
+      }
+      if (k == 2 && toks[1] == "KNOWN-DEFECT") return ("id:" tok) in vocab || source != "" && tok == "\003"
+      if (tok ~ /^[a-z_]+=HK(LM|CU)\/(native|wow6432node)$/) { sub(/\//, "_", tok) }
+      if (tok ~ /^file_reads=ok:[0-9]+,failed:[0-9]+,not_read:[0-9]+,no_element:[0-9]+$/) return 1
+      if (tok ~ /^crates[\\\/][-A-Za-z0-9_.\\\/]+\.rs:[0-9]+:[0-9]+:$/) {
+        p = tok
+        gsub(/\\/, "/", p)
+        sub(/:[0-9]+:[0-9]+:$/, "", p)
+        return ("path:" p) in vocab
+      }
+      t = undot(tok, "(^|[^A-Za-z0-9_.])[0-9]+\\.[0-9]+(ns|us|ms|s|mb)?([^A-Za-z0-9_.]|$)")
+      t = undot(t, "[A-Za-z0-9_-]+\\.exe([^A-Za-z0-9_.]|$)")
+      t = undot(t, "(^|[^A-Za-z0-9_.])Windows(\\.[A-Z][A-Za-z0-9]*)+([^A-Za-z0-9_.]|$)")
+      n = split(t, parts, "=")
+      for (i = 2; i <= n; i++) if (parts[i] !~ /[A-Za-z0-9\003]/ && parts[i] != "" && parts[i] != "[]" && parts[i] != "-") return 0
+      m = 0
+      rest = t
+      while (match(rest, /[A-Za-z0-9_]+|\003/)) {
+        seps[m] = substr(rest, 1, RSTART - 1)
+        m++
+        atoms[m] = substr(rest, RSTART, RLENGTH)
         rest = substr(rest, RSTART + RLENGTH)
-        if (!atom_ok(a, before)) return 0
-        prev = tolower(a)
+      }
+      seps[m] = rest
+      if (seps[0] != "" && !sep_ok(seps[0], "start", "", atoms[1], "")) return 0
+      for (i = 1; i <= m; i++) {
+        if (source != "" && (i > 1 && atoms[i - 1] == "\003" && seps[i - 1] == "" && atoms[i] ~ /^(ns|us|ms|s|mb|x)$/ || atoms[i] == "0x" && atoms[i + 1] == "\003" && seps[i] == "")) {
+          by_phase = 0
+        } else if (!atom_ok(atoms[i], substr(seps[i - 1], length(seps[i - 1]), 1), seps[i] atoms[i + 1])) return 0
+        prev = tolower(atoms[i])
         phase2 = phase1
         phase1 = by_phase
+        if (i < m && !sep_ok(seps[i], "mid", atoms[i], atoms[i + 1], seps[i + 1], seps[i - 1])) return 0
       }
+      if (seps[m] != "" && !sep_ok(seps[m], "end", atoms[m], "", "")) return 0
       return 1
     }
     FNR == NR { vocab[$1] = 1; next }
     {
       line = $0
       gsub(/\r/, "", line)
-      n = split(line, toks, / +/)
+      ntok = split(line, toks, / +/)
       prev = ""
       phase1 = 0
-      for (k = 1; k <= n; k++) {
+      for (k = 1; k <= ntok; k++) {
         tok = toks[k]
+        if (tok == "") continue
         if (!token_ok()) {
           print "prints-rule " name " line=" FNR " length=" length(line) " token=" k
           bad++
@@ -270,7 +392,7 @@ wpr_print_literals() {
       out = ""
       while (match(s, /\{\{|\}\}|\{[^{}]*\}/)) {
         f = substr(s, RSTART, RLENGTH)
-        out = out substr(s, 1, RSTART - 1) (f == "{{" ? "{" : f == "}}" ? "}" : "0")
+        out = out substr(s, 1, RSTART - 1) (f == "{{" ? "{" : f == "}}" ? "}" : "\003")
         s = substr(s, RSTART + RLENGTH)
       }
       return out s
