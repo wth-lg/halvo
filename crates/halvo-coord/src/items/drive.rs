@@ -870,36 +870,6 @@ fn store_unqueued_reading<P: Owner + Clock>(
     }
 }
 
-/// Stores the events in one body once the waiting ones are stored, and keeps none of them
-/// waiting: rows that get no acknowledgement count as not stored (I4.5).
-fn store_unqueued<P: Owner + Clock>(
-    ports: &P,
-    ledger: &mut Ledger,
-    limits: &Limits,
-    whats: Vec<What>,
-    stamp: Stamp,
-) -> Result<(), PortError> {
-    flush(ports, ledger, limits)?;
-    let mut events = ledger.number(whats.clone(), stamp);
-    let mut resynced = false;
-    loop {
-        match ports.log(&events) {
-            Ok(()) => {
-                ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
-                ledger.learnt = true;
-                ledger.keep_acknowledged_closing_rows(&events);
-                return Ok(());
-            }
-            Err(e) if refused_with(&e, "seq") && !resynced => {
-                resync(ports, ledger)?;
-                events = ledger.number(whats.clone(), stamp);
-                resynced = true;
-            }
-            Err(e) => return Err(e),
-        }
-    }
-}
-
 struct Press<'a> {
     kind: RunItemKind,
     item: &'a ItemId,
@@ -1201,7 +1171,8 @@ pub fn tick_at<P: Owner + Runs + Clock>(
 /// entries of the decision. When the rows get no acknowledgement the item lapses with
 /// `no_record`, `item_lapsed` is stored, and the answer is `no_service`: the port sent
 /// `reject_once` under new ids. When the rows were acknowledged and the decision was not sent,
-/// the item stays `recorded` and its rows count for no record.
+/// the item stays `recorded` and its rows count for no record. The read is the ledger's own;
+/// `answer_reading` takes the coordinator's.
 pub fn answer<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1211,6 +1182,27 @@ pub fn answer<P: Owner + Runs + Clock>(
     from: Presenter,
     limits: &Limits,
 ) -> Result<(), Cause> {
+    let mut read = |l: &mut Ledger| own_read(ports, l);
+    answer_reading(ports, ledger, table, held, answer, from, limits, &mut read)
+}
+
+/// `answer` with `read` as the one read of the owner's events before the answers go to
+/// `Runs::answer_confirm`, and as the read after a refusal `seq` of the rows. Where it shows the
+/// agent switched off beside its run, no row of the press is stored, the runner gets no answer of
+/// it, the item stays for the rest of the switch-off, and the move answers `unknown_item`; where
+/// the read before the answers fails, the move answers `no_service` and sends nothing (ruling
+/// RD-52 (b) rule 3, RD-101 item 5 (b)).
+#[allow(clippy::too_many_arguments)]
+pub fn answer_reading<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    answer: ConfirmAnswer,
+    from: Presenter,
+    limits: &Limits,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
+) -> Result<(), Cause> {
     if table.is_stopped(held.ask.run()) {
         return Err(Cause::State);
     }
@@ -1219,6 +1211,11 @@ pub fn answer<P: Owner + Runs + Clock>(
         ConfirmMove::Answer { answer, from },
     )?;
     let stamp = clock_at(ports)?;
+    match read(ledger) {
+        Read::Off => return Err(Cause::UnknownItem),
+        Read::Failed => return Err(Cause::NoService),
+        Read::Taken => {}
+    }
     held.confirmation = answered.clone();
     let item = held.item.clone();
     let mut recorded: Option<Confirmation> = None;
@@ -1233,7 +1230,9 @@ pub fn answer<P: Owner + Runs + Clock>(
                 answer: Answered::Confirm(entry.clone()),
             })
             .collect();
-        store_unqueued(ports, ledger, limits, rows, stamp)?;
+        if !store_unqueued_reading(ports, ledger, limits, rows, stamp, read)? {
+            return Err(PortError::NoService);
+        }
         recorded = Some(next);
         Ok(())
     });

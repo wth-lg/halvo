@@ -1256,10 +1256,26 @@ where
         if let (Some(now), true) = (by.now, h.confirmation().presenter() == by.from) {
             items::arm_at(h, now, &self.limits);
         }
+        let agent = board.members[i].facts.agent.clone();
         let l = ledger(ledgers, board, i);
-        let out = items::answer(&self.ports, l, table, h, answer, by.from, &self.limits);
+        let mut reading = Reading::new(&self.ports, board, i);
+        let out = items::answer_reading(
+            &self.ports,
+            l,
+            table,
+            h,
+            answer,
+            by.from,
+            &self.limits,
+            &mut |l| reading.read(l),
+        );
+        let stopped = reading.stopped;
         let closed = !h.confirmation().state().is_open();
         self.read_back(board, i);
+        if stopped {
+            self.switch_off(st, i, Move::Off { agent })?;
+            return Err(Cause::UnknownItem);
+        }
         if closed {
             held.retain(|h| h.item() != item);
             self.act(st, Act::Resume { run: run.clone() })?;

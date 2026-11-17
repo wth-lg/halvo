@@ -7016,92 +7016,116 @@ fn rd52b_an_allow_on_a_second_step_whose_read_shows_a_stored_switch_off_stops_th
 }
 
 #[test]
-fn an_allow_on_a_confirmation_whose_read_shows_a_stored_switch_off_goes_to_the_runner_and_the_run_stops_after(
-) {
-    use halvo_coord::types::AgentState;
+fn rd101_5b_an_answer_on_a_confirmation_whose_read_shows_a_stored_switch_off_stops_the_run_first() {
     for native in [false, true] {
-        for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
-            let case = format!("native={native} {order:?}");
-            let (c, run, item) = run_waiting_on_a_confirmation(native);
-            assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
-            if native {
-                c.on_screen(&item);
-            } else {
-                assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+        for choice in [Choice::Allow, Choice::Reject] {
+            for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
+                let case = format!("native={native} {choice:?} {order:?}");
+                let (c, run, item) = run_waiting_on_a_confirmation(native);
+                assert_an_unseen_switch_off_does_nothing(&c, &item, order, &case);
+                if native {
+                    c.on_screen(&item);
+                } else {
+                    assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+                }
+                c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+                if native {
+                    c.tick();
+                }
+                let (m, from) = (mark(&c), c.ports().ports.events.borrow().len());
+                let out = if native {
+                    let answer = if choice == Choice::Allow {
+                        ConfirmAnswer::Allow
+                    } else {
+                        ConfirmAnswer::Reject
+                    };
+                    c.answer_native(&item, answer)
+                } else {
+                    c.answer(&item, choice, None, shown_step_mark_or_zero(&c, &item))
+                };
+                assert_eq!(
+                    out,
+                    Err(Cause::UnknownItem),
+                    "{case}: as for an item no longer open"
+                );
+                no_answer_of_the_press_before_the_cancel(&c, m, &run, &case);
+                assert_eq!(
+                    item_rows_since(&c, from, &item),
+                    ["lapsed:cancelled"],
+                    "{case}: no row of the press, and the item lapses with the switch-off"
+                );
+                assert_the_stop_came_first(&c, m, &run, &case);
             }
-            c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+        }
+    }
+}
+
+/// The runner gets no decision before the run's one cancel, and every decision after it is the
+/// lapse's, which rejects each effect (rulings RD-52 (b) rule 3, RD-83, RD-101 item 5 (b)).
+fn no_answer_of_the_press_before_the_cancel(
+    c: &Coordinator<Both>,
+    m: usize,
+    run: &RunId,
+    case: &str,
+) {
+    let answered = places_of_calls_since(c, m, |call| matches!(call, Call::AnswerConfirm(..)));
+    let cancels = places_of_calls_since(c, m, |call| matches!(call, Call::Cancel(r) if r == run));
+    assert_eq!(cancels.len(), 1, "{case}: one cancel");
+    assert!(
+        answered.iter().all(|k| *k > cancels[0]),
+        "{case}: no decision before the cancel: {answered:?} {cancels:?}"
+    );
+    for call in calls_since(c, m) {
+        if let Call::AnswerConfirm(_, _, d) = call {
+            assert!(
+                d.approvals()
+                    .iter()
+                    .all(|e| e.answer == halvo_coord::types::EffectAnswer::RejectOnce),
+                "{case}: the lapse's decision allows nothing: {d:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rd101_5b_a_confirmation_whose_read_before_the_answer_fails_sends_nothing_and_the_read_back_stops_the_run_first(
+) {
+    for native in [false, true] {
+        let case = format!("native={native}");
+        let (c, run, item) = run_waiting_on_a_confirmation(native);
+        switch_off_stored_unseen(&c, support::Loss::Later, &case);
+        if native {
+            c.on_screen(&item);
+        } else {
+            assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}");
+        }
+        c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+        if native {
+            c.tick();
+        }
+        let press = |c: &Coordinator<Both>| {
             if native {
-                c.tick();
-            }
-            let m = mark(&c);
-            let out = if native {
                 c.answer_native(&item, ConfirmAnswer::Allow)
             } else {
                 c.answer(
                     &item,
                     Choice::Allow,
                     None,
-                    shown_step_mark_or_zero(&c, &item),
+                    shown_step_mark_or_zero(c, &item),
                 )
-            };
-            assert_eq!(out, Ok(()), "{case}");
-            let calls = calls_since(&c, m);
-            let decisions: Vec<halvo_coord::types::Decision> = calls
-                .iter()
-                .filter_map(|call| match call {
-                    Call::AnswerConfirm(_, _, d) => Some(d.clone()),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(decisions.len(), 1, "{case}: the answer at the runner once");
-            let entries = decisions[0].approvals().to_vec();
-            assert!(
-                entries
-                    .iter()
-                    .all(|e| e.answer == halvo_coord::types::EffectAnswer::AllowOnce),
-                "{case}"
-            );
-            let answered =
-                places_of_calls_since(&c, m, |call| matches!(call, Call::AnswerConfirm(..)));
-            let cancels =
-                places_of_calls_since(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
-            assert_eq!(cancels.len(), 1, "{case}: one cancel");
-            assert!(
-                answered[0] < cancels[0],
-                "{case}: the answer, then the cancel"
-            );
-            assert_eq!(
-                states_sent(&c, m),
-                [AgentState::Paused],
-                "{case}: paused once"
-            );
-            assert!(
-                c.off_beside_live().is_empty(),
-                "{case}: no run live beside the hold"
-            );
-            let class = if native { Class::Sign } else { Class::Send };
-            for e in &entries {
-                for state in [
-                    halvo_coord::guard::EffectState::Approved,
-                    halvo_coord::guard::EffectState::Releasing,
-                ] {
-                    let record = halvo_coord::guard::EffectRecord {
-                        run: run.clone(),
-                        agent: agent(0),
-                        effect: e.effect.clone(),
-                        state,
-                        class,
-                        digest: e.digest.clone(),
-                        approval: Some(e.approval.clone()),
-                    };
-                    assert_eq!(
-                        c.check_record(&record),
-                        Err(halvo_coord::guard::Refusal::Approval),
-                        "{case}: {state:?} after the move"
-                    );
-                }
             }
-        }
+        };
+        let (m, from) = (mark(&c), c.ports().ports.events.borrow().len());
+        c.ports().next_history_fails.set(true);
+        assert_eq!(press(&c), Err(Cause::NoService), "{case}: the read's cause");
+        c.ports().next_history_fails.set(false);
+        no_answer_of_the_press_before_the_cancel(&c, m, &run, &case);
+        assert_eq!(
+            item_rows_since(&c, from, &item),
+            ["lapsed:cancelled"],
+            "{case}: no row of the press, and the item lapses with the switch-off"
+        );
+        assert_the_stop_came_first(&c, m, &run, &case);
     }
 }
 
@@ -7631,9 +7655,8 @@ fn an_allow_again_after_a_stored_allow_that_the_run_did_not_take_reads_first_and
 }
 
 #[test]
-fn an_allow_on_a_confirmation_whose_flush_of_its_waiting_raise_reads_a_stored_switch_off_goes_to_the_runner_and_the_run_stops_after(
+fn rd101_5b_an_allow_on_a_confirmation_whose_waiting_raise_meets_a_stored_switch_off_stops_the_run_first_and_lapses_it_after_its_raise(
 ) {
-    use halvo_coord::types::AgentState;
     for order in NO_SERVICE_ROW_UNSEEN_ORDERS {
         let case = format!("{order:?}");
         let (c, run, item) = raised_with_no_acknowledgement("confirm");
@@ -7648,43 +7671,18 @@ fn an_allow_on_a_confirmation_whose_flush_of_its_waiting_raise_reads_a_stored_sw
                 None,
                 shown_step_mark_or_zero(&c, &item)
             ),
-            Ok(()),
-            "{case}"
+            Err(Cause::UnknownItem),
+            "{case}: as for an item no longer open"
         );
-        let answered = places_of_calls_since(&c, m, |call| matches!(call, Call::AnswerConfirm(..)));
-        let cancels =
-            places_of_calls_since(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
-        assert_eq!(answered.len(), 1, "{case}: the answer at the runner once");
-        assert_eq!(cancels.len(), 1, "{case}: one cancel");
-        assert!(
-            answered[0] < cancels[0],
-            "{case}: the answer, then the cancel"
-        );
+        no_answer_of_the_press_before_the_cancel(&c, m, &run, &case);
         assert_eq!(
             item_rows_since(&c, from, &item),
-            ["raised", "answered", "released"],
-            "{case}: the waiting raise, the answer and its release, before the stop"
+            ["raised", "lapsed:cancelled"],
+            "{case}: the waiting raise, then its lapse, and no row of the press"
         );
-        assert_eq!(
-            states_sent(&c, m),
-            [AgentState::Paused],
-            "{case}: paused once"
-        );
-        assert!(
-            c.off_beside_live().is_empty(),
-            "{case}: no run beside the hold"
-        );
-        for record in &allowed_records(&c, &run, &item) {
-            assert_eq!(
-                c.check_record(record),
-                Err(halvo_coord::guard::Refusal::Approval),
-                "{case}: {:?} after the move",
-                record.state
-            );
-        }
+        assert_the_stop_came_first(&c, m, &run, &case);
     }
 }
-
 #[test]
 fn a_ticks_lapse_of_a_confirmation_cancels_right_after_the_log_of_a_waiting_row_with_one_clock_read_between_that_stamps_the_row_and_the_stop(
 ) {

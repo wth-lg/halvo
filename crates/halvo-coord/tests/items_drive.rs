@@ -202,8 +202,8 @@ fn refusal_no_record() {
         let methods: Vec<&str> = q.calls.borrow().iter().map(|c| c.call.method()).collect();
         assert_eq!(
             methods,
-            ["log", "log", "answer_confirm", "log"],
-            "item_raised, the rows, the decision, then item_released"
+            ["log", "history", "log", "answer_confirm", "log"],
+            "item_raised, the read before the answer, the rows, the decision, then item_released"
         );
         assert!(matches!(
             held.confirmation().state(),
