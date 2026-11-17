@@ -200,6 +200,11 @@ self_test() {
   source_case src-panic-any refused 'fn x() { std::panic::panic_any("field=hunter2"); }'
   source_case src-format-argument-left passed 'fn t() { let title = format!("halvo-verify-{}", "x".repeat(3)); }'
   [ "$read_count" -eq 1 ] || fail_self "the fixture src-format-argument-left read $read_count lines, not the one format string"
+  source_case src-say-literal refused 'fn c4() { say("c4", "title=Untitled - Notepad"); }'
+  source_case src-say-paren-on-the-next-line refused 'fn x() {
+    say
+        ("c4", "field=hunter2");
+}'
   source_case src-heads-lines passed 'fn c1() {
     println!("TF c1 keystroke_events={n} ok={}", flag(ok));
     say(test, format!("phase=E rounds={r} counted_rounds={c} landings={l}"));
@@ -228,19 +233,24 @@ TF c4 title=Untitled - Notepad bytes=18$cr"
   printf 'TF c4 bytes=6 title=\346\227\245\346\234\254\r' >"$work/log-title-outside-ascii.log" ||
     fail_self "the fixture log-title-outside-ascii cannot be written"
   log_case log-title-outside-ascii refused 'prints-rule log-title-outside-ascii line=1 length=26 token=4'
-  plant log-typed-keys "TF c1 key=s$cr
+  plant log-typed-keys "TF browser-stall-chrome phases E and F landings=ppt$cr
+TF stall-stale-focus control_reads=phase-E$cr
+and q typed$cr
+TF c1 key=s$cr
 TF c1 key=t$cr
 TF c1 keys a and q$cr
 TF c1 key=q1$cr
 TF c1 key=e5$cr
-TF browser-stall-chrome landings=pq$cr
-TF browser-stall-chrome phases E and F landings=ppt$cr"
-  log_case log-typed-keys refused 'prints-rule log-typed-keys line=1 length=11 token=3
-prints-rule log-typed-keys line=2 length=11 token=3
-prints-rule log-typed-keys line=3 length=18 token=6
-prints-rule log-typed-keys line=4 length=12 token=3
-prints-rule log-typed-keys line=5 length=12 token=3
-prints-rule log-typed-keys line=6 length=35 token=3'
+TF browser-stall-chrome landings=pq$cr"
+  log_case log-typed-keys refused 'prints-rule log-typed-keys line=3 length=11 token=2
+prints-rule log-typed-keys line=4 length=11 token=3
+prints-rule log-typed-keys line=5 length=11 token=3
+prints-rule log-typed-keys line=6 length=18 token=6
+prints-rule log-typed-keys line=7 length=12 token=3
+prints-rule log-typed-keys line=8 length=12 token=3
+prints-rule log-typed-keys line=9 length=35 token=3'
+  printf 'TF c4\tbytes=5\r\n' >"$work/log-tab-in-a-line.log" || fail_self "the fixture log-tab-in-a-line cannot be written"
+  log_case log-tab-in-a-line refused 'prints-rule log-tab-in-a-line line=1 length=13 token=2'
   plant log-field-text-of-a-literal "TF stall plain_len=5 plain_text=aaaaa$cr
 TF browser-stall-chrome field=secret$cr"
   log_case log-field-text-of-a-literal refused 'prints-rule log-field-text-of-a-literal line=1 length=37 token=4

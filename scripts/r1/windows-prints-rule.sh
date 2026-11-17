@@ -220,7 +220,7 @@ wpr_check_lines() {
     {
       line = $0
       gsub(/\r/, "", line)
-      n = split(line, toks, /[ \t]+/)
+      n = split(line, toks, / +/)
       prev = ""
       phase1 = 0
       for (k = 1; k <= n; k++) {
