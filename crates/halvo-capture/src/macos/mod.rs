@@ -103,7 +103,8 @@ mod timed {
             run_loop,
             started: Instant::now(),
         };
-        let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop);
+        let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop)
+            .with_ending(Arc::new(crate::daemon::main_loop::ExitNow));
         if let Ok(dir) = children::own_dir() {
             supervisor = supervisor.with_probe(Box::new(ChildProbe::new(dir, "halvo-capture")));
         }

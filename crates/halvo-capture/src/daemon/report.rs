@@ -137,6 +137,9 @@ pub struct RunOutcome {
     pub report: TimedRunReport,
     pub status: i32,
     pub loss: Option<Loss>,
+    /// The sources whose stop answered neither Ok nor ThreadEnded; the run
+    /// ends by the ending call when one is named.
+    pub let_go: Vec<&'static str>,
 }
 
 /// The loss line of contracts.md C3.2 and the cause of status 1 that holds,

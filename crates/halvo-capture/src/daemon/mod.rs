@@ -839,6 +839,41 @@ pub trait RunSources {
     fn waits(&mut self) -> Option<&mut dyn Waits> {
         None
     }
+
+    /// Arms the watchdog of the run, if the sources keep one, to end the
+    /// process with `status` once SHUTDOWN_BUDGET_MS has passed.
+    fn arm_watchdog(&mut self, status: i32) {
+        let _ = status;
+    }
+
+    /// The sources whose stop answered neither Ok nor ThreadEnded and that
+    /// are let go without a wait.
+    fn let_go(&self) -> Vec<SourceName> {
+        Vec::new()
+    }
+}
+
+/// The end of a timed run in which a source did not stop: the line that says
+/// so on `err`, then the ending call with `status`, so that no path returns
+/// from `main` with a source let go (ruling PL-3 part (4)). A run whose
+/// sources all stopped ends nothing here.
+pub fn finish_run(
+    outcome: &RunOutcome,
+    status: i32,
+    ending: &dyn main_loop::EndCall,
+    err: &mut dyn std::io::Write,
+) {
+    if outcome.let_go.is_empty() {
+        return;
+    }
+    let _ = writeln!(
+        err,
+        "halvo-capture: the source{} {} did not stop; the process ends without waiting for it",
+        if outcome.let_go.len() == 1 { "" } else { "s" },
+        outcome.let_go.join(", ")
+    );
+    let _ = err.flush();
+    ending.end(status);
 }
 
 /// The clock and the waits of a timed run's stop path.
@@ -960,6 +995,13 @@ where
     let mut failed = sources.start(&ctx, &wanted, run.hold_after());
     drop(ctx);
     let signalled = sources.supervise(run.window, stop, &owner);
+    sources.arm_watchdog(
+        if signalled || stop.load(std::sync::atomic::Ordering::SeqCst) {
+            exit::TIMED_RUN_INTERRUPTED
+        } else {
+            exit::TIMED_RUN_SOURCE_FAILED
+        },
+    );
     let mut real = RealWaits;
     let started = waits_of(sources, &mut real).clock();
     let counts = handle.counts();
@@ -1051,6 +1093,11 @@ where
         report: report_of(&settled, &sink_counts, &figures, failed, run.secure_input),
         status,
         loss,
+        let_go: sources
+            .let_go()
+            .into_iter()
+            .map(SourceName::as_str)
+            .collect(),
     })
 }
 
@@ -1294,6 +1341,7 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
             report,
             status: halvo_control::exit::CLEAN,
             loss: None,
+            let_go: Vec::new(),
         })
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]

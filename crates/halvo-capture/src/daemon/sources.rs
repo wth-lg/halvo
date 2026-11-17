@@ -384,7 +384,11 @@ pub(crate) mod tests {
         pub(crate) ctx: Arc<Mutex<Option<SourceContext>>>,
         pub(crate) on_begin: Option<Hook>,
         pub(crate) on_stop: Option<Hook>,
+        pub(crate) later: Later,
     }
+
+    /// The answer that a scripted source gives from its second stop on.
+    pub(crate) type Later = Arc<Mutex<Option<Result<(), CaptureError>>>>;
 
     /// A call that a scripted source makes with its context.
     pub(crate) type Hook = Box<dyn FnMut(&SourceContext)>;
@@ -424,7 +428,16 @@ pub(crate) mod tests {
             if is_a_stop(&self.stop) {
                 *self.ctx.lock().unwrap_or_else(PoisonError::into_inner) = None;
             }
-            self.stop.clone()
+            let answer = self.stop.clone();
+            if let Some(later) = self
+                .later
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+            {
+                self.stop = later;
+            }
+            answer
         }
 
         fn health(&self) -> SourceHealth {
@@ -440,6 +453,7 @@ pub(crate) mod tests {
         pub(crate) made: Vec<SourceName>,
         pub(crate) health: Vec<(SourceName, Health)>,
         pub(crate) ctx: Vec<(SourceName, Arc<Mutex<Option<SourceContext>>>)>,
+        pub(crate) later: Vec<(SourceName, Later)>,
         pub(crate) adjust: Box<dyn FnMut(&mut Scripted)>,
     }
 
@@ -455,7 +469,20 @@ pub(crate) mod tests {
                 made: Vec::new(),
                 health: Vec::new(),
                 ctx: Vec::new(),
+                later: Vec::new(),
                 adjust: Box::new(adjust),
+            }
+        }
+
+        /// Makes the last source made under `name` answer `answer` from its
+        /// second stop on.
+        pub(crate) fn on_second_stop(
+            &mut self,
+            name: SourceName,
+            answer: Result<(), CaptureError>,
+        ) {
+            if let Some((_, later)) = self.later.iter().rev().find(|(made, _)| *made == name) {
+                *later.lock().unwrap_or_else(PoisonError::into_inner) = Some(answer);
             }
         }
 
@@ -483,11 +510,13 @@ pub(crate) mod tests {
                 ctx: Arc::default(),
                 on_begin: None,
                 on_stop: None,
+                later: Arc::default(),
             };
             (self.adjust)(&mut source);
             self.made.push(name);
             self.health.push((name, source.health.clone()));
             self.ctx.push((name, source.ctx.clone()));
+            self.later.push((name, source.later.clone()));
             Some(Box::new(source))
         }
     }

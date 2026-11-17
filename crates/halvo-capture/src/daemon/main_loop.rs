@@ -1,7 +1,8 @@
 //! The loop that a run waits in: on macOS the process main thread's run loop,
 //! turned in slices of at most one tick.
 
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 /// One firing of the supervisor's timer: the longest slice that the loop is
 /// turned before the supervisor reads its inputs again.
@@ -22,6 +23,102 @@ pub trait MainLoop {
 
     /// The loop's monotonic time.
     fn now(&self) -> Duration;
+}
+
+/// The call that ends the process with `status`. The product's ending ends
+/// it at once, with no unwinding, no exit handler, no destructor and no join,
+/// and does not return (ruling PL-3 part (4)); a test's records what it would
+/// have ended and returns.
+pub trait EndCall: Send + Sync {
+    fn end(&self, status: i32);
+}
+
+/// The product's ending: `_exit` on macOS, `TerminateProcess` on the process
+/// itself on Windows.
+pub struct ExitNow;
+
+impl EndCall for ExitNow {
+    fn end(&self, status: i32) {
+        #[cfg(target_os = "macos")]
+        unsafe {
+            libc::_exit(status)
+        }
+        #[cfg(windows)]
+        {
+            use windows::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
+            let _ = unsafe { TerminateProcess(GetCurrentProcess(), status as u32) };
+            std::process::exit(status)
+        }
+        #[cfg(not(any(target_os = "macos", windows)))]
+        {
+            std::process::exit(status)
+        }
+    }
+}
+
+/// A thread that exists from the start of a run, so that arming it creates
+/// nothing: once armed, it makes the ending call with the armed status at the
+/// deadline. The first arm counts; a later one changes nothing.
+pub struct Watchdog {
+    state: Arc<Armed>,
+}
+
+/// The deadline and the status of an armed watchdog, and the wake of its
+/// thread.
+type Armed = (Mutex<Option<(Instant, i32)>>, Condvar);
+
+impl Watchdog {
+    /// Starts the thread of a watchdog that ends by `ending`.
+    pub fn start(ending: Arc<dyn EndCall>) -> Watchdog {
+        let state: Arc<Armed> = Arc::default();
+        let watched = state.clone();
+        let _ = std::thread::Builder::new()
+            .name("halvo-watchdog".to_owned())
+            .spawn(move || {
+                let (armed, wake) = &*watched;
+                let mut guard = armed.lock().unwrap_or_else(PoisonError::into_inner);
+                loop {
+                    match *guard {
+                        None => {
+                            guard = wake.wait(guard).unwrap_or_else(PoisonError::into_inner);
+                        }
+                        Some((deadline, status)) => {
+                            let now = Instant::now();
+                            if now >= deadline {
+                                drop(guard);
+                                ending.end(status);
+                                return;
+                            }
+                            guard = wake
+                                .wait_timeout(guard, deadline - now)
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .0;
+                        }
+                    }
+                }
+            });
+        Watchdog { state }
+    }
+
+    /// Arms the watchdog to end with `status` once `after` has passed, unless
+    /// it is armed already.
+    pub fn arm(&self, after: Duration, status: i32) {
+        let (armed, wake) = &*self.state;
+        let mut guard = armed.lock().unwrap_or_else(PoisonError::into_inner);
+        if guard.is_none() {
+            *guard = Some((Instant::now() + after, status));
+            wake.notify_all();
+        }
+    }
+
+    /// The status that the watchdog is armed with, if it is.
+    pub fn armed(&self) -> Option<i32> {
+        let (armed, _) = &*self.state;
+        armed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .map(|(_, status)| status)
+    }
 }
 
 /// The slice that a wait until `until` turns next at `now`: `None` once

@@ -134,7 +134,6 @@ pub(crate) mod tests {
     use super::*;
 
     /// A directory under the target directory's tmp, removed when it drops.
-    #[cfg(unix)]
     pub(crate) fn test_dir() -> tempfile::TempDir {
         let target = std::env::current_exe()
             .unwrap()

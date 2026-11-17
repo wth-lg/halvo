@@ -5,7 +5,7 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use halvo_control::exit;
@@ -14,7 +14,7 @@ use halvo_control::proto::{Platform, SourceName};
 
 use super::board::{Board, Capture, Drain};
 use super::counters::Snapshot;
-use super::main_loop::{self, MainLoop};
+use super::main_loop::{self, EndCall, MainLoop, Watchdog};
 use super::owner::{
     Answer, Command, OwnerGone, OwnerHandle, OwnerPanicked, OwnerThread, Pending, Report,
 };
@@ -217,6 +217,109 @@ pub enum Ending {
     /// A permission was granted after the start: the daemon ends with status
     /// 4 and its starter starts it again.
     Restart,
+    /// A stop for capture off met a source that did not stop, and the end
+    /// routine ended the process with status 5.
+    SourceNotStopped,
+}
+
+/// The kind of a stop for capture off (ruling PL-3 part (3)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StopKind {
+    Pause,
+    Lapse,
+    DeleteAll,
+    /// The stop of a source whose grant went away (contracts.md C14 item 9).
+    LostGrant,
+}
+
+impl StopKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            StopKind::Pause => "pause",
+            StopKind::Lapse => "lapse",
+            StopKind::DeleteAll => "delete_all",
+            StopKind::LostGrant => "lost_grant",
+        }
+    }
+}
+
+/// What a stop for capture off ended with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureOff {
+    /// Every source answered a stop; the process stays up.
+    Stopped,
+    /// A source did not stop and the end routine made the ending call with
+    /// this status.
+    Ended(i32),
+}
+
+/// The record of a life that a source which did not stop ended (ruling PL-3
+/// part (3), steps 4 and 7): the kind of stop, the sources that did not stop
+/// with their reason, and the owner's figures, first as they stood at the
+/// first answer that was not a stop and then as the final settle left them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndRecord {
+    pub kind: StopKind,
+    pub final_figures: bool,
+    pub not_stopped: Vec<(SourceName, String)>,
+    pub events_persisted: u64,
+    pub events_lost: u64,
+    pub events_pending: u64,
+}
+
+impl EndRecord {
+    /// The record as one line of the run marker.
+    pub fn text(&self) -> String {
+        let not_stopped: Vec<String> = self
+            .not_stopped
+            .iter()
+            .map(|(name, reason)| format!("{}:{reason}", name.as_str()))
+            .collect();
+        format!(
+            "last_stop=source_not_stopped kind={} final={} not_stopped={} events_persisted={} events_lost={} events_pending={}\n",
+            self.kind.as_str(),
+            if self.final_figures { "yes" } else { "no" },
+            not_stopped.join(","),
+            self.events_persisted,
+            self.events_lost,
+            self.events_pending
+        )
+    }
+}
+
+/// Where the end routine writes its record: the run marker of a service run.
+pub trait Marker {
+    fn write(&mut self, record: &EndRecord) -> std::io::Result<()>;
+}
+
+/// The run marker as a file, rewritten whole by a write to a file beside it,
+/// a sync and a rename, and a sync of the directory.
+pub struct MarkerFile {
+    path: std::path::PathBuf,
+}
+
+impl MarkerFile {
+    pub fn new(path: std::path::PathBuf) -> MarkerFile {
+        MarkerFile { path }
+    }
+}
+
+impl Marker for MarkerFile {
+    fn write(&mut self, record: &EndRecord) -> std::io::Result<()> {
+        let mut name = self.path.file_name().unwrap_or_default().to_os_string();
+        name.push(".new");
+        let next = self.path.with_file_name(name);
+        let mut file = std::fs::File::create(&next)?;
+        file.write_all(record.text().as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&next, &self.path)?;
+        #[cfg(unix)]
+        if let Some(dir) = self.path.parent() {
+            std::fs::File::open(dir)?.sync_all()?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -257,6 +360,9 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     ending: Option<Ending>,
     entered: bool,
     err: Box<dyn Write + Send>,
+    end_call: Option<Arc<dyn EndCall>>,
+    watchdog: Option<Watchdog>,
+    marker: Option<Box<dyn Marker>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -282,6 +388,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             ending: None,
             entered: false,
             err: Box::new(std::io::stderr()),
+            end_call: None,
+            watchdog: None,
+            marker: None,
         }
     }
 
@@ -289,6 +398,29 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     pub fn with_probe(mut self, probe: Box<dyn ProbeRunner>) -> Supervisor<F, L> {
         self.probe = Some(probe);
         self
+    }
+
+    /// The call that ends the process, and the watchdog that makes it at the
+    /// budget's end, started now.
+    pub fn with_ending(mut self, end_call: Arc<dyn EndCall>) -> Supervisor<F, L> {
+        self.watchdog = Some(Watchdog::start(end_call.clone()));
+        self.end_call = Some(end_call);
+        self
+    }
+
+    /// Where the end routine writes its record.
+    pub fn with_marker(mut self, marker: Box<dyn Marker>) -> Supervisor<F, L> {
+        self.marker = Some(marker);
+        self
+    }
+
+    /// The status that the watchdog is armed with, if it is.
+    pub fn watchdog_armed(&self) -> Option<i32> {
+        self.watchdog.as_ref().and_then(Watchdog::armed)
+    }
+
+    pub fn factory_mut(&mut self) -> &mut F {
+        &mut self.factory
     }
 
     /// Where the supervisor writes its own lines.
@@ -370,7 +502,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.read_health(now);
             self.restart_due(now);
         }
-        if let Some(ending) = self.read_permissions(now) {
+        if let Some(ending) = self.read_permissions(now, owner) {
             self.ending = Some(ending);
         }
         self.publish();
@@ -527,7 +659,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .collect()
     }
 
-    fn read_permissions(&mut self, now: Duration) -> Option<Ending> {
+    fn read_permissions(&mut self, now: Duration, owner: Option<&dyn OwnerLink>) -> Option<Ending> {
         let required = self.required();
         let probe = self.probe.as_mut()?;
         if required.is_empty() {
@@ -579,12 +711,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 }
             }
         }
-        self.stop_without_permission();
+        if let Some(ending) = self.stop_without_permission(owner) {
+            return Some(ending);
+        }
         self.restart_granted_again(now);
         None
     }
 
-    fn stop_without_permission(&mut self) {
+    fn stop_without_permission(&mut self, owner: Option<&dyn OwnerLink>) -> Option<Ending> {
         let names: Vec<SourceName> = stop_order(self.platform)
             .iter()
             .copied()
@@ -600,6 +734,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if self.sources.holds(name) {
                 let answer = self.sources.stop_one(name);
                 if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
+                    if let Some(owner) = owner {
+                        self.end_after_unstopped(owner, StopKind::LostGrant, &mut |_| {});
+                        return Some(Ending::SourceNotStopped);
+                    }
                     continue;
                 }
             }
@@ -611,6 +749,119 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 },
             );
             self.board.record_failure(name, error);
+        }
+        None
+    }
+
+    /// A stop for capture off (Pause, a lapsed lease, step 1 of delete-all;
+    /// daemon-3 calls it): the owner's barrier, then each source in the stop
+    /// order until the first answer that is not a stop. When every source
+    /// stops the process stays up. At the first answer that is not a stop the
+    /// end routine runs: the watchdog is armed for SHUTDOWN_BUDGET_MS with
+    /// status 5, `reply` gets the Board, the first record is written, the
+    /// owner settles, every source still held is asked once more, the owner
+    /// settles again, the final record is written and the ending call is made
+    /// with status 5 (ruling PL-3 parts (2) to (4)). It runs once: a second
+    /// trigger answers `None`.
+    pub fn stop_for_capture_off(
+        &mut self,
+        owner: &dyn OwnerLink,
+        kind: StopKind,
+        reply: &mut dyn FnMut(&Board),
+    ) -> Option<CaptureOff> {
+        if self.entered {
+            return None;
+        }
+        if kind != StopKind::LostGrant {
+            self.barrier(owner);
+        }
+        self.backoff.clear();
+        let mut unstopped = false;
+        for name in stop_order(self.platform) {
+            let answer = self.sources.stop_one(*name);
+            if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
+                unstopped = true;
+                break;
+            }
+        }
+        self.publish();
+        if !unstopped {
+            return Some(CaptureOff::Stopped);
+        }
+        Some(self.end_after_unstopped(owner, kind, reply))
+    }
+
+    fn barrier(&mut self, owner: &dyn OwnerLink) {
+        if let Ok(pending) = owner.ask(Command::OpenPause) {
+            let _ = self.answer_within(&pending, FIRST_SETTLE);
+        }
+    }
+
+    fn end_after_unstopped(
+        &mut self,
+        owner: &dyn OwnerLink,
+        kind: StopKind,
+        reply: &mut dyn FnMut(&Board),
+    ) -> CaptureOff {
+        self.entered = true;
+        if kind == StopKind::LostGrant {
+            self.barrier(owner);
+        }
+        if let Some(watchdog) = &self.watchdog {
+            watchdog.arm(
+                Duration::from_millis(SHUTDOWN_BUDGET_MS),
+                exit::SOURCE_NOT_STOPPED,
+            );
+        }
+        self.publish();
+        self.board.capture = Capture::Stopped;
+        reply(&self.board);
+        let first = owner.snapshot();
+        self.write_record(kind, false, &first);
+        if let Ok(pending) = owner.ask(Command::Settle) {
+            let _ = self.answer_within(&pending, FIRST_SETTLE);
+        }
+        let _ = self.stop_every_source();
+        let last = owner
+            .ask(Command::Settle)
+            .ok()
+            .and_then(|pending| self.answer_within(&pending, FINAL_SETTLE));
+        let settled = match last {
+            Some(Answer::Settled(snapshot)) => snapshot,
+            _ => owner.snapshot(),
+        };
+        self.write_record(kind, true, &settled);
+        if let Some(end_call) = &self.end_call {
+            end_call.end(exit::SOURCE_NOT_STOPPED);
+        }
+        CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)
+    }
+
+    fn write_record(&mut self, kind: StopKind, final_figures: bool, snapshot: &Snapshot) {
+        let not_stopped = self
+            .sources
+            .states()
+            .filter(|(_, _, unstopped)| *unstopped)
+            .map(|(name, state, _)| {
+                let reason = match state {
+                    SourceState::Failed { reason, .. } => {
+                        super::board::reason_token(*reason).as_str()
+                    }
+                    _ => "timeout",
+                };
+                (name, reason.to_owned())
+            })
+            .collect();
+        let record = EndRecord {
+            kind,
+            final_figures,
+            not_stopped,
+            events_persisted: snapshot.events_persisted,
+            events_lost: snapshot.events_lost,
+            events_pending: snapshot.events_pending,
+        };
+        if let Some(marker) = self.marker.as_mut() {
+            let _ = marker.write(&record);
         }
     }
 
@@ -643,10 +894,25 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
     }
 
-    /// Stops every source in the stop order and returns each answer.
+    /// Stops every source in the stop order and returns each answer. The
+    /// secure-input line of an input source with a hold plan is written the
+    /// moment that its stop answers anything but a stop (ruling MA-9 part (5)).
     pub fn stop_every_source(&mut self) -> Vec<(SourceName, Result<(), CaptureError>)> {
         self.backoff.clear();
-        let answers = self.sources.stop();
+        let mut answers = Vec::new();
+        for name in stop_order(self.platform) {
+            let Some(answer) = self.sources.stop_one(*name) else {
+                continue;
+            };
+            if *name == SourceName::Input
+                && !is_a_stop(&answer)
+                && self.factory.holds_secure_input()
+            {
+                let _ = writeln!(self.err, "{}", hold_stays_line(std::process::id()));
+                let _ = self.err.flush();
+            }
+            answers.push((*name, answer));
+        }
         self.publish();
         answers
     }
@@ -818,10 +1084,6 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
             .filter(|entry| !started_failed.contains(&entry.name))
             .collect();
         for (name, answer) in answers {
-            if !is_a_stop(&answer) && name == SourceName::Input && self.factory.holds_secure_input()
-            {
-                let _ = writeln!(self.err, "{}", hold_stays_line(std::process::id()));
-            }
             if let Some(entry) = super::stop_failure(name, answer) {
                 match failed.iter_mut().find(|failed| failed.name == entry.name) {
                     Some(failed) => *failed = entry,
@@ -847,6 +1109,21 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
 
     fn waits(&mut self) -> Option<&mut dyn Waits> {
         Some(self)
+    }
+
+    fn arm_watchdog(&mut self, status: i32) {
+        self.entered = true;
+        if let Some(watchdog) = &self.watchdog {
+            watchdog.arm(Duration::from_millis(SHUTDOWN_BUDGET_MS), status);
+        }
+    }
+
+    fn let_go(&self) -> Vec<SourceName> {
+        self.sources
+            .states()
+            .filter(|(_, _, unstopped)| *unstopped)
+            .map(|(name, _, _)| name)
+            .collect()
     }
 }
 
@@ -2381,6 +2658,536 @@ mod tests {
             path >= Duration::from_millis(SHUTDOWN_BUDGET_MS) - Duration::from_millis(500),
             "the stop path took {path:?}: the waits did not reach the budget"
         );
+    }
+
+    /// The pid, the process's start time and the status of each ending that a
+    /// recorder took.
+    type Ended = Arc<Mutex<Vec<(u32, Option<u64>, i32)>>>;
+
+    /// What a stop for capture off left: the fixture, the recorder of its
+    /// ending, its records and its answer.
+    type CaptureOffCase = (
+        Fixture<Factory>,
+        Recorder,
+        Arc<Mutex<Vec<EndRecord>>>,
+        Option<CaptureOff>,
+    );
+
+    /// What an ending would have ended: the pid, the process's start time
+    /// where the system gives it, and the status. It ends nothing.
+    #[derive(Clone, Default)]
+    struct Recorder {
+        ended: Ended,
+        calls: Option<crate::daemon::sources::tests::Calls>,
+    }
+
+    impl EndCall for Recorder {
+        fn end(&self, status: i32) {
+            self.ended
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((std::process::id(), process_start_seconds(), status));
+            if let Some(calls) = &self.calls {
+                calls.push(format!("end {status}"));
+            }
+        }
+    }
+
+    impl Recorder {
+        fn statuses(&self) -> Vec<i32> {
+            self.ended
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .iter()
+                .map(|(_, _, status)| *status)
+                .collect()
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn process_start_seconds() -> Option<u64> {
+        let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+        let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+        let read = unsafe {
+            libc::proc_pidinfo(
+                std::process::id() as libc::c_int,
+                libc::PROC_PIDTBSDINFO,
+                0,
+                (&raw mut info).cast(),
+                size,
+            )
+        };
+        (read == size).then_some(info.pbi_start_tvsec)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn process_start_seconds() -> Option<u64> {
+        None
+    }
+
+    struct Records {
+        calls: crate::daemon::sources::tests::Calls,
+        records: Arc<Mutex<Vec<EndRecord>>>,
+    }
+
+    impl Marker for Records {
+        fn write(&mut self, record: &EndRecord) -> io::Result<()> {
+            self.calls.push(format!(
+                "record {}",
+                if record.final_figures {
+                    "final"
+                } else {
+                    "first"
+                }
+            ));
+            self.records
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(record.clone());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn the_watchdog_ends_at_its_deadline_with_its_status_and_keeps_its_first_arm() {
+        let recorder = Recorder::default();
+        let watchdog = Watchdog::start(Arc::new(recorder.clone()));
+        let armed = Instant::now();
+        watchdog.arm(Duration::from_millis(200), exit::SOURCE_NOT_STOPPED);
+        watchdog.arm(Duration::from_millis(10), exit::ERROR);
+        while recorder.statuses().is_empty() && armed.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let took = armed.elapsed();
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+        assert!(
+            took >= Duration::from_millis(200),
+            "it ended after {took:?}"
+        );
+        let (pid, start, _) = recorder.ended.lock().unwrap()[0];
+        assert_eq!(pid, std::process::id());
+        if cfg!(target_os = "macos") {
+            assert!(start.is_some_and(|start| start > 0));
+        }
+    }
+
+    #[test]
+    fn an_unarmed_watchdog_ends_nothing() {
+        let recorder = Recorder::default();
+        let _watchdog = Watchdog::start(Arc::new(recorder.clone()));
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(recorder.statuses().is_empty());
+    }
+
+    fn timeout() -> CaptureError {
+        CaptureError::Timeout {
+            stage: "input_tap_join",
+            ms: 1_000,
+        }
+    }
+
+    fn capture_off_case(
+        factory: Factory,
+        second: Option<Result<(), CaptureError>>,
+    ) -> CaptureOffCase {
+        let mut f = fixture_on_owner(factory, ModelStore::new());
+        let calls = f.supervisor.factory().calls.clone();
+        let recorder = Recorder {
+            ended: Arc::default(),
+            calls: Some(calls.clone()),
+        };
+        let records: Arc<Mutex<Vec<EndRecord>>> = Arc::default();
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(recorder.clone()))
+        .with_marker(Box::new(Records {
+            calls: calls.clone(),
+            records: records.clone(),
+        }));
+        f.start(&two());
+        f.tick();
+        f.link.as_ref().unwrap().emit(3);
+        f.link.as_ref().unwrap().harness.borrow_mut().passes(3);
+        if let Some(second) = second {
+            f.supervisor
+                .factory_mut()
+                .on_second_stop(SourceName::Input, second);
+        }
+        let link = f.link.take().unwrap();
+        let replies = calls.clone();
+        let outcome = f
+            .supervisor
+            .stop_for_capture_off(&link, StopKind::Pause, &mut |board| {
+                replies.push(format!("reply capture={:?}", board.capture));
+            });
+        f.link = Some(link);
+        (f, recorder, records, outcome)
+    }
+
+    #[test]
+    fn a_stop_for_capture_off_that_meets_a_timeout_ends_with_5_in_the_order_of_pl3() {
+        let started = Duration::ZERO;
+        let (f, recorder, records, outcome) = capture_off_case(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            None,
+        );
+        assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+        let calls = f.supervisor.factory().calls.taken();
+        let after_start: Vec<&str> = calls
+            .iter()
+            .map(String::as_str)
+            .filter(|call| !call.starts_with("begin "))
+            .collect();
+        assert_eq!(
+            after_start,
+            [
+                "stop input",
+                "reply capture=Stopped",
+                "record first",
+                "stop input",
+                "stop foreground",
+                "record final",
+                "end 5",
+            ],
+            "{calls:?}"
+        );
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+        assert_eq!(
+            f.supervisor.watchdog_armed(),
+            Some(exit::SOURCE_NOT_STOPPED)
+        );
+        let records = records.lock().unwrap().clone();
+        assert_eq!(records[0].kind, StopKind::Pause);
+        assert_eq!(records[0].not_stopped[0].0, SourceName::Input);
+        assert!(!records[0].final_figures);
+        assert!(records[1].final_figures);
+        assert_eq!(records[1].events_persisted, 3, "{:?}", records[1]);
+        assert!(f.now.get() - started < Duration::from_millis(SHUTDOWN_BUDGET_MS));
+        let mut f = f;
+        let link = f.link.take().unwrap();
+        let again = f
+            .supervisor
+            .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+        assert_eq!(again, None, "a second trigger ran the end again");
+    }
+
+    #[test]
+    fn a_stop_for_capture_off_that_meets_an_os_error_ends_the_same_way() {
+        let (_f, recorder, _records, outcome) = capture_off_case(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(CaptureError::Os {
+                        stage: "stop_capture",
+                        domain: "ScreenCaptureKit",
+                        code: -3808,
+                    });
+                }
+            }),
+            None,
+        );
+        assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+    }
+
+    #[test]
+    fn a_timeout_then_ok_at_the_entrys_pass_still_ends_with_5() {
+        let (f, recorder, _records, outcome) = capture_off_case(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            Some(Ok(())),
+        );
+        assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+        assert_eq!(f.supervisor.factory().calls.of("stop input").len(), 2);
+    }
+
+    #[test]
+    fn a_stop_for_capture_off_whose_sources_all_stop_ends_nothing() {
+        let (f, recorder, records, outcome) = capture_off_case(Factory::new(), None);
+        assert_eq!(outcome, Some(CaptureOff::Stopped));
+        assert!(recorder.statuses().is_empty());
+        assert!(records.lock().unwrap().is_empty());
+        assert_eq!(f.supervisor.watchdog_armed(), None);
+    }
+
+    #[test]
+    fn a_lost_grant_whose_stop_does_not_stop_ends_the_process_with_5() {
+        let (mut f, answers, _) = probed(fixture_on_owner(
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(timeout());
+                }
+            }),
+            ModelStore::new(),
+        ));
+        let recorder = Recorder::default();
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(recorder.clone()));
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        f.tick();
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        assert_eq!(f.later(PROBE_INTERVAL), Some(Ending::SourceNotStopped));
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+    }
+
+    #[test]
+    fn a_rebuild_whose_stop_does_not_stop_keeps_the_process_up_and_starts_no_second_source() {
+        let recorder = Recorder::default();
+        let mut f = fixture(Factory::adjusting(|source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+            }
+        }));
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Factory::new(),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_ending(Arc::new(recorder.clone()));
+        f.start(&two());
+        f.tick();
+        f.supervisor
+            .factory()
+            .health_of(SourceName::Input)
+            .set(SourceState::Failed {
+                reason: HealthReason::ItemClosed,
+                error: timeout(),
+            });
+        for _ in 0..5 {
+            assert_eq!(f.later(RESTART_MAX), None);
+        }
+        assert!(
+            recorder.statuses().is_empty(),
+            "the rebuild ended the process"
+        );
+        assert_eq!(f.supervisor.factory().calls.of("begin input").len(), 1);
+    }
+
+    #[test]
+    fn the_secure_input_line_is_written_when_the_input_stop_answers() {
+        struct Holding(Factory);
+        impl SourceFactory for Holding {
+            fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
+                self.0.make(name)
+            }
+        }
+        impl SystemSources for Holding {
+            fn holds_secure_input(&self) -> bool {
+                true
+            }
+        }
+        let out = Out::default();
+        let seen = out.clone();
+        let written_at_foreground: Rc<Cell<Option<bool>>> = Rc::default();
+        let at_foreground = written_at_foreground.clone();
+        let mut f = fixture(Holding(Factory::adjusting(move |source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+            }
+            if source.name == SourceName::Foreground {
+                let (seen, at_foreground) = (seen.clone(), at_foreground.clone());
+                let hook: Hook = Box::new(move |_| {
+                    at_foreground.set(Some(seen.text().contains("secure input stays on")));
+                });
+                source.on_stop = Some(hook);
+            }
+        })));
+        f.supervisor = std::mem::replace(
+            &mut f.supervisor,
+            Supervisor::new(
+                Platform::Macos,
+                Holding(Factory::new()),
+                TestLoop {
+                    now: Rc::default(),
+                    harness: None,
+                    real: Duration::ZERO,
+                    hook: None,
+                },
+            ),
+        )
+        .with_err(Box::new(out.clone()));
+        f.start(&two());
+        let _ = RunSources::stop(&mut f.supervisor);
+        assert_eq!(
+            written_at_foreground.get(),
+            Some(true),
+            "the line came after the next source's stop"
+        );
+    }
+
+    #[test]
+    fn a_timed_run_whose_source_does_not_stop_names_it_and_ends_by_the_routine() {
+        for (signal, status) in [
+            (false, exit::TIMED_RUN_SOURCE_FAILED),
+            (true, exit::TIMED_RUN_INTERRUPTED),
+        ] {
+            let recorder = Recorder::default();
+            let mut supervisor = Supervisor::new(
+                Platform::Macos,
+                Factory::adjusting(|source| {
+                    if source.name == SourceName::Input {
+                        source.stop = Err(timeout());
+                    }
+                }),
+                real_loop(),
+            )
+            .with_ending(Arc::new(recorder.clone()));
+            let outcome = run_timed(
+                &run_of(1),
+                &mut supervisor,
+                ModelStore::new(),
+                crate::daemon::maintenance::SystemClocks::new(),
+                &AtomicBool::new(signal),
+                SETTLE_BOUND,
+            )
+            .unwrap();
+            assert_eq!(outcome.status, status);
+            assert_eq!(outcome.let_go, ["input"]);
+            assert!(outcome
+                .report
+                .render()
+                .contains("\nfailed_source=input: the capture source timed out at input_tap_join after 1000 ms\n"));
+            assert_eq!(supervisor.watchdog_armed(), Some(status));
+            let mut err = Vec::new();
+            crate::daemon::finish_run(&outcome, outcome.status, &recorder, &mut err);
+            assert_eq!(recorder.statuses(), [status]);
+            assert_eq!(
+                String::from_utf8_lossy(&err),
+                "halvo-capture: the source input did not stop; the process ends without waiting for it\n"
+            );
+        }
+    }
+
+    #[test]
+    fn a_timed_run_whose_sources_all_stopped_returns_without_the_routine() {
+        let recorder = Recorder::default();
+        let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop())
+            .with_ending(Arc::new(recorder.clone()));
+        let outcome = run_timed(
+            &run_of(1),
+            &mut supervisor,
+            ModelStore::new(),
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        assert!(outcome.let_go.is_empty());
+        let mut err = Vec::new();
+        crate::daemon::finish_run(&outcome, outcome.status, &recorder, &mut err);
+        assert!(recorder.statuses().is_empty());
+        assert!(err.is_empty());
+    }
+
+    #[test]
+    fn the_marker_file_holds_the_last_record_whole() {
+        let dir = crate::daemon::children::tests::test_dir();
+        let path = dir.path().join("marker");
+        let mut marker = MarkerFile::new(path.clone());
+        let mut record = EndRecord {
+            kind: StopKind::LostGrant,
+            final_figures: false,
+            not_stopped: vec![(SourceName::Input, "timeout".to_owned())],
+            events_persisted: 0,
+            events_lost: 0,
+            events_pending: 2,
+        };
+        marker.write(&record).unwrap();
+        record.final_figures = true;
+        record.events_persisted = 2;
+        record.events_pending = 0;
+        marker.write(&record).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            text,
+            "last_stop=source_not_stopped kind=lost_grant final=yes not_stopped=input:timeout events_persisted=2 events_lost=0 events_pending=0\n"
+        );
+        let names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["marker"], "a temporary file stayed");
+    }
+
+    /// The real end, run as a child of this test binary: a watchdog with the
+    /// product's ending, armed for 300 ms, ends a process whose main thread
+    /// blocks, with the armed status. It runs on the hosted jobs alone (the
+    /// round's step names it with --ignored); no process is ended on this Mac.
+    #[test]
+    #[ignore = "ruling DM-24: the real end runs on the hosted jobs alone"]
+    fn the_watchdog_ends_a_blocked_process_with_its_status() {
+        const NAME: &str =
+            "daemon::supervisor::tests::the_watchdog_ends_a_blocked_process_with_its_status";
+        const CHILD: &str = "HALVO_DAEMON_WATCHDOG_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let watchdog = Watchdog::start(Arc::new(crate::daemon::main_loop::ExitNow));
+            watchdog.arm(Duration::from_millis(300), exit::SOURCE_NOT_STOPPED);
+            std::thread::sleep(Duration::from_secs(30));
+            return;
+        }
+        let started = Instant::now();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                NAME,
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        let took = started.elapsed();
+        println!(
+            "watchdog_child status={:?} took_ms={}",
+            output.status.code(),
+            took.as_millis()
+        );
+        assert_eq!(output.status.code(), Some(exit::SOURCE_NOT_STOPPED));
+        assert!(took < Duration::from_secs(20), "{took:?}");
     }
 
     mod review_cases {
