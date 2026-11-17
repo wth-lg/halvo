@@ -1605,7 +1605,8 @@ set, and the root's own volume name answers the root.
   a file of another program that a process of the same user hard-links at
   a root file's name is zeroed with it only when it has the root file's
   length at a root name (any length above 0 on Windows) or stands at a
-  partial name, a file which can be the key file of another Halvo store on
+  partial name (on the path by a made mark, a partial name of the mark's
+  own id; ruling ST-49), a file which can be the key file of another Halvo store on
   this computer, whose recordings then can no longer be opened; nothing
   becomes readable; a file at a partial name, or of a root file's length at
   a root name, is zeroed through every name; at a name that is no root name
@@ -1625,33 +1626,55 @@ set, and the root's own volume name answers the root.
   `st48_u2_a_hand_written_mark_never_writes_through_another_partys_file`,
   and on Windows
   `st48_u2_a_hand_written_mark_writes_through_no_read_only_file_of_another_party`).
-  At a name that is no root name and no partial name the root step first
-  reads the file's count of names, its length and its identity by its name
-  through the directory's handle, following no link and opening nothing
-  (on Windows through a handle opened for reading); only when that read
-  shows one name and a root file's length does it set the mode to 0600 and
-  open the kept handle, which shows the same identity, one name and that
-  length again before any write (on Windows the read-only attribute is
-  cleared after that test); a mode change that a program racing the step
-  causes between that read and the open is this limit (ruling ST-48 U1;
-  test `st48_u1_no_mode_change_at_a_plain_name_before_the_count_and_the_length_pass`).
-  On the path by identity the count and the length are read by the name
-  first at every name, so no mode is changed on a file that the step then
-  removes with no write. At a root name or a partial name the step by name
-  sets the entry's mode to 0600 by its name through the directory's handle,
-  following no link, before the open (ruling ST-45 H2; on Windows it clears
-  the read-only attribute after the open), and so row 20 of
-  reports/verifier-162.md: at a root name or a partial name the root step
-  sets mode 0600 before it reads the count of names, so a file of another
-  length that is then removed there without a write through it keeps its
-  bytes and leaves with mode 0600. A made mark written by hand can send the
-  step to a partial name, where it always writes: another party's file with
-  a second name at a partial name is zeroed through every name and the
-  tail reads the root destroyed (the verifier's case N3, reports/verifier-162.md
-  Addition 1). The kept handle's second test before a write (the same
-  identity, one name and a root file's length, read again through the
-  handle) is held by no row and no test of the unit; the verifier's case N1
-  shows that it holds on both paths. It keeps
+  At every name the root step first reads the file's count of names, its
+  length and its identity by its name through the directory's handle,
+  following no link and opening nothing (on Windows through a handle opened
+  for reading); only when that read shows a count and a length that the
+  name's rule writes through (one name and a root file's length at a name
+  that is no root name and no partial name, a root file's length at the
+  named root's own name, a root file's length or one name at another id's
+  root name, any count and length at a partial name) does it set the mode
+  to 0600 and open the kept handle, which shows the same identity, and a
+  count and a length that the rule writes through, again before any write
+  (on Windows the read-only attribute is cleared after that test); a mode
+  change that a program racing the step causes between that read and the
+  open is this limit, on the step by name and on the step by identity: the
+  mode is set by the name, so a file of another party put at the name in
+  that window gets mode 0600, and the kept handle then shows another
+  identity and the name is removed with no write, its bytes kept (the two
+  review cases of reports/builder-104.md that swap the file at that point
+  show it) (ruling ST-48 U1, and at a root name and a partial name
+  the inbox entry of 2026-11-17T02:59:55Z (1); tests
+  `st48_u1_no_mode_change_at_a_plain_name_before_the_count_and_the_length_pass`
+  and `row20_a_file_of_another_length_at_a_root_name_keeps_its_mode_and_its_bytes`).
+  So a file of another length that the step removes at a root name without
+  a write through it keeps its bytes and its mode (row 20 of
+  reports/verifier-162.md, closed by store-3c); at a partial name the rule
+  writes through every regular file, so its mode is set and it is
+  zero-filled. A read by the name that fails at a root name or a partial
+  name keeps the name, as an open that fails does (ruling ST-45 H2). On the
+  path by identity the count and the length are read by the name first at
+  every name as well, so no mode is changed on a file that the step then
+  removes with no write. On the path by a made mark the step writes through
+  at a partial name of the mark's own id alone: at a partial name of another
+  id it removes the file's name with no write and no mode change, and no
+  call reads the root destroyed for it, so the tail answers DeleteIncomplete
+  for that call (ruling ST-49; test
+  `st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone`, whose
+  first case is the verifier's case N3). The kept handle's second test
+  before a write (the same identity, and a count and a length that the rule
+  writes through, read again through the handle) is held by a test: a seam
+  of the test build gives the file a second name outside the roots folder
+  between the read by its name and the open, and on the step by name (the
+  tail, the handle's delete-all) and on the step by identity (the handle's
+  delete-all on the store's root renamed to a plain name, the tail by a made
+  mark) the kept handle reads two names, the name is removed with no write
+  through it and the second name keeps the bytes (the inbox entry of
+  2026-11-17T02:59:55Z (2); test
+  `a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through`;
+  rows `kept-handle-test-taken-out-at-a-plain-name` and
+  `kept-handle-count-ignored-on-the-path-by-identity`, the two rows of the
+  verifier's case N1). It keeps
   one handle: the open for update, or else the read open, or else the write
   open of the same name, none following a link; the count, the test that
   the name still leads to that file and the zero-fill go through the kept
@@ -2176,14 +2199,64 @@ set, and the root's own volume name answers the root.
   names, because a backup tool can restore a store with shared names, so a
   second name keeps the bytes that the store wrote, after delete-all too
   (contract C11.3, Links).
-- The order of a durable write and of a durable removal: the sync of the
-  file, the rename, the sync of the directory (`write_durably`,
-  `remove_durably`). Both syncs are std's `File::sync_all`, the file's on
-  its own descriptor and the directory's on a duplicate of the handle's
-  descriptor, never by a name; on macOS that call is `fcntl(F_FULLFSYNC)`,
-  tried again when a signal interrupts it. No test can see which system
-  call a sync makes. Check 1 reads what a write and a shred leave in a
-  process that keeps running, and makes no power loss. The tests of
+- The order of a durable write and of a durable removal: the flush of the
+  file, the rename, the flush of the directory (`write_durably`,
+  `remove_durably`). On macOS each flush is the store's own call
+  `fcntl(F_FULLFSYNC)` (`durable::full_flush`, `Dir::sync`), which asks the
+  drive to write its own cache, the file's on its own descriptor and the
+  directory's on the handle's descriptor, never by a name, made again when
+  a signal interrupts it; a call that fails answers its error with no plain
+  fsync in its place, and the write publishes nothing (ruling PR-30 PR9 (1)).
+  On Windows the flush of a file is std's `File::sync_all` and a directory
+  is not flushed. The open sets synchronous FULL and fullfsync on beside
+  checkpoint_fullfsync and refuses by name a setting that does not read
+  back as set (`require_synchronous_full`, `require_fullfsync`; test
+  `an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name`),
+  so on macOS each commit flushes the log, and each checkpoint the log and
+  `store.db`, with the full-flush call (PR9 (4)). A library put in front of
+  `fcntl` in a child process of the test binary counts the calls with the
+  full flag by path, macOS alone (`store::hardening_tests::full_flush`): a
+  write of the helper makes one for its file and one for its directory and
+  a removal one for its directory, and a write whose full flush fails
+  publishes nothing
+  (`each_write_of_the_durable_helper_makes_the_full_flush_call_and_refuses_when_it_fails`);
+  each commit of a write flushes the log with the full flag and makes no
+  plain fsync, where the base made a plain fsync
+  (`each_commit_of_the_store_flushes_its_log_with_the_full_flush_call`); an
+  expiry's truncating checkpoint flushes `store.db` with the full flag
+  before the segment's file is removed and leaves the log empty: the step
+  that makes a shred or an expiry last through a loss of power (PR9 (2);
+  `the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal`);
+  the root step's zero-fill flushes the root file once, and the roots folder
+  is flushed after the step's removals (PR9 (3);
+  `the_root_steps_zero_fill_and_its_roots_folder_are_flushed_and_a_failed_folder_flush_reads_left`).
+  The daemon's state file and the delete's intent are written with the same
+  helper (C3.7, C17.3); this build writes neither, and the helper's count
+  holds them once their writer takes it. What `root_destroyed` reads: yes
+  only when the flush of the roots folder after the step's removals
+  answered success. When that flush fails the root reads left, the step's
+  result reads not listed and the delete answers DeleteIncomplete; the
+  handle's next delete-all answers DeleteIncomplete again, because the
+  root's name is absent at its look (ruling ST-46 K1), and the tail after
+  the handle answers Ok with the root unnamed; a cleanup and the custody's
+  destroy answer the flush's error. When the power goes before that flush
+  has answered, no answer was given: after the restart the root's name can
+  stand again, holding zeros when its zero-fill had gone through (the
+  zero-fill's own full flush answers before the removal), and holding the
+  root when the step rested on the removal of the file's last name after a
+  zero-fill that failed; the next delete or tail destroys either. After an
+  answer that read the root destroyed, the removal of its name and its
+  zeros are on the drive as far as the drive keeps the promise of the
+  full-flush call. Not covered: no test makes a loss of power; a drive or a
+  volume that answers the full-flush call without writing its cache is not
+  seen; SQLite flushes the store folder with a plain fsync after it creates
+  a file there, by its own rule (the counting library read the store folder
+  as the file of every plain fsync of a create and of an open, and of no
+  commit), and no test makes that flush the full-flush call; on a volume that refuses the full-flush call every durable write of
+  the helper refuses and every flush of the roots folder reads failed,
+  while SQLite's own flushes there fall back to a plain fsync by SQLite's
+  rule, and no test runs on such a volume. Check 1 reads what a write and a
+  shred leave in a process that keeps running, and makes no power loss. The tests of
   `store::durable` read the order over a recording file system, and
   `store::hardening_tests::a_shred_clears_the_key_durably_before_it_removes_the_file_and_syncs_the_shard_after`
   reads over the store that a shred removes a file only when its key is
@@ -2261,11 +2334,6 @@ set, and the root's own volume name answers the root.
 - A forked child that runs destructors and drops its copy of the store:
   `DirLock`'s `Drop` then unlocks the lock that its parent still
   holds, and the tree has no fork without an exec.
-- A delete after a stopped delete (ruling DM-21; daemon-1b). After a delete
-  that was stopped between its root step and its file step, or when the root
-  file was removed by other hands, the next delete says that it is not
-  finished although nothing stays after it, because it did not itself
-  destroy the root; the delete after that says finished.
 
 ## Sync
 

@@ -1940,3 +1940,245 @@ fn st48_u5_the_tail_opens_the_store_directory_from_the_data_directorys_handle() 
         "the tail left the store of the data directory that it opened"
     );
 }
+
+/// Where the root-step tests of store-3c put a file of another party in the
+/// roots folder: at a root name of another id, or at the root name that the
+/// call names (the store's own for the tail and the delete-all, the mark's own
+/// for a cleanup by a made mark).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Place {
+    AnotherIdsRootName,
+    TheNamedRootName,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Caller {
+    Tail,
+    DeleteAll,
+    TheOpensCleanup,
+}
+
+/// Runs `caller` on a fresh store of `dir` with the file at `outside` given a
+/// second name at `place` in the roots folder; for the open's cleanup the
+/// made mark records the identity of that file. Answers how the call ended.
+fn st3c_call_with_a_foreign_file(
+    dir: &Path,
+    outside: &Path,
+    place: Place,
+    caller: Caller,
+) -> String {
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir);
+    let marked = RootId::fresh().unwrap();
+    let named = match caller {
+        Caller::TheOpensCleanup => marked,
+        _ => root_id,
+    };
+    let mut store = (caller == Caller::DeleteAll)
+        .then(|| open_over_file_root(&store_dir, &roots_dir, root_id).unwrap());
+    let inside = match place {
+        Place::AnotherIdsRootName => roots_dir.join(format!("{}.root", RootId::fresh().unwrap())),
+        Place::TheNamedRootName => {
+            let own = roots_dir.join(format!("{named}.root"));
+            if own.exists() {
+                std::fs::rename(&own, roots_dir.join("the-root-aside")).unwrap();
+            }
+            own
+        }
+    };
+    std::fs::hard_link(outside, &inside).unwrap();
+    match caller {
+        Caller::Tail => answer_line(&tail(&store_dir, &roots_dir)),
+        Caller::DeleteAll => answer_line(&store.as_mut().unwrap().delete_all()),
+        Caller::TheOpensCleanup => {
+            write_made_mark(&store_dir, marked, Some(outside));
+            format!(
+                "{:?}",
+                open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+            )
+        }
+    }
+}
+
+/// The inbox entry of 2026-11-17T02:59:55Z (1), row 20 of
+/// reports/verifier-162.md: a file of another party of 100 bytes and mode 0444
+/// with a second name outside the roots folder, at a root name of another id
+/// and at the root name that the call names, keeps its mode and its bytes,
+/// read through its outside name, after the tail, after the handle's
+/// delete-all and after the open's cleanup by a made mark that records its
+/// identity: the step reads the count and the length by the name before it
+/// sets any mode. A file with one name, of a root file's length and of mode
+/// 0000, at a root name of another id is still zeroed and removed.
+#[test]
+fn row20_a_file_of_another_length_at_a_root_name_keeps_its_mode_and_its_bytes() {
+    let mut problems = Vec::new();
+    for place in [Place::AnotherIdsRootName, Place::TheNamedRootName] {
+        for caller in [Caller::Tail, Caller::DeleteAll, Caller::TheOpensCleanup] {
+            let dir = tempfile::tempdir().unwrap();
+            let (outside, bytes, reader) = st48_foreign_file(dir.path(), "outside", 100, 0o444);
+            let answer = st3c_call_with_a_foreign_file(dir.path(), &outside, place, caller);
+            let mode_after = st48_mode(&outside);
+            let bytes_kept = st48_bytes_of(&reader) == bytes;
+            println!(
+                "ROW20 place={place:?} caller={caller:?} answer={answer} outside_mode={mode_after:o} outside_bytes_kept={bytes_kept}"
+            );
+            if mode_after != 0o444 || !bytes_kept {
+                problems.push(format!(
+                    "{place:?}, {caller:?}: outside mode {mode_after:o}, bytes kept {bytes_kept}"
+                ));
+            }
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let single = roots_dir.join(format!("{}.root", RootId::fresh().unwrap()));
+    let (_, _, reader) = st48_foreign_file(
+        &roots_dir,
+        single.file_name().unwrap().to_str().unwrap(),
+        32,
+        0o000,
+    );
+    let answer = tail(&store_dir, &roots_dir);
+    let zeroed = st48_bytes_of(&reader).iter().all(|&b| b == 0);
+    println!(
+        "ROW20-SINGLE answer={} zeroed={zeroed} stands={}",
+        answer_line(&answer),
+        single.exists()
+    );
+    if !zeroed || single.exists() {
+        problems.push(format!(
+            "a single-name file of a root file's length and mode 0000 at another id's root name: zeroed {zeroed}, stands {}",
+            single.exists()
+        ));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Where the test of ruling ST-49 gives a file of another party a second name
+/// in the roots folder, and whether the mark's path writes through it there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MarkedAt {
+    OthersPartial,
+    MarksOwnPartial,
+    OthersRootName,
+}
+
+/// Ruling ST-49 (part (3) of the inbox entry of 2026-11-17T02:59:55Z, the
+/// verifier's case N3): a create.pending written by hand whose made mark
+/// records the identity of another party's file of 100 bytes and mode 0444,
+/// with a second name at a partial name of another id than the mark's. After
+/// the next open, after the tail and after the next create, each in its own
+/// case, that file keeps its mode and its bytes through its outside name, the
+/// partial name is gone and the tail reads no root destroyed. Controls: at a
+/// partial name of the mark's own id the file is still zero-filled through
+/// every name, at another id's root name a file of a root file's length still
+/// is (ruling ST-48), and on the handle's path the store's own root renamed
+/// to another id's partial name is still destroyed.
+#[test]
+fn st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone() {
+    let mut problems = Vec::new();
+    for at in [
+        MarkedAt::OthersPartial,
+        MarkedAt::MarksOwnPartial,
+        MarkedAt::OthersRootName,
+    ] {
+        for reader in ["the next open", "the tail", "the next create"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+            let marked = RootId::fresh().unwrap();
+            let other = RootId::fresh().unwrap();
+            let (len, mode) = match at {
+                MarkedAt::OthersRootName => (32, 0o644),
+                _ => (100, 0o444),
+            };
+            let (outside, bytes, kept) = st48_foreign_file(dir.path(), "outside", len, mode);
+            let inside = roots_dir.join(match at {
+                MarkedAt::OthersPartial => format!("{other}.0123456789abcdef.root.tmp"),
+                MarkedAt::MarksOwnPartial => {
+                    format!("{marked}.0123456789abcdef.root.tmp")
+                }
+                MarkedAt::OthersRootName => format!("{other}.root"),
+            });
+            std::fs::hard_link(&outside, &inside).unwrap();
+            if reader != "the next open" {
+                std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+            }
+            write_made_mark(&store_dir, marked, Some(&outside));
+            let (answer, destroyed) = match reader {
+                "the next open" => (
+                    format!(
+                        "{:?}",
+                        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+                    ),
+                    false,
+                ),
+                "the tail" => {
+                    let answer = tail(&store_dir, &roots_dir);
+                    let destroyed = match &answer {
+                        Ok(report) => report.root_destroyed(),
+                        Err(StoreError::DeleteIncomplete(report)) => report.root_destroyed(),
+                        Err(_) => false,
+                    };
+                    (answer_line(&answer), destroyed)
+                }
+                _ => (
+                    format!(
+                        "{:?}",
+                        EncryptedStore::create(
+                            &store_dir,
+                            Box::new(file_root_custody(
+                                &roots_dir,
+                                TestProtector::new(0x5a).0,
+                                RootId::fresh().unwrap(),
+                            )),
+                            DEFAULT_RETENTION,
+                        )
+                        .map(drop)
+                    ),
+                    false,
+                ),
+            };
+            let mode_after = st48_mode(&outside);
+            let now = st48_bytes_of(&kept);
+            let inside_stands = std::fs::symlink_metadata(&inside).is_ok();
+            println!(
+                "ST49 at={at:?} reader={reader} answer={answer} outside_mode={mode_after:o} outside_bytes_kept={} outside_zeroed={} inside_stands={inside_stands} root_read_destroyed={destroyed}",
+                now == bytes,
+                now.iter().all(|&b| b == 0)
+            );
+            let wrong = match at {
+                MarkedAt::OthersPartial => {
+                    mode_after != mode || now != bytes || inside_stands || destroyed
+                }
+                _ => !now.iter().all(|&b| b == 0) || inside_stands,
+            };
+            if wrong {
+                problems.push(format!(
+                    "{at:?}, {reader}: outside mode {mode_after:o}, bytes kept {}, zeroed {}, the name in the roots folder stands {inside_stands}, root read destroyed {destroyed}",
+                    now == bytes,
+                    now.iter().all(|&b| b == 0)
+                ));
+            }
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let partial = roots_dir.join(format!(
+        "{}.0123456789abcdef.root.tmp",
+        RootId::fresh().unwrap()
+    ));
+    std::fs::rename(roots_dir.join(format!("{root_id}.root")), &partial).unwrap();
+    let answer = store.delete_all();
+    println!(
+        "ST49-HANDLE answer={} partial_stands={}",
+        answer_line(&answer),
+        partial.exists()
+    );
+    if !matches!(&answer, Ok(report) if report.root == RootReading::Destroyed) || partial.exists() {
+        problems.push(format!(
+            "the handle's delete-all of its root renamed to another id's partial name answered {}",
+            answer_line(&answer)
+        ));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
