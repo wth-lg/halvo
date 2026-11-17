@@ -1793,27 +1793,25 @@ mod tests {
 
     #[test]
     fn a_not_opened_report_says_the_store_dir_could_not_be_opened_and_nothing_of_what_stays() {
-        for root in [TailRoot::Left(None)] {
-            let report = TailReport {
-                root,
-                database_left: true,
-                files_left: 1,
-                roots_at_their_path: true,
-                ..TailReport::default()
-            };
-            let (status, out, err, _) =
-                scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report.clone()));
-            assert_eq!(status, exit::ERROR);
-            assert!(
-                out.ends_with(" files_left=1 database_left=yes not_followed=0\n"),
-                "{out}"
-            );
-            assert_eq!(
-                err,
-                "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it\n",
-                "{report:?}"
-            );
-        }
+        let report = TailReport {
+            root: TailRoot::Left(None),
+            database_left: true,
+            files_left: 1,
+            roots_at_their_path: true,
+            ..TailReport::default()
+        };
+        let (status, out, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(report.clone()));
+        assert_eq!(status, exit::ERROR);
+        assert!(
+            out.ends_with(" files_left=1 database_left=yes not_followed=0\n"),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it\n",
+            "{report:?}"
+        );
         let removal_left_these = TailReport {
             root: TailRoot::Destroyed,
             roots_listed: true,
