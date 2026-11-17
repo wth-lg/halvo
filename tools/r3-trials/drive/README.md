@@ -17,7 +17,7 @@ the task `reply`. Its result file is `docs/r3/trials/driver.md`.
 | `src/fixture.rs` | The fixture server with a pipe on its input, its reset and state, and the mail face |
 | `src/body.rs` | The reply rule and the rule that counts a body |
 | `src/lines.rs` | The line forms of A13.6 and of this trial's `load` line |
-| `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`) |
+| `verdict.py` | The verdict rule over the lines of the result file (`--check`, `--write`, `--self-test`); `--check` also refuses each pair of files that `route-gate import` refuses, with its detail |
 | `rebuild.py` | Makes the block again from the raw cell files, the helper's log and the job log (`--compare`) |
 | `control.sh`, `control/` | The control: one cell with the stand-in child, its five mode files and the expected lines |
 | `src/bin/r3-standin.rs` | The stand-in child: no model, one action of the grammar per request, by role and name |
@@ -31,7 +31,7 @@ sh tools/r3-trials/model/fetch.sh minicpm5_2b        # the weights of a model, c
 sh tools/r3-trials/drive/run.sh --model minicpm5_2b --task bill --seed 1 \
   --browser "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --port 18471
 sh tools/r3-trials/drive/run.sh --prompt-lines       # the prompt lines of the result file
-python3 -I tools/r3-trials/drive/verdict.py --check  # the verdict line against the lines
+python3 -I tools/r3-trials/drive/verdict.py --check  # the verdict line against the lines, and the importer's rules
 ```
 
 On this Mac every cell runs through the machine's timed-run helper, one at a time, and the
