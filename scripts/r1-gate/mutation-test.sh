@@ -93,11 +93,16 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   build script that the build key of a Cargo.toml names, a file that a build
   script names by a literal rerun-if-changed path, or native code (C, C++,
   Objective-C, assembly, a linker script, a definition or a resource file),
-  each matched in any ASCII case; a retired row is not refused. In the same
-  loop it refuses by name a row, but a retired one, whose substitution holds
-  a statement without the modifier g that matches more than one place of its
-  file, and names the file and the line of each match, and a row whose
-  pattern perl builds from a variable when it runs. A row
+  each matched in any ASCII case; a retired row is not refused. Before that
+  loop, in every form that reads rows, it reads every row but a retired one
+  (a pending row and a row that --only leaves out too), prints a FAIL line
+  for each row whose substitution holds a statement without the modifier g
+  that matches more than one place of its file, with the file and the line
+  of each match, or a statement that perl would not read as written (an
+  empty pattern, a variable, an array or one of the escapes \Q, \U, \L, \u,
+  \l, \F and \E in a pattern, a variable but $1 to $9 and $& in a
+  replacement, no valid perl, the modifier r or e), and then ends as failed
+  before it applies any row (scripts/r1-gate/README.md). A row
   outside the kept build that it applies is refused when a line that the
   substitution changes is in an extern block (its brace on the same or the
   next line) or in an attribute, over one or more lines, that names link,
@@ -425,9 +430,6 @@ row_lint() {
   if [ "$row_lint" = folded ]; then
     defect="the path $mutated reaches a tracked file only by a spelling that the file system folds beyond ASCII case"; return 1
   fi
-  if [ "$row_places" != - ]; then
-    defect=$row_places; return 1
-  fi
   needs_cargo "$mutated" || return 0
   ! kept_build "$mutated" || return 0
   case $row_lint in
@@ -700,6 +702,16 @@ run_rows() {
   done
   lint_prepare "$work/rows.linted" || return 2
   table=$work/rows.linted
+  stop_check
+  awk -F '\t' '$10 != "-" { print $3 "\t" $10 }' "$table" > "$work/refused.tsv"
+  step_check $? "awk of the refused rows" || return 2
+  if [ -s "$work/refused.tsv" ]; then
+    while IFS="$TAB" read -r refused_name refused_why; do
+      stop_check
+      say FAIL "$refused_name" "$refused_why"
+    done < "$work/refused.tsv"
+    return 1
+  fi
   built_unmutated=no; copy_built=no
   stop_check
   tree_abs=$(cd "$tree" && pwd -P)
@@ -723,7 +735,7 @@ run_rows() {
     step_check $? "copy of the rows table" || return 2
   fi
   budget_start=''; timed_name=''
-  while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ row_lint row_places <&3; do
+  while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ row_lint _ <&3; do
     stop_check
     stop_row=$row_name
     if ! row_defect; then
@@ -1645,7 +1657,11 @@ place_fixture() {
 }
 
 place_refusal() {
-  refusal="$1 matches $2 places of $3, at lines $4${5:-}, and would change the first alone: give the statement the modifier g to change every match, or write its pattern so that it matches one place"
+  refusal="$1 matches $2 places of $3, at lines $4${5:-}, and would change the first alone: give the statement the modifier g, which changes every match that does not overlap an earlier one, or write its pattern so that it matches one place"
+}
+
+place_overlap() {
+  refusal="$1 matches $2 places of $3, at lines $4, and would change the first alone: some of them overlap, and the modifier g changes no match that overlaps an earlier one: write its pattern so that it matches one place"
 }
 
 helper_refuses_two_places() {
@@ -1665,6 +1681,14 @@ helper_by_a_relative_path() {
   grep -q -x -e 'echo 1' "$gate_scratch/helper-once.sh"
 }
 
+helper_names_an_array_alone() {
+  printf 'echo a@b\n' > "$gate_scratch/helper-array.sh"
+  helper_said=$(ROW_SUBST='s/a@b/c/' perl "$DIR/helper/apply-row.pl" "$gate_scratch/helper-array.sh" 2>&1)
+  helper_status=$?
+  [ "$helper_status" -eq 1 ] || { printf 'apply-row.pl exited %s, not 1\n' "$helper_status"; return 1; }
+  [ "$helper_said" = 'statement 1 of the substitution has the array @b in its pattern, which perl replaces by its value: write \@ for an @ of the text' ] || { printf 'apply-row.pl said: %s\n' "$helper_said"; return 1; }
+}
+
 place_cases() {
   place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 2'
   two_places=$refusal
@@ -1674,8 +1698,15 @@ place_cases() {
   t row-whose-statement-matches-two-places-is-refused-in-a-full-run PASS fixture_says two-places "FAIL mutation:two-places ($two_places)" no
   place_fixture two-places-beside-another 'echo one\necho one\n' 's/echo one/echo 1/'
   row two-places-beside-another/scripts/r1-gate/mutants.rows other b.sh 's/two/three/' leak required X-1
-  t row-beside-the-two-place-row-runs-alone PASS with_only other fixture_says two-places-beside-another 'PASS mutation:other (applies and builds)' yes
+  t row-beside-a-refused-row-is-not-applied-when-only-names-it FAIL with_only other fixture_says two-places-beside-another 'PASS mutation:other' yes
   t row-whose-statement-matches-two-places-is-refused-when-only-leaves-it-out FAIL with_only other fixture_run two-places-beside-another yes
+  t row-whose-statement-matches-two-places-is-named-when-only-leaves-it-out PASS with_only other fixture_says two-places-beside-another "FAIL mutation:two-places-beside-another ($two_places)" yes
+  fixture_tree refused-after-a-good-row
+  row refused-after-a-good-row/scripts/r1-gate/mutants.rows good-first b.sh 's/two/three/' leak required X-1
+  printf 'echo one\necho one\n' > "$gate_scratch/refused-after-a-good-row/scripts/r1-gate/twice.sh"
+  row refused-after-a-good-row/scripts/r1-gate/mutants.rows refused-second twice.sh 's/echo one/echo 1/' leak required X-1
+  t row-before-a-refused-row-is-not-applied FAIL fixture_says refused-after-a-good-row 'PASS mutation:good-first' yes
+  t row-before-a-refused-row-is-not-applied-in-a-full-run FAIL fixture_says refused-after-a-good-row 'mutation:good-first' no
   fixture_tree second-file-of-a-rows-file
   row second-file-of-a-rows-file/scripts/r1-gate/mutants.rows first-file b.sh 's/two/three/' leak required X-1
   printf 'echo one\necho one\n' > "$gate_scratch/second-file-of-a-rows-file/scripts/r1-gate/twice.sh"
@@ -1683,6 +1714,7 @@ place_cases() {
   t row-on-the-second-file-of-a-rows-file-that-matches-two-places-is-named PASS fixture_says second-file-of-a-rows-file "FAIL mutation:second-file ($two_places)" yes
   t apply-row-refuses-a-statement-that-matches-two-places PASS helper_refuses_two_places
   t apply-row-run-by-a-relative-path-applies-a-row PASS helper_by_a_relative_path
+  t apply-row-names-an-array-in-a-pattern-with-no-warning-ahead PASS helper_names_an_array_alone
   place_fixture every-place 'echo one\necho one\n' 's/echo one/echo 1/g'
   t row-whose-statement-has-g-changes-every-place PASS fixture_says every-place 'PASS mutation:every-place (applies and builds)' yes
   place_fixture one-place-by-its-context 'echo one\necho one\n' 's/echo one\necho one/echo one\necho 1/'
@@ -1694,11 +1726,28 @@ place_cases() {
   place_fixture anchored-gains-a-match 'echo one\necho three\necho one\necho two\necho one\necho three\n' 's/echo one(?=\necho three\n)/echo 1/'
   place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 5'
   t anchored-row-whose-block-is-put-above-it-again-is-named PASS fixture_says anchored-gains-a-match "FAIL mutation:anchored-gains-a-match ($refusal)" yes
+  place_fixture backreference-two-places 'echo abb\necho abb\necho aba\n' 's/(a)(b)\2/X/'
+  place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 2'
+  t row-with-a-numbered-backreference-that-matches-two-places-is-named PASS fixture_says backreference-two-places "FAIL mutation:backreference-two-places ($refusal)" yes
+  place_fixture backreference-one-place 'echo ok\necho book\n' 's/(o)\1k/0k/'
+  t row-with-a-numbered-backreference-that-matches-one-place-applies PASS fixture_says backreference-one-place 'PASS mutation:backreference-one-place (applies and builds)' yes
+  place_fixture keep-one-place 'echo one\necho two\n' 's/echo \Kone/1/'
+  t row-with-keep-that-matches-one-place-applies PASS fixture_says keep-one-place 'PASS mutation:keep-one-place (applies and builds)' yes
+  place_fixture keep-two-places 'echo one\necho one\n' 's/echo \Kone/1/'
+  t row-with-keep-that-matches-two-places-is-named PASS fixture_says keep-two-places "FAIL mutation:keep-two-places ($two_places)" yes
   place_fixture shared-line-end 'echo a\n    x=1\n    x=1\necho b\n' 's/\n    x=1\n/\n    x=2\n/'
-  place_refusal 'the substitution' 2 scripts/r1-gate/twice.sh '2 and 3'
+  place_overlap 'the substitution' 2 scripts/r1-gate/twice.sh '2 and 3'
   t row-whose-two-places-share-a-line-end-is-named PASS fixture_says shared-line-end "FAIL mutation:shared-line-end ($refusal)" yes
+  place_fixture overlap 'echo aaa\n' 's/aa/b/'
+  place_overlap 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 1'
+  t row-whose-places-overlap-is-told-to-match-one-place-alone PASS fixture_says overlap "FAIL mutation:overlap ($refusal)" yes
+  place_fixture overlap-with-g 'echo aaa\n' 's/aa/b/g'
+  t row-with-g-whose-places-overlap-applies-and-leaves-the-second PASS fixture_says overlap-with-g 'PASS mutation:overlap-with-g (applies and builds)' yes
   place_fixture same-end 'echo one\n\n  echo two\n' 's/\s*echo two/ echo 2/'
   t row-whose-matches-from-a-run-of-white-space-end-at-one-place-applies PASS fixture_says same-end 'PASS mutation:same-end (applies and builds)' yes
+  place_fixture same-end-after-text 'echo start\necho B\necho start\necho A\necho end\n' 's/echo start.*?echo end/echo start\necho end/s'
+  place_overlap 'the substitution' 2 scripts/r1-gate/twice.sh '1 and 3'
+  t row-whose-two-starts-end-at-one-place-with-text-between-is-named PASS fixture_says same-end-after-text "FAIL mutation:same-end-after-text ($refusal)" yes
   place_fixture three-places 'echo one\necho two\necho one\necho one\n' 's/one/1/'
   place_refusal 'the substitution' 3 scripts/r1-gate/twice.sh '1, 3 and 4'
   t row-whose-statement-matches-three-places-names-every-line PASS fixture_says three-places "FAIL mutation:three-places ($refusal)" yes
@@ -1713,7 +1762,8 @@ place_cases() {
   t row-whose-match-is-at-the-end-of-the-file-names-it PASS fixture_says end-of-file "FAIL mutation:end-of-file ($refusal)" yes
   place_fixture after-the-first 'echo one\necho two\n' 's/two/one/; s/one/1/'
   place_refusal 'statement 2 of 2 of the substitution' 2 scripts/r1-gate/twice.sh '1 and 2' ' of the file as the statements before it leave it'
-  t second-statement-that-matches-twice-after-the-first-is-named PASS fixture_says after-the-first "FAIL mutation:after-the-first ($refusal)" yes
+  after_the_first=$refusal
+  t second-statement-that-matches-twice-after-the-first-is-named PASS fixture_says after-the-first "FAIL mutation:after-the-first ($after_the_first)" yes
   place_fixture once-after-the-first 'echo one\necho one\n' 's/one\necho one/one\necho two/; s/one/1/'
   t second-statement-that-matches-once-after-the-first-applies PASS fixture_says once-after-the-first 'PASS mutation:once-after-the-first (applies and builds)' yes
   place_fixture case-blind 'echo one\necho One\n' 's/ONE/1/i'
@@ -1723,6 +1773,15 @@ place_cases() {
   place_fixture pending-places 'echo one\necho one\n' 's/echo one/echo 1/' 'pending X-9'
   t pending-row-that-matches-two-places FAIL fixture_run pending-places yes
   t pending-row-that-matches-two-places-is-named PASS fixture_says pending-places "FAIL mutation:pending-places ($two_places)" yes
+  place_fixture pending-second-statement 'echo one\necho two\n' 's/two/one/; s/one/1/' 'pending X-9'
+  t pending-row-whose-second-statement-matches-twice-is-named PASS fixture_says pending-second-statement "FAIL mutation:pending-second-statement ($after_the_first)" yes
+  place_fixture pending-interpolated 'echo "$@"\necho ""\n' 's/echo "$@"/echo x/' 'pending X-9'
+  t pending-row-whose-pattern-perl-builds-from-a-variable-is-named PASS fixture_says pending-interpolated 'FAIL mutation:pending-interpolated (statement 1 of the substitution has a pattern into which perl puts the value of a variable, so it is not the text written: write \$ for a $ and \@ for an @ of the text)' yes
+  place_fixture pending-second-not-perl 'echo one\necho one\n' 's/echo one/echo 1/; s/$x/y/' 'pending X-9'
+  t pending-row-whose-second-statement-is-no-valid-perl-is-named PASS fixture_says pending-second-not-perl 'FAIL mutation:pending-second-not-perl (the substitution is no valid perl)' yes
+  place_fixture empty-left-out 'echo one\n' 's{}{x}'
+  row empty-left-out/scripts/r1-gate/mutants.rows other b.sh 's/two/three/' leak required X-1
+  t row-with-an-empty-pattern-that-only-leaves-out-is-named PASS with_only other fixture_says empty-left-out 'FAIL mutation:empty-left-out (statement 1 of the substitution has an empty pattern, which perl reads as the last pattern that matched)' yes
   place_fixture retired-places 'echo one\necho one\n' 's/echo one/echo 1/' 'retired replaced by the test store::x'
   t retired-row-that-matches-two-places-is-not-read PASS fixture_run retired-places yes
   fixture_tree transitional-places
@@ -1743,14 +1802,28 @@ place_cases() {
   place_fixture empty-pattern 'echo one\n' 's{}{x}'
   t statement-with-an-empty-pattern-is-named PASS fixture_says empty-pattern 'FAIL mutation:empty-pattern (statement 1 of the substitution has an empty pattern, which perl reads as the last pattern that matched)' yes
   place_fixture interpolated 'echo "$@"\necho ""\n' 's/echo "$@"/echo x/'
-  t pattern-into-which-perl-puts-a-variable-is-named PASS fixture_says interpolated 'FAIL mutation:interpolated (statement 1 of the substitution has a pattern into which perl puts the value of a variable or an escape such as \Q, so it is not the text written: write \$ for a $ and \@ for an @ of the text)' yes
+  t pattern-into-which-perl-puts-a-variable-is-named PASS fixture_says interpolated 'FAIL mutation:interpolated (statement 1 of the substitution has a pattern into which perl puts the value of a variable, so it is not the text written: write \$ for a $ and \@ for an @ of the text)' yes
   place_fixture escaped 'echo "$@"\necho ""\n' 's/echo "\$@"/echo x/'
   t pattern-with-an-escaped-dollar-applies PASS fixture_says escaped 'PASS mutation:escaped (applies and builds)' yes
-  for place_name in text content; do
-    place_fixture "lexical-$place_name" 'echo one\n' "s/echo one/echo \$$place_name/"
-    t "replacement-that-names-the-helper-s-$place_name-is-no-valid-perl" PASS fixture_says "lexical-$place_name" "FAIL mutation:lexical-$place_name (the substitution is no valid perl)" yes
+  place_fixture array-in-pattern 'echo a@b\n' 's/a@b/c/'
+  t pattern-with-an-array-is-named PASS fixture_says array-in-pattern 'FAIL mutation:array-in-pattern (statement 1 of the substitution has the array @b in its pattern, which perl replaces by its value: write \@ for an @ of the text)' yes
+  for place_escape in Q U L u l E; do
+    place_fixture "escape-$place_escape" 'echo one\n' "s/echo \\${place_escape}one/x/"
+    t "pattern-with-the-escape-$place_escape-is-named" PASS fixture_says "escape-$place_escape" "FAIL mutation:escape-$place_escape (statement 1 of the substitution has the escape \\$place_escape in its pattern, which perl applies to the pattern before it matches, so the pattern is not the text written: write the text that the row means)" yes
   done
+  for place_value in text:'$text' content:'$content' underscore:'$_' zero:'$0' argv:'@ARGV' env:'$ENV' package:'$FindBin::RealBin'; do
+    place_name=${place_value%%:*}; place_shown=${place_value#*:}
+    place_written=$place_shown
+    [ "$place_name" != env ] || place_written='$ENV{HOME}'
+    place_fixture "replacement-$place_name" 'echo one\n' "s/echo one/echo $place_written/"
+    t "replacement-with-$place_name-is-named" PASS fixture_says "replacement-$place_name" "FAIL mutation:replacement-$place_name (statement 1 of the substitution has $place_shown in its replacement, which perl replaces by its value: a replacement may hold \$1 to \$9 and \$& and no other variable; write \\\$ for a \$ and \\@ for an @ of the text)" yes
+  done
+  place_fixture replacement-captures 'echo one\n' 's/(o)ne/${1}x$1$&/'
+  t replacement-with-the-captures-applies PASS fixture_says replacement-captures 'PASS mutation:replacement-captures (applies and builds)' yes
+  place_fixture replacement-escaped 'echo one\n' 's/one/\$x \@y/'
+  t replacement-with-an-escaped-dollar-and-at-sign-applies PASS fixture_says replacement-escaped 'PASS mutation:replacement-escaped (applies and builds)' yes
 }
+
 
 compiled_cases() {
   for compiled_mode in apply full; do

@@ -66,36 +66,50 @@ empty, and a line that is empty is skipped.
   runner applies each to the whole file, in order, so `\n` matches a line end. A
   statement that matches nothing fails the row, and so does a substitution
   that changes nothing. A statement with the modifier `g` changes every
-  match. A statement without it changes the first match alone, so it must
-  match one place of the file as the statements before it leave it. The
-  runner tries the pattern at every position of that file: matches that end
-  at the same position are one place, as when a pattern starts with `\s*`,
-  and every other match is a place of its own, also one that overlaps
-  another, as two copies of a line do for a pattern that starts and ends with
-  `\n`. A row names its one place by its pattern: with the text around
-  the place, as in `s/a\nb/a\nc/`, or by a lookaround, as in
-  `s/(?<=a\n)b/c/`. Before it applies any row, the runner reads every row
-  but a retired one, also a pending row, a row for another place and a row
-  that `--only` leaves out, and fails each row that has a statement without
-  `g` that matches more than one place:
-  `FAIL mutation:<name> (the substitution matches <n> places of <file>, at lines <a> and <b>, and would change the first alone: give the statement the modifier g to change every match, or write its pattern so that it matches one place)`.
+  match that does not overlap an earlier one, as perl does, and leaves a
+  match that overlaps an earlier one as it was. A statement without `g`
+  changes the first match alone, so it must match one place of the file as
+  the statements before it leave it. The runner matches the statement's own
+  pattern, with its groups, backreferences and `\K` as they are, from the
+  start of the file and again from one character after the start of each
+  match that it finds. Two matches that end at the same position are one
+  place when the text between their starts is white space, as when a
+  pattern starts with `\s*`; every other match is a place of its own, also
+  one that overlaps another, as two copies of a line do for a pattern that
+  starts and ends with `\n`, and as two starts do that reach the same end
+  over other text. A row names its one place by its pattern: with the text
+  around the place, as in `s/a\nb/a\nc/`, or by a lookaround, as in
+  `s/(?<=a\n)b/c/`.
+  The runner also refuses a statement whose text perl would not read as the
+  row writes it: an empty pattern, which perl reads as the last pattern that
+  matched; a pattern into which perl puts the value of a variable when it
+  runs, such as `$@`, `$$`, `$!` or `$1`; an array in a pattern, such as
+  `@b`; the escapes `\Q`, `\U`, `\L`, `\u`, `\l`, `\F` and `\E` in a
+  pattern, which perl applies to the pattern before it matches; and a
+  replacement that holds a variable other than `$1` to `$9` (also written
+  `${1}` to `${9}`) and `$&`, such as `$_`, `$0`, `@ARGV`, `$ENV{HOME}` or
+  `$FindBin::RealBin`. Write `\$` for a `$` and `\@` for an `@` of the text;
+  a `$` at the end of the pattern or before `)` or `|` is an anchor and
+  stays. A statement that is no valid perl, or that has the modifier `r` or
+  `e`, is refused too. So no variable of the runner reaches a statement.
+  Before it applies any row, in every form that reads rows (a run,
+  `--apply-only`, `--only` and `--budget`), the runner reads every row but a
+  retired one, also a pending row, a row for another place and a row that
+  `--only` leaves out, prints one line for each row that the rules of this
+  field refuse, and ends as failed before it applies the first row. A row
+  whose statement matches more than one place reads
+  `FAIL mutation:<name> (the substitution matches <n> places of <file>, at lines <a> and <b>, and would change the first alone: give the statement the modifier g, which changes every match that does not overlap an earlier one, or write its pattern so that it matches one place)`,
+  and when some of the places overlap, its end reads
+  `some of them overlap, and the modifier g changes no match that overlaps an earlier one: write its pattern so that it matches one place)`.
   For a row of several statements the line names `statement <i> of <k> of the substitution`,
   and for any statement but the first it reads `at lines <a> and <b> of the file as the statements before it leave it`.
   The line of a match is the line of its first character that is no line
-  end; a match at the very end of the file reads `the end of the file`.
-  `--list` prints the rows and reads no substitution. A statement with an
-  empty pattern fails the row, because perl reads an empty pattern as the
-  last pattern that matched, and so does a statement whose pattern perl
-  builds when it runs, from a variable such as `$@`, `$$`, `$!` or `$1` or
-  from an escape such as `\Q`: such a pattern is not the text that the row
-  writes. Write `\$` for a `$` and `\@` for an `@` of the text; a `$` at
-  the end of the pattern or before `)` or `|` is an anchor and stays. The
-  substitution runs where no variable of the runner is in sight, so a name
-  such as `$text` in it is no valid perl. Limits: the replacement is not
-  read, so a variable in it, `$@` for one, gives its value where the row may
-  mean the text; and the runner counts the places of a pattern with `\G`
-  where its scan tries it, while a statement without `g` reads `\G` as the
-  start of the file: write no `\G`.
+  end; a match at the very end of the file reads `the end of the file`. A
+  statement that matches nothing is not refused there: the row's own step
+  fails it when the run reaches it, and a pending row stays open.
+  `--list` prints the rows and reads no substitution. Limit: the runner
+  counts the places of a pattern with `\G` where its scan tries it, while a
+  statement without `g` reads `\G` as the start of the file: write no `\G`.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and
