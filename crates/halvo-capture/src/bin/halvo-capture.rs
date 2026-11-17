@@ -27,6 +27,10 @@ fn main() -> ExitCode {
             &mut std::io::stdout().lock(),
         )),
         #[cfg(debug_assertions)]
+        Ok(Mode::SelfCheckRunLoop) => {
+            status(daemon::self_check_run_loop(&mut std::io::stdout().lock()))
+        }
+        #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
             Ok(outcome) => status(daemon::outcome_answer(
                 &outcome,

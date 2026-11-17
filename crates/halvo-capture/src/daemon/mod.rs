@@ -5,11 +5,14 @@
 pub mod barrier;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod batch;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod board;
 pub mod children;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod counters;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
+pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
 #[cfg(test)]
@@ -27,8 +30,11 @@ mod report;
 #[cfg(test)]
 mod scripted;
 pub mod signal;
+pub mod sources;
 #[cfg(test)]
 mod stop_tests;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod supervisor;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -36,6 +42,7 @@ use std::time::Duration;
 
 use halvo_control::onboarding::Permission;
 use halvo_control::paths::{AccountLookup, PathError};
+pub use halvo_control::proto::SourceName;
 
 use crate::floor::{Switch, Switches};
 use crate::source::{SourceContext, SourceCounters};
@@ -108,6 +115,10 @@ pub enum Mode {
     ProbePermissions(Vec<Permission>),
     /// `--request-permission P` (contracts.md C3.6).
     RequestPermission(Permission),
+    /// `--self-check run-loop`: the wait of the timed run with no source,
+    /// while a second thread queues a block on the main run loop.
+    #[cfg(debug_assertions)]
+    SelfCheckRunLoop,
     #[cfg(debug_assertions)]
     TimedRun(TimedRun),
     #[cfg(debug_assertions)]
@@ -542,6 +553,8 @@ pub fn parse(
             _ => Err(Usage("--request-permission takes one PERMISSION").into()),
         },
         #[cfg(debug_assertions)]
+        Some("--self-check") if args[1..] == ["run-loop"] => Ok(Mode::SelfCheckRunLoop),
+        #[cfg(debug_assertions)]
         Some("--timed-run") => gate::timed_run(&args[1..], account),
         #[cfg(debug_assertions)]
         Some("--verify-store") => {
@@ -761,24 +774,6 @@ mod gate {
     }
 }
 
-/// A source of a timed run, by the name that its `failed_source=` line takes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceName {
-    Foreground,
-    Screen,
-    Input,
-}
-
-impl SourceName {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            SourceName::Foreground => "foreground",
-            SourceName::Screen => "screen",
-            SourceName::Input => "input",
-        }
-    }
-}
-
 /// The `failed_source=` entry of a source's answer to its stop at the run's
 /// end: none for `Ok` and for `ThreadEnded`, an entry for every other answer
 /// (contracts.md C4 item 7).
@@ -793,20 +788,6 @@ pub fn stop_failure(
             error: error.to_string(),
         }),
     }
-}
-
-/// The sources that a run with `switches` starts: the foreground source, the
-/// screen source only while `screen_activity` is on, and the input source
-/// only while `key_class` or `pointer_class` is on.
-pub fn sources_for(switches: Switches) -> Vec<SourceName> {
-    let mut sources = vec![SourceName::Foreground];
-    if switches.is_on(Switch::ScreenActivity) {
-        sources.push(SourceName::Screen);
-    }
-    if switches.is_on(Switch::KeyClass) || switches.is_on(Switch::PointerClass) {
-        sources.push(SourceName::Input);
-    }
-    sources
 }
 
 /// The sources of one timed run on one system.
@@ -833,6 +814,37 @@ pub trait RunSources {
 
     /// The system's refusal of the hold of secure input, when there was one.
     fn hold_refusal(&self) -> Option<DaemonError>;
+
+    /// Waits as [`RunSources::wait`] does while the supervisor reads `owner`.
+    #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+    fn supervise(
+        &mut self,
+        window: Duration,
+        stop: &std::sync::atomic::AtomicBool,
+        owner: &dyn supervisor::OwnerLink,
+    ) -> bool {
+        let _ = owner;
+        self.wait(window, stop)
+    }
+
+    /// Whether a permission granted after the start asks the run to end with
+    /// status 4.
+    fn restart_asked(&self) -> bool {
+        false
+    }
+}
+
+impl TimedRun {
+    /// The run kind of this timed run for the source set: whether its flags
+    /// set `key_class` on.
+    pub fn kind(&self) -> sources::RunKind {
+        sources::RunKind::Timed {
+            key_class_flag: self
+                .switches
+                .set_by_flags()
+                .contains(&(Switch::KeyClass, true)),
+        }
+    }
 }
 
 /// Runs one timed run on the owner: the owner over `store` resumes, the
@@ -860,6 +872,7 @@ where
 
     use halvo_control::exit;
     use halvo_control::model::StorageCap;
+    use halvo_control::proto::Platform;
 
     use crate::floor::exclude::{FloorHandle, NoLineage};
     use owner::{Answer, Command, OwnerParts};
@@ -868,15 +881,18 @@ where
     let switches = run.switches.applied();
     let floor = FloorHandle::new(None, Arc::new(NoLineage), switches);
     let (handle, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
-    let owner = owner::spawn(OwnerParts {
-        writer,
-        store,
-        clocks,
-        floor: floor.clone(),
-        cap: StorageCap::DEFAULT,
-        shred_chunk: maintenance::SHRED_CHUNK,
-    })
-    .map_err(|error| DaemonError::Store(error.to_string()))?;
+    let owner = supervisor::Watched::new(
+        owner::spawn(OwnerParts {
+            writer,
+            store,
+            clocks,
+            floor: floor.clone(),
+            cap: StorageCap::DEFAULT,
+            shred_chunk: maintenance::SHRED_CHUNK,
+        })
+        .map_err(|error| DaemonError::Store(error.to_string()))?,
+        Box::new(std::io::stderr()),
+    );
     if !matches!(
         owner.handle.call(Command::ClosePause),
         Ok(Answer::Resumed(_))
@@ -884,9 +900,10 @@ where
         return Err(DaemonError::DrainPanicked);
     }
     let ctx = SourceContext::with_floor(handle.clone(), floor);
-    let mut failed = sources.start(&ctx, &sources_for(switches), run.hold_after());
+    let wanted = sources::starting(Platform::Macos, run.kind(), switches);
+    let mut failed = sources.start(&ctx, &wanted, run.hold_after());
     drop(ctx);
-    let signalled = sources.wait(run.window, stop);
+    let signalled = sources.supervise(run.window, stop, &owner);
     let counts = handle.counts();
     let emitted: u64 = crate::event::Modality::ALL
         .into_iter()
@@ -947,6 +964,8 @@ where
     let signalled = signalled || stop.load(std::sync::atomic::Ordering::SeqCst);
     let status = if failing {
         exit::ERROR
+    } else if sources.restart_asked() {
+        exit::RESTART
     } else if signalled {
         exit::TIMED_RUN_INTERRUPTED
     } else if !failed.is_empty() {
@@ -1097,6 +1116,26 @@ fn report_of(
     }
 }
 
+/// The report of a timed run from what the Board holds: its owner snapshot,
+/// the counters of the process and the failed sources.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub fn report_of_board(
+    board: &board::Board,
+    sink: &crate::sink::SinkCounts,
+    secure_input: SecureInput,
+) -> TimedRunReport {
+    let snapshot = board
+        .snapshot
+        .unwrap_or_else(|| counters::Counters::default().snapshot(0, false));
+    report_of(
+        &snapshot,
+        sink,
+        &board.figures,
+        board.failed_sources(),
+        secure_input,
+    )
+}
+
 /// The answer of `--probe-permissions`: its lines on `out`, nothing on a
 /// system without a probe, and status 0.
 pub fn probe_answer(permissions: &[Permission], out: &mut dyn std::io::Write) -> i32 {
@@ -1118,6 +1157,29 @@ fn write_or_error(out: &mut dyn std::io::Write, text: &str) -> i32 {
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Ok(()) => halvo_control::exit::CLEAN,
         Err(_) => halvo_control::exit::ERROR,
+    }
+}
+
+/// Runs the self-check of the main run loop and prints its line on `out`.
+#[cfg(debug_assertions)]
+pub fn self_check_run_loop(out: &mut dyn std::io::Write) -> i32 {
+    #[cfg(target_os = "macos")]
+    {
+        match crate::macos::self_check_run_loop() {
+            Ok(ran_after) => {
+                let (line, status) = main_loop::self_check_answer(ran_after);
+                match writeln!(out, "{line}") {
+                    Ok(()) => status,
+                    Err(_) => halvo_control::exit::ERROR,
+                }
+            }
+            Err(_) => halvo_control::exit::ERROR,
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = out;
+        halvo_control::exit::ERROR
     }
 }
 
@@ -1161,6 +1223,8 @@ pub enum DaemonError {
     },
     #[error("the store owner panicked")]
     DrainPanicked,
+    #[error("the timed run is entered on the process main thread")]
+    NotMainThread,
 }
 
 #[cfg(test)]
@@ -1281,6 +1345,39 @@ mod tests {
                 "{line:?}"
             );
         }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_self_check_takes_run_loop_and_nothing_else() {
+        let dirs = dirs();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--self-check", "run-loop"]),
+            Ok(Mode::SelfCheckRunLoop)
+        );
+        assert!(parsed(&["--self-check"]).is_err());
+        assert!(parsed(&["--self-check", "run-loop", "again"]).is_err());
+        assert!(parsed(&["--self-check", "other"]).is_err());
+    }
+
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    #[test]
+    fn timed_run_refuses_a_thread_that_is_not_the_main_one() {
+        let dir = test_dir();
+        let run = TimedRun {
+            window: Duration::from_secs(1),
+            secure_input: SecureInput::DoNotHold,
+            switches: SwitchFlags::default(),
+            store_dir: dir.path().to_path_buf(),
+        };
+        let answer = std::thread::spawn(move || timed_run(&run).map(|outcome| outcome.status))
+            .join()
+            .unwrap();
+        assert!(
+            matches!(answer, Err(DaemonError::NotMainThread)),
+            "{answer:?}"
+        );
     }
 
     #[cfg(debug_assertions)]
@@ -2715,7 +2812,15 @@ mod tests {
 
     #[test]
     fn the_sources_of_a_run_leave_out_what_the_switches_turn_off() {
-        let with = |flags: &[(Switch, bool)]| sources_for(SwitchFlags(flags.to_vec()).applied());
+        let with = |flags: &[(Switch, bool)]| {
+            sources::starting(
+                halvo_control::proto::Platform::Macos,
+                sources::RunKind::Timed {
+                    key_class_flag: false,
+                },
+                SwitchFlags(flags.to_vec()).applied(),
+            )
+        };
         let (f, s, i) = (
             SourceName::Foreground,
             SourceName::Screen,
