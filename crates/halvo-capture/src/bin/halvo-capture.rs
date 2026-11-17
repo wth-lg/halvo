@@ -616,10 +616,10 @@ mod tests {
         let scratch = scratch();
         let dir = scratch.dir("unopened");
         if std::fs::metadata(&dir).unwrap().uid() == 0 {
-            println!("not run: the test runs as root, whom a mode of 000 does not stop");
+            println!("not run: the test runs as root, whom a mode of 0100 does not stop");
             return;
         }
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o100)).unwrap();
         let answer = scratch.delete(&text(&dir));
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
         let (status, out, err) = answer;
@@ -633,6 +633,77 @@ mod tests {
             "halvo-capture: the delete is not finished: the store directory could not be opened, so this call cannot say what stays in it\n"
         );
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_store_dir_whose_names_cannot_be_read_is_refused_with_64_and_keeps_every_file() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let scratch = scratch();
+        for mode in [0o000, 0o400] {
+            let dir = scratch.dir(&format!("unread-{mode:o}"));
+            if std::fs::metadata(&dir).unwrap().uid() == 0 {
+                println!("not run: the test runs as root, whom a mode does not stop");
+                return;
+            }
+            std::fs::create_dir(dir.join("store")).unwrap();
+            std::fs::create_dir(dir.join("roots")).unwrap();
+            std::fs::write(dir.join("roots").join("plain"), [9u8; 32]).unwrap();
+            let before = files_under(&dir);
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(mode)).unwrap();
+            let answer = daemon::parse(
+                ["--delete-all", "--store-dir", &text(&dir)].map(std::ffi::OsString::from),
+                &scratch.account,
+            );
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let Err(refusal) = answer else {
+                panic!("mode {mode:o} was taken: {answer:?}");
+            };
+            let mut err = Vec::new();
+            assert_eq!(
+                daemon::usage_answer(&refusal, &mut err),
+                64,
+                "mode {mode:o}"
+            );
+            assert_eq!(
+                String::from_utf8(err).unwrap(),
+                format!(
+                    "halvo-capture: the names store and roots in {} cannot be read, so the scratch delete cannot tell whether it holds a data directory's layout; nothing in it was opened or removed\n",
+                    text(&dir)
+                ),
+                "mode {mode:o}"
+            );
+            assert_eq!(files_under(&dir), before, "mode {mode:o}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_opened_dir_whose_root_was_destroyed_is_never_said_to_be_unopened() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let scratch = scratch();
+        let dir = scratch.dir("read-only-top");
+        drop(live_store(&dir));
+        std::fs::write(dir.join("create.pending"), b"not a mark").unwrap();
+        if std::fs::metadata(&dir).unwrap().uid() == 0 {
+            println!("not run: the test runs as root, whom a mode of 0555 does not stop");
+            return;
+        }
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let answer = scratch.delete(&text(&dir));
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let (status, out, err) = answer;
+        assert_eq!(status, 1, "{out}{err}");
+        assert!(
+            deleted_line(&out).contains(" root_destroyed=yes root_id=- "),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: store.key stays; a database file stays; 1 other files of the store stay\n"
+        );
+        assert!(dir.join("store.key").exists() && dir.join("create.pending").exists());
+        assert_eq!(root_files(&dir), Vec::<String>::new());
     }
 
     fn link_to_a_folder(folder: &Path, link: &Path) {

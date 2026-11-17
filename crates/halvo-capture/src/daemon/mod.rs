@@ -118,8 +118,10 @@ pub enum Mode {
     /// either name, and opens, changes and removes nothing in it. This look is
     /// the one look before the tail's call: every gate trap calls this mode,
     /// and a wrong argument must not cost a person's store its root (ruling
-    /// DM-22). A look that cannot be read refuses nothing; the tail then
-    /// cannot enter such a directory either.
+    /// DM-22). A look that cannot read either name, for a cause other than its
+    /// absence or a DIR that is no folder (which the tail refuses as a link
+    /// or a file), refuses DIR too, with a line of its own (ruling DM-22
+    /// Addition 1).
     #[cfg(debug_assertions)]
     DeleteAll {
         store_dir: PathBuf,
@@ -176,6 +178,12 @@ pub enum Refusal {
         "halvo-capture: {0} holds store/ beside roots/, the layout of a data directory; the scratch delete takes a scratch store directory alone, and nothing in this one was opened or removed"
     )]
     DataDirLayout(String),
+    /// A store directory in which the names store and roots cannot be read,
+    /// by its text as given; the scratch delete refuses it with exit 64.
+    #[error(
+        "halvo-capture: the names store and roots in {0} cannot be read, so the scratch delete cannot tell whether it holds a data directory's layout; nothing in it was opened or removed"
+    )]
+    DataDirUnread(String),
 }
 
 /// The binary's answer to a command line that is not run: the refusal's text
@@ -185,7 +193,9 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
     let refusal: Refusal = refused.clone().into();
     let _ = writeln!(err, "{refusal}");
     match refusal {
-        Refusal::Usage(_) | Refusal::DataDirLayout(_) => halvo_control::exit::USAGE,
+        Refusal::Usage(_) | Refusal::DataDirLayout(_) | Refusal::DataDirUnread(_) => {
+            halvo_control::exit::USAGE
+        }
         Refusal::NoDataDir(_) => halvo_control::exit::ERROR,
     }
 }
@@ -286,11 +296,13 @@ impl TailReport {
     }
 
     /// The report of a tail that could not open the store directory, or that
-    /// answered through its not-opened report for another cause: store.key,
-    /// the database and one file read as not removed because the tail never
-    /// looked. A removal that left exactly those three reads the same.
+    /// answered through its not-opened report for another cause: the root not
+    /// destroyed, and store.key, the database and one file read as not removed
+    /// because the tail never looked. A removal that left exactly those three
+    /// and destroyed no root reads the same.
     fn not_opened(&self) -> bool {
-        !self.key_file_gone
+        self.root != TailRoot::Destroyed
+            && !self.key_file_gone
             && self.database_left
             && self.files_left == 1
             && self.keyed_segments.is_none()
@@ -661,11 +673,21 @@ mod gate {
 
     impl StoreDir {
         pub(super) fn without_a_data_directory_layout(self) -> Result<PathBuf, Refusal> {
-            let stands = |name: &str| self.resolved.join(name).symlink_metadata().is_ok();
-            if stands("store") && stands("roots") {
-                return Err(Refusal::DataDirLayout(halvo_control::paths::one_line(
-                    &self.given.to_string_lossy(),
-                )));
+            let shown = || halvo_control::paths::one_line(&self.given.to_string_lossy());
+            let mut stands = 0;
+            for name in ["store", "roots"] {
+                match self.resolved.join(name).symlink_metadata() {
+                    Ok(_) => stands += 1,
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                        ) => {}
+                    Err(_) => return Err(Refusal::DataDirUnread(shown())),
+                }
+            }
+            if stands == 2 {
+                return Err(Refusal::DataDirLayout(shown()));
             }
             Ok(self.given)
         }
@@ -1774,7 +1796,6 @@ mod tests {
         for root in [
             TailRoot::Left(None),
             TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
-            TailRoot::Destroyed,
         ] {
             let report = TailReport {
                 root,
@@ -1811,7 +1832,7 @@ mod tests {
             "{err}"
         );
         let not_opened = TailReport {
-            root: TailRoot::Destroyed,
+            root: TailRoot::Left(None),
             roots_listed: true,
             database_left: true,
             files_left: 1,
@@ -1830,6 +1851,13 @@ mod tests {
                 "no database left",
                 TailReport {
                     database_left: false,
+                    ..not_opened.clone()
+                },
+            ),
+            (
+                "the root destroyed",
+                TailReport {
+                    root: TailRoot::Destroyed,
                     ..not_opened.clone()
                 },
             ),
