@@ -502,6 +502,27 @@ mod tests {
     }
 
     #[test]
+    fn the_small_at_sign_alone_names_an_address() {
+        none_counts(&["write to ann\u{fe6b}localhost please now"]);
+        assert!(counts("write to ann localhost please now"));
+    }
+
+    #[test]
+    fn a_hyphen_at_the_ends_of_a_host_is_trimmed() {
+        none_counts(&["visit -example.com- today please"]);
+    }
+
+    #[test]
+    fn the_boundaries_of_an_xn_label_and_of_an_octet() {
+        none_counts(&[
+            "visit shop.xn--a today please",
+            "call 10.0.0.255 now please",
+            "call 255.255.255.255 now please",
+        ]);
+        assert!(counts("the bill of 10.0.0.256 is paid"));
+    }
+
+    #[test]
     fn a_vertical_ideographic_full_stop_is_a_dot() {
         none_counts(&["visit example\u{fe12}com today please"]);
     }

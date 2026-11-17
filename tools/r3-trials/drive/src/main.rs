@@ -953,6 +953,11 @@ mod tests {
                 concat!("V", "AR")
             ),
             format!("use r3_web::procs::fence :: {};", "*"),
+            format!("r3_web::procs::fence::{}();", concat!("from", "_env")),
+            format!(
+                "std::env::set_var(\"{}\", dir);",
+                concat!("R3_WEB_FENCE", "_BELOW")
+            ),
         ] {
             assert!(opens_the_fence(&source), "{source}");
             let tree = fixture(

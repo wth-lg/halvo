@@ -1272,6 +1272,21 @@ def self_test():
     expect("the candidates of the cells", candidates("t\n```text\nbound x\nverdict candidates=a_1,b_2\n```\n"), ["a_1", "b_2"])
     expect("no candidate", candidates("```\nverdict candidates=-\n```\n"), [])
 
+    def before_verdict(line):
+        body = "# driver\n```\n" + line + "\n" + IMP_VERDICT + "\n```\n"
+        cells_ok = "# cells\n```\n" + IMP_BOUND + "\n" + IMP_CANDIDATES + "\n```\n"
+        return body.encode("utf-8"), cells_ok.encode("utf-8")
+
+    fields = [("machine", v) for v in ("hosted-mac", "linux", "gen_a", "Mac", "")]
+    fields += [(k, v) for k in ("steps", "wall_s", "tokens_in", "tokens_out") for v in ("x", "01", "²", "18446744073709551616")]
+    fields += [("pass", "maybe"), ("seed", "4"), ("model", "none"), ("i", "0")]
+    for key, value in fields:
+        attempt = " ".join(key + "=" + value if w.split("=", 1)[0] == key and "=" in w else w for w in IMP_ATTEMPT.split(" "))
+        driver, cells_ok = before_verdict(attempt)
+        expect("the attempt line before the verdict with %s=%r" % (key, value), import_refusal(driver, cells_ok), "driver:3")
+    driver, cells_ok = before_verdict(IMP_ATTEMPT)
+    expect("the attempt line before the verdict as it should be", import_refusal(driver, cells_ok), None)
+
     agreed = 0
     taken = 0
     for name, driver, cells_text, want in import_cases():
