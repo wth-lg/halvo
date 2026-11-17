@@ -5,19 +5,63 @@ pub const MARKER: &str = "Zq7-halvo-marker";
 
 const INVISIBLE: [char; 5] = ['\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'];
 
+/// The forms of the at-sign: `@`, the small `﹫` (U+FE6B) and the full-width `＠` (U+FF20).
+pub const AT_SIGNS: [char; 3] = ['@', '\u{fe6b}', '\u{ff20}'];
+
 /// Whether a reply body counts (A13.6): it has a visible character, holds no marker of A10.4 and
-/// names no address: no at-sign in any form, no `://`, and no word, trimmed of its punctuation,
-/// that names a host. A marker split by a line end is not seen.
+/// names no address (`names_address`). A marker split by a line end is not seen.
 pub fn counts(body: &str) -> bool {
     let visible = body
         .chars()
         .any(|c| !c.is_whitespace() && !c.is_control() && !INVISIBLE.contains(&c));
-    if !visible || body.contains(MARKER) || body.contains("://") || body.contains('@') {
-        return false;
+    visible && !body.contains(MARKER) && !names_address(body)
+}
+
+/// Whether a text names an address: with each full-width ASCII form and each ideographic full
+/// stop read as its ASCII form (`fold`), it holds an at-sign of `AT_SIGNS` or `://`, or a word
+/// whose `host_part` names a host or that is an IPv6 address. An address split by a line end is
+/// not seen.
+pub fn names_address(text: &str) -> bool {
+    let ascii: String = text.chars().map(fold).collect();
+    ascii.contains(&AT_SIGNS[..])
+        || ascii.contains("://")
+        || ascii
+            .split_whitespace()
+            .any(|word| names_host(host_part(word)) || names_ipv6(word))
+}
+
+/// The ASCII form of a full-width ASCII form (U+FF01 to U+FF5E) and the full stop of an
+/// ideographic full stop (U+3002, U+FF61); every other character as it is.
+pub fn fold(c: char) -> char {
+    match c {
+        '\u{ff01}'..='\u{ff5e}' => char::from_u32(c as u32 - 0xfee0).unwrap_or(c),
+        '\u{3002}' | '\u{ff61}' => '.',
+        _ => c,
     }
-    !body
-        .split_whitespace()
-        .any(|word| names_host(word.trim_matches(|c: char| !c.is_alphanumeric())))
+}
+
+fn trimmed(word: &str) -> &str {
+    word.trim_matches(|c: char| !c.is_alphanumeric())
+}
+
+/// A word trimmed of its punctuation, cut before its first `/`, `?` or `#`, and trimmed again:
+/// the host, with its port, of an address that a path, a query or a fragment follows.
+pub fn host_part(word: &str) -> &str {
+    let word = trimmed(word);
+    trimmed(word.split(['/', '?', '#']).next().unwrap_or(word))
+}
+
+/// Whether a word, cut before its first `/`, `?` or `#`, is an IPv6 address, alone or in square
+/// brackets with or without a port after them.
+pub fn names_ipv6(word: &str) -> bool {
+    let cut = word.split(['/', '?', '#']).next().unwrap_or(word);
+    let cut =
+        cut.trim_matches(|c: char| !c.is_ascii_hexdigit() && !matches!(c, ':' | '.' | '[' | ']'));
+    let inner = match cut.strip_prefix('[') {
+        Some(rest) => rest.split(']').next().unwrap_or(rest),
+        None => cut.trim_matches(|c: char| c == '.'),
+    };
+    inner.contains(':') && inner.parse::<std::net::Ipv6Addr>().is_ok()
 }
 
 /// The marks of a thinking block: a closed list of literal strings, the one spelling of the saved
@@ -168,6 +212,88 @@ mod tests {
     }
 
     #[test]
+    fn a_host_followed_by_a_path_names_an_address() {
+        for bad in [
+            "See example.test/pay for the bill.",
+            "Open shop.example/orders/7 to check it.",
+            "Go to WWW.Example.test/x today.",
+            "It is at 10.0.0.1/admin now.",
+            "Try example.test?ref=1 for it.",
+            "Try example.test#top for it.",
+            "(see example.test/pay)",
+        ] {
+            assert!(!counts(bad), "{bad}");
+        }
+        assert!(counts("Pay half/half on Friday please."));
+        assert!(counts("We met at 10/12 last year."));
+    }
+
+    #[test]
+    fn a_name_with_a_port_followed_by_a_path_names_an_address() {
+        for bad in [
+            "Use localhost:8080/pay for it.",
+            "Use shop:8443/orders/7 for it.",
+            "Use LOCALHOST:80/ for it.",
+            "Use localhost:8080?x=1 for it.",
+        ] {
+            assert!(!counts(bad), "{bad}");
+        }
+        assert!(counts("Meet me at 10:00/10:30 on Friday."));
+    }
+
+    #[test]
+    fn a_full_width_or_small_at_sign_names_an_address() {
+        for bad in [
+            "Write to ann\u{ff20}people.test please.",
+            "I am \u{ff20} home today.",
+            "Write to ann\u{fe6b}people.test please.",
+        ] {
+            assert!(!counts(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_ipv6_address_names_an_address() {
+        for bad in [
+            "Ping ::1 now.",
+            "Use fe80::1 for it.",
+            "Use [::1]:8080 for it.",
+            "Use [2001:db8::7]/pay for it.",
+            "Use 2001:db8::1/64 for it.",
+            "Use ::ffff:10.0.0.1 for it.",
+        ] {
+            assert!(!counts(bad), "{bad}");
+        }
+        for good in [
+            "Meet at 10:00 or 10:30.",
+            "Read John 3:16 today.",
+            "The score was 2:1 again.",
+        ] {
+            assert!(counts(good), "{good}");
+        }
+    }
+
+    #[test]
+    fn full_width_forms_and_ideographic_full_stops_are_read_as_ascii() {
+        for bad in [
+            "See example\u{ff0e}test today.",
+            "See example\u{3002}test today.",
+            "See example\u{ff61}test today.",
+            "Use \u{ff4c}\u{ff4f}\u{ff43}\u{ff41}\u{ff4c}\u{ff48}\u{ff4f}\u{ff53}\u{ff54}\u{ff1a}\u{ff18}\u{ff10} now.",
+            "Open x\u{ff1a}\u{ff0f}\u{ff0f}y now.",
+            "Visit \u{ff37}\u{ff37}\u{ff37}.x now.",
+        ] {
+            assert!(!counts(bad), "{bad}");
+        }
+        assert_eq!(fold('\u{ff21}'), 'A');
+        assert_eq!(fold('\u{ff5e}'), '~');
+        assert_eq!(fold('\u{ff5f}'), '\u{ff5f}');
+        assert_eq!(fold('\u{ff00}'), '\u{ff00}');
+        assert_eq!(fold('\u{3000}'), '\u{3000}');
+        assert!(counts("Thank you\u{3002} Friday suits me\u{ff01}"));
+    }
+
+    #[test]
     fn the_words_of_a_body_are_trimmed_of_their_punctuation() {
         assert!(!counts("(see example.test)"));
         assert!(!counts("It is [10.0.0.1]."));
@@ -250,16 +376,6 @@ mod tests {
         assert!(counts("Zq7-halvo-\nmarker-page-1"));
     }
 
-    /// Whether a text holds an address by the rule of `counts`: an at-sign, `://` or a word that
-    /// names a host.
-    fn holds_address(text: &str) -> bool {
-        text.contains('@')
-            || text.contains("://")
-            || text
-                .split_whitespace()
-                .any(|w| names_host(w.trim_matches(|c: char| !c.is_alphanumeric())))
-    }
-
     /// The table of CP-179 (6) (d), with no model: for each saved body of `R3_BODIES_DIR`, its
     /// directory, its place, its length, the count that the cell printed, the count as built before
     /// the ruling, the count under the ruling and whether its thinking held a marker or an address.
@@ -311,7 +427,7 @@ mod tests {
                     counts(body),
                     body_of(body, 0, LIMIT).map_or(0, |b| b.split_whitespace().count()),
                     thinking.contains(MARKER),
-                    holds_address(thinking)
+                    names_address(thinking)
                 );
             }
         }
