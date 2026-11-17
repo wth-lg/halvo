@@ -1862,3 +1862,38 @@ fn st48_u2_the_stores_root_at_a_plain_name_with_a_second_name_outside_is_removed
         answer_line(&first)
     );
 }
+
+/// Ruling ST-48 U3 (the verifier's row 26): a regular file of a root file's
+/// length that stays at a plain name of the roots folder (here the folder is
+/// at mode 0500, so that nothing in it can be removed) keeps the delete
+/// unfinished, and no form of the answer holds its name.
+#[test]
+fn st48_u3_a_root_shaped_file_that_stays_at_a_plain_name_is_not_named() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let plain = "st48-a-plain-name-of-the-person";
+    std::fs::write(roots_dir.join(plain), [0x77u8; 32]).unwrap();
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+
+    let answer = tail(&store_dir, &roots_dir);
+
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let stands = roots_dir.join(plain).exists();
+    let debug = format!("{answer:?}");
+    println!(
+        "ST48-U3-ROOT-SHAPED {} stands={stands} debug_holds_the_name={}",
+        answer_line(&answer),
+        debug.contains(plain)
+    );
+    assert!(stands, "the file at the plain name did not stay");
+    assert!(
+        matches!(answer, Err(StoreError::DeleteIncomplete(_))),
+        "{}",
+        answer_line(&answer)
+    );
+    assert!(
+        !debug.contains(plain),
+        "the answer names a file at a plain name of the roots folder"
+    );
+}

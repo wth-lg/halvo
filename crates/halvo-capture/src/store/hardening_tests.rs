@@ -10276,3 +10276,36 @@ mod held_roots;
 
 #[cfg(windows)]
 mod closed_list_windows;
+
+/// Ruling ST-48 U3: a delete that leaves a folder that the person named in the
+/// roots folder answers DeleteIncomplete, and neither the Display nor the
+/// Debug form of that answer holds the folder's name.
+#[test]
+fn st48_u3_no_form_of_the_answer_holds_the_name_of_a_folder_in_the_roots_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let named = "st48-account-diary-of-tax-returns";
+    std::fs::create_dir(roots_dir.join(named)).unwrap();
+
+    let answer = tail(&store_dir, &roots_dir);
+
+    let incomplete = matches!(answer, Err(StoreError::DeleteIncomplete(_)));
+    let display = match &answer {
+        Ok(_) => String::new(),
+        Err(e) => e.to_string(),
+    };
+    let debug = format!("{answer:?}");
+    println!(
+        "ST48-U3 incomplete={incomplete} display_holds_the_name={} debug_holds_the_name={}",
+        display.contains(named),
+        debug.contains(named)
+    );
+    assert!(
+        incomplete,
+        "the folder in the roots folder did not keep the delete unfinished"
+    );
+    assert!(
+        !display.contains(named) && !debug.contains(named),
+        "a form of the answer holds the name of a folder that the person named"
+    );
+}
