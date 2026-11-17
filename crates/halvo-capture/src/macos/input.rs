@@ -470,6 +470,7 @@ struct HoldState {
     wake_mark: Option<Uptime>,
     wake_unclocked: bool,
     notice_seen: Option<Uptime>,
+    doubt_at_reading: bool,
 }
 
 type SharedHold = Arc<Mutex<HoldState>>;
@@ -948,8 +949,9 @@ impl TapContext {
                 self.counters.set_stalled(true);
             }
         }
-        let mark = self.notices.get();
         let doubt = self.notices.doubt();
+        let mark = self.notices.get();
+        state.doubt_at_reading = doubt;
         if mark > state.notice_seen || doubt {
             state.notice_seen = mark.max(state.notice_seen);
             if let Step::Dropped { keys, cause } = state.keys.noticed(Stamps { before, after }) {
@@ -1204,7 +1206,11 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             at.after,
             Marks {
                 wake: state.wake_mark,
-                notice: state.notice_seen,
+                notice: if state.doubt_at_reading {
+                    state.notice_seen.max(Some(event.entry.uptime))
+                } else {
+                    state.notice_seen
+                },
             },
             lag_bound,
         );
@@ -1316,6 +1322,7 @@ fn tap_context(
             wake_mark: None,
             wake_unclocked: false,
             notice_seen: None,
+            doubt_at_reading: false,
         })),
         notices: NoticeMark::new(),
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -3348,6 +3355,173 @@ mod tests {
             );
             assert_eq!(drops.withheld_by_mark(), want, "{kind:?}");
         }
+    }
+
+    #[test]
+    fn v174_g_doubt_end_window() {
+        let (held, _drops) = seam_held(100);
+        held.ctx.notices.set_doubt(true);
+        key_down(&held.ctx);
+        let held_after_key = held_now(&held.ctx);
+        held.ctx.notices.set_doubt(false);
+        ticks(&held.ctx, 300);
+        let recorded = keystrokes(&held.writer);
+        println!("V174G doubt_end_window held_after_key={held_after_key} keystrokes={recorded}");
+        assert_eq!(
+            (held_after_key, recorded),
+            (0, 0),
+            "a key that arrives while a doubt stands is dropped at its own reading, and the doubt's end with no mark releases nothing"
+        );
+    }
+
+    fn doubt_from_now(ctx: &TapContext) {
+        ctx.notices
+            .mark(Uptime::from_nanos(now_uptime()), MarkKind::Doubt);
+        ctx.notices.set_doubt(true);
+    }
+
+    #[test]
+    fn a_key_typed_before_a_doubt_ends_and_read_after_its_end_is_never_released() {
+        let (held, _drops) = seam_held(100);
+        doubt_from_now(&held.ctx);
+        tick(&held.ctx);
+        advance(20);
+        let end = now_uptime();
+        held.ctx.notices.end_doubt(Uptime::from_nanos(end));
+        advance(5);
+        key_with_os_time(&held.ctx, end - 5 * MS);
+        ticks(&held.ctx, 300);
+        assert_eq!(
+            keystrokes(&held.writer),
+            0,
+            "OS time end - 5 ms, read at end + 5 ms"
+        );
+    }
+
+    #[test]
+    fn a_key_typed_into_a_program_in_doubt_before_another_comes_in_front_is_never_released() {
+        let (held, _drops) = seam_held(100);
+        doubt_from_now(&held.ctx);
+        tick(&held.ctx);
+        advance(20);
+        let typed = now_uptime();
+        advance(5);
+        held.ctx.notices.end_doubt(Uptime::from_nanos(now_uptime()));
+        advance(20);
+        key_with_os_time(&held.ctx, typed);
+        ticks(&held.ctx, 220);
+        doubt_from_now(&held.ctx);
+        ticks(&held.ctx, 100);
+        assert_eq!(
+            keystrokes(&held.writer),
+            0,
+            "typed 5 ms before the front read that names another program, read while that program is asked"
+        );
+    }
+
+    #[test]
+    fn a_key_read_during_the_first_try_before_the_doubt_stands_is_never_released() {
+        let (held, _drops) = seam_held(1_000);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 240);
+        assert_eq!(held_now(&held.ctx), 1, "held while the try waits");
+        doubt_from_now(&held.ctx);
+        ticks(&held.ctx, 50);
+        held.ctx.notices.end_doubt(Uptime::from_nanos(now_uptime()));
+        ticks(&held.ctx, 1_100);
+        assert_eq!(
+            keystrokes(&held.writer),
+            0,
+            "the Unanswered mark, taken after the try returns, drops it"
+        );
+    }
+
+    #[test]
+    fn a_modifier_press_under_a_doubt_is_never_released_posted_or_not() {
+        for (what, code, flags) in [
+            ("a posted caps lock press", 0x39, 0x1_0000),
+            (
+                "a shift press with its device bit",
+                LEFT_SHIFT,
+                0x2_0000 | LEFT_SHIFT_BIT,
+            ),
+        ] {
+            let (held, _drops) = seam_held(100);
+            held.ctx.notices.set_doubt(true);
+            advance(1);
+            on_tap_event(&held.ctx, with_key(CGEventType::FlagsChanged, code, flags));
+            held.ctx.notices.set_doubt(false);
+            ticks(&held.ctx, 300);
+            assert_eq!(keystrokes(&held.writer), 0, "{what}");
+        }
+    }
+
+    #[test]
+    fn a_key_under_a_doubt_is_never_released_whatever_the_mark_does_when_the_doubt_ends() {
+        for end in [
+            "no new mark",
+            "a Start mark before its next reading",
+            "a mark after its next reading",
+        ] {
+            let (held, _drops) = seam_held(100);
+            held.ctx.notices.set_doubt(true);
+            key_down(&held.ctx);
+            match end {
+                "no new mark" => held.ctx.notices.set_doubt(false),
+                "a Start mark before its next reading" => {
+                    held.ctx
+                        .notices
+                        .mark(Uptime::from_nanos(now_uptime()), MarkKind::Start);
+                    held.ctx.notices.set_doubt(false);
+                }
+                _ => {
+                    held.ctx.notices.set_doubt(false);
+                    tick(&held.ctx);
+                    advance(20);
+                    held.ctx
+                        .notices
+                        .mark(Uptime::from_nanos(now_uptime()), MarkKind::Start);
+                }
+            }
+            ticks(&held.ctx, 300);
+            assert_eq!(keystrokes(&held.writer), 0, "{end}");
+        }
+    }
+
+    #[test]
+    fn a_key_typed_after_a_doubt_ends_is_released_at_the_bound() {
+        let (held, _drops) = seam_held(100);
+        doubt_from_now(&held.ctx);
+        tick(&held.ctx);
+        held.ctx.notices.end_doubt(Uptime::from_nanos(now_uptime()));
+        advance(1);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 300);
+        assert_eq!(keystrokes(&held.writer), 1);
+    }
+
+    #[test]
+    fn a_notice_drop_reads_a_gap_by_the_after_stamp_of_its_reading_as_with_no_mark() {
+        let mut outcomes = Vec::new();
+        for with_mark in [false, true] {
+            let held = slow_held(1_000);
+            key_down(&held.ctx);
+            advance(15);
+            SLOW_READ_NS.with(|ns| ns.set(20 * MS));
+            if with_mark {
+                mark_now(&held.ctx);
+            }
+            on_reading_tick(&held.ctx);
+            SLOW_READ_NS.with(|ns| ns.set(0));
+            let outcome = outcome_of(&held);
+            ticks(&held.ctx, 2_000);
+            outcomes.push((outcome, keystrokes(&held.writer)));
+        }
+        assert_eq!(
+            outcomes[0], outcomes[1],
+            "a reading that began in time and ended past the gap bound"
+        );
+        assert!(outcomes[1].0 .2, "the gap stalls the source");
     }
 
     #[test]

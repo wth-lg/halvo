@@ -303,7 +303,8 @@ pub mod notice {
     }
 
     /// The uptime of the newest notice that marks, with its kind, and whether
-    /// a doubt stands over the program in front. The uptime only moves forward.
+    /// a doubt stands over the program in front. The uptime only moves forward,
+    /// and every end of a doubt moves it to the time at which the doubt ended.
     #[derive(Clone, Default)]
     pub struct NoticeMark(Arc<MarkState>);
 
@@ -312,11 +313,13 @@ pub mod notice {
             Self::default()
         }
 
-        /// Moves the mark to `at` unless it already stands later, and keeps
-        /// `kind` as the kind of the newest mark.
+        /// Moves the mark to `at` unless it already stands later. The kind is
+        /// that of the call that moved the mark last: a mark older than the
+        /// newest leaves both.
         pub fn mark(&self, at: Uptime, kind: MarkKind) {
-            self.0.kind.store(kind.code(), Ordering::SeqCst);
-            self.0.at.fetch_max(at.nanos(), Ordering::SeqCst);
+            if self.0.at.fetch_max(at.nanos(), Ordering::SeqCst) <= at.nanos() {
+                self.0.kind.store(kind.code(), Ordering::SeqCst);
+            }
         }
 
         /// The newest mark, none before the first.
@@ -334,13 +337,26 @@ pub mod notice {
 
         /// Whether a doubt stands: the program in front refused its
         /// registration by not answering, and no registration of it has
-        /// succeeded since, nor has another program come in front.
+        /// succeeded since, nor has another program come in front. Nothing in
+        /// front ends no doubt. A doubt ends only by such a registration, by
+        /// another program in front, or by the end of the thread, and each end
+        /// first moves the mark to the time at which the doubt ended. So a key
+        /// that arrives while a doubt stands is dropped at its own reading,
+        /// and a key whose OS time is not after the end is dropped at the
+        /// first reading after it: neither is ever released.
         pub fn doubt(&self) -> bool {
             self.0.doubt.load(Ordering::SeqCst)
         }
 
         pub(crate) fn set_doubt(&self, standing: bool) {
             self.0.doubt.store(standing, Ordering::SeqCst);
+        }
+
+        /// Ends a doubt at `at`: the mark moves to `at` before the flag is
+        /// cleared, so a reading that finds no doubt finds the mark.
+        pub(crate) fn end_doubt(&self, at: Uptime) {
+            self.mark(at, MarkKind::Doubt);
+            self.set_doubt(false);
         }
     }
 
@@ -597,12 +613,24 @@ pub mod notice {
         pub(crate) tries: u64,
     }
 
+    /// Ends a standing doubt when the thread ends, by its stop or by a panic.
+    struct DoubtEndsWithTheThread<'a>(&'a Context);
+
+    impl Drop for DoubtEndsWithTheThread<'_> {
+        fn drop(&mut self) {
+            if self.0.mark.doubt() {
+                self.0.mark.end_doubt((self.0.uptime)());
+            }
+        }
+    }
+
     fn run(
         front: &(dyn Fn() -> Option<libc::pid_t> + Send),
         context: &Context,
         stop: &AtomicBool,
         steps: &StepCounts,
     ) {
+        let _doubt_ends = DoubtEndsWithTheThread(context);
         let timer = step_timer();
         let mut watched: Option<Watch> = None;
         let mut doubt_of: Option<libc::pid_t> = None;
@@ -610,9 +638,9 @@ pub mod notice {
         while !stop.load(Ordering::SeqCst) {
             steps.front_reads.fetch_add(1, Ordering::SeqCst);
             let pid = front();
-            if doubt_of.is_some() && doubt_of != pid {
+            if doubt_of.is_some() && pid.is_some() && doubt_of != pid {
                 doubt_of = None;
-                context.mark.set_doubt(false);
+                context.mark.end_doubt((context.uptime)());
             }
             if watched.as_ref().map(|watch| watch.pid) != pid {
                 unwatch(&mut watched);
@@ -625,8 +653,9 @@ pub mod notice {
                         Ok(watch) => {
                             watched = Some(watch);
                             no_grant = None;
-                            doubt_of = None;
-                            context.mark.set_doubt(false);
+                            if doubt_of.take().is_some() {
+                                context.mark.end_doubt((context.uptime)());
+                            }
                         }
                         Err(AX_ERROR_CANNOT_COMPLETE) => {
                             doubt_of = Some(pid);
@@ -1053,6 +1082,25 @@ mod tests {
     }
 
     #[test]
+    fn an_older_mark_leaves_the_kind_of_the_newest_mark() {
+        use super::hold::Uptime;
+        use super::notice::{MarkKind, NoticeMark};
+        let mark = NoticeMark::new();
+        mark.mark(Uptime::from_nanos(20), MarkKind::Start);
+        mark.mark(Uptime::from_nanos(10), MarkKind::Notice);
+        assert_eq!(
+            (mark.get(), mark.kind()),
+            (Some(Uptime::from_nanos(20)), MarkKind::Start)
+        );
+        mark.mark(Uptime::from_nanos(20), MarkKind::Doubt);
+        assert_eq!(
+            mark.kind(),
+            MarkKind::Doubt,
+            "a mark at the same time moves the kind"
+        );
+    }
+
+    #[test]
     fn the_notice_mark_only_moves_forward() {
         use super::hold::Uptime;
         use super::notice::{MarkKind, NoticeMark};
@@ -1077,15 +1125,25 @@ mod tests {
             notice_came, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread, Observed,
             NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE,
         };
-        use core_foundation::base::{CFType, TCFType};
+        use core_foundation::base::{kCFAllocatorDefault, CFType, TCFType};
+        use core_foundation::runloop::{
+            CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceIsValid,
+            CFRunLoopSourceRef,
+        };
         use core_foundation::string::CFString;
-        use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
         use std::sync::{Mutex, MutexGuard, PoisonError};
         use std::time::{Duration, Instant};
 
         static SERIAL: Mutex<()> = Mutex::new(());
         static FRONT: AtomicI32 = AtomicI32::new(0);
+        static PANIC_FRONT: AtomicBool = AtomicBool::new(false);
         static OBSERVE: AtomicI32 = AtomicI32::new(0);
+        static OBSERVE_PID: AtomicI32 = AtomicI32::new(0);
+        static DELAY_MS: AtomicU64 = AtomicU64::new(0);
+        static DELAY_PID: AtomicI32 = AtomicI32::new(0);
+        static REAL_SOURCE: AtomicBool = AtomicBool::new(false);
+        static SOURCES: Mutex<Vec<(i32, usize)>> = Mutex::new(Vec::new());
         static SUBROLE: AtomicI32 = AtomicI32::new(0);
         static FOCUSED: AtomicI32 = AtomicI32::new(0);
         static NOW: AtomicU64 = AtomicU64::new(0);
@@ -1097,7 +1155,16 @@ mod tests {
         fn serial() -> MutexGuard<'static, ()> {
             let guard = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
             FRONT.store(0, Ordering::SeqCst);
+            PANIC_FRONT.store(false, Ordering::SeqCst);
             OBSERVE.store(0, Ordering::SeqCst);
+            OBSERVE_PID.store(0, Ordering::SeqCst);
+            DELAY_MS.store(0, Ordering::SeqCst);
+            DELAY_PID.store(0, Ordering::SeqCst);
+            REAL_SOURCE.store(false, Ordering::SeqCst);
+            SOURCES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
             SUBROLE.store(0, Ordering::SeqCst);
             FOCUSED.store(0, Ordering::SeqCst);
             NOW.store(TEN_S, Ordering::SeqCst);
@@ -1127,6 +1194,44 @@ mod tests {
                 .push(deadline);
         }
 
+        extern "C" fn performs_nothing(_info: *const std::ffi::c_void) {}
+
+        fn source_of(pid: libc::pid_t) -> Option<CFRunLoopSource> {
+            if !REAL_SOURCE.load(Ordering::SeqCst) {
+                return None;
+            }
+            let mut context = CFRunLoopSourceContext {
+                version: 0,
+                info: std::ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+                equal: None,
+                hash: None,
+                schedule: None,
+                cancel: None,
+                perform: performs_nothing,
+            };
+            // SAFETY: `context` is a valid version 0 context that the call
+            // copies; the call returns a +1 reference.
+            let source = unsafe { CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &mut context) };
+            // SAFETY: a +1 reference that this wrapper now owns and releases.
+            let source = unsafe { CFRunLoopSource::wrap_under_create_rule(source) };
+            let kept = source.clone();
+            SOURCES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((pid, kept.as_concrete_TypeRef() as usize));
+            std::mem::forget(kept);
+            Some(source)
+        }
+
+        fn source_valid(source: usize) -> bool {
+            // SAFETY: `source` is a run loop source that `source_of` retained
+            // once more and never released, so it is live for the call.
+            unsafe { CFRunLoopSourceIsValid(source as CFRunLoopSourceRef) != 0 }
+        }
+
         fn observe(
             pid: libc::pid_t,
             _app: &CFType,
@@ -1136,12 +1241,17 @@ mod tests {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .push((pid, Instant::now()));
+            let delayed = DELAY_PID.load(Ordering::SeqCst);
+            if delayed == 0 || delayed == pid {
+                std::thread::sleep(Duration::from_millis(DELAY_MS.load(Ordering::SeqCst)));
+            }
+            let refused = OBSERVE_PID.load(Ordering::SeqCst);
             match OBSERVE.load(Ordering::SeqCst) {
-                0 => Ok(Observed {
-                    source: None,
+                code if code != 0 && (refused == 0 || refused == pid) => Err(code),
+                _ => Ok(Observed {
+                    source: source_of(pid),
                     observer: None,
                 }),
-                code => Err(code),
             }
         }
 
@@ -1161,6 +1271,10 @@ mod tests {
         }
 
         fn front() -> Option<libc::pid_t> {
+            assert!(
+                !PANIC_FRONT.load(Ordering::SeqCst),
+                "the stand-in front reader panics"
+            );
             match FRONT.load(Ordering::SeqCst) {
                 0 => None,
                 pid => Some(pid),
@@ -1198,6 +1312,277 @@ mod tests {
                 .filter(|(of, _)| *of == pid)
                 .map(|(_, at)| *at)
                 .collect()
+        }
+
+        fn until(within: Duration, done: impl Fn() -> bool) -> bool {
+            let deadline = Instant::now() + within;
+            while Instant::now() < deadline {
+                if done() {
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            done()
+        }
+
+        fn in_doubt_of_1(mark: &NoticeMark) -> NoticeThread {
+            FRONT.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25204, Ordering::SeqCst);
+            let thread = started(mark);
+            assert!(
+                until(Duration::from_millis(500), || mark.doubt()),
+                "a doubt stands over program 1"
+            );
+            assert_eq!(mark.get(), Some(Uptime::from_nanos(TEN_S)));
+            NOW.store(2 * TEN_S, Ordering::SeqCst);
+            thread
+        }
+
+        #[test]
+        fn a_doubt_ended_by_a_registration_of_its_program_moves_the_mark_to_its_end() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            SUBROLE.store(1, Ordering::SeqCst);
+            OBSERVE.store(0, Ordering::SeqCst);
+            let ended = until(Duration::from_millis(500), || !mark.doubt());
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(ended, "a registration of that program ends the doubt");
+            assert_eq!(
+                (mark.get(), mark.kind()),
+                (Some(Uptime::from_nanos(2 * TEN_S)), MarkKind::Doubt),
+                "the end of the doubt moves the mark, although the Start read found another element"
+            );
+        }
+
+        #[test]
+        fn a_doubt_ended_by_another_program_in_front_moves_the_mark_before_that_program_is_tried() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            DELAY_PID.store(2, Ordering::SeqCst);
+            DELAY_MS.store(NOTICE_READ_DEADLINE.as_millis() as u64, Ordering::SeqCst);
+            FRONT.store(2, Ordering::SeqCst);
+            let tried = until(Duration::from_millis(500), || !observed_of(2).is_empty());
+            let during = (mark.doubt(), mark.get());
+            NOW.store(3 * TEN_S, Ordering::SeqCst);
+            let refused = until(Duration::from_millis(600), || mark.doubt());
+            let after = (mark.doubt(), mark.get());
+            assert!(thread.stop_within(
+                NOTICE_READ_DEADLINE + NOTICE_FRONT_STEP + Duration::from_millis(100)
+            ));
+            assert!(tried && refused);
+            assert_eq!(
+                during,
+                (false, Some(Uptime::from_nanos(2 * TEN_S))),
+                "while program 2 is asked: the doubt over 1 has ended at the front read, with a mark"
+            );
+            assert_eq!(
+                after,
+                (true, Some(Uptime::from_nanos(3 * TEN_S))),
+                "program 2 did not answer: its Unanswered mark and a doubt of its own"
+            );
+        }
+
+        #[test]
+        fn a_doubt_ended_by_the_threads_stop_moves_the_mark_to_its_end() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                (mark.doubt(), mark.get()),
+                (false, Some(Uptime::from_nanos(2 * TEN_S)))
+            );
+        }
+
+        #[test]
+        fn a_doubt_ended_by_the_threads_end_moves_the_mark_to_its_end() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            PANIC_FRONT.store(true, Ordering::SeqCst);
+            let ended = until(Duration::from_millis(500), || !mark.doubt());
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(ended, "a thread that ends ends its doubt");
+            assert_eq!(mark.get(), Some(Uptime::from_nanos(2 * TEN_S)));
+        }
+
+        #[test]
+        fn a_doubt_stands_while_nothing_is_in_front() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            FRONT.store(0, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(200));
+            let standing = (mark.doubt(), mark.get());
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                standing,
+                (true, Some(Uptime::from_nanos(TEN_S))),
+                "nothing in front is no other program and no registration that succeeded"
+            );
+        }
+
+        #[test]
+        fn a_doubt_stands_through_each_retry_of_its_program() {
+            let _serial = serial();
+            DELAY_MS.store(200, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            let mut gaps = 0;
+            let started = Instant::now();
+            while started.elapsed() < Duration::from_millis(800) {
+                if !mark.doubt() {
+                    gaps += 1;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let tries = observed_of(1).len();
+            assert!(thread.stop_within(
+                NOTICE_READ_DEADLINE + NOTICE_FRONT_STEP + Duration::from_millis(100)
+            ));
+            assert!(tries >= 3, "the program was tried again: {tries}");
+            assert_eq!(
+                gaps, 0,
+                "reads of the doubt that found none while program 1 was retried"
+            );
+        }
+
+        #[test]
+        fn a_program_refused_for_lack_of_the_grant_is_tried_at_once_when_it_comes_back_in_front() {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25211, Ordering::SeqCst);
+            OBSERVE_PID.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            assert!(until(Duration::from_millis(300), || observed_of(1).len() == 1));
+            FRONT.store(2, Ordering::SeqCst);
+            assert!(until(Duration::from_millis(300), || observed_of(2).len() == 1));
+            OBSERVE.store(0, Ordering::SeqCst);
+            let back = Instant::now();
+            FRONT.store(1, Ordering::SeqCst);
+            let tried = until(Duration::from_millis(300), || observed_of(1).len() == 2);
+            let after = back.elapsed();
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(
+                tried && after <= NOTICE_FRONT_STEP + Duration::from_millis(60),
+                "tried again {after:?} after it came back"
+            );
+        }
+
+        #[test]
+        fn another_program_in_front_after_a_refused_grant_is_tried_within_one_step() {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25211, Ordering::SeqCst);
+            OBSERVE_PID.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            assert!(until(Duration::from_millis(300), || observed_of(1).len() == 1));
+            let changed = Instant::now();
+            FRONT.store(2, Ordering::SeqCst);
+            let tried = until(Duration::from_millis(300), || observed_of(2).len() == 1);
+            let after = changed.elapsed();
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(
+                tried && after <= NOTICE_FRONT_STEP + Duration::from_millis(60),
+                "tried {after:?} after the change"
+            );
+        }
+
+        #[test]
+        fn only_a_registration_that_does_not_answer_makes_a_doubt() {
+            let _serial = serial();
+            for code in [-25200, -25205, -25207, -25208, -25211, -25212] {
+                FRONT.store(1, Ordering::SeqCst);
+                OBSERVE.store(code, Ordering::SeqCst);
+                let mark = NoticeMark::new();
+                let mut thread = started(&mark);
+                std::thread::sleep(Duration::from_millis(150));
+                let seen = (mark.doubt(), mark.get());
+                assert!(thread.stop_within(Duration::from_millis(100)));
+                assert_eq!(seen, (false, None), "{code}");
+            }
+        }
+
+        #[test]
+        fn a_start_read_whose_focused_element_has_no_value_or_no_such_attribute_moves_no_mark() {
+            let _serial = serial();
+            for code in [-25212, -25205] {
+                FOCUSED.store(code, Ordering::SeqCst);
+                FRONT.store(1, Ordering::SeqCst);
+                let mark = NoticeMark::new();
+                let mut thread = started(&mark);
+                let registered = until(Duration::from_millis(300), || !observed_of(1).is_empty());
+                std::thread::sleep(Duration::from_millis(50));
+                assert!(thread.stop_within(Duration::from_millis(100)));
+                assert!(registered);
+                assert_eq!(mark.get(), None, "{code}");
+                OBSERVED
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clear();
+            }
+        }
+
+        #[test]
+        fn a_start_read_of_another_element_moves_no_mark() {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            let registered = until(Duration::from_millis(300), || !observed_of(1).is_empty());
+            std::thread::sleep(Duration::from_millis(50));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(registered);
+            assert_eq!(mark.get(), None);
+        }
+
+        #[test]
+        fn the_thread_reads_the_front_at_least_ten_times_in_a_second() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_secs(1));
+            let steps = thread.steps();
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(
+                steps.front_reads >= 10,
+                "one read in each step of {NOTICE_FRONT_STEP:?}, with room: {steps:?}"
+            );
+        }
+
+        #[test]
+        fn a_front_change_takes_the_old_programs_source_off_its_run_loop() {
+            let _serial = serial();
+            REAL_SOURCE.store(true, Ordering::SeqCst);
+            SUBROLE.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            assert!(until(Duration::from_millis(300), || !observed_of(1).is_empty()));
+            FRONT.store(2, Ordering::SeqCst);
+            assert!(until(Duration::from_millis(300), || !observed_of(2).is_empty()));
+            std::thread::sleep(Duration::from_millis(20));
+            let sources = SOURCES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            let valid: Vec<(i32, bool)> = sources
+                .iter()
+                .map(|&(pid, source)| (pid, source_valid(source)))
+                .collect();
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                valid,
+                [(1, false), (2, true)],
+                "the source of the program no longer in front is taken off; the new one is live"
+            );
         }
 
         #[test]
