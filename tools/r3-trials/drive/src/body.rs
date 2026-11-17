@@ -362,6 +362,8 @@ mod tests {
             "Visit example\u{2024}com today please.",
             "Write to ann(at)people.test please.",
             "Write to ann[AT]people.test please.",
+            "Write to ann(at)localhost please.",
+            "Visit example\u{ad}.com today please.",
             "Open example.com\\pay to check.",
             "Open http:\\\\shop.example now.",
             "Open login/shop.example.test today.",
