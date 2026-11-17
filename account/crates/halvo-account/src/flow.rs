@@ -3,7 +3,7 @@ use crate::grammar::{Command, Invocation, Show, Usage};
 use crate::origin::{page_url, PageUrl, Pages};
 use crate::outcome::{Answer, Failure, KeptFault, Outcome, StoreFault};
 use crate::sign_in::SignIn;
-use halvo_secrets::{Delete, Read, Secret, Store, Write};
+use halvo_secrets::{DeleteIfHolds, Read, Secret, Store, Write};
 use halvo_wire::request::{build, Call, Request};
 use halvo_wire::types::{
     CapGetAnswer, CapGetAnswerResult, CapSetAnswer, CapSetAnswerResult, CheckoutAnswer,
@@ -15,7 +15,7 @@ use halvo_wire::types::{
 pub trait Keep {
     fn read(&self) -> Read;
     fn write(&self, secret: &Secret) -> Write;
-    fn delete(&self) -> Delete;
+    fn delete_if_holds(&self, held: &Secret) -> DeleteIfHolds;
 }
 
 impl Keep for Store {
@@ -27,8 +27,8 @@ impl Keep for Store {
         Store::write(self, secret)
     }
 
-    fn delete(&self) -> Delete {
-        Store::delete(self)
+    fn delete_if_holds(&self, held: &Secret) -> DeleteIfHolds {
+        Store::delete_if_holds(self, held)
     }
 }
 
@@ -73,13 +73,11 @@ pub struct Reach<'a> {
 /// answered that none is stored; a read that fails makes none and sends nothing. Each run
 /// sends at most one request, built by `halvo_wire::request::build` from the stored
 /// sign-in. Only `delete` removes the stored sign-in, and only after the backend answered
-/// `deleted` or `no-such-account`: it then reads the store a second time and removes the item
-/// only when it still holds the sign-in that this run sent, the same id and the same
-/// credential byte for byte. It keeps another sign-in, an item of another form, and whatever
-/// stands in a store that answers `Locked` or fails, and says so in its line. The store is
-/// called twice between that read and the removal, by one process, and nothing stops another
-/// run from storing a sign-in in that span: the store's own delete that compares first is
-/// planner point 16 of P7-56, for a unit after 7.7.
+/// `deleted` or `no-such-account`: it then makes one call of the store, `delete_if_holds`
+/// with the sign-in that this run sent, which removes the item only while it holds that
+/// sign-in, the same id and the same credential byte for byte. It keeps another sign-in, an
+/// item of another form, and whatever stands in a store that answers `Locked` or fails, and
+/// says so in its line.
 pub fn run(invocation: &Invocation, reach: &Reach<'_>) -> Outcome {
     let sign_in = match (stored(reach.keep), &invocation.command) {
         (Ok(Some(sign_in)), _) => sign_in,
@@ -257,51 +255,23 @@ fn delete(sign_in: &SignIn, reach: &Reach<'_>) -> Outcome {
     }
 }
 
-/// The removal after `deleted` or `no-such-account`: a second read, then a delete only when the
-/// store holds the 101 bytes of the sign-in that was sent. With nothing stored, the credential
-/// is gone and nothing is deleted. The span between this read and the delete is the one that
-/// `run` names.
+/// The removal after `deleted` or `no-such-account`: one `delete_if_holds` with the 101 bytes
+/// of the sign-in that was sent. With nothing stored, the credential is gone and nothing is
+/// deleted; another sign-in or an item of another form is kept.
 fn remove_if_sent(sent: &SignIn, result: String, keep: &dyn Keep) -> Outcome {
-    let held = match keep.read() {
-        Read::NotStored => {
+    let fault = match keep.delete_if_holds(&sent.to_secret()) {
+        DeleteIfHolds::Deleted | DeleteIfHolds::NotStored => {
             return Outcome::Answered(Answer::Delete {
                 result,
                 removed: true,
             })
         }
-        Read::Found(secret) => secret,
-        Read::Locked(_) => {
-            return Outcome::Kept {
-                result,
-                fault: KeptFault::Locked,
-            }
-        }
-        Read::Fault(_) => {
-            return Outcome::Kept {
-                result,
-                fault: KeptFault::Fault,
-            }
-        }
-    };
-    if held.expose() != sent.to_secret().expose() {
-        let fault = match SignIn::from_secret(&held) {
+        DeleteIfHolds::Other(held) => match SignIn::from_secret(&held) {
             Some(_) => KeptFault::Changed,
             None => KeptFault::Unreadable,
-        };
-        return Outcome::Kept { result, fault };
-    }
-    match keep.delete() {
-        Delete::Deleted | Delete::NotStored => Outcome::Answered(Answer::Delete {
-            result,
-            removed: true,
-        }),
-        Delete::Locked(_) => Outcome::Kept {
-            result,
-            fault: KeptFault::Locked,
         },
-        Delete::Fault(_) => Outcome::Kept {
-            result,
-            fault: KeptFault::Fault,
-        },
-    }
+        DeleteIfHolds::Locked(_) => KeptFault::Locked,
+        DeleteIfHolds::Fault(_) => KeptFault::Fault,
+    };
+    Outcome::Kept { result, fault }
 }

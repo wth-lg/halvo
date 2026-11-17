@@ -79,6 +79,56 @@ pub enum Delete {
     Fault(Fault),
 }
 
+/// What a delete of the bytes that its caller read answers: one of these five and nothing
+/// else. It removes the item only while the item holds those bytes, byte for byte.
+#[must_use]
+pub enum DeleteIfHolds {
+    /// The item held the bytes and is removed.
+    Deleted,
+    /// No item stood under the name.
+    NotStored,
+    /// An item with other bytes stands under the name, and it is kept; these are its bytes.
+    Other(Secret),
+    /// Something stands under the name that this store does not remove.
+    Locked(Locked),
+    /// The system failed with its code; whether the item is removed is not known.
+    Fault(Fault),
+}
+
+impl fmt::Debug for DeleteIfHolds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DeleteIfHolds::Deleted => f.write_str("Deleted"),
+            DeleteIfHolds::NotStored => f.write_str("NotStored"),
+            DeleteIfHolds::Other(_) => f.write_str("Other(..)"),
+            DeleteIfHolds::Locked(locked) => f.debug_tuple("Locked").field(locked).finish(),
+            DeleteIfHolds::Fault(fault) => f.debug_tuple("Fault").field(fault).finish(),
+        }
+    }
+}
+
+impl From<Delete> for DeleteIfHolds {
+    fn from(delete: Delete) -> DeleteIfHolds {
+        match delete {
+            Delete::Deleted => DeleteIfHolds::Deleted,
+            Delete::NotStored => DeleteIfHolds::NotStored,
+            Delete::Locked(locked) => DeleteIfHolds::Locked(locked),
+            Delete::Fault(fault) => DeleteIfHolds::Fault(fault),
+        }
+    }
+}
+
+/// What a removal of the item of one named store answers: what the removal did in that
+/// store, and then what a read of the whole store answered.
+#[must_use]
+#[derive(Debug)]
+pub struct Removal {
+    /// The answer of the removal from the named store alone.
+    pub removed: Delete,
+    /// What a read of the store answered after the removal.
+    pub then: Read,
+}
+
 /// Why a store does not give, take or remove what stands under a name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Locked {
@@ -117,8 +167,15 @@ pub enum Locked {
     /// On macOS, the store that this build does not keep its secret in holds an item under
     /// the name too: a build without the feature `keychain` found a Keychain item, or a
     /// build with it found the file of the file store beside its own Keychain item, with
-    /// other bytes. The store picks neither, and no operation of this crate leaves the
-    /// state in which both stores hold other bytes.
+    /// other bytes. The store picks neither. The one operation that leaves the state in
+    /// which both stores hold other bytes is `Store::remove`, at the person's word, from a
+    /// build that can remove the item of the store that it names. Between two test binaries
+    /// on the hosted macOS image of run 43705715845, a build without the feature could
+    /// neither read (-25293) nor remove (-25244) the Keychain item that a build with the
+    /// feature made, so from that build every read answers `OtherStore` while that item
+    /// stands. macOS documents two ways to remove such an item, by the build that made it or
+    /// by the person in the system's Keychain Access; neither is tested here, and this build
+    /// does not try another way.
     OtherStore,
     /// On macOS, a build with the feature `keychain` found the file of the file store, and
     /// the move of that file into the Keychain did not finish because a step of it failed:

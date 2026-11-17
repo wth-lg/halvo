@@ -1,4 +1,4 @@
-use super::Keychain;
+use super::{ItemRef, Keychain};
 
 pub(crate) const WRITE_PERMISSION: i32 = -61;
 
@@ -44,5 +44,19 @@ impl<K: Keychain> Keychain for Failing<K> {
 
     fn delete(&self, service: &str, account: &str) -> Result<(), i32> {
         self.inner.delete(service, account)
+    }
+
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        let (mut bytes, item) = self.inner.find(service, account)?;
+        if self.fault == MoveFault::ReadBack {
+            if let Some(last) = bytes.last_mut() {
+                *last ^= 1;
+            }
+        }
+        Ok((bytes, item))
+    }
+
+    fn delete_item(&self, item: ItemRef) {
+        self.inner.delete_item(item)
     }
 }
