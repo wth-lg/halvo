@@ -1654,12 +1654,25 @@ mod tests {
             not_followed: 2,
             ..TailReport::default()
         };
-        let (status, _, err, _) =
+        let (status, out, err, _) =
             scratch_answer(Path::new("/s"), TailAnswer::NotFinished(unlisted));
         assert_eq!(status, exit::ERROR);
+        assert!(out.contains(" root_destroyed=yes root_id=- "), "{out}");
         assert_eq!(
             err,
             "halvo-capture: the delete is not finished: the folder roots could not be listed; the folder roots no longer stands at its path; store.key stays; a database file stays; 1 other files of the store stay; 2 names were a link or an entry of another kind and were not followed\n"
+        );
+        let unnamed = TailReport {
+            files_left: 1,
+            ..finished_report(TailRoot::Unnamed)
+        };
+        let (status, out, err, _) =
+            scratch_answer(Path::new("/s"), TailAnswer::NotFinished(unnamed));
+        assert_eq!(status, exit::ERROR);
+        assert!(out.contains(" root_destroyed=unknown root_id=- "), "{out}");
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: 1 other files of the store stay\n"
         );
     }
 
@@ -1710,6 +1723,25 @@ mod tests {
                 root: TailRoot::Left(Some("0123456789abcdef0123456789abcdef".to_owned())),
                 ..refused_report()
             },
+            TailReport {
+                keyed_segments: Some(0),
+                ..refused_report()
+            },
+            TailReport {
+                database_left: false,
+                ..refused_report()
+            },
+            TailReport {
+                root_files_left: vec!["0123456789abcdef0123456789abcdef.root".to_owned()],
+                ..refused_report()
+            },
+            TailReport {
+                others_left: EntriesLeft {
+                    other: 1,
+                    ..EntriesLeft::default()
+                },
+                ..refused_report()
+            },
         ] {
             let (status, _, err, _) =
                 scratch_answer(Path::new("/s"), TailAnswer::NotFinished(other.clone()));
@@ -1719,6 +1751,32 @@ mod tests {
                 "{other:?}: {err}"
             );
         }
+    }
+
+    #[test]
+    fn a_path_with_a_part_that_windows_trims_never_reads_as_a_link_on_windows() {
+        for (path, trimmed) in [
+            ("/scratch/name./E", true),
+            ("/scratch/name /E", true),
+            ("/scratch/E.", true),
+            ("/scratch/E/", false),
+            ("/scratch/E/.", false),
+            ("/scratch/E", false),
+            ("/scratch/.hidden/E", false),
+        ] {
+            assert_eq!(
+                has_a_part_that_windows_trims(Path::new(path)),
+                trimmed,
+                "{path}"
+            );
+        }
+        let (status, _, err, _) = scratch_answer(
+            Path::new("/scratch/name./E"),
+            TailAnswer::NotFinished(refused_report()),
+        );
+        assert_eq!(status, exit::ERROR);
+        let link_line = err.contains("is a link or a file, not a folder");
+        assert_eq!(link_line, !cfg!(windows), "{err}");
     }
 
     #[test]

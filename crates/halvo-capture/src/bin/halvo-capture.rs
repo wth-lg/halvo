@@ -371,6 +371,57 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_folder_in_the_roots_folder_is_counted_and_never_named() {
+        let scratch = scratch();
+        let dir = scratch.dir("with-a-folder");
+        drop(live_store(&dir));
+        let named = dir.join("roots").join("holiday-photos-of-a-person");
+        std::fs::create_dir(&named).unwrap();
+        let (status, out, err) = scratch.delete(&text(&dir));
+        assert_eq!(status, 1, "{out}{err}");
+        assert!(
+            deleted_line(&out).contains(" root_destroyed=yes root_id=- "),
+            "{out}"
+        );
+        assert_eq!(
+            err,
+            "halvo-capture: the delete is not finished: 1 folders stay in the folder roots at other names\n"
+        );
+        assert!(!out.contains("holiday") && !err.contains("holiday"));
+        assert!(!dir.join("store.key").exists());
+        assert!(named.is_dir());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_root_file_that_cannot_be_removed_is_named_by_its_name_in_the_roots_folder() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let scratch = scratch();
+        let dir = scratch.dir("unremovable");
+        drop(live_store(&dir));
+        let roots = dir.join("roots");
+        let names = root_files(&dir);
+        assert_eq!(names.len(), 1);
+        if std::fs::metadata(&roots).unwrap().uid() == 0 {
+            println!("not run: the test runs as root, whom a mode of 0500 does not stop");
+            return;
+        }
+        std::fs::set_permissions(&roots, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let answer = scratch.delete(&text(&dir));
+        std::fs::set_permissions(&roots, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let (status, out, err) = answer;
+        assert_eq!(status, 1, "{out}{err}");
+        assert!(
+            deleted_line(&out).contains(" root_destroyed=no root_id="),
+            "{out}"
+        );
+        assert!(
+            err.contains(&format!("the root file roots/{} stays", names[0])),
+            "{err}"
+        );
+    }
+
     fn link_to_a_folder(folder: &Path, link: &Path) {
         #[cfg(unix)]
         std::os::unix::fs::symlink(folder, link).unwrap();
