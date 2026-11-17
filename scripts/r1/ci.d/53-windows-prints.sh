@@ -265,8 +265,11 @@ self_test() {
     say(test, format!("first_focus={:?} reads=[{}] code=0x{:x}", f, r, c));
     panic!("INCONCLUSIVE: the fixture process did not answer {kind}");
     println!("left_out the rounds of the fixtures'"'"' phases E and F but one");
+    say(test, format!("marks=[{}@{}->{}:{:?}:{}] counts={}/{} first_frame_within_{}s=1 value={}", a, b, c, d, e, f, g, h, i));
+    say(test, format!("list={}", v.join(",")));
 }'
   verdict_min=5
+  verdict_min=8
   [ "$read_count" -ge "$verdict_min" ] || fail_self "the fixture src-heads-lines read $read_count lines, fewer than $verdict_min"
   source_case src-not-a-print passed 'fn t() {
     let title = String::from("Untitled - Notepad");
@@ -314,13 +317,27 @@ TF c1 addr=2001:4860:0:2001::68$cr
 TF c1 file=/windows/keyboard/source$cr
 TF c1 dir=crates\\windows\\keyboard$cr
 TF c1 page=file:///windows/temp$cr
-TF c1 user=window@keyboard$cr"
+TF c1 user=window@keyboard$cr
+TF c1 addr=2001:4860:0:0:0:0:0:68$cr
+TF c1 host=window:8080$cr
+TF c1 addr=window::8080$cr
+TF c4 class=Keyboard.Window$cr
+TF c1 site=keyboard.window$cr
+TF c1 /windows/keyboard$cr
+TF c1 dir=windows/$cr"
   log_case log-address-and-path refused 'prints-rule log-address-and-path line=1 length=28 token=3
 prints-rule log-address-and-path line=2 length=31 token=3
 prints-rule log-address-and-path line=3 length=35 token=3
 prints-rule log-address-and-path line=4 length=33 token=3
 prints-rule log-address-and-path line=5 length=31 token=3
-prints-rule log-address-and-path line=6 length=26 token=3'
+prints-rule log-address-and-path line=6 length=26 token=3
+prints-rule log-address-and-path line=7 length=33 token=3
+prints-rule log-address-and-path line=8 length=22 token=3
+prints-rule log-address-and-path line=9 length=23 token=3
+prints-rule log-address-and-path line=10 length=27 token=3
+prints-rule log-address-and-path line=11 length=26 token=3
+prints-rule log-address-and-path line=12 length=23 token=3
+prints-rule log-address-and-path line=13 length=18 token=3'
   plant log-punctuation-alone "TF ;$cr
 TF !@#\$%^&*()$cr
 TF c1 key=--$cr
@@ -340,10 +357,22 @@ prints-rule log-known-defect-text line=4 length=$((16 + ${#known_id})) token=3"
   plant log-phase-letters "TF phase h and u and n and t and e and r$cr
 TF stall phases E and F and G$cr
 TF stall phase=e$cr
-TF c9 memory phase=t+5s$cr"
+TF c9 memory phase=t+5s$cr
+TF stall phase E and F$cr"
   log_case log-phase-letters refused 'prints-rule log-phase-letters line=1 length=40 token=3
 prints-rule log-phase-letters line=2 length=29 token=8
-prints-rule log-phase-letters line=3 length=16 token=3'
+prints-rule log-phase-letters line=3 length=16 token=3
+prints-rule log-phase-letters line=5 length=22 token=6'
+  plant log-closed-values "TF c5 scanned_key=HKLM/keyboard$cr
+TF c5 scanned_key=WINDOW/native$cr
+TF browser-stall-chrome file_reads=ok:hunter,failed:0,not_read:0,no_element:0$cr
+thread 'tf-c5' (1) panicked at crates\\halvo-capture\\src\\macos\\tap.rs:1:1:$cr
+thread 'tf-c5' (1) panicked at crates\\secret\\notes.rs:1:1:$cr"
+  log_case log-closed-values refused 'prints-rule log-closed-values line=1 length=31 token=3
+prints-rule log-closed-values line=2 length=31 token=3
+prints-rule log-closed-values line=3 length=77 token=3
+prints-rule log-closed-values line=4 length=73 token=6
+prints-rule log-closed-values line=5 length=58 token=6'
   plant log-review-forms "TF c1 key=a$cr
 TF c1 key=f$cr
 TF c4 title=defaced$cr
@@ -384,6 +413,12 @@ prints-rule log-review-forms line=5 length=16 token=3'
   printf 'fn c() {}\n' >"$work/plain/ab.rs" || fail_self "the fixture tree cannot be written"
   printf 'a.rs\nb.rs\nab.rs\n' >"$work/plain/list" || fail_self "the fixture tree cannot be written"
   judge_case judge-a-required-file-without-a-print 1 "FAIL $name (no print call was read in ab.rs)"
+  printf 'a.rs\n' >"$work/plain/required" || fail_self "the fixture tree cannot be written"
+  printf 'b.rs\tfile:///{}\tan entry that no literal of the tree holds\n' >"$work/plain/unprinted" || fail_self "the fixture tree cannot be written"
+  judge_case judge-a-stale-unprinted-entry 1 "FAIL $name (1 entries of the list of unprinted format strings match no refused literal: take each such entry out of the list)"
+  printf 'b.rs\tfile:///{}\tthe URL of a planted page\n' >"$work/plain/unprinted" || fail_self "the fixture tree cannot be written"
+  printf 'fn b() {\n    let url = format!("file:///{}", path);\n}\n' >"$work/plain/b.rs" || fail_self "the fixture tree cannot be written"
+  judge_case judge-an-unprinted-url 0 "PASS $name"
   printf '100644 blob 1111111111111111111111111111111111111111\tcrates/halvo-capture/src/lib.rs\n100644 blob 2222222222222222222222222222222222222222\tcrates/halvo-capture/src/macos/tap.rs\n100644 blob 3333333333333333333333333333333333333333\tcrates/halvo-capture/src/macos.rs\n100644 blob 4444444444444444444444444444444444444444\tcrates/halvo-capture/tests/macos_stall_fixture.rs\n' >"$work/view-tree" ||
     fail_self "the fixture view-without-macos-only-paths cannot be written"
   printf 'crates/halvo-capture/src/macos\ncrates/halvo-capture/tests/macos_stall_fixture.rs\n' >"$work/view-skip" ||
