@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b) and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 # lane: alone
 set -u
 group=${WF_GROUP:-native}
@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=66
+failing_fixtures=68
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -1220,6 +1220,7 @@ EOF
 
 self_test() {
   test_file=$(cd "$(dirname "$0")/../../.." && pwd)/crates/halvo-capture/tests/windows_functional.rs
+  prints_rule_file=$(cd "$(dirname "$0")/.." && pwd)/windows-prints-rule.sh
   test_file_shutdown_line=$(sed -n 's/^const SHUTDOWN_LINE: &str = "\(.*\)";$/\1/p' "$test_file")
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/bin" "$work/repo" || exit 2
@@ -1242,6 +1243,11 @@ self_test() {
   wait
   pass=judge
   $set_of_fixtures
+  if [ "$group" = native ]; then
+    rule_reads every-list-of-this-check-in-the-rule-s-read PASS none
+    rule_reads the-macos-only-list-out-of-its-here-document-form FAIL macos_only_paths
+    rule_reads the-test-list-out-of-its-here-document-form FAIL expected_tests
+  fi
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
@@ -1252,6 +1258,58 @@ self_test() {
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
+}
+
+rule_reads() {
+  dir=$work/rule-reads-$1
+  mkdir -p "$dir/scripts/r1/ci.d" "$dir/crates/halvo-capture/src" || exit 2
+  if [ "$3" = none ]; then
+    cp "$0" "$dir/scripts/r1/ci.d/50-windows-functional.sh" || exit 2
+  else
+    "$3" >"$work/rule-reads-lines-$1" || exit 2
+    awk -v fn="$3" -v lines="$work/rule-reads-lines-$1" '
+      $0 == fn "() {" {
+        print
+        while ((getline line < lines) > 0) printf "  printf \047%%s\\n\047 \047%s\047\n", line
+        skip = 1
+        next
+      }
+      skip && $0 == "}" { skip = 0 }
+      !skip { print }' "$0" >"$dir/scripts/r1/ci.d/50-windows-functional.sh" || exit 2
+  fi
+  printf 'fn g() { let zzwindowsbuilt = 1; }\n' >"$dir/crates/halvo-capture/src/lib.rs" || exit 2
+  cp "$prints_rule_file" "$dir/scripts/r1/windows-prints-rule.sh" || exit 2
+  count=0
+  macos_only_paths | cut -f 1 >"$work/rule-reads-macos-$1" || exit 2
+  while read -r path; do
+    count=$((count + 1))
+    case $path in
+      *.rs) file=$dir/$path ;;
+      *) file=$dir/$path/w.rs ;;
+    esac
+    mkdir -p "$(dirname "$file")" || exit 2
+    printf 'fn f() { let zzmacosonly%s = 1; }\n' "$count" >"$file" || exit 2
+  done <"$work/rule-reads-macos-$1"
+  (
+    cd "$dir" || exit 2
+    git init -q . && git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m "a stand-in of the paths that the prints rule reads" || exit 2
+    . ./scripts/r1/windows-prints-rule.sh || exit 2
+    wpr_vocabulary "$work/rule-reads-vocabulary-$1"
+  ) >"$work/rule-reads-out-$1" 2>&1
+  got=PASS
+  grep -q -x -F zzwindowsbuilt "$work/rule-reads-vocabulary-$1" 2>/dev/null || got=FAIL
+  ! grep -q '^zzmacosonly' "$work/rule-reads-vocabulary-$1" 2>/dev/null || got=FAIL
+  expected_tests | awk '{ for (i = 2; i <= NF; i++) if ($i !~ /^(group|scope)=/) print "id:" $i }' | sort -u >"$work/rule-reads-ids-$1"
+  while read -r wanted_id; do
+    grep -q -x -F "$wanted_id" "$work/rule-reads-vocabulary-$1" 2>/dev/null || got=FAIL
+  done <"$work/rule-reads-ids-$1"
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
+  if [ "$got" != "$2" ]; then
+    wrong="$wrong $1"
+  elif [ "$2" = FAIL ]; then
+    rejected=$((rejected + 1))
+  fi
 }
 
 browser_fixtures() {
