@@ -380,7 +380,9 @@ impl<C> Board<C> {
     /// Whether no tick tries the agent's start again in this life: its record is stuck by a
     /// refusal that cannot pass in this life, or a start of it was refused with a name of class B
     /// (`start_gone`); a record stuck by refusals that can pass does not stop the tick, whose
-    /// start is itself the write that ends the count (ruling RD-123, RD-125, RD-64 2.5).
+    /// start is itself the write that ends the count (ruling RD-123, RD-125, RD-64 2.5). A refusal
+    /// that cannot pass in this life holds until a store of the agent is acknowledged, whatever
+    /// names later refusals bear.
     pub fn stuck_for_life(&self, agent: &AgentId, limits: &crate::types::Limits) -> bool {
         self.stuck.iter().any(|(a, s)| a == agent && s.gone)
             || (self.record_stuck(agent, limits)
