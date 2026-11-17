@@ -589,6 +589,25 @@ pub fn class_of(error: &PortError, dismissed: bool) -> Option<Class> {
     })
 }
 
+/// Whether a refusal cannot pass in this life, so that a tick does not try the agent's start
+/// again (ruling RD-123): class B, and of class D `role`, `version`, `unsupported` and `binding`
+/// of a workflow that is not dismissed, whose causes no move of this life changes. Every other
+/// name (`store`, `internal`, `state`, a name the sender does not know, class C) and a second
+/// `seq` can pass, and a tick tries again.
+pub fn lasts_the_life(error: &PortError, dismissed: bool) -> bool {
+    let PortError::Refused(name) = error else {
+        return false;
+    };
+    match class_of(error, dismissed) {
+        Some(Class::Gone) => true,
+        Some(Class::Whole) => matches!(
+            name.as_str(),
+            "role" | "version" | "unsupported" | "binding"
+        ),
+        _ => false,
+    }
+}
+
 /// What a record that the owner refused alone with a name of class C is by the sender's clock
 /// (I7.2, ruling RD-64 2.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

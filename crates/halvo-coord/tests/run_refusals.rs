@@ -71,8 +71,8 @@ fn a_start_refused_with_store_asks_for_no_further_defer_over_100_ticks() {
     );
     assert_eq!(
         count(&calls, "log run_started refused"),
-        Limits::PRODUCT.record_stuck_ticks as usize,
-        "the start is tried again at each tick until the record is stuck"
+        1 + 100,
+        "the start is tried again at each tick, the stuck record included (RD-123), with no defer before an acknowledged store"
     );
 }
 
@@ -533,10 +533,18 @@ fn after_record_stuck_ticks_ticks_in_a_row_with_a_refusal_the_agent_shows_the_st
     assert_eq!(line(&w, 0), StatusLine::Record, "nor end the count");
     w.calls();
     w.act(Act::Tick);
-    assert!(
-        !w.calls().iter().any(|c| c.starts_with("log run_started")),
-        "no tick starts the agent while the line stands"
+    let calls = w.calls();
+    assert_eq!(
+        count(&calls, "log run_started refused"),
+        1,
+        "the tick tries the start again while the line stands (RD-123): {calls:?}"
     );
+    assert_eq!(
+        count(&calls, "start"),
+        0,
+        "and starts no run while the store refuses"
+    );
+    assert_eq!(line(&w, 0), StatusLine::Record, "the line stays");
 }
 
 #[test]
@@ -1071,4 +1079,79 @@ fn rd122_c1_a_body_refused_binding_where_the_board_shows_the_workflow_dismissed_
         "binding of a listed workflow is class D"
     );
     assert!(k.refused());
+}
+
+fn stuck_by_refused_starts(name: &str) -> World {
+    let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+    w.ports.refuse_agent(Method::Log, &agent(0), refused(name));
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "{name}: stuck after three ticks"
+    );
+    w.calls();
+    w
+}
+
+#[test]
+fn rd123_a_slotted_agent_stuck_by_its_refused_starts_starts_at_the_next_tick_once_the_store_takes_rows(
+) {
+    let mut w = stuck_by_refused_starts("store");
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    let calls = w.calls();
+    assert_eq!(count(&calls, "log run_started"), 1, "{calls:?}");
+    assert_eq!(count(&calls, "start"), 1, "the run starts: {calls:?}");
+    assert!(started_of(&w, 0).is_some());
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "its first accepted write clears the count"
+    );
+}
+
+#[test]
+fn rd123_a_held_place_still_stops_the_ticks_start() {
+    let mut w = stuck_by_refused_starts("store");
+    w.ports.clear_refusals();
+    w.board.hold_place(&agent(0), true);
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    let calls = w.calls();
+    assert_eq!(count(&calls, "log run_started"), 0, "{calls:?}");
+    assert!(started_of(&w, 0).is_none());
+}
+
+#[test]
+fn rd123_a_refusal_that_cannot_pass_in_this_life_stops_the_retry() {
+    for name in ["role", "version", "unsupported"] {
+        let mut w = stuck_by_refused_starts(name);
+        for _ in 0..3 {
+            w.act(Act::Tick);
+        }
+        let calls = w.calls();
+        assert!(
+            !calls.iter().any(|c| c.starts_with("log run_started")),
+            "{name}: no retry: {calls:?}"
+        );
+        assert_eq!(line(&w, 0), StatusLine::Record, "{name}");
+    }
+}
+
+#[test]
+fn rd123_a_retry_that_the_store_still_refuses_starts_no_run_and_keeps_the_line() {
+    let mut w = stuck_by_refused_starts("store");
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    let calls = w.calls();
+    assert_eq!(
+        count(&calls, "log run_started refused"),
+        2,
+        "the tick tries the start again: {calls:?}"
+    );
+    assert_eq!(count(&calls, "start"), 0, "no process: {calls:?}");
+    assert_eq!(count(&calls, "start_run"), 0, "no start_run: {calls:?}");
+    assert!(started_of(&w, 0).is_none());
+    assert_eq!(line(&w, 0), StatusLine::Record, "the shown line stays");
 }

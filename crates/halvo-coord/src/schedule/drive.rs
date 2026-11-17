@@ -3,7 +3,7 @@ use super::{
     tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
     StartStep, Stop, Verdict, Waiting,
 };
-use crate::items::drive::{alone, class_of, Alone, Class};
+use crate::items::drive::{alone, class_of, lasts_the_life, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
@@ -423,7 +423,9 @@ fn log_at<P: Owner, C>(
         .collect();
     let agent = facts.agent.clone();
     if let Err(e) = cx.ports.log(&events) {
-        if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
+        if lasts_the_life(&e, dismissed) {
+            board.refused_for_life(&agent);
+        } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
             board.refused(&agent);
         }
         return Err(e);
@@ -993,7 +995,9 @@ fn send_owed<P: Owner, C: ConfigView>(
             Ok(_) => true,
             Err(e) => {
                 let dismissed = board.workflow_dismissed(&owed.workflow);
-                if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
+                if lasts_the_life(&e, dismissed) {
+                    board.refused_for_life(&owed.agent);
+                } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
                     board.refused(&owed.agent);
                 }
                 gone_refusal(&e, dismissed)
@@ -1415,7 +1419,7 @@ where
         let agent = facts.agent.clone();
         let on_list = listed.contains(&facts.workflow.id)
             && !board.place_held(&agent)
-            && !board.record_stuck(&agent, cx.limits)
+            && !board.stuck_for_life(&agent, cx.limits)
             && !board.dismissed_unread(&agent);
         match tick_step(facts, on_list, cx.limits) {
             Ask::Ready if starts => {

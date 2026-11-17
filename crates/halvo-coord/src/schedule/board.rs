@@ -55,6 +55,7 @@ struct Stuck {
     refused: bool,
     acked: bool,
     held: bool,
+    for_life: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -310,6 +311,7 @@ impl<C> Board<C> {
         let s = self.stuck_of(agent);
         s.acked = true;
         s.refused = false;
+        s.for_life = false;
     }
 
     fn stuck_of(&mut self, agent: &AgentId) -> &mut Stuck {
@@ -327,6 +329,15 @@ impl<C> Board<C> {
     /// second time for one log after its read, in this tick (ruling RD-64 2.5).
     pub fn refused(&mut self, agent: &AgentId) {
         self.stuck_of(agent).refused = true;
+    }
+
+    /// A refusal of a store of the agent that cannot pass in this life (`lasts_the_life`): it
+    /// counts as `refused` does, and a stuck record then stops the tick's start for the life
+    /// (ruling RD-123).
+    pub fn refused_for_life(&mut self, agent: &AgentId) {
+        let s = self.stuck_of(agent);
+        s.refused = true;
+        s.for_life = true;
     }
 
     /// Whether a record or a body of the agent's items' list keeps its place under class D or as
@@ -360,6 +371,14 @@ impl<C> Board<C> {
     /// Whether the agent's record is stuck, for the line `line.problem.record` (I5.7, I1.3): it is
     /// set aside, or `record_stuck_ticks` ticks in a row had such a refusal (ruling RD-64 1.4,
     /// 2.5).
+    /// Whether the agent's record is stuck by a refusal that cannot pass in this life, so that no
+    /// tick tries its start again; a record stuck by refusals that can pass does not stop the
+    /// tick, whose start is itself the write that ends the count (ruling RD-123, RD-64 2.5).
+    pub fn stuck_for_life(&self, agent: &AgentId, limits: &crate::types::Limits) -> bool {
+        self.record_stuck(agent, limits)
+            && (self.aside(agent) || self.stuck.iter().any(|(a, s)| a == agent && s.for_life))
+    }
+
     pub fn record_stuck(&self, agent: &AgentId, limits: &crate::types::Limits) -> bool {
         self.aside(agent)
             || self
