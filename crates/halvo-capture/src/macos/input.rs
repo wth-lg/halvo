@@ -1956,7 +1956,7 @@ fn events_until_the_sink_closes(writer: &crate::sink::SinkWriter) -> Vec<Modalit
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 mod tests {
     use super::*;
     use crate::macos::foreground::foreground_state_for_test;

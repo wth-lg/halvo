@@ -38,7 +38,7 @@ mod carbon {
         static SYSTEM_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(super) fn system_reads_on_this_thread() -> u64 {
         SYSTEM_READS.with(std::cell::Cell::get)
     }
@@ -83,7 +83,7 @@ mod carbon {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 pub(crate) fn system_reads_on_this_thread() -> u64 {
     carbon::system_reads_on_this_thread()
 }
@@ -723,6 +723,7 @@ pub(crate) mod test_support {
         }
     }
 
+    #[cfg(debug_assertions)]
     pub(crate) fn reads_on_within(reader: impl Fn() -> bool, limit: Duration) -> bool {
         let started = Instant::now();
         loop {
