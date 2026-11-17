@@ -705,8 +705,14 @@ mod tests {
         ] {
             assert!(!reads_the_fence(&test(wrong)), "{wrong}");
         }
-        let ignored = test(right).replace("    #[test]\n", "    #[test]\n    #[ignore]\n");
-        assert!(!reads_the_fence(&ignored));
+        for attribute in [
+            "#[ignore = \"a reason\"]".to_string(),
+            ["#[", "ignore", "]"].concat(),
+        ] {
+            let ignored =
+                test(right).replace("    #[test]\n", &format!("    #[test]\n    {attribute}\n"));
+            assert!(!reads_the_fence(&ignored), "{attribute}");
+        }
         let gated = test(right).replace("    #[test]\n", "    #[cfg(windows)]\n    #[test]\n");
         assert!(!reads_the_fence(&gated));
         let no_attribute = test(right).replace("    #[test]\n", "");
