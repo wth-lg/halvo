@@ -1922,3 +1922,183 @@ fn rd86_a_run_that_recovery_ends_holds_null() {
         .collect();
     assert_eq!(defers, vec![None]);
 }
+
+fn logs_of_agent(w: &World, n: usize, from: usize) -> Vec<halvo_coord::mem::Call> {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| {
+            matches!(&t.call, halvo_coord::mem::Call::Log(events)
+                if events.iter().any(|e| e.agent == agent(n)))
+        })
+        .map(|t| t.call.clone())
+        .collect()
+}
+
+fn record_with_unknown(w: &World, n: usize) {
+    let (record, _) = support::finished_run(n);
+    w.ports.store_end(
+        &agent(n),
+        PastRun {
+            unknown: 1,
+            ..record
+        },
+    );
+}
+
+fn check_raises(w: &World, n: usize) -> usize {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(n)
+                && matches!(
+                    e.what,
+                    What::ItemRaised {
+                        raised: Raised::Check(_),
+                        ..
+                    }
+                )
+        })
+        .count()
+}
+
+#[test]
+fn rd121_recovery_logs_no_check_for_an_agent_set_aside() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    let from = w.ports.tried.borrow().len();
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    assert_eq!(
+        logs_of_agent(&w, 0, from),
+        Vec::new(),
+        "nothing is logged for the agent set aside, no seq of it is given"
+    );
+    assert!(
+        matches!(w.facts(0).doing, halvo_coord::types::Doing::Idle(None)),
+        "it holds no item: {:?}",
+        w.facts(0).doing
+    );
+}
+
+#[test]
+fn rd121_a_tick_logs_no_check_for_an_agent_set_aside() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        let from = w.ports.tried.borrow().len();
+        let done = w.act(Act::Tick);
+        assert!(w.board.aside(&agent(0)), "tick {k}");
+        assert!(!done.checked.contains(&agent(0)), "tick {k}");
+        assert_eq!(
+            logs_of_agent(&w, 0, from),
+            Vec::new(),
+            "tick {k} logs nothing for the agent set aside"
+        );
+    }
+}
+
+#[test]
+fn rd121_an_agent_set_aside_with_no_event_at_the_owner_gets_no_item_stored() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(0));
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    let raised = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0) && matches!(e.what, What::ItemRaised { .. }))
+        .count();
+    assert_eq!(raised, 0, "no item is raised for the agent set aside");
+    assert!(
+        matches!(w.facts(0).doing, halvo_coord::types::Doing::Idle(None)),
+        "it holds no item: {:?}",
+        w.facts(0).doing
+    );
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)), "the read answers");
+    let lapsed_app_ended = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(0)
+                && matches!(
+                    e.what,
+                    What::ItemLapsed {
+                        lapsed: Lapsed::Check(OtherLapse::AppEnded),
+                        ..
+                    }
+                )
+        })
+        .count();
+    assert_eq!(
+        lapsed_app_ended, 0,
+        "no item of this life lapses as one of an earlier life"
+    );
+}
+
+#[test]
+fn rd121_recovery_logs_nothing_for_the_agent_of_a_dismissed_workflow_under_binding() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports.workflows.borrow_mut()[0] =
+        Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(0),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: None,
+        });
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("binding"));
+    let from = w.ports.tried.borrow().len();
+    relife(&mut w, &[]);
+    assert!(!w.board.aside(&agent(0)), "kept, not set aside");
+    assert_eq!(
+        logs_of_agent(&w, 0, from),
+        Vec::new(),
+        "nothing is logged for it"
+    );
+}
+
+#[test]
+fn rd121_an_agent_whose_history_recovery_read_still_gets_its_check() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    relife(&mut w, &[]);
+    assert!(!w.board.aside(&agent(0)));
+    assert_eq!(check_raises(&w, 0), 1, "the hold check raises its item");
+}
+
+#[test]
+fn rd121_an_agent_set_aside_in_an_earlier_life_and_read_whole_in_this_one_gets_its_check() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    w.ports.clear_refusals();
+    relife(&mut w, &[]);
+    assert!(!w.board.aside(&agent(0)));
+    assert_eq!(
+        check_raises(&w, 0),
+        1,
+        "the read whole life raises its check"
+    );
+}
