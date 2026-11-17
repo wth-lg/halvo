@@ -1129,8 +1129,11 @@ What the code does since store-3, each sentence with the test that shows it.
   the root's own name in any letter case, a file that can be the root's
   file: a regular file that is not empty and, off Windows, of the root
   file's length; an all-zero one of that length counts), and then it
-  destroys the store's own root first and every regular file of that
-  directory at any name (ruling ST-47 T1; below). A
+  destroys the store's own root first and takes every regular file of that
+  directory at any name: a file with one name that can be a root file is
+  zero-filled and removed, and any other is removed with no write through
+  it, so that a file that keeps a name elsewhere keeps its bytes there
+  (ruling ST-47 T1, ST-48 U1 and U2; below). A
   partial name, a link, an empty file or an entry of another kind is no
   witness (ruling ST-45 Addition 2 (a); tests
   `p3_f_the_witness_is_no_entry_that_cannot_be_the_roots_own_file`,
@@ -1204,9 +1207,12 @@ What the code does since store-3, each sentence with the test that shows it.
   at the store name that this call removed, after that removal) the tail
   opens the roots directory once, from the handle of the directory that
   holds it (the data directory, or the store directory in the scratch
-  layout) by its fixed name and following no link, and destroys every
-  regular file there at any name, removes a link or an entry of another
-  kind as the entry that it is and enters no directory, whether or not
+  layout) by its fixed name and following no link, takes every regular
+  file there at any name (a file with one name that can be a root file is
+  zero-filled and removed, and any other is removed with no write through
+  it, so that a file that keeps a name elsewhere keeps its bytes there),
+  removes a link or an entry of another kind as the entry that it is and
+  enters no directory, whether or not
   anything names a root, also beside a key file that this build does not
   handle (store-3b; ruling ST-47 T1; below). The handle's
   delete-all goes through the roots directory that its open held before the
@@ -1215,8 +1221,10 @@ What the code does since store-3, each sentence with the test that shows it.
   of that identity at any name of the held directory, met through a kept
   handle of that identity at the step's own look, found again by one more
   listing when the name of the first listing was absent at that look; so a
-  root moved inside the directory is destroyed where it lies, and the
-  report says when the held directory no longer stands at its path
+  root moved inside the directory is destroyed where it lies, unless it has
+  a second name outside the folder: then its name is removed with no write
+  through it and the call answers `DeleteIncomplete` (ruling ST-48 U2); and
+  the report says when the held directory no longer stands at its path
   (`RootsLeft::at_its_path`), which answers `DeleteIncomplete` (store-3b;
   tests
   `a_root_file_renamed_inside_the_held_roots_directory_is_destroyed_where_it_lies`,
@@ -1636,7 +1644,14 @@ set, and the root's own volume name answers the root.
   reports/verifier-162.md: at a root name or a partial name the root step
   sets mode 0600 before it reads the count of names, so a file of another
   length that is then removed there without a write through it keeps its
-  bytes and leaves with mode 0600. It keeps
+  bytes and leaves with mode 0600. A made mark written by hand can send the
+  step to a partial name, where it always writes: another party's file with
+  a second name at a partial name is zeroed through every name and the
+  tail reads the root destroyed (the verifier's case N3, reports/verifier-162.md
+  Addition 1). The kept handle's second test before a write (the same
+  identity, one name and a root file's length, read again through the
+  handle) is held by no row and no test of the unit; the verifier's case N1
+  shows that it holds on both paths. It keeps
   one handle: the open for update, or else the read open, or else the write
   open of the same name, none following a link; the count, the test that
   the name still leads to that file and the zero-fill go through the kept
@@ -1683,9 +1698,11 @@ set, and the root's own volume name answers the root.
   limit, beside a copy: the store's own root, renamed inside the roots
   folder to a name that is no root name and no partial name while it has a
   second name outside the folder, is removed there with no write through it
-  by the handle's delete-all and by a cleanup or a tail by a made mark; that
-  call answers DeleteIncomplete with the root left, the tail after it
-  answers Ok, and the file stays at its outside name with the root's bytes,
+  by the handle's delete-all and by a cleanup or a tail by a made mark. The
+  handle's delete-all and a tail by a made mark then answer DeleteIncomplete
+  with the root left, and the tail after it answers Ok; a cleanup (the
+  open's, the create's) takes the removal as done, and its open or create
+  answers as it would. The file stays at its outside name with the root's bytes,
   where with an earlier copy of the store's files it opens those
   recordings; so a DeleteIncomplete followed by an Ok can mean that the root
   file keeps a name outside the roots folder (ruling ST-48 U2; test
@@ -1718,9 +1735,12 @@ set, and the root's own volume name answers the root.
 - The tail's sweep (ruling ST-45 H1). The tail opens the roots directory
   of the data directory that it is given (ruling ST-32 (a)). So two stores
   that share one roots directory both lose their root at a tail, and at a
-  delete-all on either handle, whose step destroys every regular file of
-  the held directory once it meets its witness (C11.4 step 2; builder-86
-  A9; ruling ST-47 T1).
+  delete-all on either handle, whose step, once it meets its witness,
+  takes every regular file of the held directory: a file with one name that
+  can be a root file is zero-filled and removed, and any other is removed
+  with no write through it, so that a file that keeps a name elsewhere keeps
+  its bytes there (C11.4 step 2; builder-86 A9; ruling ST-47 T1, ST-48 U1
+  and U2).
   From store-3b the tail takes a data directory and a closed layout
   (`Layout::DataDirectory`, the store and the roots side by side;
   `Layout::ScratchStore`, the roots inside the store directory), opens the
