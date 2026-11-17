@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job's proof (the windows job runs 10-format alone)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +33,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -85,21 +76,54 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
+      - name: sweep-1 rows by name, job 1 (scratch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set -u
+          export TMPDIR="$RUNNER_TEMP"
+          limit=${SWEEP_LIMIT_S:-6000}
+          began=$(date +%s)
+          results=
+          i=0
+          for name in expiry-never-runs batch-offered-twice discard-ends-one-event-late spill-drop-not-counted payload-buffer-grows text-cap-filter-removed m1-callback-ignores-secure-state m2-secure-predicate-inverted m4-reenable-disables tap-not-reenabled-on-disable m6-stop-does-not-stop keydown-not-in-mask filter-inverted audio-on-in-stream-config macos-foreground-stamp-sequence-zero stamp-wall-clock-epoch audio-source-emits microphone-source-emits camera-event-per-frame handler-retains-sample kept-output-keeps-the-sink call-site-secure-reader call-site-tap-options call-site-mask selection-inverted camera-event-in-the-stream-output-method stop-error-releases kept-output-released loop-steps-nothing byte-only-one-reads-on start-reader-inactive tap-closure-does-nothing callback-skips-disable-check refusal-lets-the-run-go-on callback-over-a-leaked-context install-gives-the-tap-another-closure start-builds-the-context-from-other-settings start-passes-a-fresh-counter title-read-to-string title-element-type-unchecked detector-keyed-on-the-identity nothing-in-front-keeps-the-app identity-uncapped title-answer-of-an-earlier-app-kept title-panic-ends-the-title-thread ended-poll-thread-stops-cleanly helper-off-the-main-thread tap-thread-latch-removed input-second-begin-not-refused m7-sink-drops-keystrokes-when-full refused-emit-reports-queued reader-caches-its-first-answer reader-inverted reader-asks-the-system-every-second-call reader-asks-the-system-seven-calls-in-eight session-not-at-the-console-read-as-off session-off-the-console-read-at-it hold-bound-taken-as-zero on-drops-nothing formal-create-takes-an-existing-root lease-control-skipped root-partial-name-shared-by-every-writer m3-active-tap; do
+            i=$((i + 1))
+            now=$(date +%s)
+            if [ $((now - began)) -ge "$limit" ]; then
+              echo "sweep-row $i $name not-started (the step's $limit s had passed)"
+              results="$results
+          sweep $name not-started 0"
+              continue
+            fi
+            out=$(sh scripts/r1-gate/mutation-test.sh --budget 7200 --only "$name" 2>&1)
+            code=$?
+            ended=$(date +%s)
+            printf '%s\n' "$out"
+            line=$(printf '%s\n' "$out" | awk -v p="mutation:$name " '($1 == "PASS" || $1 == "FAIL") && index($0, $1 " " p) == 1 { print; exit }')
+            secs=$(printf '%s\n' "$out" | awk -v n="mutation:$name" '$1 == "seconds" && $2 == n { print $3; exit }')
+            [ -n "$secs" ] || secs=$((ended - now))
+            case $line in
+              "PASS mutation:$name (applies and "*) word=did-not-apply ;;
+              "PASS mutation:$name "*) word=caught ;;
+              "FAIL mutation:$name (test "*": passed)") word=not-caught ;;
+              *) word=did-not-apply ;;
+            esac
+            [ -n "$line" ] || line="no PASS or FAIL line for the row; first FAIL: $(printf '%s\n' "$out" | sed -n '/^FAIL /{p;q;}')"
+            echo "sweep-row $i $name $word $secs s (runner exit $code; wall $((ended - now)) s): $line"
+            results="$results
+          sweep $name $word $secs"
+          done
+          echo "sweep-1 job 1: the step took $(( $(date +%s) - began )) s"
+          printf '%s\n' "$results" | sed '/^$/d; s/^ *//'
+          exit 0
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -153,21 +177,13 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
