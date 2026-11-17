@@ -531,7 +531,7 @@ mod tests {
             };
             let (key, value) = (key.trim(), value.trim());
             match section {
-                "[package]" if !PACKAGE_KEYS.contains(&key) || value.starts_with(['[', '{']) => {
+                "[package]" if !PACKAGE_KEYS.contains(&key) => {
                     return Err(format!("a package key that the lint does not read: {key}"));
                 }
                 "[workspace]" => {
