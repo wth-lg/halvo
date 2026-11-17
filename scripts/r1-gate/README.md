@@ -112,16 +112,23 @@ named halvo-sqlcipher and a file named build.rs, in any case, keep the cargo
 build there too, because the link decides such a mutant. The row line of a
 type-checked row reads `PASS mutation:<name> (applies and type-checks)`, and that
 of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
-`(applies and builds)`. `FAIL mutation:<name> (the mutant does not build)` and
+`(applies and builds)`, and that of a row whose file no compile of the cargo
+build reads (its dep-info does not list it) reads
+`(applies; no compile of the build reads <file>)`. `FAIL mutation:<name> (the mutant does not build)` and
 `FAIL mutation:<name> (the mutant does not type-check)` are never caught mutants.
 
 What the runs prove for a row. On each pull request and each push, the macos
 job's `scripts/r1/ci.d/30-mutants.sh` applies each row that a run would apply
 here and compiles its mutant as above, so the mutant of a cargo row that keeps no build is type-checked and
 not built. On a push to
-main it then builds the rows that start within its budget, in an order that the
-commit decides, runs each against its verdict and prints how many rows ran,
-less those whose line says that the mutant does not build. The
+main it then builds the rows that start within its budget, in the sorted order of
+the row names rotated to start at the first-parent commit count of main times
+the stride 6, modulo the row count, runs each against its verdict and prints how
+many rows ran, how many of them it built a mutant for (`built mutation:<name>`,
+printed only when the build compiled the mutated file, which for a cargo row is
+read from the build's dep-info) and, counted apart, how many no compile of the
+build read (`not-compiled mutation:<name>`); when the push ran fewer rows than the
+stride it says how many rows after them were not started in this turn. The
 whole list is built and run against its verdicts only in a full run on the
 measuring Mac. So a mutant that passes the type check and fails only at the
 link, after monomorphization or in code generation is found on main when the
@@ -180,11 +187,11 @@ check of the copy:
   constant of the runner, for the test to end; or
   `... the running case did not end within 60 s and was killed`, and what that
   case made may be left. During a gate check or the cargo build or type check
-  of the copy that does not end within 60 s of the signal:
-  `STOPPED mutation:<row> (signal <name>; the running check-<name> did not end within 60 s and was killed)`,
-  or `... the running build of the copy did not end ...`, or
-  `... the running type check of the copy did not end ...`, and what that step
-  made may be left. A KILL of the runner itself leaves its scratch, the
+  of the copy that the bound ended, because it did not end within 60 s of the
+  signal, the fifth form:
+  `STOPPED mutation:<row> (signal <name>; the running <step> did not end within 60 s and was killed)`,
+  where `<step>` is `check-<name>`, `build of the copy` or
+  `type check of the copy`, and what that step made may be left. A KILL of the runner itself leaves its scratch, the
   throwaway copy and its build directory, as well. A shielded step or test
   that was running then goes on with TERM, INT and HUP ignored; a step that
   the kill at the bound had already stopped stays stopped while its process
@@ -222,7 +229,12 @@ check of the copy:
   verify child past its deadline ends by the check's KILL 5 s later.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM
   lets a case end only when the case ends within those seconds: give a run of
-  rows a time limit above the time of its rows.
+  rows a time limit above the time of its rows. The helper for timed runs
+  sends TERM and then KILL 5 s later, so under it a shielded step, a gate check
+  or the cargo build or type check of the copy, gets at most 5 s and not the
+  runner's 60 s. Whether check-store ends within 5 s is not known, because no
+  real check has run under a stop, so a check-store that needs longer is
+  killed and leaves its root.
 
 ## What a run changes on a Mac
 

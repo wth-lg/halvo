@@ -43,7 +43,14 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       requires one passing run of the unmutated test. PASS mutation:<name>
       names the verdict source.
       A mutant that does not build is FAIL mutation:<name> (the mutant does not
-      build), never a caught mutant.
+      build), never a caught mutant. A mutant whose build (not a type check)
+      succeeded prints built mutation:<name> before its verdict line only when
+      the build compiled the mutated file: for a cargo row, when the build's
+      dep-info, target/r1-gate/debug/halvo-capture.d of the copy, lists it.
+      Otherwise it prints not-compiled mutation:<name> (no compile of the build
+      reads FILE), and under --apply-only its row reads PASS mutation:<name>
+      (applies; no compile of the build reads FILE). A row that ends before its
+      build prints neither.
       --strict also fails on a pending or transitional row, on a row for the
       measuring Mac that did not run, on a row that the budget left unrun, on a
       name of mutants.expected that no row file holds or retires, and on a
@@ -60,7 +67,9 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       compile its mutant: cargo check of the package and target that the build
       names, for the unmutated copy and for a row on a file that cargo builds;
       cargo build for a row on a file named build.rs or on a path with a part
-      named halvo-sqlcipher, in any case;
+      named halvo-sqlcipher, in any case (the kept build), after one cargo
+      build of the unmutated copy before the first such row, so that a copy
+      that fails only at the link is FAIL unmutated:build and no row's fault;
       sh -n, cc, perl or swiftc for a row on another file. A type-checked row
       prints PASS mutation:<name> (applies and type-checks), a built one
       (applies and builds), and a mutant that does not type-check is
@@ -77,7 +86,21 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   newline, a backslash or a quote, and a row name that stands in more than one
   row, unless one of the two is a transitional row of
   scripts/r1-gate/mutants.rows and the other the row that takes it over in the
-  rows file beside its file; it names each place.
+  rows file beside its file; it names each place. In the loop over the rows,
+  --only aside, it refuses by name a row whose path reaches a tracked file only
+  by a spelling that the file system folds beyond ASCII case (on APFS, U+017F
+  for s), and a row outside the kept build on a file that a build decides: the
+  build script that the build key of a Cargo.toml names, a file that a build
+  script names by a literal rerun-if-changed path, or native code (C, C++,
+  Objective-C, assembly, a linker script, a definition or a resource file),
+  each matched in any ASCII case; a retired row is not refused. A row
+  outside the kept build that it applies is refused when a line that the
+  substitution changes is in an extern block (its brace on the same or the
+  next line) or in an attribute, over one or more lines, that names link,
+  link_name, no_mangle, export_name, link_section or used (cfg_attr too). Limits: a build
+  script that computes its rerun-if-changed path, an include! of a file that a
+  build script generates, and a fault that only monomorphization or code
+  generation finds are not seen.
   --keep-scratch keeps the runner's scratch directory and prints
   scratch mutation: <path>; without it the runner removes its scratch when it
   ends, on every path but a KILL of the runner itself, after which the
@@ -193,6 +216,10 @@ stop_check() {
   [ -z "$stop_signal" ] || stop_now "$stop_row" "${stop_note:-no test was running}"
 }
 
+stop_quiet() {
+  [ -z "$stop_signal" ] || exit "$stop_status"
+}
+
 step_check() {
   step_check_status=$1; step_check_name=$2
   stop_check
@@ -255,9 +282,7 @@ rows_table() {
 row_place() {
   case $row_state in
     transitional|control) mutated=$row_file ;;
-    *) row_place_dir=${rows_file%/*}
-       [ "$row_place_dir" != "$rows_file" ] || row_place_dir=.
-       mutated=$row_place_dir/$row_file ;;
+    *) case $rows_file in */*) mutated=${rows_file%/*}/$row_file ;; *) mutated=$row_file ;; esac ;;
   esac
 }
 
@@ -310,9 +335,168 @@ copy_form() {
   if [ "$apply_only" = yes ]; then compile_form=check; else compile_form=build; fi
 }
 
+kept_build() {
+  case $1 in */[Hh][Aa][Ll][Vv][Oo]-[Ss][Qq][Ll][Cc][Ii][Pp][Hh][Ee][Rr]/*|*/[Bb][Uu][Ii][Ll][Dd].[Rr][Ss]) return 0 ;; esac
+  return 1
+}
+
 mutant_form() {
   copy_form
-  case $1 in */[Hh][Aa][Ll][Vv][Oo]-[Ss][Qq][Ll][Cc][Ii][Pp][Hh][Ee][Rr]/*|*/[Bb][Uu][Ii][Ll][Dd].[Rr][Ss]) compile_form=build ;; esac
+  ! kept_build "$1" || compile_form=build
+}
+
+lint_prepare() {
+  lint_out=$1
+  printf 'kind\tpath\tsource\n' > "$work/built-by.tsv"
+  stop_check
+  awk -F '\t' '{ print $2 }' "$table.tracked" > "$work/tracked.tsv"
+  step_check $? "awk of the tracked paths" || return 2
+  while IFS= read -r lint_manifest; do
+    case $lint_manifest in Cargo.toml) lint_dir='' ;; */Cargo.toml) lint_dir=${lint_manifest%Cargo.toml} ;; *) continue ;; esac
+    [ -f "$tree/$lint_manifest" ] || continue
+    stop_check
+    lint_build=$(awk '/^[ \t]*\[/ { section = $0; sub(/#.*/, "", section); gsub(/[ \t]/, "", section); next }
+      section == "[package]" && /^[ \t]*build[ \t]*=/ { v = $0; sub(/^[^=]*=[ \t]*/, "", v); sub(/[ \t]*(#.*)?$/, "", v); if (v ~ /^\047.*\047$/) v = "\"" substr(v, 2, length(v) - 2) "\""; print v; exit }' "$tree/$lint_manifest")
+    step_check $? "awk of $lint_manifest" || return 2
+    case $lint_build in
+      false) continue ;;
+      \"*\") lint_script=${lint_build#?}; lint_script=$lint_dir${lint_script%?} ;;
+      *) lint_script=${lint_dir}build.rs ;;
+    esac
+    [ -f "$tree/$lint_script" ] || continue
+    printf 'script\t%s\t%s\n' "$lint_script" "$lint_manifest" >> "$work/built-by.tsv"
+    stop_check
+    grep -o 'rerun-if-changed=[^"{}]*"' "$tree/$lint_script" > "$work/inputs.raw"
+    lint_status=$?
+    step_check "$lint_status" "grep of $lint_script"
+    [ "$lint_status" -le 1 ] || return 2
+    stop_check
+    sed 's/^rerun-if-changed=//; s/"$//' "$work/inputs.raw" > "$work/inputs.txt"
+    step_check $? "sed of $lint_script" || return 2
+    while IFS= read -r lint_input; do
+      printf 'input\t%s%s\t%s\n' "$lint_dir" "$lint_input" "$lint_script" >> "$work/built-by.tsv"
+    done < "$work/inputs.txt"
+  done < "$work/tracked.tsv"
+  stop_check
+  LC_ALL=C awk -F '\t' -v OFS='\t' -v tree="$tree" '
+    function norm(p,   n, i, k, part, stack, out) {
+      n = split(p, part, "/"); k = 0
+      for (i = 1; i <= n; i++) {
+        if (part[i] == "" || part[i] == ".") continue
+        if (part[i] == ".." && k > 0) { k--; continue }
+        stack[++k] = part[i]
+      }
+      out = ""
+      for (i = 1; i <= k; i++) out = out (i > 1 ? "/" : "") stack[i]
+      return out
+    }
+    FNR == 1 { part++ }
+    part == 1 { tracked[tolower($0)] = 1; next }
+    part == 2 { if ($1 == "script") script[tolower(norm($2))] = $3; else if ($1 == "input") input[tolower(norm($2))] = $3; next }
+    $7 == "-" { print $0, "-"; next }
+    {
+      lint = "-"
+      if ($7 == "transitional" || $7 == "control") p = $4
+      else { d = $1; sub(/\/?[^\/]*$/, "", d); p = (d == "" ? "" : d "/") $4 }
+      p = norm(p)
+      if ($7 !~ /^retired / && p != "") {
+        if (!(tolower(p) in tracked) && (getline seen < (tree "/" p)) >= 0) lint = "folded"
+        close(tree "/" p)
+        lp = tolower(p)
+        if (lint == "-" && (lp in script)) lint = "script " script[lp]
+        if (lint == "-") for (q in input) if (lp == q || index(lp, q "/") == 1) { lint = "input " input[q]; break }
+        if (lint == "-" && lp ~ /\.(c|h|s|cc|cpp|cxx|hh|hpp|hxx|m|mm|asm|def|ld|rc)$/) lint = "native"
+      }
+      print $0, lint
+    }' "$work/tracked.tsv" "$work/built-by.tsv" "$table" > "$lint_out"
+  step_check $? "awk of the kept-build lint" || return 2
+}
+
+row_lint() {
+  defect=''
+  row_place
+  if [ "$row_lint" = folded ]; then
+    defect="the path $mutated reaches a tracked file only by a spelling that the file system folds beyond ASCII case"; return 1
+  fi
+  needs_cargo "$mutated" || return 0
+  ! kept_build "$mutated" || return 0
+  case $row_lint in
+    'script '*) defect="the file $mutated is the build script that ${row_lint#script } names, which only a build decides, and the kept build does not hold it"; return 1 ;;
+    'input '*) defect="the file $mutated is an input that the build script ${row_lint#input } names, which only a build decides, and the kept build does not hold it"; return 1 ;;
+  esac
+  if [ "$row_lint" = native ]; then
+    defect="the file $mutated is native code that only a build script and the link read, and the kept build does not hold it"; return 1
+  fi
+  return 0
+}
+
+link_line() {
+  perl -e '
+    sub lines_of { my ($path) = @_; open(my $in, "<", $path) or exit 2; my @lines = <$in>; close($in); return @lines; }
+    sub link_marks {
+      my @lines = @_; my @mark = (0) x @lines;
+      my ($depth, $pending, $attr, $from, $text) = (0, 0, 0, 0, "");
+      for my $i (0 .. $#lines) {
+        my $code = $lines[$i];
+        $code =~ s{//.*}{}; $code =~ s{"(?:[^"\\]|\\.)*"}{""}g;
+        my $rest = $code;
+        if ($attr == 0 && $rest =~ s/^.*?#\s*!?\[//) { $attr = 1; $from = $i; $text = ""; }
+        if ($attr > 0) {
+          for my $c (split //, $rest) { $attr++ if $c eq "["; $attr-- if $c eq "]"; last if $attr == 0; $text .= $c; }
+          $mark[$_] = 1 for ($attr == 0 && $text =~ /\b(?:link|link_name|no_mangle|export_name|link_section|used)\b/) ? ($from .. $i) : ();
+        }
+        if ($depth > 0) { $mark[$i] = 1; $depth += ($code =~ tr/{//) - ($code =~ tr/}//); $depth = 0 if $depth < 0; next; }
+        if ($pending) {
+          $pending = 0 if $code =~ /\S/;
+          if ($code =~ /^\s*\{/) { $mark[$i] = 1; $depth = ($code =~ tr/{//) - ($code =~ tr/}//); $depth = 0 if $depth < 0; next; }
+        }
+        if ($code =~ /\bextern\s*(?:""\s*)?(\{|$)/) {
+          my $brace = $1; $mark[$i] = 1;
+          if ($brace eq "{") { my $after = $code; $after =~ s/^.*?\bextern\s*(?:""\s*)?\{//; $depth = 1 + ($after =~ tr/{//) - ($after =~ tr/}//); $depth = 0 if $depth < 0; }
+          else { $pending = 1; }
+        }
+      }
+      return @mark;
+    }
+    my ($old_path, $new_path, $hunks_path) = @ARGV;
+    my @old_mark = link_marks(lines_of($old_path)); my @new_mark = link_marks(lines_of($new_path));
+    for my $hunk (lines_of($hunks_path)) {
+      next unless $hunk =~ /^(\d+)(?:,(\d+))?([acd])(\d+)(?:,(\d+))?$/;
+      my ($o1, $o2, $kind, $n1, $n2) = ($1, $2 // $1, $3, $4, $5 // $4);
+      if ($kind ne "a") { for my $i ($o1 .. $o2) { if ($old_mark[$i - 1]) { print "$i\n"; exit 0; } } }
+      if ($kind ne "d") { for my $i ($n1 .. $n2) { if ($new_mark[$i - 1]) { print "$i\n"; exit 0; } } }
+    }
+    exit 0;
+  ' "$@"
+}
+
+compiled_by_build() {
+  compiled_path=$tree_abs/$1
+  compiled_info=$tree_abs/target/r1-gate/debug/halvo-capture.d
+  [ -f "$compiled_info" ] || return 1
+  LC_ALL=C awk -v want="$compiled_path" '
+    function norm(p,   n, i, k, part, stack, out) {
+      n = split(p, part, "/"); k = 0
+      for (i = 1; i <= n; i++) {
+        if (part[i] == "" || part[i] == ".") continue
+        if (part[i] == ".." && k > 0) { k--; continue }
+        stack[++k] = part[i]
+      }
+      out = ""
+      for (i = 1; i <= k; i++) out = out "/" stack[i]
+      return tolower(out)
+    }
+    BEGIN { want = norm(want) }
+    { gsub(/\\ /, "\001")
+      for (i = 2; i <= NF; i++) { f = $i; gsub(/\001/, " ", f); if (norm(f) == want) found = 1 } }
+    END { exit !found }' "$compiled_info"
+}
+
+copy_failed() {
+  unmutated_first=''
+  IFS= read -r unmutated_first < "$work/unmutated.out"
+  case $compile_form in check) unmutated_step=type-check ;; *) unmutated_step=build ;; esac
+  printf 'FAIL unmutated:%s (%s)\n' "$unmutated_step" "$unmutated_first"
 }
 
 tree_build() {
@@ -349,7 +533,10 @@ buildable() {
 gate_lines() {
   : > "$work/gate.out"
   stop_check
-  { git init -q "$tree" && git -C "$tree" add -A; } > "$work/gate.err" 2>&1
+  git init -q "$tree" > "$work/gate.err" 2>&1
+  step_check $? "git init of the copy" || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
+  stop_check
+  git -C "$tree" add -A >> "$work/gate.err" 2>&1
   step_check $? "git add of the copy" || { printf 'FAIL copy (git could not stage the copy)\n' > "$work/gate.out"; return 1; }
   for gate_check in store deletion no-ll-hook; do
     stop_check
@@ -501,7 +688,12 @@ run_rows() {
     step_check $? "awk of --only" || return 2
     [ -n "$only_hit" ] || { say FAIL "$only_name" "--only names no row"; failures=$((failures + 1)); }
   done
-  built_unmutated=no
+  lint_prepare "$work/rows.linted" || return 2
+  table=$work/rows.linted
+  built_unmutated=no; copy_built=no
+  stop_check
+  tree_abs=$(cd "$tree" && pwd -P)
+  step_check $? "read of the copy's path" || return 2
   if [ -n "$only" ]; then
     : > "$work/rows.loop"
     only_seen=' '
@@ -521,10 +713,13 @@ run_rows() {
     step_check $? "copy of the rows table" || return 2
   fi
   budget_start=''; timed_name=''
-  while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ <&3; do
+  while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ row_lint <&3; do
     stop_check
     stop_row=$row_name
     if ! row_defect; then
+      say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
+    fi
+    if ! row_lint; then
       say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
     fi
     case " $only " in "  "|*" $row_name "*) ;; *) continue ;; esac
@@ -573,13 +768,9 @@ run_rows() {
     if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
       copy_form
-      if ! tree_build "$work/unmutated.out"; then
-        unmutated_first=''
-        IFS= read -r unmutated_first < "$work/unmutated.out"
-        case $compile_form in check) unmutated_step=type-check ;; *) unmutated_step=build ;; esac
-        printf 'FAIL unmutated:%s (%s)\n' "$unmutated_step" "$unmutated_first"; return 1
-      fi
+      tree_build "$work/unmutated.out" || { copy_failed; return 1; }
       built_unmutated=yes
+      [ "$compile_form" != build ] || copy_built=yes
       if [ "$apply_only" = no ]; then
         gate_lines
         for gate_check in store deletion no-ll-hook; do
@@ -592,6 +783,11 @@ run_rows() {
           esac
         done
       fi
+    fi
+    if [ "$copy_built" = no ] && needs_cargo "$mutated" && kept_build "$mutated"; then
+      compile_form=build
+      tree_build "$work/unmutated.out" || { copy_failed; return 1; }
+      copy_built=yes
     fi
     if [ "$apply_only" = no ] && [ "$row_state" != control ]; then
       case $row_verdict in 'test '*)
@@ -619,8 +815,38 @@ run_rows() {
     if [ "$row_cmp" -eq 0 ]; then
       say FAIL "$row_name" "the substitution did not apply"; failures=$((failures + 1)); continue
     fi
+    if needs_cargo "$mutated" && ! kept_build "$mutated"; then
+      stop_check
+      diff "$work/pristine" "$tree/$mutated" > "$work/hunks"
+      link_status=$?
+      step_check "$link_status" diff
+      [ "$link_status" -le 1 ] || { say FAIL copy "diff could not compare $mutated with its copy"; return 2; }
+      stop_check
+      link_at=$(link_line "$work/pristine" "$tree/$mutated" "$work/hunks")
+      step_check $? "read of the changed lines" || { say FAIL copy "the changed lines of $mutated could not be read"; return 2; }
+      if [ -n "$link_at" ]; then
+        stop_check
+        cp "$work/pristine" "$tree/$mutated"
+        step_check $? "restore of the mutated file" || return 2
+        say FAIL "$row_name" "line $link_at of $mutated is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it"; failures=$((failures + 1)); continue
+      fi
+    fi
     if mutant_builds "$mutated"; then builds=yes; else builds=no; fi
     stop_check
+    row_unread=no
+    if [ "$builds:$compile_form" = yes:build ]; then
+      if ! needs_cargo "$mutated"; then
+        printf 'built mutation:%s\n' "$row_name"
+      else
+        compiled_by_build "$mutated"
+        compiled_status=$?
+        step_check "$compiled_status" "read of the build's dep-info"
+        if [ "$compiled_status" -eq 0 ]; then printf 'built mutation:%s\n' "$row_name"
+        elif [ "$compiled_status" -eq 1 ]; then row_unread=yes; say not-compiled "$row_name" "no compile of the build reads $mutated"
+        else say FAIL copy "the dep-info of the build could not be read"; return 2
+        fi
+      fi
+    fi
     case $compile_form in
       check) compiles=type-checks; compiled=type-checked; not_compiled='does not type-check'; compile_step='the type check' ;;
       *) compiles=builds; compiled=built; not_compiled='does not build'; compile_step='the build step' ;;
@@ -630,6 +856,8 @@ run_rows() {
       else say FAIL "$row_name" "control: the mutant $compiled, so $compile_step proves nothing"; failures=$((failures + 1)); fi
     elif [ "$builds" = no ]; then
       say FAIL "$row_name" "the mutant $not_compiled"; failures=$((failures + 1))
+    elif [ "$apply_only" = yes ] && [ "$row_unread" = yes ]; then
+      say PASS "$row_name" "applies; no compile of the build reads $mutated"
     elif [ "$apply_only" = yes ]; then
       say PASS "$row_name" "applies and $compiles"
     else
@@ -738,6 +966,7 @@ stub_gate() {
   cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
 #!/bin/sh
 here=${0%/*}
+printf '%s\n' "${GATE_ROOT:-unset}" >> "$here/../../bin/store-roots"
 if grep -q three "$here/b.sh"; then cat "$here/store.mutated"; exit 1; fi
 printf 'PASS store\n'
 STUB
@@ -778,14 +1007,26 @@ read -r hold < "$here/hold"
 printf 'cargo\n' >> "$here/starts"
 printf '%s\n' "$*" >> "$here/args"
 printf '%s\n' "${CARGO_TARGET_DIR:-unset}" >> "$here/target-dirs"
+printf '%s\n' "${GATE_ROOT:-unset}" >> "$here/gate-roots"
+if [ "$1" = build ] && [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d crates ]; then
+  mkdir -p "$CARGO_TARGET_DIR/debug"
+  find "$(pwd -P)/crates" -type f ! -path '*/tests/*' ! -name mutants.rows > "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"
+  sort -o "$CARGO_TARGET_DIR/debug/halvo-capture.compiled" "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"
+  { printf '%s:' "$CARGO_TARGET_DIR/debug/halvo-capture"; while IFS= read -r compiled; do printf ' %s' "$compiled"; done < "$CARGO_TARGET_DIR/debug/halvo-capture.compiled"; printf '\n'; } > "$CARGO_TARGET_DIR/debug/halvo-capture.d"
+fi
 case $hold in
   0) ;;
+  second)
+    calls=$(wc -l < "$here/starts" | tr -d ' ')
+    if [ "$calls" -eq 2 ]; then : > "$here/marker"; sleep 1; mv "$here/marker" "$here/marker.released"; fi ;;
   refuse)
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'error[E0308]: mismatched types\n'; exit 101; fi ;;
   warn-refuse)
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'warning: unused variable: x\nerror[E0308]: mismatched types\n'; exit 101; fi ;;
   plain-refuse)
     if grep -qs refuse-me crates/*/src/lib.rs crates/*/build.rs; then printf 'cargo: the compiler ended by a signal\n'; exit 101; fi ;;
+  link-refuse)
+    case $1 in build) printf 'error: linking with cc failed: exit status: 1\n'; exit 101 ;; esac ;;
   go)
     : > "$here/marker"
     polls=0
@@ -1378,6 +1619,267 @@ cases() {
   verifier_cases
   rule_cases
   form_cases
+  built_cases
+  lint_cases
+  stop_order_cases
+  root_cases
+  fallback_cases
+  compiled_cases
+}
+
+compiled_cases() {
+  for compiled_mode in apply full; do
+    form_fixture "compiled-$compiled_mode" crates/halvo-sqlcipher 0
+    mkdir -p "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/tests"
+    printf 'pub fn f() -> i32 { 1 }\n#[cfg(test)]\n#[path = "../tests/t.rs"]\nmod t;\n' > "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/src/lib.rs"
+    printf 'pub fn g() -> i32 { 1 }\n' > "$gate_scratch/compiled-$compiled_mode/crates/halvo-sqlcipher/tests/t.rs"
+    row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" held tests/t.rs 's/1 }/1 } refuse-me (/' leak required X-1
+    row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" read src/lib.rs 's/1 }/2 }/' leak required X-1
+    row "compiled-$compiled_mode/crates/halvo-sqlcipher/mutants.rows" first build.rs 's/1;/2;/' leak required X-1
+  done
+  compiled_line='not-compiled mutation:held (no compile of the build reads crates/halvo-sqlcipher/tests/t.rs)'
+  t a-mutant-that-no-compile-of-the-build-reads-prints-no-built-line FAIL with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:held'
+  t a-mutant-that-no-compile-of-the-build-reads-prints-its-own-line PASS with_cargo_home compiled-apply form_said compiled-apply yes "$compiled_line"
+  t apply-only-row-that-no-compile-reads-does-not-say-builds PASS with_cargo_home compiled-apply form_said compiled-apply yes 'PASS mutation:held (applies; no compile of the build reads crates/halvo-sqlcipher/tests/t.rs)'
+  t a-mutant-on-the-first-file-of-the-dep-info-prints-its-built-line PASS with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:first'
+  t a-mutant-that-the-build-compiles-still-prints-its-built-line PASS with_cargo_home compiled-apply form_said compiled-apply yes 'built mutation:read'
+  t full-run-mutant-that-no-compile-reads-prints-no-built-line FAIL with_cargo_home compiled-full form_said compiled-full no 'built mutation:held'
+  t full-run-mutant-that-no-compile-reads-prints-its-own-line PASS with_cargo_home compiled-full form_said compiled-full no "$compiled_line"
+}
+
+fallback_cases() {
+  t stop-children-ends-a-wrapper-s-children-by-pkill-when-no-child-id-is-known PASS pkill_fallback_named
+  fallback_want=NO-INPUT
+  [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
+  t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
+}
+
+pkill_fallback_named() {
+  fallback_dir=$gate_scratch/pkill-fallback
+  mkdir -p "$fallback_dir/bin"
+  cat > "$fallback_dir/bin/pkill" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >> "${0%/*}/pkill.args"
+exit 0
+STUB
+  chmod +x "$fallback_dir/bin/pkill"
+  sh -c 'sleep 2 & wait' &
+  child_wrapper=$!
+  child_pid=''
+  fallback_wrapper=$child_wrapper
+  PATH=$fallback_dir/bin:$PATH stop_children
+  fallback_args=''
+  [ ! -f "$fallback_dir/bin/pkill.args" ] || fallback_args=$(cat "$fallback_dir/bin/pkill.args")
+  [ "$fallback_args" = "-TERM -P $fallback_wrapper" ] && [ -z "$child_wrapper" ] && return 0
+  printf 'pkill got: %s; child_wrapper=%s\n' "${fallback_args:-nothing}" "$child_wrapper"
+  return 1
+}
+
+pkill_fallback_real() {
+  [ "${GITHUB_ACTIONS:-}" = true ] || return 3
+  sh -c 'sleep 60 & wait' &
+  child_wrapper=$!
+  child_pid=''
+  fallback_wrapper=$child_wrapper
+  fallback_start=$(date +%s)
+  stop_children
+  fallback_end=$(date +%s)
+  fallback_rest=$(pgrep -P "$fallback_wrapper" | wc -l | tr -d ' ')
+  [ "$((fallback_end - fallback_start))" -lt 30 ] && [ "$fallback_rest" -eq 0 ] && return 0
+  printf 'stop_children took %s s and left %s children of the wrapper\n' "$((fallback_end - fallback_start))" "$fallback_rest"
+  return 1
+}
+
+root_cases() {
+  t cargo-and-the-gate-checks-get-the-copy-as-gate-root PASS with_cargo_home form-lib gate_roots_are_the_copy form-lib 4
+  fixture_tree stop-mutant-build
+  mkdir -p "$gate_scratch/stop-mutant-build/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-mutant-build/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-mutant-build/scripts/r1-gate/lib.sh"
+  stub_cargo stop-mutant-build second
+  stub_gate stop-mutant-build 'PASS store'
+  row stop-mutant-build/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'measured rows' required X-1
+  t stop-during-the-build-of-a-mutant-starts-no-gate-check PASS with_cargo_home stop-mutant-build store_checks_after stop-mutant-build 1 stopped_by stop-mutant-build TERM runner 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+gate_roots_are_the_copy() {
+  : > "$gate_scratch/$1/bin/gate-roots"
+  : > "$gate_scratch/$1/bin/store-roots"
+  fixture_run "$1" no > "$gate_scratch/$1.out"
+  roots_got=$(cat "$gate_scratch/$1/bin/gate-roots" "$gate_scratch/$1/bin/store-roots" | sort -u)
+  roots_calls=$(cat "$gate_scratch/$1/bin/gate-roots" "$gate_scratch/$1/bin/store-roots" | wc -l | tr -d ' ')
+  [ "$roots_got" = "$gate_scratch/$1" ] && [ "$roots_calls" -eq "$2" ] && return 0
+  printf 'GATE_ROOT of %s calls: %s\n' "$roots_calls" "$roots_got" | tr '\n' '|'
+  return 1
+}
+
+store_checks_after() {
+  store_fixture=$gate_scratch/$1; store_wanted=$2; shift 2
+  "$@" || return 1
+  store_got=0
+  [ ! -f "$store_fixture/bin/store-roots" ] || store_got=$(wc -l < "$store_fixture/bin/store-roots" | tr -d ' ')
+  [ "$store_got" -eq "$store_wanted" ] && return 0
+  printf 'the stand-in check-store ran %s times, not %s\n' "$store_got" "$store_wanted"
+  return 1
+}
+
+stop_order_cases() {
+  fixture_tree stop-copy-staging
+  stub_gate stop-copy-staging 'FAIL store (verify-store measured: rows)'
+  stub_hold stop-copy-staging git 'init -q *'
+  row stop-copy-staging/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t stop-during-the-git-init-of-the-copy-starts-no-git-add PASS no_git_add_after stop-copy-staging stopped_by stop-copy-staging TERM runner 60 run 143 gone none 0 'STOPPED mutation:held (signal TERM; no test was running)'
+  t a-signal-recorded-before-the-self-test-s-traps-runs-no-case PASS selftest_after_a_signal
+  t a-signal-recorded-before-the-self-test-starts-prints-no-stopped-line PASS selftest_after_an_early_signal
+}
+
+no_git_add_after() {
+  git_add_fixture=$gate_scratch/$1; shift
+  "$@" || return 1
+  ! grep -q -e ' add -A' "$git_add_fixture/bin/calls" && return 0
+  printf 'git add of the copy started after the signal\n'
+  return 1
+}
+
+selftest_after_an_early_signal() {
+  early_dir=$gate_scratch/selftest-after-an-early-signal
+  mkdir -p "$early_dir"
+  # shellcheck disable=SC2016
+  sh -c 'early_ran=$1; set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT
+    cases() { : > "$early_ran"; }
+    stop_signal=TERM; stop_status=143
+    main --self-test' "$DIR/mutation-test.sh" "$early_dir/ran" > "$early_dir.out" 2>&1
+  early_status=$?
+  [ ! -e "$early_dir/ran" ] || { printf 'the self-test ran its cases after a recorded signal\n'; return 1; }
+  [ "$early_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$early_status"; return 1; }
+  early_line=$(grep -m 1 '^STOPPED ' "$early_dir.out")
+  [ -z "$early_line" ] || { printf 'the self-test printed %s\n' "$early_line"; return 1; }
+}
+
+selftest_after_a_signal() {
+  after_dir=$gate_scratch/selftest-after-a-signal
+  mkdir -p "$after_dir"
+  # shellcheck disable=SC2016
+  sh -c 'after_ran=$1; set -- --help; . "$0" > /dev/null 2>&1; trap - EXIT
+    cases() { : > "$after_ran"; }
+    gate_traps() { trap gate_exit EXIT; stop_signal=TERM; stop_status=143; }
+    main --self-test' "$DIR/mutation-test.sh" "$after_dir/ran" > "$after_dir.out" 2>&1
+  after_status=$?
+  [ ! -e "$after_dir/ran" ] || { printf 'the self-test ran its cases after a recorded signal\n'; return 1; }
+  [ "$after_status" -eq 143 ] || { printf 'exit %s, not 143\n' "$after_status"; return 1; }
+}
+
+lint_cases() {
+  lint_tail='which only a build decides, and the kept build does not hold it)'
+  form_fixture lint-script crates/x 0
+  printf '[package]\nname = "x"\nbuild = "gen.rs"\n' > "$gate_scratch/lint-script/crates/x/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-script/crates/x/gen.rs"
+  row lint-script/crates/x/mutants.rows held gen.rs 's/1;/2;/' leak required X-1
+  row lint-script/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  t lint-refuses-a-row-on-a-build-script-of-another-name PASS with_cargo_home lint-script form_said lint-script yes "FAIL mutation:held (the file crates/x/gen.rs is the build script that crates/x/Cargo.toml names, $lint_tail"
+  row lint-script/crates/x/mutants.rows upper GEN.RS 's/1;/3;/' leak required X-1
+  t lint-refuses-a-build-script-of-another-name-in-another-ascii-case PASS with_cargo_home lint-script form_said lint-script yes "FAIL mutation:upper (the file crates/x/GEN.RS is the build script that crates/x/Cargo.toml names, $lint_tail"
+  t lint-lets-a-row-beside-a-build-script-of-another-name-run PASS with_cargo_home lint-script form_said lint-script yes 'PASS mutation:plain (applies and type-checks)'
+  form_fixture lint-input crates/x 0
+  printf 'fn main() {\n    println!("cargo:rerun-if-changed=src/names.rs");\n}\n' > "$gate_scratch/lint-input/crates/x/build.rs"
+  printf 'pub const N: i32 = 1;\n' > "$gate_scratch/lint-input/crates/x/src/names.rs"
+  printf '[package]\nname = "x"\n' > "$gate_scratch/lint-input/crates/x/Cargo.toml"
+  row lint-input/crates/x/mutants.rows held src/names.rs 's/1;/2;/' leak required X-1
+  row lint-input/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  t lint-refuses-a-row-on-an-input-of-a-build-script PASS with_cargo_home lint-input form_said lint-input yes "FAIL mutation:held (the file crates/x/src/names.rs is an input that the build script crates/x/build.rs names, $lint_tail"
+  row lint-input/crates/x/mutants.rows upper SRC/NAMES.rs 's/1;/3;/' leak required X-1
+  t lint-refuses-an-input-of-a-build-script-in-another-ascii-case PASS with_cargo_home lint-input form_said lint-input yes "FAIL mutation:upper (the file crates/x/SRC/NAMES.rs is an input that the build script crates/x/build.rs names, $lint_tail"
+  form_fixture lint-inputs crates/x 0
+  printf 'fn main() {\n    println!("cargo:rerun-if-changed=src/two.rs"); println!("cargo:rerun-if-changed=src/one.rs");\n}\n' > "$gate_scratch/lint-inputs/crates/x/build.rs"
+  printf 'pub const N: i32 = 1;\n' > "$gate_scratch/lint-inputs/crates/x/src/two.rs"
+  printf '[package]\nname = "x"\n' > "$gate_scratch/lint-inputs/crates/x/Cargo.toml"
+  row lint-inputs/crates/x/mutants.rows held src/two.rs 's/1;/2;/' leak required X-1
+  t lint-refuses-the-second-input-that-a-line-of-a-build-script-names PASS with_cargo_home lint-inputs form_said lint-inputs yes "FAIL mutation:held (the file crates/x/src/two.rs is an input that the build script crates/x/build.rs names, $lint_tail"
+  form_fixture lint-key-forms crates/q 0
+  printf "[package]\nname = 'q'\nbuild = 'gen.rs'\n" > "$gate_scratch/lint-key-forms/crates/q/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/q/gen.rs"
+  mkdir -p "$gate_scratch/lint-key-forms/crates/h"
+  printf '[package] # the crate\nname = "h"\nbuild = "gen.rs"\n' > "$gate_scratch/lint-key-forms/crates/h/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/h/gen.rs"
+  row lint-key-forms/crates/q/mutants.rows quoted gen.rs 's/1;/2;/' leak required X-1
+  mkdir -p "$gate_scratch/lint-key-forms/crates/u"
+  printf '[package]\nname = "u"\nbuild = "Gen.rs"\n' > "$gate_scratch/lint-key-forms/crates/u/Cargo.toml"
+  printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/lint-key-forms/crates/u/Gen.rs"
+  row lint-key-forms/crates/u/mutants.rows lower gen.rs 's/1;/2;/' leak required X-1
+  row lint-key-forms/crates/h/mutants.rows header gen.rs 's/1;/2;/' leak required X-1
+  t lint-refuses-a-build-script-that-a-single-quoted-build-key-names PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:quoted (the file crates/q/gen.rs is the build script that crates/q/Cargo.toml names, $lint_tail"
+  t lint-refuses-a-build-script-whose-build-key-is-in-upper-case PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:lower (the file crates/u/gen.rs is the build script that crates/u/Cargo.toml names, $lint_tail"
+  t lint-refuses-a-build-script-under-a-package-header-with-a-comment PASS with_cargo_home lint-key-forms form_said lint-key-forms yes "FAIL mutation:header (the file crates/h/gen.rs is the build script that crates/h/Cargo.toml names, $lint_tail"
+  t lint-lets-a-row-on-a-file-that-no-build-script-names-run PASS with_cargo_home lint-input form_said lint-input yes 'PASS mutation:plain (applies and type-checks)'
+  form_fixture lint-native crates/x 0
+  mkdir -p "$gate_scratch/lint-native/crates/x/csrc"
+  printf 'int shim(void) { return 1; }\n' > "$gate_scratch/lint-native/crates/x/csrc/shim.c"
+  row lint-native/crates/x/mutants.rows held csrc/shim.c 's/return 1/return 2/' leak required X-1
+  row lint-native/crates/x/mutants.rows oldnative csrc/shim.c 's/return 1/return 3/' leak 'retired replaced by the test x' X-1
+  printf 'int other(void) { return 1; }\n' > "$gate_scratch/lint-native/crates/x/csrc/OTHER.CPP"
+  row lint-native/crates/x/mutants.rows upper csrc/OTHER.CPP 's/return 1/return 2/' leak required X-1
+  t lint-lets-a-retired-row-on-native-code-be-retired PASS with_cargo_home lint-native form_said lint-native yes 'RETIRED mutation:oldnative (replaced by the test x)'
+  t lint-refuses-native-code-whose-extension-is-in-upper-case PASS with_cargo_home lint-native form_said lint-native yes 'FAIL mutation:upper (the file crates/x/csrc/OTHER.CPP is native code that only a build script and the link read, and the kept build does not hold it)'
+  form_fixture lint-root crates/x 0
+  mkdir -p "$gate_scratch/lint-root/crates/x/csrc"
+  printf 'int shim(void) { return 1; }\n' > "$gate_scratch/lint-root/crates/x/csrc/shim.c"
+  row lint-root/mutants.rows held crates/x/csrc/shim.c 's/return 1/return 2/' leak required X-1
+  t lint-refuses-native-code-that-a-rows-file-at-the-root-names PASS with_cargo_home lint-root form_said lint-root yes 'FAIL mutation:held (the file crates/x/csrc/shim.c is native code that only a build script and the link read, and the kept build does not hold it)'
+  t lint-refuses-a-row-on-native-code-outside-the-kept-build PASS with_cargo_home lint-native form_said lint-native yes 'FAIL mutation:held (the file crates/x/csrc/shim.c is native code that only a build script and the link read, and the kept build does not hold it)'
+  form_fixture lint-extern crates/x 0
+  printf '#[link(name = "shim")]\nextern "C" {\n    fn shim_a() -> i32;\n}\n\n#[no_mangle]\npub extern "C" fn halvo_hook() -> i32 { 3 }\n\npub fn f() -> i32 { 1 }\n' > "$gate_scratch/lint-extern/crates/x/src/lib.rs"
+  row lint-extern/crates/x/mutants.rows held src/lib.rs 's/shim_a/shim_b/' leak required X-1
+  row lint-extern/crates/x/mutants.rows hook src/lib.rs 's/no_mangle/must_use/' leak required X-1
+  row lint-extern/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  row lint-extern/crates/x/mutants.rows gone src/lib.rs 's/    fn shim_a\(\) -> i32;\n//' leak required X-1
+  t lint-refuses-a-row-that-changes-a-line-of-an-extern-block PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:held (line 3 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
+  t lint-refuses-a-row-that-changes-a-link-attribute PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:hook (line 6 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
+  t lint-refuses-a-row-that-deletes-a-line-of-an-extern-block PASS with_cargo_home lint-extern form_said lint-extern yes 'FAIL mutation:gone (line 3 of crates/x/src/lib.rs is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
+  t lint-lets-a-row-outside-the-extern-block-of-its-file-run PASS with_cargo_home lint-extern form_said lint-extern yes 'PASS mutation:plain (applies and type-checks)'
+  form_fixture lint-extern-forms crates/x 0
+  printf 'extern "C"\n{\n    fn shim_a() -> i32;\n}\n\n#[link(\n    name = "shim",\n    kind = "static"\n)]\nextern "C" {\n    fn shim_c() -> i32;\n}\n\n#[cfg_attr(unix, no_mangle)]\npub extern "C" fn hook_a() -> i32 { 3 }\n\npub fn f() -> i32 { 1 }\n' > "$gate_scratch/lint-extern-forms/crates/x/src/lib.rs"
+  row lint-extern-forms/crates/x/mutants.rows nextline src/lib.rs 's/shim_a/shim_b/' leak required X-1
+  row lint-extern-forms/crates/x/mutants.rows multiline src/lib.rs 's/"static"/"dylib"/' leak required X-1
+  row lint-extern-forms/crates/x/mutants.rows cfgattr src/lib.rs 's/no_mangle/must_use/' leak required X-1
+  row lint-extern-forms/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  lint_extern_tail='is in an extern block or a link attribute, which only the link decides, and the kept build does not hold it)'
+  t lint-refuses-a-row-in-an-extern-block-whose-brace-is-on-the-next-line PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes "FAIL mutation:nextline (line 3 of crates/x/src/lib.rs $lint_extern_tail"
+  t lint-refuses-a-row-in-a-link-attribute-over-several-lines PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes "FAIL mutation:multiline (line 8 of crates/x/src/lib.rs $lint_extern_tail"
+  t lint-refuses-a-row-in-a-cfg-attr-that-names-no-mangle PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes "FAIL mutation:cfgattr (line 14 of crates/x/src/lib.rs $lint_extern_tail"
+  t lint-lets-a-row-below-the-extern-forms-run PASS with_cargo_home lint-extern-forms form_said lint-extern-forms yes 'PASS mutation:plain (applies and type-checks)'
+  form_fixture lint-extern-kept crates/halvo-sqlcipher 0
+  printf 'extern "C" {\n    fn shim_a() -> i32;\n}\n' > "$gate_scratch/lint-extern-kept/crates/halvo-sqlcipher/src/lib.rs"
+  row lint-extern-kept/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/shim_a/shim_b/' leak required X-1
+  t lint-lets-an-extern-row-in-the-kept-build-run PASS with_cargo_home lint-extern-kept form_said lint-extern-kept yes 'PASS mutation:held (applies and builds)'
+  lint_long_s=$(printf '\305\277')
+  form_fixture lint-folded crates/halvo-sqlcipher 0
+  row lint-folded/crates/mutants.rows held "halvo-${lint_long_s}qlcipher/src/lib.rs" 's/1 }/2 }/' leak required X-1
+  row lint-folded/crates/mutants.rows upper HALVO-SQLCIPHER/src/lib.rs 's/1 }/3 }/' leak required X-1
+  t lint-refuses-a-path-that-the-file-system-folds-beyond-ascii-case PASS with_cargo_home lint-folded form_said lint-folded yes "FAIL mutation:held (the path crates/halvo-${lint_long_s}qlcipher/src/lib.rs reaches a tracked file only by a spelling that the file system folds beyond ASCII case)"
+  t lint-lets-a-path-in-another-ascii-case-run PASS with_cargo_home lint-folded form_said lint-folded yes 'PASS mutation:upper (applies and builds)'
+  form_fixture lint-upper-tracked crates/Halvo-SQLCipher 0
+  row lint-upper-tracked/crates/mutants.rows held halvo-sqlcipher/src/lib.rs 's/1 }/2 }/' leak required X-1
+  t lint-lets-a-row-in-lower-case-on-a-path-tracked-in-upper-case-run PASS with_cargo_home lint-upper-tracked form_said lint-upper-tracked yes 'PASS mutation:held (applies and builds)'
+  form_fixture lint-no-script crates/x 0
+  mkdir -p "$gate_scratch/lint-no-script/crates/y"
+  printf '[package]\nname = "y"\n' > "$gate_scratch/lint-no-script/crates/y/Cargo.toml"
+  row lint-no-script/crates/x/mutants.rows plain src/lib.rs 's/1 }/2 }/' leak required X-1
+  t lint-lets-a-row-run-beside-a-manifest-with-no-build-script PASS with_cargo_home lint-no-script form_said lint-no-script yes 'PASS mutation:plain (applies and type-checks)'
+  form_fixture lint-folded-script crates/x 0
+  row lint-folded-script/crates/x/mutants.rows held "build.r${lint_long_s}" 's/1;/2;/' leak required X-1
+  t lint-refuses-a-build-script-name-that-the-file-system-folds PASS with_cargo_home lint-folded-script form_said lint-folded-script yes "FAIL mutation:held (the path crates/x/build.r${lint_long_s} reaches a tracked file only by a spelling that the file system folds beyond ASCII case)"
+  t lint-refuses-a-row-that-only-leaves-out PASS with_cargo_home lint-script with_only plain form_said lint-script yes "FAIL mutation:held (the file crates/x/gen.rs is the build script that crates/x/Cargo.toml names, $lint_tail"
+}
+
+built_cases() {
+  t a-built-row-prints-its-built-line PASS fixture_says builds 'built mutation:applies' yes
+  t a-row-whose-substitution-did-not-apply-prints-no-built-line FAIL fixture_says unapplied 'built mutation:stale' yes
+  t a-row-whose-test-fails-unmutated-prints-no-built-line FAIL fixture_says wrong 'built mutation:by-test'
+  t a-mutant-that-does-not-build-prints-no-built-line FAIL fixture_says broken 'built mutation:broken' yes
+  t a-control-that-does-not-build-prints-no-built-line FAIL fixture_says control 'built mutation:control-row' yes
+  t a-type-checked-cargo-row-prints-no-built-line FAIL with_cargo_home form-lib fixture_says form-lib 'built mutation:held' yes
+  t a-kept-build-row-prints-its-built-line PASS with_cargo_home form-sqlcipher fixture_says form-sqlcipher 'built mutation:held' yes
+  t a-full-run-prints-the-built-line-of-a-cargo-row PASS with_cargo_home form-lib fixture_says form-lib 'built mutation:held' no
 }
 
 form_fixture() {
@@ -1444,11 +1946,11 @@ form_cases() {
   t apply-only-cargo-row-line-says-type-checks PASS with_cargo_home form-lib form_said form-lib yes 'PASS mutation:held (applies and type-checks)'
   form_fixture form-sqlcipher crates/halvo-sqlcipher 0
   row form-sqlcipher/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
-  t apply-only-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher yes "$form_check$form_nl$form_build"
+  t apply-only-builds-a-row-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher form_args_are form-sqlcipher yes "$form_check$form_nl$form_build$form_nl$form_build"
   t apply-only-sqlcipher-row-line-says-builds PASS with_cargo_home form-sqlcipher form_said form-sqlcipher yes 'PASS mutation:held (applies and builds)'
   form_fixture form-build-script crates/x 0
   row form-build-script/crates/x/mutants.rows held build.rs 's/1;/2;/' leak required X-1
-  t apply-only-builds-a-row-on-a-build-script PASS with_cargo_home form-build-script form_args_are form-build-script yes "$form_check$form_nl$form_build"
+  t apply-only-builds-a-row-on-a-build-script PASS with_cargo_home form-build-script form_args_are form-build-script yes "$form_check$form_nl$form_build$form_nl$form_build"
   form_fixture form-refused crates/x refuse
   row form-refused/crates/x/mutants.rows held src/lib.rs 's/1 }/1 } refuse-me/' leak required X-1
   t apply-only-mutant-that-does-not-type-check-is-named PASS with_cargo_home form-refused form_said form-refused yes 'FAIL mutation:held (the mutant does not type-check)'
@@ -1478,7 +1980,7 @@ form_cases() {
     form_fixture "form-spelling-$form_spelling" crates/halvo-sqlcipher 0
     case $form_spelling in dot) form_path=crates/./halvo-sqlcipher/src/lib.rs ;; *) form_path=crates//halvo-sqlcipher/src/lib.rs ;; esac
     row "form-spelling-$form_spelling/scripts/r1-gate/mutants.rows" ctl "$form_path" 's/1 }/2 }/' leak control X-1
-    t "apply-only-builds-a-halvo-sqlcipher-path-spelled-$form_spelling" PASS with_cargo_home "form-spelling-$form_spelling" form_args_are "form-spelling-$form_spelling" yes "$form_check$form_nl$form_build"
+    t "apply-only-builds-a-halvo-sqlcipher-path-spelled-$form_spelling" PASS with_cargo_home "form-spelling-$form_spelling" form_args_are "form-spelling-$form_spelling" yes "$form_check$form_nl$form_build$form_nl$form_build"
   done
   form_fixture form-sqlcipher-not-rust crates/halvo-sqlcipher 0
   mkdir -p "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/csrc"
@@ -1486,14 +1988,21 @@ form_cases() {
   printf '[package]\nname = "x"\n' > "$gate_scratch/form-sqlcipher-not-rust/crates/halvo-sqlcipher/Cargo.toml"
   row form-sqlcipher-not-rust/crates/halvo-sqlcipher/mutants.rows c-file csrc/x.c 's/1;/2;/' leak required X-1
   row form-sqlcipher-not-rust/crates/halvo-sqlcipher/mutants.rows manifest Cargo.toml 's/"x"/"y"/' leak required X-1
-  t apply-only-builds-a-c-file-and-the-manifest-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher-not-rust form_args_are form-sqlcipher-not-rust yes "$form_check$form_nl$form_build$form_nl$form_build"
+  t apply-only-builds-a-c-file-and-the-manifest-under-halvo-sqlcipher PASS with_cargo_home form-sqlcipher-not-rust form_args_are form-sqlcipher-not-rust yes "$form_check$form_nl$form_build$form_nl$form_build$form_nl$form_build"
   form_fixture form-sqlcipher-upper-case crates/Halvo-SQLCipher 0
   row form-sqlcipher-upper-case/crates/Halvo-SQLCipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
-  t apply-only-builds-a-halvo-sqlcipher-path-in-upper-case PASS with_cargo_home form-sqlcipher-upper-case form_args_are form-sqlcipher-upper-case yes "$form_check$form_nl$form_build"
+  t apply-only-builds-a-halvo-sqlcipher-path-in-upper-case PASS with_cargo_home form-sqlcipher-upper-case form_args_are form-sqlcipher-upper-case yes "$form_check$form_nl$form_build$form_nl$form_build"
   form_fixture form-build-script-upper-case crates/x 0
   printf 'fn main() { let _ = 1; }\n' > "$gate_scratch/form-build-script-upper-case/crates/x/BUILD.RS"
   row form-build-script-upper-case/crates/x/mutants.rows held BUILD.RS 's/1;/2;/' leak required X-1
-  t apply-only-builds-a-build-script-in-upper-case PASS with_cargo_home form-build-script-upper-case form_args_are form-build-script-upper-case yes "$form_check$form_nl$form_build"
+  form_fixture form-copy-link crates/halvo-sqlcipher link-refuse
+  row form-copy-link/crates/halvo-sqlcipher/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-copy-that-fails-at-the-link-is-named-as-the-copy PASS with_cargo_home form-copy-link form_said form-copy-link yes 'FAIL unmutated:build (error: linking with cc failed: exit status: 1)'
+  t apply-only-copy-that-fails-at-the-link-is-no-row-s-failure FAIL with_cargo_home form-copy-link form_said form-copy-link yes 'FAIL mutation:held (the mutant does not build)'
+  form_fixture form-copy-link-checked crates/x link-refuse
+  row form-copy-link-checked/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' leak required X-1
+  t apply-only-type-checked-row-does-not-build-the-copy PASS with_cargo_home form-copy-link-checked form_said form-copy-link-checked yes 'PASS mutation:held (applies and type-checks)'
+  t apply-only-builds-a-build-script-in-upper-case PASS with_cargo_home form-build-script-upper-case form_args_are form-build-script-upper-case yes "$form_check$form_nl$form_build$form_nl$form_build"
 }
 
 verifier_cases() {
@@ -2204,12 +2713,13 @@ main() {
     esac
     shift
   done
-  stop_check
   if [ "$mode" = self-test ] && [ "$main_help" = no ] && [ -z "$main_bad" ]; then
     gate_traps
+    stop_quiet
     selftest_run
     return
   fi
+  stop_check
   trap runner_exit EXIT
   if [ "$main_help" = yes ]; then usage; return 0; fi
   case $main_bad in
