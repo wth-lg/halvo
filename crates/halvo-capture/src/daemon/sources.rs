@@ -218,7 +218,10 @@ impl RunningSources {
         if is_a_stop(&answer) {
             entry.source = None;
             entry.unstopped = false;
-            if !matches!(entry.state, SourceState::Failed { .. }) {
+            if !matches!(
+                entry.state,
+                SourceState::Failed { .. } | SourceState::Stopped(StopCause::User)
+            ) {
                 entry.state = SourceState::Stopped(StopCause::Request);
             }
         } else if let Err(error) = &answer {

@@ -6,6 +6,7 @@
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 /// The path of `program` in `dir`, with the system's executable suffix.
@@ -34,6 +35,7 @@ pub enum Ended {
 #[derive(Debug)]
 pub struct Child {
     process: std::process::Child,
+    out: Receiver<String>,
     deadline: Instant,
 }
 
@@ -48,9 +50,20 @@ pub fn start(dir: &Path, program: &str, args: &[&str], deadline: Duration) -> io
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     keep_only_the_standard_streams(&mut command);
-    let process = command.spawn()?;
+    let mut process = command.spawn()?;
+    let (send, out) = mpsc::channel();
+    if let Some(mut pipe) = process.stdout.take() {
+        std::thread::Builder::new()
+            .name("halvo-child-output".to_owned())
+            .spawn(move || {
+                let mut text = String::new();
+                let _ = pipe.read_to_string(&mut text);
+                let _ = send.send(text);
+            })?;
+    }
     Ok(Child {
         process,
+        out,
         deadline: Instant::now() + deadline,
     })
 }
@@ -82,21 +95,22 @@ fn keep_only_the_standard_streams(command: &mut Command) {
 }
 
 impl Child {
-    /// What the child ended with, once it has: `None` while it runs and its
-    /// deadline has not passed. At the deadline the child is killed.
+    /// What the child ended with, once it has exited and its standard output
+    /// has closed: `None` before that while the deadline has not passed. At
+    /// the deadline the child is killed and the answer is
+    /// [`Ended::Deadline`]; no call waits.
     pub fn poll(&mut self) -> Option<Ended> {
+        let before_the_deadline = Instant::now() < self.deadline;
         match self.process.try_wait() {
-            Ok(Some(status)) => {
-                let mut out = String::new();
-                if let Some(mut pipe) = self.process.stdout.take() {
-                    let _ = pipe.read_to_string(&mut out);
-                }
-                Some(Ended::Exited {
+            Ok(Some(status)) => match self.out.try_recv() {
+                Ok(out) => Some(Ended::Exited {
                     status: status.code(),
                     out,
-                })
-            }
-            Ok(None) if Instant::now() < self.deadline => None,
+                }),
+                Err(mpsc::TryRecvError::Empty) if before_the_deadline => None,
+                Err(_) => Some(Ended::Deadline),
+            },
+            Ok(None) if before_the_deadline => None,
             Ok(None) | Err(_) => {
                 let _ = self.process.kill();
                 let _ = self.process.wait();
@@ -248,5 +262,44 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(wait_for(&mut child), Ended::Deadline);
         assert!(started.elapsed() < Duration::from_secs(10));
+    }
+
+    #[cfg(unix)]
+    mod review_cases {
+        use super::*;
+
+        // R2-Q9/R2-Q17 fix: children.rs "applies a deadline"; Child::poll doc: "`None` while
+        // it runs and its deadline has not passed. At the deadline the child is killed."
+        // RR-daemon-04: the tick keeps firing while a probe runs. A child that exits and
+        // leaves a grandchild holding its standard output must not make poll block past the
+        // deadline (the supervisor's tick calls poll).
+        #[cfg(unix)]
+        #[test]
+        fn a_poll_returns_by_the_deadline_when_a_grandchild_holds_the_output_pipe() {
+            let root = test_dir();
+            stand_in(root.path(), "gc-stand-in", "sleep 8 &\necho started");
+            let started = Instant::now();
+            let mut child =
+                start(root.path(), "gc-stand-in", &[], Duration::from_millis(500)).unwrap();
+            let mut longest = Duration::ZERO;
+            let ended = loop {
+                let before = Instant::now();
+                let polled = child.poll();
+                longest = longest.max(before.elapsed());
+                if let Some(ended) = polled {
+                    break ended;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            };
+            assert!(
+                longest < Duration::from_secs(2),
+                "one poll blocked for {longest:?} (deadline 500 ms); ended {ended:?}"
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "the child with a 500 ms deadline took {:?} to end",
+                started.elapsed()
+            );
+        }
     }
 }

@@ -1347,6 +1347,24 @@ mod tests {
         }
     }
 
+    #[test]
+    fn the_kind_of_a_timed_run_holds_whether_its_flags_set_key_class_on() {
+        let run = |flags: Vec<(Switch, bool)>| TimedRun {
+            window: Duration::from_secs(1),
+            secure_input: SecureInput::DoNotHold,
+            switches: SwitchFlags(flags),
+            store_dir: PathBuf::from("/"),
+        };
+        let flagged = |on| sources::RunKind::Timed { key_class_flag: on };
+        assert_eq!(run(Vec::new()).kind(), flagged(false));
+        assert_eq!(run(vec![(Switch::KeyClass, true)]).kind(), flagged(true));
+        assert_eq!(run(vec![(Switch::KeyClass, false)]).kind(), flagged(false));
+        assert_eq!(
+            run(vec![(Switch::ScreenActivity, true)]).kind(),
+            flagged(false)
+        );
+    }
+
     #[cfg(debug_assertions)]
     #[test]
     fn the_self_check_takes_run_loop_and_nothing_else() {

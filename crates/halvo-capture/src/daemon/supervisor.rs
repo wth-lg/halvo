@@ -20,7 +20,7 @@ use super::owner::{
 };
 use super::permissions::{ProbeRunner, Probed};
 use super::report::FailedSource;
-use super::sources::{is_a_stop, RunningSources, SourceFactory};
+use super::sources::{is_a_stop, stop_order, RunningSources, SourceFactory};
 use super::{DaemonError, RunSources};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -249,7 +249,9 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     started_failed: Vec<SourceName>,
     stopped_for_drain: bool,
     probe: Option<Box<dyn ProbeRunner>>,
-    probe_due: Duration,
+    probe_last: Option<Duration>,
+    probe_retry_at: Option<Duration>,
+    probe_missing: bool,
     probe_asked: bool,
     client_polls: bool,
     ending: Option<Ending>,
@@ -272,7 +274,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             started_failed: Vec::new(),
             stopped_for_drain: false,
             probe: None,
-            probe_due: Duration::ZERO,
+            probe_last: None,
+            probe_retry_at: None,
+            probe_missing: false,
             probe_asked: false,
             client_polls: false,
             ending: None,
@@ -337,7 +341,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 self.schedule_restart(name, now);
             }
         }
-        self.probe_due = now;
+        self.probe_last = None;
         self.publish();
         failed
     }
@@ -395,13 +399,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let Some(ctx) = self.ctx.clone() else {
             return;
         };
-        let wanted = self.wanted.clone();
-        for (name, answer) in self.sources.start(&mut self.factory, &ctx, &wanted) {
-            if let Err(error) = answer {
+        let wanted: Vec<SourceName> = self
+            .wanted
+            .iter()
+            .copied()
+            .filter(|name| !self.missing_permission(*name) && !self.stopped_by_user(*name))
+            .collect();
+        for name in wanted {
+            if let Some(Err(error)) = self.sources.start_one(&mut self.factory, &ctx, name) {
                 self.board.record_failure(name, error);
                 self.schedule_restart(name, now);
             }
         }
+    }
+
+    fn stopped_by_user(&self, name: SourceName) -> bool {
+        self.sources
+            .state(name)
+            .is_some_and(|(state, _)| *state == SourceState::Stopped(StopCause::User))
     }
 
     fn read_health(&mut self, now: Duration) {
@@ -518,77 +533,112 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if required.is_empty() {
             return None;
         }
-        if !self.probe_asked && now >= self.probe_due {
+        let interval = if self.probe_missing && self.client_polls {
+            PROBE_INTERVAL_MISSING
+        } else {
+            PROBE_INTERVAL
+        };
+        let due = self.probe_retry_at.is_some_and(|at| now >= at)
+            || self.probe_last.is_none_or(|at| now >= at + interval);
+        if !self.probe_asked && due {
             probe.start(&required);
             self.probe_asked = true;
+        }
+        if !self.probe_asked {
+            return None;
         }
         let answers = match probe.poll() {
             Probed::Running => return None,
             Probed::Failed => {
                 self.probe_asked = false;
-                self.probe_due = now + PROBE_INTERVAL_MISSING;
+                self.probe_retry_at = Some(now + PROBE_INTERVAL_MISSING);
                 return None;
             }
             Probed::Answered(answers) => answers,
         };
         self.probe_asked = false;
-        let missing = answers
+        self.probe_retry_at = None;
+        self.probe_last = Some(now);
+        self.probe_missing = answers
             .iter()
             .any(|(_, grant)| *grant != GrantState::Granted);
-        self.probe_due = now
-            + if missing && self.client_polls {
-                PROBE_INTERVAL_MISSING
-            } else {
-                PROBE_INTERVAL
-            };
         let granted: Vec<Permission> = answers
             .iter()
             .filter(|(_, grant)| *grant == GrantState::Granted)
             .map(|(permission, _)| *permission)
             .collect();
-        self.board.permissions = answers.clone();
-        let Some(at_start) = self.board.granted_at_start.clone() else {
-            self.board.granted_at_start = Some(granted);
-            self.stop_without_permission(now);
-            return None;
-        };
-        if granted
-            .iter()
-            .any(|permission| !at_start.contains(permission))
-        {
-            return Some(Ending::Restart);
+        self.board.permissions = answers;
+        match self.board.granted_at_start.clone() {
+            None => self.board.granted_at_start = Some(granted),
+            Some(at_start) => {
+                if granted
+                    .iter()
+                    .any(|permission| !at_start.contains(permission))
+                {
+                    return Some(Ending::Restart);
+                }
+            }
         }
-        self.stop_without_permission(now);
+        self.stop_without_permission();
+        self.restart_granted_again(now);
         None
     }
 
-    fn stop_without_permission(&mut self, now: Duration) {
-        let _ = now;
+    fn stop_without_permission(&mut self) {
+        let names: Vec<SourceName> = stop_order(self.platform)
+            .iter()
+            .copied()
+            .filter(|name| self.wanted.contains(name) && self.missing_permission(*name))
+            .collect();
+        for name in names {
+            self.backoff.retain(|backoff| backoff.name != name);
+            let error = CaptureError::Os {
+                stage: "permission_probe",
+                domain: "tcc",
+                code: 0,
+            };
+            if self.sources.holds(name) {
+                let answer = self.sources.stop_one(name);
+                if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
+                    continue;
+                }
+            }
+            self.sources.set_state(
+                name,
+                SourceState::Failed {
+                    reason: HealthReason::Permission,
+                    error: error.clone(),
+                },
+            );
+            self.board.record_failure(name, error);
+        }
+    }
+
+    fn restart_granted_again(&mut self, now: Duration) {
+        if self.stopped_for_drain {
+            return;
+        }
         let wanted = self.wanted.clone();
         for name in wanted {
-            if !self.missing_permission(name) {
-                continue;
-            }
-            self.backoff.retain(|backoff| backoff.name != name);
-            if !self.sources.holds(name) {
-                continue;
-            }
-            let answer = self.sources.stop_one(name);
-            let unstopped = answer.as_ref().is_some_and(|answer| !is_a_stop(answer));
-            if !unstopped {
-                let error = CaptureError::Os {
-                    stage: "permission_probe",
-                    domain: "tcc",
-                    code: 0,
-                };
-                self.sources.set_state(
-                    name,
+            let lost_its_grant = self.sources.state(name).is_some_and(|(state, _)| {
+                matches!(
+                    state,
                     SourceState::Failed {
                         reason: HealthReason::Permission,
-                        error: error.clone(),
-                    },
-                );
-                self.board.record_failure(name, error);
+                        ..
+                    }
+                )
+            });
+            if lost_its_grant
+                && !self.missing_permission(name)
+                && !self.sources.holds(name)
+                && !self.backoff.iter().any(|backoff| backoff.name == name)
+            {
+                self.backoff.push(Backoff {
+                    name,
+                    due: now,
+                    delay: RESTART_FIRST,
+                });
             }
         }
     }
@@ -665,7 +715,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
             _ => None,
         };
-        let failing = owner.reports().read();
+        let failing = owner.reports().read() || settled.is_some_and(|after| after.drain_hold);
         let lost_more = match (before, settled) {
             (Some(before), Some(after)) => after.events_lost > before.events_lost,
             _ => false,
@@ -675,6 +725,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         } else {
             status
         };
+        let last = settled.unwrap_or_else(|| owner.snapshot());
+        if status == exit::ERROR || last.events_lost + last.events_pending > 0 {
+            let reports: Vec<Report> = owner.reports().try_iter().collect();
+            let line = super::loss_line(&last, last.events_lost + last.events_pending, &reports);
+            let _ = writeln!(self.err, "{line}");
+        }
         Some(EntryOutcome {
             status,
             stops,
@@ -747,6 +803,7 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
     }
 
     fn stop(&mut self) -> Vec<FailedSource> {
+        self.entered = true;
         let answers = self.stop_every_source();
         self.ctx = None;
         let started_failed: Vec<&str> = self
@@ -766,10 +823,10 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
                 let _ = writeln!(self.err, "{}", hold_stays_line(std::process::id()));
             }
             if let Some(entry) = super::stop_failure(name, answer) {
-                if !failed.iter().any(|failed| failed.name == entry.name)
-                    && !started_failed.contains(&entry.name)
-                {
-                    failed.push(entry);
+                match failed.iter_mut().find(|failed| failed.name == entry.name) {
+                    Some(failed) => *failed = entry,
+                    None if !started_failed.contains(&entry.name) => failed.push(entry),
+                    None => {}
                 }
             }
         }
@@ -1871,5 +1928,701 @@ mod tests {
             starting(Platform::Macos, RunKind::Service, Switches::default()),
             Instant::now(),
         );
+    }
+
+    #[test]
+    fn the_probe_runs_every_3_s_while_a_permission_is_missing_and_a_client_polls() {
+        let (mut f, answers, asked) = probed(fixture(Factory::new()));
+        let not_granted = || input_monitoring(GrantState::NotGranted);
+        answers.borrow_mut().push_back(not_granted());
+        f.start(&two());
+        f.tick();
+        assert_eq!(asked.borrow().len(), 1);
+        f.later(PROBE_INTERVAL_MISSING);
+        assert_eq!(
+            asked.borrow().len(),
+            1,
+            "a probe within 60 s with no client"
+        );
+        f.supervisor.set_client_polls(true);
+        answers.borrow_mut().push_back(not_granted());
+        f.tick();
+        assert_eq!(asked.borrow().len(), 2, "no probe once a client polls");
+        answers.borrow_mut().push_back(not_granted());
+        f.later(PROBE_INTERVAL_MISSING);
+        assert_eq!(
+            asked.borrow().len(),
+            3,
+            "no probe 3 s after a missing answer"
+        );
+        f.supervisor.set_client_polls(false);
+        answers.borrow_mut().push_back(not_granted());
+        f.later(PROBE_INTERVAL_MISSING);
+        assert_eq!(asked.borrow().len(), 3, "a probe 3 s after with no client");
+        f.later(PROBE_INTERVAL - PROBE_INTERVAL_MISSING);
+        assert_eq!(
+            asked.borrow().len(),
+            4,
+            "no probe 60 s after with no client"
+        );
+    }
+
+    #[test]
+    fn the_entry_exits_1_when_events_were_lost_between_its_two_settles() {
+        let store = ModelStore::new();
+        let watched = store.clone();
+        let mut f = fixture_on_owner(
+            Factory::adjusting(move |source| {
+                if source.name == SourceName::Input {
+                    let watched = watched.clone();
+                    let hook: Hook = Box::new(move |ctx| {
+                        watched.fail_every_write(Some(WriteFault::Refused));
+                        let _ = ctx.sink().emit_event(key());
+                    });
+                    source.on_stop = Some(hook);
+                }
+            }),
+            store.clone(),
+        );
+        f.start(&two());
+        let link = f.link.take().unwrap();
+        let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+        assert_eq!(outcome.settled.map(|s| s.events_lost), Some(1));
+        assert_eq!(outcome.status, exit::ERROR);
+    }
+
+    #[test]
+    fn owner_death_ends_the_wait_before_the_window() {
+        let mut factory = Factory::adjusting(|source| {
+            if source.name == SourceName::Foreground {
+                source.script = (0..=BATCH_MAX_EVENTS).map(|_| foreground_now()).collect();
+            }
+        });
+        factory.calls = Factory::new().calls;
+        let mut supervisor = Supervisor::new(Platform::Macos, factory, real_loop());
+        let quiet = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let started = Instant::now();
+        let outcome = run_timed(
+            &run_of(3_600),
+            &mut supervisor,
+            PanickingStore(ModelStore::new()),
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            Duration::from_millis(500),
+        );
+        std::panic::set_hook(quiet);
+        assert_eq!(outcome.unwrap().status, exit::ERROR);
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "the run waited {:?} after its owner died",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn a_grant_after_the_start_gives_the_timed_run_status_4() {
+        let answers: Answers = Rc::default();
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop())
+            .with_probe(Box::new(FakeProbe {
+                answers: answers.clone(),
+                asked: Rc::default(),
+            }));
+        let outcome = run_timed(
+            &run_of(600),
+            &mut supervisor,
+            ModelStore::new(),
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        assert_eq!(outcome.status, exit::RESTART);
+    }
+
+    #[test]
+    fn an_input_source_with_a_hold_that_did_not_stop_prints_the_secure_input_line() {
+        struct Holding(Factory);
+        impl SourceFactory for Holding {
+            fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
+                self.0.make(name)
+            }
+        }
+        impl SystemSources for Holding {
+            fn holds_secure_input(&self) -> bool {
+                true
+            }
+        }
+        let mut f = fixture(Holding(Factory::adjusting(|source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(CaptureError::Timeout {
+                    stage: "input_tap_join",
+                    ms: 1_000,
+                });
+            }
+        })));
+        f.start(&two());
+        let failed = RunSources::stop(&mut f.supervisor);
+        assert_eq!(failed.len(), 1);
+        assert_eq!(
+            f.out.text(),
+            format!("{}\n", hold_stays_line(std::process::id()))
+        );
+    }
+
+    mod review_cases {
+        use super::*;
+        // Unit text :56 (X-daemon-07, D-09): "It skips a source whose permission reads not granted";
+        // :137 "no restart without the permission (RR-daemon-04)"; :42 "on DrainHealthy it runs the start
+        // sequence if the run still wants its sources". The run wants input, but its grant reads
+        // NotGranted: the start on DrainHealthy must not begin a second input source.
+        #[test]
+        fn the_start_on_drain_healthy_skips_an_input_source_whose_grant_reads_not_granted() {
+            let store = ModelStore::new();
+            let (mut f, answers, _) = probed(fixture_on_owner(Factory::new(), store.clone()));
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            f.start(&two());
+            f.tick();
+            assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.later(PROBE_INTERVAL);
+            assert!(
+                matches!(
+                    f.state(SourceName::Input),
+                    SourceState::Failed {
+                        reason: HealthReason::Permission,
+                        ..
+                    }
+                ),
+                "{:?}",
+                f.state(SourceName::Input)
+            );
+            assert_eq!(f.supervisor.factory().calls.of("begin input").len(), 1);
+            drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+            f.tick();
+            assert_eq!(f.supervisor.board().capture, Capture::Stopped);
+            store.fail_every_write(None);
+            f.supervisor.main_loop().turn(RETRY_FIRST);
+            f.link.as_ref().unwrap().settle();
+            f.tick();
+            assert_eq!(
+                f.supervisor.factory().calls.of("begin foreground").len(),
+                2,
+                "the drain did not recover in this test"
+            );
+            assert_eq!(
+                f.supervisor.factory().calls.of("begin input").len(),
+                1,
+                "DrainHealthy began an input source whose Input Monitoring grant reads not granted"
+            );
+        }
+
+        // Same rule, before the drain stop: a restart of input that was scheduled before the grant
+        // went away must not fire after the drain recovers either (restarts scheduled before a drain
+        // stop do not fire while stopped, and the permission still reads not granted after it).
+        #[test]
+        fn an_input_restart_scheduled_before_the_grant_went_away_does_not_fire_after_drain_recovery(
+        ) {
+            let store = ModelStore::new();
+            let (mut f, answers, _) = probed(fixture_on_owner(Factory::new(), store.clone()));
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            f.start(&two());
+            f.tick();
+            f.supervisor
+                .factory()
+                .health_of(SourceName::Input)
+                .set(SourceState::Failed {
+                    reason: HealthReason::ItemClosed,
+                    error: CaptureError::Os {
+                        stage: "capture_item",
+                        domain: "test",
+                        code: 1,
+                    },
+                });
+            f.tick();
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.later(PROBE_INTERVAL);
+            // The restart due at 1 s fires in this same tick before the probe answer is read, and the
+            // answer then stops it: count the begins from here on.
+            let begun = f.supervisor.factory().calls.of("begin input").len();
+            assert!(!f.supervisor.factory().calls.of("stop input").is_empty());
+            drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+            f.tick();
+            store.fail_every_write(None);
+            f.supervisor.main_loop().turn(RETRY_FIRST);
+            f.link.as_ref().unwrap().settle();
+            f.tick();
+            f.later(RESTART_MAX);
+            assert_eq!(
+                f.supervisor.factory().calls.of("begin input").len(),
+                begun,
+                "an input source began again while its grant reads not granted"
+            );
+        }
+
+        // Unit text :56 (X-daemon-07, D-09): the supervisor "does not restart a screen stream the user
+        // stopped (code -3817, stopped reason=user) before the next explicit Resume". A drain that fails
+        // and heals is no explicit Resume: the start on DrainHealthy (:42) must leave that stream off.
+        #[test]
+        fn the_start_on_drain_healthy_does_not_begin_a_screen_stream_the_user_stopped() {
+            let store = ModelStore::new();
+            let mut f = fixture_on_owner(Factory::new(), store.clone());
+            let wanted = [SourceName::Foreground, SourceName::Screen];
+            f.start(&wanted);
+            f.tick();
+            f.supervisor
+                .factory()
+                .health_of(SourceName::Screen)
+                .set(SourceState::Stopped(StopCause::User));
+            f.tick();
+            f.later(RESTART_MAX);
+            assert_eq!(f.supervisor.factory().calls.of("begin screen").len(), 1);
+            drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+            f.tick();
+            assert_eq!(f.supervisor.board().capture, Capture::Stopped);
+            store.fail_every_write(None);
+            f.supervisor.main_loop().turn(RETRY_FIRST);
+            f.link.as_ref().unwrap().settle();
+            f.tick();
+            assert_eq!(
+                f.supervisor.factory().calls.of("begin foreground").len(),
+                2,
+                "the drain did not recover in this test"
+            );
+            f.later(RESTART_MAX);
+            assert_eq!(
+                f.supervisor.factory().calls.of("begin screen").len(),
+                1,
+                "DrainHealthy began again a screen stream that the user stopped"
+            );
+        }
+
+        // Unit text :116, PL-3 part (3): "at the run's deadline or a signal a source whose answer is not a
+        // stop is let go, the report carries `failed_source=<S>: <the stop error>` from the answer". Here
+        // input failed after its start (health failed, restart not yet due) and then its stop at the run's
+        // end answers Timeout: the report must carry the stop error of that answer.
+        #[test]
+        fn the_report_carries_the_stop_error_of_a_source_that_had_failed_before_the_end() {
+            let timeout = CaptureError::Timeout {
+                stage: "input_tap_join",
+                ms: 1_000,
+            };
+            let answer = timeout.clone();
+            let mut f = fixture(Factory::adjusting(move |source| {
+                if source.name == SourceName::Input {
+                    source.stop = Err(answer.clone());
+                }
+            }));
+            assert!(f.start(&two()).is_empty());
+            f.tick();
+            f.supervisor
+                .factory()
+                .health_of(SourceName::Input)
+                .set(SourceState::Failed {
+                    reason: HealthReason::ItemClosed,
+                    error: CaptureError::Os {
+                        stage: "capture_item",
+                        domain: "test",
+                        code: 1,
+                    },
+                });
+            f.tick();
+            let failed = RunSources::stop(&mut f.supervisor);
+            assert_eq!(
+                f.supervisor
+                    .factory()
+                    .calls
+                    .of("stop ")
+                    .first()
+                    .map(String::as_str),
+                Some("stop input")
+            );
+            assert!(
+                failed
+                    .iter()
+                    .any(|line| line.name == "input" && line.error == timeout.to_string()),
+                "no failed_source=input line with the stop error {:?}: {failed:?}",
+                timeout.to_string()
+            );
+        }
+
+        // Unit text :28 (RR-daemon-13) "the input source stops first" and :130 "the input source stops
+        // first" in every stop sequence, with PL-3 part (4) (:116) "the stop of a source whose grant went
+        // away (C14 item 9)" being one of those stops. When one probe answer takes both grants away, the
+        // supervisor stops input before screen (the stop order of contracts.md C12 item 7), not in the
+        // fixed order of the source names (foreground, screen, input).
+        #[test]
+        fn two_grants_lost_in_one_answer_stop_input_before_screen() {
+            let (mut f, answers, _) = probed(fixture(Factory::new()));
+            let both = |grant: GrantState| {
+                Probed::Answered(vec![
+                    (Permission::ScreenAndSystemAudioRecording, grant),
+                    (Permission::InputMonitoring, grant),
+                ])
+            };
+            answers.borrow_mut().push_back(both(GrantState::Granted));
+            f.start(&[
+                SourceName::Foreground,
+                SourceName::Screen,
+                SourceName::Input,
+            ]);
+            f.tick();
+            assert_eq!(f.state(SourceName::Screen), SourceState::Running);
+            assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            answers.borrow_mut().push_back(both(GrantState::NotGranted));
+            f.later(PROBE_INTERVAL);
+            assert_eq!(
+                f.supervisor.factory().calls.of("stop "),
+                ["stop input", "stop screen"],
+                "the stop for the lost grants did not stop input first"
+            );
+            assert_eq!(f.state(SourceName::Foreground), SourceState::Running);
+        }
+
+        // Unit text, RR-daemon-09 (line 36): the entry exits 1 with "the drain failing at the last settle"
+        // (contracts.md C3.2 as ruling DM-4 items 5 to 7 give them); [Pass 36, DM-19 to DM-22]: "a Refused
+        // or Sealed give-up inside the hold reports DrainHealthy while the hold goes on", so the supervisor
+        // reads the hold from Snapshot.drain_hold and not from the last DrainHealthy. The entry reads only
+        // the report log's `failing`, so a shutdown inside the hold after such a give-up exits 0.
+        #[test]
+        fn the_entry_exits_1_when_the_hold_goes_on_at_the_last_settle_after_a_refused_or_sealed_give_up(
+        ) {
+            for answer in [WriteFault::Refused, WriteFault::Sealed] {
+                let store = ModelStore::new();
+                let mut f = fixture_on_owner(Factory::new(), store.clone());
+                f.start(&two());
+                f.tick();
+                into_the_hold(&f, &store);
+                f.tick();
+                drain_fails(&f, &store, answer);
+                f.tick();
+                assert!(
+                    f.supervisor.board().drain.hold,
+                    "{answer:?}: no hold before the entry"
+                );
+                let link = f.link.take().unwrap();
+                let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+                assert_eq!(
+                    outcome.settled.as_ref().map(|s| s.drain_hold),
+                    Some(true),
+                    "{answer:?}: the last settle left the hold"
+                );
+                assert_eq!(
+                    outcome.status,
+                    exit::ERROR,
+                    "{answer:?}: the entry exited {} with the hold on at the last settle",
+                    outcome.status
+                );
+            }
+        }
+
+        // Same source: the plain hold (three set-asides of a counted fault) at the last settle exits 1.
+        #[test]
+        fn the_entry_exits_1_when_the_entry_starts_inside_the_hold() {
+            let store = ModelStore::new();
+            let mut f = fixture_on_owner(Factory::new(), store.clone());
+            f.start(&two());
+            f.tick();
+            into_the_hold(&f, &store);
+            f.tick();
+            let link = f.link.take().unwrap();
+            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            assert_eq!(outcome.status, exit::ERROR);
+        }
+
+        // Unit text, RR-daemon-09 (line 36): "With the drain still failing it writes one loss line (event
+        // count, first and last capture time, error kind), keeps the record for the next Status and exits
+        // 1"; line 197 (inbox entry 118 (d) P1): "this unit's run driver turns events_pending of the last
+        // snapshot into its loss line and exit 1". shutdown_entry returns status 1 but writes no line to
+        // the daemon's error stream, and no production caller of the entry writes it either.
+        #[test]
+        fn the_entry_writes_one_loss_line_when_the_drain_still_fails_at_the_last_settle() {
+            let store = ModelStore::new();
+            let mut f = fixture_on_owner(Factory::new(), store.clone());
+            f.start(&two());
+            drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+            let link = f.link.take().unwrap();
+            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            assert_eq!(outcome.status, exit::ERROR);
+            let text = f.out.text();
+            let lines: Vec<&str> = text
+                .lines()
+                .filter(|line| line.starts_with("halvo-capture: lost events="))
+                .collect();
+            assert_eq!(lines.len(), 1, "not one loss line: {text:?}");
+            assert!(
+                lines[0].starts_with("halvo-capture: lost events=2 first="),
+                "the loss line does not count the 2 events the drain still holds: {text:?}"
+            );
+            assert!(
+                !lines[0].ends_with("error=-"),
+                "the loss line names no error kind: {text:?}"
+            );
+        }
+
+        // Unit text, RR-daemon-09 (line 36): "fix: one entry. Callers here: the signal flag, the end of a
+        // timed run and the grant restart." and "The entry runs once, however many triggers arrive."
+        // run_timed (mod.rs) never calls shutdown_entry: it runs its own OpenPause, stop, settle sequence,
+        // so after a timed run has ended the entry has not run and a later trigger runs it a second time
+        // (stopping and settling again).
+        #[test]
+        fn the_end_of_a_timed_run_goes_through_the_entry_so_a_later_trigger_does_not_run_it() {
+            let f = fixture_on_owner(Factory::new(), ModelStore::new());
+            let link = f.link.unwrap();
+            let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop());
+            let outcome = run_timed(
+                &run_of(1),
+                &mut supervisor,
+                ModelStore::new(),
+                crate::daemon::maintenance::SystemClocks::new(),
+                &AtomicBool::new(false),
+                SETTLE_BOUND,
+            )
+            .unwrap();
+            assert_eq!(outcome.status, exit::CLEAN);
+            assert!(
+                supervisor.shutdown_entry(&link, exit::CLEAN).is_none(),
+                "the end of the timed run did not go through the shutdown entry"
+            );
+        }
+
+        // Same source, the signal flag as the trigger: a timed run whose stop flag is set ends through
+        // the entry too, and a second trigger answers None.
+        #[test]
+        fn a_signalled_timed_run_goes_through_the_entry_once() {
+            let f = fixture_on_owner(Factory::new(), ModelStore::new());
+            let link = f.link.unwrap();
+            let mut supervisor = Supervisor::new(Platform::Macos, Factory::new(), real_loop());
+            let _ = run_timed(
+                &run_of(30),
+                &mut supervisor,
+                ModelStore::new(),
+                crate::daemon::maintenance::SystemClocks::new(),
+                &AtomicBool::new(true),
+                SETTLE_BOUND,
+            )
+            .unwrap();
+            assert!(
+                supervisor.shutdown_entry(&link, exit::CLEAN).is_none(),
+                "the signalled timed run did not go through the shutdown entry"
+            );
+        }
+
+        // RR-daemon-04 fix: "Not granted: the source stops in the same tick, shows failed
+        // with reason=permission, and is not restarted until the probe reads granted."
+        // A permission granted at the first answer, then revoked, then granted again: the
+        // source must come back (a restart of the source, or Ending::Restart), and must not
+        // stay failed for the rest of the run.
+        #[test]
+        fn a_source_stopped_for_a_revoked_permission_comes_back_when_the_probe_reads_granted_again()
+        {
+            let (mut f, answers, _) = probed(fixture(Factory::new()));
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            f.start(&two());
+            f.tick();
+            assert_eq!(f.state(SourceName::Input), SourceState::Running);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.later(PROBE_INTERVAL);
+            assert!(
+                matches!(
+                    f.state(SourceName::Input),
+                    SourceState::Failed {
+                        reason: HealthReason::Permission,
+                        ..
+                    }
+                ),
+                "{:?}",
+                f.state(SourceName::Input)
+            );
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            let mut ending = f.later(PROBE_INTERVAL);
+            for _ in 0..4 {
+                if ending.is_some() {
+                    break;
+                }
+                ending = f.later(RESTART_MAX);
+            }
+            let begun = f.supervisor.factory().calls.of("begin input").len();
+            assert!(
+        ending == Some(Ending::Restart)
+            || (begun == 2 && f.state(SourceName::Input) == SourceState::Running),
+        "the probe read granted again, yet the input source stays down: ending {:?}, begins {}, state {:?}",
+        ending,
+        begun,
+        f.state(SourceName::Input)
+    );
+        }
+
+        // RR-daemon-04 fix: "Not granted: the source stops in the same tick, shows failed
+        // with reason=permission, and is not restarted until the probe reads granted."
+        // X-daemon-07: "no restart without the permission (RR-daemon-04)".
+        // The drain stop and its recovery are a restart path of their own (start_wanted):
+        // the recovery must not start a source whose permission still reads not_granted.
+        #[test]
+        fn a_drain_recovery_does_not_start_a_source_whose_permission_reads_not_granted() {
+            let store = ModelStore::new();
+            let (mut f, answers, _) = probed(fixture_on_owner(Factory::new(), store.clone()));
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.start(&two());
+            f.tick();
+            assert!(
+                matches!(
+                    f.state(SourceName::Input),
+                    SourceState::Failed {
+                        reason: HealthReason::Permission,
+                        ..
+                    }
+                ),
+                "{:?}",
+                f.state(SourceName::Input)
+            );
+            drain_fails(&f, &store, WriteFault::Io(std::io::ErrorKind::Other));
+            f.tick();
+            store.fail_every_write(None);
+            f.supervisor.main_loop().turn(RETRY_FIRST);
+            f.link.as_ref().unwrap().settle();
+            f.tick();
+            assert!(
+                f.supervisor.factory().calls.of("begin foreground").len() >= 2,
+                "the drain did not recover, so the case proves nothing: {:?}",
+                f.supervisor.factory().calls.of("begin ")
+            );
+            assert_eq!(
+        f.supervisor.factory().calls.of("begin input").len(),
+        1,
+        "the drain recovery started the input source while Input Monitoring reads not_granted"
+    );
+            assert!(
+                matches!(
+                    f.state(SourceName::Input),
+                    SourceState::Failed {
+                        reason: HealthReason::Permission,
+                        ..
+                    }
+                ),
+                "{:?}",
+                f.state(SourceName::Input)
+            );
+        }
+
+        // RR-daemon-04 fix: "Not granted: the source stops in the same tick, shows failed
+        // with reason=permission, and is not restarted until the probe reads granted."
+        // A source whose start failed holds nothing to stop, but its Board line must still
+        // show failed with reason=permission once the probe reads not_granted.
+        #[test]
+        fn a_source_whose_start_failed_shows_reason_permission_once_the_probe_reads_not_granted() {
+            let (mut f, answers, _) = probed(fixture(Factory::adjusting(|source| {
+                if source.name == SourceName::Input {
+                    source.begin = Err(CaptureError::Start("the tap was not made".to_owned()));
+                }
+            })));
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.start(&two());
+            f.tick();
+            assert!(
+                matches!(
+                    f.state(SourceName::Input),
+                    SourceState::Failed {
+                        reason: HealthReason::Permission,
+                        ..
+                    }
+                ),
+                "Input Monitoring reads not_granted, yet the input line is {:?}",
+                f.state(SourceName::Input)
+            );
+            for _ in 0..3 {
+                answers
+                    .borrow_mut()
+                    .push_back(input_monitoring(GrantState::NotGranted));
+                f.later(PROBE_INTERVAL);
+            }
+            assert_eq!(
+                f.supervisor.factory().calls.of("begin input").len(),
+                1,
+                "the input source was started again while the answer stays not_granted"
+            );
+        }
+
+        // RR-daemon-04 fix: "The supervisor runs the probe child when a run starts and then
+        // on a timer with a deadline: every 60 s, and every 3 s while a required permission
+        // is not granted and a client polls". Once a client starts polling while a required
+        // permission reads not_granted, the next probe comes within 3 s, not at the end of
+        // the 60 s timer set before the client came.
+        #[test]
+        fn a_client_that_starts_polling_brings_the_next_probe_within_3_s() {
+            let (mut f, answers, asked) = probed(fixture(Factory::new()));
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.start(&two());
+            f.tick();
+            assert_eq!(asked.borrow().len(), 1);
+            f.later(Duration::from_secs(1));
+            f.supervisor.set_client_polls(true);
+            for _ in 0..(PROBE_INTERVAL_MISSING.as_millis() / main_loop::TICK.as_millis() + 1) {
+                f.later(main_loop::TICK);
+            }
+            assert!(
+        asked.borrow().len() >= 2,
+        "a client polls and Input Monitoring reads not_granted, yet no probe ran within 3 s: {} asked",
+        asked.borrow().len()
+    );
+        }
+
+        // RR-daemon-04: "every 3 s while a required permission is not granted and a client
+        // polls" -- the 3 s cadence holds for each later answer too, not only the first.
+        #[test]
+        fn while_a_client_polls_and_the_permission_stays_not_granted_the_probe_runs_every_3_s() {
+            let (mut f, answers, asked) = probed(fixture(Factory::new()));
+            f.supervisor.set_client_polls(true);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.start(&two());
+            f.tick();
+            for round in 0..4 {
+                answers
+                    .borrow_mut()
+                    .push_back(input_monitoring(GrantState::NotGranted));
+                f.later(PROBE_INTERVAL_MISSING);
+                assert_eq!(asked.borrow().len(), round + 2, "round {round}");
+            }
+            f.supervisor.set_client_polls(false);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            f.later(PROBE_INTERVAL_MISSING);
+            let after = asked.borrow().len();
+            f.later(PROBE_INTERVAL_MISSING);
+            assert_eq!(
+                asked.borrow().len(),
+                after,
+                "with no client polling the probe still ran every 3 s"
+            );
+        }
     }
 }
