@@ -161,19 +161,25 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   label and no port (`x1.y2.z`); dot and colon look-alikes other than those above (`example۔com`,
   `localhost∶8080`); percent forms (`%2E`) and written forms other than the four above (`{at}`,
   `[ at ]`, `[dot]`); the octal, short and decimal IPv4 forms (`0177.0.0.1`, `127.1`,
-  `2130706433`) and digits outside ASCII; an address split by a space or a line end.
+  `2130706433`) and digits outside ASCII; an IPv4 address or a port with letters glued after it
+  (`localhost:8080now`, `192.168.0.1now`); an address split by a space or a line end.
 - The fence lint (`every_test_target_asserts_that_its_fence_is_on`, `src/main.rs`) reads the
   crate as its manifest and its `.rs` files under `src`, `tests`, `examples` and `benches`. It
   takes the tables `[package]` (the keys name, version, description, edition and publish),
   `[workspace]` (no key), `[[bin]]` (the keys name and path), `[dependencies]`,
-  `[dev-dependencies]` and `[profile.release]`, and refuses any other table or key. It finds
+  `[dev-dependencies]` and `[profile.release]`, and refuses any other table or key, a key
+  before the first table and a line with no `=` (a value that goes onto a second line). It finds
   `src/main.rs`, `src/lib.rs`, `src/bin/*.rs`, `src/bin/*/main.rs`, `tests/*.rs`,
   `tests/*/main.rs` and each bin path, refuses a path that does not stand, and wants in each a
   fence test: `#[test]` at the top of `#[cfg(test)] mod tests`, with no attribute above either,
-  and the body `assert!(r3_web::procs::fence::is_on(), "<text>");`. It refuses a source that
-  declares an item named `r3_web`, and a source that holds the word `admit` in any letter case,
-  `from_env`, the name of the fence's variable, `fence::VAR` or a glob import of the fence; a
-  review of the diff is the gate for any other way to open the fence.
+  and the body `assert!(r3_web::procs::fence::is_on(), "<text>");`. It refuses a source in which
+  the name `r3_web`, also written `r#r3_web`, stands anywhere but at the start of a path
+  (`r3_web::`), in code, a string or a comment alike: so a declaration, an alias, a bare use and a
+  macro argument of that name are refused; a macro that builds the name from parts is a form for
+  which a review of the diff is the gate. It refuses a source that holds the word `admit` in any
+  letter case, `from_env`, the name of the fence's variable, `fence::VAR`, a glob import written
+  `fence::*` or a `*` in a use group `fence::{...}`; a review of the diff is the gate for any
+  other way to open the fence.
 
 ## How the cells of unit U0.6 ran
 
