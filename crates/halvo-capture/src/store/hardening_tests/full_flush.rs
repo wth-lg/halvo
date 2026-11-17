@@ -518,12 +518,21 @@ fn run_child(group: &str) {
     {
         println!("{line}");
     }
-    let ran = stdout.contains("1 passed") || stdout.contains("1 failed");
-    assert!(ran, "the child ran no test: {stdout}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let told: Vec<&str> = stderr
+        .lines()
+        .chain(stdout.lines())
+        .filter(|line| {
+            !(line.starts_with("test ") || line.starts_with("running ") || line.is_empty())
+        })
+        .collect();
+    let ran = stdout.contains("test result: ok. 1 passed")
+        || stdout.contains("test result: FAILED. 0 passed; 1 failed");
+    assert!(ran, "the child ran no test:\n{}", told.join("\n"));
     assert!(
         out.status.success(),
-        "the {group} child failed:\n{stdout}\n{}",
-        String::from_utf8_lossy(&out.stderr)
+        "the {group} child failed:\n{}",
+        told.join("\n")
     );
 }
 
