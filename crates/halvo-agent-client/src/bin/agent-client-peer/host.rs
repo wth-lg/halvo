@@ -100,7 +100,7 @@ impl Human for Yes {
 }
 
 impl Secrets for Yes {
-    fn read(&self, _name: &Name) -> SecretReply {
+    fn read(&self, _agent: &AgentId, _name: &Name) -> SecretReply {
         SecretReply::None
     }
 }

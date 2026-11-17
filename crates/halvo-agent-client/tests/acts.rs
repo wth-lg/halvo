@@ -736,7 +736,7 @@ fn trait_calls(rig: &Rig) -> (usize, usize, usize, usize) {
         rig.people.asked_confirms.load(Ordering::SeqCst),
         rig.people.handbacks.lock().unwrap().len(),
         rig.people.asked_origins.lock().unwrap().len(),
-        rig.vault.1.load(Ordering::SeqCst),
+        rig.vault.reads(),
     )
 }
 
@@ -1238,7 +1238,7 @@ fn frame_after_cancelled_bind(name: &str, frame: &str, in_allow: bool) {
         0,
         "{name}"
     );
-    assert_eq!(rig.vault.1.load(Ordering::SeqCst), 0, "{name}");
+    assert_eq!(rig.vault.reads(), 0, "{name}");
 }
 
 #[test]
