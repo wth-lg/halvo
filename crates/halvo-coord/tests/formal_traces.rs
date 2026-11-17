@@ -998,7 +998,7 @@ impl Owner for Lossy<'_> {
         }
         stored
     }
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         if self.read_fails.replace(false) {
             return Err(PortError::NoService);
         }

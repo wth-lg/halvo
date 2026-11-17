@@ -133,7 +133,7 @@ impl Owner for Both {
         }
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         if self.next_history_fails.take() {
             return Err(PortError::NoService);
         }

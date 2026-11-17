@@ -826,3 +826,81 @@ fn a_tick_that_pays_a_refused_end_and_refuses_nothing_does_not_count_toward_stuc
         "the refusal came at an end between ticks, and the tick itself acknowledged a store and refused none"
     );
 }
+
+fn forget_rows_of(w: &World, n: usize) {
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(n));
+}
+
+fn seqs_of(w: &World, n: usize) -> Vec<u32> {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .collect()
+}
+
+#[test]
+fn the_schedules_store_takes_the_replys_lower_last_and_stores_at_seq_1_after_one_read() {
+    let mut w = world_with(&[MANUAL], Limits::PRODUCT);
+    forget_rows_of(&w, 0);
+    let done = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(done.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        seqs_of(&w, 0),
+        vec![1],
+        "the next row after the read, whose last is 0"
+    );
+    let reads = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::History(..)))
+        .count();
+    assert_eq!(reads, 1, "one read");
+}
+
+#[test]
+fn the_ledger_takes_the_replys_lower_last_and_stores_at_seq_1_after_one_read() {
+    let w = world_with(&[MANUAL], Limits::PRODUCT);
+    let mut l = ledger_of(&w);
+    assert!(l.last() > 0);
+    forget_rows_of(&w, 0);
+    store(&w.ports, &mut l, &w.limits, vec![skip(1)]).unwrap();
+    assert_eq!(seqs_of(&w, 0), vec![1]);
+    assert_eq!(l.last(), 1);
+}
+
+#[test]
+fn a_new_life_whose_owner_answers_store_to_both_bodies_stores_and_starts_nothing_and_reads_as_before_after(
+) {
+    let mut w = world_with(&[SLOTTED], Limits::PRODUCT);
+    let before = seqs_of(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("store"));
+    w.ports.new_life();
+    let life = recover(&w.ports, &w.limits).expect("recovery");
+    w.board = life.board;
+    w.calls();
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    let calls = w.calls();
+    assert!(
+        !calls.iter().any(|c| c.starts_with("log") || c == "start"),
+        "nothing stored and no start: {calls:?}"
+    );
+    assert_eq!(seqs_of(&w, 0), before);
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)));
+    let seqs = seqs_of(&w, 0);
+    let mut unique = seqs.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), seqs.len(), "no seq on two rows: {seqs:?}");
+    assert!(seqs.starts_with(&before), "the record reads as before");
+}

@@ -368,7 +368,7 @@ impl Owner for Shared {
         self.ports.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         let _turn = self.enter();
         self.ports.history(agent, after)
     }

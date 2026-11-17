@@ -783,7 +783,7 @@ impl<P: Owner> Owner for Late<'_, P> {
         self.ports.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.ports.history(agent, after)
     }
 

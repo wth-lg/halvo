@@ -117,10 +117,10 @@ fn cause(error: &PortError) -> Cause {
     }
 }
 
-fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError> {
+fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<(Vec<Event>, u32), PortError> {
     let mut events: Vec<Event> = Vec::new();
-    resync(ports, agent, &mut events)?;
-    Ok(events)
+    let last = resync(ports, agent, &mut events)?;
+    Ok((events, last))
 }
 
 /// Stores recovery's body for one agent: `run_ended` with `interrupted` for each run that ends
@@ -151,7 +151,7 @@ fn log_recovery_body<P: Owner, C>(
     if whats.is_empty() {
         return Ok(());
     }
-    let last = f.events.last().map_or(0, |e| e.seq.get());
+    let last = f.last;
     let events: Vec<Event> = whats
         .into_iter()
         .zip(0u32..)
@@ -170,6 +170,7 @@ fn log_recovery_body<P: Owner, C>(
         ports.log(&events[sent..sent + n])?;
         f.events.extend_from_slice(&events[sent..sent + n]);
         sent += n;
+        f.last = events[sent - 1].seq.get();
     }
     Ok(())
 }
@@ -208,6 +209,7 @@ struct Found<C> {
     agent: Agent<C>,
     workflow: FullWorkflow,
     events: Vec<Event>,
+    last: u32,
     step: Recovery,
 }
 
@@ -257,14 +259,14 @@ where
             continue;
         };
         let workflow = full_or_paused_manual(listed, &agent.agent, day);
-        let events = match history(ports, &agent.agent) {
-            Ok(events) => events,
+        let (events, last) = match history(ports, &agent.agent) {
+            Ok(read) => read,
             Err(PortError::Refused(name)) => match name.as_str() {
                 "no_workflow" => continue,
-                "binding" if matches!(listed, Workflow::Dismissed(_)) => Vec::new(),
+                "binding" if matches!(listed, Workflow::Dismissed(_)) => (Vec::new(), 0),
                 _ => {
                     aside.push(agent.agent.clone());
-                    Vec::new()
+                    (Vec::new(), 0)
                 }
             },
             Err(e) => return Err(cause(&e)),
@@ -281,6 +283,7 @@ where
             agent,
             workflow,
             events,
+            last,
             step,
         });
     }
@@ -301,9 +304,10 @@ where
     let mut ended: Vec<Ended> = Vec::new();
     for f in &mut found {
         let mut logged = log_recovery_body(ports, f, (day, at), limits);
-        if matches!(&logged, Err(e) if seq_refusal(e))
-            && resync(ports, &f.agent.agent, &mut f.events).is_ok()
-        {
+        let reread = matches!(&logged, Err(e) if seq_refusal(e))
+            .then(|| resync(ports, &f.agent.agent, &mut f.events));
+        if let Some(Ok(last)) = reread {
+            f.last = last;
             f.step = f.step(&reaped);
             logged = log_recovery_body(ports, f, (day, at), limits);
         }
@@ -350,6 +354,11 @@ where
         }
     }
     let history_runs = limits.history_runs as usize;
+    let lasts: Vec<(AgentId, u32)> = found
+        .iter()
+        .filter(|f| !aside.contains(&f.agent.agent))
+        .map(|f| (f.agent.agent.clone(), f.last))
+        .collect();
     let members = found
         .into_iter()
         .map(|f| {
@@ -380,6 +389,11 @@ where
         })
         .collect();
     let mut board = Board::new(day, members);
+    for (agent, last) in lasts {
+        if let Some(i) = board.members.iter().position(|m| m.facts.agent == agent) {
+            board.set_last(i, last);
+        }
+    }
     board.owed = owed;
     for agent in &aside {
         board.set_aside(agent, reaped.clone());

@@ -293,9 +293,11 @@ fn log_or_reread_once<P: Owner, C: ConfigView>(
     };
     let facts = &mut board.members[i].facts;
     let before = facts.events.len();
-    if resync(cx.ports, &facts.agent, &mut facts.events).is_err() {
+    let Ok(last) = resync(cx.ports, &facts.agent, &mut facts.events) else {
         return Err(refusal);
-    }
+    };
+    board.set_last(i, last);
+    let facts = &mut board.members[i].facts;
     let mut rest: Vec<What> = whats
         .into_iter()
         .filter(|w| !owner_already_holds(&facts.events, before, w))
@@ -403,8 +405,8 @@ fn log_at<P: Owner, C>(
     day: u32,
     at: i64,
 ) -> Result<(), PortError> {
+    let last = board.stored_last(i);
     let facts = &mut board.members[i].facts;
-    let last = facts.events.last().map_or(0, |e| e.seq.get());
     let events: Vec<Event> = whats
         .iter()
         .zip(0u32..)
@@ -424,7 +426,9 @@ fn log_at<P: Owner, C>(
         }
         return Err(e);
     }
+    let sent = u32::try_from(events.len()).unwrap_or(u32::MAX);
     facts.events.extend(events);
+    board.set_last(i, last.saturating_add(sent));
     board.acknowledged(&agent);
     Ok(())
 }
@@ -1025,8 +1029,8 @@ fn send_owed<P: Owner, C: ConfigView>(
             match log_at(cx, board, i, &[what], *day, *at) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => {
-                    let facts = &mut board.members[i].facts;
-                    read_after_seq(cx.ports, facts).is_ok() && item_closed(&facts.events, item)
+                    read_into(cx.ports, board, i).is_ok()
+                        && item_closed(&board.members[i].facts.events, item)
                 }
                 Err(e) => debt_refused(
                     board,
@@ -1049,19 +1053,20 @@ pub(crate) fn seq_refusal(error: &PortError) -> bool {
 }
 
 /// The events take the owner's events of the agent after the last one that they hold, page by
-/// page of at most 64, as `coord_history` gives them (I7.2, rulings XB-17 and XB-31).
+/// page of at most 64, as `coord_history` gives them, and give the reply's `last` of the last page,
+/// which the caller takes as the stored last (I7.2, rulings XB-17, XB-31 and RD-64 3.2).
 pub(crate) fn resync<P: Owner>(
     ports: &P,
     agent: &AgentId,
     events: &mut Vec<Event>,
-) -> Result<(), PortError> {
+) -> Result<u32, PortError> {
     loop {
         let after = events.last().map_or(0, |e| e.seq.get());
-        let page = ports.history(agent, after)?;
+        let (page, last) = ports.history(agent, after)?;
         let full = page.len() >= HISTORY_PAGE_MAX;
         events.extend(page.into_iter().filter(|e| e.seq.get() > after));
         if !full {
-            return Ok(());
+            return Ok(last);
         }
     }
 }
@@ -1069,10 +1074,18 @@ pub(crate) fn resync<P: Owner>(
 pub(crate) fn read_after_seq<P: Owner, C>(
     ports: &P,
     facts: &mut Facts<C>,
-) -> Result<(), PortError> {
+) -> Result<u32, PortError> {
     let before = facts.events.len();
-    resync(ports, &facts.agent, &mut facts.events)?;
+    let last = resync(ports, &facts.agent, &mut facts.events)?;
     take_open_item_from_read(facts, before);
+    Ok(last)
+}
+
+/// `read_after_seq` for member `i`, whose reply's `last` the board takes as the stored last
+/// (ruling RD-64 3.2).
+fn read_into<P: Owner, C>(ports: &P, board: &mut Board<C>, i: usize) -> Result<(), PortError> {
+    let last = read_after_seq(ports, &mut board.members[i].facts)?;
+    board.set_last(i, last);
     Ok(())
 }
 
@@ -1084,7 +1097,7 @@ pub(crate) fn read_back<P: Owner, C: ConfigView>(
     i: usize,
 ) -> Result<(), PortError> {
     let before = board.members[i].facts.events.len();
-    read_after_seq(ports, &mut board.members[i].facts)?;
+    read_into(ports, board, i)?;
     let cx = MoveContext {
         ports,
         limits,
@@ -1159,8 +1172,7 @@ fn reread_finds_run_ended<P: Owner, C>(
     i: usize,
     run: &RunId,
 ) -> bool {
-    let facts = &mut board.members[i].facts;
-    read_after_seq(cx.ports, facts).is_ok() && holds_end(&facts.events, run)
+    read_into(cx.ports, board, i).is_ok() && holds_end(&board.members[i].facts.events, run)
 }
 
 /// Whether the events hold a `run_ended` of the run.
@@ -1202,9 +1214,9 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
             continue;
         };
         let mut events = Vec::new();
-        if resync(cx.ports, &agent, &mut events).is_err() {
+        let Ok(last) = resync(cx.ports, &agent, &mut events) else {
             continue;
-        }
+        };
         board.take_aside(&agent);
         let facts = &mut board.members[i].facts;
         let step = crate::run::recover_step(
@@ -1219,6 +1231,7 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
         facts.store_ended = newest_started(facts)
             .is_none_or(|run| facts.runs.first().is_some_and(|l| &l.run == run));
         let workflow = facts.workflow.id.clone();
+        board.set_last(i, last);
         let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
         let ends = step.ended.into_iter().map(|run| Owing::RunEnded {
             run,
@@ -1818,11 +1831,7 @@ fn read_once<P: Owner, C>(
     board: &mut Board<C>,
     i: usize,
 ) -> Result<(), PortError> {
-    let facts = &mut board.members[i].facts;
-    let before = facts.events.len();
-    resync(cx.ports, &facts.agent, &mut facts.events)?;
-    take_open_item_from_read(facts, before);
-    Ok(())
+    read_into(cx.ports, board, i)
 }
 
 fn off_rest<P: Owner + Runs, C: ConfigView>(

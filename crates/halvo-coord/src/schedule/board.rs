@@ -144,6 +144,7 @@ pub struct Board<C> {
     defer_held: Vec<AgentId>,
     dropped: Vec<(AgentId, Dropped)>,
     stuck: Vec<(AgentId, Stuck)>,
+    lasts: Vec<(AgentId, u32, usize)>,
 }
 
 impl<C> Board<C> {
@@ -169,6 +170,7 @@ impl<C> Board<C> {
             defer_held: Vec::new(),
             dropped: Vec::new(),
             stuck: Vec::new(),
+            lasts: Vec::new(),
         }
     }
 
@@ -206,6 +208,29 @@ impl<C> Board<C> {
         if !self.defer_held.contains(agent) {
             self.defer_held.push(agent.clone());
         }
+    }
+
+    /// The stored last of the agent of member `i` (I7.2): the reply's `last` of the newest read
+    /// of the owner's events, or the `seq` of the newest acknowledged record, whichever came
+    /// last, also where it is below a `seq` that the agent's events hold (ruling RD-64 3.2). Where
+    /// no read or store set it, or events joined the facts since by another way, the `seq` of
+    /// the agent's last event.
+    pub fn stored_last(&self, i: usize) -> u32 {
+        let facts = &self.members[i].facts;
+        let newest = facts.events.last().map_or(0, |e| e.seq.get());
+        match self.lasts.iter().find(|(a, _, _)| *a == facts.agent) {
+            Some((_, last, seen)) if *seen == facts.events.len() => *last,
+            _ => newest,
+        }
+    }
+
+    /// Sets the stored last of the agent of member `i` to `last`, from a reply's `last` or an
+    /// acknowledged store (ruling RD-64 3.2).
+    pub fn set_last(&mut self, i: usize, last: u32) {
+        let facts = &self.members[i].facts;
+        let (agent, seen) = (facts.agent.clone(), facts.events.len());
+        self.lasts.retain(|(a, _, _)| *a != agent);
+        self.lasts.push((agent, last, seen));
     }
 
     /// A store of the agent was acknowledged.

@@ -50,6 +50,7 @@ pub struct Ledger {
     acked: bool,
     held: bool,
     refused: bool,
+    learnt: bool,
 }
 
 impl Ledger {
@@ -69,7 +70,23 @@ impl Ledger {
             acked: false,
             held: false,
             refused: false,
+            learnt: false,
         }
+    }
+
+    /// Numbers what waits after `last`, the stored last that the coordinator holds for the
+    /// pair and that the ledger, the schedule's log and recovery's body share, also where it is
+    /// below the `seq` of a row that the ledger knows (I7.2, ruling RD-64 3.2).
+    pub fn follow(&mut self, last: u32) {
+        self.last = last;
+        self.prove();
+        self.renumber();
+    }
+
+    /// The stored last that the ledger learnt by its own acknowledged store or its own read
+    /// since the last call, which the coordinator takes as the pair's stored last.
+    pub fn learnt(&mut self) -> Option<u32> {
+        std::mem::take(&mut self.learnt).then_some(self.last)
     }
 
     /// Takes the owner's events after the last acknowledged one that a read outside this ledger
@@ -281,8 +298,10 @@ pub fn day_of<P: Clock + ?Sized>(clock: &P, at: i64) -> Result<u32, PortError> {
 fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<(), PortError> {
     let mut after = ledger.last;
     let mut read = Vec::new();
+    let mut last = ledger.last;
     for _ in 0..HISTORY_CALLS {
-        let page = ports.history(&ledger.agent, after)?;
+        let (page, reply_last) = ports.history(&ledger.agent, after)?;
+        last = reply_last;
         let full = page.len() >= HISTORY_PAGE;
         for e in page {
             after = after.max(e.seq.get());
@@ -293,6 +312,8 @@ fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<(), PortError> {
         }
     }
     ledger.absorb(read);
+    ledger.follow(last);
+    ledger.learnt = true;
     Ok(())
 }
 
@@ -569,6 +590,7 @@ impl Ledger {
         let sent: Vec<Event> = self.waiting.drain(..n).collect();
         self.keep_acknowledged_closing_rows(&sent);
         self.acked = true;
+        self.learnt = true;
         self.held = false;
         self.proof = None;
     }
@@ -830,6 +852,7 @@ fn store_unqueued_reading<P: Owner + Clock>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.learnt = true;
                 ledger.keep_acknowledged_closing_rows(&events);
                 return Ok(true);
             }
@@ -863,6 +886,7 @@ fn store_unqueued<P: Owner + Clock>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.learnt = true;
                 ledger.keep_acknowledged_closing_rows(&events);
                 return Ok(());
             }
@@ -944,6 +968,7 @@ fn log_press<P: Owner>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.learnt = true;
                 ledger.keep_acknowledged_closing_rows(&events);
                 return Ok(Decided::Own(press.result));
             }

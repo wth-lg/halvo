@@ -752,20 +752,25 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         Ok(())
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.checked(Method::History, &Call::History(agent.clone(), after))?;
         self.checked_agent(Method::History, agent, &Call::History(agent.clone(), after))?;
         self.record(Call::History(agent.clone(), after));
-        let mut found: Vec<Event> = self
-            .events
-            .borrow()
+        let events = self.events.borrow();
+        let last = events
+            .iter()
+            .filter(|e| &e.agent == agent)
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0);
+        let mut found: Vec<Event> = events
             .iter()
             .filter(|e| &e.agent == agent && e.seq.get() > after)
             .cloned()
             .collect();
         found.sort_by_key(|e| e.seq);
         found.truncate(HISTORY_MAX);
-        Ok(found)
+        Ok((found, last))
     }
 
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {

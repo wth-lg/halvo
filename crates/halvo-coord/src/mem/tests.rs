@@ -819,10 +819,10 @@ fn history_answers_at_most_64_events_a_call() {
     for body in all.chunks(8) {
         p.log(body).unwrap();
     }
-    let first = p.history(&id(AgentId::parse, 2), 0).unwrap();
+    let first = p.history(&id(AgentId::parse, 2), 0).unwrap().0;
     assert_eq!(first.len(), 64);
     assert_eq!((first[0].seq.get(), first[63].seq.get()), (1, 64));
-    let rest = p.history(&id(AgentId::parse, 2), 64).unwrap();
+    let rest = p.history(&id(AgentId::parse, 2), 64).unwrap().0;
     assert_eq!(rest.len(), 36);
     assert_eq!((rest[0].seq.get(), rest[35].seq.get()), (65, 100));
 }
@@ -834,12 +834,18 @@ fn history_gives_the_logged_events_of_an_agent_above_a_seq() {
     listed(&p, 3, Some(4));
     p.log(&[event(1, 2), event(1, 4), event(2, 2), event(3, 2)])
         .unwrap();
-    let h = p.history(&id(AgentId::parse, 2), 1).unwrap();
+    let h = p.history(&id(AgentId::parse, 2), 1).unwrap().0;
     assert_eq!(
         h.iter().map(|e| e.seq.get()).collect::<Vec<_>>(),
         vec![2, 3]
     );
-    assert_eq!(p.history(&id(AgentId::parse, 4), 0).unwrap().len(), 1);
+    assert_eq!(p.history(&id(AgentId::parse, 4), 0).unwrap().0.len(), 1);
+    assert_eq!(
+        p.history(&id(AgentId::parse, 2), 3).unwrap(),
+        (vec![], 3),
+        "last is the agent's largest seq whatever after is"
+    );
+    assert_eq!(p.history(&id(AgentId::parse, 9), 0).unwrap(), (vec![], 0));
 }
 
 #[test]

@@ -97,21 +97,49 @@ fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
 }
 
-/// The items ledger of the agent of `facts`, which takes the owner's events that the board read
-/// after its last acknowledged one, the coordinator's read right after a call that answered no
-/// acknowledgement among them, as its own read after a refusal `seq` takes them (ruling RD-40).
-fn ledger<'a, C>(ledgers: &'a mut Vec<(AgentId, Ledger)>, facts: &Facts<C>) -> &'a mut Ledger {
+/// The items ledger of the agent of member `i`, which takes the owner's events that the board
+/// read after its last acknowledged one, the coordinator's read right after a call that answered
+/// no acknowledgement among them, as its own read after a refusal `seq` takes them (ruling
+/// RD-40), and shares the pair's one stored last with the board: what the ledger learnt by its
+/// own store or read since becomes the board's, and the ledger then numbers after the board's
+/// (ruling RD-64 3.2).
+fn ledger<'a, C>(
+    ledgers: &'a mut Vec<(AgentId, Ledger)>,
+    board: &mut Board<C>,
+    i: usize,
+) -> &'a mut Ledger {
+    let facts = &board.members[i].facts;
     let k = match ledgers.iter().position(|(a, _)| a == &facts.agent) {
         Some(k) => k,
         None => {
-            let last = facts.events.last().map_or(0, |e| e.seq.get());
-            let fresh = Ledger::new(facts.workflow.id.clone(), facts.agent.clone(), last);
+            let fresh = Ledger::new(
+                facts.workflow.id.clone(),
+                facts.agent.clone(),
+                board.stored_last(i),
+            );
             ledgers.push((facts.agent.clone(), fresh));
             ledgers.len() - 1
         }
     };
-    ledgers[k].1.take(&facts.events);
-    &mut ledgers[k].1
+    let l = &mut ledgers[k].1;
+    if let Some(last) = l.learnt() {
+        board.set_last(i, last);
+    }
+    l.take(&board.members[i].facts.events);
+    l.follow(board.stored_last(i));
+    l
+}
+
+/// The stored last that each ledger learnt by its own store or read becomes the board's, before
+/// a sender of the board numbers (ruling RD-64 3.2).
+fn share_lasts<C>(board: &mut Board<C>, ledgers: &mut [(AgentId, Ledger)]) {
+    for (agent, l) in ledgers.iter_mut() {
+        if let Some(i) = index(board, agent) {
+            if let Some(last) = l.learnt() {
+                board.set_last(i, last);
+            }
+        }
+    }
 }
 
 fn hold_stop<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, now: u64, by: StopBy) {
@@ -160,13 +188,18 @@ impl<'a, P: Owner, C: ConfigView> Reading<'a, P, C> {
         let facts = &mut self.board.members[self.i].facts;
         let read = schedule::resync(self.ports, &facts.agent, &mut facts.events);
         l.take(&facts.events);
+        if let Ok(last) = read {
+            self.board.set_last(self.i, last);
+            l.follow(last);
+        }
+        let facts = &self.board.members[self.i].facts;
         let agent = facts.agent.clone();
         let off = schedule::holds(facts).contains(&schedule::Hold::Off);
         self.stopped = off && live_unstopped_run(self.board, &agent).is_some();
         match (read, self.stopped) {
             (Err(_), _) => items::Read::Failed,
-            (Ok(()), true) => items::Read::Off,
-            (Ok(()), false) => items::Read::Taken,
+            (Ok(_), true) => items::Read::Off,
+            (Ok(_), false) => items::Read::Taken,
         }
     }
 }
@@ -289,6 +322,7 @@ where
         {
             let State { board, ledgers, .. } = &mut *st;
             let Some(board) = board.as_mut() else { return };
+            share_lasts(board, ledgers);
             schedule::drive(&self.ports, board, &self.limits, Move::Create);
             self.flush_ledgers(board, ledgers);
         }
@@ -306,6 +340,7 @@ where
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
+        share_lasts(board, ledgers);
         let done = run::drive(&self.ports, board, table, &self.limits, Act::Tick);
         for workflow in &done.gone {
             for m in board
@@ -373,11 +408,11 @@ where
                 setups,
                 ..
             } = &mut *st;
-            let done = match board.as_ref() {
+            let done = match board.as_mut() {
                 Some(board) => match index(board, setups[k].agent()) {
                     Some(i) => {
+                        let l = ledger(ledgers, board, i);
                         let facts = &board.members[i].facts;
-                        let l = ledger(ledgers, facts);
                         items::tick_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
                     }
                     None => Err(Cause::State),
@@ -431,7 +466,7 @@ where
             let Some(i) = index(board, h.ask().agent()) else {
                 continue;
             };
-            let l = ledger(ledgers, &board.members[i].facts);
+            let l = ledger(ledgers, board, i);
             let before = (l.last(), l.waiting().len());
             let _ = items::flush(&self.ports, l, &self.limits);
             if let Ok(stamp) = crate::ports::Stamp::read(&self.ports) {
@@ -442,10 +477,10 @@ where
                 if lapses {
                     hold_stop(board, table, h.ask().run(), stamp.now(), StopBy::WaitLimit);
                 }
-                let l = ledger(ledgers, &board.members[i].facts);
+                let l = ledger(ledgers, board, i);
                 let _ = items::tick_at(&self.ports, l, table, h, stamp, &self.limits);
             }
-            let l = ledger(ledgers, &board.members[i].facts);
+            let l = ledger(ledgers, board, i);
             if (l.last(), l.waiting().len()) != before {
                 self.read_back(board, i);
             }
@@ -485,7 +520,7 @@ where
                 return true;
             }
             hold_stop(board, table, &w.run, now, StopBy::WaitLimit);
-            let l = ledger(ledgers, &board.members[i].facts);
+            let l = ledger(ledgers, board, i);
             let _ = items::time_out(&self.ports, l, table, &w.run, &w.item, &self.limits);
             self.read_back(board, i);
             handbacks.retain(|(item, _)| item != &w.item.item);
@@ -511,7 +546,7 @@ where
                 continue;
             };
             hold_stop(board, table, &b.ask().run, now, StopBy::WaitLimit);
-            let l = ledger(ledgers, &board.members[i].facts);
+            let l = ledger(ledgers, board, i);
             let _ = items::lapse_bind(
                 &self.ports,
                 l,
@@ -527,7 +562,9 @@ where
 
     fn read_back(&self, board: &mut Board<Cfg<P>>, i: usize) {
         let facts = &mut board.members[i].facts;
-        let _ = schedule::resync(&self.ports, &facts.agent, &mut facts.events);
+        if let Ok(last) = schedule::resync(&self.ports, &facts.agent, &mut facts.events) {
+            board.set_last(i, last);
+        }
     }
 
     /// A run's event (I5.10): `hello`; a request, which raises its item through `raise_confirm`
@@ -599,7 +636,7 @@ where
                         let Some(board) = board.as_mut() else {
                             return Err(Cause::State);
                         };
-                        let l = ledger(ledgers, &board.members[i].facts);
+                        let l = ledger(ledgers, board, i);
                         let mut reading = Reading::new(&self.ports, board, i);
                         let raised = items::raise_run_item_reading(
                             &self.ports,
@@ -664,7 +701,7 @@ where
         let Some(board) = board.as_mut() else {
             return Err(Cause::State);
         };
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         let mut reading = Reading::new(&self.ports, board, i);
         let issued = items::issue_reading(&self.ports, l, table, &self.limits, ask, &mut |l| {
             reading.read(l)
@@ -714,7 +751,7 @@ where
         let Some(board) = board.as_mut() else {
             return Err(Cause::State);
         };
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         let mut reading = Reading::new(&self.ports, board, i);
         let raised =
             items::raise_bind_reading(&self.ports, l, table, &self.limits, ask, &mut |l| {
@@ -784,8 +821,14 @@ where
     }
 
     fn act(&self, st: &mut State<Cfg<P>>, act: Act) -> Result<(), Cause> {
-        let State { board, table, .. } = st;
+        let State {
+            board,
+            table,
+            ledgers,
+            ..
+        } = st;
         let board = board.as_mut().ok_or(Cause::State)?;
+        share_lasts(board, ledgers);
         let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
         answered(&done.report)
     }
@@ -834,7 +877,7 @@ where
             binds,
             handbacks,
         } = parts;
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         let cause = if stop {
             OtherLapse::Cancelled
         } else {
@@ -872,6 +915,7 @@ where
             ..
         } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
+        share_lasts(board, ledgers);
         let open = waiting_on(&board.members[i].facts.doing);
         let mut parts = LapseParts {
             table,
@@ -936,7 +980,7 @@ where
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         for b in binds.iter_mut().filter(|b| &b.ask().run == run) {
             let _ = items::lapse_bind(&self.ports, l, table, b, cause, &self.limits);
         }
@@ -955,7 +999,7 @@ where
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         for h in held.iter_mut().filter(|h| h.ask().run() == run) {
             if h.confirmation().state().is_open() {
                 let _ = items::lapse(&self.ports, l, table, h, cause, &self.limits);
@@ -998,7 +1042,7 @@ where
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         match &doing {
             Doing::Live(Live::Waiting(open))
                 if open.kind != RunItemKind::Confirm && !bind_items.contains(&open.item) =>
@@ -1133,7 +1177,7 @@ where
                         .find(|(i, _)| i == item)
                         .map(|(_, a)| a.clone())
                         .ok_or(Cause::State)?;
-                    let l = ledger(ledgers, &board.members[i].facts);
+                    let l = ledger(ledgers, board, i);
                     let mut reading = Reading::new(&self.ports, board, i);
                     let out = items::answer_handback_reading(
                         &self.ports,
@@ -1212,7 +1256,7 @@ where
         if let (Some(now), true) = (by.now, h.confirmation().presenter() == by.from) {
             items::arm_at(h, now, &self.limits);
         }
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         let out = items::answer(&self.ports, l, table, h, answer, by.from, &self.limits);
         let closed = !h.confirmation().state().is_open();
         self.read_back(board, i);
@@ -1244,7 +1288,7 @@ where
             .find(|b| b.item() == item)
             .ok_or(Cause::Stale)?;
         let agent = board.members[i].facts.agent.clone();
-        let l = ledger(ledgers, &board.members[i].facts);
+        let l = ledger(ledgers, board, i);
         let mut reading = Reading::new(&self.ports, board, i);
         let out =
             items::answer_bind_reading(&self.ports, l, table, &self.limits, b, choice, &mut |l| {
@@ -1285,10 +1329,10 @@ where
             setups,
             ..
         } = &mut *st;
-        let board = board.as_ref().ok_or(Cause::State)?;
+        let board = board.as_mut().ok_or(Cause::State)?;
         let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
+        let l = ledger(ledgers, board, i);
         let facts = &board.members[i].facts;
-        let l = ledger(ledgers, facts);
         let done = items::answer_setup(&self.ports, l, &self.limits, &mut setups[k], facts, input);
         let out = done.map(|_| ());
         self.setup_done(st, k, done);
@@ -1390,7 +1434,9 @@ where
     }
 
     fn schedule(&self, st: &mut State<Cfg<P>>, mv: Move) -> Result<(), Cause> {
-        let board = st.board.as_mut().ok_or(Cause::NoService)?;
+        let State { board, ledgers, .. } = st;
+        let board = board.as_mut().ok_or(Cause::NoService)?;
+        share_lasts(board, ledgers);
         answered(&schedule::drive(&self.ports, board, &self.limits, mv))
     }
 

@@ -182,7 +182,7 @@ impl Owner for Lossy<'_> {
         self.inner.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.inner.history(agent, after)
     }
 
