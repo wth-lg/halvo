@@ -182,27 +182,47 @@ fn seal(
 }
 
 /// What a root step left in the roots directory that it went through: the
-/// ids of the root files and partial root files that stay, the names of
-/// every entry that stays as they stand (each a possible root, a root-file
-/// path under C0.3), the count of the entries that stay at a name that is no
-/// root name and no partial name (a file that could not be removed, a
-/// directory), and whether the directory could be listed. `at_its_path` is
-/// false when the roots directory that the step went through no longer stood
-/// at the path that it was opened by.
+/// ids of the root files and partial root files that stay and their names as
+/// they stand (a root name or a partial name, which holds a root id alone: a
+/// root-file path under C0.3), the entries that stay at any other name,
+/// counted by kind and never named (ruling ST-48 U3), and whether the
+/// directory could be listed. `at_its_path` is false when the roots directory
+/// that the step went through no longer stood at the path that it was opened
+/// by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootsLeft {
     pub left: Vec<RootId>,
     pub names: Vec<String>,
-    pub others_left: u64,
+    pub others_left: OthersLeft,
     pub listed: bool,
     pub at_its_path: bool,
+}
+
+/// The entries that stay in the roots directory at a name that is no root
+/// name and no partial name, counted by kind from the last listing; no field
+/// holds a name (ruling ST-48 U3). `root_shaped` counts the regular files that
+/// can be a root file, of a root file's length off Windows and of any length
+/// above 0 on Windows: such a file can still hold a root, also the store's
+/// own root moved to that name.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OthersLeft {
+    pub root_shaped: u64,
+    pub directories: u64,
+    pub other: u64,
+}
+
+impl OthersLeft {
+    /// No entry stays at a name that is no root name and no partial name.
+    pub fn none(&self) -> bool {
+        self.root_shaped == 0 && self.directories == 0 && self.other == 0
+    }
 }
 
 impl RootsLeft {
     /// The directory was listed and no entry stays in it: no root file, no
     /// partial root file and nothing at any other name.
     pub fn none_left(&self) -> bool {
-        self.listed && self.left.is_empty() && self.others_left == 0
+        self.listed && self.left.is_empty() && self.others_left.none()
     }
 
     /// Nothing counted, listed or not, with no directory that left its path.
@@ -210,7 +230,7 @@ impl RootsLeft {
         Self {
             left: Vec::new(),
             names: Vec::new(),
-            others_left: 0,
+            others_left: OthersLeft::default(),
             listed,
             at_its_path: true,
         }
@@ -426,26 +446,35 @@ pub(crate) fn destroy_roots_through(
     }
 }
 
-/// Every entry of a listing, by its name as it stands, sorted by name: the
-/// ids of the root files and partial root files among them, and the count of
-/// the entries at any other name.
+/// The root files and partial root files of a listing, by their names as
+/// they stand, sorted by name, and the entries at any other name counted by
+/// kind and not named (ruling ST-48 U3).
 fn roots_that_stand(entries: &[durable::Entry], at_its_path: bool) -> RootsLeft {
-    let mut stays: Vec<(Option<RootId>, String)> = entries
+    let mut stays: Vec<(RootId, String)> = entries
         .iter()
-        .map(|entry| {
-            (
-                RootFile::named_in_any_case(&entry.name).map(RootFile::id),
-                entry.name.to_string_lossy().into_owned(),
-            )
+        .filter_map(|entry| {
+            RootFile::named_in_any_case(&entry.name)
+                .map(|file| (file.id(), entry.name.to_string_lossy().into_owned()))
         })
         .collect();
     stays.sort_by(|a, b| a.1.cmp(&b.1));
-    let mut left: Vec<RootId> = stays.iter().filter_map(|(id, _)| *id).collect();
+    let mut left: Vec<RootId> = stays.iter().map(|(id, _)| *id).collect();
     left.dedup();
+    let mut others_left = OthersLeft::default();
+    for entry in entries
+        .iter()
+        .filter(|entry| RootFile::named_in_any_case(&entry.name).is_none())
+    {
+        match entry.kind {
+            EntryKind::File if can_be_the_root_file(entry) => others_left.root_shaped += 1,
+            EntryKind::Dir => others_left.directories += 1,
+            _ => others_left.other += 1,
+        }
+    }
     RootsLeft {
         left,
-        others_left: stays.iter().filter(|(id, _)| id.is_none()).count() as u64,
         names: stays.into_iter().map(|(_, name)| name).collect(),
+        others_left,
         listed: true,
         at_its_path,
     }

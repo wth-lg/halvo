@@ -906,9 +906,9 @@ fn st47_t1_a_root_renamed_to_a_name_that_ends_in_a_dot_is_seen_by_the_delete() {
             };
             let stands = std::fs::symlink_metadata(&dotted).is_ok();
             let named = match answer {
-                Ok(report) => report.roots.names.contains(&"kept-aside.".to_string()),
+                Ok(report) => report.roots.others_left.root_shaped > 0,
                 Err(StoreError::DeleteIncomplete(report)) => {
-                    report.roots.names.contains(&"kept-aside.".to_string())
+                    report.roots.others_left.root_shaped > 0
                 }
                 Err(_) => true,
             };

@@ -1039,16 +1039,14 @@ fn st47_renamed_inside(round: usize, when: St47When, copy_at_the_name: bool) -> 
         if answer.is_ok() && unwraps {
             problems.push(format!("{tag} {what}: Ok while the renamed root unwraps"));
         }
-        let named = match answer {
-            Ok(report) => report.roots.names.contains(&"kept-aside".to_string()),
-            Err(StoreError::DeleteIncomplete(report)) => {
-                report.roots.names.contains(&"kept-aside".to_string())
-            }
+        let counted = match answer {
+            Ok(report) => report.roots.others_left.root_shaped > 0,
+            Err(StoreError::DeleteIncomplete(report)) => report.roots.others_left.root_shaped > 0,
             Err(_) => true,
         };
-        if stands && !named {
+        if stands && !counted {
             problems.push(format!(
-                "{tag} {what}: the renamed file stands and the report does not name it"
+                "{tag} {what}: the renamed file stands and the report does not count it (ruling ST-48 U3)"
             ));
         }
     };
@@ -1159,9 +1157,7 @@ fn st47_t1_a_root_moved_into_a_directory_of_the_roots_folder_keeps_every_delete_
 
     let unwraps = st47_unwraps(dir.path(), "sub", &moved, root_id, &wrapped);
     let named = |answer: &StoreResult<crate::store::DeleteReport>| match answer {
-        Err(StoreError::DeleteIncomplete(report)) => {
-            report.roots.names.contains(&"sub".to_string())
-        }
+        Err(StoreError::DeleteIncomplete(report)) => report.roots.others_left.directories == 1,
         _ => false,
     };
     println!(
@@ -1887,6 +1883,11 @@ fn st48_u3_a_root_shaped_file_that_stays_at_a_plain_name_is_not_named() {
         debug.contains(plain)
     );
     assert!(stands, "the file at the plain name did not stay");
+    assert_eq!(
+        delete_report(&answer).roots.others_left.root_shaped,
+        1,
+        "the file that stays at a plain name is not counted as one that can be a root file"
+    );
     assert!(
         matches!(answer, Err(StoreError::DeleteIncomplete(_))),
         "{}",
