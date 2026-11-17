@@ -1121,20 +1121,22 @@ waits-not-driven-phase_one'
   check ledger-holds PASS 'ledger: the measured run 1 of the long form ran on the blobs that the head has of the eight files of the hold and on its stall-seam lines of crates/halvo-capture/Cargo.toml' ''
   printf 'mod carbon {\n    fn EnableSecureEventInput() -> i32;\n    fn DisableSecureEventInput() -> i32;\n    #[link_name = concat!("Is", "SecureEventInputEnabled")]\n    fn is_on() -> u8;\n}\n' >"$work/repo/crates/halvo-capture/src/secure_input_macos.rs" || exit 2
   mkdir -p "$work/repo/crates/other/src" || exit 2
-  printf 'extern "C" {\n    #[link_name = "fdopendir$INODE64"]\n    fn fdopendir() -> i32;\n}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  printf 'extern "C" {\n    #[link_name = "fdopendir%sINODE64"]\n    fn fdopendir() -> i32;\n}\n' "\$" >"$work/repo/crates/other/src/lib.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   write_measured_ledger
   check carbon-calls-and-a-plain-link-name PASS 'carbon: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone' ''
   carbon_text='stands outside crates/halvo-capture/src/secure_input_macos.rs, whose one lock holds the three Carbon calls: crates/other/src/'
+  n=0
   for form in 'lib.rs:extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' \
     'hold.mm:void hold(void) { EnableSecureEventInput(); }\n' \
     'hold.cpp:void hold(void) { DisableSecureEventInput(); }\n' \
     'lib.rs:extern "C" {\n    #[link_name = concat!("Enable", "SecureEventInput")]\n    fn hold() -> i32;\n}\n' \
     'lib.rs:extern "C" {\n    #[link_name = "\\x45nableSecureEventInput"]\n    fn hold() -> i32;\n}\n'; do
     file=${form%%:*}
-    printf "${form#*:}" >"$work/repo/crates/other/src/$file" || exit 2
+    printf '%b' "${form#*:}" >"$work/repo/crates/other/src/$file" || exit 2
     git -C "$work/repo" add crates || exit 2
-    check "carbon-outside-the-lock-in-$file-$(printf '%s' "$form" | cksum | cut -d ' ' -f 1)" FAIL "$carbon_text$file" ''
+    n=$((n + 1))
+    check "carbon-outside-the-lock-$n-in-$file" FAIL "$carbon_text$file" ''
     printf '// none\n' >"$work/repo/crates/other/src/$file" || exit 2
     git -C "$work/repo" add crates || exit 2
   done
@@ -1152,7 +1154,7 @@ waits-not-driven-phase_one'
     'enum-wrapper:enum Kept {\n    One(Reading),\n}\n' \
     'static:static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n' \
     'static-after-the-tests:#[cfg(test)]\nmod tests {\n    fn x() {}\n}\n\nstatic LAST_READING: Mutex<Option<Reading>> = Mutex::new(None);\n'; do
-    printf "${form#*:}" >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
+    printf '%b' "${form#*:}" >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
     git -C "$work/repo" add crates || exit 2
     check "reading-kept-by-a-${form%%:*}" FAIL "crates/halvo-capture/src/macos/input.rs $reading_text" ''
   done
@@ -1160,10 +1162,10 @@ waits-not-driven-phase_one'
   printf '%s\npub struct HeldKeys<T> {\n    keys: VecDeque<T>,\n    kept: Option<Reading>,\n}\n' "$clock_lines" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
   check reading-kept-in-the-hold-file FAIL "crates/halvo-capture/src/secure_input_macos_hold.rs $reading_text" ''
-  for form in 'pub struct Monotonic(pub(crate) u64);\npub struct Uptime(u64);\n' 'pub struct Monotonic(u64);\npub struct Uptime(pub u64);\n'; do
-    printf "$form" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
+  for form in 'pub-crate:pub struct Monotonic(pub(crate) u64);\npub struct Uptime(u64);\n' 'pub:pub struct Monotonic(u64);\npub struct Uptime(pub u64);\n'; do
+    printf '%b' "${form#*:}" >"$work/repo/crates/halvo-capture/src/secure_input_macos_hold.rs" || exit 2
     git -C "$work/repo" add crates || exit 2
-    check "clock-field-made-public-$(printf '%s' "$form" | cksum | cut -d ' ' -f 1)" FAIL 'its field is public in some form, or the type moved' ''
+    check "clock-field-made-${form%%:*}" FAIL 'its field is public in some form, or the type moved' ''
   done
   for path in crates/halvo-capture/src/macos/input.rs crates/halvo-capture/src/secure_input_macos.rs; do
     printf '%s\n' "$path" >"$work/repo/$path" || exit 2
