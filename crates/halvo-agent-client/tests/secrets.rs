@@ -3,11 +3,11 @@ mod common;
 use std::fs;
 use std::time::Duration;
 
-use common::{id16, wait_until, Rig};
+use common::{id16, Rig};
 use halvo_agent_client::wire::FRAME_MAX;
 use halvo_schema::executable::frame::SecretReply;
 use halvo_schema::executable::names::Unreadable;
-use halvo_schema::executable::text::{Name, RunId, SecretText};
+use halvo_schema::executable::text::{Name, SecretText};
 use halvo_schema::AgentId;
 
 const SHORT: Duration = Duration::from_secs(10);
@@ -148,7 +148,7 @@ fn two_live_runs_that_ask_two_names_get_on_every_read_in_order_what_their_own_ag
 }
 
 #[test]
-fn a_secret_frame_that_names_another_agent_reads_for_no_agent_but_the_runs_own() {
+fn a_secret_frame_with_an_agent_key_is_refused_and_its_run_ends_with_no_read_made() {
     let rig = Rig::new("secret-frame-agent");
     let other = AgentId::from_random(id16());
     rig.vault.held.lock().unwrap().push((
@@ -162,17 +162,12 @@ fn a_secret_frame_that_names_another_agent_reads_for_no_agent_but_the_runs_own()
     );
     let script = rig.script(&["hello", &ask, "log asked", "idle"]);
     let spec = rig.spec(&script);
-    let (run, agent) = (spec.run.clone(), spec.agent.clone());
+    let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
-    let ended = |run: &RunId| rig.rec.ends.lock().unwrap().iter().any(|(r, _)| r == run);
-    assert!(
-        wait_until(SHORT, || script.log().contains("asked") || ended(&run)),
-        "{}",
-        script.log()
-    );
-    let _ = rig.sup.kill(&run);
+    assert!(rig.rec.wait_end(&run, SHORT).is_some(), "{}", script.log());
     let calls = rig.vault.calls.lock().unwrap().clone();
-    assert!(calls.iter().all(|(a, _)| a == &agent), "{calls:?}");
+    assert!(calls.is_empty(), "{calls:?}");
+    assert!(script.replies().is_empty(), "{}", script.log());
     assert!(
         !script.log().contains("tok_other_agent"),
         "{}",
