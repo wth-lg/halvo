@@ -16,6 +16,13 @@ use support::{
     agent, calls_since, coordinator, mark, owner, started, Both, DAY, MANUAL, PERSON, T0,
 };
 
+/// What a life that saw the whole run writes of its defers: the defer of its launch acknowledged
+/// and no tick at which a defer failed (ruling RD-86, RD-120).
+const SEEN_WHOLE: Option<halvo_coord::types::Defers> = Some(halvo_coord::types::Defers {
+    launch: true,
+    ticks_failed: 0,
+});
+
 fn text(key: &str) -> String {
     words::text(key, &[]).unwrap()
 }
@@ -216,7 +223,7 @@ fn the_persons_stop_of_a_waiting_run_ends_it_and_closes_its_item_for_every_kind(
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Cancelled,
-            defers: None
+            defers: SEEN_WHOLE
         }));
         assert_eq!(c.live(), 0);
     }
@@ -309,7 +316,7 @@ fn the_quit_cancels_every_live_run_refuses_every_start_and_kills_what_lives_at_i
     assert!(events(&c).contains(&What::RunEnded {
         run: first.clone(),
         cause: RunEnd::Cancelled,
-        defers: None
+        defers: SEEN_WHOLE
     }));
     assert_eq!(c.live(), 1);
     let ended_before = events(&c)
@@ -393,7 +400,7 @@ fn the_runners_end_of_a_waiting_run_lapses_its_item_with_run_ended_and_ends_the_
     assert!(events(&c).contains(&What::RunEnded {
         run,
         cause: RunEnd::HandedBack,
-        defers: None
+        defers: SEEN_WHOLE
     }));
     assert!(c.snapshot().items.is_empty());
     assert_eq!(c.live(), 0);
@@ -616,7 +623,7 @@ fn a_recorded_confirmation_of_a_stopped_run_lapses_with_run_ended_at_the_runners
     assert!(events(&c).contains(&What::RunEnded {
         run,
         cause: RunEnd::Cancelled,
-        defers: None
+        defers: SEEN_WHOLE
     }));
 }
 
@@ -1091,7 +1098,7 @@ fn ends_with(c: &Coordinator<Both>, m: usize, run: &RunId, end: RunEnd, now: u64
     assert!(events(c).contains(&What::RunEnded {
         run: run.clone(),
         cause: end,
-        defers: None
+        defers: SEEN_WHOLE
     }));
     assert_eq!(c.live(), 0);
 }
@@ -1353,7 +1360,7 @@ fn switching_off_an_agent_whose_run_waits_lapses_its_item_with_cancelled_and_sto
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Cancelled,
-            defers: None
+            defers: SEEN_WHOLE
         }));
         assert_eq!(c.live(), 0);
     }
@@ -1456,7 +1463,7 @@ fn a_lapse_at_the_runners_end_that_met_a_busy_owner_is_stored_at_the_next_tick_b
     let ended = What::RunEnded {
         run,
         cause: RunEnd::HandedBack,
-        defers: None,
+        defers: SEEN_WHOLE,
     };
     assert!(at(&lapse) < at(&ended), "{stored:?}");
     assert!(c.snapshot().items.is_empty());
@@ -1839,7 +1846,7 @@ fn a_confirmation_that_waited_wait_limit_lapses_and_its_run_stops_and_ends_lapse
     assert!(events(&c).contains(&What::RunEnded {
         run,
         cause: RunEnd::Lapsed,
-        defers: None
+        defers: SEEN_WHOLE
     }));
     assert_eq!(c.live(), 0);
 }
@@ -1966,7 +1973,7 @@ fn a_stop_while_every_log_answers_no_service_stores_its_lapse_before_the_run_end
     let ended = What::RunEnded {
         run: run.clone(),
         cause: RunEnd::Cancelled,
-        defers: None,
+        defers: SEEN_WHOLE,
     };
     assert_eq!(stored.iter().filter(|w| **w == ended).count(), 1);
     let at = |what: &What| stored.iter().position(|w| w == what);
@@ -2037,7 +2044,7 @@ fn an_item_that_a_run_waits_on_lapses_at_wait_limit_and_its_run_ends_lapsed() {
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Lapsed,
-                defers: None
+                defers: SEEN_WHOLE
             }),
             "{reason:?}"
         );
@@ -2104,7 +2111,7 @@ fn after_a_lapse_at_wait_limit_the_person_finds_no_card_the_row_stopped_early_an
     assert!(events(&c).contains(&What::RunEnded {
         run: run.clone(),
         cause: RunEnd::Lapsed,
-        defers: None
+        defers: SEEN_WHOLE
     }));
     let next = start(&c, 0);
     assert_ne!(next, run);
@@ -2274,7 +2281,7 @@ fn after_the_quits_first_step_a_tick_sends_what_the_board_owes() {
     let ended = What::RunEnded {
         run: run.clone(),
         cause: RunEnd::Completed,
-        defers: None,
+        defers: SEEN_WHOLE,
     };
     assert!(!events(&c).contains(&ended), "the end is owed");
     let _ = c.quit_stop();
@@ -2721,7 +2728,7 @@ fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_ord
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Cancelled,
-                defers: None
+                defers: SEEN_WHOLE
             }),
             "{order:?}"
         );
@@ -2747,7 +2754,7 @@ fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::HandedBack,
-                defers: None
+                defers: SEEN_WHOLE
             }),
             "{order:?}: the runner's own cause"
         );
@@ -2788,7 +2795,7 @@ fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_
             events(&c).contains(&What::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Lapsed,
-                defers: None
+                defers: SEEN_WHOLE
             }),
             "{order:?}"
         );
@@ -3775,7 +3782,7 @@ fn a_lost_allow_then_the_stop_sends_decline_before_one_cancel_and_lapses_cancell
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Cancelled,
-            defers: None
+            defers: SEEN_WHOLE
         }));
         assert_eq!(allows(&c), 0, "{order:?}");
     }
@@ -3807,7 +3814,7 @@ fn a_lost_allow_then_the_wait_limit_sends_decline_and_the_run_ends_lapsed_in_bot
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Lapsed,
-            defers: None
+            defers: SEEN_WHOLE
         }));
         assert_eq!(allows(&c), 0, "{order:?}");
     }
@@ -5489,7 +5496,7 @@ fn rd52b_a_switch_off_whose_hold_the_read_shows_stops_and_pauses_in_the_order_of
         assert!(events(&c).contains(&What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Cancelled,
-            defers: None
+            defers: SEEN_WHOLE
         }));
     }
 }

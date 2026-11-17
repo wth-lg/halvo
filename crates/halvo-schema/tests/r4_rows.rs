@@ -293,7 +293,7 @@ fn r4_rows_every_form_of_i7_1_is_read_and_written_again() {
         let text = row_with(form, None);
         let value =
             CoordEvent::parse(text.as_bytes()).unwrap_or_else(|r| panic!("{}: {r}", form.name));
-        assert_eq!(value.to_json().unwrap(), text, "{}", form.name);
+        assert_eq!(value.to_json().unwrap(), written(&text), "{}", form.name);
     }
 }
 
@@ -419,7 +419,7 @@ fn r4_rows_a_start_of_the_person_with_a_null_slot_is_taken() {
         let text = run_started(1, trigger, slot);
         let value = CoordEvent::parse(text.as_bytes())
             .unwrap_or_else(|r| panic!("I5.3: run_started {trigger} with slot {slot}: {r}"));
-        assert_eq!(value.to_json().unwrap(), text, "{trigger} {slot}");
+        assert_eq!(value.to_json().unwrap(), written(&text), "{trigger} {slot}");
     }
     let log = format!(
         r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{}]}}"#,
@@ -444,7 +444,7 @@ fn r4_rows_at_is_any_signed_64_bit_count_but_minus_zero() {
         let text = hold_set("1", at);
         let value = CoordEvent::parse(text.as_bytes())
             .unwrap_or_else(|r| panic!("I7.1, W-C0.6: at {at} is a signed i64 instant; {r}"));
-        assert_eq!(value.to_json().unwrap(), text, "at {at}");
+        assert_eq!(value.to_json().unwrap(), written(&text), "at {at}");
     }
     for at in ["-0", "9223372036854775808", "-9223372036854775809"] {
         let refusal = CoordEvent::parse(hold_set("1", at).as_bytes()).unwrap_err();
@@ -493,7 +493,7 @@ fn r4_rows_run_ended_holds_the_fourteen_ends_of_a_stored_row() {
         let text = run_ended(1, cause);
         let value =
             CoordEvent::parse(text.as_bytes()).unwrap_or_else(|r| panic!("run_ended {cause}: {r}"));
-        assert_eq!(value.to_json().unwrap(), text);
+        assert_eq!(value.to_json().unwrap(), written(&text));
     }
     let names: Vec<&str> = RunEnd::ALL.iter().map(|e| e.as_str()).collect();
     assert_eq!(
@@ -537,6 +537,12 @@ fn r4_rows_run_ended_with_the_cause_deleted_is_never_read() {
     );
 }
 
+/// What the writer writes for a row of the eighteen keys of I7.1 that sets no defer: the same row with both
+/// defer keys null after `origin` (ruling RD-120).
+fn written(text: &str) -> String {
+    with_defers(text, "null", "null")
+}
+
 fn with_defers(text: &str, launch: &str, ticks: &str) -> String {
     let body = text.strip_suffix('}').unwrap();
     format!(r#"{body},"defer_launch":{launch},"defer_ticks_failed":{ticks}}}"#)
@@ -558,8 +564,8 @@ fn r4_rows_run_ended_holds_the_two_defer_keys_both_null_or_both_set() {
         assert_eq!(read, CoordEvent::parse(older.as_bytes()).unwrap());
         assert_eq!(
             read.to_json().unwrap(),
-            older,
-            "null defers are not written"
+            nulls,
+            "unset defers are written, both null, after origin (RD-120)"
         );
         for (launch, ticks) in [
             (r#""yes""#, "0"),
@@ -615,7 +621,12 @@ fn r4_rows_every_other_form_takes_the_two_defer_keys_null_alone() {
         let nulls = with_defers(&older, "null", "null");
         let read =
             CoordEvent::parse(nulls.as_bytes()).unwrap_or_else(|r| panic!("{}: {r}", form.name));
-        assert_eq!(read.to_json().unwrap(), older, "{}", form.name);
+        assert_eq!(
+            read.to_json().unwrap(),
+            nulls,
+            "{}: both keys null",
+            form.name
+        );
         refused_at(
             &with_defers(&older, r#""yes""#, "1"),
             "defer_launch",
@@ -652,12 +663,20 @@ fn r4_rows_a_row_with_one_of_the_two_defer_keys_is_refused() {
 }
 
 #[test]
-fn r4_rows_the_kind_entry_refuses_defer_values_until_the_writers_write_them() {
+fn r4_rows_the_kind_entry_takes_the_defer_keys_that_the_writers_write_and_refuses_a_row_without_them(
+) {
     let entry = &halvo_schema::coordinator::KINDS[0];
     let older = run_ended(1, "completed");
-    assert_eq!(check_record(entry, &older), Ok(()));
-    let newer = with_defers(&older, r#""yes""#, "2");
-    assert!(CoordEvent::parse(newer.as_bytes()).is_ok());
-    let refusal = check_record(entry, &newer).unwrap_err();
-    assert!(refusal.contains("unknown_key"), "{refusal}");
+    for (launch, ticks) in [(r#""yes""#, "2"), ("null", "null")] {
+        let newer = with_defers(&older, launch, ticks);
+        let read = CoordEvent::parse(newer.as_bytes()).unwrap();
+        assert_eq!(read.to_json().unwrap(), newer, "{newer}");
+        assert_eq!(check_record(entry, &newer), Ok(()), "{newer}");
+    }
+    assert!(
+        CoordEvent::parse(older.as_bytes()).is_ok(),
+        "the reader takes it"
+    );
+    let refusal = check_record(entry, &older).unwrap_err();
+    assert!(refusal.contains("missing_key"), "{refusal}");
 }

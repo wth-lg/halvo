@@ -13,6 +13,13 @@ use halvo_coord::types::{
 };
 use support::{agent, flow, world, World, MANUAL};
 
+/// What a life that saw the whole run writes of its defers: the defer of its launch acknowledged
+/// and no tick at which a defer failed (ruling RD-86, RD-120).
+const SEEN_WHOLE: Option<halvo_coord::types::Defers> = Some(halvo_coord::types::Defers {
+    launch: true,
+    ticks_failed: 0,
+});
+
 fn waiting(w: &mut World, kind: RunItemKind, item: &ItemId) -> RunId {
     let run = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
     assert_eq!(
@@ -227,7 +234,7 @@ fn a_stop_with_kind_or_budget_ends_with_its_cause_in_run_step_and_in_the_stored_
             == What::RunEnded {
                 run: run.clone(),
                 cause: end,
-                defers: None
+                defers: SEEN_WHOLE
             }));
     }
 }

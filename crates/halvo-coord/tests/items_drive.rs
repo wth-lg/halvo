@@ -1647,6 +1647,14 @@ fn every_form() -> Vec<What> {
             cause: RunEnd::Completed,
             defers: None,
         },
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Failed,
+            defers: Some(halvo_coord::types::Defers {
+                launch: false,
+                ticks_failed: u32::MAX,
+            }),
+        },
         What::ItemRaised {
             item: item(1),
             raised: Raised::Confirm(run.clone()),
@@ -1990,7 +1998,8 @@ fn log_text_writes_the_slot_of_a_slot_skipped_row() {
             r#"{{"op":"coord_log",{ids},"records":[{{"v":1,{ids},"seq":1,"day":20760,"#,
             r#""at":1793793600000000000,"event":"slot_skipped","run":null,"slot":20760,"#,
             r#""item":null,"kind":null,"effect":null,"approval":null,"digest":null,"#,
-            r#""answer":null,"cause":null,"trigger":null,"origin":null}}]}}"#
+            r#""answer":null,"cause":null,"trigger":null,"origin":null,"#,
+            r#""defer_launch":null,"defer_ticks_failed":null}}]}}"#
         ),
         ids = ids
     );

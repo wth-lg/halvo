@@ -547,8 +547,8 @@ fn finish<P: Owner, C>(
 {
     let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
     match log_end(cx, board, i, run, cause, (day, at), false) {
-        Ok(()) => {}
-        Err(e) if gone_refusal(&e) => {}
+        Ok(()) => board.forget_defers(run),
+        Err(e) if gone_refusal(&e) => board.forget_defers(run),
         Err(_) => {
             let facts = &board.members[i].facts;
             let owed = Owed {
@@ -602,7 +602,7 @@ where
     let mut whats = vec![What::RunEnded {
         run: run.clone(),
         cause,
-        defers: None,
+        defers: board.defers(run),
     }];
     if pause {
         whats.push(What::HoldSet {
@@ -649,14 +649,12 @@ where
         run,
     };
     let defer = || {
-        let _ = cx
-            .ports
-            .defer(cx.move_stamp.now().saturating_add(go.defer_ms));
+        cx.ports
+            .defer(cx.move_stamp.now().saturating_add(go.defer_ms))
+            .is_ok()
     };
     let held = board.defer_held(&agent);
-    if !held {
-        defer();
-    }
+    let mut launch = !held && defer();
     let run = match minted(cx).map(|h| RunId::parse(&h)) {
         Ok(Ok(run)) => run,
         Ok(Err(_)) => return served(Err(Cause::NoService), None),
@@ -687,7 +685,7 @@ where
         }
     }
     if held {
-        defer();
+        launch = defer();
     }
     board.members[i].facts.store_ended = false;
     let workflow = board.members[i].facts.workflow.id.clone();
@@ -727,6 +725,7 @@ where
         rank,
         stop: None,
     });
+    board.launched(&run, launch);
     board.members[i].facts.doing = Doing::Live(Live::Starting);
     served(Ok(Answer::Ok), Some(run))
 }
@@ -929,6 +928,8 @@ where
             board.members[i].facts.doing = Doing::Idle(None);
             if listed.contains(&live.workflow) && cause != RunEnd::Deleted {
                 finish(cx, board, i, &live.run, cause);
+            } else {
+                board.forget_defers(&live.run);
             }
         }
     }
@@ -1282,6 +1283,8 @@ fn pay_owed<P: Owner + Clock, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mu
         }
         if !send_owed(cx, board, &o) {
             board.owed.push(o);
+        } else if let Owing::RunEnded { run, .. } = &o.what {
+            board.forget_defers(run);
         }
     }
 }
@@ -1336,7 +1339,13 @@ where
     let plan = tick_plan(board, &seen, cx.move_stamp.now(), cx.limits);
     let mut report = Report::default();
     if let Some(ms) = plan.defer_ms {
-        let _ = cx.ports.defer(cx.move_stamp.now().saturating_add(ms));
+        if cx
+            .ports
+            .defer(cx.move_stamp.now().saturating_add(ms))
+            .is_err()
+        {
+            board.defer_failed();
+        }
     }
     for run in &plan.stop {
         stop_run(board, run, cx.move_stamp.now(), RunEnd::Deleted);
@@ -1944,7 +1953,12 @@ where
 {
     let stamp = match Stamp::read(ports) {
         Ok(stamp) => stamp,
-        Err(e) => return refused(port_cause(&e)),
+        Err(e) => {
+            if matches!(mv, Move::Tick) {
+                board.defer_failed();
+            }
+            return refused(port_cause(&e));
+        }
     };
     let cx = MoveContext {
         ports,

@@ -1903,3 +1903,22 @@ fn rd96_5c_an_owed_run_endeds_read_after_seq_closes_the_lost_start_that_it_bring
         "the run_ended of the earlier run is still owed"
     );
 }
+
+#[test]
+fn rd86_a_run_that_recovery_ends_holds_null() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    let ended = relife(&mut w, &[]);
+    assert_eq!(ended, vec![(run.clone(), RunEnd::Interrupted)]);
+    let defers: Vec<_> = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run: r, defers, .. } if *r == run => Some(*defers),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(defers, vec![None]);
+}

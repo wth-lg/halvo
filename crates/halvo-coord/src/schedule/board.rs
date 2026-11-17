@@ -1,6 +1,6 @@
 use super::Queue;
 use crate::ports::Reaped;
-use crate::types::{AgentId, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
+use crate::types::{AgentId, Defers, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
 
 /// What the coordinator owes the owner for an agent, sent again at each tick until the owner
 /// acknowledges it (I5.8, I5.9, rulings XB-14, XB-17 and XB-32).
@@ -145,6 +145,7 @@ pub struct Board<C> {
     dropped: Vec<(AgentId, Dropped)>,
     stuck: Vec<(AgentId, Stuck)>,
     lasts: Vec<(AgentId, u32, usize)>,
+    defers: Vec<(RunId, Defers)>,
 }
 
 impl<C> Board<C> {
@@ -171,7 +172,41 @@ impl<C> Board<C> {
             dropped: Vec::new(),
             stuck: Vec::new(),
             lasts: Vec::new(),
+            defers: Vec::new(),
         }
+    }
+
+    /// Takes a run that this life put on the board with whether the defer of its launch was
+    /// acknowledged (ruling RD-86 item 1).
+    pub(crate) fn launched(&mut self, run: &RunId, launch: bool) {
+        self.defers.retain(|(r, _)| r != run);
+        self.defers.push((
+            run.clone(),
+            Defers {
+                launch,
+                ticks_failed: 0,
+            },
+        ));
+    }
+
+    /// Counts a tick at which no defer was acknowledged for each run that stands on the board
+    /// (ruling RD-86 item 1).
+    pub(crate) fn defer_failed(&mut self) {
+        for (run, d) in &mut self.defers {
+            if self.runs.iter().any(|r| &r.run == run) {
+                d.ticks_failed = d.ticks_failed.saturating_add(1);
+            }
+        }
+    }
+
+    /// What this life saw of the run's defers, or none where it did not see the run whole.
+    pub(crate) fn defers(&self, run: &RunId) -> Option<Defers> {
+        self.defers.iter().find(|(r, _)| r == run).map(|(_, d)| *d)
+    }
+
+    /// Forgets the run's defers once its `run_ended` needs them no more.
+    pub(crate) fn forget_defers(&mut self, run: &RunId) {
+        self.defers.retain(|(r, _)| r != run);
     }
 
     /// Whether recovery set the agent aside: the owner refused to read its history, so it is a

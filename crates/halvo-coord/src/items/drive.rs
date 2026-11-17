@@ -377,7 +377,9 @@ struct LogBody<'a> {
     records: Vec<Record<'a>>,
 }
 
-/// A record of I7.1, its eighteen keys in their order, each set by the event or null.
+/// A record of I7.1, its twenty keys in their order, each set by the event or null: the two keys of
+/// the defers of a run come after `origin` on every row and are set on a `run_ended` alone, where
+/// this life saw the run whole (ruling RD-86 items 1 and 2, RD-120).
 #[derive(Serialize, Default)]
 struct Record<'a> {
     v: u8,
@@ -398,6 +400,8 @@ struct Record<'a> {
     cause: Option<&'static str>,
     trigger: Option<&'static str>,
     origin: Option<&'a str>,
+    defer_launch: Option<&'static str>,
+    defer_ticks_failed: Option<u32>,
 }
 
 impl<'a> Record<'a> {
@@ -419,14 +423,12 @@ impl<'a> Record<'a> {
                 trigger: Some(trigger.name()),
                 ..base
             },
-            What::RunEnded {
-                run,
-                cause,
-                defers: _,
-            } => Record {
+            What::RunEnded { run, cause, defers } => Record {
                 event: "run_ended",
                 run: Some(run.as_str()),
                 cause: Some(cause.name()),
+                defer_launch: defers.map(|d| if d.launch { "yes" } else { "no" }),
+                defer_ticks_failed: defers.map(|d| d.ticks_failed),
                 ..base
             },
             What::ItemRaised { item, raised } => Record {

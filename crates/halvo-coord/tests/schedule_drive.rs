@@ -12,6 +12,13 @@ use halvo_coord::types::{
 };
 use std::num::NonZeroU32;
 
+/// What a life that saw the whole run writes of its defers: the defer of its launch acknowledged
+/// and no tick at which a defer failed (ruling RD-86, RD-120).
+const SEEN_WHOLE: Option<halvo_coord::types::Defers> = Some(halvo_coord::types::Defers {
+    launch: true,
+    ticks_failed: 0,
+});
+
 const DAY: u32 = 20_000;
 const T0: u64 = 1_700_000_000_000;
 
@@ -2194,7 +2201,7 @@ fn a_run_ended_that_the_owner_did_not_acknowledge_is_owed_and_holds_the_agent() 
         What::RunEnded {
             run,
             cause: RunEnd::Completed,
-            defers: None
+            defers: SEEN_WHOLE
         }
     );
     assert_eq!(e.day, DAY, "the day of the end");
@@ -3161,4 +3168,100 @@ fn no_writer_stores_a_run_ended_deleted_for_a_run_whose_workflow_is_listed_again
             "{by}: and none is owed"
         );
     }
+}
+
+fn defers_of(w: &World, run: &RunId) -> Option<halvo_coord::types::Defers> {
+    w.stored()
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunEnded { run: r, defers, .. } if r == run => Some(*defers),
+            _ => None,
+        })
+        .expect("the run_ended is stored")
+}
+
+fn defers(launch: bool, ticks_failed: u32) -> Option<halvo_coord::types::Defers> {
+    Some(halvo_coord::types::Defers {
+        launch,
+        ticks_failed,
+    })
+}
+
+fn ticks(w: &mut World, from: u64, n: u64) {
+    for k in 0..n {
+        w.clock(T0 + (from + k) * 1_000, DAY);
+        w.tick();
+    }
+}
+
+#[test]
+fn rd86_every_defer_refused_for_a_run_of_n_ticks_gives_no_and_n() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Defer, PortError::NoService);
+    let run = ok_run(&w.start(0));
+    ticks(&mut w, 1, 3);
+    w.ports.clear_refusals();
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(defers_of(&w, &run), defers(false, 3));
+}
+
+#[test]
+fn rd86_the_launch_acknowledged_and_the_ticks_refused_gives_yes_and_n() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Defer, PortError::Busy);
+    ticks(&mut w, 1, 3);
+    w.ports.clear_refusals();
+    ticks(&mut w, 4, 2);
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(
+        defers_of(&w, &run),
+        defers(true, 3),
+        "an acknowledged tick counts nothing"
+    );
+}
+
+#[test]
+fn rd86_a_tick_whose_clock_or_day_fails_counts_for_the_run() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.clock(halvo_coord::ports::Stamp::LAST + 1, DAY);
+    w.tick();
+    w.clock(T0 + 1_000, DAY);
+    w.ports.set_zone(i64::MIN / 2);
+    w.tick();
+    ticks(&mut w, 2, 1);
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(defers_of(&w, &run), defers(true, 2));
+}
+
+#[test]
+fn rd86_two_live_runs_each_get_the_ticks_failure() {
+    let two = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let mut w = world_with(&[manual(), manual()], two);
+    let first = ok_run(&w.start(0));
+    let second = ok_run(&w.start(1));
+    w.ports.refuse(Method::Defer, PortError::NoService);
+    ticks(&mut w, 1, 1);
+    w.ports.clear_refusals();
+    w.end(&first, Some(Outcome::Completed));
+    w.end(&second, Some(Outcome::Failed));
+    assert_eq!(defers_of(&w, &first), defers(true, 1));
+    assert_eq!(defers_of(&w, &second), defers(true, 1));
+}
+
+#[test]
+fn rd86_a_start_that_failed_holds_null() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Start, PortError::NoService);
+    let report = w.start(0);
+    w.ports.clear_refusals();
+    let run = report
+        .run
+        .clone()
+        .expect("the start stored its run_started");
+    assert_eq!(defers_of(&w, &run), None);
 }
