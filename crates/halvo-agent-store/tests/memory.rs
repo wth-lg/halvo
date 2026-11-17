@@ -1,5 +1,9 @@
 use halvo_agent_store::{CommitRefused, Host, MemoryStore, AGENT_KINDS};
-use halvo_schema::executable::names::AgentState;
+use std::num::NonZeroU32;
+
+use halvo_schema::executable::names::{AgentState, Mode, Outcome};
+use halvo_schema::executable::record::AgentRun;
+use halvo_schema::executable::text::RunId;
 use halvo_schema::{
     AgentId, ErrorName, Instant, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
     WorkflowState, WriterStep,
@@ -63,13 +67,23 @@ fn log_line(w: u32, seq: u32) -> TypedRecord {
 }
 
 fn run_line(w: u32, run: u32) -> TypedRecord {
+    let mut made = AgentRun::new(
+        workflow_id(w),
+        agent_id(1),
+        RunId::parse(&format!("5{run:031x}")).expect("a run id"),
+        20770,
+        Some(Mode::Replay),
+        Outcome::Completed,
+    );
+    made.playbook = NonZeroU32::new(1);
+    made.steps = 9;
+    made.prompts = 1;
+    made.confirmations = 1;
+    made.effects = 1;
+    made.wall_s = 14;
     TypedRecord {
         kind: "agent_run",
-        json: format!(
-            r#"{{"v":1,"workflow":"{}","agent":"{}","run":"5{run:031x}","day":20770,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}}"#,
-            wf(w),
-            agent(1)
-        ),
+        json: made.to_json().expect("a made record"),
     }
 }
 
@@ -188,9 +202,8 @@ fn commit_is_all_or_none() {
 fn commit_checks_a_record_against_its_entry() {
     let mut store = store();
     let mut extra = run_line(1, 1);
-    extra.json = extra
-        .json
-        .replace(r#""earlier_page":null}"#, r#""earlier_page":null,"x":1}"#);
+    let open = extra.json.strip_suffix('}').expect("an object");
+    extra.json = format!(r#"{open},"x":1}}"#);
     assert_eq!(store.typed_commit(vec![extra]), Err(CommitRefused::Record));
     let mut not_json = log_line(1, 1);
     not_json.json = "[1]".to_owned();

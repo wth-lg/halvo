@@ -20,7 +20,7 @@ use halvo_schema::executable::frame::{
 };
 use halvo_schema::executable::names::*;
 use halvo_schema::executable::record::{
-    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Slot,
+    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, Slot, RUN_LIST_KEYS,
 };
 use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
@@ -1319,5 +1319,196 @@ fn the_committed_names_file_holds_the_names_of_this_file_and_none_left_out() {
     }
     for name in ERROR_NAMES {
         assert_eq!(lines.contains(name), NAMES.contains(name), "{name}");
+    }
+}
+
+fn made_run(mode: Option<Mode>, outcome: Outcome) -> AgentRun {
+    AgentRun::new(workflow(), agent(), run(), 20768, mode, outcome)
+}
+
+fn counted(mut record: AgentRun, unknown: u32) -> AgentRun {
+    record.playbook = Some(n(1));
+    record.steps = 9;
+    record.prompts = 2;
+    record.handbacks = 1;
+    record.confirmations = 1;
+    record.effects = 1;
+    record.unknown = unknown;
+    record.model_calls = 3;
+    record.tokens_in = 2400;
+    record.tokens_out = 120;
+    record.wall_s = 41;
+    record.model = Some(name("qwen3_1_7b"));
+    record
+}
+
+fn made_runs() -> Vec<AgentRun> {
+    let mut replay = counted(made_run(Some(Mode::Replay), Outcome::Completed), 0);
+    replay.model = None;
+    replay.model_calls = 0;
+    replay.tokens_in = 0;
+    replay.tokens_out = 0;
+    let mut ended = made_run(None, Outcome::Failed);
+    ended.effects = 1;
+    ended.unknown = 1;
+    let mut replied = counted(made_run(Some(Mode::Replay), Outcome::Completed), 0);
+    replied.before_start = Some(2);
+    replied.cut = Some(YesNo::Yes);
+    replied.no_key = Some(0);
+    replied.not_to_account = Some(1);
+    replied.incomplete = Some(0);
+    replied.reply_to_other = Some(1);
+    replied.more_pages = Some(YesNo::No);
+    replied.held_recipient = Some(1);
+    replied.other_task = Some(0);
+    replied.held_earlier = Some(3);
+    replied.earlier_page = Some(1);
+    vec![
+        replay,
+        counted(made_run(Some(Mode::Compile), Outcome::Failed), 1),
+        counted(made_run(Some(Mode::Replay), Outcome::EffectUnknown), 1),
+        ended,
+        replied,
+    ]
+}
+
+fn keys_in_order(text: &str) -> Vec<String> {
+    let mut keys = Vec::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '"' {
+            continue;
+        }
+        let mut word = String::new();
+        for c in chars.by_ref() {
+            if c == '"' {
+                break;
+            }
+            word.push(c);
+        }
+        if chars.peek() == Some(&':') {
+            keys.push(word);
+        }
+    }
+    keys
+}
+
+#[test]
+fn the_maker_of_agent_run_writes_each_golden_run_line_key_for_key_in_order_and_byte_for_byte() {
+    let golden = committed("runs.jsonl");
+    let golden: Vec<&str> = golden.lines().collect();
+    let made: Vec<String> = made_runs().iter().map(|r| r.to_json().unwrap()).collect();
+    assert_eq!(made.len(), golden.len());
+    for (line, (made, golden)) in made.iter().zip(&golden).enumerate() {
+        assert_eq!(keys_in_order(made), keys_in_order(golden), "line {line}");
+        assert_eq!(made, golden, "line {line}");
+    }
+}
+
+#[test]
+fn the_maker_leaves_every_count_0_and_playbook_model_and_each_key_of_the_run_s_list_null() {
+    let text = made_run(None, Outcome::Failed).to_json().unwrap();
+    let mut want = vec![
+        format!(
+            r#""v":1,"workflow":"{}","agent":"{}","run":"{}","day":20768"#,
+            workflow(),
+            agent(),
+            run()
+        ),
+        r#""mode":null,"outcome":"failed","playbook":null"#.to_owned(),
+    ];
+    for key in [
+        "steps",
+        "prompts",
+        "handbacks",
+        "confirmations",
+        "effects",
+        "unknown",
+        "model_calls",
+        "tokens_in",
+        "tokens_out",
+        "wall_s",
+    ] {
+        want.push(format!(r#""{key}":0"#));
+    }
+    want.push(r#""model":null"#.to_owned());
+    for key in RUN_LIST_KEYS {
+        want.push(format!(r#""{key}":null"#));
+    }
+    assert_eq!(text, format!("{{{}}}", want.join(",")));
+}
+
+#[test]
+fn the_maker_writes_the_keys_of_the_type_in_the_order_of_a_golden_line_and_the_run_s_list_last() {
+    let golden = committed("runs.jsonl");
+    let first = golden.lines().next().unwrap();
+    let made = keys_in_order(
+        &made_run(Some(Mode::Compile), Outcome::Completed)
+            .to_json()
+            .unwrap(),
+    );
+    assert_eq!(made, keys_in_order(first));
+    assert_eq!(&made[made.len() - RUN_LIST_KEYS.len()..], RUN_LIST_KEYS);
+}
+
+#[test]
+fn a_key_of_the_run_s_list_that_the_caller_sets_is_written_and_every_other_stays_null() {
+    for (i, key) in RUN_LIST_KEYS.iter().enumerate() {
+        let mut record = made_run(Some(Mode::Replay), Outcome::Completed);
+        let mut text = record.to_json().unwrap();
+        let null = format!(r#""{key}":null"#);
+        assert_eq!(text.matches(&null).count(), 1, "{key}");
+        match *key {
+            "cut" => record.cut = Some(YesNo::Yes),
+            "more_pages" => record.more_pages = Some(YesNo::Yes),
+            "before_start" => record.before_start = Some(7),
+            "no_key" => record.no_key = Some(7),
+            "not_to_account" => record.not_to_account = Some(7),
+            "incomplete" => record.incomplete = Some(7),
+            "reply_to_other" => record.reply_to_other = Some(7),
+            "held_recipient" => record.held_recipient = Some(7),
+            "organized" => record.organized = Some(7),
+            "other_task" => record.other_task = Some(7),
+            "held_earlier" => record.held_earlier = Some(7),
+            "earlier_page" => record.earlier_page = Some(7),
+            other => panic!("a key of the run's list that this test does not set: {other} at {i}"),
+        }
+        let set = if matches!(*key, "cut" | "more_pages") {
+            format!(r#""{key}":"yes""#)
+        } else {
+            format!(r#""{key}":7"#)
+        };
+        text = text.replacen(&null, &set, 1);
+        assert_eq!(record.to_json().unwrap(), text, "{key}");
+    }
+}
+
+#[test]
+fn a_made_record_is_read_back_to_itself_and_a_rule_that_it_breaks_refuses_its_text() {
+    for record in made_runs() {
+        let text = record.to_json().unwrap();
+        assert_eq!(AgentRun::parse(text.as_bytes()).unwrap(), record);
+    }
+    let refused = made_run(None, Outcome::Completed).to_json().unwrap_err();
+    assert_eq!(
+        (refused.type_name(), refused.rule(), refused.key()),
+        ("AgentRun", "mode_null_after_finish", Some("mode"))
+    );
+}
+
+#[test]
+fn the_maker_writes_the_day_that_its_caller_gives() {
+    let golden = committed("runs.jsonl");
+    let ended = golden.lines().nth(3).unwrap();
+    assert!(ended.contains(r#","day":20768,"#), "{ended}");
+    for day in [0, 1, 19_000, 20_767, 20_770, u32::MAX] {
+        let mut made = AgentRun::new(workflow(), agent(), run(), day, None, Outcome::Failed);
+        made.effects = 1;
+        made.unknown = 1;
+        assert_eq!(
+            made.to_json().unwrap(),
+            ended.replacen(r#","day":20768,"#, &format!(r#","day":{day},"#), 1),
+            "{day}"
+        );
     }
 }

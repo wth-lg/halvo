@@ -2,10 +2,11 @@
 
 use halvo_agent_store::{Host, MemoryStore, Now};
 use halvo_policy::preset;
-use halvo_schema::executable::names::YesNo;
+use halvo_schema::executable::names::{Mode, Outcome, YesNo};
+use halvo_schema::executable::text::RunId;
 use halvo_schema::executable::{
-    ActionClass, AgentBindings, AgentConfig, AgentEffect, AllowedClass, Autonomy, CoordinatorReply,
-    RunnerReply,
+    ActionClass, AgentBindings, AgentConfig, AgentEffect, AgentRun, AllowedClass, Autonomy,
+    CoordinatorReply, RunnerReply,
 };
 use halvo_schema::{
     AgentId, Category, ErrorName, Instant, RowRead, TypedRecord, Workflow, WorkflowId,
@@ -305,39 +306,24 @@ pub fn stored(n: u32) -> RunnerReply {
 }
 
 pub fn run_record(r: u32, mode: Option<&str>, outcome: &str) -> Value {
-    json!({
-        "v": 1,
-        "workflow": wf(1),
-        "agent": agent(1),
-        "run": run(r),
-        "day": ROW_DAY,
-        "mode": mode,
-        "outcome": outcome,
-        "playbook": null,
-        "steps": 3,
-        "prompts": 1,
-        "handbacks": 0,
-        "confirmations": 1,
-        "effects": 1,
-        "unknown": 0,
-        "model_calls": 0,
-        "tokens_in": 0,
-        "tokens_out": 0,
-        "wall_s": 9,
-        "model": null,
-        "before_start": null,
-        "cut": null,
-        "no_key": null,
-        "not_to_account": null,
-        "incomplete": null,
-        "reply_to_other": null,
-        "more_pages": null,
-        "held_recipient": null,
-        "organized": null,
-        "other_task": null,
-        "held_earlier": null,
-        "earlier_page": null,
-    })
+    let mut made = AgentRun::new(
+        WorkflowId::parse(&wf(1)).expect("a workflow id"),
+        AgentId::parse(&agent(1)).expect("an agent id"),
+        RunId::parse(&run(r)).expect("a run id"),
+        ROW_DAY,
+        Some(Mode::Replay),
+        Outcome::Completed,
+    );
+    made.steps = 3;
+    made.prompts = 1;
+    made.confirmations = 1;
+    made.effects = 1;
+    made.wall_s = 9;
+    let text = made.to_json().expect("a made record");
+    let mut record: Value = serde_json::from_str(&text).expect("the made record's text");
+    record["mode"] = json!(mode);
+    record["outcome"] = json!(outcome);
+    record
 }
 
 pub fn finish(store: &mut MemoryStore, record: Value) -> Result<RunnerReply, ErrorName> {

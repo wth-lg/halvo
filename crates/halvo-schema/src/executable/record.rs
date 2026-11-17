@@ -95,6 +95,46 @@ macro_rules! agent_run {
                 Ok(())
             }
         }
+
+        impl AgentRun {
+            /// The one maker of the stored `agent_run` record (A7.4), which a tool or a test of another crate calls
+            /// in place of a record written by hand: the ids, the day, the mode and the outcome that the caller
+            /// gives, every count 0, and `playbook`, `model` and every key of `RUN_LIST_KEYS` null until the caller
+            /// sets its field. `to_json` writes its text in the order of A7.4; a caller that needs a JSON value
+            /// parses that text. `to_json` refuses a record that breaks one of the four rules of its type; a
+            /// refusal test parses a made text and changes its keys one at a time.
+            pub fn new(
+                workflow: WorkflowId,
+                agent: AgentId,
+                run: RunId,
+                day: u32,
+                mode: Option<Mode>,
+                outcome: Outcome,
+            ) -> AgentRun {
+                AgentRun {
+                    v: V1,
+                    workflow,
+                    agent,
+                    run,
+                    day,
+                    mode,
+                    outcome,
+                    playbook: None,
+                    steps: 0,
+                    prompts: 0,
+                    handbacks: 0,
+                    confirmations: 0,
+                    effects: 0,
+                    unknown: 0,
+                    model_calls: 0,
+                    tokens_in: 0,
+                    tokens_out: 0,
+                    wall_s: 0,
+                    model: None,
+                    $( $field: None, )*
+                }
+            }
+        }
     };
 }
 
