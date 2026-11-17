@@ -67,9 +67,12 @@ empty, and a line that is empty is skipped.
   statement that matches nothing fails the row, and so does a substitution
   that changes nothing. A statement with the modifier `g` changes every
   match. A statement without it changes the first match alone, so it must
-  match one place of the file as the statements before it leave it; the
-  places are the matches that `g` would change, each one after the end of the
-  one before. A row names its one place by its pattern: with the text around
+  match one place of the file as the statements before it leave it. The
+  runner tries the pattern at every position of that file: matches that end
+  at the same position are one place, as when a pattern starts with `\s*`,
+  and every other match is a place of its own, also one that overlaps
+  another, as two copies of a line do for a pattern that starts and ends with
+  `\n`. A row names its one place by its pattern: with the text around
   the place, as in `s/a\nb/a\nc/`, or by a lookaround, as in
   `s/(?<=a\n)b/c/`. Before it applies any row, the runner reads every row
   but a retired one, also a pending row, a row for another place and a row
@@ -78,10 +81,20 @@ empty, and a line that is empty is skipped.
   `FAIL mutation:<name> (the substitution matches <n> places of <file>, at lines <a> and <b>, and would change the first alone: give the statement the modifier g to change every match, or write its pattern so that it matches one place)`.
   For a row of several statements the line names `statement <i> of <k> of the substitution`,
   and for any statement but the first it reads `at lines <a> and <b> of the file as the statements before it leave it`.
+  The line of a match is the line of its first character that is no line
+  end; a match at the very end of the file reads `the end of the file`.
   `--list` prints the rows and reads no substitution. A statement with an
   empty pattern fails the row, because perl reads an empty pattern as the
-  last pattern that matched. Limit: a match that begins inside an earlier
-  match is not a place of its own, as under `g`.
+  last pattern that matched, and so does a statement whose pattern perl
+  builds when it runs, from a variable such as `$@`, `$$`, `$!` or `$1` or
+  from an escape such as `\Q`: such a pattern is not the text that the row
+  writes. Write `\$` for a `$` and `\@` for an `@` of the text; a `$` at
+  the end of the pattern or before `)` or `|` is an anchor and stays. The
+  substitution runs where no variable of the runner is in sight, so a name
+  such as `$text` in it is no valid perl. Limits: the replacement is not
+  read, so a variable in it, `$@` for one, gives its value where the row may
+  mean the text; and `\G`, which a statement without `g` reads as the start
+  of the file, is tried at every position and may be refused.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and

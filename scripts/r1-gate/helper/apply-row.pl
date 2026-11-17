@@ -1,8 +1,8 @@
 use strict;
 use warnings;
 
-my ($here) = __FILE__ =~ m{^(.*)/};
-require((defined $here ? $here : '.') . '/row-places.pl');
+use FindBin ();
+require "$FindBin::RealBin/row-places.pl";
 
 sub refuse {
     print "$_[0]\n";

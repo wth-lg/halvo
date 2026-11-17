@@ -1,6 +1,14 @@
 use strict;
 use warnings;
 
+sub evaluated {
+    local $_ = pop;
+    my @result = (scalar(eval pop), $_, $@);
+    return @result;
+}
+
+use B ();
+
 my %closing = ('{' => '}', '(' => ')', '[' => ']', '<' => '>');
 my $not_statements = "the substitution is no sequence of perl s/// statements separated by ;\n";
 
@@ -31,6 +39,21 @@ sub skip_space {
     return $at;
 }
 
+sub interpolates {
+    my ($code) = @_;
+    my ($sub, undef, $error) = evaluated("sub { $code }", '');
+    die "the substitution is no valid perl\n" if $error || ref $sub ne 'CODE';
+    my @todo = (B::svref_2object($sub)->ROOT);
+    while (@todo) {
+        my $op = pop @todo;
+        next unless $op && ref $op && $$op;
+        return 1 if $op->name eq 'regcomp';
+        push @todo, $op->sibling;
+        push @todo, $op->first if $op->can('first');
+    }
+    return 0;
+}
+
 sub statements_of {
     my ($program) = @_;
     my @statements;
@@ -54,10 +77,12 @@ sub statements_of {
         $at++ while $at < length $program && substr($program, $at, 1) =~ /[a-z]/;
         my $flags = substr($program, $flags_at, $at - $flags_at);
         my $index = @statements + 1;
+        my $text = substr($program, $start, $at - $start);
         die sprintf("statement %d of the substitution has the r modifier, which changes no file\n", $index) if $flags =~ /r/;
         die sprintf("statement %d of the substitution has the e modifier: a substitution inside its replacement counts as applied when it matched nothing\n", $index) if $flags =~ /e/;
         die sprintf("statement %d of the substitution has an empty pattern, which perl reads as the last pattern that matched\n", $index) if $pattern eq '';
-        push @statements, { text => substr($program, $start, $at - $start), open => $open, close => $close, pattern => $pattern, flags => $flags };
+        die sprintf("statement %d of the substitution has a pattern into which perl puts the value of a variable or an escape such as \\Q, so it is not the text written: write \\\$ for a \$ and \\\@ for an \@ of the text\n", $index) if interpolates($text);
+        push @statements, { text => $text, open => $open, close => $close, pattern => $pattern, flags => $flags };
         $at = skip_space($program, $at);
         last if $at >= length $program;
         substr($program, $at, 1) eq ';' or die $not_statements;
@@ -69,25 +94,26 @@ sub statements_of {
 
 sub substituted {
     my ($code, $text) = @_;
-    local $_ = $text;
-    my $count = eval $code;
-    die "the substitution is no valid perl\n" if $@;
-    return ($count || 0, $_);
+    my ($count, $changed, $error) = evaluated($code, $text);
+    die "the substitution is no valid perl\n" if $error;
+    return ($count || 0, $changed);
 }
 
 sub places {
     my ($statement, $text) = @_;
     (my $flags = $statement->{flags}) =~ tr/msixpodualn//cd;
-    my $re = eval "qr$statement->{open}$statement->{pattern}$statement->{close}$flags";
-    die "the substitution is no valid perl\n" if $@ || ref $re ne 'Regexp';
-    my @at;
+    my ($re, undef, $error) = evaluated("qr$statement->{open}$statement->{pattern}$statement->{close}$flags", '');
+    die "the substitution is no valid perl\n" if $error || ref $re ne 'Regexp';
+    my %end;
+    my @lines;
     my $scan = $text;
-    while ($scan =~ /$re/g) {
-        push @at, 1 + (substr($scan, 0, $-[0]) =~ tr/\n//);
+    while ($scan =~ /(?=($re))/g) {
+        my ($from, $to) = ($-[1], $+[1]);
+        next if $end{$to}++;
+        my $lead = substr($scan, $from, $to - $from) =~ /^([\r\n]*)[^\r\n]/ ? length $1 : 0;
+        push @lines, $from + $lead >= length $scan ? 'the end of the file' : 1 + (substr($scan, 0, $from + $lead) =~ tr/\n//);
     }
-    my ($every) = substituted($statement->{text} . ($statement->{flags} =~ /g/ ? '' : 'g'), $text);
-    die sprintf("the places of the statement could not be counted: the match finds %d and the substitution with g changes %d\n", scalar @at, $every) if $every != @at;
-    return @at;
+    return @lines;
 }
 
 sub listed {
@@ -116,12 +142,11 @@ sub checked {
 
 sub row_places {
     my ($field, $tree, $read) = @_;
-    return '-' if @$field < 7 || $field->[6] eq '-' || $field->[6] =~ /^retired /;
+    return '-' if $field->[6] eq '-' || $field->[6] =~ /^retired /;
     my $path = $field->[3];
     if ($field->[6] ne 'transitional' && $field->[6] ne 'control' && $field->[0] =~ m{^(.*)/[^/]*$}) {
         $path = "$1/$path";
     }
-    return '-' if $path =~ m{^/} || $path =~ m{(?:^|/)\.\.(?:/|$)};
     my $file = "$tree/$path";
     return '-' unless -f $file;
     unless (exists $read->{$file}) {
