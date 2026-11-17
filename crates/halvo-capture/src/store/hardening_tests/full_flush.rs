@@ -200,6 +200,39 @@ fn commit_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
     }
 }
 
+fn checkpoint_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
+    let (store_dir, roots_dir, root_id) = a_store(top, "expiry");
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    store
+        .write_segment_with_expiry(&mut Cursor::new(vec![7u8; 4096]), 0, 1)
+        .unwrap();
+    store
+        .write_segment(&mut Cursor::new(vec![8u8; 4096]))
+        .unwrap();
+    let (shredded, on, _) = step(flushes, "expiry", || store.crypto_shred_expired());
+    let database = on.iter().position(|path| path == "expiry/store/store.db");
+    let removal = on
+        .iter()
+        .position(|path| path.starts_with("expiry/store/segments/") && !path.contains('.'));
+    let log_left = wal_len(&store_dir);
+    println!(
+        "FULLFLUSH expiry answer={:?} database_full_flushes={} first_database_flush_at={database:?} first_removal_flush_at={removal:?} log_bytes_after={log_left}",
+        shredded.as_ref().map(|report| report.segments_shredded),
+        count_of(&on, "expiry/store/store.db")
+    );
+    let in_order =
+        matches!((database, removal), (Some(checkpoint), Some(removal)) if checkpoint < removal);
+    if !matches!(&shredded, Ok(report) if report.segments_shredded == 1)
+        || !in_order
+        || log_left != 0
+    {
+        problems.push(format!(
+            "the expiry answered {:?}, flushed store.db at {database:?} and the segment's folder at {removal:?}, and left {log_left} bytes in the log: its truncating checkpoint does not reach the drive before the file's removal",
+            shredded.map(|report| report.segments_shredded)
+        ));
+    }
+}
+
 fn helper_write(dir: &Dir, temp: &str, target: &str) -> io::Result<()> {
     durable::write_durably(
         &OsFs,
@@ -292,6 +325,7 @@ fn full_flush_child_for_parent() {
     match group.as_str() {
         "helper" => helper_group(&top, &flushes, &mut problems),
         "commit" => commit_group(&top, &flushes, &mut problems),
+        "checkpoint" => checkpoint_group(&top, &flushes, &mut problems),
         other => panic!("no group {other}"),
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -365,4 +399,13 @@ fn each_write_of_the_durable_helper_makes_the_full_flush_call_and_refuses_when_i
 #[test]
 fn each_commit_of_the_store_flushes_its_log_with_the_full_flush_call() {
     run_child("commit");
+}
+
+/// Ruling PR-30 PR9 (2): the truncating checkpoint after the key clear of an
+/// expiry flushes store.db with the full-flush call before the segment's
+/// file is removed, and leaves the log empty: the step that makes the expiry
+/// last through a loss of power.
+#[test]
+fn the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal() {
+    run_child("checkpoint");
 }
