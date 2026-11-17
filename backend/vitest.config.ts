@@ -36,7 +36,7 @@ export default defineConfig({
         test: { name: "workerd", include: ["test/**/*.test.ts"], exclude: ["test/**/*.node.test.ts"] },
       },
       {
-        test: { name: "node", include: ["test/**/*.node.test.ts"], environment: "node" },
+        test: { name: "node", include: ["test/**/*.node.test.ts"], environment: "node", globalSetup: ["test/ledger/node-setup.ts"] },
       },
     ],
   },
