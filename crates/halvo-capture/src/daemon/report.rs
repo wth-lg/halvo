@@ -171,6 +171,8 @@ pub enum LossCause {
     LostSinceAcknowledged,
     /// More events were lost at the last settle than before the first.
     LostDuringStop,
+    /// The owner thread ended before it answered the stop.
+    OwnerEnded,
 }
 
 #[cfg(test)]

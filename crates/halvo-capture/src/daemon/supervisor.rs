@@ -868,7 +868,7 @@ mod tests {
     use crate::daemon::sources::tests::{Factory, Hook};
     use crate::daemon::sources::{starting, RunKind};
     use crate::daemon::stop_tests::run_of;
-    use crate::daemon::{run_timed, SETTLE_BOUND};
+    use crate::daemon::{run_timed, LossCause, SETTLE_BOUND};
     use crate::floor::Switches;
     use crate::source::{CaptureSource, SourceHealth, Started};
 
@@ -2074,6 +2074,143 @@ mod tests {
             f.out.text(),
             format!("{}\n", hold_stays_line(std::process::id()))
         );
+    }
+
+    /// The sources of a run that only emits its script at its start; its wait
+    /// sleeps `linger`, and its stop moves `at_stop` past the owner's retry.
+    struct OneShot {
+        script: Vec<crate::event::FloorEvent>,
+        linger: Duration,
+        at_stop: Option<crate::daemon::model_store::ManualClocks>,
+    }
+
+    impl RunSources for OneShot {
+        fn start(
+            &mut self,
+            ctx: &SourceContext,
+            _wanted: &[SourceName],
+            _hold_after: Option<Duration>,
+        ) -> Vec<FailedSource> {
+            for event in self.script.drain(..) {
+                let _ = ctx.sink().emit_event(event);
+            }
+            Vec::new()
+        }
+
+        fn wait(&mut self, _window: Duration, _stop: &AtomicBool) -> bool {
+            std::thread::sleep(self.linger);
+            false
+        }
+
+        fn stop(&mut self) -> Vec<FailedSource> {
+            if let Some(clocks) = &self.at_stop {
+                clocks.advance(4 * RETRY_FIRST);
+                std::thread::sleep(Duration::from_millis(300));
+            }
+            Vec::new()
+        }
+
+        fn figures(&self) -> SourceCounters {
+            SourceCounters::default()
+        }
+
+        fn hold_refusal(&self) -> Option<DaemonError> {
+            None
+        }
+    }
+
+    #[test]
+    fn a_batch_dropped_while_the_sources_stop_makes_the_run_exit_1() {
+        use crate::daemon::model_store::{noon, ManualClocks, WriteScript};
+        let model = ModelStore::new();
+        model.script_writes([
+            WriteScript::Fail(WriteFault::Io(io::ErrorKind::Other)),
+            WriteScript::Fail(WriteFault::Refused),
+        ]);
+        let clocks = ManualClocks::at(noon());
+        let mut run = OneShot {
+            script: (0..600).map(|_| foreground_now()).collect(),
+            linger: Duration::ZERO,
+            at_stop: Some(clocks.clone()),
+        };
+        let outcome = run_timed(
+            &run_of(1),
+            &mut run,
+            model.clone(),
+            clocks,
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        let loss = outcome.loss.clone().expect("no loss line");
+        assert_eq!(outcome.report.events_received, 600, "{}", loss.line);
+        assert_eq!(outcome.report.events_persisted, 88, "{}", loss.line);
+        assert_eq!(loss.cause, Some(LossCause::LostDuringStop), "{}", loss.line);
+        assert_eq!(outcome.status, exit::ERROR);
+    }
+
+    #[test]
+    fn an_owner_that_panicked_gives_the_owner_ended_line_and_exit_1_at_once() {
+        let mut run = OneShot {
+            script: (0..600).map(|_| foreground_now()).collect(),
+            linger: Duration::from_millis(300),
+            at_stop: None,
+        };
+        let quiet = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let started = Instant::now();
+        let outcome = run_timed(
+            &run_of(1),
+            &mut run,
+            PanickingStore(ModelStore::new()),
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        );
+        std::panic::set_hook(quiet);
+        let outcome = outcome.unwrap();
+        let took = started.elapsed();
+        let loss = outcome.loss.clone().expect("no loss line");
+        assert_eq!(
+            loss.line,
+            "halvo-capture: owner ended; events accepted and not persisted=600"
+        );
+        assert_eq!(loss.cause, Some(LossCause::OwnerEnded));
+        assert_eq!(outcome.status, exit::ERROR);
+        assert!(took < Duration::from_millis(1_500), "the run took {took:?}");
+    }
+
+    #[test]
+    fn a_source_that_died_in_the_window_is_named_in_the_report_and_the_run_exits_3() {
+        let mut supervisor = Supervisor::new(
+            Platform::Macos,
+            Factory::adjusting(|source| {
+                if source.name == SourceName::Foreground {
+                    source.health.set(SourceState::Failed {
+                        reason: HealthReason::ThreadEnded,
+                        error: CaptureError::ThreadEnded,
+                    });
+                }
+            }),
+            real_loop(),
+        );
+        let outcome = run_timed(
+            &run_of(1),
+            &mut supervisor,
+            ModelStore::new(),
+            crate::daemon::maintenance::SystemClocks::new(),
+            &AtomicBool::new(false),
+            SETTLE_BOUND,
+        )
+        .unwrap();
+        let text = outcome.report.render();
+        assert!(
+            text.contains(
+                "\nfailed_source=foreground: the capture thread had ended before the source was shut down\n"
+            ),
+            "{text}"
+        );
+        assert_eq!(outcome.status, exit::TIMED_RUN_SOURCE_FAILED);
     }
 
     mod review_cases {

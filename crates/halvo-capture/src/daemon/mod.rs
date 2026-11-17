@@ -910,14 +910,17 @@ where
         .map(|kind| counts.of(kind).accepted)
         .sum();
     let drained_by = std::time::Instant::now() + bounds.drain;
-    while owner.snapshot().events_received() < emitted && std::time::Instant::now() < drained_by {
+    while owner.snapshot().events_received() < emitted
+        && std::time::Instant::now() < drained_by
+        && supervisor::OwnerLink::is_running(&owner)
+    {
         std::thread::sleep(Duration::from_millis(5));
     }
+    let before = owner.snapshot();
     let paused = answer_within(&owner.handle, Command::OpenPause, bounds.pause);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
     drop(handle);
-    let before = owner.snapshot();
     let last = match paused {
         Some(Answer::Paused(_)) => {
             settle_within(&owner.handle, bounds.settle).ok_or(LossCause::SettleUnanswered)
@@ -953,10 +956,15 @@ where
         Ok(snapshot) => snapshot,
         Err(_) => owner.snapshot(),
     };
+    let owner_alive = supervisor::OwnerLink::is_running(&owner);
     if last.is_ok() {
         owner.join().map_err(|_| DaemonError::DrainPanicked)?;
     }
-    let loss = stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports);
+    let loss = if last.is_err() && !owner_alive {
+        Some(owner_ended(&settled, &sink_counts))
+    } else {
+        stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports)
+    };
     let failing = match loss.as_ref().map(|loss| loss.cause) {
         Some(Some(_)) => true,
         Some(None) | None => false,
@@ -978,6 +986,24 @@ where
         status,
         loss,
     })
+}
+
+/// The loss line of a run whose owner thread ended before it answered the
+/// stop: the events that the sink accepted and no write stored (contracts.md
+/// C3.2).
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn owner_ended(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> Loss {
+    let accepted: u64 = crate::event::Modality::ALL
+        .into_iter()
+        .map(|kind| sink.of(kind).accepted)
+        .sum();
+    Loss {
+        cause: Some(LossCause::OwnerEnded),
+        line: format!(
+            "halvo-capture: owner ended; events accepted and not persisted={}",
+            accepted.saturating_sub(settled.events_persisted)
+        ),
+    }
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
