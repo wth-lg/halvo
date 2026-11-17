@@ -200,9 +200,8 @@ pub fn outcome_answer(
     }
 }
 
-/// What the store's delete tail answered for a scratch store directory
-/// (`EncryptedStore::delete_data_dir` in the scratch layout), as the binary
-/// hands it to [`scratch_delete`].
+/// What the store's delete tail answered for a scratch store directory, in
+/// the scratch layout, as the binary hands it to [`scratch_delete`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TailAnswer {
     /// The tail answered Ok.
