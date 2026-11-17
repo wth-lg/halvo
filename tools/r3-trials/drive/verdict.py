@@ -1259,6 +1259,10 @@ def self_test():
         ("a verdict line in capitals", full("m_z") + ["VERDICT", none]),
     ]:
         expect(name, call(lines, ["--check"]), "refused")
+        expect(name + ", --write", call(lines, ["--write"]), "refused")
+        expect(name + ", no argument", call(lines, []), "refused")
+    expect("--write over a block that the importer takes", call(full("m_z") + [none], ["--write"]), 0)
+    expect("--write over a block with no verdict line yet", call(full("m_z"), ["--write"]), 0)
     expect("a verdict line in --check", same_verdict(["x", "verdict driver=none path=B writer=none"], "verdict driver=none path=B writer=none"), True)
     expect("a verdict line not last", same_verdict(["verdict driver=none path=B writer=none", "x"], "verdict driver=none path=B writer=none"), False)
     expect("another verdict line", same_verdict(["verdict driver=none path=B writer=m_a"], "verdict driver=none path=B writer=none"), False)
