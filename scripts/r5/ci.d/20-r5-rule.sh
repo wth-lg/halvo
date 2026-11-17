@@ -67,7 +67,7 @@ halvo-learn-store src/lib.rs tests::kinds::a_refused_learn_edit_row_stops_the_ed
 halvo-learn-store src/lib.rs tests::kinds::a_refused_learn_routine_row_stops_the_routine_rows_of_its_workflow_and_no_run built
 halvo-learn-store src/lib.rs tests::kinds::a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_nothing_else built
 halvo-learn-store src/lib.rs tests::kinds::a_refused_learn_run_row_that_comes_after_a_runs_start_makes_it_a_lost_run built
-halvo-learn-store src/lib.rs tests::kinds::a_refused_row_whose_workflow_cannot_be_read_stops_its_kind_for_every_workflow built
+halvo-learn-store src/lib.rs tests::kinds::a_refused_row_whose_text_names_no_workflow_stops_only_the_workflow_under_whose_key_it_stands built
 halvo-learn-store src/lib.rs tests::lines::a_run_one_line_past_lines_held_max_is_a_lost_run_and_the_next_run_learns_as_today built
 halvo-learn-store src/lib.rs tests::kinds::a_run_started_while_its_run_rows_were_stopped_stays_lost_after_the_refused_row_leaves_by_its_bound built
 halvo-learn-store src/lib.rs tests::starts::a_start_run_that_arrives_again_after_both_rows_stand_changes_nothing built

@@ -4,6 +4,7 @@ mod edges;
 mod ends;
 mod finish;
 mod host;
+mod keyed;
 mod kinds;
 mod lines;
 mod mark;

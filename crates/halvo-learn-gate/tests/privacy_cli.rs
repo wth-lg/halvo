@@ -3,16 +3,7 @@ use std::process::Command;
 
 fn fresh(name: &str) -> PathBuf {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("privacy-cli");
-    std::fs::create_dir_all(&root).expect("the tests' directory");
-    let mut n = 0u32;
-    loop {
-        let dir = root.join(format!("{name}-{}-{n}", std::process::id()));
-        match std::fs::create_dir(&dir) {
-            Ok(()) => return dir,
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => n += 1,
-            Err(e) => panic!("a test directory: {e}"),
-        }
-    }
+    halvo_test_dir::make(&root, name).expect("a test directory")
 }
 
 #[test]

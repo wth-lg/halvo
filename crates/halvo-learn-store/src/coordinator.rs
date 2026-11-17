@@ -95,10 +95,10 @@ impl LearnHandlers {
                 refinements: Vec::new(),
             });
         };
-        let Read::Rows(edits) = Edits::read(host.rows(), &read.workflow) else {
+        let Read::Rows(edits) = Edits::read(host, &read.workflow) else {
             return Err(ErrorName::Store);
         };
-        let Read::Rows(routines) = rows::routines(host.rows(), &read.workflow) else {
+        let Read::Rows(routines) = rows::routines(host, &read.workflow) else {
             return Err(ErrorName::Store);
         };
         let mut entries: Vec<(Refinement, String)> = Vec::new();
@@ -145,7 +145,7 @@ impl LearnHandlers {
 
 impl LearnHandlers {
     fn started(&mut self, host: &mut dyn LearnHost, b: &StartRun) -> Result<(), Fault> {
-        let Read::Rows(runs) = rows::runs(host.rows(), &b.workflow) else {
+        let Read::Rows(runs) = rows::runs(host, &b.workflow) else {
             if !self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent) {
                 self.remember_start(b, false);
             }
@@ -192,7 +192,7 @@ fn routine_due(
     agent: &AgentId,
     day: Day,
 ) -> Option<LearnRoutine> {
-    let Read::Rows(routines) = rows::routines(host.rows(), workflow) else {
+    let Read::Rows(routines) = rows::routines(host, workflow) else {
         return None;
     };
     match rows::newest_routine(&routines, workflow, agent) {
@@ -242,7 +242,7 @@ fn first_routine(
 }
 
 fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), Fault> {
-    let Read::Rows(routines) = rows::routines(host.rows(), &b.workflow) else {
+    let Read::Rows(routines) = rows::routines(host, &b.workflow) else {
         return Ok(());
     };
     if rows::newest_routine(&routines, &b.workflow, &b.agent).is_some() {

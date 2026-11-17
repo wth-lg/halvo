@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use halvo_agent_store::{Host, MemoryStore, Now};
 use halvo_schema::executable::{CoordinatorReply, RunnerReply};
@@ -89,11 +89,38 @@ impl Host for AgentSide {
     }
 }
 
+/// A row of the family `learn` as the test host holds it: its kind, the workflow key and the day that the store keeps
+/// beside it, as the derived store keeps its columns set at commit, and its text.
+struct Held {
+    kind: &'static str,
+    key: Option<WorkflowId>,
+    day: Option<u64>,
+    json: String,
+}
+
+/// The value under the key `day` at the top level of a row's text, as a store's commit reads it.
+fn day_of(text: &str) -> Option<u64> {
+    serde_json::from_str::<Value>(text)
+        .ok()?
+        .as_object()?
+        .get("day")?
+        .as_u64()
+}
+
+/// The workflow that a row's text names under its kind's workflow key, as a store's commit reads it.
+fn key_of(kind: &str, text: &str) -> Option<WorkflowId> {
+    let key = registry().find(|e| e.name == kind)?.workflow_key?;
+    let value: Value = serde_json::from_str(text).ok()?;
+    WorkflowId::parse(value.as_object()?.get(key)?.as_str()?).ok()
+}
+
 pub struct TestHost {
     pub agent: AgentSide,
-    learn: Vec<(&'static str, String)>,
+    learn: Vec<Held>,
     pub day: u32,
     pub commits: Cell<u32>,
+    /// The key of every row of the family `learn` that a read handed out, in the order of the reads.
+    pub visited: RefCell<Vec<Option<String>>>,
     pub run_workflow: Option<String>,
     pub refuse: bool,
     pub fault_first_agent_call: bool,
@@ -112,15 +139,32 @@ impl TestHost {
             learn: Vec::new(),
             day: DAY,
             commits: Cell::new(0),
+            visited: RefCell::new(Vec::new()),
             run_workflow: None,
             refuse: false,
             fault_first_agent_call: false,
         }
     }
 
-    /// Stores a row of the family `learn` as its text, with no check, as a row that its parser may refuse.
+    /// Stores a row of the family `learn` as its text, with no check, as a row that its parser may refuse, under the
+    /// workflow key that its text names, or none where the text names none.
     pub fn put_raw(&mut self, kind: &'static str, text: &str) {
-        self.learn.push((kind, text.to_owned()));
+        let key = key_of(kind, text);
+        self.put_raw_under(kind, key.as_ref().map(WorkflowId::as_str), text);
+    }
+
+    /// Stores a row of the family `learn` as its text, with no check, under the workflow key `key`, or under none, and
+    /// with the day that its text holds, or today's where it holds none: a row committed today whose text was damaged
+    /// later.
+    pub fn put_raw_under(&mut self, kind: &'static str, key: Option<&str>, text: &str) {
+        let key = key.map(|k| WorkflowId::parse(k).expect("a workflow id"));
+        let day = day_of(text).or(Some(u64::from(self.day)));
+        self.learn.push(Held {
+            kind,
+            key,
+            day,
+            json: text.to_owned(),
+        });
     }
 
     pub fn put_workflow(&mut self, workflow: Workflow) {
@@ -131,8 +175,8 @@ impl TestHost {
     pub fn stored(&self, kind: &str) -> Vec<String> {
         self.learn
             .iter()
-            .filter(|(k, _)| *k == kind)
-            .map(|(_, json)| json.clone())
+            .filter(|row| row.kind == kind)
+            .map(|row| row.json.clone())
             .collect()
     }
 
@@ -181,15 +225,12 @@ impl Clock for TestHost {
     }
 }
 
-fn withheld(kind: &str, json: &str, today: u32) -> bool {
+fn withheld(kind: &str, day: Option<u64>, today: u32) -> bool {
     let Some(RetentionClass::Bounded { days }) =
         registry().find(|e| e.name == kind).map(|e| e.class)
     else {
         return false;
     };
-    let day = serde_json::from_str::<Value>(json)
-        .ok()
-        .and_then(|v| v.get("day").and_then(Value::as_u64));
     match day {
         None => true,
         Some(d) if d > u64::from(today) => d - u64::from(today) > 2,
@@ -197,14 +238,25 @@ fn withheld(kind: &str, json: &str, today: u32) -> bool {
     }
 }
 
-impl RowRead for TestHost {
-    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
-        let mut rows: Vec<String> = self
+impl TestHost {
+    /// Visits the rows of the kind that the store holds under the workflow key `workflow`, in ascending byte order,
+    /// and no row held under another key or under none, as `Rows::for_each_under` of halvo-derived does.
+    pub fn for_each_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        self.visit(kind, Some(workflow), visit);
+    }
+
+    fn visit(&self, kind: &str, workflow: Option<&WorkflowId>, visit: &mut dyn FnMut(&str)) {
+        let held: Vec<&Held> = self
             .learn
             .iter()
-            .filter(|(k, json)| *k == kind && !withheld(kind, json, self.day))
-            .map(|(_, json)| json.clone())
+            .filter(|row| row.kind == kind && !withheld(kind, row.day, self.day))
+            .filter(|row| workflow.is_none_or(|w| row.key.as_ref() == Some(w)))
             .collect();
+        self.visited.borrow_mut().extend(
+            held.iter()
+                .map(|row| row.key.as_ref().map(|k| k.as_str().to_owned())),
+        );
+        let mut rows: Vec<String> = held.iter().map(|row| row.json.clone()).collect();
         if let (Some(other), "learn_run") = (&self.run_workflow, kind) {
             for row in &mut rows {
                 let mut value: Value = serde_json::from_str(row).expect("a stored row");
@@ -216,6 +268,12 @@ impl RowRead for TestHost {
         for row in &rows {
             visit(row);
         }
+    }
+}
+
+impl RowRead for TestHost {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        self.visit(kind, None, visit);
     }
 }
 
@@ -259,13 +317,24 @@ impl LearnHost for TestHost {
             }
         }
         for record in records {
-            self.learn.push((record.kind, record.json));
+            let key = key_of(record.kind, &record.json);
+            let day = day_of(&record.json);
+            self.learn.push(Held {
+                kind: record.kind,
+                key,
+                day,
+                json: record.json,
+            });
         }
         Ok(())
     }
 
     fn rows(&self) -> &dyn RowRead {
         self
+    }
+
+    fn for_each_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        TestHost::for_each_under(self, kind, workflow, visit);
     }
 
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
