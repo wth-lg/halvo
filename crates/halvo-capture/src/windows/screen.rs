@@ -15,13 +15,12 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
-use crate::event::Modality;
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
     SourceState, Started, StopCause,
 };
 
-use super::{HandOff, HandOffCounts, LossCounts, Packet, Producer};
+use super::{HandOff, HandOffCounts, LossCounts, Observed, Packet, Producer};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
@@ -78,11 +77,6 @@ mod apartment {
     #[derive(Debug, Clone, Copy)]
     pub(super) struct MtaHeld(());
 
-    /// One reference on the process's multithreaded apartment, taken before
-    /// the first capture session and never released, because without it the
-    /// process can fault when one of its windows is destroyed after its last
-    /// capture session has ended (RR-windows-04; the test
-    /// c8b_window_destroyed_after_the_last_capture_session).
     pub(super) fn hold_process_mta() -> Result<MtaHeld, CaptureError> {
         static HELD: Mutex<bool> = Mutex::new(false);
         let mut held = HELD.lock().unwrap_or_else(PoisonError::into_inner);
@@ -140,18 +134,18 @@ const SCREEN_START_FAILED: &str = "the screen capture could not start";
 pub(crate) fn frame_packet(
     width: u32,
     height: u32,
-    foreground_app: String,
+    foreground_app: Option<String>,
     tick: u32,
 ) -> Option<Packet> {
     if width == 0 || height == 0 {
         return None;
     }
-    Some(Packet {
-        kind: Modality::ScreenFrame,
-        app: foreground_app,
-        byte_len: u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
+    Some(Packet::observed(
+        Observed::ScreenFrame,
+        foreground_app,
+        u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
         tick,
-    })
+    ))
 }
 
 /// What the capture handler needs, passed through the settings flags.
@@ -195,12 +189,7 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             return Ok(());
         }
         let (width, height) = (frame.width(), frame.height());
-        let app = self
-            .last_app
-            .lock()
-            .ok()
-            .and_then(|g| g.clone())
-            .unwrap_or_default();
+        let app = super::app_of(&self.last_app);
         if let Some(packet) = frame_packet(width, height, app, super::now_tick()) {
             self.producer.push(packet);
         }
@@ -332,7 +321,13 @@ impl Session for Control {
     }
 
     fn end(self) -> Result<(), CaptureError> {
-        self.stop().map_err(|_| CaptureError::ThreadEnded)
+        use windows_capture::capture::CaptureControlError;
+        self.stop().map_err(|error| match error {
+            CaptureControlError::FailedToPostThreadMessage => {
+                super::last_os_error("PostThreadMessageW")
+            }
+            _ => CaptureError::ThreadEnded,
+        })
     }
 
     fn ask_to_end(self) {
@@ -403,6 +398,7 @@ impl Stopping {
     fn wait(&self, deadline: Duration) -> Option<Result<(), CaptureError>> {
         match self.done.recv_timeout(deadline) {
             Ok(Ok(())) if !self.ended_before => Some(Ok(())),
+            Ok(Err(error @ CaptureError::Os { .. })) => Some(Err(error)),
             Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 Some(Err(CaptureError::ThreadEnded))
             }
@@ -416,6 +412,7 @@ struct ScreenLife<S> {
     stopping: Option<Stopping>,
     timed_out: Option<CaptureError>,
     stop_failed: Option<CaptureError>,
+    end_refused: Option<CaptureError>,
     stopped: bool,
     spawn: StopSpawner,
 }
@@ -427,6 +424,7 @@ impl<S> Default for ScreenLife<S> {
             stopping: None,
             timed_out: None,
             stop_failed: None,
+            end_refused: None,
             stopped: false,
             spawn: spawn_stop_thread,
         }
@@ -445,7 +443,7 @@ impl<S> ScreenLife<S> {
 
 impl<S: Session> ScreenLife<S> {
     fn is_busy(&self) -> bool {
-        self.session.is_some() || self.stopping.is_some()
+        self.session.is_some() || self.stopping.is_some() || self.end_refused.is_some()
     }
 
     fn started(&mut self, session: S) {
@@ -454,6 +452,9 @@ impl<S: Session> ScreenLife<S> {
     }
 
     fn shutdown(&mut self, deadline: Duration) -> Result<(), CaptureError> {
+        if let Some(error) = &self.end_refused {
+            return Err(error.clone());
+        }
         if let Some(session) = self.session.take() {
             match Stopping::start(session, self.spawn) {
                 Ok(stopping) => {
@@ -480,6 +481,10 @@ impl<S: Session> ScreenLife<S> {
         };
         self.stopping = None;
         self.timed_out = None;
+        if let Err(error @ CaptureError::Os { .. }) = &stopped {
+            self.end_refused = Some(error.clone());
+            return stopped;
+        }
         self.stopped = true;
         stopped
     }
@@ -496,6 +501,12 @@ impl<S: Session> ScreenLife<S> {
     }
 
     fn state(&self, item_closed: bool, writer_gone: bool) -> SourceState {
+        if let Some(error) = &self.end_refused {
+            return SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: error.clone(),
+            };
+        }
         if let (Some(_), Some(timeout)) = (&self.stopping, &self.timed_out) {
             return SourceState::Failed {
                 reason: HealthReason::Timeout,
@@ -509,9 +520,9 @@ impl<S: Session> ScreenLife<S> {
             };
         }
         match &self.session {
-            Some(session) if session.finished() || item_closed || writer_gone => {
-                super::thread_ended()
-            }
+            Some(_) if writer_gone => super::failed_with(HealthReason::WriterGone),
+            Some(_) if item_closed => super::failed_with(HealthReason::ItemClosed),
+            Some(session) if session.finished() => super::thread_ended(),
             Some(_) => SourceState::Running,
             None if self.stopped => SourceState::Stopped(StopCause::Request),
             None => SourceState::NotReported,
@@ -554,13 +565,14 @@ fn start_error(error: GraphicsCaptureApiError<CaptureError>) -> CaptureError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::Modality;
 
     #[test]
     fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
-        let packet = frame_packet(1920, 1080, "C:\\browser.exe".to_string(), 1)
+        let packet = frame_packet(1920, 1080, Some("C:\\browser.exe".to_string()), 1)
             .expect("a sized frame produces a packet");
-        assert_eq!(packet.kind, Modality::ScreenFrame);
-        assert_eq!(packet.app, "C:\\browser.exe");
+        assert_eq!(packet.kind(), Modality::ScreenFrame);
+        assert_eq!(packet.app.as_deref(), Some("C:\\browser.exe"));
         assert_eq!(packet.byte_len, 1920 * 1080 * 4);
     }
 
@@ -643,6 +655,7 @@ mod tests {
         finished: bool,
         ends_well: bool,
         end_takes: Duration,
+        fails_with: Option<CaptureError>,
     }
 
     impl Session for FakeSession {
@@ -652,6 +665,9 @@ mod tests {
 
         fn end(self) -> Result<(), CaptureError> {
             std::thread::sleep(self.end_takes);
+            if let Some(error) = self.fails_with {
+                return Err(error);
+            }
             if self.ends_well {
                 Ok(())
             } else {
@@ -667,7 +683,35 @@ mod tests {
             finished,
             ends_well,
             end_takes: Duration::from_millis(end_takes_ms),
+            fails_with: None,
         }
+    }
+
+    #[test]
+    fn a_session_whose_end_is_refused_answers_its_os_error_and_reads_failed() {
+        let refused = CaptureError::Os {
+            stage: "PostThreadMessageW",
+            domain: "HRESULT",
+            code: 5,
+        };
+        let mut life = ScreenLife::default();
+        life.started(FakeSession {
+            fails_with: Some(refused.clone()),
+            ..fake(false, false, 0)
+        });
+        let stopped = life.shutdown(Duration::from_secs(1));
+        assert_eq!(stopped, Err(refused.clone()));
+        assert_eq!(
+            life.state(false, false),
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: refused,
+            }
+        );
+        assert!(
+            life.is_busy(),
+            "a source whose stop failed counts as started"
+        );
     }
 
     #[test]
@@ -685,12 +729,26 @@ mod tests {
         };
         assert!(handler.on_closed().is_ok());
         let failed = crate::windows::thread_ended();
+        let failed_with = |reason| SourceState::Failed {
+            reason,
+            error: CaptureError::ThreadEnded,
+        };
         let mut life = ScreenLife::default();
         assert_eq!(life.state(false, false), SourceState::NotReported);
         life.started(fake(false, true, 0));
-        assert_eq!(life.state(closed.load(Ordering::Relaxed), false), failed);
+        assert_eq!(
+            life.state(closed.load(Ordering::Relaxed), false),
+            failed_with(HealthReason::ItemClosed)
+        );
         assert_eq!(life.state(false, false), SourceState::Running);
-        assert_eq!(life.state(false, true), failed);
+        assert_eq!(
+            life.state(false, true),
+            failed_with(HealthReason::WriterGone)
+        );
+        assert_eq!(
+            life.state(true, true),
+            failed_with(HealthReason::WriterGone)
+        );
         assert_eq!(life.shutdown(Duration::from_secs(1)), Ok(()));
         assert_eq!(
             life.state(false, false),
@@ -956,7 +1014,7 @@ mod tests {
         let producer = handoff.producer();
         source.handoff = Some(handoff);
         let stopped = source.shutdown();
-        producer.push(frame_packet(1920, 1080, String::new(), 1).expect("a frame"));
+        producer.push(frame_packet(1920, 1080, None, 1).expect("a frame"));
         let arrived = writer.recv_timeout(Duration::from_millis(500)).is_ok();
         assert_eq!(stopped, Ok(()));
         assert!(
@@ -1020,7 +1078,7 @@ mod tests {
 
     #[test]
     fn a_zero_area_frame_is_not_recorded() {
-        assert!(frame_packet(0, 1080, String::new(), 1).is_none());
-        assert!(frame_packet(1920, 0, String::new(), 1).is_none());
+        assert!(frame_packet(0, 1080, None, 1).is_none());
+        assert!(frame_packet(1920, 0, None, 1).is_none());
     }
 }

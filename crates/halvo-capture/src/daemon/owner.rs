@@ -338,7 +338,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             maintenance_failing: false,
             inbox: None,
             stopping: false,
-            published: Arc::new(Mutex::new(Counters::default().snapshot(0))),
+            published: Arc::new(Mutex::new(Counters::default().snapshot(0, false))),
         };
         owner.read_usage();
         let now = owner.clocks.now();
@@ -434,7 +434,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
 
     /// The snapshot of this moment.
     pub fn snapshot(&self) -> Snapshot {
-        self.counters.snapshot(self.pending())
+        self.counters.snapshot(self.pending(), self.stopped())
     }
 
     /// Runs the maintenance due at `now`: at most one shred call. It is the
@@ -1330,7 +1330,7 @@ mod tests {
             assert!(matches!(command, Command::Settle), "{command:?}");
             drop(inbox);
             reply
-                .send(Answer::Settled(Counters::default().snapshot(4)))
+                .send(Answer::Settled(Counters::default().snapshot(4, false)))
                 .expect("the settle stopped waiting");
         });
         let settled = crate::daemon::settle_within(&handle, Duration::from_secs(5));
@@ -3370,6 +3370,33 @@ mod tests {
                 "after {answer:?} the batch answered 19 was not held"
             );
             assert!(rejected(&harness).is_empty());
+        }
+    }
+
+    #[test]
+    fn the_snapshot_publishes_the_hold_through_a_give_up_until_a_good_write() {
+        let fresh = Harness::new();
+        assert!(!fresh.owner.snapshot().drain_hold, "a new owner holds");
+        for answer in [WriteFault::Refused, WriteFault::Sealed] {
+            let (mut harness, _) = stopped_by(WriteFault::Db(19));
+            assert!(harness.owner.snapshot().drain_hold, "the third set-aside");
+            harness.store.fail_every_write(Some(answer));
+            harness.emit(foreground_now());
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            let reports = harness.reports();
+            assert_eq!(reports.last(), Some(&Report::DrainHealthy), "{reports:?}");
+            assert!(
+                harness.owner.snapshot().drain_hold,
+                "{answer:?} in the hold ended the published hold"
+            );
+            harness.store.fail_every_write(None);
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            assert!(
+                !harness.owner.snapshot().drain_hold,
+                "an acknowledged write after {answer:?} left the hold published"
+            );
         }
     }
 

@@ -30,7 +30,7 @@ const DAEMON: &str = "crates/halvo-capture/src/daemon/";
 /// Every use of `#[path]` and of the include macros that the crate and the app
 /// may hold: the file from the root of the repository, the name, and the
 /// literal that it reads.
-const LISTED: [(&str, &str, &str); 9] = [
+const LISTED: [(&str, &str, &str); 10] = [
     (
         "crates/halvo-capture/src/secure_input.rs",
         "path",
@@ -71,6 +71,11 @@ const LISTED: [(&str, &str, &str); 9] = [
         "src-tauri/src/tests.rs",
         "include_str",
         "\"engine-url-forms.txt\"",
+    ),
+    (
+        "crates/halvo-capture/tests/cold_evidence.rs",
+        "path",
+        "\"browser/evidence.rs\"",
     ),
 ];
 
@@ -963,39 +968,4 @@ fn the_binary_returns_what_usage_answer_and_outcome_answer_give() {
             head.concat()
         );
     }
-}
-
-/// Ruling ST-46 K8: no code outside `crates/halvo-capture/src/store` names
-/// the delete tail or the encrypted store, so none calls `delete_store_dir`
-/// or `EncryptedStore::delete_all`. store-3b's unit removes this test.
-#[test]
-fn no_code_outside_the_store_calls_the_delete_tail_or_the_stores_delete_all() {
-    let base = root();
-    let (mut files, mut faults) = (Vec::new(), Vec::new());
-    files_under(&base, "crates", &mut files, &mut faults);
-    files_under(&base, "src-tauri/src", &mut files, &mut faults);
-    assert_eq!(faults, Vec::<String>::new());
-    let callers: Vec<String> = files
-        .iter()
-        .filter(|file| {
-            file.ends_with(".rs") && !file.starts_with("crates/halvo-capture/src/store/")
-        })
-        .filter(|file| {
-            read_tokens_at(&base, file).is_ok_and(|tokens| {
-                tokens
-                    .iter()
-                    .any(|token| token == "delete_store_dir" || token == "EncryptedStore")
-            })
-        })
-        .cloned()
-        .collect();
-    println!(
-        "rust files read outside the store: {}",
-        files.iter().filter(|file| file.ends_with(".rs")).count()
-    );
-    assert_eq!(
-        callers,
-        Vec::<String>::new(),
-        "code outside the store names the delete tail or the encrypted store"
-    );
 }

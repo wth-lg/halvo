@@ -191,6 +191,25 @@ impl KeyCustody for DevFallbackCustody {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.roots.destroy_root(self.root_id)
     }
+
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        self.roots.wrap_in(&roots.dir, self.root_id, label, key)
+    }
+
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.roots
+            .unwrap_in(&roots.dir, self.root_id, label, wrapped)
+    }
 }
 
 #[cfg(test)]
