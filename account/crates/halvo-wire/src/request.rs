@@ -228,6 +228,39 @@ impl Call {
 /// fn made_by_default<T: Default>() {}
 /// made_by_default::<halvo_wire::request::Request>();
 /// ```
+///
+/// It implements `From` for none of a call, the parts of a call, a cap, a cap body, a route, a
+/// body's bytes, a text or a JSON value; the example compiles when any one of them is added:
+///
+/// ```compile_fail,E0599
+/// use halvo_wire::request::{AccountId, Call, Credential, Request, Route};
+/// use halvo_wire::types::{Cap, CapBody};
+/// use std::marker::PhantomData;
+/// struct Probe<T>(PhantomData<T>);
+/// trait ByCall { fn made(&self) {} }
+/// impl<T: From<Call>> ByCall for Probe<T> {}
+/// trait ByCallRef { fn made(&self) {} }
+/// impl<T: From<&'static Call>> ByCallRef for &Probe<T> {}
+/// trait ByCallParts { fn made(&self) {} }
+/// impl<T: From<(Call, AccountId, Credential)>> ByCallParts for &&Probe<T> {}
+/// trait ByCap { fn made(&self) {} }
+/// impl<T: From<Cap>> ByCap for &&&Probe<T> {}
+/// trait ByCapBody { fn made(&self) {} }
+/// impl<T: From<CapBody>> ByCapBody for &&&&Probe<T> {}
+/// trait ByRoute { fn made(&self) {} }
+/// impl<T: From<Route>> ByRoute for &&&&&Probe<T> {}
+/// trait ByBytes { fn made(&self) {} }
+/// impl<T: From<Vec<u8>>> ByBytes for &&&&&&Probe<T> {}
+/// trait ByByteSlice { fn made(&self) {} }
+/// impl<T: From<&'static [u8]>> ByByteSlice for &&&&&&&Probe<T> {}
+/// trait ByString { fn made(&self) {} }
+/// impl<T: From<String>> ByString for &&&&&&&&Probe<T> {}
+/// trait ByStr { fn made(&self) {} }
+/// impl<T: From<&'static str>> ByStr for &&&&&&&&&Probe<T> {}
+/// trait ByJson { fn made(&self) {} }
+/// impl<T: From<serde_json::Value>> ByJson for &&&&&&&&&&Probe<T> {}
+/// (&&&&&&&&&&&Probe::<Request>(PhantomData)).made();
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     method: &'static str,
