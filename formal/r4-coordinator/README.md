@@ -605,6 +605,10 @@ of C1 to C12. The directed trace `store_not_ended` holds a start after an answer
 A limit of the model (ruling RD-133): Schedule.tla's `Off` has no arm for a switch-off whose
 read of the clock fails, which the code makes at once on the board and the guard's table and
 stamps at the next read that answers; the model holds no clock, so it cannot tell the two.
+A second limit (ruling RD-140 R5): the person's Stop of an agent whose start waits in the queue
+takes that start off the queue (RD-133 Addition 1 item 5), a queue move with no clock in it;
+Schedule.tla's `RunMoves` stops live runs alone, so in the model the start stays queued and is
+served at the next end. The tests of the code hold the move (`rd48h_turned_…`, `rd133_a_stop_of_a_queued_agent_…`).
 
 ## Confirm4
 
