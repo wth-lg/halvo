@@ -57,9 +57,20 @@ So a body that lost every row of a seed task fails with `FAIL outside` lines und
 generated rule, while the step's mark is true. A range of such an episode whose step is marked
 false fails with `FAIL seed` under both rules.
 
+No line of `check-labels` prints a stream, episode or step id, because the author of a sealed
+tier writes them. A stream is printed as `s<n>`: n is its place among the entries of
+`streams/`, directories and links alike, in byte order of name, from 1. An episode is printed
+as `l<n>`: n is the line of its first episode row in that stream's `labels.jsonl`, or the line
+of the range row itself where no episode row of the stream holds the episode. The step of a
+`range`, `seed`, `unmarked` or `keys` line is `l<n>` of its range row. The step of an
+`outside` line is `l<n>` of the first range row of the stream that names it, or `m<n>`, n its
+line in `script-manifest.jsonl`, where no row of the stream names it. A refusal names the DIR
+argument as given, then ` s<n>` where one stream is at fault, then ` l<n>` where a line of its
+`labels.jsonl` is no row, and never a file below DIR.
+
 `check-labels` follows no symbolic link below its DIR argument. Each entry of `streams/` that
 is a link gives
-`FAIL link <stream id>`, and these lines come first. A `streams` directory that is itself a
+`FAIL link s<n>`, and these lines come first. A `streams` directory that is itself a
 link is refused with `batches`, and a `manifest.toml`, `script-manifest.jsonl`, day file or
 `labels.jsonl` that is a link with `tier-manifest`, `script-manifest`, `batches` or `labels`.
 Each range is held against every earlier range whose end lies after its start, and the later
