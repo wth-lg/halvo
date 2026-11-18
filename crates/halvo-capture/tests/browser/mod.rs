@@ -1739,12 +1739,39 @@ mod burst_rounds {
         }
     }
 
+    fn every_first_letter_rule() -> Vec<Option<Rule>> {
+        let mut rules = vec![None];
+        let mut rule = Rule::PasswordEdit;
+        loop {
+            rules.push(Some(rule));
+            rule = match rule {
+                Rule::PasswordEdit => Rule::NotClearedInTime,
+                Rule::NotClearedInTime => Rule::AnotherThreadInFront,
+                Rule::AnotherThreadInFront => Rule::StateAtTheKey,
+                Rule::StateAtTheKey => Rule::MarkAfterTheKey,
+                Rule::MarkAfterTheKey => Rule::ReadAfterTheHold,
+                Rule::ReadAfterTheHold => Rule::NoClickRoute,
+                Rule::NoClickRoute => Rule::ElementNotTheSame,
+                Rule::ElementNotTheSame => Rule::MarksLost,
+                Rule::MarksLost => Rule::ClicksNotForwarded,
+                Rule::ClicksNotForwarded => break,
+            };
+        }
+        rules
+    }
+
     fn fails_whatever_the_rule(records: Records) {
-        for rule in [
-            None,
-            Some(Rule::NotClearedInTime),
-            Some(Rule::MarkAfterTheKey),
-        ] {
+        let rules = every_first_letter_rule();
+        let distinct = rules
+            .iter()
+            .enumerate()
+            .all(|(at, rule)| !rules[..at].contains(rule));
+        assert!(
+            rules.len() == 11 && distinct,
+            "the record cases read {} first-letter values, and None with the ten rules are 11",
+            rules.len()
+        );
+        for rule in rules {
             let verdict = decided(&counted(rule, records));
             assert!(
                 verdict.is_err(),
