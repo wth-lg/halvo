@@ -435,20 +435,20 @@ where
         for (run, outcome) in std::mem::take(&mut st.ended) {
             let _ = self.end_of_run(st, &run, outcome);
         }
+        self.offs_at_stamp(st, stamp);
         self.settle(st, stamp);
     }
 
     /// What a stop or a switch-off made with no read of the clock left, at the first read that
     /// answers and before the move's own work (ruling RD-133 1): each stop on the board takes
     /// that read as its time, so that the kill counts `cancel_grace_s` from it; the rows that
-    /// waited are stamped with it and sent; a switch-off makes the rest of its move, its
-    /// `hold_set` among it, and waits again where that is refused.
+    /// waited are stamped with it and sent. The runner's ends that the window kept and the rest
+    /// of each switch-off follow in `take_up` (`end_of_run`, `offs_at_stamp`).
     fn stamp_waiting(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
         let State {
             board,
             ledgers,
             unstamped,
-            offs,
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
@@ -472,39 +472,90 @@ where
                 self.read_back(board, i);
             }
         }
+    }
+
+    /// The switch-offs that waited for a read of the clock, after the runner's ends that the
+    /// window kept are made, so that the rest of a switch-off does not stop a run that ended.
+    fn offs_at_stamp(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
+        let State {
+            board,
+            ledgers,
+            offs,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
         let waiting: Vec<AgentId> = std::mem::take(offs);
         for agent in waiting {
-            let Some(i) = index(board, &agent) else {
-                continue;
-            };
-            if let Some((_, l)) = ledgers.iter_mut().find(|(a, _)| a == &agent) {
-                if !l.waiting().is_empty() {
-                    let _ = items::flush(&self.ports, l, &self.limits);
-                    self.read_back(board, i);
-                }
-                let unacknowledged = l.waits_with_a_persons_hold();
-                if unacknowledged {
-                    offs.push(agent);
-                    continue;
-                }
-            }
-            let shown = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
-            let mv = if shown {
-                Move::Off {
-                    agent: agent.clone(),
-                }
-            } else {
-                Move::SwitchOff {
-                    agent: agent.clone(),
-                }
-            };
-            let report = schedule::drive(&self.ports, board, &self.limits, mv);
-            let passing = matches!(report.answer, Err(Cause::NoService | Cause::Busy));
-            if report.unstamped
-                || (passing && !board.aside(&agent) && !board.dismissed_unread(&agent))
-            {
+            if self.off_at_stamp(board, ledgers, &agent, stamp) {
                 offs.push(agent);
             }
+        }
+    }
+
+    /// The rest of a switch-off that no read of the clock stamped, at `stamp`, the first read
+    /// that answered: whether the agent still waits. The agent's events are read first, so
+    /// that a `hold_set` that the owner acknowledged is seen whatever an earlier read-back
+    /// gave; a `hold_set` that still waits for the owner goes again and is never queued a
+    /// second time; with no `hold_set` stored, the ledger stores one at `stamp`; once the
+    /// board shows the hold, the move `off` makes the rest. The agent stops waiting once its
+    /// hold shows, or where the owner refuses the `hold_set` with a name that lasts the life,
+    /// which refuses every store of the agent and so every start of it (ruling RD-123).
+    fn off_at_stamp(
+        &self,
+        board: &mut Board<Cfg<P>>,
+        ledgers: &mut Vec<(AgentId, Ledger)>,
+        agent: &AgentId,
+        stamp: crate::ports::Stamp,
+    ) -> bool {
+        let Some(i) = index(board, agent) else {
+            return false;
+        };
+        let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+        let l = ledger(ledgers, board, i);
+        let sent = if l.waiting().is_empty() {
+            Ok(())
+        } else {
+            items::flush(&self.ports, l, &self.limits)
+        };
+        let lasting = |e: &PortError| items::lasts_the_life(e, dismissed);
+        if l.waits_with_a_persons_hold() {
+            return !sent.as_ref().is_err_and(lasting);
+        }
+        if !self.read_agent(board, i) {
+            return true;
+        }
+        if !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off) {
+            let l = ledger(ledgers, board, i);
+            match items::store_held_off(&self.ports, l, &self.limits, stamp) {
+                Ok(()) => {}
+                Err(e) => return !lasting(&e),
+            }
+            if !self.read_agent(board, i)
+                || !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off)
+            {
+                return true;
+            }
+        }
+        let report = schedule::drive(
+            &self.ports,
+            board,
+            &self.limits,
+            Move::Off {
+                agent: agent.clone(),
+            },
+        );
+        report.unstamped || matches!(report.answer, Err(Cause::Busy))
+    }
+
+    /// Reads the agent's events back onto the board: whether the read answered.
+    fn read_agent(&self, board: &mut Board<Cfg<P>>, i: usize) -> bool {
+        let facts = &mut board.members[i].facts;
+        match schedule::resync(&self.ports, &facts.agent, &mut facts.events) {
+            Ok(last) => {
+                board.set_last(i, last);
+                true
+            }
+            Err(_) => false,
         }
     }
 
@@ -1161,7 +1212,7 @@ where
     /// (ruling RD-133 1, (b)).
     fn noted(&self, read: Option<u64>) {
         if let Some(now) = read {
-            self.last_read.fetch_max(now, Ordering::Relaxed);
+            self.last_read.store(now, Ordering::Relaxed);
         }
     }
 
@@ -1360,12 +1411,20 @@ where
         if board.dismissed_unread(&agent) {
             return Err(Cause::State);
         }
-        let standing = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
-        if standing && live_unstopped_run(board, &agent).is_none() {
+        let pending = st
+            .ledgers
+            .iter()
+            .any(|(a, l)| a == &agent && l.waits_with_a_persons_hold());
+        let standing = pending
+            || st.offs.contains(&agent)
+            || schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
+        let live =
+            live_unstopped_run(board, &agent).filter(|run| !st.ended.iter().any(|(r, _)| r == run));
+        if standing && live.is_none() {
             return Err(Cause::State);
         }
         let open = waiting_on(&board.members[i].facts.doing);
-        if let Some(run) = live_unstopped_run(board, &agent) {
+        if let Some(run) = live {
             if run::stop_unstamped(
                 &self.ports,
                 board,
@@ -2037,11 +2096,14 @@ where
             board,
             table,
             unstamped,
+            ended,
             ..
         } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         let agent = board.members[i].facts.agent.clone();
-        let Some(run) = live_unstopped_run(board, &agent) else {
+        let live =
+            live_unstopped_run(board, &agent).filter(|run| !ended.iter().any(|(r, _)| r == run));
+        let Some(run) = live else {
             if board.queue.remove(&agent) {
                 let facts = &mut board.members[i].facts;
                 if let Doing::Queued(item) = &facts.doing {
@@ -2081,7 +2143,8 @@ where
     pub fn quit_stop(&self) -> QuitWait {
         let mut st = self.enter(Entry::Move);
         st.quitting = true;
-        let now = self.clock_now().unwrap_or(0);
+        let last = self.last_read.load(Ordering::Relaxed);
+        let now = self.clock_now().unwrap_or(last);
         let members = st.board.as_ref().map_or(0, |b| b.members.len());
         for i in 0..members {
             self.lapse_at_quit(&mut st, i);
@@ -2094,7 +2157,7 @@ where
             .and_then(|b| {
                 b.runs
                     .iter()
-                    .filter_map(|r| r.stop.map(|s| s.at.min(now)))
+                    .filter_map(|r| r.stop.map(|s| if s.at == 0 { now } else { s.at.min(now) }))
                     .max()
             })
             .map_or(now, |at| at.saturating_add(grace));

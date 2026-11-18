@@ -10152,3 +10152,128 @@ fn rd133_the_grace_counts_from_the_stamping_read_not_the_last_read_before_the_pr
         "killed at the grace from the stamp"
     );
 }
+
+/// A second Switch off in the window, while the first one's `hold_set` waits for the owner, is
+/// refused `state` and queues no second `hold_set` (the second review, finding 1).
+#[test]
+fn rd133_a_second_clockless_switch_off_with_the_first_hold_unacknowledged_stores_one_hold() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let _run1 = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.refuse(Method::Log, PortError::Busy);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(person_holds(&c, 1).len(), 0, "not acknowledged");
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Err(Cause::State));
+    c.ports().ports.clear_refusals();
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(person_holds(&c, 1).len(), 1, "one hold_set for one hold");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+}
+
+/// After the clock steps back, a Switch off in the window stores its `hold_set` at the last read
+/// of the life, not at a higher earlier one, and never later than the press (finding 2).
+#[test]
+fn rd133_a_switch_off_after_the_clock_steps_back_stores_its_hold_at_the_last_read() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let high = T0 + 1_000_000;
+    c.ports().ports.set_clock(high, DAY);
+    c.tick();
+    let low = T0 + 400_000;
+    c.ports().ports.set_clock(low, DAY);
+    c.tick();
+    let press = low + 1_000;
+    c.ports().ports.set_clock(press, DAY);
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    let holds = person_holds(&c, 1);
+    assert_eq!(holds.len(), 1);
+    assert_eq!(holds[0].at, at_of(low), "at the last read");
+    assert!(holds[0].at <= at_of(press), "never later than the press");
+    clock_answers(&c);
+}
+
+/// A `hold_set` that the owner refuses with a name that lasts the life does not hold the tick
+/// for the rest of the life once the clock answers (finding 3).
+#[test]
+fn rd133_a_hold_refused_for_the_life_holds_no_later_tick() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    clock_fails(&c);
+    c.ports().ports.refuse(
+        Method::Log,
+        PortError::Refused(halvo_coord::types::Name::parse("role").unwrap()),
+    );
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    let m = mark(&c);
+    c.tick();
+    assert!(tick_worked(&c, m), "the tick does its work");
+    c.ports().ports.clear_refusals();
+}
+
+/// The quit's first step under a failing clock counts the grace of a stop with no time from the
+/// last read of the life, not from time 0 (finding 4).
+#[test]
+fn rd133_the_quits_wait_under_a_failing_clock_counts_from_the_last_read() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let _run = start(&c, 0);
+    clock_fails(&c);
+    let wait = c.quit_stop();
+    assert_eq!(
+        wait.until,
+        T0 + Limits::PRODUCT.cancel_grace_s * 1000,
+        "the grace from the last read"
+    );
+    clock_answers(&c);
+}
+
+/// A Stop or Switch off after the window kept the runner's end neither stops the ended run nor
+/// replaces its outcome: the end is made with the runner's outcome (finding 5).
+#[test]
+fn rd133_a_stop_after_a_kept_end_keeps_the_runners_outcome() {
+    for action in [Action::Stop, Action::SwitchOff] {
+        let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+        let run = start(&c, 1);
+        clock_fails(&c);
+        c.ports().ports.end_runner(&run);
+        let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed)));
+        let m = mark(&c);
+        let _ = c.control(&agent(1), action);
+        assert_eq!(
+            cancels_of(&c, m, &run),
+            0,
+            "{action:?}: no cancel to an ended run"
+        );
+        clock_answers(&c);
+        c.ports().ports.set_clock(T0 + 1_000, DAY);
+        c.tick();
+        assert_eq!(
+            ends_of(&c, &run),
+            vec![RunEnd::Failed],
+            "{action:?}: the runner's outcome"
+        );
+    }
+}
+
+/// A `hold_set` that the owner acknowledged at a Switch off in the window, whose read-back
+/// failed, is not stored a second time when the clock answers (finding 6).
+#[test]
+fn rd133_an_acknowledged_hold_whose_read_back_failed_is_stored_once() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    clock_fails(&c);
+    c.ports().next_history_fails.set(true);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(person_holds(&c, 1).len(), 1, "acknowledged");
+    let _ = c.control(&agent(0), Action::SwitchOn);
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(person_holds(&c, 1).len(), 1, "stored once");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+}
