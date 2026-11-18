@@ -8,7 +8,8 @@ use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord, WorkflowId, Workflo
 use serde_json::{json, Value};
 
 use super::host::{
-    active_world, agent, compiled, locator, run, wf, with_locators, TestHost, World,
+    active_world, agent, click, compiled, locator, navigate, run, wf, with_locators, world,
+    TestHost, World,
 };
 use crate::handlers::Fault;
 use crate::{Clock, CoordinatorAnswer, LearnHost, Refused};
@@ -401,4 +402,84 @@ fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drop
     assert!(holds_nothing_of(&w, 4));
     w.load(4);
     assert!(holds_nothing_of(&w, 4));
+}
+
+#[test]
+fn a_store_fault_at_the_handlers_own_load_before_a_finish_that_the_agent_store_refuses_still_drops_the_run(
+) {
+    let mut w = learned_world();
+    w.replay(3);
+    w.log(3, &[(2, "step_failed", 2, Some("step_failed"))]);
+    let mut body = finish_body(&w, 3);
+    body["record"]["workflow"] = json!(wf(2));
+    let commits = w.host.commits.get();
+    let answer = runner_at(&mut w, 1, body);
+    assert!(
+        matches!(answer, Err(Refused::Error(name)) if name != ErrorName::Store && name != ErrorName::Internal),
+        "{answer:?}"
+    );
+    assert!(left_out(&w));
+    assert!(holds_nothing_of(&w, 3));
+    assert_eq!(w.host.commits.get(), commits);
+    let end = w
+        .coordinator(json!({"op": "end_run", "workflow": wf(1), "agent": agent(1), "run": run(3)}));
+    assert!(
+        matches!(
+            end,
+            Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
+        ),
+        "{end:?}"
+    );
+    assert_eq!(
+        of_run(&w, 3).len(),
+        1,
+        "the lost run makes no commit at its end"
+    );
+}
+
+#[test]
+fn a_store_fault_at_the_second_page_of_the_compiled_steps_before_a_finish_passes_it_on_and_commits_nothing(
+) {
+    let mut steps = vec![navigate(1)];
+    for n in 2..=17 {
+        let name = format!("S{n}");
+        steps.push(click(
+            n,
+            &format!("button {name}"),
+            vec![locator("role", "button", Some(&name))],
+        ));
+    }
+    let mut w = world();
+    w.start(1, "compile");
+    w.load(1);
+    for page in steps.chunks(16) {
+        let put = w.put(1, 1, page.to_vec());
+        assert!(put.is_ok(), "a page of the compile: {put:?}");
+    }
+    let finish = w.finish(1, "compile", "completed");
+    assert!(finish.is_ok(), "the compile's finish: {finish:?}");
+    let state = w.coordinator(
+        json!({"op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active"}),
+    );
+    assert!(state.is_ok(), "{state:?}");
+    let served = w.replay(2);
+    assert_eq!(served.len(), 16);
+    let s3 = locator("role", "button", Some("S3"));
+    let proposal = with_locators(served[2].clone(), "button S3 now", vec![loc("N"), s3]);
+    let put = w.put(2, 1, vec![proposal]);
+    assert!(put.is_ok(), "the put_playbook: {put:?}");
+    assert!(!w.handlers.facts[&id(2)].candidates.is_empty());
+    w.log(2, &[(2, "recovered", 3, None), (3, "step_ok", 3, None)]);
+    let (count, commits) = (w.host.count(), w.host.commits.get());
+    let body = finish_body(&w, 2);
+    let answer = runner_at(&mut w, 3, body);
+    assert!(matches!(answer, Ok(RunnerReply::Stored(_))), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(
+        agent_run_of(&w, 2),
+        "the agent store keeps the run's record"
+    );
+    assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
+    assert!(holds_nothing_of(&w, 2));
+    assert_eq!(of_run(&w, 2).len(), 1);
 }
