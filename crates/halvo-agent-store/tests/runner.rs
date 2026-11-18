@@ -901,3 +901,61 @@ fn a_row_stamped_by_day_of_at_the_store_s_offset_is_taken_and_its_utc_stamp_is_r
         assert_eq!(rows(&store, "agent_run").len(), 1, "{offset}");
     }
 }
+
+fn file_step(n: u32, verb: &str, file: &str) -> Value {
+    let (args, class, sheet) = match verb {
+        "read" => (
+            json!([{"name": "as", "from": "const", "value": "rows", "key": null}]),
+            "read",
+            Value::Null,
+        ),
+        _ => (
+            json!([{"name": "values", "from": "extract", "value": null, "key": "rows"}]),
+            "local_edit",
+            json!("sheet"),
+        ),
+    };
+    json!({
+        "v": 1,
+        "n": n,
+        "kind": "file",
+        "verb": verb,
+        "target": {"file": file, "sheet": sheet.clone(), "range": if sheet.is_null() { Value::Null } else { json!("range") }},
+        "args": args,
+        "pre": [],
+        "post": [],
+        "effect": "none",
+        "class": class,
+    })
+}
+
+#[test]
+fn put_playbook_answers_a_write_to_a_file_that_is_not_the_slot_workbook_with_playbook() {
+    for category in ["spreadsheet_fill", "utility_bill_payment"] {
+        let mut store = store_with(category);
+        for file in ["dest", "workbooks", "old_workbook"] {
+            assert_eq!(
+                put_steps(
+                    &mut store,
+                    1,
+                    vec![file_step(1, "read", "source"), file_step(2, "write", file)]
+                ),
+                Err(declared("playbook")),
+                "{category} {file}"
+            );
+            assert!(playbook_rows(&store).is_empty(), "{category} {file}");
+        }
+        assert_eq!(
+            put_steps(
+                &mut store,
+                1,
+                vec![
+                    file_step(1, "read", "source"),
+                    file_step(2, "write", "workbook")
+                ]
+            ),
+            Ok(stored(2)),
+            "{category}"
+        );
+    }
+}

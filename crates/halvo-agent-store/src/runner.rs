@@ -6,7 +6,7 @@ use halvo_schema::executable::body::{
     Load, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutLog,
     PutPlaybook, PutSession, SessionReply, StepsReply, Stored, STEPS_PER_REQUEST_MAX,
 };
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{Cause, LogEvent};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     AgentPlaybook, AgentSession, ExecutableStep, RunnerCall, RunnerReply, WebOrigin,
@@ -39,8 +39,9 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 /// - `load_session`: `binding` where the part is not stored.
 /// - `put_playbook`: `playbook` unless the number is the newest stored number or the next one (1 for the first),
 ///   for a first step after a gap in the steps of that number, and for a step whose number and `n` hold another
-///   stored step; `class` where `check_playbook` refuses the steps of that number that would be held. It stores
-///   each step that is not stored and answers the count of the body's steps.
+///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
+///   cause `workbook`, a write to a file that is not the slot `workbook` (CP-218 (c)), and `class` for any other
+///   cause. It stores each step that is not stored and answers the count of the body's steps.
 /// - `put_session`: `binding` where the place of the part (origin, revision, part) holds a part with another `of`
 ///   or other data; else it stores the part, with the request's day, unless it is stored, and answers 1.
 /// - `log`: `effect` for a body with a record of the event `start_accepted` or of `seq` 1, the start row's place;
@@ -288,7 +289,10 @@ fn put_playbook(host: &mut dyn Host, now: Now, b: &PutPlaybook) -> Result<Runner
         }
     }
     steps.sort_by_key(|s| s.n);
-    check_playbook(config.category, &steps).map_err(|_| Own::Class)?;
+    check_playbook(config.category, &steps).map_err(|refusal| match refusal.cause() {
+        Cause::Workbook => Own::Playbook,
+        _ => Own::Class,
+    })?;
     let records = new
         .into_iter()
         .map(|step| {
