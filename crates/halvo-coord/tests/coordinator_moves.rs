@@ -8177,3 +8177,136 @@ fn rd124_t2d_where_the_owners_last_fell_between_a_raise_and_a_press_the_ledger_f
     );
     assert_eq!(seqs, vec![1, 2], "the press and the end are stored");
 }
+
+fn panicking<R>(c: &Coordinator<Both>, port: &'static str, call: impl FnOnce() -> R) {
+    c.ports().panics.set(Some(port));
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(call));
+    c.ports().panics.set(None);
+    assert!(out.is_err(), "the port {port} panicked");
+}
+
+fn tick_that_panics(c: &Coordinator<Both>) {
+    panicking(c, "agents", || c.tick());
+}
+
+fn armed_confirmation() -> (Coordinator<Both>, RunId, ItemId) {
+    let (c, run, item) = run_waiting_on_a_confirmation(false);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()));
+    c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+    c.tick();
+    assert_eq!(
+        c.snapshot().items[0].armed(),
+        halvo_coord::types::YesNo::Yes,
+        "armed at the tick"
+    );
+    (c, run, item)
+}
+
+fn same_state(a: &Snapshot, b: &Snapshot) -> bool {
+    a.rows == b.rows && a.items == b.items && a.note == b.note
+}
+
+#[test]
+fn rd80_a_move_that_did_not_return_raises_seq_at_the_next_publish_though_nothing_differs() {
+    let (c, _run, item) = armed_confirmation();
+    let before = c.snapshot();
+    panicking(&c, "history", || c.answer(&item, Choice::Allow, None, 0));
+    c.tick();
+    let after = c.snapshot();
+    assert!(
+        same_state(&before, &after),
+        "rows, items and note are equal"
+    );
+    assert_eq!(
+        after.seq,
+        before.seq + 1,
+        "the next tick's publish raised seq"
+    );
+    c.tick();
+    assert_eq!(c.answer(&item, Choice::Allow, None, 7), Err(Cause::State));
+    let later = c.snapshot();
+    assert_eq!(later.seq, after.seq, "a move that returned raises nothing");
+    assert!(same_state(&after, &later));
+}
+
+#[test]
+fn rd80_after_a_tick_that_panics_the_bell_rings_and_the_first_call_takes_the_note() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let before = c.snapshot();
+    let m = mark(&c);
+    tick_that_panics(&c);
+    assert!(
+        calls_since(&c, m).contains(&Call::Changed),
+        "the bell rang as the tick unwound"
+    );
+    let Next::Changed(s) = c.next(before.seq) else {
+        panic!("the waiting call takes a state");
+    };
+    assert_eq!(s.note, Some(text("note.out_of_date")));
+    assert_eq!(s.rows, before.rows);
+    assert_eq!(s.seq, before.seq + 1);
+}
+
+#[test]
+fn rd80_after_a_tick_that_panics_every_publish_carries_the_note_until_a_tick_returns() {
+    let note = Some(text("note.out_of_date"));
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    tick_that_panics(&c);
+    c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 1);
+    assert_eq!(s.note, note, "a runner's event");
+    let item = s.items[0].item().clone();
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()));
+    c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+    assert_eq!(c.answer(&item, Choice::Reject, None, 0), Ok(()));
+    let s = c.snapshot();
+    assert!(s.items.is_empty());
+    assert_eq!(s.note, note, "an answer");
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    let s = c.snapshot();
+    assert_eq!(row_line(&s, 0), text("line.working.stopping"));
+    assert_eq!(s.note, note, "a stop");
+    c.tick();
+    assert_eq!(c.snapshot().note, None, "the first tick that returns");
+}
+
+#[test]
+fn rd80_with_a_full_roster_the_note_of_the_mark_stands_and_roster_full_comes_back() {
+    let limits = Limits {
+        roster_max: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL], limits);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(halvo_coord::types::FullWorkflow {
+            id: WorkflowId::parse(&format!("{:032x}", 0xf9)).unwrap(),
+            state: WorkflowState::Approved,
+            category: Category::Email,
+            site: None,
+            trigger: WorkflowTrigger::Manual,
+            period: None,
+            last: DAY,
+            agent: None,
+        }));
+    c.tick();
+    assert_eq!(c.snapshot().note, Some(text("note.roster_full")));
+    tick_that_panics(&c);
+    assert_eq!(c.snapshot().note, Some(text("note.out_of_date")));
+    c.tick();
+    assert_eq!(c.snapshot().note, Some(text("note.roster_full")));
+}
+
+#[test]
+fn rd80_a_first_tick_that_panics_leaves_the_stand_in() {
+    let c = Coordinator::new(owner(&[MANUAL], Limits::PRODUCT), Limits::PRODUCT);
+    tick_that_panics(&c);
+    let s = c.snapshot();
+    assert!(s.rows.is_empty() && s.items.is_empty());
+    assert_eq!(s.note, Some(text("note.no_service")));
+    assert_eq!(c.control(&agent(0), Action::RunNow), Err(Cause::NoService));
+}

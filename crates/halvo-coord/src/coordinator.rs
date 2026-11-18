@@ -76,6 +76,61 @@ struct State<C> {
     forgotten: Vec<AgentId>,
     quitting: bool,
     sync: Sync,
+    mark: Mark,
+}
+
+/// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
+/// until the first publish after such a move, which raises `seq` also when nothing differs;
+/// `tick` from a tick that did not return until a tick returns, while every publish carries the
+/// note `note.out_of_date`.
+#[derive(Clone, Copy, Default)]
+struct Mark {
+    unpublished: bool,
+    tick: bool,
+}
+
+/// How a call takes the coordinator's lock: a tick, another move, or a call that reads or
+/// notes and moves nothing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Entry {
+    Tick,
+    Move,
+    Read,
+}
+
+/// The coordinator's state while a call holds its lock. A call that does not return leaves the
+/// mark and rings the bell as it unwinds, and runs nothing else there (ruling RD-80 4.2).
+struct Entered<'a, P: Owner + Page> {
+    st: MutexGuard<'a, State<Cfg<P>>>,
+    ports: &'a P,
+    entry: Entry,
+}
+
+impl<P: Owner + Page> std::ops::Deref for Entered<'_, P> {
+    type Target = State<Cfg<P>>;
+
+    fn deref(&self) -> &State<Cfg<P>> {
+        &self.st
+    }
+}
+
+impl<P: Owner + Page> std::ops::DerefMut for Entered<'_, P> {
+    fn deref_mut(&mut self) -> &mut State<Cfg<P>> {
+        &mut self.st
+    }
+}
+
+impl<P: Owner + Page> Drop for Entered<'_, P> {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            return;
+        }
+        self.st.mark.unpublished = true;
+        if self.entry == Entry::Tick {
+            self.st.mark.tick = true;
+        }
+        let _ = self.ports.changed();
+    }
 }
 
 fn plain_label(workflow: &FullWorkflow) -> Option<String> {
@@ -246,6 +301,7 @@ where
                 forgotten: Vec::new(),
                 quitting: false,
                 sync: Sync::new(),
+                mark: Mark::default(),
             }),
         }
     }
@@ -261,8 +317,22 @@ where
         &self.ports
     }
 
-    fn lock(&self) -> MutexGuard<'_, State<Cfg<P>>> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Takes the lock for a call; the first call after a move that did not return publishes
+    /// first, before its own work (ruling RD-80 3.4, 4.2).
+    fn enter(&self, entry: Entry) -> Entered<'_, P> {
+        let mut st = Entered {
+            st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
+            ports: &self.ports,
+            entry,
+        };
+        if st.mark.unpublished {
+            self.publish(&mut st);
+        }
+        st
+    }
+
+    fn lock(&self) -> Entered<'_, P> {
+        self.enter(Entry::Read)
     }
 
     /// One tick (I5.9): the recovery of I5.8 at the first, the creation move of I5.5, the run
@@ -273,7 +343,7 @@ where
     /// of the items' ledgers and makes the run drive's `QuitTick`, which kills each stopping run
     /// and dying tree at its grace with nothing stored and sends what the board owes.
     pub fn tick(&self) {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Tick);
         if st.quitting {
             let State { board, ledgers, .. } = &mut *st;
             if let Some(board) = board.as_mut() {
@@ -285,6 +355,7 @@ where
             self.tick_in(&mut st, &before);
             self.finish_switch_offs_after_reads(&mut st, &before);
         }
+        st.mark.tick = false;
         self.publish(&mut st);
     }
 
@@ -578,7 +649,7 @@ where
     /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
     /// with that cause and is answered `state`.
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let out = self.on_run_in(&mut st, run, &event);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1113,7 +1184,7 @@ where
         step: u32,
     ) -> Result<(), Cause> {
         let now = self.ports.now().ok();
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let by = AnsweredBy {
             step: Some(step),
@@ -1133,7 +1204,7 @@ where
             ConfirmAnswer::Reject => Choice::Reject,
         };
         let now = self.ports.now().ok();
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let by = AnsweredBy {
             step: None,
@@ -1391,7 +1462,7 @@ where
         text: &str,
         step: u32,
     ) -> Result<(), Cause> {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let out = self.setup(&mut st, item, SetupInput::Typed { param, text }, step);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1519,7 +1590,7 @@ where
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
     /// switch-off control lapses that item in the same way before its own move.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let out = self.control_in(&mut st, agent, action);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1586,7 +1657,7 @@ where
     /// latest stop of a live run, where a stop that reads later than the first step counts from
     /// the first step (ruling RD-28 (e)), and the first step's time when no run is live.
     pub fn quit_stop(&self) -> QuitWait {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         st.quitting = true;
         let now = self.ports.now().unwrap_or(0);
         let members = st.board.as_ref().map_or(0, |b| b.members.len());
@@ -1615,7 +1686,7 @@ where
     /// dying tree through the run drive's kill-all and stores no `run_ended`, so that recovery
     /// ends those runs `interrupted` in the next life.
     pub fn quit_kill(&self) {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let State { board, ledgers, .. } = &mut *st;
         if let Some(board) = board.as_mut() {
             self.flush_ledgers(board, ledgers);
@@ -1752,7 +1823,14 @@ where
         }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
-        if st.sync.publish(rows, items, note) {
+        let changed = if st.mark.unpublished {
+            st.mark.unpublished = false;
+            st.sync.publish_again(rows, items, note);
+            true
+        } else {
+            st.sync.publish(rows, items, note)
+        };
+        if changed {
             let _ = self.ports.changed();
             let _ = self
                 .ports
@@ -1778,7 +1856,12 @@ where
         shown.extend(still.iter().copied());
         shown.sort_by(|a, b| a.agent.cmp(&b.agent));
         let Ok(names) = roster::names(&shown, self.label) else {
-            return (Vec::new(), Vec::new(), None);
+            let note = st
+                .mark
+                .tick
+                .then(|| words::text("note.out_of_date", &[]).ok())
+                .flatten();
+            return (Vec::new(), Vec::new(), note);
         };
         let mut placed: Vec<(Placed, Option<Item>)> = Vec::new();
         for (facts, name) in shown.iter().zip(&names) {
@@ -1841,10 +1924,13 @@ where
                 item.clone().placed(name, n, pages).unwrap_or(item)
             })
             .collect();
-        let note = board
-            .roster_full
-            .then(|| words::text("note.roster_full", &[]).ok())
-            .flatten();
+        let note = if st.mark.tick {
+            words::text("note.out_of_date", &[]).ok()
+        } else if board.roster_full {
+            words::text("note.roster_full", &[]).ok()
+        } else {
+            None
+        };
         (rows.into_iter().map(|p| p.row).collect(), items, note)
     }
 

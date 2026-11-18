@@ -25,6 +25,8 @@ pub const PERSON: A = A {
 /// `recorded`, can have each call of `log` and `send` name the function that made it, and can
 /// make `start`, `cancel`, `answer_confirm`, `answer_bind`, `agents` or the `log` of an
 /// `item_lapsed` row panic, and can fail one read of the clock.
+/// It can also make `history`, the `log` of `item_answered` rows, and `answer_confirm` after its
+/// record returned and before the send or after the send, panic (ruling RD-84 item 8).
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
@@ -104,6 +106,12 @@ impl Owner for Both {
         if lapses && self.panics.get() == Some("log_lapsed") {
             panic!("the port log panics at item_lapsed");
         }
+        let answers = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::ItemAnswered { .. }));
+        if answers && self.panics.get() == Some("log_answered") {
+            panic!("the port log panics at item_answered");
+        }
         let waits = self
             .loss_waits_for_row
             .get()
@@ -134,6 +142,9 @@ impl Owner for Both {
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
+        if self.panics.get() == Some("history") {
+            panic!("the port history panics");
+        }
         if self.next_history_fails.take() {
             return Err(PortError::NoService);
         }
@@ -182,6 +193,20 @@ impl Runs for Both {
     ) -> Result<(), PortError> {
         if self.panics.get() == Some("answer_confirm") {
             panic!("the port answer_confirm panics");
+        }
+        if self.panics.get() == Some("answer_confirm_after_record") {
+            let _ = self.ports.answer_confirm(run, answers, &mut |d| {
+                let kept = record(d);
+                if kept.is_ok() {
+                    panic!("the port answer_confirm panics after its record returned");
+                }
+                kept
+            });
+            return Err(PortError::NoService);
+        }
+        if self.panics.get() == Some("answer_confirm_after_send") {
+            let _ = self.ports.answer_confirm(run, answers, record);
+            panic!("the port answer_confirm panics after it sent the decision");
         }
         if self.drop_decision.replace(false) {
             let mut kept = Ok(());

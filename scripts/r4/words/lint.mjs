@@ -28,6 +28,7 @@ const STATES = [
   'needs_sign_in_bind',
   'needs_confirm_mixed',
   'needs_confirm_changed',
+  'out_of_date',
 ];
 const FIXTURES = 'ui/tests/fixtures/coord';
 const WORDS = `${FIXTURES}/words.json`;
