@@ -1673,6 +1673,20 @@ mod burst_rounds {
         }
     }
 
+    /// What the verdict reads of a round of the burst, or `None` for a round that was not counted.
+    pub(super) fn counted_of(round: &super::Round) -> Option<Counted> {
+        round.counted.then_some(Counted {
+            first_letter_rule: round.keys.first_letter_rule,
+            records: Records {
+                letters: round.keys.letters,
+                tabs: round.keys.tabs,
+                other: round.keys.other,
+                keystroke_events: round.sink,
+            },
+            freed_at_ms: round.page.freed_at,
+        })
+    }
+
     /// The rounds of one browser's burst, in the short and the long form alike.
     pub(super) const ROUNDS: u32 = 5;
 
@@ -1946,6 +1960,70 @@ mod burst_rounds {
 
     #[test]
     #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_reaches_the_tally_with_its_four_counts_and_its_freed_at_ms() {
+        let recorded = super::Round {
+            counted: true,
+            sink: 4,
+            keys: super::Decisions {
+                letters: 1,
+                tabs: 2,
+                other: 3,
+                first_letter_rule: Some(Rule::NotClearedInTime),
+                ..super::Decisions::default()
+            },
+            page: super::PageRead {
+                freed_at: 1564,
+                ..super::PageRead::default()
+            },
+            ..super::Round::default()
+        };
+        assert_eq!(
+            counted_of(&recorded),
+            Some(Counted {
+                first_letter_rule: Some(Rule::NotClearedInTime),
+                records: Records {
+                    letters: 1,
+                    tabs: 2,
+                    other: 3,
+                    keystroke_events: 4,
+                },
+                freed_at_ms: 1564,
+            })
+        );
+        let not_counted = super::Round {
+            counted: false,
+            ..recorded.clone()
+        };
+        assert_eq!(counted_of(&not_counted), None);
+        let quiet = super::Round {
+            sink: 0,
+            keys: super::Decisions {
+                first_letter_rule: Some(Rule::NotClearedInTime),
+                ..super::Decisions::default()
+            },
+            ..recorded.clone()
+        };
+        let mut burst = Burst::default();
+        for (round, r) in (0..).zip([&quiet, &not_counted, &quiet]) {
+            burst.take(round, counted_of(r).as_ref());
+        }
+        assert_eq!(
+            burst.fields(),
+            "rounds_decided_by_the_time_rule=2 freed_at_ms_of_those_rounds=1564,1564"
+        );
+        let mut burst = Burst::default();
+        burst.take(3, counted_of(&recorded).as_ref());
+        let verdict = burst.verdict();
+        assert!(
+            verdict.as_ref().is_err_and(|why| why.starts_with(
+                "round 3: the burst recorded letters_recorded=1 tabs_recorded=2 other_recorded=3 keystroke_events=4 "
+            )),
+            "{verdict:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
     fn the_burst_of_a_browser_runs_five_rounds_in_both_forms() {
         assert_eq!(ROUNDS, 5);
         let mut burst = Burst::default();
@@ -2105,21 +2183,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                     r.line()
                 ),
             );
-            tally.take(
-                round,
-                r.counted
-                    .then_some(burst_rounds::Counted {
-                        first_letter_rule: r.keys.first_letter_rule,
-                        records: burst_rounds::Records {
-                            letters: r.keys.letters,
-                            tabs: r.keys.tabs,
-                            other: r.keys.other,
-                            keystroke_events: r.sink,
-                        },
-                        freed_at_ms: r.page.freed_at,
-                    })
-                    .as_ref(),
-            );
+            tally.take(round, burst_rounds::counted_of(&r).as_ref());
         }
         let _ = keyboard.stop();
         say(
