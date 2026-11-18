@@ -178,6 +178,16 @@ impl Owner for Silent {
     fn send(&self, _: &Body) -> Result<Reply, PortError> {
         Ok(Reply::Null)
     }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        let _ = (workflow, agent, run);
+        Ok(vec![])
+    }
 }
 
 #[test]

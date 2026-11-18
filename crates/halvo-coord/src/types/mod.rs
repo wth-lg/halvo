@@ -23,7 +23,9 @@ pub use event::{
     ItemLapseCause, Lapsed, LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer,
     SignInAnswer, Slot, What,
 };
-pub use facts::{Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, RunItem, RunItemKind};
+pub use facts::{
+    Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, ReplyRow, ReplyState, RunItem, RunItemKind,
+};
 pub use ids::{
     hex, AgentId, ApprovalId, Digest, EffectId, ItemId, Name, Origin, RunId, WorkflowId,
 };

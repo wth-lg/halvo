@@ -9,10 +9,10 @@ use halvo_coord::run::{recover, Act};
 use halvo_coord::schedule::{drive as schedule_drive, holds, Answer, Hold, Move, Owing};
 use halvo_coord::types::{
     Agent, AgentId, Answered, Body, Cause, CheckAnswer, Decision, Doing, Event, HandbackResult,
-    ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply, RunId,
-    RunSpec, What, Workflow,
+    ItemId, Lapsed, Name, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply,
+    ReplyRow, ReplyState, RunId, RunSpec, What, Workflow,
 };
-use support::{agent, world, World, A, DAY, MANUAL, T0};
+use support::{agent, flow, world, World, A, DAY, MANUAL, T0};
 
 const SLOTTED: A = A {
     person: false,
@@ -1229,6 +1229,15 @@ impl<P: Owner> Owner for Late<'_, P> {
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.ports.send(body)
     }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
+    }
 }
 
 impl<P: Runs> Runs for Late<'_, P> {
@@ -2220,4 +2229,64 @@ fn a_runs_check_item_that_a_read_brings_is_not_taken_up_as_the_agents_item() {
         Doing::Idle(None),
         "the board takes no item"
     );
+}
+
+fn refusal(name: &str) -> PortError {
+    PortError::Refused(Name::parse(name).unwrap())
+}
+
+#[test]
+fn the_memory_owner_gives_the_reply_rows_of_one_run_and_refuses_as_the_store_does() {
+    let w = world(&[SLOTTED, SLOTTED]);
+    let mine = RunId::parse(&format!("{:032x}", 0x5101)).unwrap();
+    let other = RunId::parse(&format!("{:032x}", 0x5102)).unwrap();
+    w.ports.replies.borrow_mut().extend([
+        (mine.clone(), ReplyRow::Read(ReplyState::Drafted)),
+        (other.clone(), ReplyRow::Read(ReplyState::Unknown)),
+        (mine.clone(), ReplyRow::Unreadable),
+    ]);
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(0), &mine),
+        Ok(vec![
+            ReplyRow::Read(ReplyState::Drafted),
+            ReplyRow::Unreadable
+        ]),
+        "the rows of its run in the store's order, an unreadable one kept"
+    );
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(0), &other),
+        Ok(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(1), &mine),
+        Err(refusal("binding"))
+    );
+    assert_eq!(
+        w.ports.replies(&flow(7), &agent(0), &mine),
+        Err(refusal("no_workflow"))
+    );
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(0), &mine),
+        Err(PortError::NoService)
+    );
+    assert_eq!(
+        *w.ports.reply_reads.borrow(),
+        vec![mine.clone(), other, mine.clone(), mine.clone(), mine]
+    );
+}
+
+#[test]
+fn a_reply_row_is_not_known_in_the_state_unknown_and_when_its_reader_could_not_read_it() {
+    for (state, not_known) in [
+        (ReplyState::Drafted, false),
+        (ReplyState::Begun, false),
+        (ReplyState::Committed, false),
+        (ReplyState::Unknown, true),
+        (ReplyState::Lost, false),
+        (ReplyState::Withheld, false),
+    ] {
+        assert_eq!(ReplyRow::Read(state).not_known(), not_known, "{state:?}");
+    }
+    assert!(ReplyRow::Unreadable.not_known());
 }

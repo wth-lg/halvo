@@ -801,6 +801,15 @@ impl<P: Owner> Owner for Late<'_, P> {
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.ports.send(body)
     }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
+    }
 }
 
 impl<P: Runs> Runs for Late<'_, P> {

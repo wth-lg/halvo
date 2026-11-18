@@ -192,6 +192,40 @@ impl Doing {
     }
 }
 
+names! {
+    /// The state of a row of `agent_reply`, the agent store's record of one state of the reply
+    /// to one message (the agent-setup run's A7.4).
+    ReplyState {
+        Drafted = "drafted",
+        Begun = "begun",
+        Committed = "committed",
+        Unknown = "unknown",
+        Lost = "lost",
+        Withheld = "withheld",
+    }
+}
+
+/// One row of `agent_reply` of a run, as `Owner::replies` gives it (ruling RD-67 3.4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplyRow {
+    /// A row in a state that the port's reader knows.
+    Read(ReplyState),
+    /// A row that the port's reader could not read, such as one in a state that it does not
+    /// know; the read keeps it and answers the other rows (ruling RD-81 8.4).
+    Unreadable,
+}
+
+impl ReplyRow {
+    /// Whether the row leaves the fate of its reply not known: a row in the state `unknown`, or
+    /// one that the reader could not read (ruling RD-81 8.4).
+    pub const fn not_known(self) -> bool {
+        matches!(
+            self,
+            ReplyRow::Read(ReplyState::Unknown) | ReplyRow::Unreadable
+        )
+    }
+}
+
 /// An open item of an agent with its kind, as `Doing::item` gives it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenItem {

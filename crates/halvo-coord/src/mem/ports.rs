@@ -3,8 +3,8 @@ use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, T
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
     Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
-    PastRun, Reply, RunHistory, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId,
-    WorkflowState,
+    PastRun, Reply, ReplyRow, RunHistory, RunId, RunSpec, Runtime, Slot, What, Workflow,
+    WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -71,6 +71,8 @@ pub enum Method {
     Changed,
     /// `Owner::agent_history`.
     AgentHistory,
+    /// `Owner::replies`.
+    Replies,
 }
 
 /// A call of a port that changes or reads the world outside the coordinator; the reads of the
@@ -197,7 +199,9 @@ pub struct Tried {
 /// next number for each later one (ruling IG-20). `start_run` is refused with `no_workflow` for a
 /// workflow that is not in `workflows`, with `binding` for an agent that is not the workflow's,
 /// and with `state` unless the workflow is `active`, or `approved` for the mode `compile`
-/// (A-A7.2). `history` answers at most 64 events for one call.
+/// (A-A7.2). `history` answers at most 64 events for one call. `replies` refuses as
+/// `agent_history` does and answers the rows of the field `replies` that name its run; each call
+/// stands in `reply_reads`.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
 pub struct Ports<C> {
@@ -213,6 +217,11 @@ pub struct Ports<C> {
     pub tried: RefCell<Vec<Tried>>,
     /// The runs that `Owner::agent_history` gives, each with its agent, newest first.
     pub histories: RefCell<Vec<(AgentId, RunHistory)>>,
+    /// The rows of `agent_reply` that `Owner::replies` gives, each with its run, in the order of
+    /// the store.
+    pub replies: RefCell<Vec<(RunId, ReplyRow)>>,
+    /// The run of each call of `Owner::replies`, in order, a refused one among them.
+    pub reply_reads: RefCell<Vec<RunId>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -246,6 +255,8 @@ impl<C> Ports<C> {
             calls: RefCell::new(Vec::new()),
             tried: RefCell::new(Vec::new()),
             histories: RefCell::new(Vec::new()),
+            replies: RefCell::new(Vec::new()),
+            reply_reads: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -848,6 +859,29 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             .filter(|(a, _)| a == agent)
             .map(|(_, h)| h.clone())
             .take(runs as usize)
+            .collect())
+    }
+
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError> {
+        self.reply_reads.borrow_mut().push(run.clone());
+        self.refused(Method::Replies)?;
+        if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+            return Err(refusal("no_workflow"));
+        }
+        if !self.bound(workflow, agent) {
+            return Err(refusal("binding"));
+        }
+        Ok(self
+            .replies
+            .borrow()
+            .iter()
+            .filter(|(r, _)| r == run)
+            .map(|(_, row)| *row)
             .collect())
     }
 }

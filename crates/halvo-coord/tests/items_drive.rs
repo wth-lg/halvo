@@ -329,6 +329,14 @@ impl Owner for Faulty<'_> {
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.inner.send(body)
     }
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.inner.replies(workflow, agent, run)
+    }
 }
 
 impl Runs for Faulty<'_> {
