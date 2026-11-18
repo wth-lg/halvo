@@ -77,11 +77,14 @@ pub fn columns(text: &str) -> usize {
 }
 
 /// Whether `value` equals its own composed form (ruling RD-90 item 2) at the bound of `most`
-/// columns: no character with no visible form, no blank at its start or end and no two blanks
-/// in a row, no mark at its start and no more than `MOST_MARKS` marks in a row, and at most
-/// `most` columns.
+/// columns: at least one character, no character with no visible form, no blank at its start or
+/// end and no two blanks in a row, no mark at its start and no more than `MOST_MARKS` marks in a
+/// row, and at most `most` columns.
 pub fn composed(value: &str, most: usize) -> bool {
     let chars: Vec<char> = value.chars().collect();
+    if chars.is_empty() {
+        return false;
+    }
     let mut marks = 0;
     for (i, &c) in chars.iter().enumerate() {
         marks = if mark(c) { marks + 1 } else { 0 };

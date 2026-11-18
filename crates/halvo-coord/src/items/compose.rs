@@ -294,15 +294,15 @@ fn confirm_fields(ask: &ConfirmAsk, named: Named, table: &Table) -> Result<Vec<F
 /// The most lines of the native dialog's message, the empty line between two fields counted
 /// (ruling RD-90 items 1 and 9): the dialog's proven bound, the smaller of the two systems', read
 /// on a hosted screen of 1,024 by 768 by the target dialog_hosted of halvo-coord-app. On macOS a
-/// card of 15 lines of 72 columns of `W` reads a window 573 points high in 684 visible, one of 15
-/// lines of 96 columns 685 and one of 23 lines 797; on Windows one of 23 lines of 96 columns
-/// reads 635 pixels in a work area of 720, so macOS sets both bounds.
-pub const CARD_LINES: usize = 15;
+/// card of `W` lines of 96 columns reads a window of 405, 685 and 965 points for 7, 15 and 23
+/// lines in 684 visible, 35 points a line; on Windows one of 23 lines reads 635 pixels in a work
+/// area of 720. `CARD_COLUMNS` holds the longest line that Halvo sets with no value.
+pub const CARD_LINES: usize = 13;
 
 /// The most columns (`chars::columns`, display width) of the native dialog's title, of one line
 /// of its message and of one control text (ruling RD-90 items 1 and 9): the dialog's proven
 /// bound, the smaller of the two systems', read on a hosted screen as `CARD_LINES` is.
-pub const CARD_COLUMNS: usize = 72;
+pub const CARD_COLUMNS: usize = 96;
 
 /// What a bound field is to a confirmation (ruling RD-90 item 3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

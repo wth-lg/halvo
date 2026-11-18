@@ -214,7 +214,6 @@ fn the_predicate_of_a_deciding_field() {
         "a\u{301}\u{302}\u{303}",
         "\u{4e00}\u{4e8c}",
         "x",
-        "",
     ];
     for value in yes {
         assert!(composed(value, 40), "{value:?}");
@@ -235,6 +234,7 @@ fn the_predicate_of_a_deciding_field() {
         "Pay\u{fe0f}",
         "\u{3164}",
         " ",
+        "",
     ];
     for value in no {
         assert!(!composed(value, 40), "{value:?}");
@@ -369,7 +369,7 @@ fn each_deciding_field_is_refused_one_column_over_its_bound_and_shown_at_it() {
         assert!(!admits(&wide, &table), "{class:?} {name} wide");
         let marked = one(class, name, from, &"e\u{301}".repeat(most));
         assert!(admits(&marked, &table), "{class:?} {name} marked");
-        for value in ["Ann  Lee", "Ann\u{200b}Lee", " Ann", "Ann\nLee"] {
+        for value in ["Ann  Lee", "Ann\u{200b}Lee", " Ann", "Ann\nLee", ""] {
             assert!(
                 !admits(&one(class, name, from, value), &table),
                 "{class:?} {name} {value:?}"
@@ -641,11 +641,11 @@ fn the_card_of_one_effect_of_one_class() {
 fn the_card_of_several_effects_of_one_class() {
     card_of(
         vec![
-            effect(1, Class::Payment, fields_of(Class::Payment)),
-            effect(2, Class::Payment, fields_of(Class::Payment)),
+            effect(1, Class::Sign, fields_of(Class::Sign)),
+            effect(2, Class::Sign, fields_of(Class::Sign)),
         ],
-        "confirm.payment.reject_many",
-        "confirm.payment.allow_many",
+        "confirm.sign.reject_many",
+        "confirm.sign.allow_many",
     );
     card_of(
         vec![
@@ -784,4 +784,24 @@ fn a_request_with_a_deciding_value_that_is_not_its_composed_form_ends_its_run_wi
             .map(|k| effect(k, Class::Payment, fields_of(Class::Payment)))
             .collect(),
     );
+}
+
+#[test]
+fn each_line_that_halvo_sets_with_no_value_fits_a_native_card() {
+    let mut keys = vec!["confirm.changed".to_owned()];
+    for class in [
+        Class::Payment,
+        Class::Purchase,
+        Class::Send,
+        Class::Delete,
+        Class::Submit,
+        Class::Sign,
+    ] {
+        keys.push(format!("confirm.{}.action", class.name()));
+    }
+    for key in keys {
+        let line = words::text(&key, &[]).unwrap();
+        assert!(columns(&line) <= CARD_COLUMNS, "{key}");
+        assert_eq!(native_lines(&[halvo(&line)]), Ok(vec![line]), "{key}");
+    }
 }
