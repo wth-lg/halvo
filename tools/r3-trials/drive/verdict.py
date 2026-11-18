@@ -32,10 +32,13 @@ Exit 0: done and every check holds; 1: a check missed; 2: a refusal, one line
 "REFUSED <cause>: <detail>" on standard error, causes usage and source.
 """
 
+import contextlib
 import hashlib
+import io
 import os
 import re
 import sys
+import tempfile
 
 MACHINES = ("mac", "hosted-win")
 SEEDS = ("1", "2", "3")
@@ -1556,6 +1559,40 @@ def self_test():
                 continue
             agreed += 1
 
+    def main_calls():
+        with tempfile.TemporaryDirectory() as root:
+            trials = os.path.join(root, "docs", "r3", "trials")
+            os.makedirs(trials)
+            path = os.path.join(trials, "driver.md")
+            with open(path, "wb") as f:
+                f.write(("t\n```text\n" + "\n".join(full("m_a") + [none]) + "\n```\n").encode("utf-8"))
+            with open(os.path.join(trials, "model-cells.md"), "wb") as f:
+                f.write(cells)
+            calls = []
+            for argv, at in ((["--check"], root), ([], root), (["--write"], root), (["--check"], root), (["--checks"], root), (["--check"], trials)):
+                printed = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(printed):
+                        calls.append((main(argv, at), printed.getvalue()))
+                except Refusal as refusal:
+                    calls.append((refusal.cause, printed.getvalue()))
+            with open(path, "rb") as f:
+                return calls, f.read()
+
+    try:
+        calls, written = main_calls()
+        expect("main() with its four calls and two refusals", calls, [
+            (1, "verdict check same=no\n"),
+            (0, "verdict driver=m_a path=A writer=m_a\n"),
+            (0, "verdict write verdict driver=m_a path=A writer=m_a\n"),
+            (0, "verdict check same=yes\n"),
+            ("usage", ""),
+            ("source", ""),
+        ])
+        expect("main() --write, the file it wrote", written, ("t\n```text\n" + "\n".join(full("m_a") + ["verdict driver=m_a path=A writer=m_a"]) + "\n```\n").encode("utf-8"))
+    except Exception as error:
+        failures.append("main() with a root of fixtures: %s: %s" % (type(error).__name__, error))
+
     if failures:
         for failure in failures:
             print("self-test: " + failure)
@@ -1573,12 +1610,14 @@ def same_verdict(body, computed):
     return stated == [computed] and body[-1:] == [computed]
 
 
-def main(argv):
+def main(argv, root=None):
+    """The call of the command line, on the files under `root`, the checkout of this file when None."""
     if argv == ["--self-test"]:
         return self_test()
     if argv not in ([], ["--check"], ["--write"]):
         raise Refusal("usage", "verdict.py takes no argument, --check, --write or --self-test")
-    root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    if root is None:
+        root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 
     def read(path):
         try:
