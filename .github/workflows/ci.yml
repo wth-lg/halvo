@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-r4-formal 45-r4-words
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-r4-formal 45-r4-words
+      - name: Loop (u24m-new-tests, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test -q -p halvo-coord --locked --test coordinator_moves --test sync_state --test formal_traces --test items_confirm -- --exact rd80_a_move_that_did_not_return_raises_seq_at_the_next_publish_though_nothing_differs rd80_after_a_tick_that_panics_the_bell_rings_and_the_first_call_takes_the_note rd80_after_a_tick_that_panics_every_publish_carries_the_note_until_a_tick_returns rd80_with_a_full_roster_the_note_of_the_mark_stands_and_roster_full_comes_back rd80_while_the_mark_stands_each_kind_of_start_is_no_service_and_a_stop_is_taken rd80_a_first_tick_that_panics_leaves_the_stand_in rd122_a_run_that_stood_through_a_tick_that_did_not_return_ends_with_its_defers_not_known rd84_an_answer_whose_move_did_not_return_is_settled_by_the_next_move_with_a_stop rd84_a_move_that_returned_leaves_an_answer_to_its_own_rules rd84_a_stop_stored_failed_reads_back_as_the_stop_answer_lost_and_ends_failed rd80_a_first_tick_that_panics_after_recovery_leaves_the_stand_in_and_no_card rd80_a_tick_that_returns_while_another_panic_unwinds_sets_no_mark rd80_same_as_the_first_call_after_a_lost_tick_answers_the_state_with_the_note rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles sync_alone_a_publish_after_a_move_that_did_not_return_raises_seq_though_nothing_differs formal_traces_the_models_take_the_codes_cause_answer_lost row_lapse_takes_answer_lost_from_answered_alone 2>&1 | awk '/^test result:/ { p += $4; f += $6 } END { print "loop round passed=" p " failed=" f; exit !(p == 17 && f == 0) }' ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop u24m-new-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +161,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-r4-formal 45-r4-words
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-r4-formal 45-r4-words
+      - name: Loop (u24m-new-tests, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test -q -p halvo-coord --locked --test coordinator_moves --test sync_state --test formal_traces --test items_confirm -- --exact rd80_a_move_that_did_not_return_raises_seq_at_the_next_publish_though_nothing_differs rd80_after_a_tick_that_panics_the_bell_rings_and_the_first_call_takes_the_note rd80_after_a_tick_that_panics_every_publish_carries_the_note_until_a_tick_returns rd80_with_a_full_roster_the_note_of_the_mark_stands_and_roster_full_comes_back rd80_while_the_mark_stands_each_kind_of_start_is_no_service_and_a_stop_is_taken rd80_a_first_tick_that_panics_leaves_the_stand_in rd122_a_run_that_stood_through_a_tick_that_did_not_return_ends_with_its_defers_not_known rd84_an_answer_whose_move_did_not_return_is_settled_by_the_next_move_with_a_stop rd84_a_move_that_returned_leaves_an_answer_to_its_own_rules rd84_a_stop_stored_failed_reads_back_as_the_stop_answer_lost_and_ends_failed rd80_a_first_tick_that_panics_after_recovery_leaves_the_stand_in_and_no_card rd80_a_tick_that_returns_while_another_panic_unwinds_sets_no_mark rd80_same_as_the_first_call_after_a_lost_tick_answers_the_state_with_the_note rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles sync_alone_a_publish_after_a_move_that_did_not_return_raises_seq_though_nothing_differs formal_traces_the_models_take_the_codes_cause_answer_lost row_lapse_takes_answer_lost_from_answered_alone 2>&1 | awk '/^test result:/ { p += $4; f += $6 } END { print "loop round passed=" p " failed=" f; exit !(p == 17 && f == 0) }' ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop u24m-new-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
