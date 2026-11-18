@@ -125,8 +125,8 @@ fn bound_cases() -> Vec<(String, Card, bool)> {
     .into_iter()
     .map(|(name, fill)| (name, bound_card(CARD_LINES, CARD_COLUMNS, fill), true))
     .collect::<Vec<_>>();
-    for lines in [15, 23, 31] {
-        for width in [72, 96, 120] {
+    for lines in [7, 15, 23] {
+        for width in [48, 72, 96] {
             if lines <= CARD_LINES && width <= CARD_COLUMNS {
                 cases.push((
                     format!("probe_{lines}x{width}"),

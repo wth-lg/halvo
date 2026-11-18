@@ -294,12 +294,12 @@ fn confirm_fields(ask: &ConfirmAsk, named: Named, table: &Table) -> Result<Vec<F
 /// The most lines of the native dialog's message, the empty line between two fields counted
 /// (ruling RD-90 items 1 and 9): the dialog's proven bound, the smaller of the two systems', read
 /// on a hosted screen by the target dialog_hosted of halvo-coord-app.
-pub const CARD_LINES: usize = 15;
+pub const CARD_LINES: usize = 23;
 
 /// The most columns (`chars::columns`, display width) of the native dialog's title, of one line
 /// of its message and of one control text (ruling RD-90 items 1 and 9): the dialog's proven
 /// bound, the smaller of the two systems', read on a hosted screen as `CARD_LINES` is.
-pub const CARD_COLUMNS: usize = 72;
+pub const CARD_COLUMNS: usize = 96;
 
 /// What a bound field is to a confirmation (ruling RD-90 item 3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
