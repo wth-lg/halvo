@@ -468,6 +468,13 @@ error, with nothing on standard output, and exit 2.
   `reply_listed_id` answers the message's own id and makes no draft. The case of `no_reply`
   answers a createReply and a PATCH, holds the send of that draft and records it, answers a
   second send, and holds again after each reset.
+- Thirteen data cases hold the self-test's own copy of the reply rule to the reader of the slot
+  `reply_senders` in halvo-schema (CP-155 E7, CP-203): twelve cases `reply-reader-*` mirror the
+  reader's own tests (the cut, the trim of the white space that Rust's `char::is_whitespace`
+  names, the empty piece, the piece that is no address, the byte outside ASCII, an address twice
+  without ASCII case, the first fault, the rule for a sender and its dots, and `same_address`),
+  and `reply-rule-uses-the-reader` shows that `selectReplies` reads the senders through that
+  copy and holds the sender and the account without regard to ASCII case alone.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
   of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
@@ -480,7 +487,7 @@ So these cases give 120 + 12 + 4 + 16 + 12 + 12 + 4 = 180. The cases of the serv
 variant sets (no variant and each variant of the self-test's own list but `no_reply`, a list
 that holds neither `slow_charge` nor the variants of the drafts), less `amount_changes` with
 `reply` and `cleanup`: 3 x 4 x 11 - 6 = 126, and later units added protocol cases that the list
-above does not name one by one. With all of them `k` is 212, or 210 on Windows. The self-test names
+above does not name one by one. With all of them `k` is 225, or 223 on Windows. The self-test names
 both counts and fails when another number of cases ran. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other

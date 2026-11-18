@@ -184,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 212;
-const CASES_WINDOWS = 210;
+const CASES_UNIX = 225;
+const CASES_WINDOWS = 223;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -729,17 +729,71 @@ function receivedMs(m) {
   return m.receivedDateTime === undefined ? m.received_minutes * 60000 : Date.parse(m.receivedDateTime);
 }
 
-// The reply rule of A1.2 with the clauses of A11.2: unread, from a listed sender, received at the
-// start's whole second or later, naming the account, and no reply-to other than the sender byte
-// for byte. `since` is a start in milliseconds on the clock of the messages' received times.
+// The second copy of the reader of the slot `reply_senders`, halvo_schema::executable's
+// `reply_senders` with its rule for a sender and `same_address` (CP-112, A11.2), which the cases
+// `reply-reader-*` hold to the reader's own tests.
+const SPECIALS = '"(),:;<>[\\]';
+const WHITE = new Set([
+  0x9, 0xa, 0xb, 0xc, 0xd, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
+  0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+]);
+
+function asciiLower(text) {
+  return text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+}
+
+function sameAddress(a, b) {
+  return asciiLower(a) === asciiLower(b);
+}
+
+function isSender(text) {
+  if (!/^[\x21-\x7e]*$/.test(text) || text.length > 320) return false;
+  if ([...text].some((c) => SPECIALS.includes(c))) return false;
+  const at = text.indexOf('@');
+  if (at < 1) return false;
+  const domain = text.slice(at + 1);
+  return domain.length > 0 && !domain.includes('@') && !domain.startsWith('.') && !domain.endsWith('.') && !domain.includes('..');
+}
+
+function trimWhite(piece) {
+  const chars = [...piece];
+  let from = 0;
+  let to = chars.length;
+  while (from < to && WHITE.has(chars[from].codePointAt(0))) from += 1;
+  while (to > from && WHITE.has(chars[to - 1].codePointAt(0))) to -= 1;
+  return chars.slice(from, to).join('');
+}
+
+// The senders of a slot's one text, or the first fault with the number of its piece counted from 1.
+function readSenders(text) {
+  const senders = [];
+  const pieces = text.split(',');
+  for (let i = 0; i < pieces.length; i += 1) {
+    const piece = trimWhite(pieces[i]);
+    if (piece === '') return { fault: 'empty', piece: i + 1 };
+    if (!/^[\x00-\x7f]*$/.test(piece)) return { fault: 'not_ascii', piece: i + 1 };
+    if (!isSender(piece)) return { fault: 'not_an_address', piece: i + 1 };
+    const earlier = senders.findIndex((sender) => sameAddress(sender, piece));
+    if (earlier >= 0) return { fault: 'twice', earlier: earlier + 1, piece: i + 1 };
+    senders.push(piece);
+  }
+  return { senders };
+}
+
+// The reply rule of A1.2 with the clauses of A11.2: unread, from a sender that the reader reads
+// from the seed's list joined by a comma and a space (none when it refuses the list), naming the
+// account, each held by `sameAddress`, received at the start's whole second or later, and no
+// reply-to other than the sender byte for byte. `since` is a start in milliseconds on the clock of
+// the messages' received times.
 function selectReplies(seed, messages, since) {
-  const senders = slot(seed.bindings.reply, 'reply_senders');
+  const read = readSenders(slot(seed.bindings.reply, 'reply_senders').join(', '));
+  if (!read.senders) return [];
   const second = Math.floor(since / 1000) * 1000;
   return messages.filter(
     (m) =>
       !m.isRead &&
-      m.toRecipients.some((t) => t.emailAddress.address === seed.mail.address) &&
-      senders.includes(m.from.emailAddress.address) &&
+      m.toRecipients.some((t) => sameAddress(t.emailAddress.address, seed.mail.address)) &&
+      read.senders.some((sender) => sameAddress(sender, m.from.emailAddress.address)) &&
       receivedMs(m) >= second &&
       (m.replyTo || []).every((t) => t.emailAddress.address === m.from.emailAddress.address),
   );
@@ -982,6 +1036,137 @@ async function dataCases() {
     ];
     const [a, b2, d] = SEEDS.map((n) => read(seeds[n]));
     c.ok(a.every((v, i) => v !== b2[i] && v !== d[i] && b2[i] !== d[i]), 'every_task_value_differs');
+  });
+}
+
+function ofLength(length) {
+  const domain = '@people.test';
+  return `${'a'.repeat(length - domain.length)}${domain}`;
+}
+
+async function readerCases() {
+  const list = (senders) => ({ senders });
+  const fault = (name, piece, earlier) => (earlier === undefined ? { fault: name, piece } : { fault: name, earlier, piece });
+  const rows = (c, pairs, check) => {
+    for (const [slotText, want] of pairs) c.ok(equal(readSenders(slotText), want), check);
+  };
+  const white = [...WHITE].map((n) => String.fromCodePoint(n));
+  const ann = 'ann@people.test';
+  const bob = 'bob@people.test';
+  await run('reply-reader-cut-trimmed-in-order', async (c) => {
+    rows(c, [
+      [ann, list([ann])],
+      [`${ann}, ${bob}`, list([ann, bob])],
+      [`${bob},${ann}`, list([bob, ann])],
+      ['   cy@people.test  ,  Ann@People.test,bob@people.test   ', list(['cy@people.test', 'Ann@People.test', bob])],
+    ], 'cut_trimmed_in_order');
+  });
+  await run('reply-reader-seed-lists-read-back', async (c) => {
+    for (const n of SEEDS) {
+      const senders = slot(seeds[n].bindings.reply, 'reply_senders');
+      c.ok(senders.length === 2 && equal(readSenders(senders.join(', ')), list(senders)), 'seed_list_read_back');
+    }
+  });
+  await run('reply-reader-empty-piece', async (c) => {
+    rows(c, [
+      ['', fault('empty', 1)], [' ', fault('empty', 1)], [',', fault('empty', 1)], [`${ann},`, fault('empty', 2)],
+      [`${ann}, `, fault('empty', 2)], [`,${ann}`, fault('empty', 1)], [` , ${ann}`, fault('empty', 1)],
+      [`${ann},,${bob}`, fault('empty', 2)], [`${ann}, ,${bob}`, fault('empty', 2)],
+      ['a@people.test, b@people.test, c@people.test,', fault('empty', 4)],
+    ], 'empty_piece_numbered');
+  });
+  await run('reply-reader-no-address', async (c) => {
+    const pieces = ['Ann Berg', 'ann', '@people.test', 'ann@', '@', 'ann@@people.test', 'ann@people@test', 'ann people@test',
+      `${ann} ${bob}`, `${ann}; ${bob}`, `Ann <${ann}>`, 'ann\t@people.test', ofLength(321)];
+    rows(c, pieces.map((piece) => [piece, fault('not_an_address', 1)]), 'not_an_address_numbered');
+    rows(c, [[`${bob}, Ann Berg`, fault('not_an_address', 2)], ['a@people.test, b@people.test, ann', fault('not_an_address', 3)]], 'later_piece');
+    c.ok(equal(readSenders(ofLength(320)), list([ofLength(320)])), 'at_the_bound');
+  });
+  await run('reply-reader-outside-ascii', async (c) => {
+    rows(c, [
+      ['ännchen@people.test', fault('not_ascii', 1)], ['ann@péople.test', fault('not_ascii', 1)], ['Ann Bérg', fault('not_ascii', 1)],
+      ['é', fault('not_ascii', 1)], ['ann@people\u00a0.test', fault('not_ascii', 1)], ['ann@people.test\u00a0x', fault('not_ascii', 1)],
+      [`${bob}, élan@people.test`, fault('not_ascii', 2)], [`${bob}, ${ann}, \u{1f600}`, fault('not_ascii', 3)],
+      [`é${ofLength(320)}`, fault('not_ascii', 1)],
+    ], 'not_ascii_numbered');
+    for (const ch of ['\u0080', '\u00ff', '\u0100', '\u{10ffff}']) {
+      rows(c, [[`a${ch}@people.test`, fault('not_ascii', 1)], [`ann@peo${ch}ple.test`, fault('not_ascii', 1)]], 'not_ascii_bytes');
+    }
+  });
+  await run('reply-reader-white-space-at-the-ends', async (c) => {
+    c.ok(white.length === 25, 'twenty_five');
+    for (const ch of white) {
+      for (const piece of [`${ch}${ann}`, `${ann}${ch}`, `${ch}${ann}${ch}`, ` ${ch}${ch}${ann}${ch} `]) {
+        rows(c, [[piece, list([ann])], [`${piece}, ${bob}`, list([ann, bob])], [`${bob},${piece}`, list([bob, ann])]], 'trimmed');
+      }
+      rows(c, [[ch, fault('empty', 1)], [`${ann},${ch}`, fault('empty', 2)], [`${ch} ,${ann}`, fault('empty', 1)]], 'white_alone_is_empty');
+      rows(c, [[`${ch}${ofLength(320)}${ch}`, list([ofLength(320)])], [`${ch}${ofLength(321)}${ch}`, fault('not_an_address', 1)]], 'bound_after_trim');
+    }
+  });
+  await run('reply-reader-white-space-inside', async (c) => {
+    for (const ch of white) {
+      const want = ch.codePointAt(0) < 0x80 ? fault('not_an_address', 1) : fault('not_ascii', 1);
+      rows(c, [[`ann${ch}@people.test`, want], [`ann@people${ch}.test`, want]], 'inside_refused');
+    }
+    for (const [ch, want] of [['\u0000', fault('not_an_address', 1)], ['\u001f', fault('not_an_address', 1)], ['\u007f', fault('not_an_address', 1)],
+      ['\u200b', fault('not_ascii', 1)], ['\ufeff', fault('not_ascii', 1)]]) {
+      c.ok(!WHITE.has(ch.codePointAt(0)), 'not_white');
+      rows(c, [[`${ch}${ann}`, want], [`${ann}${ch}`, want]], 'other_bytes_at_the_ends');
+    }
+  });
+  await run('reply-reader-twice', async (c) => {
+    rows(c, [
+      [`${ann}, ${ann}`, fault('twice', 2, 1)], [`${ann}, ANN@People.TEST`, fault('twice', 2, 1)],
+      [`${ann}, ${bob}, Ann@people.test`, fault('twice', 3, 1)], [`${bob}, ${ann}, BOB@people.test`, fault('twice', 3, 1)],
+      ['a@people.test, b@people.test, c@people.test, B@people.test', fault('twice', 4, 2)],
+      ['élan@people.test, ÉLAN@people.test', fault('not_ascii', 1)],
+    ], 'twice_numbered');
+  });
+  await run('reply-reader-first-fault', async (c) => {
+    rows(c, [
+      [`Ann Berg, , ${ann}`, fault('not_an_address', 1)], [', Ann Berg', fault('empty', 1)],
+      [`${ann}, ANN@people.test, Ann Berg`, fault('twice', 2, 1)], [`${ann}, Ann Berg, ${ann}`, fault('not_an_address', 2)],
+      [`${ann}, ${ann},`, fault('twice', 2, 1)], [`${bob}, ännchen@people.test, Ann Berg`, fault('not_ascii', 2)],
+      [`${bob}, Ann Berg, ännchen@people.test`, fault('not_an_address', 2)], [`${bob}, , ännchen@people.test`, fault('empty', 2)],
+    ], 'first_fault');
+  });
+  await run('reply-reader-rule-for-a-sender', async (c) => {
+    const atext = "!#$%&'*+-/=?^_`{|}~.";
+    for (let byte = 0; byte < 128; byte += 1) {
+      const ch = String.fromCharCode(byte);
+      const taken = /[A-Za-z0-9]/.test(ch) || atext.includes(ch);
+      c.ok(isSender(`a${ch}b@people.test`) === taken && isSender(`ann@peo${ch}ple.test`) === taken, 'printable_but_specials');
+    }
+    c.ok(["a@b", "'@b", 'a.b@c.d', 'ann+x@people.test'].every(isSender), 'taken');
+    c.ok(!['', '@', 'a@', '@b', 'ab', 'a@b@c', 'é@b', 'a@é', 'a,b@c'].some(isSender), 'refused');
+    c.ok(isSender(ofLength(320)) && !isSender(ofLength(321)), 'bound');
+  });
+  await run('reply-reader-dots-after-the-at', async (c) => {
+    for (const text of ['ann@.people.test', 'ann@people.test.', 'ann@people..test', 'ann@.people.test.', 'ann@.', 'ann@..', 'ann@people...test', 'a@.b', 'a@b.']) {
+      c.ok(!isSender(text) && equal(readSenders(text), fault('not_an_address', 1)) && equal(readSenders(`${bob}, ${text}`), fault('not_an_address', 2)), 'dot_refused');
+    }
+    for (const text of ['ann@people', 'a@b', 'a@b.c', 'a@b.c.d', 'ann.@people.test', '.ann@people.test', 'a..b@people.test', 'a.b@c.d']) {
+      c.ok(isSender(text) && equal(readSenders(text), list([text])), 'dot_taken');
+    }
+  });
+  await run('reply-reader-same-address', async (c) => {
+    const read = readSenders(' Ann@People.test ,bob@people.test,k@people.test');
+    c.ok(equal(read, list(['Ann@People.test', bob, 'k@people.test'])), 'each_as_read');
+    const holds = (address) => read.senders.some((sender) => sameAddress(sender, address));
+    c.ok([ann, 'ANN@PEOPLE.TEST', 'Ann@People.test', 'BOB@people.test', 'K@people.test'].every(holds), 'held_without_ascii_case');
+    c.ok(!['eve@people.test', `${ann} `, ` ${ann}`, 'ann@people.tes', '', 'ann berg@people.test', '\u212a@people.test'].some(holds), 'nothing_else');
+  });
+  await run('reply-rule-uses-the-reader', async (c) => {
+    const s = seeds[1];
+    const [first, second] = slot(s.bindings.reply, 'reply_senders');
+    const withSenders = (senders) => ({ ...s, bindings: { ...s.bindings, reply: { ...s.bindings.reply, slots: [{ name: 'reply_senders', value: senders }] } } });
+    const mail = (from, to) => ({ ...s.mail.inbox[0], from: { emailAddress: { address: from } }, toRecipients: [{ emailAddress: { address: to } }] });
+    c.ok(selectReplies(s, [mail(first.toUpperCase(), s.mail.address)], 0).length === 1, 'sender_without_ascii_case');
+    c.ok(selectReplies(s, [mail(first, s.mail.address.toUpperCase())], 0).length === 1, 'account_without_ascii_case');
+    c.ok(selectReplies(withSenders([` ${first}\u00a0`, second]), [mail(first, s.mail.address)], 0).length === 1, 'trimmed_sender');
+    c.ok(selectReplies(withSenders([first, 'Ann Berg']), [mail(first, s.mail.address)], 0).length === 0, 'a_refused_list_selects_nothing');
+    c.ok(selectReplies(withSenders([first, first.toUpperCase()]), [mail(first, s.mail.address)], 0).length === 0, 'a_list_with_one_address_twice_selects_nothing');
+    c.ok(selectReplies(s, [mail(`\u212a${first.slice(1)}`, s.mail.address)], 0).length === 0, 'no_unicode_case');
   });
 }
 
@@ -1804,6 +1989,7 @@ async function main() {
   const env = makeEnv(server.port);
   try {
     await dataCases();
+    await readerCases();
     await walkCases(env);
     await protocolCases(env);
     await cliCases(env);
