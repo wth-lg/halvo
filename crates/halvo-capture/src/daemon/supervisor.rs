@@ -395,6 +395,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     hold_line_written: bool,
     unstopped_in_life: Vec<(SourceName, CaptureError)>,
     owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
+    entry_status: Option<i32>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -427,6 +428,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             hold_line_written: false,
             unstopped_in_life: Vec::new(),
             owner_gone_stops: None,
+            entry_status: None,
         }
     }
 
@@ -1053,6 +1055,28 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.stop_sources(false)
     }
 
+    /// Stops the source of `name`. Inside the shutdown entry, until its first
+    /// answer that is not a stop, the arm carries 5 while the stop runs, so
+    /// that a stop that never answers ends the process with 5 at the entry's
+    /// deadline, and the entry's own status again after a stop that answered
+    /// within its bound (ruling DM-26 F1). Outside the entry the arm is left
+    /// as it is.
+    fn stop_one_armed(&mut self, name: SourceName) -> Option<Result<(), CaptureError>> {
+        let entry_status = self.entry_status;
+        if let (Some(_), Some(watchdog)) = (entry_status, &self.watchdog) {
+            watchdog.set_status(exit::SOURCE_NOT_STOPPED);
+        }
+        let answer = self.sources.stop_one(name);
+        if let Some(status) = entry_status {
+            if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
+                self.entry_status = None;
+            } else if let Some(watchdog) = &self.watchdog {
+                watchdog.set_status(status);
+            }
+        }
+        answer
+    }
+
     /// Stops the sources as [`Supervisor::stop_every_source`] does; with
     /// `within_deadline`, the end routine's second ask, a source whose stop
     /// bound does not fit in what is left before the entry's deadline is not
@@ -1069,7 +1093,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if within_deadline && self.before_the_deadline(bound) < bound {
                 continue;
             }
-            let Some(answer) = self.sources.stop_one(*name) else {
+            let Some(answer) = self.stop_one_armed(*name) else {
                 continue;
             };
             if self.ends_by.is_some() && !is_a_stop(&answer) {
@@ -1122,7 +1146,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// The shutdown entry: the watchdog is armed with `status` for the
     /// longest stop bound in play plus SHUTDOWN_BUDGET_MS, at most
-    /// [`ENTRY_DEADLINE_MS`]; the owner settles the open batch (at most 1 s),
+    /// [`ENTRY_DEADLINE_MS`], and carries 5 while each stop runs, so that a
+    /// stop that never answers ends the process with 5 (ruling DM-26 F1). In
+    /// the span after a stop answered within its bound and before the next
+    /// stop begins it carries `status` again: every source asked so far has
+    /// stopped, so a process that the watchdog ends there ends with the
+    /// status that the entry would answer itself. The owner settles the open batch (at most 1 s),
     /// the sources stop in the stop order, and the owner settles once more
     /// (at most 5 s). It runs once: a second trigger answers `None`. At the
     /// first answer that is not a stop, a stop past its bound included, the
@@ -1143,6 +1172,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let started = self.main_loop.now();
         let in_play = self.held(stop_order(self.platform));
         self.arm_entry(&in_play, status);
+        self.entry_status = Some(status);
         let first = owner.ask(Command::Settle).ok().and_then(|pending| {
             self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE))
         });
@@ -1183,6 +1213,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             let line = super::loss_line(&last, last.events_lost + last.events_pending, &reports);
             let _ = writeln!(self.err, "{line}");
         }
+        self.entry_status = None;
         if unstopped {
             if let Some(end_call) = &self.end_call {
                 end_call.end(exit::SOURCE_NOT_STOPPED);
@@ -4485,11 +4516,12 @@ mod tests {
             assert_eq!(tick, Some(Ending::SourceNotStopped));
         }
 
-        /// N1 (c), A1-F9, A2-6 and v24: the shutdown entry arms the watchdog at its
-        /// start with its own status; an input stop that answers Timeout turns the
-        /// arm into 5, and the entry ends by its routine with 5.
+        /// N1 (c), A1-F9, A2-6 and v24: the shutdown entry's first stop runs
+        /// armed with 5 (ruling DM-26 F1; at DM-25 it read the entry's own
+        /// status); its input stop answers Timeout, the arm stays 5, and the
+        /// entry ends by its routine with 5.
         #[test]
-        fn the_entry_that_meets_a_timeout_arms_with_its_status_and_ends_with_5() {
+        fn the_entry_that_meets_a_timeout_runs_its_stop_armed_with_5_and_ends_with_5() {
             let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
             let mut f = fixture_on_owner(
                 input_stop(Duration::ZERO, Err(timeout()), &peek, &seen),
@@ -4511,8 +4543,8 @@ mod tests {
             );
             assert_eq!(
                 seen.first(),
-                Some(&Some(exit::CLEAN)),
-                "the entry did not arm the watchdog with its own status before its first stop"
+                Some(&Some(exit::SOURCE_NOT_STOPPED)),
+                "the entry's first stop did not run armed with 5"
             );
             assert_eq!(
                 f.supervisor.watchdog_armed(),
@@ -5955,6 +5987,154 @@ mod tests {
                 "the child did not end with the run's own status"
             );
             assert_ne!(status, Some(exit::TIMED_RUN_SOURCE_FAILED));
+        }
+
+        /// The arms that the main loop reads at each turn of a shutdown
+        /// entry's settles, each with the loop's time.
+        type Turns = Rc<RefCell<Vec<(Duration, Option<i32>)>>>;
+
+        /// Sets the main loop of `f` to read the watchdog's arm at each turn.
+        fn read_the_arm_at_each_turn<F: SystemSources>(f: &mut Fixture<F>) -> Turns {
+            let turns: Turns = Rc::default();
+            let (watchdog, read) = (f.supervisor.watchdog.clone(), turns.clone());
+            f.supervisor.main_loop().hook = Some(Box::new(move |at| {
+                read.borrow_mut()
+                    .push((at, watchdog.as_ref().and_then(Watchdog::armed)));
+            }));
+            turns
+        }
+
+        /// Ruling DM-26 F1 and pr-review-58's case contract/03: the input stop
+        /// of a shutdown entry asked for status 0 blocks 20 s on the real
+        /// clock. The stop runs armed with 5, so the watchdog's call, made while
+        /// the stop still blocks, carries 5, by ENTRY_DEADLINE_MS plus the
+        /// watchdog's wake. At 12d3eb67 it carried the entry's 0.
+        #[test]
+        fn a_blocked_stop_in_the_shutdown_entry_is_ended_with_5_not_the_entry_status() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let mut f = fixture_on_owner(
+                input_stop(Duration::from_millis(20_000), Ok(()), &peek, &seen),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            f.start(&two());
+            f.tick();
+            let link = f.link.take().unwrap();
+            let began = Instant::now();
+            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN);
+            let endings = ending.since(began);
+            let seen = seen.borrow().clone();
+            println!(
+                "dm26 f1 blocked entry status={:?} seen={seen:?} endings={endings:?}",
+                outcome.as_ref().map(|o| o.status)
+            );
+            let by = u128::from(ENTRY_DEADLINE_MS) + WAKE;
+            let first = endings.first().copied();
+            assert!(
+                matches!(first, Some((_, at)) if at <= by),
+                "no ending call by {by} ms while the stop blocked: {endings:?}"
+            );
+            assert_eq!(
+                first.map(|(status, _)| status),
+                Some(exit::SOURCE_NOT_STOPPED),
+                "the watchdog ended a shutdown whose input stop never answered with the entry's own status: {endings:?}"
+            );
+        }
+
+        /// Ruling DM-26 F1, the other side, and pr-review-58 B2 item 3: a
+        /// shutdown entry asked for status 4 whose every stop answers within
+        /// its bound runs each stop armed with 5, carries 4 again in its last
+        /// settle, answers 4, takes the arm back, and no ending call comes by
+        /// the deadline plus 500 ms.
+        #[test]
+        fn an_entry_whose_stops_all_answer_in_bound_answers_its_status_disarmed() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let mut f = fixture_on_owner(
+                input_stop(Duration::ZERO, Ok(()), &peek, &seen),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            f.start(&two());
+            f.tick();
+            let turns = read_the_arm_at_each_turn(&mut f);
+            let link = f.link.take().unwrap();
+            let began = Instant::now();
+            let outcome = f.supervisor.shutdown_entry(&link, exit::RESTART).unwrap();
+            let seen = seen.borrow().clone();
+            let turns = turns.borrow().clone();
+            println!(
+                "dm26 f1 in-bound entry status={} seen={seen:?} turns={turns:?} armed={:?}",
+                outcome.status,
+                f.supervisor.watchdog_armed()
+            );
+            assert_eq!(outcome.status, exit::RESTART);
+            assert_eq!(
+                seen,
+                [Some(exit::SOURCE_NOT_STOPPED)],
+                "the stop ran under another arm"
+            );
+            assert!(
+                !turns.is_empty() && turns.iter().all(|(_, armed)| *armed == Some(exit::RESTART)),
+                "outside its stops the entry's arm did not carry its own status: {turns:?}"
+            );
+            assert_eq!(f.supervisor.watchdog_armed(), None, "the arm stayed");
+            let after = Duration::from_millis(ENTRY_DEADLINE_MS + 500);
+            std::thread::sleep(after.saturating_sub(began.elapsed()));
+            assert!(
+                ending.statuses().is_empty(),
+                "an ending call came after every source stopped: {:?}",
+                ending.since(began)
+            );
+        }
+
+        /// Ruling DM-26 F1: input answers Timeout and then Ok at the second
+        /// ask, foreground Ok: no stop after the first answer that is not a
+        /// stop puts the entry's status back, so the arm reads 5 after the
+        /// second ask and in the last settle, and the entry ends with 5.
+        #[test]
+        fn a_later_stop_in_bound_puts_no_entry_status_back_after_a_timeout() {
+            let mut f = fixture_on_owner(
+                Factory::adjusting(|source| {
+                    if source.name == SourceName::Input {
+                        source.stop = Err(timeout());
+                    }
+                }),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            f.start(&two());
+            f.tick();
+            f.supervisor
+                .factory_mut()
+                .on_second_stop(SourceName::Input, Ok(()));
+            let turns = read_the_arm_at_each_turn(&mut f);
+            let link = f.link.take().unwrap();
+            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            let stops = f.supervisor.factory().calls.of("stop ");
+            let turns = turns.borrow().clone();
+            println!(
+                "dm26 f1 second-ask entry status={} stops={stops:?} turns={turns:?} armed={:?} endings={:?}",
+                outcome.status,
+                f.supervisor.watchdog_armed(),
+                ending.statuses()
+            );
+            assert_eq!(stops, ["stop input", "stop foreground", "stop input"]);
+            assert_eq!(
+                f.supervisor.watchdog_armed(),
+                Some(exit::SOURCE_NOT_STOPPED)
+            );
+            assert_eq!(
+                turns.last().map(|(_, armed)| *armed),
+                Some(Some(exit::SOURCE_NOT_STOPPED)),
+                "the last settle ran under another arm: {turns:?}"
+            );
+            assert_eq!(ending.statuses(), [exit::SOURCE_NOT_STOPPED]);
+            assert_eq!(outcome.status, exit::SOURCE_NOT_STOPPED);
         }
     }
 }

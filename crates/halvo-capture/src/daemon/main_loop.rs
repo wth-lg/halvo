@@ -119,6 +119,16 @@ impl Watchdog {
         wake.notify_all();
     }
 
+    /// Puts `status` in an arm that stands, its deadline kept; an unarmed
+    /// watchdog stays unarmed (ruling DM-26 F1).
+    pub fn set_status(&self, status: i32) {
+        let (armed, _) = &*self.state;
+        let mut guard = armed.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((deadline, _)) = *guard {
+            *guard = Some((deadline, status));
+        }
+    }
+
     /// Takes the arm back: the watchdog ends nothing until it is armed again.
     pub fn disarm(&self) {
         let (armed, wake) = &*self.state;
