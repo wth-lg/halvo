@@ -268,6 +268,32 @@ impl Call {
 /// fn made_by_deserialize<T: serde::Deserialize<'static>>() {}
 /// made_by_deserialize::<halvo_wire::request::Request>();
 /// ```
+///
+/// It has no method that takes `&mut self` or `mut self`, so a built request is not changed; the
+/// example compiles when a method of any one of these names is added:
+///
+/// ```compile_fail,E0308
+/// use halvo_wire::request::Request;
+/// struct Missing;
+/// struct Added;
+/// struct NotAdded;
+/// impl NotAdded { fn or<B>(self, other: B) -> B { other } }
+/// impl Added { fn or<B>(self, _: B) -> Added { Added } }
+/// struct Probe<F>(F);
+/// trait Fell { fn found(&self) -> NotAdded { NotAdded } }
+/// impl<F: Fn(Missing) -> Missing> Fell for &Probe<F> {}
+/// trait Found { fn found(&self) -> Added { Added } }
+/// impl<F> Found for Probe<F> {}
+/// macro_rules! pins {
+///     ($($name:ident),*) => {
+///         trait Fallback { $(fn $name(_: Missing) -> Missing { Missing })* }
+///         impl Fallback for Request {}
+///         let added: Added = NotAdded $(.or((&&Probe(Request::$name)).found()))*;
+///     };
+/// }
+/// pins!(set_method, set_path, set_headers, set_header, push_header, insert_header, set_body,
+///     headers_mut, body_mut, take_body, with_header, with_body);
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     method: &'static str,
