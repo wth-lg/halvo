@@ -222,7 +222,8 @@ impl Call {
 /// }
 /// ```
 ///
-/// It implements no `Default`, so no request is made that `build` did not check:
+/// It implements no `Default`: an impl of `Default` on `Request` makes this example compile. An
+/// impl on `Box<Request>` and an inherent function named `default` do not, and are not pinned:
 ///
 /// ```compile_fail,E0277
 /// fn made_by_default<T: Default>() {}
@@ -270,17 +271,20 @@ impl Call {
 ///     .or(holds!(TryFrom<serde_json::Value>));
 /// ```
 ///
-/// It implements no `Deserialize`, so no request is read from bytes that `build` did not check:
+/// It implements no `Deserialize<'static>`: an impl of it on `Request`, derived or written by hand,
+/// makes this example compile. An impl on `Box<Request>` does not, and is not pinned:
 ///
 /// ```compile_fail,E0277
 /// fn made_by_deserialize<T: serde::Deserialize<'static>>() {}
 /// made_by_deserialize::<halvo_wire::request::Request>();
 /// ```
 ///
-/// It has no method of the names that the example lists, which would take `&mut self` or
-/// `mut self`, and implements none of the standard traits that it lists, whose methods take
-/// `&mut self`, so a built request is not changed; the example compiles when any one of them is
-/// added:
+/// It has no public method of the names that the example lists and implements none of the
+/// standard traits that it lists, whose methods take `&mut self`: a public method of one of those
+/// names, whatever its receiver, or an impl of one of those traits on `Request` makes this example
+/// compile. A method of another name, a generic one, a method of a listed name that is not public,
+/// one in a trait of the crate and a standard trait outside the list, such as `AddAssign` or
+/// `Hasher`, do not, and are not pinned:
 ///
 /// ```compile_fail,E0308
 /// use halvo_wire::request::Request;
