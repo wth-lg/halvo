@@ -55,6 +55,18 @@ pub struct Coordinator<P: Owner> {
 
 const NO_READ: u64 = 0;
 
+/// Where the rest of a switch-off that waited for the clock stands after a read that answered.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OffRest {
+    /// The hold shows on the board and the move `off` made the rest.
+    Done,
+    /// A read of the clock failed again: the switch-off waits for the next one.
+    Clock,
+    /// The owner has not taken the `hold_set`, or its events could not be read: the agent is
+    /// held off on the board (`hold_place`) and the next ticks try again, with no tick held.
+    Owner,
+}
+
 /// A clock that answers one instant, the last read of this life, with the day that the
 /// app's clock gives it, so that a row is stamped at that read (ruling RD-133, answer (b)).
 struct LastRead<'a, P>(&'a P, u64);
@@ -105,6 +117,7 @@ struct State<C> {
     offs: Vec<AgentId>,
     ended: Vec<(RunId, Option<crate::types::Outcome>)>,
     marked: Vec<RunId>,
+    held_off: Vec<AgentId>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -342,6 +355,7 @@ where
                 offs: Vec::new(),
                 ended: Vec::new(),
                 marked: Vec::new(),
+                held_off: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
         }
@@ -489,13 +503,54 @@ where
             board,
             ledgers,
             offs,
+            held_off,
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
         let waiting: Vec<AgentId> = std::mem::take(offs);
         for agent in waiting {
-            if self.off_at_stamp(board, ledgers, &agent, stamp) {
-                offs.push(agent);
+            match self.off_at_stamp(board, ledgers, &agent, stamp) {
+                OffRest::Done => {}
+                OffRest::Clock => offs.push(agent),
+                OffRest::Owner => {
+                    board.hold_place(&agent, true);
+                    if !held_off.contains(&agent) {
+                        held_off.push(agent);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The tick's turn at the switch-offs whose `hold_set` the owner has not taken: each is
+    /// tried again at one read of the clock, and the agent stays held off on the board until its
+    /// hold shows; then the board holds its place as its ledger says.
+    fn held_off_at_tick(
+        &self,
+        board: &mut Board<Cfg<P>>,
+        st_ledgers: &mut Vec<(AgentId, Ledger)>,
+        held_off: &mut Vec<AgentId>,
+    ) {
+        if held_off.is_empty() {
+            return;
+        }
+        let stamp = crate::ports::Stamp::read(&self.ports).ok();
+        if let Some(stamp) = stamp {
+            self.noted(Some(stamp.now()));
+        }
+        for agent in std::mem::take(held_off) {
+            let rest = match stamp {
+                Some(stamp) => self.off_at_stamp(board, st_ledgers, &agent, stamp),
+                None => OffRest::Clock,
+            };
+            if rest == OffRest::Done {
+                let keep = st_ledgers
+                    .iter()
+                    .any(|(a, l)| a == &agent && l.holds_place());
+                board.hold_place(&agent, keep);
+            } else if index(board, &agent).is_some() {
+                board.hold_place(&agent, true);
+                held_off.push(agent);
             }
         }
     }
@@ -505,45 +560,38 @@ where
     /// that a `hold_set` that the owner acknowledged is seen whatever an earlier read-back
     /// gave; a `hold_set` that still waits for the owner goes again and is never queued a
     /// second time; with no `hold_set` stored, the ledger stores one at `stamp`; once the
-    /// board shows the hold, the move `off` makes the rest. The agent stops waiting once its
-    /// hold shows, or where the owner refuses the `hold_set` or the read of the agent's events
-    /// with a name that lasts the life,
-    /// which refuses every store of the agent and so every start of it (ruling RD-123).
+    /// board shows the hold, the move `off` makes the rest. Where the owner does not take the
+    /// `hold_set`, or the agent's events cannot be read, whatever the name of the refusal, the
+    /// agent leaves the switch-offs that hold the tick and is held off on the board until a
+    /// later tick sees its hold (`held_off_at_tick`), so that no refusal holds every tick and no
+    /// tick starts the agent.
     fn off_at_stamp(
         &self,
         board: &mut Board<Cfg<P>>,
         ledgers: &mut Vec<(AgentId, Ledger)>,
         agent: &AgentId,
         stamp: crate::ports::Stamp,
-    ) -> bool {
+    ) -> OffRest {
         let Some(i) = index(board, agent) else {
-            return false;
+            return OffRest::Done;
         };
-        let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
         let l = ledger(ledgers, board, i);
-        let sent = if l.waiting().is_empty() {
-            Ok(())
-        } else {
-            items::flush(&self.ports, l, &self.limits)
-        };
-        let lasting = |e: &PortError| items::lasts_the_life(e, dismissed);
-        if l.waits_with_a_persons_hold() {
-            return !sent.as_ref().is_err_and(lasting);
+        if !l.waiting().is_empty() {
+            let _ = items::flush(&self.ports, l, &self.limits);
         }
-        if let Err(e) = self.read_agent(board, i) {
-            return !lasting(&e);
+        if l.waits_with_a_persons_hold() {
+            return OffRest::Owner;
+        }
+        if self.read_agent(board, i).is_err() {
+            return OffRest::Owner;
         }
         if !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off) {
             let l = ledger(ledgers, board, i);
-            match items::store_held_off(&self.ports, l, &self.limits, stamp) {
-                Ok(()) => {}
-                Err(e) => return !lasting(&e),
-            }
-            if let Err(e) = self.read_agent(board, i) {
-                return !lasting(&e);
-            }
-            if !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off) {
-                return true;
+            if items::store_held_off(&self.ports, l, &self.limits, stamp).is_err()
+                || self.read_agent(board, i).is_err()
+                || !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off)
+            {
+                return OffRest::Owner;
             }
         }
         let report = schedule::drive(
@@ -554,7 +602,13 @@ where
                 agent: agent.clone(),
             },
         );
-        report.unstamped || matches!(report.answer, Err(Cause::Busy))
+        if report.unstamped {
+            OffRest::Clock
+        } else if matches!(report.answer, Err(Cause::Busy)) {
+            OffRest::Owner
+        } else {
+            OffRest::Done
+        }
     }
 
     /// Reads the agent's events back onto the board.
@@ -687,6 +741,17 @@ where
             let created = schedule::drive(&self.ports, board, &self.limits, Move::Create);
             self.noted(created.read);
             self.flush_ledgers(board, ledgers);
+        }
+        {
+            let State {
+                board,
+                ledgers,
+                held_off,
+                ..
+            } = &mut *st;
+            if let Some(board) = board.as_mut() {
+                self.held_off_at_tick(board, ledgers, held_off);
+            }
         }
         self.finish_switch_offs_after_reads(st, before);
         let State {
@@ -2060,7 +2125,7 @@ where
         if st.mark.tick {
             return Err(Cause::NoService);
         }
-        if st.offs.contains(agent) {
+        if st.offs.contains(agent) || st.held_off.contains(agent) {
             return Err(Cause::Hold);
         }
         self.act(
@@ -2118,8 +2183,14 @@ where
         match action {
             _ if gone => Err(Cause::UnknownAgent),
             Action::RunNow => self.start_in(st, agent),
-            Action::SwitchOn if st.mark.tick || st.offs.contains(agent) => Err(Cause::NoService),
-            Action::SwitchOff if st.offs.contains(agent) => Err(Cause::State),
+            Action::SwitchOn
+                if st.mark.tick || st.offs.contains(agent) || st.held_off.contains(agent) =>
+            {
+                Err(Cause::NoService)
+            }
+            Action::SwitchOff if st.offs.contains(agent) || st.held_off.contains(agent) => {
+                Err(Cause::State)
+            }
             Action::SwitchOn => self.schedule(
                 st,
                 Move::SwitchOn {

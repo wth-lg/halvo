@@ -10503,3 +10503,61 @@ fn rd133_an_answer_to_another_item_in_the_window_keeps_the_waiting_settle() {
     assert_eq!(lost_lapses(&c, &item0), 1, "the first item settles");
     assert_eq!(cancels_of(&c, m, &run0), 1, "its run's one cancel");
 }
+
+/// A `hold_set` that the owner refuses alone with a name that does not last the life holds no
+/// later tick; the agent stays held off, and once the owner takes the hold its row reads
+/// switched off (the sixth review, finding 1).
+#[test]
+fn rd133_a_hold_refused_malformed_alone_holds_no_later_tick_and_keeps_the_agent_off() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    clock_fails(&c);
+    c.ports().ports.refuse_agent(
+        Method::Log,
+        &agent(1),
+        PortError::Refused(halvo_coord::types::Name::parse("malformed").unwrap()),
+    );
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    let m = mark(&c);
+    c.tick();
+    assert!(tick_worked(&c, m), "the tick does its work");
+    assert_eq!(
+        c.control(&agent(1), Action::RunNow),
+        Err(Cause::Hold),
+        "held off"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(person_holds(&c, 1).len(), 1, "the hold is taken once");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+}
+
+/// Where the owner refuses the read of a switched-off agent's events for the life, the agent
+/// is held off on the board, so its next slot does not start it (the sixth review, finding 2).
+#[test]
+fn rd133_a_switch_off_whose_read_is_refused_for_the_life_keeps_the_agent_from_its_slot() {
+    let c = coordinator(&[MANUAL, DUE], Limits::PRODUCT);
+    let run1 = started(&c)[0].clone();
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    c.ports().ports.refuse_agent(
+        Method::History,
+        &agent(1),
+        PortError::Refused(halvo_coord::types::Name::parse("unsupported").unwrap()),
+    );
+    clock_answers(&c);
+    c.ports().ports.end_runner(&run1);
+    let _ = c.on_run(&run1, RunEvent::Ended(None));
+    c.ports().ports.set_clock(NEXT_SLOT.0, NEXT_SLOT.1);
+    c.tick();
+    c.ports().ports.set_clock(NEXT_SLOT.0 + 1_000, NEXT_SLOT.1);
+    c.tick();
+    assert_eq!(started(&c).len(), 1, "its next slot does not start it");
+    assert_eq!(c.control(&agent(1), Action::RunNow), Err(Cause::Hold));
+    c.ports().ports.clear_refusals();
+}
