@@ -72,6 +72,7 @@ fn facts(spec: &Spec, whats: Vec<(u32, What)>) -> Facts<Config> {
         runs: vec![],
         events,
         store_ended: true,
+        unknown: Vec::new(),
         today: TODAY,
         doing: Doing::Idle(None),
     }

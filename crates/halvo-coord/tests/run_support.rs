@@ -141,6 +141,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 runs: vec![record],
                 events,
                 store_ended: true,
+                unknown: Vec::new(),
                 today: DAY,
                 doing: Doing::Idle(None),
             },

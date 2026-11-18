@@ -1,5 +1,5 @@
 use super::names::names;
-use super::{AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun};
+use super::{AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun, Unknown};
 
 /// What the coordinator knows of one agent (I5.1), which `holds`, `start_step`, `status` and
 /// `fixtures::facts` share.
@@ -15,6 +15,10 @@ pub struct Facts<C> {
     pub slots: Vec<Name>,
     /// Its last `history_runs` run records, newest first (A-A7.4).
     pub runs: Vec<PastRun>,
+    /// The entries of the roster's key `unknown` that name the newest run of `runs`: the effects
+    /// of that run whose outcome the agent store does not know, taken from the entry of
+    /// `Owner::agents` where its `last` is taken (I5.1; ruling RD-81 8.1).
+    pub unknown: Vec<Unknown>,
     /// Its ledger events in ascending `seq` (I7.1).
     pub events: Vec<Event>,
     /// Whether the agent store has ended the agent's newest run: no run of the agent was
@@ -26,6 +30,19 @@ pub struct Facts<C> {
     pub today: u32,
     /// Its run state and its open item.
     pub doing: Doing,
+}
+
+impl<C> Facts<C> {
+    /// Takes, of the entries of the roster's key `unknown` of one read, those that name the
+    /// newest run of `runs`, in place of the ones held (I5.1; ruling RD-81 8.1).
+    pub fn take_unknown(&mut self, entry: &[Unknown]) {
+        let newest = self.runs.first().map(|r| &r.run);
+        self.unknown = entry
+            .iter()
+            .filter(|u| Some(&u.run) == newest)
+            .cloned()
+            .collect();
+    }
 }
 
 /// What an agent does, of the coordinator's own state (I5.1): one run state, idle, queued or

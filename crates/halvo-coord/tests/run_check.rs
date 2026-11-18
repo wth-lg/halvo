@@ -8,9 +8,9 @@ use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, Act};
 use halvo_coord::schedule::{drive as schedule_drive, holds, Answer, Hold, Move, Owing};
 use halvo_coord::types::{
-    Agent, AgentId, Answered, Body, Cause, CheckAnswer, Decision, Doing, Event, HandbackResult,
-    ItemId, Lapsed, Name, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply,
-    ReplyRow, ReplyState, RunId, RunSpec, What, Workflow,
+    Agent, AgentId, Answered, Body, Cause, CheckAnswer, Class, Decision, Doing, EffectId, Event,
+    HandbackResult, ItemId, Lapsed, Name, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised,
+    ReadyAnswer, Reply, ReplyRow, ReplyState, RunId, RunSpec, Unknown, What, Workflow,
 };
 use support::{agent, flow, world, World, A, DAY, MANUAL, T0};
 
@@ -2289,4 +2289,154 @@ fn a_reply_row_is_not_known_in_the_state_unknown_and_when_its_reader_could_not_r
         assert_eq!(ReplyRow::Read(state).not_known(), not_known, "{state:?}");
     }
     assert!(ReplyRow::Unreadable.not_known());
+}
+
+/// The store ends the run with a record of 0 while the roster's key `unknown` of the agent's
+/// entry names an effect of it, as the agent store's `end_run` does with a `releasing` effect.
+fn ended_with_key(w: &World, n: usize, run: &RunId) {
+    w.store_end(n, run, Outcome::Failed, 0);
+    let mut agents = w.ports.agents.borrow_mut();
+    let entry = agents.iter_mut().find(|a| a.agent == agent(n)).unwrap();
+    entry.unknown.push(Unknown {
+        run: run.clone(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe100 + n)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    });
+}
+
+fn starts(calls: &[String]) -> bool {
+    calls.iter().any(|c| c == "start" || c == "start_run")
+}
+
+#[test]
+fn a_tick_raises_the_check_of_a_record_of_0_that_the_roster_key_names_and_starts_nothing() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.forget();
+    w.set_clock(T0 + 2000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    assert!(!starts(&w.calls()), "no start in that move");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold), "Run now is held");
+    assert!(w.calls().is_empty(), "the press stores and sends nothing");
+}
+
+#[test]
+fn a_roster_read_that_does_not_answer_starts_nothing_and_the_check_stands_at_the_next_read() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 2000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(tick.checked.is_empty() && tick.report.started.is_empty());
+    assert!(w.calls().is_empty(), "nothing stored and nothing started");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::NoService));
+    assert!(w.calls().is_empty());
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)], "the first read that answers");
+    assert!(!starts(&w.calls()));
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+}
+
+#[test]
+fn recovery_takes_the_roster_key_and_raises_the_check_of_a_record_of_0() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(life.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(w.facts(0).unknown.len(), 1);
+    assert_eq!(w.facts(0).unknown[0].run, run);
+}
+
+#[test]
+fn an_entry_of_an_older_run_raises_no_check_and_the_facts_keep_none_of_it() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    let older = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    {
+        let mut agents = w.ports.agents.borrow_mut();
+        agents[0].unknown.push(Unknown {
+            run: older,
+            effect: EffectId::parse(&format!("{:032x}", 0xe1ff)).unwrap(),
+            day: DAY - 2,
+            class: Class::Send,
+            kept: vec![],
+        });
+    }
+    w.store_end(0, &run, Outcome::Completed, 0);
+    w.forget();
+    w.set_clock(T0 + 2000, DAY + 2);
+    let tick = w.act(Act::Tick);
+    assert!(tick.checked.is_empty());
+    assert!(
+        w.facts(0).unknown.is_empty(),
+        "the facts keep the newest run's"
+    );
+}
+
+#[test]
+fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
+    let mut w = world(&[]);
+    let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0c01)).unwrap();
+    let older = RunId::parse(&format!("{:032x}", 0x0c00)).unwrap();
+    let workflow = halvo_coord::types::FullWorkflow {
+        state: halvo_coord::types::WorkflowState::Approved,
+        agent: None,
+        ..support::workflow(0, SLOTTED)
+    };
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(workflow));
+    let config = support::config_text(0, false).replace(agent(0).as_str(), made.as_str());
+    let entry = |run: &RunId, k: u32| Unknown {
+        run: run.clone(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe200 + k)).unwrap(),
+        day: DAY - 1,
+        class: Class::Send,
+        kept: vec![],
+    };
+    w.ports.agents.borrow_mut().push(Agent {
+        workflow: flow(0),
+        agent: made.clone(),
+        config: halvo_coord::mem::Config::parse(&config).unwrap(),
+        state: halvo_coord::types::AgentState::Approved,
+        slots: vec![],
+        session: false,
+        last: Some(halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY - 1,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        }),
+        unknown: vec![entry(&older, 0), entry(&run, 1)],
+    });
+    let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+    assert_eq!(report.created, vec![made.clone()]);
+    let facts = &w
+        .board
+        .members
+        .iter()
+        .find(|m| m.facts.agent == made)
+        .unwrap()
+        .facts;
+    assert_eq!(facts.unknown, vec![entry(&run, 1)]);
+    assert!(holds(facts).contains(&Hold::Check));
 }

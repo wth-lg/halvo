@@ -61,13 +61,14 @@ fn stands<C>(facts: &Facts<C>, hold: HoldSetCause) -> bool {
 }
 
 fn check<C>(facts: &Facts<C>) -> bool {
-    facts.store_ended
-        && facts.runs.first().is_some_and(|newest| {
-        newest.unknown > 0
-            && !facts.events.iter().any(|e| {
-                matches!(&e.what, What::HoldCleared { cause: Cleared::Check { run, .. } } if *run == newest.run)
-            })
-    })
+    let Some(newest) = facts.runs.first().filter(|_| facts.store_ended) else {
+        return false;
+    };
+    let not_known = newest.unknown > 0 || facts.unknown.iter().any(|u| u.run == newest.run);
+    not_known
+        && !facts.events.iter().any(|e| {
+            matches!(&e.what, What::HoldCleared { cause: Cleared::Check { run, .. } } if *run == newest.run)
+        })
 }
 
 /// Each hold that stands for the agent, in the order of I5.4, read from the facts alone and
@@ -75,9 +76,10 @@ fn check<C>(facts: &Facts<C>) -> bool {
 /// `hold_set` event with the cause `person` until a later `hold_cleared` event with the cause
 /// `person`; `failures` from a `hold_set` event with the cause `failures` until a later
 /// `hold_cleared` event with the cause `failures`; `check` while the agent store has ended its
-/// newest run and that run's record has `unknown` above 0, and no `hold_cleared` event of the
-/// cause `check` names that run (ruling XB-2); `setup` while a parameter of its category (I3.5) has no slot in its newest
-/// bindings. Both `off` and `failures` are returned where both stand.
+/// newest run, that run's record has `unknown` above 0 or the roster's key `unknown` of the same
+/// read names an effect of that run, and no `hold_cleared` event of the cause `check` names that
+/// run (rulings XB-2, RD-81 8.1); `setup` while a parameter of its category (I3.5) has no slot in
+/// its newest bindings. Both `off` and `failures` are returned where both stand.
 pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
     let mut out = Vec::new();
     if facts.config.runtime() == Runtime::None {

@@ -626,6 +626,7 @@ fn build(state: State) -> Vec<Built> {
             runs: history,
             events,
             store_ended: !matches!(doing, Doing::Live(_)),
+            unknown: Vec::new(),
             today: TODAY,
             doing,
         };

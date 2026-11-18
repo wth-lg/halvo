@@ -193,6 +193,7 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             slots: Vec::<Name>::new(),
             runs: sim.store_runs[n].clone(),
             store_ended: newest.is_none_or(|r| last.is_some_and(|l| l.run == r)),
+            unknown: Vec::new(),
             events,
             today: sim.h.day,
             doing: Doing::Idle(None),

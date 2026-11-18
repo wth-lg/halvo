@@ -106,6 +106,7 @@ fn facts(category: Category, runtime: &str, state: WorkflowState) -> Facts<Confi
         runs: vec![],
         events: vec![],
         store_ended: true,
+        unknown: Vec::new(),
         today: TODAY,
         doing: Doing::Idle(Some(OwnItem {
             item: item_id(1),

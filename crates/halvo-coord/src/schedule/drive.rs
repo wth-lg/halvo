@@ -199,6 +199,9 @@ fn refresh<C: Clone>(member: &mut Member<C>, entry: Option<&Agent<C>>, history: 
         facts.runs.insert(0, l.clone());
         facts.runs.truncate(history);
     }
+    if let Some(a) = entry {
+        facts.take_unknown(&a.unknown);
+    }
 }
 
 fn fresh<P: Owner<Config = C>, C: Clone>(
@@ -1543,13 +1546,14 @@ where
         {
             continue;
         }
-        let member = Member {
+        let mut member = Member {
             facts: Facts {
                 agent: id.clone(),
                 workflow,
                 config: a.config.clone(),
                 slots: a.slots.clone(),
                 runs: a.last.clone().into_iter().collect(),
+                unknown: Vec::new(),
                 events: Vec::new(),
                 store_ended: true,
                 today: board.day,
@@ -1557,6 +1561,7 @@ where
             },
             session: a.session,
         };
+        member.facts.take_unknown(&a.unknown);
         let at = board
             .members
             .partition_point(|m| m.facts.agent < member.facts.agent);

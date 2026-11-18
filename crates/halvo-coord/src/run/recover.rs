@@ -384,18 +384,21 @@ where
             };
             let mut runs: Vec<PastRun> = f.agent.last.clone().into_iter().collect();
             runs.truncate(history_runs);
+            let mut facts = Facts {
+                agent: f.agent.agent.clone(),
+                workflow: f.workflow,
+                config: f.agent.config,
+                slots: f.agent.slots,
+                runs,
+                unknown: Vec::new(),
+                events: f.events,
+                store_ended,
+                today: day,
+                doing: Doing::Idle(None),
+            };
+            facts.take_unknown(&f.agent.unknown);
             Member {
-                facts: Facts {
-                    agent: f.agent.agent.clone(),
-                    workflow: f.workflow,
-                    config: f.agent.config,
-                    slots: f.agent.slots,
-                    runs,
-                    events: f.events,
-                    store_ended,
-                    today: day,
-                    doing: Doing::Idle(None),
-                },
+                facts,
                 session: f.agent.session,
             }
         })

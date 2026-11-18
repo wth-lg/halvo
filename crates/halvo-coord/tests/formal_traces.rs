@@ -1332,6 +1332,7 @@ impl Conf {
             runs: Vec::new(),
             events: self.raised.clone(),
             store_ended: true,
+            unknown: Vec::new(),
             today: DAY,
             doing,
         }

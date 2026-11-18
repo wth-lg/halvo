@@ -1,9 +1,9 @@
 use halvo_coord::mem::Config;
 use halvo_coord::schedule::{current_slot, finished, holds, next_slot, slot_due, slot_open, Hold};
 use halvo_coord::types::{
-    AgentId, Category, CheckAnswer, Cleared, Doing, Event, Facts, FullWorkflow, HoldSetCause,
-    Limits, Name, Outcome, PastRun, RunEnd, RunId, Trigger, What, WorkflowId, WorkflowState,
-    WorkflowTrigger,
+    AgentId, Category, CheckAnswer, Class, Cleared, Doing, EffectId, Event, Facts, FullWorkflow,
+    HoldSetCause, Limits, Name, Outcome, PastRun, RunEnd, RunId, Trigger, Unknown, What,
+    WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use std::num::NonZeroU32;
 
@@ -59,6 +59,7 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         runs: vec![],
         events,
         store_ended: true,
+        unknown: Vec::new(),
         today: 107,
         doing: Doing::Idle(None),
     }
@@ -421,4 +422,78 @@ fn check_stands_only_for_a_newest_run_that_the_agent_store_has_ended() {
     assert_eq!(holds(&f), Vec::<Hold>::new());
     f.store_ended = true;
     assert_eq!(holds(&f), vec![Hold::Check]);
+}
+
+fn effect_of(n: u32) -> Unknown {
+    Unknown {
+        run: run(n),
+        effect: EffectId::parse(&format!("{:032x}", 0xe000 + n)).unwrap(),
+        day: 103,
+        class: Class::Send,
+        kept: vec![],
+    }
+}
+
+#[test]
+fn check_stands_for_a_record_of_0_whose_run_the_roster_key_names() {
+    let mut f = calendar(vec![]);
+    f.runs = vec![
+        past(2, 103, Outcome::Failed, 0),
+        past(1, 100, Outcome::Completed, 0),
+    ];
+    assert_eq!(holds(&f), Vec::<Hold>::new());
+    f.unknown = vec![effect_of(2)];
+    assert_eq!(holds(&f), vec![Hold::Check], "the key names the newest run");
+    f.store_ended = false;
+    assert_eq!(
+        holds(&f),
+        Vec::<Hold>::new(),
+        "only once the store has ended the newest run"
+    );
+    f.store_ended = true;
+    f.events.push(Event {
+        workflow: WorkflowId::parse(FLOW).unwrap(),
+        agent: AgentId::parse(AGENT).unwrap(),
+        seq: NonZeroU32::new(1).unwrap(),
+        day: 104,
+        at: 0,
+        what: cleared(Cleared::Check {
+            run: run(2),
+            answer: CheckAnswer::TryAgain,
+        }),
+    });
+    assert_eq!(holds(&f), Vec::<Hold>::new(), "the answer that names it");
+}
+
+#[test]
+fn an_entry_of_an_older_run_alone_gives_no_check() {
+    let mut f = calendar(vec![]);
+    f.runs = vec![
+        past(2, 103, Outcome::Completed, 0),
+        past(1, 100, Outcome::Failed, 0),
+    ];
+    f.unknown = vec![effect_of(1)];
+    assert_eq!(holds(&f), Vec::<Hold>::new());
+    f.unknown.push(effect_of(2));
+    assert_eq!(holds(&f), vec![Hold::Check]);
+}
+
+#[test]
+fn take_unknown_keeps_the_entries_of_the_newest_run_alone() {
+    let mut f = calendar(vec![]);
+    f.runs = vec![
+        past(2, 103, Outcome::Failed, 0),
+        past(1, 100, Outcome::Failed, 0),
+    ];
+    f.take_unknown(&[effect_of(1), effect_of(2), effect_of(3)]);
+    assert_eq!(f.unknown, vec![effect_of(2)]);
+    f.take_unknown(&[]);
+    assert_eq!(
+        f.unknown,
+        Vec::<Unknown>::new(),
+        "in place of the ones held"
+    );
+    f.runs.clear();
+    f.take_unknown(&[effect_of(2)]);
+    assert_eq!(f.unknown, Vec::<Unknown>::new(), "no run, no entry");
 }
