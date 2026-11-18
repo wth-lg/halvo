@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::fixture::Fixture;
 use common::seed::Seed;
-use halvo_connect::{Calendar, CallError, Effect, Mail, RunDay, Token};
+use halvo_connect::{Calendar, CallError, Effect, Mail, NotMade, RunDay, Token};
 use serde_json::{json, Value};
 
 const BODY: &str = "Thank you, noted.";
@@ -319,7 +319,9 @@ fn unauthorized() {
         "each of the five operations answers Unauthorized"
     );
     assert!(
-        errors.iter().all(|e| e.effect() == Effect::NotMade),
+        errors
+            .iter()
+            .all(|e| e.effect() == Effect::NotMade(NotMade::Unauthorized)),
         "no effect is made"
     );
     assert!(

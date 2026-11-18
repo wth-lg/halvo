@@ -38,13 +38,25 @@ pub enum AnswerFault {
 /// Whether the effect of a call of the class `send` or `delete` that returned an error was made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Effect {
-    /// Taken as not made: the request did not leave, or the provider answered 401 or 429, which A11.2 rules are
-    /// taken as not made. Nothing here says what such an answer left with the provider.
-    NotMade,
+    /// Taken as not made, with which of the three cases of A11.2 it was. Nothing here says what an answered
+    /// request left with the provider.
+    NotMade(NotMade),
     /// Nothing says whether the provider made it: the request left and no whole answer came, the answer does not
     /// have the form of the face, or the provider answered a status that is neither the request's success status
     /// nor 401 nor 429.
     Unknown,
+}
+
+/// The three cases of A11.2 in which the effect of a call of the class `send` or `delete` is taken as not made, a
+/// closed type of the adapter's own: the runner maps each to its cause and reads no status.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotMade {
+    /// The request did not leave.
+    NotSent,
+    /// The provider answered 401.
+    Unauthorized,
+    /// The provider answered 429.
+    Throttled,
 }
 
 /// Why `Graph::new` gave no adapter.
@@ -63,8 +75,9 @@ impl CallError {
     /// What the error says of the effect of a call of the class `send` or `delete` (A4.3, A11.2).
     pub fn effect(&self) -> Effect {
         match self {
-            CallError::NotSent | CallError::Unauthorized => Effect::NotMade,
-            CallError::Status(429) => Effect::NotMade,
+            CallError::NotSent => Effect::NotMade(NotMade::NotSent),
+            CallError::Unauthorized => Effect::NotMade(NotMade::Unauthorized),
+            CallError::Status(429) => Effect::NotMade(NotMade::Throttled),
             CallError::Status(_) | CallError::NoAnswer | CallError::Answer(_) => Effect::Unknown,
         }
     }

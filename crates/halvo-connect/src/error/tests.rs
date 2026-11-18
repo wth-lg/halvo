@@ -1,11 +1,14 @@
-use super::{AnswerFault, BuildError, CallError, Effect};
+use super::{AnswerFault, BuildError, CallError, Effect, NotMade};
 
 #[test]
 fn effect_of_each_error() {
     let rows = [
-        (CallError::NotSent, Effect::NotMade),
-        (CallError::Unauthorized, Effect::NotMade),
-        (CallError::Status(429), Effect::NotMade),
+        (CallError::NotSent, Effect::NotMade(NotMade::NotSent)),
+        (
+            CallError::Unauthorized,
+            Effect::NotMade(NotMade::Unauthorized),
+        ),
+        (CallError::Status(429), Effect::NotMade(NotMade::Throttled)),
         (CallError::Status(400), Effect::Unknown),
         (CallError::Status(403), Effect::Unknown),
         (CallError::Status(404), Effect::Unknown),
@@ -35,11 +38,46 @@ fn effect_of_each_error() {
 fn of_the_answered_statuses_only_429_makes_nothing() {
     for status in 0..=u16::MAX {
         let expected = if status == 429 {
-            Effect::NotMade
+            Effect::NotMade(NotMade::Throttled)
         } else {
             Effect::Unknown
         };
         assert_eq!(CallError::Status(status).effect(), expected, "{status}");
+    }
+}
+
+#[test]
+fn a_request_that_did_not_leave_is_not_made_as_not_sent() {
+    assert_eq!(
+        CallError::NotSent.effect(),
+        Effect::NotMade(NotMade::NotSent)
+    );
+}
+
+#[test]
+fn an_answer_401_is_not_made_as_unauthorized() {
+    assert_eq!(
+        CallError::Unauthorized.effect(),
+        Effect::NotMade(NotMade::Unauthorized)
+    );
+}
+
+#[test]
+fn an_answer_429_is_not_made_as_throttled() {
+    assert_eq!(
+        CallError::Status(429).effect(),
+        Effect::NotMade(NotMade::Throttled)
+    );
+}
+
+#[test]
+fn every_other_answered_status_stays_unknown() {
+    for status in (0..=u16::MAX).filter(|status| *status != 429) {
+        assert_eq!(
+            CallError::Status(status).effect(),
+            Effect::Unknown,
+            "{status}"
+        );
     }
 }
 

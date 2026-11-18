@@ -9,7 +9,7 @@ use reqwest::Method;
 use serde_json::json;
 
 use super::{segment, Graph, Route};
-use crate::error::{AnswerFault, BuildError, CallError, Effect};
+use crate::error::{AnswerFault, BuildError, CallError, Effect, NotMade};
 use crate::token::Token;
 
 const LIMIT: Duration = Duration::from_secs(5);
@@ -207,7 +207,7 @@ fn status_401_is_unauthorized_and_makes_nothing() {
         .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("a 401");
     assert_eq!(error, CallError::Unauthorized);
-    assert_eq!(error.effect(), Effect::NotMade);
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::Unauthorized));
     assert!(seen.recv_timeout(LIMIT).is_ok());
     assert!(seen.recv_timeout(QUIET).is_err(), "one request");
 }
@@ -300,7 +300,7 @@ fn a_closed_port_is_not_sent() {
         .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("no listener");
     assert_eq!(error, CallError::NotSent);
-    assert_eq!(error.effect(), Effect::NotMade);
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::NotSent));
 }
 
 #[test]
