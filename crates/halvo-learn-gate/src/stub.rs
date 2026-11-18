@@ -1,12 +1,14 @@
 use std::collections::BTreeSet;
+use std::num::NonZeroU32;
 
 use halvo_learn_store::LearnHandlers;
 use halvo_policy::class_of;
-use halvo_schema::executable::names::LocatorBy;
+use halvo_schema::executable::names::{LocatorBy, Mode, Outcome};
 use halvo_schema::executable::step::Target;
-use halvo_schema::executable::{CoordinatorReply, ExecutableStep, RunnerReply};
+use halvo_schema::executable::text::RunId;
+use halvo_schema::executable::{AgentRun, CoordinatorReply, ExecutableStep, RunnerReply};
 use halvo_schema::learning::record::LearnEdit;
-use halvo_schema::{RowRead, SeedCategory, Workflow};
+use halvo_schema::{AgentId, RowRead, SeedCategory, Workflow, WorkflowId};
 use serde_json::{json, Value};
 
 use crate::case::{Case, Occurrence, Verb};
@@ -281,17 +283,29 @@ impl<'c> Play<'c> {
         id('5', self.runs)
     }
 
-    fn record(&self, run: &str, mode: &str, outcome: &str, playbook: u32, steps: usize) -> Value {
-        json!({
-            "v": 1, "workflow": self.workflow, "agent": self.agent, "run": run,
-            "day": halvo_agent_store::Host::day(&self.host.store, self.host.now().at),
-            "mode": mode, "outcome": outcome, "playbook": playbook, "steps": steps, "prompts": 0,
-            "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
-            "tokens_in": 0, "tokens_out": 0, "wall_s": 1, "model": null,
-            "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
-            "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
-            "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
-        })
+    fn record(
+        &self,
+        run: &str,
+        mode: Mode,
+        outcome: Outcome,
+        playbook: u32,
+        steps: usize,
+    ) -> Result<Value, String> {
+        let mut made = AgentRun::new(
+            WorkflowId::parse(&self.workflow).map_err(|_| "the play's workflow id")?,
+            AgentId::parse(&self.agent).map_err(|_| "the play's agent id")?,
+            RunId::parse(run).map_err(|_| "a run id")?,
+            halvo_agent_store::Host::day(&self.host.store, self.host.now().at),
+            Some(mode),
+            outcome,
+        );
+        made.playbook = NonZeroU32::new(playbook);
+        made.steps = u32::try_from(steps).map_err(|_| "a count of steps")?;
+        made.wall_s = 1;
+        let text = made
+            .to_json()
+            .map_err(|_| "a run record that its maker refuses")?;
+        serde_json::from_str(&text).map_err(|_| "a run record with no JSON".to_owned())
     }
 
     /// The workflow, the agent and the compile of the case from the page of its first occurrence (L10.3). It
@@ -318,7 +332,13 @@ impl<'c> Play<'c> {
         self.runner(
             json!({"op": "put_playbook", "agent": agent, "run": run, "number": 1, "steps": steps}),
         )?;
-        let record = self.record(&run, "compile", "completed", 1, self.case.steps.len());
+        let record = self.record(
+            &run,
+            Mode::Compile,
+            Outcome::Completed,
+            1,
+            self.case.steps.len(),
+        )?;
         self.runner(json!({"op": "finish", "agent": agent, "run": run, "record": record}))?;
         self.coordinator(
             json!({"op": "set_state", "workflow": workflow, "agent": agent, "state": "active"}),
@@ -425,8 +445,12 @@ impl<'c> Play<'c> {
         if recovered {
             self.runner(json!({"op": "put_playbook", "agent": agent, "run": run, "number": number + 1, "steps": put}))?;
         }
-        let outcome = if completed { "completed" } else { "failed" };
-        let record = self.record(&run, "replay", outcome, number, lines.len());
+        let outcome = if completed {
+            Outcome::Completed
+        } else {
+            Outcome::Failed
+        };
+        let record = self.record(&run, Mode::Replay, outcome, number, lines.len())?;
         self.runner(json!({"op": "finish", "agent": agent, "run": run, "record": record}))?;
         let mut good = 0;
         for (edit, first, n) in reverted(self.host.store.rows(Family::Learn))? {
