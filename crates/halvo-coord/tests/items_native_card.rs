@@ -1,4 +1,25 @@
+#[path = "coordinator_support.rs"]
+mod coord;
+#[path = "items_support.rs"]
+mod support;
+
+use coord::{agent, calls_since, coordinator, mark, Both, MANUAL};
+use halvo_coord::guard::Table;
 use halvo_coord::items::chars::{self, blank, columns, composed, mark as is_mark, no_form};
+use halvo_coord::items::{
+    admits, bound_field, compose_confirm, confirm_step, native_lines, value_bound, ConfirmMove,
+    Marking, CARD_COLUMNS, CARD_LINES,
+};
+use halvo_coord::mem::Call;
+use halvo_coord::types::{
+    Action, AskedEffect, BoundField, BoundFrom, Cause, Choice, ChoiceText, Class, ConfirmAsk,
+    Field, FieldFrom, HandbackAsk, HandbackReason, Item, ItemId, ItemKind, Limits, Origin,
+    Presenter, RunEnd, RunEvent, RunId, What, YesNo,
+};
+use halvo_coord::{words, Coordinator};
+use support::{ask_of, digest, effect_id, field, fields_of, item_id};
+
+const DEAD_ITEM: &str = "000000000000000000000000000000ff";
 
 /// The program that made the tables of src/items/chars.rs from the doc line of `NO_FORM` to the
 /// end of that file, run as `/usr/bin/python3 -I -c <GENERATOR>`.
@@ -224,4 +245,537 @@ fn the_predicate_of_a_deciding_field() {
     assert!(!composed(&"\u{4e00}".repeat(21), 40));
     assert!(composed(&"e\u{301}".repeat(40), 40));
     assert!(!composed(&"e\u{301}".repeat(41), 40));
+}
+
+const ROWS: [(Class, &str, &[BoundFrom], Marking); 16] = {
+    use BoundFrom::*;
+    use Marking::*;
+    [
+        (Class::Payment, "payee", &[Slot], Deciding),
+        (Class::Payment, "amount", &[Extract], Deciding),
+        (Class::Payment, "instrument", &[Slot], Deciding),
+        (Class::Payment, "origin", &[Const], Deciding),
+        (Class::Purchase, "seller", &[Slot], Deciding),
+        (Class::Purchase, "items", &[Extract], Deciding),
+        (Class::Purchase, "amount", &[Extract], Deciding),
+        (Class::Purchase, "instrument", &[Slot], Deciding),
+        (Class::Purchase, "origin", &[Const], Deciding),
+        (Class::Send, "to", &[Extract], Deciding),
+        (Class::Send, "subject", &[Extract], FreeText),
+        (Class::Send, "body", &[Model, Const], FreeText),
+        (Class::Delete, "items", &[Extract], Deciding),
+        (Class::Submit, "origin", &[Const], Deciding),
+        (Class::Submit, "fields", &[Const, Slot], FreeText),
+        (Class::Sign, "document", &[Slot], Deciding),
+    ]
+};
+
+const SOURCES: [BoundFrom; 4] = [
+    BoundFrom::Const,
+    BoundFrom::Slot,
+    BoundFrom::Extract,
+    BoundFrom::Model,
+];
+
+fn rows() -> Vec<(Class, &'static str, &'static [BoundFrom], Marking)> {
+    let mut rows = ROWS.to_vec();
+    rows.push((Class::Sign, "party", &[BoundFrom::Slot], Marking::Deciding));
+    rows
+}
+
+#[test]
+fn the_table_of_each_field_of_i4_3() {
+    for (class, name, sources, marking) in rows() {
+        assert_eq!(
+            bound_field(class, name),
+            Some((sources, marking)),
+            "{class:?} {name}"
+        );
+    }
+    for (class, name) in [
+        (Class::Payment, "note"),
+        (Class::Payment, "seller"),
+        (Class::Send, "cc"),
+        (Class::Delete, "origin"),
+        (Class::LocalEdit, "file"),
+        (Class::Read, "origin"),
+    ] {
+        assert_eq!(bound_field(class, name), None, "{class:?} {name}");
+    }
+}
+
+fn one(class: Class, name: &str, from: BoundFrom, value: &str) -> ConfirmAsk {
+    let mut fields = fields_of(class);
+    for f in &mut fields {
+        if f.name.as_str() == name {
+            *f = field(name, from, value);
+        }
+    }
+    ask_of(1, 1, vec![effect(1, class, fields)])
+}
+
+fn effect(n: u32, class: Class, fields: Vec<BoundField>) -> AskedEffect {
+    AskedEffect {
+        effect: effect_id(n),
+        class,
+        digest: digest(n),
+        digest_ok: true,
+        fields,
+        new_origin: None,
+    }
+}
+
+fn line_of(class: Class, name: &str, from: BoundFrom, value: &str) -> String {
+    words::text(
+        "confirm.field",
+        &[
+            (
+                "label",
+                &words::text(&format!("field.{}.{name}", class.name()), &[]).unwrap(),
+            ),
+            (
+                "source",
+                &words::text(
+                    &format!("from.{}", halvo_coord::items::field_from(from).name()),
+                    &[],
+                )
+                .unwrap(),
+            ),
+            ("value", value),
+        ],
+    )
+    .unwrap()
+}
+
+#[test]
+fn each_deciding_field_is_refused_one_column_over_its_bound_and_shown_at_it() {
+    let table = Table::new();
+    for (class, name, sources, marking) in rows() {
+        if marking != Marking::Deciding {
+            continue;
+        }
+        let from = sources[0];
+        let most = value_bound(class, name, from).unwrap();
+        assert_eq!(
+            columns(&line_of(class, name, from, &"W".repeat(most))),
+            CARD_COLUMNS,
+            "{class:?} {name}: the line at the bound fills the card's columns"
+        );
+        let at = one(class, name, from, &"W".repeat(most));
+        assert!(admits(&at, &table), "{class:?} {name} at {most}");
+        let over = one(class, name, from, &"W".repeat(most + 1));
+        assert!(!admits(&over, &table), "{class:?} {name} at {}", most + 1);
+        let wide = one(class, name, from, &"\u{4e00}".repeat(most / 2 + 1));
+        assert!(!admits(&wide, &table), "{class:?} {name} wide");
+        let marked = one(class, name, from, &"e\u{301}".repeat(most));
+        assert!(admits(&marked, &table), "{class:?} {name} marked");
+        for value in ["Ann  Lee", "Ann\u{200b}Lee", " Ann", "Ann\nLee"] {
+            assert!(
+                !admits(&one(class, name, from, value), &table),
+                "{class:?} {name} {value:?}"
+            );
+        }
+        assert!(
+            admits(&one(class, name, from, "Ann Lee"), &table),
+            "{class:?} {name}"
+        );
+    }
+}
+
+#[test]
+fn a_field_whose_source_a_9_3_does_not_admit_is_refused_at_the_raise() {
+    let table = Table::new();
+    for (class, name, sources, _) in rows() {
+        for from in SOURCES {
+            let ask = one(class, name, from, "Ann Lee");
+            assert_eq!(
+                admits(&ask, &table),
+                sources.contains(&from),
+                "{class:?} {name} from {from:?}"
+            );
+        }
+    }
+    let mut fields = fields_of(Class::Payment);
+    fields.push(field("note", BoundFrom::Model, "Pay me"));
+    assert!(!admits(
+        &ask_of(1, 1, vec![effect(1, Class::Payment, fields)]),
+        &table
+    ));
+}
+
+#[test]
+fn free_text_is_whole_on_the_page_and_refused_in_the_native_dialog_where_it_breaks_a_line() {
+    let table = Table::new();
+    for (class, name, from) in [
+        (Class::Send, "subject", BoundFrom::Extract),
+        (Class::Send, "body", BoundFrom::Model),
+        (Class::Submit, "fields", BoundFrom::Slot),
+    ] {
+        for value in [
+            "Line one\n\nLine  two ",
+            " \u{200b}x",
+            &"W".repeat(CARD_COLUMNS * 4),
+        ] {
+            assert!(
+                admits(&one(class, name, from, value), &table),
+                "{class:?} {name} {value:?} on the page"
+            );
+        }
+        let native = |value: &str| {
+            let mut fields = fields_of(class);
+            for f in &mut fields {
+                if f.name.as_str() == name {
+                    *f = field(name, from, value);
+                }
+            }
+            ask_of(
+                1,
+                1,
+                vec![
+                    effect(1, class, fields),
+                    effect(2, Class::Sign, fields_of(Class::Sign)),
+                ],
+            )
+        };
+        let most = value_bound(class, name, from).unwrap();
+        assert!(admits(&native("Two  blanks"), &table), "{class:?} {name}");
+        assert!(
+            admits(&native(&"W".repeat(most)), &table),
+            "{class:?} {name}"
+        );
+        for value in [
+            "Line one\nLine two".to_owned(),
+            "Tab\there".to_owned(),
+            "Ann\u{200d}Lee".to_owned(),
+            "W".repeat(most + 1),
+        ] {
+            assert!(
+                !admits(&native(&value), &table),
+                "{class:?} {name} {value:?} in the native dialog"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_native_card_over_its_lines_is_refused_and_one_at_them_is_shown() {
+    let table = Table::new();
+    let payments = |n: u32| {
+        ask_of(
+            1,
+            1,
+            (1..=n)
+                .map(|k| effect(k, Class::Payment, fields_of(Class::Payment)))
+                .collect(),
+        )
+    };
+    let lines = |n: usize| 2 * 4 * n - 1;
+    let fit = (1..)
+        .take_while(|n| lines(*n) <= CARD_LINES)
+        .last()
+        .unwrap();
+    assert!(admits(&payments(fit as u32), &table), "{fit} payments");
+    assert!(
+        !admits(&payments(fit as u32 + 1), &table),
+        "{} payments",
+        fit + 1
+    );
+    let sends = ask_of(
+        1,
+        1,
+        (1..=8)
+            .map(|k| effect(k, Class::Send, fields_of(Class::Send)))
+            .collect(),
+    );
+    assert!(admits(&sends, &table), "the page has no bound in lines");
+}
+
+fn halvo(label: &str) -> Field {
+    Field {
+        label: label.into(),
+        value: vec![],
+        from: FieldFrom::Halvo,
+        from_text: words::text("from.halvo", &[]).unwrap(),
+    }
+}
+
+#[test]
+fn the_lines_of_a_native_card_are_paragraphs_with_label_and_source_first() {
+    let field = |label: &str, value: &[&str], key: &str| Field {
+        label: label.into(),
+        value: value.iter().map(|p| p.to_string()).collect(),
+        from: FieldFrom::Site,
+        from_text: words::text(key, &[]).unwrap(),
+    };
+    assert_eq!(
+        native_lines(&[
+            halvo("It will make this payment"),
+            field("Amount", &["42.", "10 USD"], "from.site"),
+            field("Pay to", &["City Power"], "from.you"),
+        ]),
+        Ok(vec![
+            "It will make this payment".to_owned(),
+            String::new(),
+            "Amount (From the site): 42.10 USD".to_owned(),
+            String::new(),
+            "Pay to (You gave this): City Power".to_owned(),
+        ])
+    );
+    let unmarked = Field {
+        from_text: String::new(),
+        ..field("Amount", &["42.10 USD"], "from.site")
+    };
+    assert_eq!(native_lines(&[unmarked]), Err(Cause::Malformed));
+    let unmarked_line = Field {
+        from_text: String::new(),
+        ..halvo("It will make this payment")
+    };
+    assert_eq!(native_lines(&[unmarked_line]), Err(Cause::Malformed));
+    assert_eq!(native_lines(&[]), Ok(vec![]));
+    let over = vec![halvo("Line"); CARD_LINES / 2 + 2];
+    assert_eq!(native_lines(&over), Err(Cause::Malformed));
+    let at = vec![halvo("Line"); CARD_LINES / 2 + 1];
+    assert_eq!(native_lines(&at).map(|l| l.len()), Ok(CARD_LINES));
+    let wide = field("A", &[&"\u{4e00}".repeat(CARD_COLUMNS / 2)], "from.site");
+    assert_eq!(native_lines(&[wide]), Err(Cause::Malformed));
+    let broken = field("A", &["x\ny"], "from.site");
+    assert_eq!(native_lines(&[broken]), Err(Cause::Malformed));
+}
+
+fn start(c: &Coordinator<Both>, n: usize) -> RunId {
+    assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()));
+    let run = coord::started(c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    run
+}
+
+fn ask_on(run: &RunId, effects: Vec<AskedEffect>) -> RunEvent {
+    RunEvent::Confirm(ConfirmAsk::new(run.clone(), agent(0), effects).unwrap())
+}
+
+fn open_item(c: &Coordinator<Both>) -> Item {
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 1, "{s:?}");
+    s.items[0].clone()
+}
+
+fn choice(choice: Choice, key: &str, count: usize, safe: YesNo) -> ChoiceText {
+    ChoiceText {
+        choice,
+        text: words::text(key, &[("count", &count.to_string())]).unwrap(),
+        safe,
+    }
+}
+
+fn lines_of(item: &Item) -> Vec<String> {
+    let mut lines = Vec::new();
+    for f in item.fields() {
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.push(if f.value.is_empty() {
+            f.label.clone()
+        } else {
+            words::text(
+                "confirm.field",
+                &[
+                    ("label", &f.label),
+                    ("source", &f.from_text),
+                    ("value", &f.value.concat()),
+                ],
+            )
+            .unwrap()
+        });
+    }
+    lines
+}
+
+/// The card of the native item of `effects`, raised on a fresh coordinator, against that item and
+/// the choices of the page for the same ask.
+fn card_of(effects: Vec<AskedEffect>, reject: &str, allow: &str) {
+    let count = effects.len();
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    assert_eq!(c.on_run(&run, ask_on(&run, effects.clone())), Ok(()));
+    let item = open_item(&c);
+    assert_eq!(item.presenter(), Some(Presenter::Native));
+    let m = mark(&c);
+    let card = c.native_card(item.item()).unwrap();
+    assert!(calls_since(&c, m).is_empty(), "no port is called");
+    assert_eq!(card.title(), item.title());
+    assert_eq!(card.lines(), lines_of(&item).as_slice());
+    let reject = choice(Choice::Reject, reject, count, YesNo::Yes);
+    let allow = choice(Choice::Allow, allow, count, YesNo::No);
+    assert_eq!((card.reject(), card.allow()), (&reject, &allow));
+    assert_eq!(item.choices().len(), 1);
+    assert_eq!(item.choices()[0].choice, Choice::Present);
+    let ask = ConfirmAsk::new(run.clone(), agent(0), effects).unwrap();
+    let shown = confirm_step(None, ConfirmMove::Issue(&ask)).unwrap();
+    let page = compose_confirm(item.item(), &ask, &shown, &Table::new()).unwrap();
+    assert_eq!(page.title(), card.title(), "the state's composer");
+    assert_eq!(page.fields(), item.fields());
+    assert_eq!(c.native_card(item.item()), Ok(card), "a second read");
+}
+
+#[test]
+fn the_card_of_one_effect_of_one_class() {
+    card_of(
+        vec![effect(1, Class::Payment, fields_of(Class::Payment))],
+        "confirm.payment.reject",
+        "confirm.payment.allow",
+    );
+    card_of(
+        vec![effect(1, Class::Sign, fields_of(Class::Sign))],
+        "confirm.sign.reject",
+        "confirm.sign.allow",
+    );
+}
+
+#[test]
+fn the_card_of_several_effects_of_one_class() {
+    card_of(
+        vec![
+            effect(1, Class::Payment, fields_of(Class::Payment)),
+            effect(2, Class::Payment, fields_of(Class::Payment)),
+        ],
+        "confirm.payment.reject_many",
+        "confirm.payment.allow_many",
+    );
+    card_of(
+        vec![
+            effect(1, Class::Sign, fields_of(Class::Sign)),
+            effect(2, Class::Sign, fields_of(Class::Sign)),
+            effect(3, Class::Sign, fields_of(Class::Sign)),
+        ],
+        "confirm.sign.reject_many",
+        "confirm.sign.allow_many",
+    );
+}
+
+#[test]
+fn the_card_of_mixed_classes_names_no_class() {
+    card_of(
+        vec![
+            effect(1, Class::Payment, fields_of(Class::Payment)),
+            effect(2, Class::Delete, fields_of(Class::Delete)),
+        ],
+        "confirm.mixed.reject",
+        "confirm.mixed.allow",
+    );
+    card_of(
+        vec![
+            effect(1, Class::Delete, fields_of(Class::Delete)),
+            effect(2, Class::Sign, fields_of(Class::Sign)),
+        ],
+        "confirm.mixed.reject",
+        "confirm.mixed.allow",
+    );
+}
+
+#[test]
+fn the_card_shows_the_new_site_with_its_source() {
+    let mut paid = effect(1, Class::Payment, fields_of(Class::Payment));
+    paid.new_origin = Some(Origin::parse("https://pay.example:8443").unwrap());
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    assert_eq!(c.on_run(&run, ask_on(&run, vec![paid])), Ok(()));
+    let card = c.native_card(open_item(&c).item()).unwrap();
+    assert_eq!(
+        card.lines().last().map(String::as_str),
+        Some("A site it has not used before (Set by Halvo): pay.example:8443")
+    );
+}
+
+#[test]
+fn an_id_that_is_no_open_native_confirmation_answers_a_cause() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let dead = ItemId::parse(DEAD_ITEM).unwrap();
+    assert_eq!(c.native_card(&dead), Err(Cause::UnknownItem), "no item");
+    assert_eq!(
+        c.on_run(
+            &run,
+            ask_on(&run, vec![effect(1, Class::Send, fields_of(Class::Send))])
+        ),
+        Ok(())
+    );
+    let page = open_item(&c);
+    assert_eq!(page.presenter(), Some(Presenter::Page));
+    assert_eq!(c.native_card(page.item()), Err(Cause::Presenter), "page");
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let stuck = RunEvent::Handback(HandbackAsk {
+        run: run.clone(),
+        agent: agent(0),
+        reason: HandbackReason::StepFailed,
+        origin: None,
+    });
+    assert_eq!(c.on_run(&run, stuck), Ok(()));
+    let plain = open_item(&c);
+    assert_ne!(plain.kind(), ItemKind::Confirm);
+    assert_eq!(
+        c.native_card(plain.item()),
+        Err(Cause::UnknownItem),
+        "a plain item"
+    );
+    assert_eq!(c.native_card(&item_id(7)), Err(Cause::UnknownItem));
+}
+
+fn items_raised(c: &Coordinator<Both>) -> usize {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(e.what, What::ItemRaised { .. }))
+        .count()
+}
+
+/// A request that `admits` refuses shows no card, stores no `item_raised` and stops its run with
+/// `kind` (ruling RD-90 item 6, in the form of RD-73 7.4).
+fn refused_at_the_raise(effects: Vec<AskedEffect>) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let before = items_raised(&c);
+    let m = mark(&c);
+    assert_eq!(c.on_run(&run, ask_on(&run, effects)), Err(Cause::State));
+    assert_eq!(items_raised(&c), before, "no item_raised");
+    assert!(c.snapshot().items.is_empty(), "no card");
+    assert!(calls_since(&c, m)
+        .iter()
+        .any(|call| matches!(call, Call::Cancel(r) if r == &run)));
+    c.ports().ports.set_clock(
+        coord::T0 + Limits::PRODUCT.cancel_grace_s * 1000,
+        coord::DAY,
+    );
+    c.tick();
+    let ended = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunEnded { run: r, cause, .. } if r == &run => Some(*cause),
+            _ => None,
+        });
+    assert_eq!(ended, Some(RunEnd::Kind));
+}
+
+#[test]
+fn a_request_with_a_deciding_value_that_is_not_its_composed_form_ends_its_run_with_kind() {
+    let mut paid = fields_of(Class::Payment);
+    paid[1] = field("amount", BoundFrom::Extract, "42.10\u{200b} USD");
+    refused_at_the_raise(vec![effect(1, Class::Payment, paid)]);
+    let mut sent = fields_of(Class::Send);
+    sent[0] = field("to", BoundFrom::Extract, "ann@example.com  ");
+    refused_at_the_raise(vec![effect(1, Class::Send, sent)]);
+    let mut wrong = fields_of(Class::Payment);
+    wrong[0] = field("payee", BoundFrom::Model, "City Power");
+    refused_at_the_raise(vec![effect(1, Class::Payment, wrong)]);
+    refused_at_the_raise(
+        (1..=8)
+            .map(|k| effect(k, Class::Payment, fields_of(Class::Payment)))
+            .collect(),
+    );
 }

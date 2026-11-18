@@ -14,8 +14,9 @@ mod raise;
 mod setup;
 
 pub use compose::{
-    compose_bind, compose_check, compose_confirm, compose_link_account, compose_plain,
-    compose_setup, field_from, kept_source, site_name, Plain, SetupParam,
+    admits, bound_field, compose_bind, compose_check, compose_confirm, compose_link_account,
+    compose_plain, compose_setup, field_from, kept_source, native_card, native_lines, site_name,
+    value_bound, Marking, NativeCard, Plain, SetupParam, CARD_COLUMNS, CARD_LINES,
 };
 pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 pub use key::Key;

@@ -150,6 +150,7 @@ fn expected_keys() -> BTreeSet<String> {
         "confirm.new_site",
         "confirm.changed",
         "confirm.present",
+        "confirm.field",
         "note.no_service",
         "note.roster_full",
         "tray.needs",
@@ -289,7 +290,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 250);
+    assert_eq!(seen.len(), 251);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -326,6 +327,7 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     want.insert("say.item.new".into(), vec!["name"]);
     want.insert("say.item.gone".into(), vec!["name"]);
     want.insert("confirm.asked_by".into(), vec!["name"]);
+    want.insert("confirm.field".into(), vec!["label", "source", "value"]);
     want.insert("card.records_dropped".into(), vec!["count"]);
     want.insert("say_again".into(), vec!["name"]);
     want.insert("confirm.asked_by_place".into(), vec!["count", "n", "name"]);
