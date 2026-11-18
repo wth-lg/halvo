@@ -37,14 +37,21 @@ fn committed(name: &str) -> String {
     }
 }
 
+fn written(name: &str, text: &str) -> Leaf {
+    let held = leaf(&format!("golden-{}", name.replace('.', "-")));
+    std::fs::write(held.path().join(name), text).unwrap();
+    held
+}
+
+impl Leaf {
+    fn keep(self) {
+        std::mem::forget(self);
+    }
+}
+
 fn write_and_compare(name: &str, text: &str) {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .parent()
-        .unwrap()
-        .join("halvo-schema/golden");
-    std::fs::create_dir_all(&dir).unwrap();
-    let written = dir.join(name);
-    std::fs::write(&written, text).unwrap();
+    let held = written(name, text);
+    let written = held.path().join(name);
     let path = golden(name);
     let before = std::fs::read(&path).unwrap_or_default();
     if before != text.as_bytes() {
@@ -54,6 +61,7 @@ fn write_and_compare(name: &str, text: &str) {
             .zip(text.lines())
             .position(|(a, b)| a != b)
             .unwrap_or_else(|| before.lines().count().min(text.lines().count()));
+        held.keep();
         panic!(
             "{} differs from the file that the test wrote, {}, first at line {}",
             path.display(),
@@ -911,6 +919,62 @@ fn export_names_writes_the_committed_names_file_on_two_runs() {
         );
         assert_eq!(std::fs::read_to_string(dir.join(run)).unwrap(), expected);
     }
+}
+
+#[test]
+fn written_two_calls_give_two_directories_with_the_file_and_each_is_gone_after_its_drop() {
+    let first = written("names.txt", "x\n");
+    let second = written("names.txt", "x\n");
+    assert_ne!(first.path(), second.path());
+    for held in [&first, &second] {
+        assert_eq!(
+            std::fs::read_to_string(held.path().join("names.txt")).unwrap(),
+            "x\n"
+        );
+    }
+    let paths = [first.path().to_path_buf(), second.path().to_path_buf()];
+    drop(first);
+    drop(second);
+    for path in paths {
+        assert!(!path.exists(), "{}", path.display());
+    }
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_differs_keeps_the_written_file_under_the_target_directory() {
+    let caught = std::panic::catch_unwind(|| write_and_compare("no-such-golden-file", "x\n"));
+    let message = caught
+        .err()
+        .and_then(|payload| payload.downcast::<String>().ok())
+        .expect("a failure with a message");
+    let (_, shown) = message
+        .split_once("the file that the test wrote, ")
+        .unwrap_or_else(|| panic!("{message}"));
+    let (shown, _) = shown.split_once(", first at line ").unwrap();
+    let out = PathBuf::from(shown);
+    let kept = out.parent().unwrap().to_path_buf();
+    let held = Leaf(kept.clone());
+    assert_eq!(
+        kept.parent(),
+        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
+        "{message}"
+    );
+    assert_eq!(std::fs::read_to_string(&out).unwrap(), "x\n");
+    drop(held);
+    assert!(!kept.exists(), "{}", kept.display());
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own() {
+    let text = committed("names.txt");
+    write_and_compare("names.txt", &text);
+    let own = format!("golden-names-txt-{}-", std::process::id());
+    let left: Vec<String> = std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(&own))
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
 }
 
 struct Leaf(PathBuf);

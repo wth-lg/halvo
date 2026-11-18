@@ -1058,9 +1058,8 @@ fn the_path_rule_reads_a_raw_identifier_and_exempts_a_fragment_only_inside_a_mat
 
 #[test]
 fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
-    let src = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("walk-outside-lib")
-        .join("src");
+    let held = leaf("walk-outside-lib");
+    let src = held.path().join("src");
     let written = [
         ("lib.rs", "#[path = \"other.rs\"]\nmod again;\n"),
         (
@@ -1305,33 +1304,47 @@ fn set_faults(dir: &Path) -> Vec<String> {
     faults
 }
 
-fn fixture_dir(name: &str, files: &[&str]) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("crate-files")
-        .join(name);
+fn fixture_dir(name: &str, files: &[&str]) -> Leaf {
+    let held = leaf(&format!("crate-files-{name}"));
     for file in files {
-        let path = dir.join(file);
+        let path = held.path().join(file);
         std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
         std::fs::write(&path, "").expect("a fixture file");
     }
-    dir
+    held
+}
+
+#[test]
+fn fixture_dir_two_calls_give_two_directories_with_the_files_and_each_is_gone_after_its_drop() {
+    let first = fixture_dir("whole", &CORE_FILES);
+    let second = fixture_dir("whole", &CORE_FILES);
+    assert_ne!(first.path(), second.path());
+    for held in [&first, &second] {
+        assert_eq!(set_faults(held.path()), Vec::<String>::new());
+    }
+    let paths = [first.path().to_path_buf(), second.path().to_path_buf()];
+    drop(first);
+    drop(second);
+    for path in paths {
+        assert!(!path.exists(), "{}", path.display());
+    }
 }
 
 #[test]
 fn the_core_crate_holds_its_set_of_files() {
     assert_eq!(set_faults(&core_dir()), Vec::<String>::new());
     assert_eq!(
-        set_faults(&fixture_dir("whole", &CORE_FILES)),
+        set_faults(fixture_dir("whole", &CORE_FILES).path()),
         Vec::<String>::new()
     );
     let more = [CORE_FILES.as_slice(), &["src/learning/more.rs"]].concat();
     assert_eq!(
-        set_faults(&fixture_dir("more", &more)),
+        set_faults(fixture_dir("more", &more).path()),
         ["the core crate holds src/learning/more.rs, which is none of its files"]
     );
     let built = [CORE_FILES.as_slice(), &["build.rs"]].concat();
     assert_eq!(
-        set_faults(&fixture_dir("built", &built)),
+        set_faults(fixture_dir("built", &built).path()),
         ["the core crate holds build.rs, which is none of its files"]
     );
     let less: Vec<&str> = CORE_FILES
@@ -1340,7 +1353,7 @@ fn the_core_crate_holds_its_set_of_files() {
         .filter(|file| *file != "src/routing.rs")
         .collect();
     assert_eq!(
-        set_faults(&fixture_dir("less", &less)),
+        set_faults(fixture_dir("less", &less).path()),
         ["the core crate lacks src/routing.rs"]
     );
 }
@@ -1364,11 +1377,11 @@ fn neither_crate_has_a_build_script() {
         Vec::<String>::new()
     );
     assert_eq!(
-        build_script_faults("a crate", &fixture_dir("built", &["build.rs"])),
+        build_script_faults("a crate", fixture_dir("built", &["build.rs"]).path()),
         ["a crate has a build script"]
     );
     assert_eq!(
-        build_script_faults("a crate", &fixture_dir("whole", &CORE_FILES)),
+        build_script_faults("a crate", fixture_dir("whole", &CORE_FILES).path()),
         Vec::<String>::new()
     );
 }
@@ -2300,7 +2313,8 @@ fn copy_tree(from: &Path, to: &Path) {
 }
 
 fn names_read_by_a_build(lists: &[(String, String)]) -> Vec<String> {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("declared-names");
+    let held = leaf("declared-names");
+    let root = held.path();
     let dir = root.join("crate");
     copy_tree(&core_dir().join("src"), &dir.join("src"));
     for (module, text) in lists {
@@ -2547,4 +2561,86 @@ fn old_path_faults(module: &str, text: &str) -> Vec<String> {
         ));
     }
     faults
+}
+
+struct Leaf(PathBuf);
+
+impl Leaf {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Leaf {
+    fn drop(&mut self) {
+        if let Some(line) = remove(&self.0) {
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{line}\n"));
+        }
+    }
+}
+
+fn remove(dir: &Path) -> Option<String> {
+    let error = std::fs::remove_dir_all(dir).err()?;
+    Some(format!("leaf not removed: {}: {error}", dir.display()))
+}
+
+fn leaf(word: &str) -> Leaf {
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    match halvo_test_dir::make(tmp, word) {
+        Ok(dir) => Leaf(dir),
+        Err(e) => panic!("{word} under {}: {e}", tmp.display()),
+    }
+}
+
+#[test]
+fn leaf_two_calls_give_two_paths() {
+    let first = leaf("locked-files-leaf");
+    let second = leaf("locked-files-leaf");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+    let stem = |held: &Leaf| {
+        let name = held
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        name[..name.rfind('-').unwrap()].to_owned()
+    };
+    assert_eq!(stem(&first), stem(&second));
+}
+
+#[test]
+fn leaf_is_gone_after_its_drop() {
+    let held = leaf("locked-files-leaf");
+    let path = held.path().to_path_buf();
+    std::fs::write(path.join("file"), "x").unwrap();
+    drop(held);
+    assert!(!path.exists(), "{}", path.display());
+}
+
+#[test]
+fn leaf_removal_that_fails_gives_one_line_with_the_path() {
+    let held = leaf("locked-files-leaf");
+    let path = held.path().to_path_buf();
+    drop(held);
+    let line = remove(&path).expect("a line for a removal that fails");
+    assert!(
+        line.contains(&path.display().to_string()) && !line.contains('\n'),
+        "{line}"
+    );
+}
+
+#[test]
+fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
+    let held = leaf("locked-files-leaf");
+    assert_eq!(
+        held.path().parent(),
+        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
+        "{}",
+        held.path().display()
+    );
+    let name = held.path().file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("locked-files-leaf-"), "{name}");
 }

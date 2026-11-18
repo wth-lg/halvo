@@ -388,15 +388,16 @@ fn check(root: &Path, dir: &Path) -> Build {
 
 #[test]
 fn a_later_file_that_tries_a_maker_of_ids_rs_or_unsafe_code_does_not_compile() {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("later-file-builds");
-    let twin = check(&root, &fixture(&root, "twin", TWIN));
+    let held = leaf("later-file-builds");
+    let root = held.path();
+    let twin = check(root, &fixture(root, "twin", TWIN));
     assert!(
         twin.ok && twin.codes.is_empty(),
         "the twin, a later file that uses only what is public, must compile: {:?}\n{}",
         twin.codes,
         twin.stderr
     );
-    let wrong = refused(&root, CASES, "src/learning.rs", false);
+    let wrong = refused(root, CASES, "src/learning.rs", false);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
@@ -423,18 +424,20 @@ fn refused(root: &Path, cases: &[Case], file: &str, core: bool) -> Vec<String> {
 
 #[test]
 fn a_later_file_that_gives_a_core_type_code_of_its_own_does_not_compile() {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("later-file-builds");
-    let wrong = refused(&root, BOUNDARY, "src/learning.rs", false);
+    let held = leaf("later-file-builds");
+    let root = held.path();
+    let wrong = refused(root, BOUNDARY, "src/learning.rs", false);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 #[test]
 fn a_later_file_compiles_what_the_boundary_allows_and_a_by_value_method_of_its_trait_runs_where_the_trait_is_in_scope(
 ) {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("later-file-builds");
+    let held = leaf("later-file-builds");
+    let root = held.path();
     let mut wrong = Vec::new();
     for (name, later) in COMPILES {
-        let build = check(&root, &fixture(&root, name, later));
+        let build = check(root, &fixture(root, name, later));
         if !build.ok || !build.codes.is_empty() {
             wrong.push(format!(
                 "{name}: compiled={} codes={:?}\n{}",
@@ -447,24 +450,26 @@ fn a_later_file_compiles_what_the_boundary_allows_and_a_by_value_method_of_its_t
 
 #[test]
 fn no_line_of_the_core_crate_can_name_the_later_crate() {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("core-file-builds");
-    let twin = check(&root, &core_fixture(&root, "twin", CORE_TWIN));
+    let held = leaf("core-file-builds");
+    let root = held.path();
+    let twin = check(root, &core_fixture(root, "twin", CORE_TWIN));
     assert!(
         twin.ok && twin.codes.is_empty(),
         "the twin, a core file that names its own list, must compile: {:?}\n{}",
         twin.codes,
         twin.stderr
     );
-    let wrong = refused(&root, CORE_CASES, "src/kinds.rs", true);
+    let wrong = refused(root, CORE_CASES, "src/kinds.rs", true);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 #[test]
 fn the_compiler_reads_as_code_what_follows_each_form_of_the_lexer_cases() {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("later-file-builds");
+    let held = leaf("later-file-builds");
+    let root = held.path();
     let mut wrong = Vec::new();
     for (name, later) in READ_AS_CODE {
-        let build = check(&root, &fixture(&root, name, later));
+        let build = check(root, &fixture(root, name, later));
         if !build.ok || !build.codes.is_empty() {
             wrong.push(format!(
                 "{name}: compiled={} codes={:?}\n{}",
@@ -473,4 +478,86 @@ fn the_compiler_reads_as_code_what_follows_each_form_of_the_lexer_cases() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+struct Leaf(PathBuf);
+
+impl Leaf {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Leaf {
+    fn drop(&mut self) {
+        if let Some(line) = remove(&self.0) {
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{line}\n"));
+        }
+    }
+}
+
+fn remove(dir: &Path) -> Option<String> {
+    let error = std::fs::remove_dir_all(dir).err()?;
+    Some(format!("leaf not removed: {}: {error}", dir.display()))
+}
+
+fn leaf(word: &str) -> Leaf {
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    match halvo_test_dir::make(tmp, word) {
+        Ok(dir) => Leaf(dir),
+        Err(e) => panic!("{word} under {}: {e}", tmp.display()),
+    }
+}
+
+#[test]
+fn leaf_two_calls_give_two_paths() {
+    let first = leaf("later-file-builds-leaf");
+    let second = leaf("later-file-builds-leaf");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+    let stem = |held: &Leaf| {
+        let name = held
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        name[..name.rfind('-').unwrap()].to_owned()
+    };
+    assert_eq!(stem(&first), stem(&second));
+}
+
+#[test]
+fn leaf_is_gone_after_its_drop() {
+    let held = leaf("later-file-builds-leaf");
+    let path = held.path().to_path_buf();
+    std::fs::write(path.join("file"), "x").unwrap();
+    drop(held);
+    assert!(!path.exists(), "{}", path.display());
+}
+
+#[test]
+fn leaf_removal_that_fails_gives_one_line_with_the_path() {
+    let held = leaf("later-file-builds-leaf");
+    let path = held.path().to_path_buf();
+    drop(held);
+    let line = remove(&path).expect("a line for a removal that fails");
+    assert!(
+        line.contains(&path.display().to_string()) && !line.contains('\n'),
+        "{line}"
+    );
+}
+
+#[test]
+fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
+    let held = leaf("later-file-builds-leaf");
+    assert_eq!(
+        held.path().parent(),
+        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
+        "{}",
+        held.path().display()
+    );
+    let name = held.path().file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("later-file-builds-leaf-"), "{name}");
 }
