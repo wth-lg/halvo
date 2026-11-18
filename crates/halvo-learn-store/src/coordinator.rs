@@ -45,7 +45,7 @@ impl LearnHandlers {
                 let outcome = match self.sweep(host) {
                     Ok(()) => self.started(host, b),
                     Err(name) => {
-                        self.drop_of_agent(&b.agent, &b.run);
+                        self.lose_start(b);
                         Err(name.into())
                     }
                 };

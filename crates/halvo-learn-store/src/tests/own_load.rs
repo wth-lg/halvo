@@ -149,13 +149,13 @@ fn a_store_fault_at_the_handlers_own_load_at_an_accepted_start_run_returns_the_a
     assert!(left_out(&w));
     assert_eq!(w.host.commits.get(), commits);
     assert!(of_run(&w, 4).is_empty());
-    assert!(holds_nothing_of(&w, 4));
+    assert!(lost_start(&w, 4));
     assert!(
         w.handlers.facts.contains_key(&id(3)),
         "a store fault at the load of run 3 says nothing of run 3"
     );
     w.load(4);
-    assert!(holds_nothing_of(&w, 4));
+    assert!(lost_start(&w, 4));
     let served = w.load_steps(4, 1, 1);
     assert_eq!(served, compiled());
     w.loaded = 1;
@@ -163,7 +163,7 @@ fn a_store_fault_at_the_handlers_own_load_at_an_accepted_start_run_returns_the_a
 }
 
 #[test]
-fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drops_the_runs_facts_and_start(
+fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drops_the_runs_facts_and_keeps_its_start_with_no_row(
 ) {
     let mut w = learned_world();
     w.replay(3);
@@ -179,7 +179,7 @@ fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drop
     );
     assert!(left_out(&w));
     assert_eq!(w.host.commits.get(), commits);
-    assert!(holds_nothing_of(&w, 3));
+    assert!(lost_start(&w, 3));
     assert_eq!(of_run(&w, 3).len(), 1);
     let served = w.load_steps(3, 1, 1);
     assert_eq!(served, compiled());
@@ -383,7 +383,7 @@ fn a_store_fault_at_the_first_load_of_the_sweep_still_drops_a_later_held_run_who
 }
 
 #[test]
-fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drops_a_start_held_with_no_facts(
+fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_keeps_a_start_held_with_no_facts_with_no_row(
 ) {
     let mut w = learned_world();
     w.replay(3);
@@ -399,9 +399,9 @@ fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drop
         "{answer:?}"
     );
     assert!(left_out(&w));
-    assert!(holds_nothing_of(&w, 4));
+    assert!(lost_start(&w, 4));
     w.load(4);
-    assert!(holds_nothing_of(&w, 4));
+    assert!(lost_start(&w, 4));
 }
 
 #[test]
@@ -482,4 +482,158 @@ fn a_store_fault_at_the_second_page_of_the_compiled_steps_before_a_finish_passes
     assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
     assert!(holds_nothing_of(&w, 2));
     assert_eq!(of_run(&w, 2).len(), 1);
+}
+
+fn lost_start(w: &World, r: u32) -> bool {
+    !w.handlers.facts.contains_key(&id(r))
+        && w.handlers
+            .starts
+            .get(&id(r))
+            .is_some_and(|s| !s.row && s.agent.as_str() == agent(1))
+}
+
+fn compile_body(r: u32) -> Value {
+    json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(r), "mode": "compile"})
+}
+
+fn playbook_rows(w: &World, number: u32) -> usize {
+    let named = format!("\"agent\":\"{}\"", agent(1));
+    let numbered = format!("\"number\":{number},");
+    w.host
+        .agent_rows("agent_playbook")
+        .iter()
+        .filter(|row| row.contains(named.as_str()) && row.contains(numbered.as_str()))
+        .count()
+}
+
+fn accepted(answer: &Result<CoordinatorAnswer, Refused>) -> bool {
+    matches!(
+        answer,
+        Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
+    )
+}
+
+fn compiles_after_the_fault(w: &mut World, r: u32, number: u32) {
+    let rows = playbook_rows(w, number);
+    w.load(r);
+    let put = w.put(r, number, compiled());
+    assert!(
+        matches!(put, Ok(RunnerReply::Stored(ref s)) if s.stored == 3),
+        "the compile's put_playbook reaches the agent store: {put:?}"
+    );
+    assert_eq!(playbook_rows(w, number), rows + 3);
+    assert!(lost_start(w, r));
+    let commits = w.host.commits.get();
+    let finish = w.finish(r, "compile", "completed");
+    assert!(finish.is_ok(), "{finish:?}");
+    assert_eq!(
+        w.host.commits.get(),
+        commits,
+        "the lost run makes no learning commit"
+    );
+    assert!(of_run(w, r).is_empty(), "the lost run has no learn_run row");
+    let state = w.coordinator(
+        json!({"op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active"}),
+    );
+    assert!(
+        matches!(
+            state,
+            Ok(CoordinatorAnswer::Agent(CoordinatorReply::State(_)))
+        ),
+        "{state:?}"
+    );
+}
+
+#[test]
+fn a_store_fault_in_the_sweep_at_a_first_compiles_start_run_lets_its_put_playbook_reach_the_agent_store(
+) {
+    let mut w = world();
+    w.start(1, "compile");
+    w.load(1);
+    assert!(w.handlers.facts.contains_key(&id(1)));
+    let answer = coordinator_at(&mut w, 2, compile_body(2));
+    assert!(accepted(&answer), "{answer:?}");
+    assert!(left_out(&w));
+    assert_eq!(playbook_rows(&w, 1), 0);
+    compiles_after_the_fault(&mut w, 2, 1);
+}
+
+#[test]
+fn a_store_fault_in_the_sweep_at_a_first_compiles_start_run_at_another_agents_run_lets_its_put_playbook_reach_the_agent_store(
+) {
+    let mut w = world();
+    w.add_pair(2);
+    w.pair = 2;
+    w.replay(5);
+    w.pair = 1;
+    assert!(w.handlers.facts.contains_key(&id(5)));
+    let answer = coordinator_at(&mut w, 2, compile_body(1));
+    assert!(accepted(&answer), "{answer:?}");
+    assert!(left_out(&w));
+    assert_eq!(playbook_rows(&w, 1), 0);
+    compiles_after_the_fault(&mut w, 1, 1);
+    assert!(w.handlers.facts.contains_key(&id(5)));
+}
+
+#[test]
+fn a_store_fault_in_the_sweep_at_a_recompiles_start_run_moves_the_agent_to_the_new_number() {
+    for other in [false, true] {
+        let mut w = active_world();
+        if other {
+            w.add_pair(2);
+            w.pair = 2;
+            w.replay(3);
+            w.pair = 1;
+        } else {
+            w.replay(3);
+        }
+        let answer = coordinator_at(&mut w, 2, compile_body(4));
+        assert!(accepted(&answer), "other {other}: {answer:?}");
+        assert!(left_out(&w));
+        compiles_after_the_fault(&mut w, 4, 2);
+        w.replay(5);
+        assert_eq!(
+            w.loaded, 2,
+            "other {other}: the next run loads the new number"
+        );
+    }
+}
+
+#[test]
+fn a_faulted_repeat_of_a_start_whose_commit_was_refused_keeps_the_run_lost_through_a_clean_repeat_and_its_finish(
+) {
+    let mut w = learned_world();
+    w.replay(3);
+    w.host.refuse = true;
+    let first = w.coordinator(start_body(4));
+    w.host.refuse = false;
+    assert!(accepted(&first), "{first:?}");
+    assert!(lost_start(&w, 4));
+    let commits = w.host.commits.get();
+    let faulted = coordinator_at(&mut w, 2, start_body(4));
+    assert!(accepted(&faulted), "{faulted:?}");
+    assert!(left_out(&w));
+    assert!(
+        lost_start(&w, 4),
+        "the faulted repeat keeps the start with no row"
+    );
+    let again = w.coordinator(start_body(4));
+    assert!(accepted(&again), "{again:?}");
+    assert!(lost_start(&w, 4));
+    w.load(4);
+    let served = w.load_steps(4, 1, 1);
+    assert_eq!(names(&served[1]), ["Pay"]);
+    assert_eq!(served, compiled());
+    w.log(4, &[(2, "step_ok", 2, None)]);
+    let finish = w.finish(4, "replay", "completed");
+    assert!(finish.is_ok(), "{finish:?}");
+    assert!(
+        of_run(&w, 4).is_empty(),
+        "the lost run has no learn_run row"
+    );
+    assert_eq!(
+        w.host.commits.get(),
+        commits,
+        "the lost run makes no commit"
+    );
 }

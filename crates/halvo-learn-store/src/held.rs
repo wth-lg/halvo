@@ -44,6 +44,18 @@ impl LearnHandlers {
         self.starts.remove(run);
     }
 
+    /// Makes the run of an accepted `start_run` a lost run that this value remembers, as a refused commit does: its
+    /// facts go and its start is remembered under the body's agent with no row; a run held under another agent stays
+    /// as it was.
+    pub(crate) fn lose_start(&mut self, b: &StartRun) {
+        let other = self.facts.get(&b.run).is_some_and(|f| f.agent != b.agent)
+            || self.starts.get(&b.run).is_some_and(|s| s.agent != b.agent);
+        if !other {
+            self.facts.remove(&b.run);
+            self.remember_start(b, false);
+        }
+    }
+
     /// Drops the run where its facts or its remembered start are held under `agent`, and nothing under another agent.
     pub(crate) fn drop_of_agent(&mut self, agent: &AgentId, run: &RunId) {
         let of_agent = self.facts.get(run).is_some_and(|f| &f.agent == agent)

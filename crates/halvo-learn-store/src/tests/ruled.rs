@@ -567,7 +567,7 @@ fn g4_a_load_whose_held_start_names_another_agent_makes_no_facts_and_its_verifie
 }
 
 #[test]
-fn g4_a_store_fault_in_the_sweep_at_a_start_returns_the_agent_stores_reply_and_a_repeat_stores_the_row_once(
+fn g4_a_store_fault_in_the_sweep_at_a_start_returns_the_agent_stores_reply_and_a_repeat_stores_nothing(
 ) {
     let mut w = active_world();
     w.replay(2);
@@ -582,5 +582,7 @@ fn g4_a_store_fault_in_the_sweep_at_a_start_returns_the_agent_stores_reply_and_a
     assert!(revs(&w, 3).is_empty());
     w.host.agent.fault = false;
     assert!(w.coordinator(body).is_ok());
-    assert_eq!(revs(&w, 3), [1]);
+    assert!(revs(&w, 3).is_empty());
+    assert!(!w.handlers.facts.contains_key(&id(3)));
+    assert!(w.handlers.starts.get(&id(3)).is_some_and(|s| !s.row));
 }
