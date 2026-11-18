@@ -254,6 +254,17 @@ impl<C> Board<C> {
         }
     }
 
+    /// Counts a tick that a settle or a stop waiting for the clock held, and that returned, for
+    /// each run on the board that no stop has reached: a run stopped while it waits counts the
+    /// held ticks only up to its stop (ruling RD-133 I7.1, Addition 1 item 7).
+    pub(crate) fn held_tick(&mut self) {
+        for (run, d) in &mut self.defers {
+            if self.runs.iter().any(|r| &r.run == run && r.stop.is_none()) {
+                d.ticks_failed = d.ticks_failed.saturating_add(1);
+            }
+        }
+    }
+
     /// Forgets the defers of every run that stands on the board after a tick that did not
     /// return, whose defer may or may not have been acknowledged, so that each such run's
     /// `run_ended` writes both keys null, which says not known, and no lower bound stands as a

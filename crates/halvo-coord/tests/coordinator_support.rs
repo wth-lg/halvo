@@ -40,6 +40,9 @@ pub struct Both {
     pub loss_waits_for_row: Cell<Option<LostAckRow>>,
     pub clock_fails: Cell<bool>,
     pub fail_read_at: Cell<Option<u32>>,
+    /// Where set, that many more reads of the clock answer and every later one fails, until
+    /// it is cleared.
+    pub fail_reads_after: Cell<Option<u32>>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -267,6 +270,11 @@ impl Clock for Both {
         if self.clock_fails.get() {
             return Err(PortError::NoService);
         }
+        match self.fail_reads_after.get() {
+            Some(0) => return Err(PortError::NoService),
+            Some(n) => self.fail_reads_after.set(Some(n - 1)),
+            None => {}
+        }
         match self.fail_read_at.get() {
             Some(0) => {
                 self.fail_read_at.set(None);
@@ -344,6 +352,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         loss_waits_for_row: Cell::new(None),
         clock_fails: Cell::new(false),
         fail_read_at: Cell::new(None),
+        fail_reads_after: Cell::new(None),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }

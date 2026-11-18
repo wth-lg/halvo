@@ -915,6 +915,21 @@ fn store_at<P: Owner + Clock>(
     flush(ports, ledger, limits)
 }
 
+/// Stores the `hold_set` of the person's Switch off, whose own read of the clock did not answer,
+/// at `at`, the last read of the clock that this life made, so that the agent stays off across a
+/// new life; its time and day may be older than the press (ruling RD-133 1, (b)).
+pub fn store_held_off<P: Owner + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    at: Stamp,
+) -> Result<(), PortError> {
+    let set = What::HoldSet {
+        cause: crate::types::HoldSetCause::Person,
+    };
+    store_at(ports, ledger, limits, vec![set], at)
+}
+
 /// Stores a lapse's row at one read of the clock; where no read answers, the row of a stop or
 /// a switch-off (`holds`) waits in the ledger for the next read that answers, and any other
 /// row is lost, a named limit (rulings RD-101 (g), RD-133 1).

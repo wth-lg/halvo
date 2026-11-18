@@ -125,6 +125,8 @@ pub struct Report {
     /// Whether the move was refused because no read of the clock answered, before any of its
     /// work (ruling RD-133 1).
     pub unstamped: bool,
+    /// The read of the clock that stamped the move, where one answered.
+    pub read: Option<u64>,
 }
 
 impl Default for Report {
@@ -140,6 +142,7 @@ impl Default for Report {
             created: Vec::new(),
             dropped: Vec::new(),
             unstamped: false,
+            read: None,
         }
     }
 }
@@ -2007,7 +2010,7 @@ where
     if matches!(mv, Move::Start { .. } | Move::End { .. }) {
         read_day(&cx, board);
     }
-    match mv {
+    let report = match mv {
         Move::Tick => tick(&cx, board),
         Move::Create => create(&cx, board),
         Move::Owed => {
@@ -2033,5 +2036,9 @@ where
             }
         }
         other => member_move(&cx, board, other, halt),
+    };
+    Report {
+        read: Some(stamp.now()),
+        ..report
     }
 }

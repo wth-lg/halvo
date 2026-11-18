@@ -3541,21 +3541,25 @@ fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothin
         std::slice::from_ref(&ready),
         "the queued agent holds its ready item"
     );
-    a_stop_changes_nothing(&c, &agent(1), &[], "a queued agent with a ready item");
+    // Turned by ruling RD-133, Addition 1 item 5: the Stop takes the queued start out of the
+    // queue, stores nothing and keeps the ready item; the next end takes no start of it.
+    let stored = events(&c).len();
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    assert_eq!(events(&c).len(), stored, "a queued agent: nothing stored");
+    assert_eq!(c.queued(), vec![], "a queued agent: out of the queue");
+    assert_eq!(
+        c.snapshot()
+            .items
+            .iter()
+            .map(|i| i.item().clone())
+            .collect::<Vec<_>>(),
+        std::slice::from_ref(&ready),
+        "the ready item stays"
+    );
     c.ports().ports.end_runner(&first);
     c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
         .unwrap();
-    let starts = started(&c);
-    assert_eq!(
-        starts.len(),
-        2,
-        "the queued start is taken when its turn comes"
-    );
-    let second = starts.last().cloned().unwrap();
-    assert!(events(&c).iter().any(|w| matches!(
-        w,
-        What::RunStarted { run, .. } if *run == second
-    )));
+    assert_eq!(started(&c).len(), 1, "the next end takes no start of it");
 
     let c = coordinator(&[MANUAL], limits);
     let run = start(&c, 0);
@@ -5789,7 +5793,10 @@ fn controls_of(c: &Coordinator<Both>, n: usize) -> Vec<halvo_coord::types::Contr
 }
 
 #[test]
-fn rd48h_the_plain_queued_start_stays_through_a_stop_and_is_taken_at_the_next_end() {
+/// Turned by ruling RD-133, Addition 1 item 5: a Stop of a queued agent takes its plain queued
+/// start out of the queue (it stayed through the Stop by RD-48 (h)), stores nothing, and the next
+/// end takes no start of it; a second Stop after a new start stops the new run.
+fn rd48h_turned_a_stop_takes_the_plain_queued_start_out_of_the_queue() {
     use halvo_coord::types::Control;
     let one = Limits {
         max_live_runs: 1,
@@ -5801,17 +5808,19 @@ fn rd48h_the_plain_queued_start_stays_through_a_stop_and_is_taken_at_the_next_en
         assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
         assert_eq!(started(&c).len(), 1, "agent 1 waits");
         let stored = events(&c).len();
-        assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
-        assert_eq!(events(&c).len(), stored, "the Stop stores nothing");
-        assert_eq!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
         let controls = controls_of(&c, 1);
         assert!(controls.contains(&Control::SwitchOff), "{controls:?}");
         assert!(!controls.contains(&Control::Stop), "{controls:?}");
+        assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+        assert_eq!(events(&c).len(), stored, "the Stop stores nothing");
+        assert_eq!(c.queued(), vec![], "out of the queue");
+        assert_ne!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
         c.ports().ports.end_runner(&first);
         c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
             .unwrap();
-        assert_eq!(started(&c).len(), 2, "the start is taken at the next end");
+        assert_eq!(started(&c).len(), 1, "the next end takes no start of it");
         if second_stop {
+            assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
             let new = started(&c).last().cloned().unwrap();
             let m = mark(&c);
             assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
@@ -8947,6 +8956,7 @@ fn clock_fails(c: &Coordinator<Both>) {
 fn clock_answers(c: &Coordinator<Both>) {
     c.ports().clock_fails.set(false);
     c.ports().fail_read_at.set(None);
+    c.ports().fail_reads_after.set(None);
 }
 
 fn lapses_of(c: &Coordinator<Both>, item: &ItemId, cause: &str) -> usize {
@@ -9271,6 +9281,16 @@ fn rd133_rows_that_waited_for_a_stamp_are_read_lost_by_the_next_lives_recovery()
         vec![RunEnd::Interrupted],
         "and ends the run interrupted"
     );
+    let s = life.snapshot();
+    assert_eq!(
+        row_line(&s, 1),
+        text("line.all_set.stopped_early"),
+        "the row reads the run stopped early (RD-133, Addition 1 item 9)"
+    );
+    assert!(
+        !s.items.iter().any(|i| i.agent() == &agent(1)),
+        "and no card of the lost item stands"
+    );
 }
 
 #[test]
@@ -9399,4 +9419,405 @@ fn rd133_a_switch_off_of_a_queued_agent_under_the_mark_takes_it_out_of_the_queue
         before,
         "it does not start when the tick returns"
     );
+}
+
+#[test]
+fn rd133_own01_another_agents_stop_is_not_withheld_while_a_settle_waits_for_the_clock() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let (_run0, item) = allowed(&c);
+    let run1 = start(&c, 1);
+    let step = shown_step_mark_or_zero(&c, &item);
+    panicking(&c, "answer_confirm", || {
+        c.answer(&item, Choice::Allow, None, step)
+    });
+    c.ports().fail_read_at.set(Some(0));
+    let m = mark(&c);
+    let out = c.control(&agent(1), Action::Stop);
+    c.ports().fail_read_at.set(None);
+    assert_eq!(
+        out,
+        Ok(()),
+        "RD-80 4.5: the Stop of an agent whose item no settle holds is answered as always"
+    );
+    assert!(
+        calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Cancel(r) if r == &run1)),
+        "the Stop reaches the other agent's run"
+    );
+}
+
+/// own-01 again with every read of the move failing (`clock_fails`), once with agent 1 holding
+/// no open item, once with its run waiting on an open item: the Stop goes on and the cancel
+/// goes out in the same move (ruling RD-133, Addition 1 item 1).
+#[test]
+fn rd133_own01_with_the_clock_failing_for_the_whole_move_with_and_without_an_open_item() {
+    for open in [false, true] {
+        let limits = Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        };
+        let c = coordinator(&[MANUAL, MANUAL], limits);
+        let (_run0, item) = allowed(&c);
+        let run1 = start(&c, 1);
+        if open {
+            c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+        }
+        let step = shown_step_mark_or_zero(&c, &item);
+        panicking(&c, "answer_confirm", || {
+            c.answer(&item, Choice::Allow, None, step)
+        });
+        clock_fails(&c);
+        let m = mark(&c);
+        let out = c.control(&agent(1), Action::Stop);
+        assert_eq!(out, Ok(()), "open {open}: the Stop goes on");
+        assert_eq!(
+            cancels_of(&c, m, &run1),
+            1,
+            "open {open}: the cancel in that move"
+        );
+        assert_eq!(c.live(), 2, "open {open}: run 1 stopping, run 0 waiting");
+        clock_answers(&c);
+    }
+}
+
+/// The last time that this life read the clock, as the board's events store it.
+fn at_of(ms: u64) -> i64 {
+    (ms as i64) * 1_000_000
+}
+
+fn person_holds(c: &Coordinator<Both>, n: usize) -> Vec<halvo_coord::types::Event> {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(n)
+                && matches!(
+                    e.what,
+                    What::HoldSet {
+                        cause: HoldSetCause::Person
+                    }
+                )
+        })
+        .cloned()
+        .collect()
+}
+
+#[test]
+fn rd133_the_waiting_agents_own_switch_off_lapses_answer_lost_once_and_ends_cancelled() {
+    let (c, run0, item, _runs) = lost_answer_beside_other_runs(0);
+    let last = T0 + Limits::PRODUCT.arm_ms;
+    let m = mark(&c);
+    let sent = decisions_since(&c, m).len();
+    c.ports().ports.set_clock(last + 5_000, DAY);
+    clock_fails(&c);
+    let at = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    assert_eq!(cancels_of(&c, at, &run0), 1, "the cancel in that move");
+    let holds = person_holds(&c, 0);
+    assert_eq!(
+        holds.len(),
+        1,
+        "the hold_set is stored at once (RD-133, answer (b))"
+    );
+    assert_eq!(
+        holds[0].at,
+        at_of(last),
+        "at the last time that this life read the clock, before the press"
+    );
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.off.person"));
+    clock_answers(&c);
+    c.tick();
+    c.tick();
+    assert_eq!(decisions_since(&c, m).len(), sent, "no decision");
+    assert_eq!(lapses_of(&c, &item, "answer_lost"), 1, "answer_lost once");
+    assert_eq!(lapses_of(&c, &item, "cancelled"), 0, "no other lapse");
+    assert_eq!(
+        cancels_of(&c, at, &run0),
+        1,
+        "the later settle touches nothing"
+    );
+    assert_eq!(person_holds(&c, 0).len(), 1, "one hold_set");
+    c.ports().ports.end_runner(&run0);
+    assert_eq!(c.on_run(&run0, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(
+        ends_of(&c, &run0),
+        vec![RunEnd::Cancelled],
+        "run_ended once, cancelled"
+    );
+    assert!(
+        !events(&c).iter().any(|w| matches!(
+            w,
+            What::HoldSet {
+                cause: HoldSetCause::Failures
+            }
+        )),
+        "the cancelled end does not count toward the failures hold"
+    );
+}
+
+#[test]
+fn rd133_in_the_window_a_request_from_the_stopped_run_raises_no_card() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    let _ = c.on_run(&run1, ask_confirm(&run1, 1));
+    let cards = |c: &Coordinator<Both>| {
+        c.snapshot()
+            .items
+            .iter()
+            .filter(|i| i.agent() == &agent(1))
+            .count()
+    };
+    assert_eq!(cards(&c), 0, "no card in the window");
+    clock_answers(&c);
+    c.tick();
+    assert_eq!(cards(&c), 0, "and none after the stamp");
+}
+
+#[test]
+fn rd133_in_the_window_the_card_leaves_in_the_move_and_an_answer_to_it_sends_no_decision() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let item1 = item_of_agent(&c, 1);
+    clock_fails(&c);
+    let at = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    assert_eq!(
+        decisions_since(&c, at).len(),
+        1,
+        "the Stop's own reject to the runner, as with a clock that answers"
+    );
+    let m = mark(&c);
+    assert!(
+        !c.snapshot().items.iter().any(|i| i.item() == &item1),
+        "the card leaves the page in the move"
+    );
+    assert!(c.answer(&item1, Choice::Reject, None, 0).is_err());
+    assert!(c.answer(&item1, Choice::Allow, None, 0).is_err());
+    assert_eq!(decisions_since(&c, m), vec![], "no decision in the window");
+    clock_answers(&c);
+    c.tick();
+    assert!(c.answer(&item1, Choice::Reject, None, 0).is_err());
+    assert_eq!(decisions_since(&c, m), vec![], "nor after the stamp");
+    assert_eq!(lapses_of(&c, &item1, "cancelled"), 1, "the lapse is stored");
+}
+
+/// A Switch off under a failing clock takes a queued agent off the queue and holds it off on
+/// the board in the move; the clock answers at a tick or at a run's end, and the agent does not
+/// start (ruling RD-133, Addition 1 item 4).
+#[test]
+fn rd133_a_switch_off_under_a_failing_clock_holds_a_queued_agent_off_until_and_after_the_stamp() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    for at_end in [false, true] {
+        let c = coordinator(&[MANUAL, MANUAL], one);
+        let first = start(&c, 0);
+        assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+        assert_eq!(c.queued(), vec![(agent(1), false)]);
+        clock_fails(&c);
+        assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()), "{at_end}");
+        assert_eq!(c.queued(), vec![], "{at_end}: off the queue in the move");
+        assert_eq!(
+            c.control(&agent(1), Action::RunNow),
+            Err(Cause::Hold),
+            "{at_end}: held off on the board in the move"
+        );
+        assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+        clock_answers(&c);
+        if !at_end {
+            c.tick();
+        }
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        c.tick();
+        assert_eq!(started(&c).len(), 1, "{at_end}: agent 1 does not start");
+        assert_eq!(person_holds(&c, 1).len(), 1, "{at_end}: one hold_set");
+        assert_eq!(c.control(&agent(1), Action::RunNow), Err(Cause::Hold));
+    }
+}
+
+/// A Stop of a queued agent takes it out of the queue at any time, with no read of the clock,
+/// with the mark of a lost tick standing and without (ruling RD-133, Addition 1 item 5).
+#[test]
+fn rd133_a_stop_of_a_queued_agent_takes_it_out_of_the_queue_with_and_without_the_mark() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    for marked in [false, true] {
+        let c = coordinator(&[MANUAL, MANUAL], one);
+        let first = start(&c, 0);
+        assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+        if marked {
+            tick_that_panics(&c);
+        }
+        let stored = events(&c).len();
+        clock_fails(&c);
+        assert_eq!(c.control(&agent(1), Action::Stop), Ok(()), "{marked}");
+        assert_eq!(c.queued(), vec![], "{marked}: out of the queue");
+        assert_eq!(events(&c).len(), stored, "{marked}: nothing stored");
+        clock_answers(&c);
+        c.ports().ports.end_runner(&first);
+        c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+            .unwrap();
+        c.tick();
+        assert_eq!(started(&c).len(), 1, "{marked}: agent 1 does not start");
+    }
+}
+
+/// A run that a Stop reached while a settle waited counts the held ticks only up to its stop
+/// (ruling RD-133, Addition 1 item 7).
+#[test]
+fn rd133_a_run_stopped_while_a_settle_waits_counts_the_held_ticks_up_to_its_stop() {
+    let (c, run0, item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    c.tick();
+    c.tick();
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    c.tick();
+    c.tick();
+    clock_answers(&c);
+    c.tick();
+    assert_eq!(lost_lapses(&c, &item), 1, "settled");
+    for run in [&run0, &run1] {
+        c.ports().ports.end_runner(run);
+        let _ = c.on_run(run, RunEvent::Ended(None));
+    }
+    let failed = |run: &RunId| {
+        events(&c).iter().find_map(|w| match w {
+            What::RunEnded { run: r, defers, .. } if r == run => {
+                Some(defers.map(|d| d.ticks_failed))
+            }
+            _ => None,
+        })
+    };
+    assert_eq!(failed(&run0), Some(Some(4)), "run 0: four held ticks");
+    assert_eq!(failed(&run1), Some(Some(2)), "run 1: two, up to its stop");
+}
+
+/// A tick that did not return makes the defer keys null, and held ticks after it do not make
+/// them a count again: null wins (ruling RD-133, Addition 1 item 7; RD-122).
+#[test]
+fn rd133_after_a_tick_that_did_not_return_the_held_ticks_leave_the_defer_keys_null() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    c.on_run(&run0, ask_confirm(&run0, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()));
+    c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+    c.tick();
+    let run1 = start(&c, 1);
+    tick_that_panics(&c);
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item, Choice::Allow, None, 0)
+    });
+    clock_fails(&c);
+    c.tick();
+    c.tick();
+    clock_answers(&c);
+    c.tick();
+    for run in [&run0, &run1] {
+        c.ports().ports.end_runner(run);
+        let _ = c.on_run(run, RunEvent::Ended(None));
+    }
+    for run in [&run0, &run1] {
+        let defers = events(&c).iter().find_map(|w| match w {
+            What::RunEnded { run: r, defers, .. } if r == run => Some(*defers),
+            _ => None,
+        });
+        assert_eq!(defers, Some(None), "null wins over the held ticks");
+    }
+}
+
+/// An `Ended` that no read of the clock let through keeps the person's cause: it is made again
+/// at the next read that answers, before that move's work, so the kill of a later tick, which
+/// the library refuses with `unknown_run`, never rewrites it to `interrupted` (ruling RD-133,
+/// Addition 1 item 8). Once with the Stop itself under a failing clock, once with the Stop
+/// stamped and only the end under a failing clock.
+#[test]
+fn rd133_an_end_refused_in_the_window_keeps_the_persons_cause() {
+    for stop_unstamped in [true, false] {
+        let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+        let run1 = runs[0].clone();
+        if stop_unstamped {
+            clock_fails(&c);
+            assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+        } else {
+            assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+            clock_fails(&c);
+        }
+        c.ports().ports.end_runner(&run1);
+        let _ = c.on_run(&run1, RunEvent::Ended(None));
+        c.tick();
+        clock_answers(&c);
+        after_the_grace(&c);
+        after_the_grace(&c);
+        assert_eq!(
+            ends_of(&c, &run1),
+            vec![RunEnd::Cancelled],
+            "stop_unstamped {stop_unstamped}: the person's cause, once"
+        );
+    }
+}
+
+/// A Switch off under a failing clock, then a new life: the `hold_set` was stored at once at
+/// the last time that this life read the clock, never later than the press, so the agent is
+/// still off, takes no start and its row reads switched off (ruling RD-133, answer (b)).
+#[test]
+fn rd133_a_switch_off_under_a_failing_clock_holds_the_agent_off_across_a_new_life() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run1 = start(&c, 1);
+    let last = T0;
+    let press = T0 + 7_000;
+    c.ports().ports.set_clock(press, DAY);
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(cancels_of(&c, m, &run1), 1, "the cancel in the move");
+    let holds = person_holds(&c, 1);
+    assert_eq!(holds.len(), 1, "stored at once");
+    assert_eq!(holds[0].at, at_of(last), "at the last read");
+    assert!(holds[0].at <= at_of(press), "never later than the press");
+    let life = next_life(&c, |_| {});
+    assert_eq!(row_line(&life.snapshot(), 1), text("line.off.person"));
+    assert_eq!(life.control(&agent(1), Action::RunNow), Err(Cause::Hold));
+    let before = started(&life).len();
+    life.tick();
+    assert_eq!(started(&life).len(), before, "no tick's start");
+}
+
+/// With no read of the clock in this life after the board was made, a Switch off under a
+/// failing clock has nothing to stamp its `hold_set` with: it waits in the state, as in
+/// reading (a), and a new life before the next read does not hold the agent off (a named
+/// limit of ruling RD-133, answer (b)).
+#[test]
+fn rd133_with_no_read_in_this_life_a_switch_off_under_a_failing_clock_waits_as_in_a() {
+    let c = Coordinator::new(owner(&[MANUAL, MANUAL], Limits::PRODUCT), Limits::PRODUCT);
+    c.ports().fail_reads_after.set(Some(1));
+    c.tick();
+    assert_eq!(c.snapshot().rows.len(), 2, "recovery's read made the board");
+    clock_fails(&c);
+    let out = c.control(&agent(1), Action::SwitchOff);
+    clock_answers(&c);
+    assert_eq!(out, Ok(()), "the Switch off goes on");
+    assert_eq!(person_holds(&c, 1).len(), 0, "no read to stamp it with");
+    let life = next_life(&c, |_| {});
+    assert_ne!(row_line(&life.snapshot(), 1), text("line.off.person"));
 }

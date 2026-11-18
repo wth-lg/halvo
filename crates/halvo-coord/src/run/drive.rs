@@ -153,6 +153,9 @@ pub struct Done {
     pub checked: Vec<AgentId>,
     /// The runs and dying trees that the second step of the quit killed.
     pub killed: Vec<RunId>,
+    /// The runs that a stop put on the board with no read of the clock, whose time the
+    /// coordinator takes at the next read that answers (ruling RD-133 1).
+    pub unstamped: Vec<RunId>,
 }
 
 fn refused_with(error: &PortError, name: &str) -> bool {
@@ -169,6 +172,7 @@ fn answer(cause: Option<Cause>) -> Done {
         gone: Vec::new(),
         checked: Vec::new(),
         killed: Vec::new(),
+        unstamped: Vec::new(),
     }
 }
 
@@ -179,6 +183,7 @@ fn of_report(report: Report) -> Done {
         gone: Vec::new(),
         checked: Vec::new(),
         killed: Vec::new(),
+        unstamped: Vec::new(),
     }
 }
 
@@ -402,6 +407,7 @@ where
         gone: gone.map(|g| g.seen).unwrap_or_default(),
         checked: raise_checks(ports, board, limits, None),
         killed: Vec::new(),
+        unstamped: Vec::new(),
     }
 }
 
@@ -674,11 +680,7 @@ fn stop_as<P>(
 where
     P: Runs + Clock + Owner,
 {
-    let now = match ports.now() {
-        Ok(now) => now,
-        Err(PortError::Busy) => return answer(Some(Cause::Busy)),
-        Err(_) => return answer(Some(Cause::NoService)),
-    };
+    let now = ports.now().ok();
     let Some((_, phase)) = live(board, run) else {
         return answer(Some(Cause::State));
     };
@@ -693,11 +695,15 @@ where
     }
     let send = !table.is_stopped(run);
     *table = table.stop(run);
-    stop_run(board, run, now, by.cause().end());
+    stop_run(board, run, now.unwrap_or(0), by.cause().end());
     if send {
         let _ = ports.cancel(run);
     }
     let mut done = answer(None);
     done.report.stopped.push(run.clone());
+    if now.is_none() {
+        done.unstamped.push(run.clone());
+    }
+    done.report.read = now;
     done
 }
