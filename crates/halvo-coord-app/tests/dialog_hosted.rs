@@ -26,13 +26,17 @@
 //! cuts it. Each bound case prints its reading and its time to display, and one line counts them;
 //! a bound case that fails makes the target end with the status 1 after its end line.
 //!
-//! On macOS it then reads the ink of a line with stacked marks (ruling RD-131 item 1): for each
-//! case of `ink_cases` it shows a card of five lines twice, with the middle line plain and with
-//! its marks, draws the message's text field into a bitmap and finds the rows that hold ink. The
-//! line box is the plain line's ink centre plus and less half the line pitch, the pitch read from
-//! the first and the last line; the marked card's ink outside the first and the last line must lie
-//! inside that box. Each case prints its reading and one line counts them; a 64-mark line is the
-//! control and must read outside. These lines never change the status.
+//! On macOS it then reads the ink of a line with stacked marks (rulings RD-131 item 1 and RD-136
+//! P1): for each case of `ink_cases` it shows a card of five lines twice, the middle line plain
+//! and with `chars::MOST_MARKS` marks, between two deciding lines and the empty lines that part
+//! the fields, draws the message's text field into a bitmap and finds the rows that hold ink. A
+//! line's box is its plain ink centre plus and less half the pitch, the pitch read from the first
+//! and the last line; a field's room is its box and half of the empty line on each side. The
+//! marked line's ink must stay inside its room and reach no row of another text line's box; with
+//! the marked line last, the pixels of both controls in a drawing of the whole alert must equal
+//! the plain card's, and the field must not overlap either control. A failed ink case makes the target end with the status 1 after its end line.
+//! A 64-mark line is the control and must reach another line's box; lines of one mark more than
+//! `MOST_MARKS` are probes, printed with their reading and never asserted.
 //!
 //! Last, one bounded try reads the card at the largest text size (ruling RD-90 item 9): it sets
 //! the size with `defaults write` on macOS and with `reg add` of TextScaleFactor on Windows, runs
@@ -52,7 +56,7 @@ mod activation;
 #[path = "hosted/gate.rs"]
 mod gate;
 
-use halvo_coord::items::chars::columns;
+use halvo_coord::items::chars::{columns, MOST_MARKS};
 use halvo_coord::items::{ConfirmAnswer, CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Class, Field, FieldFrom, Limits};
 use halvo_coord_app::Card;
@@ -145,67 +149,99 @@ fn bound_cases() -> Vec<(&'static str, Card)> {
         .collect()
 }
 
-/// The ink cases: a name, the middle line plain and with its marks, and whether the case is the
-/// control, whose ink must leave the line box. Three marks in a row is the most that a native
-/// card holds (`chars::MOST_MARKS`).
-fn ink_cases() -> Vec<(&'static str, String, String, bool)> {
-    let subject = "Subject (From the site): Re";
-    let payee = "Pay to (You gave this): Anne";
-    let with = |base: &str, marks: &str| format!("{base}{marks}");
-    vec![
-        (
-            "above-0301x3",
-            subject.into(),
-            with(subject, &"\u{301}".repeat(3)),
-            false,
-        ),
-        (
-            "below-0316x3",
-            subject.into(),
-            with(subject, &"\u{316}".repeat(3)),
-            false,
-        ),
-        (
-            "enclosing-0489x3",
-            subject.into(),
-            with(subject, &"\u{489}".repeat(3)),
-            false,
-        ),
-        (
-            "deciding-3",
-            payee.into(),
-            with(payee, "\u{301}\u{316}\u{302}"),
-            false,
-        ),
-        (
-            "control-0301x64",
-            subject.into(),
-            with(subject, &"\u{301}".repeat(64)),
-            true,
-        ),
-    ]
+/// What an ink case asserts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Ink {
+    /// The ink stays inside the field's room and reaches no other line's box.
+    Room,
+    /// The control: the ink reaches another line's box.
+    Control,
+    /// One mark more than `MOST_MARKS`: printed, never asserted.
+    Probe,
+    /// The marked line is the last: no control is drawn over.
+    Last,
 }
 
-/// A card of five lines: a plain line, an empty line, `middle`, an empty line and a plain line.
+/// `count` marks taken in turn from `marks`.
+fn stack(marks: &[char], count: usize) -> String {
+    marks.iter().cycle().take(count).collect()
+}
+
+/// The ink cases: a name, the marked line plain and with its marks, and what the case asserts.
+/// The count is `MOST_MARKS`, the most that a native card holds, so that a copy that allows one
+/// more mark reads one more here.
+fn ink_cases() -> Vec<(String, String, String, Ink)> {
+    let most = MOST_MARKS;
+    let subject = "Subject (From the site): Re";
+    let payee = "Pay to (You gave this): Anne";
+    let mut cases = Vec::new();
+    for (name, mark) in [
+        ("above-0301", '\u{301}'),
+        ("below-0316", '\u{316}'),
+        ("enclosing-0489", '\u{489}'),
+    ] {
+        cases.push((
+            format!("{name}x{most}"),
+            subject.to_owned(),
+            format!("{subject}{}", stack(&[mark], most)),
+            Ink::Room,
+        ));
+        cases.push((
+            format!("{name}x{}", most + 1),
+            subject.to_owned(),
+            format!("{subject}{}", stack(&[mark], most + 1)),
+            Ink::Probe,
+        ));
+    }
+    cases.push((
+        format!("deciding-{most}"),
+        payee.to_owned(),
+        format!(
+            "{payee}{}",
+            stack(&['\u{301}', '\u{316}', '\u{302}', '\u{303}'], most)
+        ),
+        Ink::Room,
+    ));
+    for (name, mark) in [
+        ("last-below-0316", '\u{316}'),
+        ("last-enclosing-0489", '\u{489}'),
+    ] {
+        cases.push((
+            format!("{name}x{most}"),
+            subject.to_owned(),
+            format!("{subject}{}", stack(&[mark], most)),
+            Ink::Last,
+        ));
+    }
+    cases.push((
+        "control-0301x64".to_owned(),
+        subject.to_owned(),
+        format!("{subject}{}", stack(&['\u{301}'], 64)),
+        Ink::Control,
+    ));
+    cases
+}
+
+/// A card of five lines, a deciding line, an empty line, `middle`, an empty line and a deciding
+/// line, or, for `last`, of three, a deciding line, an empty line and `middle`.
 #[cfg(target_os = "macos")]
-fn ink_card(middle: &str) -> Card {
+fn ink_card(middle: &str, last: bool) -> Card {
     let field = |label: &str| Field {
         label: label.into(),
         value: vec![],
         from: FieldFrom::Site,
         from_text: String::new(),
     };
-    Card::new(
-        &[Class::Payment],
-        &[
-            field("Above: Halvo"),
-            field(""),
-            field(middle),
-            field(""),
-            field("Below: Halvo"),
-        ],
-    )
-    .expect("the words of payment")
+    let mut lines = vec![
+        field("Pay to (You gave this): City Power"),
+        field(""),
+        field(middle),
+    ];
+    if !last {
+        lines.push(field(""));
+        lines.push(field("Amount (From the site): 42.10 USD"));
+    }
+    Card::new(&[Class::Payment], &lines).expect("the words of payment")
 }
 
 /// The runs of rows that hold ink, as their first row and the row after their last.
@@ -229,10 +265,21 @@ fn ink_runs(rows: &[bool]) -> Vec<(usize, usize)> {
     runs
 }
 
-/// The line box of the plain card's middle line and the rows of the marked card's ink outside
-/// its first and last line: (box top, box bottom, ink top, ink bottom, inside).
+/// The reading of an ink case of five lines.
 #[cfg(target_os = "macos")]
-fn ink_reading(plain: &[bool], marked: &[bool]) -> Result<(f64, f64, usize, usize, bool), String> {
+struct Reading5 {
+    pitch: f64,
+    room: (f64, f64),
+    ink: (usize, usize),
+    in_room: bool,
+    reaches: bool,
+}
+
+/// The middle line's room in the plain card, and the marked card's ink outside the first and the
+/// last line's own ink: whether it stays in the room and whether it reaches a row of the first or
+/// the last line's box.
+#[cfg(target_os = "macos")]
+fn ink_reading(plain: &[bool], marked: &[bool]) -> Result<Reading5, String> {
     let runs = ink_runs(plain);
     if runs.len() != 3 {
         return Err(format!(
@@ -241,26 +288,38 @@ fn ink_reading(plain: &[bool], marked: &[bool]) -> Result<(f64, f64, usize, usiz
         ));
     }
     let pitch = (runs[2].0 - runs[0].0) as f64 / 4.0;
-    let centre = (runs[1].0 + runs[1].1) as f64 / 2.0;
-    let (top, bottom) = (centre - pitch / 2.0, centre + pitch / 2.0);
-    let others =
-        |y: usize| (runs[0].0..runs[0].1).contains(&y) || (runs[2].0..runs[2].1).contains(&y);
+    let centre = |run: (usize, usize)| (run.0 + run.1) as f64 / 2.0;
+    let boxed = |run: (usize, usize)| (centre(run) - pitch / 2.0, centre(run) + pitch / 2.0);
+    let middle = boxed(runs[1]);
+    let room = (middle.0 - pitch / 2.0, middle.1 + pitch / 2.0);
+    let own = |y: usize| (runs[0].0..runs[0].1).contains(&y) || (runs[2].0..runs[2].1).contains(&y);
     let rows: Vec<usize> = (0..marked.len())
-        .filter(|y| marked[*y] && !others(*y))
+        .filter(|y| marked[*y] && !own(*y))
         .collect();
     let (Some(&first), Some(&last)) = (rows.first(), rows.last()) else {
         return Err("no ink of the middle line".to_owned());
     };
-    let inside = first as f64 >= top && (last + 1) as f64 <= bottom;
-    Ok((top, bottom, first, last + 1, inside))
+    let within = |y: usize, b: (f64, f64)| y as f64 + 1.0 > b.0 && (y as f64) < b.1;
+    let reaches = rows
+        .iter()
+        .any(|y| within(*y, boxed(runs[0])) || within(*y, boxed(runs[2])));
+    let in_room = first as f64 >= room.0 && (last + 1) as f64 <= room.1;
+    Ok(Reading5 {
+        pitch,
+        room,
+        ink: (first, last + 1),
+        in_room,
+        reaches,
+    })
 }
 
-/// Prints the line that counts the ink cases.
+/// Prints the line that counts the ink cases and returns how many failed.
 #[cfg(target_os = "macos")]
-fn ink_end(inside: usize, cases: usize, control_outside: bool) {
+fn ink_end(failed: usize, ran: usize, probes_out: usize, probes: usize) -> usize {
     println!(
-        "dialog_hosted ink: cases inside their line box {inside} of {cases}, control outside {control_outside}"
+        "dialog_hosted ink: cases ran {ran}, failed {failed}; probes of one mark more outside their room {probes_out} of {probes}"
     );
+    failed
 }
 
 /// The one bounded try of RD-90 item 9: sets the largest text size, runs this target again with
@@ -423,7 +482,7 @@ fn main() {
 mod cases {
     use super::{
         arm, bound_cases, bounds_end, end, ink_card, ink_cases, ink_end, ink_reading, print,
-        text_size_try, word, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL, TEXT_SIZE,
+        text_size_try, word, Ink, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL, TEXT_SIZE,
     };
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
@@ -467,7 +526,69 @@ mod cases {
         screen: NSRect,
         buttons: Vec<NSRect>,
         field: Option<(NSRect, NSRect, NSSize)>,
+        field_screen: Option<NSRect>,
         ink: Vec<bool>,
+        controls: Vec<Vec<u8>>,
+    }
+
+    /// The pixels of each control's rectangle in a drawing of the alert's whole content view, so
+    /// that two drawings show whether anything drew over a control.
+    ///
+    /// # Safety
+    /// `window` is the modal window, and the caller runs on the main thread.
+    unsafe fn control_pixels(window: *mut AnyObject) -> Vec<Vec<u8>> {
+        let content: *mut AnyObject = msg_send![window, contentView];
+        if content.is_null() {
+            return Vec::new();
+        }
+        let bounds: NSRect = msg_send![content, bounds];
+        let rep: *mut AnyObject = msg_send![content, bitmapImageRepForCachingDisplayInRect: bounds];
+        if rep.is_null() {
+            return Vec::new();
+        }
+        let _: () = msg_send![content, cacheDisplayInRect: bounds, toBitmapImageRep: rep];
+        let wide: isize = msg_send![rep, pixelsWide];
+        let high: isize = msg_send![rep, pixelsHigh];
+        let row: isize = msg_send![rep, bytesPerRow];
+        let per: isize = msg_send![rep, samplesPerPixel];
+        let data: *const u8 = msg_send![rep, bitmapData];
+        let flipped: bool = msg_send![content, isFlipped];
+        if data.is_null() || wide < 1 || high < 1 || bounds.size.width <= 0.0 {
+            return Vec::new();
+        }
+        let scale = wide as f64 / bounds.size.width;
+        let (wide, high, row, per) = (wide as usize, high as usize, row as usize, per as usize);
+        let bytes = std::slice::from_raw_parts(data, row * high);
+        let mut found = Vec::new();
+        let mut buttons = Vec::new();
+        let mut reading = Reading::default();
+        walk(content, 0, &mut reading, &mut found);
+        for view in found {
+            let frame: NSRect = msg_send![view, bounds];
+            let r: NSRect = msg_send![view, convertRect: frame, toView: content];
+            let top = if flipped {
+                r.origin.y
+            } else {
+                bounds.size.height - r.origin.y - r.size.height
+            };
+            let x0 = (r.origin.x * scale).floor().max(0.0) as usize;
+            let y0 = (top * scale).floor().max(0.0) as usize;
+            let x1 = (((r.origin.x + r.size.width) * scale).ceil() as usize).min(wide);
+            let y1 = (((top + r.size.height) * scale).ceil() as usize).min(high);
+            let mut pixels = Vec::new();
+            for y in y0..y1 {
+                pixels.extend_from_slice(&bytes[y * row + x0 * per..y * row + x1 * per]);
+            }
+            buttons.push(pixels);
+        }
+        buttons
+    }
+
+    fn overlap(a: NSRect, b: NSRect) -> bool {
+        a.origin.x < b.origin.x + b.size.width
+            && b.origin.x < a.origin.x + a.size.width
+            && a.origin.y < b.origin.y + b.size.height
+            && b.origin.y < a.origin.y + a.size.height
     }
 
     /// The rows of a bitmap of 8-bit samples that hold a pixel other than its top left pixel,
@@ -576,6 +697,7 @@ mod cases {
                 );
                 let need: NSSize = msg_send![cell, cellSizeForBounds: tall];
                 g.field = Some((bounds, visible, need));
+                g.field_screen = Some(on_screen(window, view));
                 let rep: *mut AnyObject =
                     msg_send![view, bitmapImageRepForCachingDisplayInRect: bounds];
                 if !rep.is_null() {
@@ -643,10 +765,13 @@ mod cases {
                 screen: frame,
                 buttons: Vec::new(),
                 field: None,
+                field_screen: None,
                 ink: Vec::new(),
+                controls: Vec::new(),
             };
             let content: *mut AnyObject = msg_send![window, contentView];
             gather(window, content, 0, &message, &mut g);
+            g.controls = control_pixels(window);
             *MEASURED.lock().unwrap_or_else(PoisonError::into_inner) = Some(g);
             let _: () = msg_send![app, abortModal];
         }
@@ -1262,33 +1387,102 @@ mod cases {
             }
             let bounds_failed = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
             let mut generation = CASES.len() + bounds.len();
-            let (mut inside, mut cases, mut control_outside) = (0, 0, false);
-            for (name, plain, marked, control) in ink_cases() {
+            let (mut ink_failed, mut ran, mut probes, mut probes_out) = (0, 0, 0, 0);
+            for (name, plain, marked, ink) in ink_cases() {
                 generation += 2;
-                let (_, plain_read, _) = read_once(&dialog, &ink_card(&plain), generation - 1);
-                let (_, marked_read, _) = read_once(&dialog, &ink_card(&marked), generation);
-                let rows = |g: Option<Geometry>| g.map(|g| g.ink).unwrap_or_default();
-                match ink_reading(&rows(plain_read), &rows(marked_read)) {
-                    Ok((top, bottom, first, last, is_inside)) => {
-                        println!(
-                            "dialog_hosted ink reading {name}: box={top:.1}..{bottom:.1} ink={first}..{last} inside={is_inside}"
-                        );
-                        if control {
-                            control_outside = !is_inside;
-                        } else {
-                            cases += 1;
-                            inside += usize::from(is_inside);
+                let last = ink == Ink::Last;
+                let (_, plain_read, _) =
+                    read_once(&dialog, &ink_card(&plain, last), generation - 1);
+                let (_, marked_read, _) = read_once(&dialog, &ink_card(&marked, last), generation);
+                let mut failures = Vec::new();
+                if last {
+                    match (plain_read, marked_read) {
+                        (Some(p), Some(g)) => {
+                            let bottom = g.ink.iter().rposition(|i| *i);
+                            let height = g.ink.len();
+                            let touched = g
+                                .field_screen
+                                .is_none_or(|f| g.buttons.iter().any(|b| overlap(f, *b)));
+                            let differing: usize = if p.controls.len() == 2
+                                && g.controls.len() == 2
+                                && p.controls
+                                    .iter()
+                                    .zip(&g.controls)
+                                    .all(|(a, b)| a.len() == b.len())
+                            {
+                                p.controls
+                                    .iter()
+                                    .zip(&g.controls)
+                                    .map(|(a, b)| {
+                                        a.iter()
+                                            .zip(b)
+                                            .filter(|(x, y)| x.abs_diff(**y) > 48)
+                                            .count()
+                                    })
+                                    .sum()
+                            } else {
+                                usize::MAX
+                            };
+                            let drawn_over = differing != 0;
+                            println!(
+                                "dialog_hosted ink reading {name}: rows={height} last_ink={bottom:?} field_overlaps_a_control={touched} controls_read={} control_bytes_differing={differing}",
+                                g.controls.len()
+                            );
+                            if drawn_over {
+                                failures.push(
+                                    "a control's pixels differ from the plain card's".to_owned(),
+                                );
+                            }
+                            if touched {
+                                failures.push("the field overlaps a control".to_owned());
+                            }
                         }
+                        _ => failures.push("the alert was never read".to_owned()),
                     }
-                    Err(why) => {
-                        println!("dialog_hosted ink reading {name}: no reading: {why}");
-                        cases += usize::from(!control);
+                } else {
+                    let rows = |g: Option<Geometry>| g.map(|g| g.ink).unwrap_or_default();
+                    match ink_reading(&rows(plain_read), &rows(marked_read)) {
+                        Ok(r) => {
+                            println!(
+                                "dialog_hosted ink reading {name}: pitch={:.1} room={:.1}..{:.1} ink={}..{} in_room={} reaches_another_line={}",
+                                r.pitch, r.room.0, r.room.1, r.ink.0, r.ink.1, r.in_room, r.reaches
+                            );
+                            match ink {
+                                Ink::Room if !r.in_room => {
+                                    failures.push("the ink leaves its room".to_owned())
+                                }
+                                Ink::Room if r.reaches => {
+                                    failures.push("the ink reaches another line".to_owned())
+                                }
+                                Ink::Control if !r.reaches => failures
+                                    .push("the control's ink reaches no other line".to_owned()),
+                                Ink::Probe => {
+                                    probes += 1;
+                                    probes_out += usize::from(!r.in_room || r.reaches);
+                                }
+                                _ => {}
+                            }
+                        }
+                        Err(why) => failures.push(format!("no reading: {why}")),
                     }
                 }
+                if ink == Ink::Probe {
+                    continue;
+                }
+                ran += 1;
+                if failures.is_empty() {
+                    println!("dialog_hosted ink case macos {name} PASS");
+                } else {
+                    println!(
+                        "dialog_hosted ink case macos {name} FAIL: {}",
+                        failures.join("; ")
+                    );
+                    ink_failed += 1;
+                }
             }
-            ink_end(inside, cases, control_outside);
+            let ink_failed = ink_end(ink_failed, ran, probes_out, probes);
             text_size_try();
-            end(&verdicts, CASES.len(), bounds_failed);
+            end(&verdicts, CASES.len(), bounds_failed + ink_failed);
         });
         app.run(|_, _| {});
     }
