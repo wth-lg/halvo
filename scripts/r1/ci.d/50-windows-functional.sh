@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 # lane: alone
 set -u
 group=${WF_GROUP:-native}
@@ -616,8 +616,10 @@ measure() {
     cp "$log.run" "$log" || fail "the log of $test cannot be copied for its one read"
     rule_out=$(wpr_check_log "$test" "$log" "$work/vocabulary" 2>&1)
     rule_code=$?
+    time_rule=
     if [ "$rule_code" -eq 0 ]; then
       judge "$test" "$code" "$log" "$want_id"
+      time_rule=$(tr -d '\r' <"$log" | sed -E -n 's/^TF .* (rounds_decided_by_the_time_rule=[0-9]+)( .*)?$/\1/p' | tail -n 1)
     else
       rule_lines=$(printf '%s\n' "$rule_out" | grep -E "$prints_rule_line")
       [ -z "$rule_lines" ] || printf '%s\n' "$rule_lines"
@@ -635,7 +637,7 @@ measure() {
       *) failed=$((failed + 1)) ;;
     esac
     [ -z "$cause" ] || printf '%s: %s: %s\n' "$name" "$test" "$cause"
-    line="WF $test result=$verdict${id:+ id=$id}"
+    line="WF $test result=$verdict${id:+ id=$id}${time_rule:+ $time_rule}"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done <"$work/names"
