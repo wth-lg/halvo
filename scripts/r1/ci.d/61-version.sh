@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every workspace package reports one version in cargo metadata, no workflow and no ci.d script compares --version output with a literal on one line (a compare in either order, or a case over that output whose literal pattern stands on the same line; a literal held in a variable is not seen), on a tag ref the tag is v<that version>, and each binary given to --check exits 0 and prints that version.
+# rule: Every workspace package reports one version in cargo metadata, no workflow and no ci.d script compares --version output with a literal on one line (a compare in either order, or a case over that output whose literal pattern stands on the same line; a literal held in a variable is not seen), on a tag ref the tag is v<that version>, each binary given to --check exits 0 and prints that version, and every tracked Cargo.toml and package.json is read for that version (the root workspace through cargo metadata, the root package.json holding that version or none) or named in this script with the reason that it is left.
 set -u
 name=61-version
 
@@ -58,6 +58,159 @@ binary_defect() {
   [ "$printed" = "$3" ] || { printf '%s --version does not print the derived version\n' "$2"; return 1; }
 }
 
+left_manifests() {
+  cat <<'EOF'
+account/Cargo.toml account
+account/crates/halvo-account/Cargo.toml account
+account/crates/halvo-secrets/Cargo.toml account
+account/crates/halvo-test-dir/Cargo.toml account
+account/crates/halvo-wire/Cargo.toml account
+account/stub/package.json account
+backend/package.json backend
+backend/spikes/s3/crate/Cargo.toml backend
+backend/spikes/s4/package.json backend
+backend/test/contract/rust/Cargo.toml backend
+backend/gate/fixtures/license-lists/lock-key-with-trailing-space/package.json fixture
+backend/gate/fixtures/licenses/bad-bundle-module/node_modules/.pnpm/plain@1.0.0/node_modules/plain/package.json fixture
+backend/gate/fixtures/licenses/bad-readers/linked/absent/package.json fixture
+backend/gate/fixtures/licenses/bad-readers/node_modules/.pnpm/@scope+both@2.1.0/node_modules/@scope/both/package.json fixture
+backend/gate/fixtures/licenses/bad-readers/node_modules/.pnpm/native@1.0.0/node_modules/native/package.json fixture
+backend/gate/fixtures/licenses/bad-readers/node_modules/.pnpm/plain@1.0.0/node_modules/plain/package.json fixture
+backend/gate/fixtures/licenses/bad-readers/node_modules/.pnpm/unstated@1.0.0/node_modules/unstated/package.json fixture
+tools/fixture-server/package.json tool
+tools/r2-probes/Cargo.toml tool
+tools/r2-probes/input/package.json tool
+tools/r3-trials/drive/Cargo.toml tool
+tools/r3-trials/model/Cargo.toml tool
+tools/r3-trials/profile/Cargo.toml tool
+tools/r3-trials/sheet/Cargo.toml tool
+tools/r3-trials/web/Cargo.toml tool
+tools/r4-page/package.json tool
+tools/r4-trials/app/Cargo.toml tool
+tools/r4-trials/driver/Cargo.toml tool
+tools/r4-trials/driver/wdio/package.json tool
+tools/r5-trials/Cargo.toml tool
+tools/r5-trials/drift/Cargo.toml tool
+tools/r5-trials/routine/Cargo.toml tool
+tools/r5-trials/stat/Cargo.toml tool
+EOF
+}
+
+left_reason() {
+  case $1 in
+    account) printf 'the account workspace, which the root workspace excludes and no package of the app depends on\n' ;;
+    backend) printf 'the backend, its spikes and its contract tests, which no package of the app depends on\n' ;;
+    fixture) printf 'fixtures of the backend gate, whose versions are inputs of its tests\n' ;;
+    tool) printf 'trial and probe tools of the research runs, which no package of the app depends on\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+member_manifests() {
+  root=$(tr -d '\n' <"$1" | grep -o '"workspace_root":"[^"]*"' | sed 's/^"workspace_root":"//; s/"$//')
+  [ -n "$root" ] || { printf 'cargo metadata names no workspace root\n'; return 1; }
+  paths=$(tr -d '\n' <"$1" | grep -o '"manifest_path":"[^"]*"' | sed 's/^"manifest_path":"//; s/"$//')
+  member_total=$(tr -d '\n' <"$1" | sed -n 's/.*"workspace_members":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | grep -c '"')
+  path_count=$(printf '%s\n' "$paths" | grep -c .)
+  [ "$path_count" -eq "$member_total" ] || {
+    printf 'cargo metadata lists %s workspace members and this script reads %s manifest paths\n' "$member_total" "$path_count"
+    return 1
+  }
+  relative=
+  while IFS= read -r path; do
+    below=${path#"$root"}
+    case $below in
+      "$path"|[!/\\]*) printf 'cargo metadata names a member manifest outside the workspace root\n'; return 1 ;;
+    esac
+    below=$(printf '%s\n' "$below" | sed 's|\\\\|/|g; s|^/||')
+    relative="$relative$below
+"
+  done <<EOF
+$paths
+EOF
+  printf '%s' "$relative"
+}
+
+package_version() {
+  awk '{ text = text $0 "\n" }
+    END {
+      n = length(text); depth = 0; found = 0; value = ""; i = 1
+      while (i <= n) {
+        c = substr(text, i, 1)
+        if (c == "\"") {
+          j = i + 1; word = ""
+          while (j <= n && substr(text, j, 1) != "\"") {
+            if (substr(text, j, 1) == "\\") { word = word substr(text, j, 2); j += 2 } else { word = word substr(text, j, 1); j++ }
+          }
+          if (j > n) { print "unreadable"; exit }
+          k = j + 1
+          while (k <= n && substr(text, k, 1) ~ /[ \t\r\n]/) k++
+          if (depth == 1 && word == "version" && substr(text, k, 1) == ":") {
+            k++
+            while (k <= n && substr(text, k, 1) ~ /[ \t\r\n]/) k++
+            if (substr(text, k, 1) != "\"") { print "unreadable"; exit }
+            j = k + 1; value = ""
+            while (j <= n && substr(text, j, 1) != "\"") {
+              if (substr(text, j, 1) == "\\") { value = value substr(text, j, 2); j += 2 } else { value = value substr(text, j, 1); j++ }
+            }
+            if (j > n) { print "unreadable"; exit }
+            found++
+          }
+          i = j + 1
+          continue
+        }
+        if (c == "{" || c == "[") depth++
+        else if (c == "}" || c == "]") depth--
+        i++
+      }
+      if (found > 1) print "unreadable"
+      else if (found == 1) print "value " value
+      else print "none"
+    }' "$1"
+}
+
+manifest_defect() {
+  problems=
+  while IFS=' ' read -r path reason; do
+    [ -n "$path$reason" ] || continue
+    left_reason "$reason" >/dev/null || problems="$problems; $path is named with the reason '$reason', which this script does not give"
+  done <"$3"
+  listed=$(awk '
+    FILENAME == ARGV[1] { if ($0 != "") member[$0] = 1; next }
+    FILENAME == ARGV[2] {
+      if ($1 == "") next
+      if ($1 in named) out = out "; " $1 " is named twice"
+      named[$1] = 1; order[++count] = $1; next
+    }
+    $0 != "" { tracked[$0] = 1; seen[++tcount] = $0 }
+    END {
+      for (i = 1; i <= count; i++) {
+        n = order[i]
+        if (!(n in tracked)) out = out "; " n " is named and the repository does not track it"
+        else if ((n in member) || n == "Cargo.toml" || n == "package.json") out = out "; " n " is named and this check reads its version"
+      }
+      for (i = 1; i <= tcount; i++) {
+        t = seen[i]
+        if (t == "Cargo.toml" || t == "package.json" || (t in member) || (t in named)) continue
+        out = out "; " t " is neither read by this check nor named with a reason"
+      }
+      printf "%s", out
+    }' "$2" "$3" "$1")
+  problems="$problems$listed"
+  if grep -q -x 'package.json' "$1"; then
+    read_value=$(package_version "$4")
+    case $read_value in
+      none) ;;
+      "value $5") ;;
+      "value "*) problems="$problems; package.json holds the version ${read_value#value } and the derived version is $5" ;;
+      *) problems="$problems; package.json holds a version that this check cannot read" ;;
+    esac
+  fi
+  [ -z "$problems" ] && return 0
+  printf '%s\n' "${problems#; }"
+  return 1
+}
+
 derive() {
   root=${CI_D_REPO:-}
   [ -n "$root" ] || root=$(git rev-parse --show-toplevel) || exit 2
@@ -84,9 +237,24 @@ measure() {
   places=$(printf '%s\n' "$compares" | tr '\n' ' ')
   [ -z "$compares" ] || fail "--version output compared with a literal at $places"
   found=$(tag_defect "$version") || fail "$found"
+  member_paths=$(member_manifests "$work/metadata.json") || fail "$member_paths"
+  printf '%s\n' "$member_paths" >"$work/members"
+  git ls-files -z >"$work/tracked.z" || fail "git ls-files failed"
+  LC_ALL=C tr '\0' '\n' <"$work/tracked.z" | grep -E '(^|/)(Cargo\.toml|package\.json)$' >"$work/tracked"
+  left_manifests >"$work/left"
+  found=$(manifest_defect "$work/tracked" "$work/members" "$work/left" package.json "$version") || fail "$found"
   packages=$(tr -d '\n' <"$work/metadata.json" | grep -o -E '\{"name":"[^"]*","version":"[^"]*","id":"' | grep -c .)
   file_count=$(printf '%s\n' "$files" | grep -c .)
   printf 'workspace packages: %s, versions: 1, workflow and ci.d files read: %s\n' "$packages" "$file_count"
+  tracked_count=$(grep -c . "$work/tracked")
+  left_count=$(grep -c . "$work/left")
+  printf 'manifests tracked: %s, read for the version: %s, left by name: %s\n' "$tracked_count" "$((tracked_count - left_count))" "$left_count"
+  reasons=$(sed 's/^.* //' "$work/left" | sort -u)
+  for reason in $reasons; do
+    count=$(grep -c " $reason\$" "$work/left")
+    text=$(left_reason "$reason")
+    printf 'left by name, %s: %s\n' "$count" "$text"
+  done
   printf 'PASS %s\n' "$name"
 }
 
@@ -105,16 +273,16 @@ metadata_fixture() {
   printf '{"packages":['
   sep=
   for pair in "$@"; do
-    printf '%s{"name":"%s","version":"%s","id":"path+file:///w/%s#%s","dependencies":[{"name":"serde","source":"registry","req":"^1"}]}' "$sep" "${pair%=*}" "${pair#*=}" "${pair%=*}" "${pair#*=}"
+    printf '%s{"name":"%s","version":"%s","id":"path+file:///w/crates/%s#%s","dependencies":[{"name":"serde","source":"registry","req":"^1","path":"/w/x"}],"manifest_path":"/w/crates/%s/Cargo.toml"}' "$sep" "${pair%=*}" "${pair#*=}" "${pair%=*}" "${pair#*=}" "${pair%=*}"
     sep=,
   done
   printf '],"workspace_members":['
   sep=
   for pair in "$@"; do
-    printf '%s"path+file:///w/%s#%s"' "$sep" "${pair%=*}" "${pair#*=}"
+    printf '%s"path+file:///w/crates/%s#%s"' "$sep" "${pair%=*}" "${pair#*=}"
     sep=,
   done
-  printf ']}\n'
+  printf '],"workspace_root":"/w"}\n'
 }
 
 self_test() {
@@ -208,6 +376,91 @@ self_test() {
   tag_case tag-without-the-v FAIL tag 1.2.3
   tag_case branch-named-like-a-tag PASS branch v9.9.9
   tag_case no-ref-type PASS '' ''
+
+  members_case() {
+    case_name=$1 want=$2 expected=$3
+    got=FAIL
+    found=$(member_manifests "$work/$case_name.json") && [ "$found" = "$expected" ] && got=PASS
+    verdict "$case_name" "$want" "$got"
+  }
+  metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 >"$work/members-of-unix-metadata.json"
+  members_case members-of-unix-metadata PASS "crates/halvo/Cargo.toml
+crates/halvo-capture/Cargo.toml"
+  metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 | sed -e 's|"/w|"D:\\\\a\\\\w|g' -e 's|/crates/\([^/"]*\)/Cargo.toml|\\\\crates\\\\\1\\\\Cargo.toml|g' >"$work/members-of-windows-metadata.json"
+  members_case members-of-windows-metadata PASS "crates/halvo/Cargo.toml
+crates/halvo-capture/Cargo.toml"
+  metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 | sed 's|"manifest_path":"/w/crates/halvo-capture|"manifest_path":"/v/crates/halvo-capture|' >"$work/member-outside-the-workspace-root.json"
+  members_case member-outside-the-workspace-root FAIL ''
+  metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 | sed 's|,"manifest_path":"/w/crates/halvo-capture/Cargo.toml"||' >"$work/member-without-a-manifest-path.json"
+  members_case member-without-a-manifest-path FAIL ''
+  metadata_fixture halvo=1.2.3 | sed 's|,"workspace_root":"/w"||' >"$work/metadata-without-a-workspace-root.json"
+  members_case metadata-without-a-workspace-root FAIL ''
+
+  manifest_fixture() {
+    printf '%s\n' Cargo.toml src-tauri/Cargo.toml crates/a/Cargo.toml package.json tools/t/Cargo.toml backend/gate/fixtures/p/package.json >"$work/tracked"
+    printf '%s\n' src-tauri/Cargo.toml crates/a/Cargo.toml >"$work/members"
+    printf '%s\n' 'tools/t/Cargo.toml tool' 'backend/gate/fixtures/p/package.json fixture' >"$work/left"
+    printf '{\n  "name": "halvo",\n  "private": true,\n  "devDependencies": { "x": "1.0.0" }\n}\n' >"$work/package.json"
+  }
+  manifest_case() {
+    case_name=$1 want=$2
+    got=FAIL
+    manifest_defect "$work/tracked" "$work/members" "$work/left" "$work/package.json" 1.2.3 >/dev/null && got=PASS
+    verdict "$case_name" "$want" "$got"
+    manifest_fixture
+  }
+  manifest_fixture
+  manifest_case every-manifest-read-or-named PASS
+  printf 'tools/new/Cargo.toml\n' >>"$work/tracked"
+  manifest_case manifest-outside-the-workspace-at-another-version-not-named FAIL
+  printf 'tools/new/package.json\n' >>"$work/tracked"
+  manifest_case package-json-outside-the-workspace-not-named FAIL
+  printf '{"name":"halvo","version":"9.9.9"}\n' >"$work/package.json"
+  manifest_case package-json-at-another-version FAIL
+  printf '{"name":"halvo","version":"1.2.3"}\n' >"$work/package.json"
+  manifest_case package-json-at-the-version PASS
+  printf '{"name":"halvo","version":"v1.2.3"}\n' >"$work/package.json"
+  manifest_case package-json-at-the-version-with-a-v FAIL
+  printf '{"name":"halvo",\r\n "version" : "1.2.3"\r\n}\r\n' >"$work/package.json"
+  manifest_case package-json-at-the-version-with-crlf PASS
+  printf '{"name":"halvo","engines":{"version":"9.9.9"},"files":["version"]}\n' >"$work/package.json"
+  manifest_case package-json-with-a-nested-version-alone PASS
+  printf '{"name":"halvo","version":"1.2.3","version":"9.9.9"}\n' >"$work/package.json"
+  manifest_case package-json-with-two-versions FAIL
+  printf '{"name":"halvo","version":123}\n' >"$work/package.json"
+  manifest_case package-json-with-a-version-that-is-no-string FAIL
+  printf '{"name":"halvo","version":"1.2.3\n' >"$work/package.json"
+  manifest_case package-json-cut-inside-the-version FAIL
+  printf '{"name":"ha\\"lvo","x":"\\\\","version":"9.9.9"}\n' >"$work/package.json"
+  manifest_case package-json-at-another-version-after-escapes FAIL
+  printf 'package.json\n' >"$work/tracked"
+  : >"$work/left"
+  printf '{"name":"halvo","version":"9.9.9"}\n' >"$work/package.json"
+  manifest_case package-json-at-another-version-alone FAIL
+  grep -v -x package.json "$work/tracked" >"$work/tracked.next"
+  mv "$work/tracked.next" "$work/tracked"
+  printf '{"name":"halvo","version":"9.9.9"}\n' >"$work/package.json"
+  manifest_case package-json-not-tracked PASS
+  printf 'tools/gone/Cargo.toml tool\n' >>"$work/left"
+  manifest_case named-manifest-not-tracked FAIL
+  printf 'crates/a/Cargo.toml tool\n' >>"$work/left"
+  manifest_case named-manifest-that-is-a-member FAIL
+  printf 'Cargo.toml tool\n' >>"$work/left"
+  manifest_case named-root-manifest FAIL
+  printf 'package.json tool\n' >>"$work/left"
+  manifest_case named-package-json FAIL
+  printf 'tools/t/Cargo.toml tool\n' >>"$work/left"
+  manifest_case named-manifest-twice FAIL
+  sed 's/ tool$/ other/' "$work/left" >"$work/left.next"
+  mv "$work/left.next" "$work/left"
+  manifest_case named-manifest-with-a-reason-that-the-script-does-not-give FAIL
+  sed 's/ tool$//' "$work/left" >"$work/left.next"
+  mv "$work/left.next" "$work/left"
+  manifest_case named-manifest-with-no-reason FAIL
+  left_manifests >"$work/left"
+  sed 's/ .*//' "$work/left" >"$work/tracked"
+  printf '%s\n' Cargo.toml package.json src-tauri/Cargo.toml crates/a/Cargo.toml >>"$work/tracked"
+  manifest_case the-list-of-this-script PASS
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
