@@ -6,8 +6,8 @@ use halvo_schema::executable::body::{
 };
 use halvo_schema::executable::names::{AgentState, LogEvent, Mode};
 use halvo_schema::executable::text::V1;
-use halvo_schema::executable::{AgentLog, CoordinatorCall, CoordinatorReply, Runtime};
-use halvo_schema::{Category, ErrorName, TypedRecord, Workflow, WorkflowState};
+use halvo_schema::executable::{AgentLog, AgentStart, CoordinatorCall, CoordinatorReply, Runtime};
+use halvo_schema::{Category, ErrorName, Workflow, WorkflowState};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
@@ -21,9 +21,11 @@ use crate::{bind, bindings, checkpoint, day, end};
 /// that fits:
 ///
 /// - `create_agent`: `no_workflow`; `state` for a workflow that is `proposed` or `dismissed`; `binding` when the
-///   workflow's agent is another agent or the agent's configuration is stored for another workflow. It stores the
-///   preset of the workflow's category as revision 1 unless the agent's configuration is stored, makes the state
-///   call (`approved`, the agent) unless the workflow's agent is this agent, and answers `{"rev":1}`.
+///   workflow's agent is another agent or the agent's configuration is stored for another workflow. In one commit
+///   it stores the preset of the workflow's category as revision 1 unless the agent's configuration is stored, and
+///   the agent's start row (`agent_start`) with the request's instant and day unless one of the agent is stored; a
+///   later configuration never moves that row (CP-143 (2)). Then it makes the state call (`approved`, the agent)
+///   unless the workflow's agent is this agent, and answers `{"rev":1}`.
 /// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
 ///   configuration of the agent is stored; `playbook` for `active` while
 ///   the agent's runtime is `web` and no playbook step of the agent is stored; then the state call and its own
@@ -65,7 +67,7 @@ pub fn coordinator(
     body: &[u8],
 ) -> Result<CoordinatorReply, ErrorName> {
     match CoordinatorCall::parse(body).map_err(refused)? {
-        CoordinatorCall::CreateAgent(b) => create_agent(host, &b),
+        CoordinatorCall::CreateAgent(b) => create_agent(host, now, &b),
         CoordinatorCall::SetBindings(b) => bindings::set_bindings(host, &b),
         CoordinatorCall::SetState(b) => set_state(host, &b),
         CoordinatorCall::StartRun(b) => start_run(host, now, &b),
@@ -76,7 +78,11 @@ pub fn coordinator(
     }
 }
 
-fn create_agent(host: &mut dyn Host, b: &CreateAgent) -> Result<CoordinatorReply, ErrorName> {
+fn create_agent(
+    host: &mut dyn Host,
+    now: Now,
+    b: &CreateAgent,
+) -> Result<CoordinatorReply, ErrorName> {
     let w = match bind::stored(&*host, &b.workflow)? {
         Workflow::Full(w) if w.state != WorkflowState::Proposed => w,
         _ => return Err(ErrorName::State),
@@ -89,6 +95,7 @@ fn create_agent(host: &mut dyn Host, b: &CreateAgent) -> Result<CoordinatorReply
     if mine.clone().any(|c| c.workflow != b.workflow) {
         return Err(Own::Binding.into());
     }
+    let mut records = Vec::new();
     if mine.peek().is_none() {
         let config = preset(
             Category::from(w.category),
@@ -97,11 +104,20 @@ fn create_agent(host: &mut dyn Host, b: &CreateAgent) -> Result<CoordinatorReply
         )
         .ok_or(Own::Config)?;
         validate(&config).map_err(|_| Own::Config)?;
-        let json = config.to_json().map_err(refused)?;
-        host.commit(vec![TypedRecord {
-            kind: rows::AGENT_CONFIG,
-            json,
-        }])?;
+        records.push(record(rows::AGENT_CONFIG, config.to_json())?);
+    }
+    if rows::start_of(host.rows(), &b.agent)?.is_none() {
+        let start = AgentStart {
+            v: V1,
+            workflow: b.workflow.clone(),
+            agent: b.agent.clone(),
+            day: day::of(&*host, now),
+            at: now.at,
+        };
+        records.push(record(rows::AGENT_START, start.to_json())?);
+    }
+    if !records.is_empty() {
+        day::commit(host, now, records)?;
     }
     if w.agent.is_none() {
         host.set_state(&b.workflow, AgentState::Approved, Some(&b.agent))?;

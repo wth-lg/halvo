@@ -32,7 +32,8 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///
 /// - `load`: the stored configuration; the newest playbook number with its count of stored steps; the newest
 ///   revision of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of`
-///   are all stored, with `of` as its count of parts.
+///   are all stored, with `of` as its count of parts; the agent's start row of the configuration's workflow, the
+///   earliest by `at` where more than one is stored, or null where none is.
 /// - `load_steps`: `playbook` where no step of that playbook number is stored; else at most 16 stored steps from
 ///   the one numbered `from`, in order and with no gap.
 /// - `load_session`: `binding` where the part is not stored.
@@ -180,7 +181,7 @@ fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
         playbook,
         bindings,
         sessions,
-        start: None,
+        start: rows::start_of(host.rows(), &b.agent)?.filter(|s| s.workflow == workflow.id),
     }))
 }
 

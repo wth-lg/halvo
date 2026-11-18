@@ -23,6 +23,7 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_session", Origin::Own),
     ("agent_checkpoint", Origin::Own),
     ("agent_reply", Origin::Own),
+    ("agent_start", Origin::Own),
 ];
 
 /// Why the typed commit of the memory store refused a whole list (W-C25.3): the first record that breaks a rule.
