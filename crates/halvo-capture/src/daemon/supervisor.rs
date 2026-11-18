@@ -2747,27 +2747,72 @@ mod tests {
         }
     }
 
+    /// Waits on the real clock until `recorder` holds a call or 5 s have
+    /// passed, and gives the time since `from`.
+    fn first_call(recorder: &Recorder, from: Instant) -> Duration {
+        while recorder.statuses().is_empty() && from.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        from.elapsed()
+    }
+
+    /// Ruling DM-25 W: a second arm keeps the earlier deadline, whichever arm
+    /// set it, and carries the later status.
     #[test]
-    fn the_watchdog_ends_at_its_deadline_with_its_status_and_keeps_its_first_arm() {
+    fn the_watchdog_ends_at_its_earlier_deadline_with_its_later_status() {
         let recorder = Recorder::default();
         let watchdog = Watchdog::start(Arc::new(recorder.clone()));
         let armed = Instant::now();
-        watchdog.arm(Duration::from_millis(200), exit::SOURCE_NOT_STOPPED);
-        watchdog.arm(Duration::from_millis(10), exit::ERROR);
-        while recorder.statuses().is_empty() && armed.elapsed() < Duration::from_secs(5) {
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        let took = armed.elapsed();
-        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
-        assert!(
-            took >= Duration::from_millis(200),
-            "it ended after {took:?}"
+        watchdog.arm(Duration::from_millis(200), exit::ERROR);
+        watchdog.arm(Duration::from_secs(60), exit::SOURCE_NOT_STOPPED);
+        let took = first_call(&recorder, armed);
+        assert_eq!(
+            recorder.statuses(),
+            [exit::SOURCE_NOT_STOPPED],
+            "a later arm did not carry its status"
         );
+        assert!(
+            took >= Duration::from_millis(200) && took < Duration::from_secs(5),
+            "it ended after {took:?}, not at the earlier deadline of 200 ms"
+        );
+        let moved = Recorder::default();
+        let earlier = Watchdog::start(Arc::new(moved.clone()));
+        let armed_late = Instant::now();
+        earlier.arm(Duration::from_secs(60), exit::CLEAN);
+        earlier.arm(Duration::from_millis(200), exit::SOURCE_NOT_STOPPED);
+        let took_late = first_call(&moved, armed_late);
+        assert_eq!(
+            moved.statuses(),
+            [exit::SOURCE_NOT_STOPPED],
+            "a second arm with an earlier deadline did not move it; it ended after {took_late:?}"
+        );
+        assert!(took_late >= Duration::from_millis(200), "it ended after {took_late:?}");
         let (pid, start, _) = recorder.ended.lock().unwrap()[0];
         assert_eq!(pid, std::process::id());
         if cfg!(target_os = "macos") {
             assert!(start.is_some_and(|start| start > 0));
         }
+    }
+
+    /// Ruling DM-25 W: a disarm takes the arm back, and a later arm counts.
+    #[test]
+    fn a_disarmed_watchdog_ends_nothing_and_a_later_arm_counts_again() {
+        let recorder = Recorder::default();
+        let watchdog = Watchdog::start(Arc::new(recorder.clone()));
+        watchdog.arm(Duration::from_millis(100), exit::ERROR);
+        watchdog.disarm();
+        assert_eq!(watchdog.armed(), None);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(
+            recorder.statuses().is_empty(),
+            "a disarmed watchdog ended with {:?}",
+            recorder.statuses()
+        );
+        let armed = Instant::now();
+        watchdog.arm(Duration::from_millis(100), exit::SOURCE_NOT_STOPPED);
+        let took = first_call(&recorder, armed);
+        assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
+        assert!(took >= Duration::from_millis(100), "it ended after {took:?}");
     }
 
     #[test]

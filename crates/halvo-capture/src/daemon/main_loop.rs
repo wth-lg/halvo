@@ -58,7 +58,9 @@ impl EndCall for ExitNow {
 
 /// A thread that exists from the start of a run, so that arming it creates
 /// nothing: once armed, it makes the ending call with the armed status at the
-/// deadline. The first arm counts; a later one changes nothing.
+/// deadline. A second arm keeps the earlier of the two deadlines and carries
+/// its own status, the later reading of how the run ends; a disarm takes the
+/// arm back, and a later arm counts again.
 pub struct Watchdog {
     state: Arc<Armed>,
 }
@@ -100,24 +102,38 @@ impl Watchdog {
         Watchdog { state }
     }
 
-    /// Arms the watchdog to end with `status` once `after` has passed, unless
-    /// it is armed already.
+    /// Arms the watchdog to end with `status` once `after` has passed. When it
+    /// is armed already, the earlier of the two deadlines stays and `status`
+    /// replaces the armed status: a stop that fails turns an entry's arm into
+    /// 5 without moving its deadline later.
     pub fn arm(&self, after: Duration, status: i32) {
         let (armed, wake) = &*self.state;
         let mut guard = armed.lock().unwrap_or_else(PoisonError::into_inner);
-        if guard.is_none() {
-            *guard = Some((Instant::now() + after, status));
-            wake.notify_all();
-        }
+        let deadline = Instant::now() + after;
+        let deadline = match *guard {
+            Some((earlier, _)) => earlier.min(deadline),
+            None => deadline,
+        };
+        *guard = Some((deadline, status));
+        wake.notify_all();
+    }
+
+    /// Takes the arm back: the watchdog ends nothing until it is armed again.
+    pub fn disarm(&self) {
+        let (armed, wake) = &*self.state;
+        *armed.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        wake.notify_all();
     }
 
     /// The status that the watchdog is armed with, if it is.
     pub fn armed(&self) -> Option<i32> {
+        self.armed_until().map(|(_, status)| status)
+    }
+
+    /// The deadline and the status that the watchdog is armed with, if it is.
+    pub fn armed_until(&self) -> Option<(Instant, i32)> {
         let (armed, _) = &*self.state;
-        armed
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .map(|(_, status)| status)
+        *armed.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
