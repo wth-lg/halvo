@@ -1,6 +1,6 @@
 mod support;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Cancel;
@@ -338,17 +338,28 @@ fn a_wall_limit_ends_the_run_limit_with_the_cause_wall() {
     assert_eq!(seen.finish().map(|f| f.steps), Some(0));
 }
 
+/// A read that fails is handed back, and the wait for the handback's reply, which comes after `PAUSE`, is no time of
+/// the run's `wall_s`: the finish's `wall_s` is at most the time from before the runner's start to the finish frame
+/// less `PAUSE`, in whole seconds, however slowly the run's own steps go. A runner that counts the wait reports the
+/// whole seconds of its own time, which pass that bound whenever its late start and the finish frame's way to the
+/// test take together at most `PAUSE` less 1 s, 2.5 s.
 #[test]
 fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
+    const PAUSE: Duration = Duration::from_millis(3500);
     let files = FillFiles::new("read-fails", 1);
     std::fs::write(&files.source, "a,b\r\n").expect("a source with a carriage return");
     let before = files.workbook_bytes();
     let sup = fill(43, &files);
+    let started = Instant::now();
+    let mut finished = None;
     let seen = sup.serve(
         |frame, _| {
+            if is_op(frame, "finish") {
+                finished = Some(started.elapsed());
+            }
             if matches!(frame, FromRunner::Handback(_)) {
                 Act::After(
-                    Duration::from_millis(1100),
+                    PAUSE,
                     Box::new(Act::With(support::handback_reply(
                         halvo_schema::executable::names::HandbackOutcome::Done,
                         None,
@@ -363,7 +374,16 @@ fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
     assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
     assert_eq!(seen.done(), Some(Outcome::HandedBack));
     let finish = seen.finish().expect("finish");
-    assert_eq!((finish.handbacks, finish.prompts, finish.wall_s), (1, 1, 0));
+    assert_eq!((finish.handbacks, finish.prompts), (1, 1));
+    let most = finished
+        .expect("the finish frame came")
+        .saturating_sub(PAUSE)
+        .as_secs();
+    assert!(
+        u64::from(finish.wall_s) <= most,
+        "the handback's wait is no wall time: wall_s {} and at most {most} s",
+        finish.wall_s
+    );
     let events: Vec<(LogEvent, Option<Cause>)> =
         seen.logs().iter().map(|l| (l.event, l.cause)).collect();
     assert_eq!(

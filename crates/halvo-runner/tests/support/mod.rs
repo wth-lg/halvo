@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -53,22 +53,12 @@ pub fn offset_of_another_day_at(utc_ns: i64) -> i32 {
     }
 }
 
-static NEXT: AtomicU32 = AtomicU32::new(1);
-
-/// A directory of its own under the target's temporary directory, made anew for each call: a name that stands,
-/// left by an earlier process with the same process id, is passed over for the next count.
+/// A directory of its own under the target's temporary directory, made anew for each call by
+/// `halvo_test_dir::make` under the name `runner-<tag>`: a name that stands, left by an earlier process with the
+/// same process id, is passed over for the next count.
 pub fn scratch(tag: &str) -> PathBuf {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    std::fs::create_dir_all(root).expect("make the target's temporary directory");
-    loop {
-        let n = NEXT.fetch_add(1, Ordering::SeqCst);
-        let dir = root.join(format!("runner-{tag}-{}-{n}", std::process::id()));
-        match std::fs::create_dir(&dir) {
-            Ok(()) => return dir,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => panic!("make the scratch directory: {error}"),
-        }
-    }
+    halvo_test_dir::make(root, &format!("runner-{tag}")).expect("make the scratch directory")
 }
 
 pub fn ids(n: u8) -> (RunId, AgentId, WorkflowId) {

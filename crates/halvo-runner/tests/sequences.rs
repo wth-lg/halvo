@@ -1,6 +1,6 @@
 mod support;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{HandbackReason, LogEvent};
@@ -15,7 +15,7 @@ fn fill(n: u8, files: &FillFiles) -> Supervisor {
 
 /// A releasing effect must be handed back as effect_unknown before finish (A6.4). The commit row is refused,
 /// so the effect stays releasing after the replace; then the store refuses the log line of the handback.
-/// `close` ignores a `Stop::End` from `handback`, so the handback frame is never written and finish still goes.
+/// `handback` goes on past the refused line, so the handback frame is written, and finish follows it.
 #[test]
 fn a_refused_log_line_does_not_keep_the_effect_unknown_handback_from_opening() {
     let files = FillFiles::new("review-twice-1", 1);
@@ -49,21 +49,25 @@ fn a_refused_log_line_does_not_keep_the_effect_unknown_handback_from_opening() {
         "precondition: the edit left with its releasing row and the commit row was refused: {}",
         seen.stderr
     );
-    if seen.finish().is_some() {
-        assert_eq!(
-            seen.handbacks(),
-            [HandbackReason::EffectUnknown],
-            "a finish went out while the effect was releasing and no effect_unknown handback came before it; tags {:?}",
-            seen.tags()
-        );
-        let tags = seen.tags();
-        let handback_at = tags.iter().position(|t| *t == "handback");
-        let done_at = tags.iter().position(|t| *t == "done");
-        assert!(
-            handback_at.is_some() && handback_at < done_at,
-            "the handback must come before done: {tags:?}"
-        );
-    }
+    assert!(
+        seen.finish().is_some(),
+        "the run stores its finish: tags {:?} {}",
+        seen.tags(),
+        seen.stderr
+    );
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::EffectUnknown],
+        "a finish went out while the effect was releasing and no effect_unknown handback came before it; tags {:?}",
+        seen.tags()
+    );
+    let tags = seen.tags();
+    let handback_at = tags.iter().position(|t| *t == "handback");
+    let done_at = tags.iter().position(|t| *t == "done");
+    assert!(
+        handback_at.is_some() && handback_at < done_at,
+        "the handback must come before done: {tags:?}"
+    );
 }
 
 /// A6.4: a releasing effect is handed back with effect_unknown before finish, even when the store refuses the log
@@ -155,8 +159,8 @@ fn a_wall_limit_passed_during_the_edit_ends_the_run_before_its_effect() {
 }
 
 /// The begin's first send meets a store fault, which may come after the releasing row was stored (the comment of
-/// ROW_SENDS says so). The repeat is then refused with `effect`. Only a begin whose every send faults counts as
-/// releasing, so here the runner drops the "may be stored" state: no effect_unknown handback, finish unknown 0.
+/// ROW_SENDS says so). The repeat is then refused with `effect`. A begin that met a fault counts as releasing, so
+/// the runner lets nothing leave and hands the effect back as effect_unknown before its finish, with unknown 1.
 #[test]
 fn a_begin_that_met_a_fault_and_then_a_refusal_is_handed_back_unknown() {
     let files = FillFiles::new("review-twice-2", 2);
@@ -187,15 +191,19 @@ fn a_begin_that_met_a_fault_and_then_a_refusal_is_handed_back_unknown() {
         seen.stderr
     );
     assert_eq!(files.workbook_bytes(), before, "nothing may leave");
-    if seen.finish().is_some() {
-        assert_eq!(
-            seen.handbacks(),
-            [HandbackReason::EffectUnknown],
-            "a begin that met a fault may be stored, so it must be handed back effect_unknown before finish"
-        );
-        assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
-        assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
-    }
+    assert!(
+        seen.finish().is_some(),
+        "the run stores its finish: tags {:?} {}",
+        seen.tags(),
+        seen.stderr
+    );
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::EffectUnknown],
+        "a begin that met a fault may be stored, so it must be handed back effect_unknown before finish"
+    );
+    assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
 }
 
 /// While the runner waits for the reply to the `load` of its edit step, the supervisor sends `cancel` and then the
@@ -232,19 +240,33 @@ fn a_cancel_during_the_edits_load_makes_no_effect() {
     assert_eq!(files.workbook_bytes(), before, "the workbook is untouched");
 }
 
+/// What the supervisor saw of a run whose standard input it closed: the frames that came after the close, the
+/// runner's status, the time from the close to the runner's end and its standard error.
+struct AfterClose {
+    frames: Vec<FromRunner>,
+    code: Option<i32>,
+    close_to_end: Option<Duration>,
+    stderr: String,
+}
+
+impl AfterClose {
+    fn names(&self) -> Vec<String> {
+        self.frames.iter().map(support::named).collect()
+    }
+}
+
 /// Serves the runner from the in-memory store; `reply` may answer a frame itself and say that the supervisor closes
-/// the runner's standard input right after that answer, while it goes on reading. Returns the frames that came after
-/// the close and the status.
+/// the runner's standard input right after that answer, while it goes on reading.
 fn close_input_after(
     sup: &Supervisor,
     mut reply: impl FnMut(&FromRunner) -> Option<(ToRunner, bool)>,
-) -> (Vec<FromRunner>, Option<i32>) {
+) -> AfterClose {
     let mut runner = support::Runner::start(&sup.args());
-    let mut closed = false;
-    let mut after_close = Vec::new();
+    let mut closed_at = None;
+    let mut frames = Vec::new();
     while let Some(frame) = runner.recv() {
-        if closed {
-            after_close.push(frame);
+        if closed_at.is_some() {
+            frames.push(frame);
             continue;
         }
         let (answer, close) = match reply(&frame) {
@@ -256,45 +278,58 @@ fn close_input_after(
         }
         if close {
             runner.close_input();
-            closed = true;
+            closed_at = Some(Instant::now());
         }
     }
-    assert!(closed, "the run reached the frame of the close");
+    let closed_at = closed_at.expect("the run reached the frame of the close");
     let status = runner.wait_within(halvo_runner::LINK_END);
+    let close_to_end = status.map(|_| closed_at.elapsed());
     if status.is_none() {
         runner.kill();
     }
-    (after_close, status.and_then(|s| s.code()))
+    AfterClose {
+        frames,
+        code: status.and_then(|s| s.code()),
+        close_to_end,
+        stderr: runner.stderr(),
+    }
 }
+
+/// The bound within which a runner ends by itself after a close, well under the 15 s after which the reader's grace
+/// exit ends the process with the status 1 (`LINK_GRACE` of src/link.rs).
+const BY_ITSELF: Duration = Duration::from_secs(5);
+
+/// The line with which the runner's run ends after a close (src/run.rs, `ended`).
+const LINK_CLOSED_LINE: &str = "run link=closed";
 
 /// What the runner keeps after a close of its standard input alone (A6.1): it reads the link before every frame,
 /// but the end of file can still be on its way to its reader when it writes, so the frames that it writes before
-/// it waits for a reply may come, at most `most`; then no other frame, no replace, and the status 1 within
-/// LINK_END.
-fn kept_after_a_close_of(
-    after_close: &[FromRunner],
-    code: Option<i32>,
-    files: &FillFiles,
-    before: &[u8],
-    most: usize,
-) {
-    let names: Vec<String> = after_close.iter().map(support::named).collect();
+/// it waits for a reply may come, at most `most`; then no other frame, no replace, and the status 1 of the run's
+/// own end on the close, with its line, within `BY_ITSELF`, so that a runner that holds its request after the close
+/// and leaves by the grace exit fails.
+fn kept_after_a_close_of(after: &AfterClose, files: &FillFiles, before: &[u8], most: usize) {
+    let names = after.names();
     assert!(
-        after_close.len() <= most,
+        after.frames.len() <= most,
         "at most the frames on their way: {names:?}"
     );
     assert_eq!(files.workbook_bytes(), before, "no replace after the close");
-    assert_eq!(code, Some(1), "status 1 within LINK_END");
+    assert_eq!(after.code, Some(1), "status 1: {names:?}");
+    assert!(
+        after.stderr.lines().any(|line| line == LINK_CLOSED_LINE),
+        "the run ends on the close with its own line: {:?}",
+        after.stderr
+    );
+    assert!(
+        after.close_to_end.is_some_and(|took| took < BY_ITSELF),
+        "the runner ends by itself within {BY_ITSELF:?} of the close, before the grace exit: {:?}",
+        after.close_to_end
+    );
 }
 
 /// What the runner keeps after a close of its standard input alone when it waits for a reply after the next frame.
-fn kept_after_a_close(
-    after_close: &[FromRunner],
-    code: Option<i32>,
-    files: &FillFiles,
-    before: &[u8],
-) {
-    kept_after_a_close_of(after_close, code, files, before, 1);
+fn kept_after_a_close(after: &AfterClose, files: &FillFiles, before: &[u8]) {
+    kept_after_a_close_of(after, files, before, 1);
 }
 
 fn load_count() -> impl FnMut(&FromRunner) -> usize {
@@ -307,23 +342,96 @@ fn load_count() -> impl FnMut(&FromRunner) -> usize {
     }
 }
 
+/// Serves a fill run of seed `seed` with the link open and every frame answered, to its `done`, and names the frame
+/// that the runner wrote right after the answer to the `nth` frame (counted from 1) that `is` matches: the frame that
+/// a close on that answer can let out.
+fn next_after_an_open_run(seed: u8, n: u8, is: impl Fn(&FromRunner) -> bool, nth: usize) -> String {
+    let files = FillFiles::new("review-open", seed);
+    let seen = fill(n, &files).serve(|_, _| Act::Answer, LONG);
+    let names: Vec<String> = seen.frames.iter().map(support::named).collect();
+    assert_eq!(
+        seen.done(),
+        Some(Outcome::Completed),
+        "the open run ends completed: {names:?} {}",
+        seen.stderr
+    );
+    let at = seen
+        .frames
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| is(f))
+        .nth(nth - 1)
+        .map(|(at, _)| at)
+        .unwrap_or_else(|| panic!("the open run wrote that frame: {names:?}"));
+    names
+        .get(at + 1)
+        .cloned()
+        .unwrap_or_else(|| panic!("a frame after it: {names:?}"))
+}
+
 /// The close after the answer to the checkpoint's `made` row, the last request between the edit's load and its
-/// `propose` (A7.1, CP-98 (4)): at most the propose is on its way, and no replace follows.
+/// `propose` (A7.1, CP-98 (4)): a run with the link open shows that the frame after that answer is the propose, so
+/// that a request added between the two fails on every run (CP-225 N1); after the close at most the propose is on
+/// its way, and no replace follows.
 #[test]
-fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
+fn a_close_of_input_after_the_checkpoints_made_row_lets_at_most_the_propose_out() {
+    assert_eq!(
+        next_after_an_open_run(1, 101, |f| is_checkpoint(f, CheckpointState::Made), 1),
+        "store effect Cleared",
+        "the propose is the frame after the made row's answer"
+    );
     let files = FillFiles::new("review-close-1", 1);
     let before = files.workbook_bytes();
     let sup = fill(101, &files);
     let mut count = load_count();
-    let (after, code) = close_input_after(&sup, |frame| {
+    let after = close_input_after(&sup, |frame| {
         (count(frame) == 2 && is_checkpoint(frame, CheckpointState::Made))
             .then(|| (sup.answer(frame).expect("a reply"), true))
     });
-    kept_after_a_close(&after, code, &files, &before);
-    let names: Vec<String> = after.iter().map(support::named).collect();
+    kept_after_a_close(&after, &files, &before);
+    let names = after.names();
     assert!(
-        after.iter().all(|f| is_effect(f, EffectState::Cleared)),
+        after
+            .frames
+            .iter()
+            .all(|f| is_effect(f, EffectState::Cleared)),
         "only the propose can be on its way: {names:?}"
+    );
+}
+
+/// The close after the answer to the edit's load, the run's second load (CP-135 (3)): a run with the link open shows
+/// that the frame after that answer is the checkpoint's `planned` row (A7.1, CP-98 (4)); after the close at most that
+/// row is on its way, no replace follows and nothing is made beside the workbook, neither a checkpoint nor a
+/// prepared copy.
+#[test]
+fn a_close_of_input_after_the_edits_load_lets_at_most_the_planned_row_out() {
+    assert_eq!(
+        next_after_an_open_run(1, 107, |f| is_op(f, "load"), 2),
+        "store checkpoint Planned",
+        "the planned row is the frame after the answer to the edit's load"
+    );
+    let files = FillFiles::new("review-close-7", 1);
+    let before = files.workbook_bytes();
+    let names_before = files.names();
+    let sup = fill(107, &files);
+    let mut count = load_count();
+    let after = close_input_after(&sup, |frame| {
+        (count(frame) == 2 && is_op(frame, "load"))
+            .then(|| (sup.answer(frame).expect("a reply"), true))
+    });
+    kept_after_a_close(&after, &files, &before);
+    let names = after.names();
+    assert!(
+        after
+            .frames
+            .iter()
+            .all(|f| is_checkpoint(f, CheckpointState::Planned)),
+        "only the planned row can be on its way: {names:?}"
+    );
+    assert_eq!(
+        files.names(),
+        names_before,
+        "nothing beside the workbook: no checkpoint and no prepared copy"
     );
 }
 
@@ -335,14 +443,18 @@ fn a_close_of_input_after_the_load_before_the_begin_lets_at_most_the_begin_out()
     let before = files.workbook_bytes();
     let sup = fill(106, &files);
     let mut count = load_count();
-    let (after, code) = close_input_after(&sup, |frame| {
+    let after = close_input_after(&sup, |frame| {
         (count(frame) == 3 && is_op(frame, "load"))
             .then(|| (sup.answer(frame).expect("a reply"), true))
     });
-    kept_after_a_close(&after, code, &files, &before);
+    kept_after_a_close(&after, &files, &before);
     assert!(
-        after.iter().all(|f| is_effect(f, EffectState::Releasing)),
-        "only the begin can be on its way"
+        after
+            .frames
+            .iter()
+            .all(|f| is_effect(f, EffectState::Releasing)),
+        "only the begin can be on its way: {:?}",
+        after.names()
     );
 }
 
@@ -351,10 +463,10 @@ fn a_close_of_input_after_a_fault_of_the_begin_lets_at_most_its_repeat_out() {
     let files = FillFiles::new("review-close-2", 2);
     let before = files.workbook_bytes();
     let sup = fill(102, &files);
-    let (after, code) = close_input_after(&sup, |frame| {
+    let after = close_input_after(&sup, |frame| {
         is_effect(frame, EffectState::Releasing).then(|| (store_error(frame, "store"), true))
     });
-    kept_after_a_close(&after, code, &files, &before);
+    kept_after_a_close(&after, &files, &before);
 }
 
 #[test]
@@ -363,19 +475,21 @@ fn a_close_of_input_after_the_last_fault_of_the_begin_lets_at_most_one_frame_out
     let before = files.workbook_bytes();
     let sup = fill(104, &files);
     let mut begins = 0;
-    let (after, code) = close_input_after(&sup, |frame| {
+    let after = close_input_after(&sup, |frame| {
         if !is_effect(frame, EffectState::Releasing) {
             return None;
         }
         begins += 1;
         Some((store_error(frame, "store"), begins == 3))
     });
-    kept_after_a_close(&after, code, &files, &before);
+    kept_after_a_close(&after, &files, &before);
     assert!(
         !after
+            .frames
             .iter()
             .any(|f| matches!(f, FromRunner::Handback(_) | FromRunner::Done(_))),
-        "no handback and no done after the close"
+        "no handback and no done after the close: {:?}",
+        after.names()
     );
 }
 
@@ -386,11 +500,12 @@ fn a_close_of_input_after_the_reads_log_lets_at_most_the_next_progress_and_the_e
     let files = FillFiles::new("review-close-5", 3);
     let before = files.workbook_bytes();
     let sup = fill(105, &files);
-    let (after, code) = close_input_after(&sup, |frame| {
+    let after = close_input_after(&sup, |frame| {
         is_op(frame, "log").then(|| (sup.answer(frame).expect("a reply"), true))
     });
-    kept_after_a_close_of(&after, code, &files, &before, 2);
+    kept_after_a_close_of(&after, &files, &before, 2);
     let kinds: Vec<&str> = after
+        .frames
         .iter()
         .map(|f| match f {
             FromRunner::Progress(_) => "progress",
