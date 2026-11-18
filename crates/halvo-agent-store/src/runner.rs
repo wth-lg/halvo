@@ -64,10 +64,11 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   of its first row, gives `refuse` (CP-143 (4) (ii)).
 /// - `checkpoint`: a row equal to the checkpoint's newest row (its run and workbook) in every key but `day` and
 ///   `at` is answered as the first and stores nothing; else `effect` unless the row is a `planned` first row of the
-///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy; `length` for
-///   the `planned` first row of a new path when the run's checkpoints with it, each in its widest listed form, would
-///   not fit one page of `list_checkpoints`, so that one run's checkpoints always fit a page (CP-205 C2). The store's
-///   crate reads the row with the schema's strict reader and stores the text of its writer.
+///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy and an `at`
+///   not before that row's (CP-205 (b)); `length` for the `planned` first row of a new path when the run's
+///   checkpoints with it, each in its widest listed form, would not fit one page of `list_checkpoints`, so that one
+///   run's checkpoints always fit a page (CP-205 C2). The store's crate reads the row with the schema's strict
+///   reader and stores the text of its writer.
 /// - Every row that a body stores is held to the day rule (CP-122): a row that holds `at` (`effect`, `log`) is
 ///   refused with `day` unless its `day` is `Host::day` of its `at`, and every row of a bounded kind, the record of
 ///   `finish` among them, is refused with `day` when its day is after the day of the request's instant or already

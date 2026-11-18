@@ -474,3 +474,36 @@ fn create_agent_after_a_stop_behind_its_commit_and_sent_again_with_a_new_agent_i
         }
     }
 }
+
+fn log_at(store: &mut MemoryStore, now: halvo_agent_store::Now) -> Result<(), ErrorName> {
+    let day = store.day(now.at);
+    let line = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 2, "day": day,
+        "at": now.at.0, "event": "step_ok", "step": 1, "cause": null, "model": null, "ms": null,
+        "tokens_in": null, "tokens_out": null,
+    });
+    runner_at(
+        store,
+        now,
+        json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line]}),
+    )
+    .map(|_| ())
+}
+
+#[test]
+fn a_start_run_whose_start_row_lies_past_the_log_s_bound_does_not_open_the_run_again() {
+    for days in [-3, 93] {
+        let mut store = unstarted("email");
+        assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Ok(accepted()));
+        let then = at(NOW.at.0 + days * NANOS_PER_DAY);
+        assert_eq!(log_at(&mut store, then), Err(declared("binding")), "{days}");
+        assert_eq!(
+            start_at(&mut store, then, 1, 1, 1),
+            Ok(accepted()),
+            "{days}"
+        );
+        assert_eq!(start_rows(&store).len(), 1, "{days}");
+        assert_eq!(log_at(&mut store, then), Err(declared("binding")), "{days}");
+        assert_eq!(log_at(&mut store, NOW), Ok(()), "{days}");
+    }
+}

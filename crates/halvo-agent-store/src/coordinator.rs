@@ -32,11 +32,11 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
 ///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
-///   names another agent; `effect` for a run whose `agent_run` record is stored. Where the run's start row of the
-///   agent stands, from 93 days back to two days ahead of the request's day, it stores nothing; else it stores the
-///   start row, one `agent_log`
-///   row with the event `start_accepted`, `seq` 1, no step, cause, model or figure, and the request's instant and
-///   day. It answers `{"ok":"yes"}` (CP-135 (5)).
+///   names another agent; `effect` for a run whose `agent_run` record is stored. Where a start row of the run and
+///   the agent is among the rows that the store hands out, also one past the bound of `agent_log` that the runner
+///   bodies no longer count, it stores nothing, so it never opens such a run again (CP-205 (b)); else it stores the
+///   start row, one `agent_log` row with the event `start_accepted`, `seq` 1, no step, cause, model or figure, and
+///   the request's instant and day. It answers `{"ok":"yes"}` (CP-135 (5)).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
 ///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
 ///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
@@ -153,7 +153,7 @@ fn start_run(host: &mut dyn Host, now: Now, b: &StartRun) -> Result<CoordinatorR
     }
     bind::no_other_agent(&*host, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
-    if bind::start_row(&*host, now, &b.run, &b.agent)?.is_none() {
+    if !bind::held_start_row(&*host, &b.run, &b.agent)? {
         let row = AgentLog {
             v: V1,
             workflow: b.workflow.clone(),
