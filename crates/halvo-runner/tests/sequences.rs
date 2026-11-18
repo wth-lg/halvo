@@ -391,6 +391,42 @@ fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
     );
 }
 
+/// The close after the answer to the edit's load, the run's second load (CP-135 (3)): a run with the link open shows
+/// that the frame after that answer is the checkpoint's `planned` row (A7.1, CP-98 (4)); after the close at most that
+/// row is on its way, no replace follows and nothing is made beside the workbook, neither a checkpoint nor a
+/// prepared copy.
+#[test]
+fn a_close_of_input_after_the_edits_load_lets_at_most_the_planned_row_out() {
+    assert_eq!(
+        next_after_an_open_run(1, 107, |f| is_op(f, "load"), 2),
+        "store checkpoint Planned",
+        "the planned row is the frame after the answer to the edit's load"
+    );
+    let files = FillFiles::new("review-close-7", 1);
+    let before = files.workbook_bytes();
+    let names_before = files.names();
+    let sup = fill(107, &files);
+    let mut count = load_count();
+    let after = close_input_after(&sup, |frame| {
+        (count(frame) == 2 && is_op(frame, "load"))
+            .then(|| (sup.answer(frame).expect("a reply"), true))
+    });
+    kept_after_a_close(&after, &files, &before);
+    let names = after.names();
+    assert!(
+        after
+            .frames
+            .iter()
+            .all(|f| is_checkpoint(f, CheckpointState::Planned)),
+        "only the planned row can be on its way: {names:?}"
+    );
+    assert_eq!(
+        files.names(),
+        names_before,
+        "nothing beside the workbook: no checkpoint and no prepared copy"
+    );
+}
+
 /// The close after the load before the edit's `begin` (CP-135 (3)): at most the begin row is on its way, and no
 /// replace follows.
 #[test]
