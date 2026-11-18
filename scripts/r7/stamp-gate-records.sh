@@ -91,6 +91,10 @@ stamp_case() {
 }
 
 self_test() {
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 || {
+    printf 'FAIL self-test:stamp-gate-records (the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n'
+    exit 1
+  }
   self=$(cd "$(dirname "$0")" && pwd -P)/$(basename "$0")
   records_check=$(dirname "$self")/ci.d/22-r7-backend-records.sh
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/stamp-gate-records-self-test.XXXXXX") || exit 2

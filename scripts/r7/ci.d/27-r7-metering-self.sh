@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: At HEAD, check 55's memory self-check (node backend/test-kit/fake-meter/rerun/check.mjs --memory-self-check) and its parent-gone self-check (--parent-gone-self-check: a worker of the check ends within PARENT_GONE_SECONDS of its parent) each exit 0 with their PASS line last, the self-test of scripts/r7/stamp-gate-records.sh passes, every bad fixture of backend/gate/fixtures/ applies to the files of HEAD (each edit's text found exactly once, in its order), and no tracked file differs from HEAD after them.
+# rule: At HEAD, check 55's memory self-check (node backend/test-kit/fake-meter/rerun/check.mjs --memory-self-check) and its parent-gone self-check (--parent-gone-self-check: a worker of the check ends within PARENT_GONE_SECONDS of its parent) each exit 0 with their PASS line last, every bad fixture of backend/gate/fixtures/ applies to the files of HEAD (each edit's text found exactly once, in its order), and no tracked file differs from HEAD after them.
 # lane: alone
 set -u
 name=27-r7-metering-self
@@ -171,7 +171,7 @@ measure() {
     printf 'FAIL %s (%s tracked files differ from HEAD before the checks; commit them first)\n' "$name" "$before"
     exit 1
   fi
-  if measure_in "$repo" "$repo/backend" "$artifacts" "memory parent-gone stamp"; then
+  if measure_in "$repo" "$repo/backend" "$artifacts" "memory parent-gone"; then
     printf 'PASS %s\n' "$name"
   else
     printf 'FAIL %s (%s)\n' "$name" "$cause"
@@ -238,6 +238,10 @@ stand_in_check() {
 }
 
 self_test() {
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 || {
+    printf 'FAIL self-test:%s (the self-test and the self-test of scripts/r7/stamp-gate-records.sh commit in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n' "$name"
+    exit 1
+  }
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
