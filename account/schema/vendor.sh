@@ -78,12 +78,16 @@ EOF
   copy=$dir/account/schema
   linked=yes
   ln -s "$copy" "$dir/elsewhere/a/s" 2>/dev/null || linked=no
+  [ -L "$dir/elsewhere/a/s" ] || linked=no
   while IFS='|' read -r case want edit args after; do
     fresh_copy
     case $edit in
       byte) sed '1s/{/[/' "$here/routes.v1.json" >"$copy/routes.v1.json" ;;
       sum) sed '/ samples\.v1\.json /s/^0/g/; / samples\.v1\.json /s/^[1-9a-f]/0/; / samples\.v1\.json /s/^g/1/' "$here/vendored.txt" >"$copy/vendored.txt" ;;
       backend-byte) sed '1s/{/[/' "$root/backend/contract/schema/v1.json" >"$dir/backend/contract/schema/v1.json" ;;
+      backend-routes) sed '1s/{/[/' "$root/backend/contract/routes/v1.json" >"$dir/backend/contract/routes/v1.json" ;;
+      backend-samples) sed '1s/{/[/' "$root/backend/contract/samples/v1.json" >"$dir/backend/contract/samples/v1.json" ;;
+      backend-budget) sed '1s/{/[/' "$root/backend/gate/prompt-budget.json" >"$dir/backend/gate/prompt-budget.json" ;;
       backend-gone) mv "$dir/backend/gate/prompt-budget.json" "$dir/prompt-budget.json.gone" || exit 2 ;;
       old-form) awk 'BEGIN { print "commit 651e68fb43c14381c8ae104a7fa3f40d4d3311f7" } { sub(/^[^\/]*\//, "", $3); print }' "$here/vendored.txt" >"$copy/vendored.txt" ;;
       none) ;;
@@ -124,6 +128,27 @@ EOF
         cmp -s "$copy/schema.v1.json" "$dir/backend/contract/schema/v1.json" || verdict=wrong
         ! cmp -s "$copy/vendored.txt" "$here/vendored.txt" || verdict=wrong
         ;;
+      from-routes)
+        case $out in
+          *'vendor-check: routes.v1.json differs from backend/contract/routes/v1.json'*) ;;
+          *) verdict=wrong ;;
+        esac
+        cmp -s "$copy/routes.v1.json" "$here/routes.v1.json" || verdict=wrong
+        ;;
+      from-samples)
+        case $out in
+          *'vendor-check: samples.v1.json differs from backend/contract/samples/v1.json'*) ;;
+          *) verdict=wrong ;;
+        esac
+        cmp -s "$copy/samples.v1.json" "$here/samples.v1.json" || verdict=wrong
+        ;;
+      from-budget)
+        case $out in
+          *'vendor-check: prompt-budget.json differs from backend/gate/prompt-budget.json'*) ;;
+          *) verdict=wrong ;;
+        esac
+        cmp -s "$copy/prompt-budget.json" "$here/prompt-budget.json" || verdict=wrong
+        ;;
       names-schema)
         case $out in
           *'vendor-check: schema.v1.json differs from backend/contract/schema/v1.json'*) ;;
@@ -161,6 +186,9 @@ changed-byte-is-written-back|0 vendored files=4 changed=1 record=kept|byte|vendo
 changed-sum|1 vendor-check files=4 equal=4 record=differs|sum|check|names-record
 changed-sum-is-written-back|0 vendored files=4 changed=0 record=written|sum|vendor|all-equal
 changed-backend-byte|1 vendor-check files=4 equal=3 record=differs|backend-byte|check|names-schema
+changed-backend-routes|1 vendor-check files=4 equal=3 record=differs|backend-routes|check|from-routes
+changed-backend-samples|1 vendor-check files=4 equal=3 record=differs|backend-samples|check|from-samples
+changed-backend-prompt-budget|1 vendor-check files=4 equal=3 record=differs|backend-budget|check|from-budget
 run-through-a-link|1 vendor-check files=4 equal=3 record=differs|backend-byte|link|names-schema
 cdpath-exported|0 vendor-check files=4 equal=4 record=equal|none|cdpath|all-equal
 changed-backend-byte-is-vendored|0 vendored files=4 changed=1 record=written|backend-byte|vendor|schema-follows
