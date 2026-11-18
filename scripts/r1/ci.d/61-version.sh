@@ -496,6 +496,54 @@ crates/halvo-capture/Cargo.toml"
   printf '%s\n' Cargo.toml package.json src-tauri/Cargo.toml crates/a/Cargo.toml >>"$work/tracked"
   manifest_case the-list-of-this-script PASS
 
+  fix=$work/fixture-repository
+  toolchain=${CI_D_REPO:-.}/rust-toolchain.toml
+  (
+    PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+    mkdir -p "$fix/crates/a/src" "$fix/src-tauri/src" "$fix/.github/workflows" || exit 1
+    printf '[workspace]\nmembers = ["src-tauri", "crates/*"]\nresolver = "2"\n\n[workspace.package]\nversion = "1.2.3"\n' >"$fix/Cargo.toml"
+    for member in crates/a src-tauri; do
+      printf '[package]\nname = "%s"\nversion.workspace = true\nedition = "2021"\n' "${member##*/}" >"$fix/$member/Cargo.toml"
+      : >"$fix/$member/src/lib.rs"
+    done
+    [ ! -f "$toolchain" ] || cp "$toolchain" "$fix/rust-toolchain.toml"
+    printf 'name: fixture\n' >"$fix/.github/workflows/ci.yml"
+    printf '{\n  "name": "halvo",\n  "private": true\n}\n' >"$fix/package.json"
+    left_manifests | sed -n 's/^[a-z]* //p' | grep / | while IFS= read -r path; do
+      mkdir -p "$fix/${path%/*}" && : >"$fix/$path" || exit 1
+    done
+    left_manifests | sed -n 's|^wall \(.*\)$|\1|p' | while IFS= read -r side; do
+      mkdir -p "$fix/$side" && : >"$fix/$side/package.json" || exit 1
+    done
+    cd "$fix" && cargo generate-lockfile --offline >/dev/null 2>&1 && git init -q && git add -A && cp .git/index "$work/fixture-index"
+  ) || { printf 'case %s/fixture-repository cannot be made\n' "$name"; wrong="$wrong fixture-repository"; }
+  empty_blob=$(git -C "$fix" hash-object -w --stdin </dev/null)
+  measure_case() {
+    case_name=$1 want=$2
+    got=FAIL
+    (CI_D_REPO=$fix GITHUB_REF_TYPE='' GITHUB_REF_NAME=''; measure) >"$work/$case_name.out" 2>&1 && got=PASS
+    verdict "$case_name" "$want" "$got"
+    cp "$work/fixture-index" "$fix/.git/index"
+    printf '{\n  "name": "halvo",\n  "private": true\n}\n' >"$fix/package.json"
+  }
+  line_feed_case() {
+    entry=$(printf '%s\nx' "$1")
+    entry="${entry%x}$2"
+    if git -C "$fix" update-index --add --cacheinfo "100644,$empty_blob,$entry" 2>/dev/null; then
+      measure_case "$3" FAIL
+    else
+      printf 'case %s/%s skipped: git keeps no line feed in a path here\n' "$name" "$3"
+    fi
+  }
+  measure_case measure-on-a-fixture-repository PASS
+  printf '{\n  "name": "halvo",\n  "version": "9.9.9"\n}\n' >"$fix/package.json"
+  measure_case measure-with-the-root-package-json-at-another-version FAIL
+  git -C "$fix" update-index --add --cacheinfo "100644,$empty_blob,tools/new/Cargo.toml"
+  measure_case measure-with-a-manifest-that-is-neither-read-nor-named FAIL
+  line_feed_case x backend/package.json measure-with-a-line-feed-before-a-path-under-the-wall
+  line_feed_case x account/stub/package.json measure-with-a-line-feed-before-a-named-path
+  line_feed_case zz src-tauri/Cargo.toml measure-with-a-line-feed-before-a-member-manifest
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
