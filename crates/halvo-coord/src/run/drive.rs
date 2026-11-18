@@ -531,6 +531,10 @@ where
             ItemLapse::LapsedByQuit,
         );
         done.report.stopped.extend(stopped.report.stopped);
+        done.unstamped.extend(stopped.unstamped);
+        if stopped.report.read.is_some() {
+            done.report.read = stopped.report.read;
+        }
     }
     while let Some(waiting) = board.queue.pop() {
         if let Some(m) = board

@@ -9948,3 +9948,207 @@ fn rd133_a_switch_off_after_a_tick_stores_its_hold_at_that_ticks_read() {
         clock_answers(&c);
     }
 }
+
+/// Whether the tick since `m` did its work: a held tick reads no list of agents.
+fn tick_worked(c: &Coordinator<Both>, m: usize) -> bool {
+    calls_since(c, m)
+        .iter()
+        .any(|call| matches!(call, Call::Agents))
+}
+
+/// A Switch off in the window of an agent that recovery set aside is refused as a stamped one
+/// is, and holds no tick once the clock answers (the review of round 2, finding 1).
+#[test]
+fn rd133_a_clockless_switch_off_of_an_agent_set_aside_is_refused_and_holds_no_tick() {
+    let (c, made, _) = setup_agent();
+    let life = next_life(&c, |o| {
+        o.ports.refuse_agent(
+            Method::History,
+            &made,
+            PortError::Refused(halvo_coord::types::Name::parse("store").unwrap()),
+        )
+    });
+    clock_fails(&life);
+    assert_eq!(
+        life.control(&made, Action::SwitchOff),
+        Err(Cause::NoService),
+        "refused in the window as a stamped Switch off of an agent set aside is"
+    );
+    clock_answers(&life);
+    life.ports().ports.clear_refusals();
+    life.ports().ports.set_clock(T0 + 1_000, DAY);
+    let m = mark(&life);
+    life.tick();
+    assert!(tick_worked(&life, m), "the tick does its work");
+}
+
+/// A Switch off in the window of an agent whose hold `off` already stands, with no run to stop,
+/// is refused `state` as a stamped one is and stores no second `hold_set` (finding 2).
+#[test]
+fn rd133_a_clockless_switch_off_of_an_agent_already_off_stores_no_second_hold() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(person_holds(&c, 1).len(), 1);
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Err(Cause::State));
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    let m = mark(&c);
+    c.tick();
+    assert!(tick_worked(&c, m), "no tick held");
+    assert_eq!(person_holds(&c, 1).len(), 1, "one hold_set");
+}
+
+/// A `hold_set` that the owner did not acknowledge at a Switch off in the window is sent again
+/// and stored once when the clock answers, not stored a second time (finding 3).
+#[test]
+fn rd133_an_unacknowledged_hold_is_stored_once_when_the_clock_answers() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run1 = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.refuse(Method::Log, PortError::Busy);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(cancels_of(&c, m, &run1), 1, "the cancel in the move");
+    assert_eq!(person_holds(&c, 1).len(), 0, "not acknowledged");
+    c.ports().ports.clear_refusals();
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(person_holds(&c, 1).len(), 1, "stored once");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+    assert_eq!(c.control(&agent(1), Action::RunNow), Err(Cause::Hold));
+}
+
+/// The quit's first step under a failing clock stops each live run with no time; the time is
+/// taken at the next read that answers, so the quit's tick kills no run before the grace from
+/// that read (finding 4).
+#[test]
+fn rd133_the_quits_stop_all_under_a_failing_clock_keeps_the_grace() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    clock_fails(&c);
+    let m = mark(&c);
+    let _ = c.quit_stop();
+    assert_eq!(cancels_of(&c, m, &run), 1, "the quit's cancel");
+    clock_answers(&c);
+    let read = T0 + 60_000;
+    c.ports().ports.set_clock(read, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        0,
+        "no kill before the grace from the stamp"
+    );
+    c.ports()
+        .ports
+        .set_clock(read + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &run), 1, "killed once the grace passed");
+}
+
+/// A run's end that the window kept and that a later move makes again while the mark of a lost
+/// tick stands takes no queued start: only a tick that returns starts it (finding 5).
+#[test]
+fn rd133_a_replayed_end_under_the_mark_takes_no_queued_start() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], one);
+    let first = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    tick_that_panics(&c);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&first);
+    let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
+    c.tick();
+    clock_answers(&c);
+    let m = mark(&c);
+    let _ = c.control(&agent(0), Action::Stop);
+    assert_eq!(
+        ends_of(&c, &first),
+        vec![RunEnd::Completed],
+        "the end is made"
+    );
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Start(_))),
+        "no start while the mark stands"
+    );
+    assert_eq!(c.queued(), vec![(agent(1), false)], "the queue keeps it");
+    c.tick();
+    assert_eq!(started(&c).len(), 2, "the tick that returned starts it");
+}
+
+/// The guard's table holds the stop in the window: a record that the guard takes while the run
+/// works is refused once the Stop went on with no clock (the review's test finding 1).
+#[test]
+fn rd133_in_the_window_the_guard_refuses_a_record_that_it_took_before_the_stop() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let (run, item) = allowed(&c);
+    assert_eq!(
+        c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Ok(())
+    );
+    let records = allowed_records(&c, &run, &item);
+    for record in &records {
+        assert_eq!(
+            c.check_record(record),
+            Ok(()),
+            "{:?} while the run works",
+            record.state
+        );
+    }
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    assert_eq!(cancels_of(&c, m, &run), 1, "the cancel in the move");
+    for record in &records {
+        assert_eq!(
+            c.check_record(record),
+            Err(halvo_coord::guard::Refusal::Approval),
+            "{:?} refused in the window",
+            record.state
+        );
+    }
+    clock_answers(&c);
+}
+
+/// The grace counts from the read that stamps the stop, not from the last read before the
+/// press: the clock moves between the two (the review's test finding 3).
+#[test]
+fn rd133_the_grace_counts_from_the_stamping_read_not_the_last_read_before_the_press() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    let before = T0 + Limits::PRODUCT.arm_ms;
+    let grace = Limits::PRODUCT.cancel_grace_s * 1000;
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    clock_answers(&c);
+    let stamp = before + 5_000;
+    c.ports().ports.set_clock(stamp, DAY);
+    c.tick();
+    c.ports().ports.set_clock(before + grace + 1_000, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run1),
+        0,
+        "the grace from the last read before the press has passed, the grace from the stamp has not"
+    );
+    c.ports().ports.set_clock(stamp + grace, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run1),
+        1,
+        "killed at the grace from the stamp"
+    );
+}

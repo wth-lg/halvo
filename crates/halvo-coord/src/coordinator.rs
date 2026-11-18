@@ -46,12 +46,14 @@ pub struct Coordinator<P: Owner> {
     limits: Limits,
     label: fn(&FullWorkflow) -> Option<String>,
     state: Mutex<State<Cfg<P>>>,
-    /// The last read of the clock that answered in this life, in milliseconds, `NO_READ` before
-    /// the first (ruling RD-133, answer (b)).
+    /// The latest read of the clock that answered in this life, in milliseconds, `NO_READ` before
+    /// the first (ruling RD-133, answer (b)): the coordinator's own reads and the read that
+    /// stamped each drive's move. Named limits: a read inside the items drive is not noted, so
+    /// the noted read can be older than the last read of the life, never later than it.
     last_read: AtomicU64,
 }
 
-const NO_READ: u64 = u64::MAX;
+const NO_READ: u64 = 0;
 
 /// A clock that answers one instant, the last read of this life, with the day that the
 /// app's clock gives it, so that a row is stamped at that read (ruling RD-133, answer (b)).
@@ -365,6 +367,10 @@ where
             unwinding: std::thread::panicking(),
         };
         if entry != Entry::Read {
+            let tick = st.mark.tick;
+            if let Some(board) = st.board.as_mut() {
+                board.hold_queue(tick);
+            }
             self.take_up(&mut st);
             let held = st.mark.tick && entry == Entry::Move;
             if let Some(board) = st.board.as_mut() {
@@ -468,9 +474,21 @@ where
         }
         let waiting: Vec<AgentId> = std::mem::take(offs);
         for agent in waiting {
-            let shown = index(board, &agent).is_some_and(|i| {
-                schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off)
-            });
+            let Some(i) = index(board, &agent) else {
+                continue;
+            };
+            if let Some((_, l)) = ledgers.iter_mut().find(|(a, _)| a == &agent) {
+                if !l.waiting().is_empty() {
+                    let _ = items::flush(&self.ports, l, &self.limits);
+                    self.read_back(board, i);
+                }
+                let unacknowledged = l.waits_with_a_persons_hold();
+                if unacknowledged {
+                    offs.push(agent);
+                    continue;
+                }
+            }
+            let shown = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
             let mv = if shown {
                 Move::Off {
                     agent: agent.clone(),
@@ -481,7 +499,10 @@ where
                 }
             };
             let report = schedule::drive(&self.ports, board, &self.limits, mv);
-            if report.answer.is_err() && board.members.iter().any(|m| m.facts.agent == agent) {
+            let passing = matches!(report.answer, Err(Cause::NoService | Cause::Busy));
+            if report.unstamped
+                || (passing && !board.aside(&agent) && !board.dismissed_unread(&agent))
+            {
                 offs.push(agent);
             }
         }
@@ -1140,7 +1161,7 @@ where
     /// (ruling RD-133 1, (b)).
     fn noted(&self, read: Option<u64>) {
         if let Some(now) = read {
-            self.last_read.store(now, Ordering::Relaxed);
+            self.last_read.fetch_max(now, Ordering::Relaxed);
         }
     }
 
@@ -1324,12 +1345,25 @@ where
     /// (answer (b)). Named limits: with no read of a move noted yet in this life (recovery's own
     /// read does not count), where the day of the last read cannot be read, or where the owner
     /// does not acknowledge the `hold_set`, the hold is kept only in this life's state until the
-    /// next read that answers, and a new life before it loses the hold.
+    /// next read that answers, and a new life before it loses the hold. In the window it refuses
+    /// what a stamped switch-off refuses for a reason other than the clock: an agent set aside
+    /// (`no_service`), one whose dismissed workflow's events were not read, or one already off
+    /// with no run to stop (`state`).
     fn switch_off_unstamped(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         let Some(board) = st.board.as_mut() else {
             return Err(Cause::NoService);
         };
         let agent = board.members[i].facts.agent.clone();
+        if board.aside(&agent) {
+            return Err(Cause::NoService);
+        }
+        if board.dismissed_unread(&agent) {
+            return Err(Cause::State);
+        }
+        let standing = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
+        if standing && live_unstopped_run(board, &agent).is_none() {
+            return Err(Cause::State);
+        }
         let open = waiting_on(&board.members[i].facts.doing);
         if let Some(run) = live_unstopped_run(board, &agent) {
             if run::stop_unstamped(
@@ -1355,7 +1389,8 @@ where
                 }
             }
         }
-        if let (Some(at), Some(board)) = (self.last_stamp(), st.board.as_mut()) {
+        let store = if standing { None } else { self.last_stamp() };
+        if let (Some(at), Some(board)) = (store, st.board.as_mut()) {
             share_lasts(board, &mut st.ledgers);
             let l = ledger(&mut st.ledgers, board, i);
             let _ = items::store_held_off(&self.ports, l, &self.limits, at);

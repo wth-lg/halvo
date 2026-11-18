@@ -99,6 +99,19 @@ impl Ledger {
         }
     }
 
+    /// Whether a `hold_set` of the person waits for the owner's acknowledgement, so that a
+    /// switch-off that stored it at once does not store it again (ruling RD-133, answer (b)).
+    pub fn waits_with_a_persons_hold(&self) -> bool {
+        self.waiting.iter().any(|e| {
+            matches!(
+                e.what,
+                What::HoldSet {
+                    cause: crate::types::HoldSetCause::Person
+                }
+            )
+        })
+    }
+
     /// Whether rows of a stop or a switch-off wait for a read of the clock that answers
     /// (ruling RD-133 1).
     pub fn has_unstamped(&self) -> bool {
