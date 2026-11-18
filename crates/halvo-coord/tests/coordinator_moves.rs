@@ -10277,3 +10277,96 @@ fn rd133_an_acknowledged_hold_whose_read_back_failed_is_stored_once() {
     assert_eq!(person_holds(&c, 1).len(), 1, "stored once");
     assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
 }
+
+/// The quit's stop-all after the window kept a runner's end neither cancels the ended run nor
+/// replaces its outcome (the third review, finding 1).
+#[test]
+fn rd133_the_quits_stop_all_after_a_kept_end_keeps_the_runners_outcome() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed)));
+    let m = mark(&c);
+    let _ = c.quit_stop();
+    assert_eq!(cancels_of(&c, m, &run), 0, "no cancel to an ended run");
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.quit_kill();
+    assert_eq!(
+        ends_of(&c, &run),
+        vec![RunEnd::Failed],
+        "the runner's outcome"
+    );
+}
+
+/// The rest of a switch-off at a read that answers, while the kept end of the agent's run met a
+/// failing read again, does not stop the ended run (the third review, finding 2).
+#[test]
+fn rd133_the_rest_of_a_switch_off_does_not_stop_a_run_whose_end_is_kept_again() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed)));
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    clock_answers(&c);
+    c.ports().fail_read_at.set(Some(1));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    clock_answers(&c);
+    c.tick();
+    assert_eq!(cancels_of(&c, m, &run), 0, "no cancel to an ended run");
+    assert_eq!(
+        ends_of(&c, &run),
+        vec![RunEnd::Failed],
+        "the runner's outcome"
+    );
+    assert_eq!(person_holds(&c, 1).len(), 1, "one hold_set");
+}
+
+/// A runner's end made in a move whose first read failed and whose drive's read answered
+/// leaves a dying tree whose stop has no time; the next read stamps it, so its kill waits for
+/// the grace from that read (the third review, finding 4).
+#[test]
+fn rd133_a_dying_tree_of_a_stop_with_no_time_is_stamped_before_its_kill() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 1);
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    clock_answers(&c);
+    c.ports().fail_read_at.set(Some(0));
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(None));
+    clock_answers(&c);
+    assert_eq!(
+        ends_of(&c, &run),
+        vec![RunEnd::Cancelled],
+        "the person's cause"
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &run), 0, "no kill before the grace");
+}
+
+/// A second press of Switch off while the first, made in the window, is still in hand is
+/// refused `state` and stores no second `hold_set`, also once the clock answers (the third
+/// review, finding 3).
+#[test]
+fn rd133_a_stamped_second_switch_off_while_the_first_is_in_hand_stores_one_hold() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let _run1 = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.refuse(Method::Log, PortError::Busy);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    clock_answers(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Err(Cause::State));
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(person_holds(&c, 1).len(), 1, "one hold_set");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+}

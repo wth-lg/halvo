@@ -460,6 +460,12 @@ where
                 .and_then(|r| r.stop.as_mut())
             {
                 stop.at = stamp.now();
+            } else if let Some(d) = board
+                .dying
+                .iter_mut()
+                .find(|d| d.run == run && d.stopped == 0)
+            {
+                d.stopped = stamp.now();
             }
         }
         for (agent, l) in ledgers.iter_mut() {
@@ -1235,6 +1241,9 @@ where
     /// The runner's end through the run drive. Where no read of the clock answers, the end is
     /// kept and made again at the next read that answers, so that a run that a person stopped
     /// ends with the person's cause and no later kill ends it `interrupted` (ruling RD-133 1).
+    /// A kept end of a run that no stop reached puts a stop with the runner's own cause on the
+    /// board at once, stamped at that read, so that no Stop, switch-off or quit stops a run
+    /// that ended and its end keeps the runner's outcome.
     fn end_of_run(
         &self,
         st: &mut State<Cfg<P>>,
@@ -1257,6 +1266,20 @@ where
         self.noted(done.report.read);
         if done.report.unstamped && !st.ended.iter().any(|(r, _)| r == run) {
             st.ended.push((run.clone(), outcome));
+            let marked = st.board.as_mut().is_some_and(|board| {
+                board
+                    .runs
+                    .iter_mut()
+                    .find(|r| &r.run == run && r.stop.is_none())
+                    .is_some_and(|r| {
+                        let cause = outcome.map_or(crate::types::RunEnd::Interrupted, Into::into);
+                        r.stop = Some(schedule::Stop { at: 0, cause });
+                        true
+                    })
+            });
+            if marked {
+                st.unstamped.push(run.clone());
+            }
         }
         answered(&done.report)
     }
@@ -2065,6 +2088,7 @@ where
             _ if gone => Err(Cause::UnknownAgent),
             Action::RunNow => self.start_in(st, agent),
             Action::SwitchOn if st.mark.tick || st.offs.contains(agent) => Err(Cause::NoService),
+            Action::SwitchOff if st.offs.contains(agent) => Err(Cause::State),
             Action::SwitchOn => self.schedule(
                 st,
                 Move::SwitchOn {
