@@ -1954,7 +1954,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
         let mut sink_differs = 0;
         let mut closed_before_the_step = 0;
         let mut waited_for_the_type = 0;
-        let mut burst = burst_rounds::Burst::default();
+        let mut tally = burst_rounds::Burst::default();
         for round in 0..5 {
             let _ = seam::take_marks();
             let gate_before_the_step = keyboard.source.field_state();
@@ -2055,7 +2055,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                     r.line()
                 ),
             );
-            burst.take(
+            tally.take(
                 round,
                 r.counted
                     .then_some(burst_rounds::Counted {
@@ -2079,10 +2079,10 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                  rounds_whose_step_found_a_closed_gate={closed_before_the_step} \
                  rounds_that_waited_for_the_page_type={waited_for_the_type} \
                  rounds_where_the_sink_differs_from_the_seam={sink_differs} {}",
-                burst.fields()
+                tally.fields()
             ),
         );
-        if let Err(why) = burst.verdict(super::stall::form()) {
+        if let Err(why) = tally.verdict(super::stall::form()) {
             panic!("{why}");
         }
         out.store(recorded, Ordering::SeqCst);
