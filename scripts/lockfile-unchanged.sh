@@ -115,7 +115,7 @@ self_test() {
   git -C "$template" init -q || exit 2
   git -C "$template" config core.autocrlf false
   printf 'line 1\n' >"$template/tracked.txt"
-  printf '%s\n' '/target/' '*.log' '/store.db*' '/store.key' '/create.pending' '/writer.lock' '/daemon.lock' '/daemon-state.json' '/delete-all.intent' '/*.seg' >"$template/.gitignore"
+  printf '%s\n' '/target/' '*.log' '.DS_Store' '/store.db*' '/store.key' '/create.pending' '/writer.lock' '/daemon.lock' '/daemon-state.json' '/delete-all.intent' '/*.seg' >"$template/.gitignore"
   quoted_dir=$(printf 'n\303\251sted')
   mkdir "$template/nested" "$template/$quoted_dir" || exit 2
   printf 'store.key\n' >"$template/nested/.gitignore"
@@ -132,7 +132,7 @@ self_test() {
   run_case() {
     case_name=$1 want=$2 job=$3
     got=FAIL
-    (inspect "$tree" "$base" "$job") >"$work/case-$case_count.out" 2>&1 && got=PASS
+    (inspect "$tree" "${4:-$base}" "$job") >"$work/case-$case_count.out" 2>&1 && got=PASS
     verdict "$case_name" "$want" "$got"
   }
   plain_sees() {
@@ -175,8 +175,34 @@ self_test() {
   fresh; : >"$tree/nested/store.key"; run_case store-key-in-a-subdirectory-ignored-by-a-tracked-rule FAIL macos
   fresh; : >"$tree/$quoted_dir/store.key"; run_case store-key-in-a-directory-whose-name-git-quotes FAIL windows
   fresh; : >"$tree/Store.Key"; run_case store-name-in-another-case FAIL macos
-  fresh; mkdir "$tree/newdir"; : >"$tree/newdir/build.log"; run_case new-directory-of-files-that-a-tracked-rule-ignores PASS macos
-  fresh; : >"$tree/$quoted_dir/build.log"; run_case ignored-file-in-a-directory-whose-name-git-quotes PASS windows
+  fresh; mkdir "$tree/newdir"; : >"$tree/newdir/build.log"; run_case new-directory-of-files-that-a-tracked-rule-ignores FAIL macos
+  fresh; : >"$tree/$quoted_dir/build.log"; run_case ignored-file-in-a-directory-whose-name-git-quotes FAIL windows
+  fresh; mkdir -p "$tree/nested/writer.lock"; : >"$tree/nested/writer.lock/build.log"; run_case store-named-directory-holding-an-ignored-file FAIL macos
+  newline_case() {
+    fresh
+    [ -z "$2" ] || mkdir "$tree/$2"
+    line_name=$(printf '%s\nx' "$1")
+    line_name="${line_name%x}$3"
+    if : >"$tree/$line_name" 2>/dev/null && [ -f "$tree/$line_name" ]; then
+      run_case "$4" FAIL "$5"
+    else
+      skipped="$skipped $4"
+      printf 'case %s/%s skipped: this system keeps no line feed in a file name\n' "$name" "$4"
+    fi
+  }
+  newline_case .DS_Store '' x.seg segment-name-after-a-line-feed-at-the-root macos
+  newline_case target target 0123.seg segment-name-after-a-line-feed-beside-target windows
+  fresh
+  if mkdir "$tree/a:b" 2>/dev/null && printf '*.tmp\n' >"$tree/a:b/.gitignore" 2>/dev/null; then
+    git -C "$tree" add "a:b/.gitignore" || exit 2
+    colon_head=$(commit_tree "$tree") || exit 2
+    git -C "$tree" update-ref HEAD "$colon_head" || exit 2
+    : >"$tree/a:b/x.tmp"
+    run_case file-ignored-by-a-tracked-rule-in-a-directory-named-with-a-colon FAIL macos "$colon_head"
+  else
+    skipped="$skipped colon"
+    printf 'case %s/colon skipped: this system keeps no colon in a file name\n' "$name"
+  fi
   fresh; printf 'line 2\n' >>"$tree/tracked.txt"; : >"$tree/new.txt"; printf 'not an index\n' >"$tree/.git/index"; run_case index-that-git-cannot-read FAIL macos
 
   fresh
