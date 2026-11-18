@@ -13,7 +13,9 @@ use std::cell::RefCell;
 /// Who stops a live run with the move `stop` of the run drive: the person's stop control,
 /// which gives the cause `cancelled`, a lapse of the run's item with `wait_limit`, which gives
 /// `lapsed` (I5.6, I5.7), or the coordinator's answer to a request that ends the run with
-/// `kind` or `budget` (I3.1, I3.3, ruling IG-32). The switch-off control and a workflow that is
+/// `kind` or `budget` (I3.1, I3.3, ruling IG-32), or the settle of a confirmation that an
+/// answer's move left `answered`, which gives `answer_lost` (ruling RD-84). The switch-off
+/// control and a workflow that is
 /// gone stop a run through `Act::SwitchOff` and `Act::Tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopBy {
@@ -28,6 +30,8 @@ pub enum StopBy {
     Kind,
     /// A request after the run raised `items_per_run` items, which ends it with `budget` (I3.3).
     Budget,
+    /// The settle of a confirmation that an answer's move left `answered` (ruling RD-84).
+    AnswerLost,
 }
 
 impl StopBy {
@@ -38,6 +42,7 @@ impl StopBy {
             StopBy::WaitLimit => StopCause::Lapsed,
             StopBy::Kind => StopCause::Kind,
             StopBy::Budget => StopCause::Budget,
+            StopBy::AnswerLost => StopCause::AnswerLost,
         }
     }
 }
@@ -618,7 +623,7 @@ where
     P: Runs + Clock + Owner,
 {
     let lapse = match by {
-        StopBy::Person | StopBy::WaitLimit => ItemLapse::MustHaveLapsed,
+        StopBy::Person | StopBy::WaitLimit | StopBy::AnswerLost => ItemLapse::MustHaveLapsed,
         StopBy::Kind | StopBy::Budget => ItemLapse::NoOpenItem,
     };
     stop_as(ports, board, table, run, by, lapse)

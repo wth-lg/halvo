@@ -1367,7 +1367,9 @@ pub fn answer_reading<P: Owner + Runs + Clock>(
 /// tick hands on (`tick_at`) or else at a time read then, waiting in the ledger; second,
 /// `Runs::cancel` once; third, the decision, only where the cancel answered success or `ended`,
 /// so that the runner holds the cancel when the decision comes; fourth, the row to the owner. After a cancel that answered another error no decision
-/// is sent, and the kill of I5.7 ends the run.
+/// is sent, and the kill of I5.7 ends the run. A lapse with `answer_lost`, from `answered`
+/// alone, goes in the same order and sends no decision at all: the lapse rests on the cancel
+/// and on the kill at `cancel_grace_s` (ruling RD-84 item 2).
 ///
 /// Every other lapse first sends the decision, then lapses the item, takes its rows out of the
 /// guard's table and stores `item_lapsed`, and stops no run.
@@ -1380,6 +1382,20 @@ pub fn lapse<P: Owner + Runs + Clock>(
     limits: &Limits,
 ) -> Result<(), Cause> {
     lapse_stamped(ports, ledger, table, held, cause, limits, None)
+}
+
+/// `lapse` at `stamp`, the move's one read of the clock, which the caller also gives the stop
+/// of the run on the board (rulings RD-84 item 2, RD-101 item 1).
+pub fn lapse_at<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    cause: LapseCause,
+    limits: &Limits,
+    stamp: Stamp,
+) -> Result<(), Cause> {
+    lapse_stamped(ports, ledger, table, held, cause, limits, Some(stamp))
 }
 
 fn lapse_stamped<P: Owner + Runs + Clock>(
@@ -1400,7 +1416,10 @@ fn lapse_stamped<P: Owner + Runs + Clock>(
         item: held.item.clone(),
         lapsed: Lapsed::Confirm(cause),
     };
-    if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
+    if matches!(
+        cause,
+        LapseCause::WaitLimit | LapseCause::Cancelled | LapseCause::AnswerLost
+    ) {
         held.confirmation = next;
         *table = table.lapse(&held.item).stop(&run);
         if let Some(stamp) = stamp.or_else(|| Stamp::read(ports).ok()) {
@@ -1408,6 +1427,7 @@ fn lapse_stamped<P: Owner + Runs + Clock>(
         }
         let cancelled = ports.cancel(&run);
         if decides
+            && cause != LapseCause::AnswerLost
             && cancelled
                 .as_ref()
                 .map_or_else(|e| refused_with(e, "ended"), |()| true)

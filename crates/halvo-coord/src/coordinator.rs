@@ -2,7 +2,7 @@ use crate::guard::{self, EffectRecord, Policy, Refusal, Table};
 use crate::items::drive::{self as items, Held, HeldBind, Ledger, SetupDone};
 use crate::items::{
     compose_check, compose_link_account, compose_plain, params, raise_confirm, raise_step,
-    ConfirmAnswer, ConfirmMove, Plain, Raise, Setup, SetupInput, SetupParam, Source,
+    ConfirmAnswer, ConfirmMove, ConfirmState, Plain, Raise, Setup, SetupInput, SetupParam, Source,
 };
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::roster::{self, Placed};
@@ -77,6 +77,7 @@ struct State<C> {
     quitting: bool,
     sync: Sync,
     mark: Mark,
+    answering: Option<ItemId>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -305,6 +306,7 @@ where
                 quitting: false,
                 sync: Sync::new(),
                 mark: Mark::default(),
+                answering: None,
             }),
         }
     }
@@ -343,7 +345,8 @@ where
     }
 
     /// What a move takes up first after a move that did not return: after a tick, the defers of
-    /// the runs on the board are not known (ruling RD-122).
+    /// the runs on the board are not known (ruling RD-122); after an answer's move, the settle of
+    /// RD-84.
     fn take_up(&self, st: &mut State<Cfg<P>>) {
         if st.mark.defers {
             st.mark.defers = false;
@@ -351,6 +354,56 @@ where
                 board.defers_not_known();
             }
         }
+        self.settle(st);
+    }
+
+    /// The settle of a confirmation that an answer's move left `answered` and did not return
+    /// (ruling RD-84 items 1 and 2), keyed on the item that the move noted, never on the state
+    /// alone: at one read of the clock, the run stopped on the board with `answer_lost`, then the
+    /// lapse with `answer_lost`, which stops the run in the guard's table, queues its row,
+    /// sends `Runs::cancel` once and no decision, and then the row. Where the clock cannot be
+    /// read the next move settles it; an item that is no longer `answered` is not touched.
+    fn settle(&self, st: &mut State<Cfg<P>>) {
+        if st.answering.is_none() {
+            return;
+        }
+        let Ok(stamp) = crate::ports::Stamp::read(&self.ports) else {
+            return;
+        };
+        let Some(item) = st.answering.take() else {
+            return;
+        };
+        let State {
+            board,
+            table,
+            ledgers,
+            held,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let Some(h) = held.iter_mut().find(|h| h.item() == &item) else {
+            return;
+        };
+        if !matches!(h.confirmation().state(), ConfirmState::Answered(_)) {
+            return;
+        }
+        let Some(i) = index(board, h.ask().agent()) else {
+            return;
+        };
+        let run = h.ask().run().clone();
+        hold_stop(board, table, &run, stamp.now(), StopBy::AnswerLost);
+        let l = ledger(ledgers, board, i);
+        let _ = items::lapse_at(
+            &self.ports,
+            l,
+            table,
+            h,
+            LapseCause::AnswerLost,
+            &self.limits,
+            stamp,
+        );
+        held.retain(|h| h.item() != &item || h.confirmation().state().is_open());
+        self.read_back(board, i);
     }
 
     /// One tick (I5.9): the recovery of I5.8 at the first, the creation move of I5.5, the run
@@ -1361,6 +1414,7 @@ where
             table,
             ledgers,
             held,
+            answering,
             ..
         } = st;
         let board = board.as_mut().ok_or(Cause::State)?;
@@ -1374,6 +1428,7 @@ where
         let agent = board.members[i].facts.agent.clone();
         let l = ledger(ledgers, board, i);
         let mut reading = Reading::new(&self.ports, board, i);
+        *answering = Some(item.clone());
         let out = items::answer_reading(
             &self.ports,
             l,
@@ -1384,6 +1439,7 @@ where
             &self.limits,
             &mut |l| reading.read(l),
         );
+        *answering = None;
         let stopped = reading.stopped;
         let closed = !h.confirmation().state().is_open();
         self.read_back(board, i);

@@ -8408,3 +8408,142 @@ fn rd122_a_run_that_stood_through_a_tick_that_did_not_return_ends_with_its_defer
         "a run that started after the mark went is seen whole"
     );
 }
+
+const LOST_WORLDS: [&str; 4] = [
+    "answer_confirm",
+    "answer_confirm_after_record",
+    "answer_confirm_after_send",
+    "log_answered",
+];
+
+fn approved_under(
+    run: &RunId,
+    approval: Option<halvo_coord::types::ApprovalId>,
+) -> halvo_coord::guard::EffectRecord {
+    halvo_coord::guard::EffectRecord {
+        run: run.clone(),
+        agent: agent(0),
+        effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe1)).unwrap(),
+        state: halvo_coord::guard::EffectState::Approved,
+        class: Class::Send,
+        digest: halvo_coord::types::Digest::parse(&"ab".repeat(32)).unwrap(),
+        approval,
+    }
+}
+
+fn lost_lapses(c: &Coordinator<Both>, item: &ItemId) -> usize {
+    events(c)
+        .iter()
+        .filter(|w| {
+            matches!(w, What::ItemLapsed { item: i, lapsed } if i == item && lapsed.cause().name() == "answer_lost")
+        })
+        .count()
+}
+
+fn decisions_since(c: &Coordinator<Both>, m: usize) -> Vec<halvo_coord::types::Decision> {
+    calls_since(c, m)
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::AnswerConfirm(_, _, d) => Some(d),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn rd84_an_answer_whose_move_did_not_return_is_settled_by_the_next_move_with_a_stop() {
+    for world in LOST_WORLDS {
+        for next in ["tick", "confirm", "stop", "press"] {
+            let case = format!("{world}, then {next}");
+            let (c, run, item) = armed_confirmation();
+            let m = mark(&c);
+            panicking(&c, world, || c.answer(&item, Choice::Allow, None, 0));
+            let sent = decisions_since(&c, m);
+            assert_eq!(
+                sent.len(),
+                usize::from(world == "answer_confirm_after_send"),
+                "{case}"
+            );
+            let approval = sent.first().map(|d| d.approvals()[0].approval.clone());
+            if approval.is_some() {
+                assert_eq!(
+                    c.check_record(&approved_under(&run, approval.clone())),
+                    Err(halvo_coord::guard::Refusal::Approval),
+                    "{case}: no row of the sent allow before the settle"
+                );
+            }
+            match next {
+                "tick" => c.tick(),
+                "confirm" => {
+                    let _ = c.on_run(&run, ask_confirm(&run, 0));
+                }
+                "stop" => assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{case}"),
+                _ => {
+                    let _ = c.answer(&item, Choice::Allow, None, 0);
+                }
+            }
+            assert_eq!(lost_lapses(&c, &item), 1, "{case}: one answer_lost");
+            assert_eq!(cancels_of(&c, m, &run), 1, "{case}: one cancel");
+            assert_eq!(
+                decisions_since(&c, m).len(),
+                sent.len(),
+                "{case}: no decision"
+            );
+            assert!(
+                !events(&c)
+                    .iter()
+                    .any(|w| matches!(w, What::ItemReleased { item: i, .. } if i == &item)),
+                "{case}: no item_released"
+            );
+            let s = c.snapshot();
+            assert!(s.items.is_empty(), "{case}: no card");
+            assert_eq!(
+                row_line(&s, 0),
+                text("line.working.stopping"),
+                "{case}: the board holds the stop"
+            );
+            assert_eq!(
+                c.check_record(&approved_under(&run, approval.clone())),
+                Err(halvo_coord::guard::Refusal::Approval),
+                "{case}: the table holds the stop"
+            );
+            c.tick();
+            assert_eq!(lost_lapses(&c, &item), 1, "{case}: and no second");
+            assert_eq!(cancels_of(&c, m, &run), 1, "{case}: once");
+            c.ports().ports.end_runner(&run);
+            assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{case}");
+            assert!(
+                events(&c)
+                    .iter()
+                    .any(|w| matches!(w, What::RunEnded { run: r, cause: RunEnd::Failed, .. } if r == &run)),
+                "{case}: the run ended failed"
+            );
+            let s = c.snapshot();
+            assert_ne!(
+                s.rows[0].status,
+                Status::Working,
+                "{case}: the row not working"
+            );
+            ended_in_store(&c, &run, Outcome::Failed);
+            assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()), "{case}");
+            assert_eq!(started(&c).len(), 2, "{case}: a second run starts");
+        }
+    }
+}
+
+#[test]
+fn rd84_a_move_that_returned_leaves_an_answer_to_its_own_rules() {
+    let (c, run, item) = armed_confirmation();
+    c.ports().drop_decision.set(true);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Err(Cause::NoService),
+        "the release failed after the record"
+    );
+    let m = mark(&c);
+    c.tick();
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(lost_lapses(&c, &item), 0);
+    assert_eq!(cancels_of(&c, m, &run), 0);
+}

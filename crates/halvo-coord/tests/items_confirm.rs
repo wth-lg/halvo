@@ -179,7 +179,10 @@ fn row_release_releases_a_recorded_item_with_its_decision() {
 fn row_lapse_takes_each_of_the_six_causes_from_shown_or_armed() {
     let a = ask(PAGE);
     for state in ["shown", "armed"] {
-        for cause in LapseCause::ALL {
+        for cause in LapseCause::ALL
+            .iter()
+            .filter(|c| **c != LapseCause::AnswerLost)
+        {
             let item = step(
                 Some(&at(&a, state, Presenter::Page)),
                 ConfirmMove::Lapse(*cause),
@@ -194,13 +197,27 @@ fn row_lapse_takes_each_of_the_six_causes_from_shown_or_armed() {
 }
 
 #[test]
-fn row_lapse_takes_four_causes_from_answered() {
+fn row_lapse_takes_answer_lost_from_answered_alone() {
+    let a = ask(PAGE);
+    for state in ["shown", "armed", "recorded"] {
+        let item = at(&a, state, Presenter::Page);
+        assert_eq!(
+            confirm_step(Some(&item), ConfirmMove::Lapse(LapseCause::AnswerLost)),
+            Err(Cause::State),
+            "{state}"
+        );
+    }
+}
+
+#[test]
+fn row_lapse_takes_five_causes_from_answered() {
     let a = ask(PAGE);
     for cause in [
         LapseCause::RunEnded,
         LapseCause::Cancelled,
         LapseCause::NoRecord,
         LapseCause::AppEnded,
+        LapseCause::AnswerLost,
     ] {
         let item = step(
             Some(&at(&a, "answered", Presenter::Page)),
@@ -285,10 +302,14 @@ fn contract(
             }
         }
         ("recorded", ConfirmMove::Release) => Ok("released"),
-        ("shown" | "armed", ConfirmMove::Lapse(_)) => Ok("lapsed"),
-        ("answered", ConfirmMove::Lapse(RunEnded | Cancelled | NoRecord | AppEnded)) => {
-            Ok("lapsed")
-        }
+        (
+            "shown" | "armed",
+            ConfirmMove::Lapse(Digest | RunEnded | WaitLimit | Cancelled | NoRecord | AppEnded),
+        ) => Ok("lapsed"),
+        (
+            "answered",
+            ConfirmMove::Lapse(RunEnded | Cancelled | NoRecord | AppEnded | AnswerLost),
+        ) => Ok("lapsed"),
         ("recorded", ConfirmMove::Lapse(RunEnded | AppEnded)) => Ok("lapsed"),
         _ => Err(Cause::State),
     }
