@@ -58,7 +58,9 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   move other than `rebind` keeps the digest and the kept fields of the last row. `effect_step` takes the effect
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
 ///   the row's state. A `releasing` or `committed` row holds the approval of the effect's last `approved` row, or
-///   none where the effect has no `approved` row, else `effect` (CP-132 (a)).
+///   none where the effect has no `approved` row, else `effect` (CP-132 (a)). A `releasing` row is refused with
+///   `effect` when `decide` for the agent's newest stored configuration and the effect's class, with the checkpoint
+///   of its first row, gives `refuse` (CP-143 (4) (ii)).
 /// - `checkpoint`: a row equal to the checkpoint's newest row (its run and workbook) in every key but `day` and
 ///   `at` is answered as the first and stores nothing; else `effect` unless the row is a `planned` first row of the
 ///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy; `length` for

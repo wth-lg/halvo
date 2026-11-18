@@ -198,3 +198,65 @@ fn refusal_repeat_begin() {
     assert_eq!(effects(&store).len(), 4);
     assert_eq!(last_of(&store, &effect(1)).state, EffectState::Unknown);
 }
+
+fn turn_to_observe(store: &mut halvo_agent_store::MemoryStore) {
+    use halvo_agent_store::Host;
+    let mut config = configs(store).pop().expect("a config");
+    config.rev = std::num::NonZeroU32::new(2).expect("2");
+    config.autonomy = halvo_schema::executable::Autonomy::Observe;
+    store
+        .commit(vec![halvo_schema::TypedRecord {
+            kind: "agent_config",
+            json: config.to_json().expect("the config's JSON"),
+        }])
+        .expect("a later config");
+}
+
+#[test]
+fn a_releasing_row_under_a_newest_configuration_that_gives_refuse_is_refused_and_stores_nothing() {
+    let mut store = store_with("email");
+    for e in [1, 2] {
+        put(&mut store, row(1, e, 1, "held", "send", 1, None, None)).expect("held");
+        put(
+            &mut store,
+            row(1, e, 2, "approved", "send", 1, Some(e), None),
+        )
+        .expect("approved");
+    }
+    put(
+        &mut store,
+        row(1, 1, 3, "releasing", "send", 1, Some(1), None),
+    )
+    .expect("releasing");
+    turn_to_observe(&mut store);
+    let before = effects(&store);
+    assert_eq!(
+        put(
+            &mut store,
+            row(1, 2, 3, "releasing", "send", 1, Some(2), None)
+        ),
+        Err(declared("effect"))
+    );
+    assert_eq!(effects(&store), before);
+    let mut again = row(1, 1, 3, "releasing", "send", 1, Some(1), None);
+    again["at"] = serde_json::json!(ROW_AT + 7);
+    assert_eq!(put(&mut store, again), Ok(stored(1)));
+    assert_eq!(effects(&store), before);
+}
+
+#[test]
+fn a_releasing_local_edit_is_decided_with_the_checkpoint_of_its_cleared_first_row() {
+    let mut store = store_with("spreadsheet_fill");
+    put(
+        &mut store,
+        row(1, 1, 1, "cleared", "local_edit", 1, None, None),
+    )
+    .expect("cleared");
+    assert_eq!(
+        put(
+            &mut store,
+            row(1, 1, 2, "releasing", "local_edit", 1, None, None)
+        ),
+        Ok(stored(1))
+    );
+}
