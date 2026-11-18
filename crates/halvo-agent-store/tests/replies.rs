@@ -1118,3 +1118,28 @@ fn the_keeper_and_the_list_blocked_agree() {
 fn answer_of(store: &mut MemoryStore) -> LoadRepliesReply {
     answer(store, 1, &["m1"])
 }
+
+#[test]
+fn the_keeper_does_not_order_two_agents_rows_by_their_instants() {
+    for (mine, theirs) in [(2, 1), (1, 2)] {
+        let mut store = two_agents();
+        let hour = |h: i64| json!(ROW_AT + h * 3_600_000_000_000);
+        let mut drafted = reply(1, 1, 1, "m1", Some("d1"), None, "drafted");
+        drafted["at"] = hour(mine);
+        ok(&mut store, drafted);
+        for mut row in [
+            reply(2, 2, 1, "m1", Some("dz"), None, "drafted"),
+            reply(2, 2, 2, "m1", Some("dz"), Some(9), "begun"),
+        ] {
+            row["at"] = hour(theirs);
+            ok(&mut store, row);
+        }
+        let mut begun = reply(1, 1, 2, "m1", Some("d1"), Some(1), "begun");
+        begun["at"] = hour(3);
+        assert_eq!(
+            put_reply(&mut store, begun),
+            Err(declared("effect")),
+            "{mine} {theirs}"
+        );
+    }
+}

@@ -242,6 +242,13 @@ fn a_releasing_row_under_a_newest_configuration_that_gives_refuse_is_refused_and
     again["at"] = serde_json::json!(ROW_AT + 7);
     assert_eq!(put(&mut store, again), Ok(stored(1)));
     assert_eq!(effects(&store), before);
+    assert_eq!(
+        put(
+            &mut store,
+            row(1, 2, 3, "rejected", "send", 1, None, Some("ended"))
+        ),
+        Ok(stored(1))
+    );
 }
 
 #[test]
