@@ -1,8 +1,10 @@
 use halvo_agent_store::{Host, Now};
 use halvo_schema::executable::body::StepsReply;
+use halvo_schema::executable::names::{Mode, Outcome};
+use halvo_schema::executable::record::AgentRun;
 use halvo_schema::executable::{CoordinatorReply, RunId, RunnerReply};
 use halvo_schema::learning::record::LearnRun;
-use halvo_schema::{ErrorName, RowRead, TypedRecord, WorkflowId, WorkflowItem};
+use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord, WorkflowId, WorkflowItem};
 use serde_json::{json, Value};
 
 use super::host::{
@@ -245,4 +247,75 @@ fn a_store_fault_at_the_handlers_own_load_at_an_answered_load_steps_returns_the_
     let again = w.load_steps(3, 1, 1);
     assert_eq!(again, compiled());
     learns_nothing_more(&mut w, 3);
+}
+
+fn finish_body(w: &World, r: u32) -> Value {
+    let mut made = AgentRun::new(
+        WorkflowId::parse(&wf(1)).expect("a workflow id"),
+        AgentId::parse(&agent(1)).expect("an agent id"),
+        id(r),
+        w.host.day,
+        Some(Mode::Replay),
+        Outcome::Completed,
+    );
+    made.steps = 3;
+    made.wall_s = 9;
+    let text = made.to_json().expect("a made record");
+    let record: Value = serde_json::from_str(&text).expect("the made record's text");
+    json!({"op": "finish", "agent": agent(1), "run": run(r), "record": record})
+}
+
+fn agent_run_of(w: &World, r: u32) -> bool {
+    let named = format!("\"run\":\"{}\"", run(r));
+    w.host
+        .agent_rows("agent_run")
+        .iter()
+        .any(|row| row.contains(named.as_str()))
+}
+
+#[test]
+fn a_store_fault_at_the_handlers_own_load_before_a_finish_passes_it_on_and_commits_nothing() {
+    let mut w = learned_world();
+    let served = w.replay(3);
+    assert_eq!(names(&served[1]), ["A", "Pay"]);
+    w.log(3, &[(2, "step_ok", 2, None)]);
+    let (count, commits) = (w.host.count(), w.host.commits.get());
+    let body = finish_body(&w, 3);
+    let answer = runner_at(&mut w, 1, body);
+    assert!(matches!(answer, Ok(RunnerReply::Stored(_))), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(
+        agent_run_of(&w, 3),
+        "the agent store keeps the run's record"
+    );
+    assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
+    assert!(holds_nothing_of(&w, 3));
+    assert_eq!(of_run(&w, 3).len(), 1);
+    let edit = w.host.edits().into_iter().max_by_key(|e| e.rev);
+    assert_eq!(edit.map(|e| e.clean), Some(0));
+}
+
+#[test]
+fn a_store_fault_at_the_handlers_read_of_the_compiled_steps_before_a_finish_passes_it_on_and_commits_nothing(
+) {
+    let mut w = learned_world();
+    let served = w.replay(3);
+    let next = locator("role", "button", Some("Next"));
+    let proposal = with_locators(served[2].clone(), "button Next page", vec![loc("N"), next]);
+    let put = w.put(3, 1, vec![proposal]);
+    assert!(put.is_ok(), "the put_playbook: {put:?}");
+    assert!(!w.handlers.facts[&id(3)].candidates.is_empty());
+    w.log(3, &[(2, "recovered", 3, None), (3, "step_ok", 3, None)]);
+    let (count, commits) = (w.host.count(), w.host.commits.get());
+    let body = finish_body(&w, 3);
+    let answer = runner_at(&mut w, 2, body);
+    assert!(matches!(answer, Ok(RunnerReply::Stored(_))), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(
+        agent_run_of(&w, 3),
+        "the agent store keeps the run's record"
+    );
+    assert_eq!((w.host.count(), w.host.commits.get()), (count, commits));
+    assert!(holds_nothing_of(&w, 3));
+    assert_eq!(of_run(&w, 3).len(), 1);
 }
