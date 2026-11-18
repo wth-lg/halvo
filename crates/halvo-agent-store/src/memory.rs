@@ -8,6 +8,7 @@ use halvo_schema::{
     WorkflowId, WorkflowItem, WorkflowState, WriterStep,
 };
 
+use crate::day;
 use crate::host::Host;
 
 /// The kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key `workflow`.
@@ -63,6 +64,7 @@ pub struct MemoryStore {
     rows: BTreeMap<&'static str, Vec<String>>,
     steps: Vec<Box<dyn WriterStep>>,
     utc_offset: i32,
+    clock: Option<Instant>,
 }
 
 impl MemoryStore {
@@ -88,6 +90,14 @@ impl MemoryStore {
     /// workflow of its id.
     pub fn put_workflow(&mut self, workflow: Workflow) {
         self.workflows.insert(workflow.id().clone(), workflow);
+    }
+
+    /// Sets the clock of the store's reads to the instant: from this call on, a read hands out a row of a bounded
+    /// kind only while its day stands at the instant's day, from the kind's count of days back to two days ahead,
+    /// the rows that an expiry at that clock would leave, as the derived store's reads do (W-C2.5, W-C2.11, DS-4).
+    /// A store whose clock was never set hands out every row.
+    pub fn set_clock(&mut self, at: Instant) {
+        self.clock = Some(at);
     }
 
     /// Removes the stored workflow of the id and keeps its rows, as a store stands between the delete of a workflow
@@ -153,12 +163,25 @@ fn workflow_of(json: &str) -> Option<WorkflowId> {
     WorkflowId::parse(value.as_object()?.get("workflow")?.as_str()?).ok()
 }
 
+impl MemoryStore {
+    fn stands(&self, kind: &str, row: &str) -> bool {
+        let (Some(clock), Some(days)) = (self.clock, day::bound(kind)) else {
+            return true;
+        };
+        let held = serde_json::from_str::<serde_json::Value>(row)
+            .ok()
+            .and_then(|v| v.get("day").and_then(serde_json::Value::as_u64))
+            .and_then(|d| u32::try_from(d).ok());
+        held.is_none_or(|d| day::stands(self.day(clock), days, d))
+    }
+}
+
 impl RowRead for MemoryStore {
     fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
         let Some(rows) = self.rows.get(kind) else {
             return;
         };
-        let mut sorted: Vec<&String> = rows.iter().collect();
+        let mut sorted: Vec<&String> = rows.iter().filter(|r| self.stands(kind, r)).collect();
         sorted.sort();
         for row in sorted {
             visit(row);
