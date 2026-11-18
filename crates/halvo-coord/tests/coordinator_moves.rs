@@ -10370,3 +10370,60 @@ fn rd133_a_stamped_second_switch_off_while_the_first_is_in_hand_stores_one_hold(
     assert_eq!(person_holds(&c, 1).len(), 1, "one hold_set");
     assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
 }
+
+/// A runner's end that the window kept, with no stop before it, is made at the next read as
+/// the same end with a clock that answers is: the runner's outcome, and no kill then or at the
+/// quit (the fourth review, finding 1).
+#[test]
+fn rd133_a_kept_natural_end_sends_no_kill_after_the_clock_answers() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed)));
+    let m = mark(&c);
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(
+        ends_of(&c, &run),
+        vec![RunEnd::Failed],
+        "the runner's outcome"
+    );
+    c.ports()
+        .ports
+        .set_clock(T0 + 1_000 + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    c.tick();
+    let _ = c.quit_stop();
+    c.quit_kill();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        0,
+        "no kill to a run that ended on its own"
+    );
+}
+
+/// A switch-off that waited for the clock does not hold every later tick when the owner
+/// refuses the read of the agent's events with a name that lasts the life (the fourth review,
+/// finding 2).
+#[test]
+fn rd133_a_waiting_switch_off_whose_read_is_refused_for_the_life_holds_no_later_tick() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    c.ports().ports.refuse_agent(
+        Method::History,
+        &agent(1),
+        PortError::Refused(halvo_coord::types::Name::parse("no_workflow").unwrap()),
+    );
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    let m = mark(&c);
+    c.tick();
+    assert!(tick_worked(&c, m), "the tick does its work");
+    c.ports().ports.clear_refusals();
+}

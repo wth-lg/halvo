@@ -104,6 +104,7 @@ struct State<C> {
     unstamped: Vec<RunId>,
     offs: Vec<AgentId>,
     ended: Vec<(RunId, Option<crate::types::Outcome>)>,
+    marked: Vec<RunId>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -340,6 +341,7 @@ where
                 unstamped: Vec::new(),
                 offs: Vec::new(),
                 ended: Vec::new(),
+                marked: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
         }
@@ -433,6 +435,7 @@ where
         self.noted(Some(stamp.now()));
         self.stamp_waiting(st, stamp);
         for (run, outcome) in std::mem::take(&mut st.ended) {
+            self.unmark(st, &run);
             let _ = self.end_of_run(st, &run, outcome);
         }
         self.offs_at_stamp(st, stamp);
@@ -504,7 +507,8 @@ where
     /// gave; a `hold_set` that still waits for the owner goes again and is never queued a
     /// second time; with no `hold_set` stored, the ledger stores one at `stamp`; once the
     /// board shows the hold, the move `off` makes the rest. The agent stops waiting once its
-    /// hold shows, or where the owner refuses the `hold_set` with a name that lasts the life,
+    /// hold shows, or where the owner refuses the `hold_set` or the read of the agent's events
+    /// with a name that lasts the life,
     /// which refuses every store of the agent and so every start of it (ruling RD-123).
     fn off_at_stamp(
         &self,
@@ -527,8 +531,8 @@ where
         if l.waits_with_a_persons_hold() {
             return !sent.as_ref().is_err_and(lasting);
         }
-        if !self.read_agent(board, i) {
-            return true;
+        if let Err(e) = self.read_agent(board, i) {
+            return !lasting(&e);
         }
         if !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off) {
             let l = ledger(ledgers, board, i);
@@ -536,9 +540,10 @@ where
                 Ok(()) => {}
                 Err(e) => return !lasting(&e),
             }
-            if !self.read_agent(board, i)
-                || !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off)
-            {
+            if let Err(e) = self.read_agent(board, i) {
+                return !lasting(&e);
+            }
+            if !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off) {
                 return true;
             }
         }
@@ -553,16 +558,12 @@ where
         report.unstamped || matches!(report.answer, Err(Cause::Busy))
     }
 
-    /// Reads the agent's events back onto the board: whether the read answered.
-    fn read_agent(&self, board: &mut Board<Cfg<P>>, i: usize) -> bool {
+    /// Reads the agent's events back onto the board.
+    fn read_agent(&self, board: &mut Board<Cfg<P>>, i: usize) -> Result<(), PortError> {
         let facts = &mut board.members[i].facts;
-        match schedule::resync(&self.ports, &facts.agent, &mut facts.events) {
-            Ok(last) => {
-                board.set_last(i, last);
-                true
-            }
-            Err(_) => false,
-        }
+        let last = schedule::resync(&self.ports, &facts.agent, &mut facts.events)?;
+        board.set_last(i, last);
+        Ok(())
     }
 
     /// The settle of a confirmation that an answer's move left `answered` and did not return
@@ -1214,6 +1215,24 @@ where
         answered(&done.report)
     }
 
+    /// Takes off the stop that a kept end put on the board for its run before the end is made,
+    /// so that the end is made as one that no stop preceded: with the runner's outcome, no
+    /// dying tree and no kill.
+    fn unmark(&self, st: &mut State<Cfg<P>>, run: &RunId) {
+        let before = st.marked.len();
+        st.marked.retain(|r| r != run);
+        if st.marked.len() == before {
+            return;
+        }
+        if let Some(r) = st
+            .board
+            .as_mut()
+            .and_then(|b| b.runs.iter_mut().find(|r| &r.run == run))
+        {
+            r.stop = None;
+        }
+    }
+
     /// Keeps the read of the clock that stamped a move as the last time that this life read
     /// (ruling RD-133 1, (b)).
     fn noted(&self, read: Option<u64>) {
@@ -1279,6 +1298,7 @@ where
             });
             if marked {
                 st.unstamped.push(run.clone());
+                st.marked.push(run.clone());
             }
         }
         answered(&done.report)
