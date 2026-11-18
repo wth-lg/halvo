@@ -1361,3 +1361,48 @@ fn adv3_p4_a_source_that_died_in_the_slice_of_the_owner_end_is_named() {
         "a source that died in the slice of the owner's end is named nowhere: {failed:?}"
     );
 }
+
+/// N6 and A1-F4 (the verifier's kept item 7): a stop for capture off whose
+/// input stop answers Timeout and then Ok at the second ask writes a final
+/// record that still names input, with the Timeout's stage and code.
+#[test]
+fn adv1_f4_the_final_record_of_a_timeout_then_ok_names_the_source() {
+    let (_f, recorder, records, outcome) = capture_off_case(
+        Factory::adjusting(|source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+            }
+        }),
+        Some(Ok(())),
+    );
+    let records = records.lock().unwrap().clone();
+    let texts: Vec<String> = records.iter().map(EndRecord::text).collect();
+    println!(
+        "dm25 n6 outcome={outcome:?} statuses={:?} records={texts:?} errors={:?}",
+        recorder.statuses(),
+        records
+            .iter()
+            .map(|record| record.errors.clone())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+    assert_eq!(records.len(), 2);
+    for record in &records {
+        assert_eq!(
+            record.not_stopped,
+            [(SourceName::Input, "timeout".to_owned())],
+            "a record of a life that ended with 5 does not name input: {}",
+            record.text()
+        );
+        assert_eq!(
+            record.errors,
+            [(
+                SourceName::Input,
+                CaptureError::Timeout {
+                    stage: "input_tap_join",
+                    ms: 1_000
+                }
+            )]
+        );
+    }
+}

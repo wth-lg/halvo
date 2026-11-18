@@ -270,11 +270,16 @@ pub enum CaptureOff {
 /// part (3), steps 4 and 7): the kind of stop, the sources that did not stop
 /// with their reason, and the owner's figures, first as they stood at the
 /// first answer that was not a stop and then as the final settle left them.
+/// A source that answered anything but a stop once in the life stays named
+/// in both records, whatever a later ask answered, with the error of that
+/// answer, its stage and its code (ruling DM-25 N6); the line keeps the
+/// reason token alone, whose form waits on daemon-3e's mapping.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndRecord {
     pub kind: StopKind,
     pub final_figures: bool,
     pub not_stopped: Vec<(SourceName, String)>,
+    pub errors: Vec<(SourceName, CaptureError)>,
     pub events_persisted: u64,
     pub events_lost: u64,
     pub events_pending: u64,
@@ -378,6 +383,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     marker: Option<Box<dyn Marker>>,
     ends_by: Option<Duration>,
     hold_line_written: bool,
+    unstopped_in_life: Vec<(SourceName, CaptureError)>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -408,6 +414,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             marker: None,
             ends_by: None,
             hold_line_written: false,
+            unstopped_in_life: Vec::new(),
         }
     }
 
@@ -760,7 +767,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             };
             if let Some(answer) = self.sources.stop_one(name) {
                 if !is_a_stop(&answer) {
-                    self.hold_stays_after(name, &answer);
+                    self.answered_unstopped(name, &answer);
                     if let Some(owner) = owner {
                         self.arm_unstopped(name, &answer);
                         self.end_after_unstopped(owner, StopKind::LostGrant, &mut |_| {});
@@ -819,7 +826,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             };
             if !is_a_stop(&answer) {
                 self.arm_unstopped(*name, &answer);
-                self.hold_stays_after(*name, &answer);
+                self.answered_unstopped(*name, &answer);
                 unstopped = true;
                 break;
             }
@@ -832,13 +839,20 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         Some(self.end_after_unstopped(owner, kind, reply))
     }
 
-    /// Writes MA-9's line the moment that the stop of an input source with a
-    /// hold plan answers anything but a stop, a stop past its bound included
-    /// (ruling MA-9 part (5); ruling DM-25 N3): at the first such answer of
-    /// the process, before the end routine's reply and first record. The
-    /// hold stays until the process ends, so a later answer writes it again
+    /// What follows a stop's answer that is not a stop, a stop past its
+    /// bound included. The source and its first such answer are kept for the
+    /// end routine's records (ruling DM-25 N6). MA-9's line is written the
+    /// moment that the stop of an input source with a hold plan gives such an
+    /// answer (ruling MA-9 part (5); ruling DM-25 N3): at the first of the
+    /// process, before the end routine's reply and first record. The hold
+    /// stays until the process ends, so a later answer writes it again
     /// nowhere.
-    fn hold_stays_after(&mut self, name: SourceName, answer: &Result<(), CaptureError>) {
+    fn answered_unstopped(&mut self, name: SourceName, answer: &Result<(), CaptureError>) {
+        if let Err(error) = answer {
+            if !is_a_stop(answer) && !self.unstopped_in_life.iter().any(|(held, _)| *held == name) {
+                self.unstopped_in_life.push((name, error.clone()));
+            }
+        }
         if name == SourceName::Input
             && !is_a_stop(answer)
             && self.factory.holds_secure_input()
@@ -954,23 +968,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     fn write_record(&mut self, kind: StopKind, final_figures: bool, snapshot: &Snapshot) {
         let not_stopped = self
-            .sources
-            .states()
-            .filter(|(_, _, unstopped)| *unstopped)
-            .map(|(name, state, _)| {
-                let reason = match state {
-                    SourceState::Failed { reason, .. } => {
-                        super::board::reason_token(*reason).as_str()
-                    }
-                    _ => "timeout",
+            .unstopped_in_life
+            .iter()
+            .map(|(name, error)| {
+                let reason = match error {
+                    CaptureError::Timeout { .. } => HealthReason::Timeout,
+                    _ => HealthReason::OsError,
                 };
-                (name, reason.to_owned())
+                (
+                    *name,
+                    super::board::reason_token(reason).as_str().to_owned(),
+                )
             })
             .collect();
         let record = EndRecord {
             kind,
             final_figures,
             not_stopped,
+            errors: self.unstopped_in_life.clone(),
             events_persisted: snapshot.events_persisted,
             events_lost: snapshot.events_lost,
             events_pending: snapshot.events_pending,
@@ -1039,7 +1054,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if self.ends_by.is_some() && !is_a_stop(&answer) {
                 self.arm_unstopped(*name, &answer);
             }
-            self.hold_stays_after(*name, &answer);
+            self.answered_unstopped(*name, &answer);
             answers.push((*name, answer));
         }
         self.publish();
@@ -3406,6 +3421,7 @@ mod tests {
             kind: StopKind::LostGrant,
             final_figures: false,
             not_stopped: vec![(SourceName::Input, "timeout".to_owned())],
+            errors: Vec::new(),
             events_persisted: 0,
             events_lost: 0,
             events_pending: 2,
