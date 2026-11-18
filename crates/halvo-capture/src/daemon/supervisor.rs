@@ -2786,7 +2786,10 @@ mod tests {
             [exit::SOURCE_NOT_STOPPED],
             "a second arm with an earlier deadline did not move it; it ended after {took_late:?}"
         );
-        assert!(took_late >= Duration::from_millis(200), "it ended after {took_late:?}");
+        assert!(
+            took_late >= Duration::from_millis(200),
+            "it ended after {took_late:?}"
+        );
         let (pid, start, _) = recorder.ended.lock().unwrap()[0];
         assert_eq!(pid, std::process::id());
         if cfg!(target_os = "macos") {
@@ -2812,7 +2815,10 @@ mod tests {
         watchdog.arm(Duration::from_millis(100), exit::SOURCE_NOT_STOPPED);
         let took = first_call(&recorder, armed);
         assert_eq!(recorder.statuses(), [exit::SOURCE_NOT_STOPPED]);
-        assert!(took >= Duration::from_millis(100), "it ended after {took:?}");
+        assert!(
+            took >= Duration::from_millis(100),
+            "it ended after {took:?}"
+        );
     }
 
     #[test]
