@@ -24,8 +24,9 @@ pub(crate) enum NamedBy {
     /// The store: its key file, its open, its create or its custody.
     TheStore,
     /// A made mark of create.pending, which another program can write by
-    /// hand; on its path the step writes through at a partial name of the
-    /// mark's own id alone (ruling ST-49).
+    /// hand; on the walk by identity that a made mark names (not the sweep),
+    /// the step writes through at a partial name of the mark's own id alone
+    /// (ruling ST-49).
     AMark,
 }
 
@@ -339,10 +340,13 @@ pub(crate) fn destroy_roots_below(
 /// be read (ruling ST-45 Addition 2 (b)); a partial name is zero-filled. A
 /// directory that cannot be listed reads not listed. The result says whether
 /// the directory still stood at the path that it was opened by after the
-/// step. Each zero-fill ends with the full-flush call on its file, and after
-/// the removals the directory is flushed with the full-flush call; when that
-/// flush fails, the root reads left and the result reads not listed, so the
-/// delete answers that it is not finished (ruling PR-30 PR9 (3)). A later
+/// step. Each zero-fill ends with the full-flush call on its file, and a
+/// file whose zero-fill or its flush fails keeps its name and reads left
+/// (ruling ST-50 Addition 1); after the removals the directory is flushed
+/// with the full-flush call, and when that flush fails a named root reads
+/// left (with no root named the reading stays unnamed and only `listed`
+/// turns false) and the result reads not listed, so the delete answers that
+/// it is not finished (ruling PR-30 PR9 (3)). A later
 /// call on a handle whose root read destroyed does not come here (ruling
 /// ST-45 H3).
 pub(crate) fn destroy_roots_through(
@@ -551,7 +555,7 @@ fn entry_name_for(name: &OsStr, id: RootId, by: NamedBy) -> EntryName {
 /// named. The identity decides only which file is looked at. Whether it is
 /// written through is decided by the name at which it stands, as
 /// `destroy_root_entry` decides it for that name ([`written_through`], ruling
-/// ST-48 U2), except that on the path by a made mark a partial name of
+/// ST-48 U2), except that on the walk that a made mark names a partial name of
 /// another id than the mark's lets no write (ruling ST-49): the count of names
 /// and the length are first read by the name, with no open and no mode
 /// change, and a file that may not be written there has that name removed
@@ -648,7 +652,7 @@ enum EntryName {
     OtherRoot,
     /// A partial name.
     Partial,
-    /// On the path by a made mark, a partial name of another id than the
+    /// On the walk by identity that a made mark names, a partial name of another id than the
     /// mark's (ruling ST-49).
     PartialOfAnotherIdThanTheMarks,
     /// A name that is no root name and no partial name (ruling ST-47 T1).
@@ -684,7 +688,7 @@ impl PartialEq for EntryFate {
 
 /// Whether the destroy step may write through a regular file that stands at a
 /// name of kind `at`, by its count of names and its length: at a partial name
-/// always, but on the path by a made mark never at a partial name of another
+/// always, but on the walk that a made mark names never at a partial name of another
 /// id than the mark's (ruling ST-49); at the named root's own name only with a
 /// root file's length (ruling ST-45 H4); at another id's root name with a root
 /// file's length or with one name (ruling ST-45 Addition 2 (b)); at any other

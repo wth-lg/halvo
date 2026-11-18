@@ -1689,12 +1689,14 @@ impl Db {
         }
     }
 
-    /// The truncating checkpoint: the log copied into store.db, store.db
-    /// flushed with the full-flush call on a Mac (fullfsync, read back at the
-    /// open) and the log emptied; `CheckpointIncomplete` when a reader held it
-    /// back or the log still holds bytes. After a shred's key clear it is the
-    /// step that makes the shred last through a loss of power, before any
-    /// file of the shred is removed (ruling PR-30 PR9 (2)).
+    /// The truncating checkpoint: the log copied into store.db, the
+    /// full-flush call asked for on store.db on a Mac (fullfsync, read back
+    /// at the open) and the log emptied; `CheckpointIncomplete` when a reader
+    /// held it back or the log still holds bytes. Where that call fails the
+    /// library makes a plain fsync in its place and answers Ok, a named limit
+    /// (ruling ST-50). After a shred's key clear, with its full flush
+    /// answered, it is the step that makes the shred last through a loss of
+    /// power, before any file of the shred is removed (ruling PR-30 PR9 (2)).
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
         let busy: i64 = self
             .conn

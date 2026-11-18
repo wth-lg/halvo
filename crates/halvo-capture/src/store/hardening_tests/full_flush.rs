@@ -327,13 +327,27 @@ fn root_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
                 first.is_ok()
             ));
         }
-        if after.is_err() {
+        let again_as_stated = match case {
+            "delete_all" => {
+                again.is_err() && reading_of(&again) == Some(RootReading::Left(Some(root_id)))
+            }
+            _ => again.is_ok() && reading_of(&again) == Some(RootReading::Unnamed),
+        };
+        if !again_as_stated {
             problems.push(format!(
-                "{case}: the tail after a failed flush of the roots folder answered {}",
+                "{case}: the call after a failed flush of the roots folder answered ok {} with the root {:?}",
+                again.is_ok(),
+                reading_of(&again)
+            ));
+        }
+        if after.is_err() || reading_of(&after) != Some(RootReading::Unnamed) {
+            problems.push(format!(
+                "{case}: the tail after a failed flush of the roots folder answered {} with the root {:?}",
                 match &after {
                     Err(e) => e.to_string(),
-                    Ok(_) => String::new(),
-                }
+                    Ok(_) => "Ok".to_string(),
+                },
+                reading_of(&after)
             ));
         }
     }
@@ -360,7 +374,41 @@ fn root_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
             next.is_ok()
         ));
     }
+    let roots_dir = top.join("scrub-roots");
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let (made, on, _) = step(
+        flushes,
+        "a create_root whose folder flush after the link fails, scrubbed",
+        || {
+            crate::custody::file_root::make_root_seams::fail(Some(
+                crate::custody::file_root::make_root_seams::SYNC_THE_DIRECTORY,
+            ));
+            custody.create_root()
+        },
+    );
+    let scrubbed = count_of(&on, &format!("scrub-roots/{root_id}.root"));
+    println!(
+        "FULLFLUSH scrub of a root after a failed folder flush: answer={made:?} scrub_full_flushes={scrubbed} root_file_stands={}",
+        roots_dir.join(format!("{root_id}.root")).exists()
+    );
+    if made.is_ok() || scrubbed != 1 || roots_dir.join(format!("{root_id}.root")).exists() {
+        problems.push(format!(
+            "a create_root whose folder flush failed answered {made:?}, flushed its scrubbed root file {scrubbed} times and left it standing {}",
+            roots_dir.join(format!("{root_id}.root")).exists()
+        ));
+    }
     let roots_dir = top.join("custody-roots");
+    let root_id = RootId::fresh().unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    custody.create_root().unwrap();
+    let (destroyed, on, _) = step(flushes, "the custody's destroy", || custody.destroy_root());
+    let folder = count_of(&on, "custody-roots");
+    if destroyed.is_err() || folder != 1 {
+        problems.push(format!(
+            "the custody's destroy answered {destroyed:?} with {folder} full flushes of its folder"
+        ));
+    }
     let root_id = RootId::fresh().unwrap();
     let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
     custody.create_root().unwrap();

@@ -2199,3 +2199,79 @@ fn st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// Ruling ST-50 (verifier-173's M29 and M30): the kept handle's own test
+/// before a write at a root name and at a partial name. A file of another
+/// identity put at the name between the read by name and the open, at
+/// another id's root name and at a partial name, is never written through;
+/// and at another id's root name a file of 100 bytes with one name that
+/// gains a second name in that window is not written through.
+#[test]
+fn st50_the_kept_handle_refuses_a_swapped_file_and_an_added_name_at_a_root_or_partial_name() {
+    let mut problems = Vec::new();
+    for case in [
+        "a file swapped in at another id's root name",
+        "a file swapped in at a partial name",
+        "a name added at another id's root name",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+        let other = RootId::fresh().unwrap();
+        let name = if case.ends_with("a partial name") {
+            format!("{other}.0123456789abcdef.root.tmp")
+        } else {
+            format!("{other}.root")
+        };
+        let inside = roots_dir.join(&name);
+        let swap = case.starts_with("a file swapped in");
+        std::fs::write(
+            &inside,
+            if swap {
+                vec![0x61u8; 32]
+            } else {
+                vec![0x62u8; 100]
+            },
+        )
+        .unwrap();
+        let (swapped_in, swapped_bytes, swapped_reader) =
+            st48_foreign_file(dir.path(), "swapped-in", 32, 0o644);
+        let second = dir.path().join("second-name");
+        let kept_bytes = std::fs::read(&inside).unwrap();
+        let (to, link) = (inside.clone(), second.clone());
+        let _seam = crate::custody::file_root::kept_open_seam::at(move |at| {
+            if at.to_str() != Some(name.as_str()) {
+                return;
+            }
+            if swap && swapped_in.exists() {
+                std::fs::rename(&swapped_in, &to).unwrap();
+            }
+            if !swap && !link.exists() {
+                std::fs::hard_link(&to, &link).unwrap();
+            }
+        });
+        let answer = tail(&store_dir, &roots_dir);
+        drop(_seam);
+        let kept = if swap {
+            st48_bytes_of(&swapped_reader) == swapped_bytes
+        } else {
+            std::fs::read(&second).ok() == Some(kept_bytes)
+        };
+        let acted = if swap {
+            !dir.path().join("swapped-in").exists()
+        } else {
+            second.exists()
+        };
+        println!(
+            "ST50-KEPT case={case} answer={} seam_acted={acted} the_other_files_bytes_kept={kept} name_stands={}",
+            answer_line(&answer),
+            inside.exists()
+        );
+        if !acted || !kept || inside.exists() {
+            problems.push(format!(
+                "{case}: the seam acted {acted}, the other file's bytes kept {kept}, the name stands {}",
+                inside.exists()
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

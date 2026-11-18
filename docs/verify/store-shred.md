@@ -1605,7 +1605,7 @@ set, and the root's own volume name answers the root.
   a file of another program that a process of the same user hard-links at
   a root file's name is zeroed with it only when it has the root file's
   length at a root name (any length above 0 on Windows) or stands at a
-  partial name (on the path by a made mark, a partial name of the mark's
+  partial name (on the walk that a made mark names, a partial name of the mark's
   own id; ruling ST-49), a file which can be the key file of another Halvo store on
   this computer, whose recordings then can no longer be opened; nothing
   becomes readable; a file at a partial name, or of a root file's length at
@@ -1655,13 +1655,23 @@ set, and the root's own volume name answers the root.
   name keeps the name, as an open that fails does (ruling ST-45 H2). On the
   path by identity the count and the length are read by the name first at
   every name as well, so no mode is changed on a file that the step then
-  removes with no write. On the path by a made mark the step writes through
-  at a partial name of the mark's own id alone: at a partial name of another
-  id it removes the file's name with no write and no mode change, and no
-  call reads the root destroyed for it, so the tail answers DeleteIncomplete
-  for that call (ruling ST-49; test
+  removes with no write. On the walk by identity that a made mark names
+  (not the sweep), the step writes through at a partial name of the mark's
+  own id alone: at a partial name of another id it removes the file's name
+  with no write and no mode change, whatever the file's count of names and
+  length, and no call reads the root destroyed for it, so the tail answers
+  DeleteIncomplete for that call (ruling ST-49; test
   `st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone`, whose
-  first case is the verifier's case N3). The kept handle's second test
+  first case is the verifier's case N3, over 100 bytes with a second name, a
+  root file's length with a second name and a root file's length with one
+  name; `the_write_rule_of_each_name_for_every_count_of_names_and_length`).
+  The sweep and the store's own path (the handle's delete-all) write through
+  every regular file at a partial name, a named limit: a file of another
+  party of 100 bytes and mode 0444 with a second name at another id's
+  partial name is zeroed through every name and left with mode 0600 by a
+  tail (verifier-173's case tail.other_partial.100.2.444), and so is such a
+  file that the mark does not record on a tail that a made mark started
+  (pr-review-56's caseC, with_mark=true). The kept handle's second test
   before a write (the same identity, and a count and a length that the rule
   writes through, read again through the handle) is held by a test: a seam
   of the test build gives the file a second name outside the roots folder
@@ -1674,7 +1684,15 @@ set, and the root's own volume name answers the root.
   `a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through`;
   rows `kept-handle-test-taken-out-at-a-plain-name` and
   `kept-handle-count-ignored-on-the-path-by-identity`, the two rows of the
-  verifier's case N1). It keeps
+  verifier's case N1); at a root name and a partial name the same seam swaps
+  in a file of another identity, or gives a 100-byte file at another id's
+  root name a second name, and neither is written through (ruling ST-50;
+  `st50_the_kept_handle_refuses_a_swapped_file_and_an_added_name_at_a_root_or_partial_name`;
+  rows `kept-handle-identity-not-compared` and
+  `kept-handle-count-and-length-not-read-again`). No seam reaches the read
+  by name that fails with an error other than not-found or a refusal, since
+  the seam runs after that read: the arm that keeps such a name at a root
+  name or a partial name is held by no test (verifier-173's M37). It keeps
   one handle: the open for update, or else the read open, or else the write
   open of the same name, none following a link; the count, the test that
   the name still leads to that file and the zero-fill go through the kept
@@ -1683,13 +1701,14 @@ set, and the root's own volume name answers the root.
   succeeds the name is kept, the root is left under its real name, and
   every later tail tries it and names it again (ruling ST-45 H2; on Windows
   a root file that an access list or another process's handle keeps closed
-  stays such a named entry). If the zero-fill still fails: with one name,
-  the count read through the kept handle, the name is removed, and the root
-  reads destroyed only when the count read through that handle after the
-  removal is 0; with more than one name, or a count that cannot be read, the
-  name is kept, the root is left under its real name, and the next call
-  tries again (ruling ST-44 F2 (c)). A name made after the count is read
-  stays this limit. Tests:
+  stays such a named entry). If the zero-fill or its full flush still
+  fails, whatever the count of names, the name is kept, the root is left
+  under its real name, and the next call tries again: the step reads a root
+  destroyed only when its zero-fill's full flush was answered (ruling ST-50
+  Addition 1, which takes back ST-44 F2 (c)'s removal of the one name read
+  as destroyed on a count of 0 after it; test
+  `a_root_whose_zero_fill_is_never_flushed_reads_left_and_stays_at_its_name`).
+  A name made after the count is read stays this limit. Tests:
   `p2_b_a_tail_after_a_tail_that_left_the_root_file_names_it_or_destroys_it`,
   `p2_b2_a_handle_whose_root_file_cannot_be_opened_then_the_tail`,
   `p2_b3_the_next_store_under_a_roots_directory_with_a_root_file_that_no_call_names`,
@@ -2206,57 +2225,81 @@ set, and the root's own volume name answers the root.
   drive to write its own cache, the file's on its own descriptor and the
   directory's on the handle's descriptor, never by a name, made again when
   a signal interrupts it; a call that fails answers its error with no plain
-  fsync in its place, and the write publishes nothing (ruling PR-30 PR9 (1)).
-  On Windows the flush of a file is std's `File::sync_all` and a directory
-  is not flushed. The open sets synchronous FULL and fullfsync on beside
+  fsync in its place (ruling PR-30 PR9 (1)): a failed flush of the file
+  publishes nothing, and a failed flush of the directory answers its error
+  with the new content already at its name. That refusal is the store's own
+  and holds for the writes of the helper and of the root step: the delete's
+  intent, the root's destruction and the state write. On Windows the flush
+  of a file is std's `File::sync_all`, and the store flushes no directory:
+  `Dir::sync` makes no call and answers Ok. For the database library's own
+  commits and checkpoints the store asks for the full flush and reads it
+  back as set: the open sets synchronous FULL and fullfsync on beside
   checkpoint_fullfsync and refuses by name a setting that does not read
   back as set (`require_synchronous_full`, `require_fullfsync`; test
-  `an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name`),
-  so on macOS each commit flushes the log, and each checkpoint the log and
-  `store.db`, with the full-flush call (PR9 (4)). A library put in front of
-  `fcntl` in a child process of the test binary counts the calls with the
-  full flag by path, macOS alone (`store::hardening_tests::full_flush`): a
-  write of the helper makes one for its file and one for its directory and
-  a removal one for its directory, and a write whose full flush fails
-  publishes nothing
+  `an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name`,
+  which changes synchronous to OFF, NORMAL and EXTRA), so on macOS each
+  commit asks for the full-flush call on the log, and each checkpoint on the
+  log and `store.db` (PR9 (4)). It is a named limit (ruling ST-50) that
+  whenever such a call fails, on any volume and at a single call, the
+  library makes a plain fsync in its place and answers Ok: a write is then
+  answered stored, the log of an expiry's commit is flushed plainly, and an
+  expiry removes the segment's file after a checkpoint whose full flush
+  failed; on a Mac a plain fsync does not ask the drive to write its cache.
+  A library put in front of `fcntl` in a child process of the test binary
+  counts the calls with the full flag by path, macOS alone
+  (`store::hardening_tests::full_flush`): a write of the helper makes one
+  for its file and one for its directory, a removal one for its directory,
+  a call that a signal interrupts once is made again (two calls and an Ok),
+  a write whose file's full flush fails publishes nothing, and one whose
+  directory's full flush fails answers its error with the file at its name
   (`each_write_of_the_durable_helper_makes_the_full_flush_call_and_refuses_when_it_fails`);
-  each commit of a write flushes the log with the full flag and makes no
-  plain fsync, where the base made a plain fsync
+  each commit of a write asks for the full flag on the log and, with every
+  call answered, makes no plain fsync, where the base made a plain fsync
   (`each_commit_of_the_store_flushes_its_log_with_the_full_flush_call`); an
-  expiry's truncating checkpoint flushes `store.db` with the full flag
-  before the segment's file is removed and leaves the log empty: the step
-  that makes a shred or an expiry last through a loss of power (PR9 (2);
-  `the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal`);
-  the root step's zero-fill flushes the root file once, and the roots folder
-  is flushed after the step's removals (PR9 (3);
+  expiry's truncating checkpoint asks for the full flag on `store.db`
+  before the segment's file is removed and leaves the log empty (PR9 (2);
+  `the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_removal`):
+  with its full flush answered, that checkpoint is the step that makes a
+  shred or an expiry last through a loss of power; the root step's
+  zero-fill flushes the root file once, and the roots folder is flushed
+  after the step's removals (PR9 (3);
   `the_root_steps_zero_fill_and_its_roots_folder_are_flushed_and_a_failed_folder_flush_reads_left`).
   The daemon's state file and the delete's intent are written with the same
   helper (C3.7, C17.3); this build writes neither, and the helper's count
-  holds them once their writer takes it. What `root_destroyed` reads: yes
-  only when the flush of the roots folder after the step's removals
-  answered success. When that flush fails the root reads left, the step's
-  result reads not listed and the delete answers DeleteIncomplete; the
-  handle's next delete-all answers DeleteIncomplete again, because the
-  root's name is absent at its look (ruling ST-46 K1), and the tail after
-  the handle answers Ok with the root unnamed; a cleanup and the custody's
-  destroy answer the flush's error. When the power goes before that flush
-  has answered, no answer was given: after the restart the root's name can
-  stand again, holding zeros when its zero-fill had gone through (the
-  zero-fill's own full flush answers before the removal), and holding the
-  root when the step rested on the removal of the file's last name after a
-  zero-fill that failed; the next delete or tail destroys either. After an
-  answer that read the root destroyed, the removal of its name and its
-  zeros are on the drive as far as the drive keeps the promise of the
-  full-flush call. Not covered: no test makes a loss of power; a drive or a
+  holds them once their writer takes it. What `root_destroyed` reads on
+  macOS: yes only when the zero-fill's full flush of the root file and the
+  flush of the roots folder after the step's removals both answered
+  success. When the zero-fill or its full flush fails on every try, the
+  root file keeps its name, the root reads left and the delete answers
+  DeleteIncomplete, a cleanup and the custody's destroy answer an error, and
+  the next call with the flush answered destroys it (ruling ST-50 Addition
+  1; `a_root_whose_zero_fill_is_never_flushed_reads_left_and_stays_at_its_name`).
+  When the folder's flush fails the root reads left, the step's result
+  reads not listed and the delete answers DeleteIncomplete; the handle's
+  next delete-all answers DeleteIncomplete again, because the root's name is
+  absent at its look (ruling ST-46 K1), and the tail after the handle
+  answers Ok with the root unnamed (the test asserts both); a cleanup and
+  the custody's destroy answer the flush's error. When the power goes before
+  that flush has answered, no answer was given: after the restart the
+  root's name can stand again, holding zeros, because the zero-fill's own
+  full flush answered before the removal; the next delete or tail destroys
+  it. On macOS, after an answer that read the root destroyed, the removal of
+  its name and its zeros are on the drive as far as the drive keeps the
+  promise of the full-flush call. On Windows the store flushes no folder, so
+  there `root_destroyed=yes` does not mean that the removal of the name is
+  on the drive. Not covered: no test makes a loss of power; a drive or a
   volume that answers the full-flush call without writing its cache is not
-  seen; SQLite flushes the store folder with a plain fsync after it creates
-  a file there, by its own rule (the counting library read the store folder
+  seen; the library's plain fsync in place of a failed full flush (the
+  named limit above), whose refusal is a unit of its own for the planner;
+  SQLite flushes the store folder with a plain fsync after it creates a
+  file there, by its own rule (the counting library read the store folder
   as the file of every plain fsync of a create and of an open, and of no
-  commit), and no test makes that flush the full-flush call; on a volume that refuses the full-flush call every durable write of
-  the helper refuses and every flush of the roots folder reads failed,
-  while SQLite's own flushes there fall back to a plain fsync by SQLite's
-  rule, and no test runs on such a volume. Check 1 reads what a write and a
-  shred leave in a process that keeps running, and makes no power loss. The tests of
+  commit), and no test makes that flush the full-flush call; on a volume
+  that refuses the full-flush call every durable write of the helper
+  refuses and every flush of the roots folder reads failed, while the
+  library's own flushes there are plain, and no test runs on such a volume.
+  Check 1 reads what a write and a shred leave in a process that keeps
+  running, and makes no power loss. The tests of
   `store::durable` read the order over a recording file system, and
   `store::hardening_tests::a_shred_clears_the_key_durably_before_it_removes_the_file_and_syncs_the_shard_after`
   reads over the store that a shred removes a file only when its key is
