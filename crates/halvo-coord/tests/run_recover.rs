@@ -7,9 +7,9 @@ use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{Answer, Hold};
 use halvo_coord::types::{
-    Agent, AgentId, Answered, Body, Cause, Decision, DecisionEntry, Digest, EffectAnswer, EffectId,
-    Event, HandbackResult, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome, PastRun,
-    Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, What, Workflow,
+    Agent, AgentId, Answered, Body, Cause, Class, Decision, DecisionEntry, Digest, EffectAnswer,
+    EffectId, Event, HandbackResult, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome,
+    PastRun, Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, Unknown, What, Workflow,
 };
 use std::num::NonZeroU32;
 use support::{agent, flow, world, world_with, World, A, DAY, MANUAL, T0};
@@ -179,9 +179,17 @@ fn refusal_reap_alive() {
 }
 
 #[test]
-fn refusal_interrupted_no_retry() {
+fn refusal_interrupted_no_retry_holds_the_check_from_the_roster_key_that_end_run_leaves() {
     let mut w = world(&[MANUAL]);
     let run = started(&mut w, 0);
+    let effect = Unknown {
+        run: run.clone(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe301)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    };
+    w.ports.release(effect.clone());
     w.ports.refuse(Method::EndRun, PortError::NoService);
     relife(&mut w, &[(run.clone(), Reaped::Gone)]);
     assert_eq!(
@@ -194,18 +202,24 @@ fn refusal_interrupted_no_retry() {
     w.act(Act::Tick);
     assert_eq!(w.calls(), vec!["end_run refused"], "owed and sent again");
     w.ports.clear_refusals();
-    w.store_end(0, &run, Outcome::Failed, 1);
     w.set_clock(T0 + 20_000, DAY);
     w.act(Act::Tick);
-    assert!(
-        !w.calls().iter().any(|c| c.starts_with("end_run")),
-        "the store holds the run's record: nothing is owed"
+    assert_eq!(
+        w.calls(),
+        vec!["end_run"],
+        "the owed end_run is acknowledged"
     );
     assert!(w.board.owed.is_empty());
+    let entry = w.ports.agents.borrow()[0].clone();
     assert_eq!(
-        w.act(Act::Start { agent: agent(0) }).report.answer,
-        Err(Cause::Hold)
+        entry.last.map(|l| (l.run, l.unknown)),
+        Some((run.clone(), 0)),
+        "the store's record of end_run counts 0"
     );
+    assert_eq!(entry.unknown, vec![effect], "and its key names the effect");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert_eq!(press.checked, vec![agent(0)]);
     assert!(holds(&w, 0).contains(&Hold::Check));
 }
 

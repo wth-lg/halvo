@@ -3,7 +3,7 @@ use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, T
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
     Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
-    PastRun, Reply, ReplyRow, RunHistory, RunId, RunSpec, Runtime, Slot, What, Workflow,
+    PastRun, Reply, ReplyRow, RunHistory, RunId, RunSpec, Runtime, Slot, Unknown, What, Workflow,
     WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
@@ -237,6 +237,7 @@ pub struct Ports<C> {
     marks: RefCell<Vec<(RunId, Reaped)>>,
     runners: RefCell<Vec<RunId>>,
     ended: RefCell<Vec<RunId>>,
+    releasing: RefCell<Vec<Unknown>>,
 }
 
 impl<C> Ports<C> {
@@ -272,6 +273,7 @@ impl<C> Ports<C> {
             marks: RefCell::new(Vec::new()),
             runners: RefCell::new(Vec::new()),
             ended: RefCell::new(Vec::new()),
+            releasing: RefCell::new(Vec::new()),
         }
     }
 
@@ -323,7 +325,31 @@ impl<C> Ports<C> {
                     unknown: 0,
                 },
             );
+            let lost: Vec<Unknown> = self
+                .releasing
+                .borrow()
+                .iter()
+                .filter(|u| &u.run == run)
+                .cloned()
+                .collect();
+            self.releasing.borrow_mut().retain(|u| &u.run != run);
+            if let Some(a) = self
+                .agents
+                .borrow_mut()
+                .iter_mut()
+                .find(|a| a.agent == agent)
+            {
+                a.unknown.extend(lost);
+            }
         }
+    }
+
+    /// Leaves the effect `effect` of its run in the state `releasing` in the agent store, as a
+    /// runner that died after the effect's begin leaves it. The store's `end_run` of that run
+    /// stores the record with `unknown` 0 and lists the effect in the agent's entry under the key
+    /// `unknown`, as the agent store's handler does (A-A7.4, A-A7.5; ruling RD-81 0.2, 0.3).
+    pub fn release(&self, effect: Unknown) {
+        self.releasing.borrow_mut().push(effect);
     }
 
     /// The slots that `set_bindings` stored for `agent` of `workflow`, in the order of their

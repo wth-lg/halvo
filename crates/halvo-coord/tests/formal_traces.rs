@@ -11,7 +11,7 @@ use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, ApprovalId, AskedEffect, Body, Category, Cause, Class,
     Cleared, ConfirmAsk, Decision, DecisionEntry, Digest, Doing, EffectAnswer, EffectId, Event,
     Facts, FullWorkflow, ItemId, LapseCause, Lapsed, Limits, Live, Name, Outcome, PastRun,
-    Presenter, Raised, RunEnd, RunId, RunItem, RunItemKind, What, Workflow, WorkflowId,
+    Presenter, Raised, RunEnd, RunId, RunItem, RunItemKind, Unknown, What, Workflow, WorkflowId,
     WorkflowState, WorkflowTrigger,
 };
 use halvo_coord::types::{
@@ -439,6 +439,29 @@ impl Sched {
         }
     }
 
+    /// The agent store's `end_run` of a run that left an effect `releasing`: its record counts 0
+    /// and the roster entry's key `unknown` names the effect (ruling RD-81 8.1, 13.5), which the
+    /// model's fact of a run whose outcome is not known maps.
+    fn key_names(&mut self, n: usize, run: &RunId) {
+        let agent = &self.names.agents[n];
+        if let Some(a) = self
+            .ports
+            .agents
+            .borrow_mut()
+            .iter_mut()
+            .find(|a| &a.agent == agent)
+        {
+            a.unknown.push(Unknown {
+                run: run.clone(),
+                effect: EffectId::parse(&format!("{:032x}", 0xe400 + n)).unwrap(),
+                day: DAY,
+                class: Class::Send,
+                kept: vec![],
+            });
+        }
+        self.unknown.insert(n, run.clone());
+    }
+
     fn member_of(&self, run: &RunId) -> Option<usize> {
         let r = self.board.runs.iter().find(|r| &r.run == run)?;
         self.names.agents.iter().position(|a| a == &r.agent)
@@ -673,8 +696,11 @@ impl Sched {
             "ack" => {
                 let n = self.index(&a["agent"]);
                 if let Some(run) = self.agent_run(n) {
-                    let unknown = u32::from(self.left.get(&run.to_string()) == Some(&true));
-                    self.store_ends(n, &run, Outcome::Failed, unknown);
+                    let left = self.left.get(&run.to_string()) == Some(&true);
+                    self.store_ends(n, &run, Outcome::Failed, 0);
+                    if left {
+                        self.key_names(n, &run);
+                    }
                 }
                 answer = json!("ok");
             }
@@ -796,6 +822,9 @@ impl Sched {
         if let Some(l) = last {
             f.runs.retain(|r| r.run != l.run);
             f.runs.insert(0, l);
+        }
+        if let Some(a) = entry {
+            f.take_unknown(&a.unknown);
         }
         f
     }
