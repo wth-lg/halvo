@@ -4,7 +4,7 @@ use common::*;
 use halvo_agent_store::MemoryStore;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerCall, RunnerReply};
+use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerReply};
 use halvo_schema::ErrorName;
 use serde_json::{json, Value};
 
@@ -562,7 +562,7 @@ fn every_row(store: &MemoryStore) -> Vec<(&'static str, Vec<String>)> {
 }
 
 #[test]
-fn the_body_reply_row_is_answered_by_its_handler_and_load_replies_is_answered_malformed() {
+fn the_bodies_reply_row_and_load_replies_are_answered_by_their_handlers() {
     let mut store = store_with("utility_bill_payment");
     let record = json!({
         "v": 1,
@@ -582,8 +582,14 @@ fn the_body_reply_row_is_answered_by_its_handler_and_load_replies_is_answered_ma
     assert_eq!(rows(&store, "agent_reply").len(), 1);
     let before = every_row(&store);
     let body = json!({"op": "load_replies", "agent": agent(1), "run": run(1), "message_ids": ["msg-1", "msg-2"]});
-    assert!(RunnerCall::parse(body.to_string().as_bytes()).is_ok());
-    assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
+    let reply = format!(
+        r#"{{"replies":[{}],"blocked":[],"blocked_withheld":[]}}"#,
+        record
+    );
+    assert_eq!(
+        runner(&mut store, body),
+        Ok(RunnerReply::parse(reply.as_bytes()).expect("a reply of load_replies"))
+    );
     assert_eq!(every_row(&store), before);
 }
 

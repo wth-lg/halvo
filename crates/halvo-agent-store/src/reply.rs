@@ -1,4 +1,4 @@
-use halvo_schema::executable::body::{PutReplyRow, Stored};
+use halvo_schema::executable::body::{LoadReplies, LoadRepliesReply, PutReplyRow, Stored};
 use halvo_schema::executable::names::{EffectState, ReplyState};
 use halvo_schema::executable::{AgentReply, ProviderId, RunId, RunnerReply};
 use halvo_schema::{AgentId, ErrorName, TypedRecord};
@@ -41,8 +41,69 @@ pub(crate) fn put(
     if !follows(&*host, &mine, row)? {
         return Err(Own::Effect.into());
     }
+    if row.state == ReplyState::Begun && others(&all, &b.agent, &row.message) == Some(Held::Sent) {
+        return Err(Own::Effect.into());
+    }
     day::commit(host, now, vec![record(rows::AGENT_REPLY, row.to_json())?])?;
     Ok(stored())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Held {
+    Sent,
+    Withheld,
+}
+
+pub(crate) fn others(all: &[AgentReply], agent: &AgentId, message: &ProviderId) -> Option<Held> {
+    let mut newest: Vec<&AgentReply> = Vec::new();
+    for row in all
+        .iter()
+        .filter(|r| &r.agent != agent && &r.message == message)
+    {
+        match newest.iter_mut().find(|n| n.agent == row.agent) {
+            Some(n) if n.seq < row.seq => *n = row,
+            Some(_) => {}
+            None => newest.push(row),
+        }
+    }
+    let holds = |states: &[ReplyState]| newest.iter().any(|r| states.contains(&r.state));
+    if holds(&[
+        ReplyState::Begun,
+        ReplyState::Committed,
+        ReplyState::Unknown,
+    ]) {
+        Some(Held::Sent)
+    } else if holds(&[ReplyState::Withheld]) {
+        Some(Held::Withheld)
+    } else {
+        None
+    }
+}
+
+pub(crate) fn load(host: &dyn Host, now: Now, b: &LoadReplies) -> Result<RunnerReply, ErrorName> {
+    bind::runner_agent(host, &b.agent)?;
+    bind::own_run(host, now, &b.run, &b.agent)?;
+    bind::open_run(host, &b.run)?;
+    let all = rows::replies(host.rows())?;
+    let mut reply = LoadRepliesReply {
+        replies: Vec::new(),
+        blocked: Vec::new(),
+        blocked_withheld: Vec::new(),
+    };
+    for id in &b.message_ids {
+        if let Some(newest) = of_message(&all, &b.agent, id).last() {
+            reply.replies.push((*newest).clone());
+        }
+        match others(&all, &b.agent, id) {
+            Some(Held::Sent) => reply.blocked.push(id.clone()),
+            Some(Held::Withheld) => reply.blocked_withheld.push(id.clone()),
+            None => {}
+        }
+    }
+    if reply.answers(b).is_err() || reply.to_json().is_err() {
+        return Err(ErrorName::Internal);
+    }
+    Ok(RunnerReply::Replies(reply))
 }
 
 fn stored() -> RunnerReply {

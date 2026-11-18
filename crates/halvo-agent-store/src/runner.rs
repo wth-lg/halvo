@@ -76,7 +76,24 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   them. Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
 ///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
-///   instant.
+///   instant; and for each message whose newest reply row of its agent names the run and is `begun`, a reply row
+///   `unknown` with the next seq, the request's day and instant, and the rest of that row.
+/// - `reply_row`: a row equal to the newest row of the message of the body's agent (by `seq`) in every key but
+///   `day` and `at` is a repeat, answered as the first, `{"stored":1}`, before the run's end is read. Else `effect`
+///   for a row of an ended run and for a row that the closed order of A7.4 does not allow: a first row is
+///   `drafted` with seq 1 and no effect; a later row has the next seq and follows the newest row as `begun` with
+///   its draft or as `lost` after `drafted`; as `withheld` with its draft and run after a `drafted` row that is
+///   the first row or follows `lost`; as `drafted` with a draft that no row of the message holds and no effect
+///   after `lost`; as `committed` or `unknown` with its draft, run and effect after `begun`; as `drafted` after
+///   `begun` with its draft and effect only when that effect's newest row of the row's run is `not_made`, a state
+///   that the schema does not hold before U1.8 (b); nothing follows `committed`, `unknown` or `withheld`. Then
+///   `effect` for a `begun` row while another agent's newest row of the message is `begun`, `committed` or
+///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row.
+/// - `load_replies`: for each id asked, in the order asked, the newest row of the body's agent; in `blocked` each
+///   id for which another agent's newest row, over every agent's rows, is `begun`, `committed` or `unknown`, and
+///   in `blocked_withheld` each other id for which another agent's newest row is `withheld`; no row and no key of
+///   another agent. `internal` for a reply that does not answer the body or that its writer refuses, so that no
+///   reply holds fewer rows than the store has for the ids asked.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
         RunnerCall::Load(b) => load(&*host, now, &b),
@@ -89,7 +106,7 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::Finish(b) => end::finish(host, now, &b),
         RunnerCall::Checkpoint(b) => checkpoint::put(host, now, &b),
         RunnerCall::ReplyRow(b) => reply::put(host, now, &b),
-        RunnerCall::LoadReplies(_) => Err(ErrorName::Malformed),
+        RunnerCall::LoadReplies(b) => reply::load(&*host, now, &b),
     }
 }
 

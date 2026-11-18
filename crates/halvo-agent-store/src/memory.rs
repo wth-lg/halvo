@@ -89,6 +89,12 @@ impl MemoryStore {
         self.workflows.insert(workflow.id().clone(), workflow);
     }
 
+    /// Removes the stored workflow of the id and keeps its rows, as a store stands between the delete of a workflow
+    /// and the cascade that removes its rows.
+    pub fn remove_workflow(&mut self, id: &WorkflowId) {
+        self.workflows.remove(id);
+    }
+
     /// Calls each step in order, after a batch of the analysis writer, with no summaries and the rows as they
     /// stand, and commits what it returns in one transaction per step; stops at the first list that it refuses.
     pub fn after_batch(&mut self) -> Result<(), CommitRefused> {
