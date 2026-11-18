@@ -1427,7 +1427,6 @@ fn lapse_stamped<P: Owner + Runs + Clock>(
         }
         let cancelled = ports.cancel(&run);
         if decides
-            && cause != LapseCause::AnswerLost
             && cancelled
                 .as_ref()
                 .map_or_else(|e| refused_with(e, "ended"), |()| true)
