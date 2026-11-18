@@ -194,6 +194,64 @@ fn a_tier_build_refuses_other_sites_and_a_stream_with_no_negative() {
 }
 
 #[test]
+fn a_tier_build_names_a_refused_stream_by_its_line_and_never_by_its_id() {
+    let dir = scratch("tier-rules-marker");
+    let script = |sites: &str, negative: bool| {
+        let marked = tier_script(sites, negative)
+            .replace("\"s1\"", "\"qzmq-s1\"")
+            .replace("\"t1\"", "\"qzmq-t1\"")
+            .replace("\"t2\"", "\"qzmq-t2\"")
+            .replace("\"episode\":\"e", "\"episode\":\"qzmq-e")
+            .replace("\"pa\"", "\"qzmq-pa\"");
+        let lines: Vec<&str> = marked.lines().collect();
+        let stream = lines[1];
+        assert!(stream.contains("qzmq-s1"), "{stream}");
+        let episodes: String = lines[3..].iter().map(|l| format!("{l}\n")).collect();
+        (
+            format!("{HEADER}\n{episodes}"),
+            format!("{HEADER}\n{}\n{stream}\n", lines[2]),
+        )
+    };
+    for (name, sites, negative, rule) in [
+        ("sites", "seen", true, "sites"),
+        ("negative", "unseen", false, "negative"),
+    ] {
+        let (a, b) = script(sites, negative);
+        write(&dir.join(format!("{name}-a.jsonl")), &a);
+        write(&dir.join(format!("{name}-b.jsonl")), &b);
+        let o = run(&[
+            "build",
+            "--tier",
+            "gen-unseen",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join(format!("{name}-out"))),
+            &s(&dir.join(format!("{name}-a.jsonl"))),
+            &s(&dir.join(format!("{name}-b.jsonl"))),
+        ]);
+        refused(&o, "script");
+        assert_eq!(o.stderr, format!("REFUSED script: SCRIPT 2:3: {rule}\n"));
+        assert!(!dir.join(format!("{name}-out")).exists());
+    }
+    let (a, b) = script("unseen", true);
+    write(&dir.join("ok-a.jsonl"), &a);
+    write(&dir.join("ok-b.jsonl"), &b);
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-unseen",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("ok-out")),
+        &s(&dir.join("ok-a.jsonl")),
+        &s(&dir.join("ok-b.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+}
+
+#[test]
 fn build_refusals() {
     let dir = scratch("refusals");
     let g = golden();

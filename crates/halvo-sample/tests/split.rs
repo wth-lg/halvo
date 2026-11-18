@@ -401,7 +401,7 @@ fn an_output_that_cannot_be_written_is_refused_by_its_place_and_not_its_name() {
 
 #[cfg(unix)]
 #[test]
-fn a_side_directory_that_cannot_be_made_is_refused_by_the_out_argument_and_its_side_alone() {
+fn a_side_directory_that_cannot_be_made_is_refused_by_the_out_argument_alone() {
     let dir = scratch("split-side");
     let a = stream_file(&dir.join("x"), "s1", "zz-mill.test", None, "Mill page");
     let b = stream_file(&dir.join("y"), "s2", "zz-oak.test", None, "Weekly report");
@@ -435,10 +435,7 @@ fn a_side_directory_that_cannot_be_made_is_refused_by_the_out_argument_and_its_s
         stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
     };
     refused(&o, "output");
-    assert_eq!(
-        o.stderr,
-        format!("REFUSED output: {}\n", s(&out.join("seen")))
-    );
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&out)));
     assert!(!o.stderr.contains("zz-"), "{}", o.stderr);
     assert_eq!(fs::read_dir(&out).expect("the output place").count(), 0);
 }

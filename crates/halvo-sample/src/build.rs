@@ -16,7 +16,7 @@ use crate::labels::rows_of;
 use crate::layers;
 use crate::manifest::{tier_facts, Counts, StepLine, TierManifest};
 use crate::rng::Draw;
-use crate::script::{Edge, Item, Script, Sites, TaskKind};
+use crate::script::{Edge, Item, Line, Script, Sites, TaskKind};
 
 /// The arguments of `build`.
 #[derive(Clone, Debug)]
@@ -281,15 +281,25 @@ pub fn build(args: &BuildArgs) -> Result<Vec<String>, Refusal> {
     if let Some(tier) = &args.tier {
         let want = sites_of_tier(tier).ok_or_else(|| Refusal::new("usage", tier.clone()))?;
         for (id, sites) in &script.streams {
+            let stream_fault = |rule: &str| {
+                let at = script.lines.iter().find_map(|(at, l)| match l {
+                    Line::Stream { stream, .. } if stream == id => Some(*at),
+                    _ => None,
+                });
+                let place = at.map_or(String::new(), |a| {
+                    format!("SCRIPT {}:{}: ", a.file + 1, a.line)
+                });
+                Refusal::new("script", format!("{place}{rule}"))
+            };
             if *sites != want {
-                return Err(Refusal::new("script", format!("stream {id}: sites")));
+                return Err(stream_fault("sites"));
             }
             let negative = script
                 .episodes
                 .iter()
                 .any(|(_, e)| e.stream == *id && e.kind != TaskKind::Planted);
             if !negative {
-                return Err(Refusal::new("script", format!("stream {id}: negative")));
+                return Err(stream_fault("negative"));
             }
         }
     }

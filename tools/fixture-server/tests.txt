@@ -81,3 +81,4 @@ all sites.test.mjs checker: usage and parameters refusals
 all sites.test.mjs site data: every case of the shared list of crates/halvo-sample gets its verdict and its rule here
 all sites.test.mjs site data: every fixture of this file stands in the shared list with its verdict and rule
 all sites.test.mjs site data: this file reads site data only through its wrappers
+all check-sites.test.mjs checker: the password, card and missing lines name a site file, a page and a parameter by number, never by name

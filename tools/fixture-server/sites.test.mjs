@@ -527,8 +527,8 @@ test('checker: counts per category, the password and card pages, and the paramet
     'services ride_order 0',
     'services daily_chart_check 0',
     'services other 1',
-    `password ${files[0]} sign-in`,
-    `card ${files[0]} pay`,
+    'password SITE_DATA 3 page 1',
+    'card SITE_DATA 3 page 3',
     'parameters names=3 missing=0',
   ]);
 });
@@ -542,7 +542,7 @@ test('checker: a name with no row is printed and makes the status 1', () => {
   const run = runChecker(['--parameters', rows, file]);
   assert.equal(run.status, 1);
   assert.match(run.stdout, /^parameters names=2 missing=1$/m);
-  assert.match(run.stdout, new RegExp(`^missing ${file.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')} shop_order size$`, 'm'));
+  assert.match(run.stdout, /^missing SITE_DATA 1 shop_order parameter 2$/m);
 });
 
 test('checker: without --parameters it compares no rows and prints no parameters line', () => {

@@ -108,7 +108,12 @@ name, from 1. No name below the argument is printed, because a file's name may b
 - The `site-data` refusal of `compose`, of the fixture server and of
   tools/fixture-server/check-sites.mjs names a site file as `SITE_DATA <n>`: n is the file's
   number in byte order of the paths given, from 1, and equal paths keep the order given. The
-  checker's `password`, `card` and `missing` lines still print the path of a site file.
+  checker's lines `password SITE_DATA <n> page <k>`, `card SITE_DATA <n> page <k>` and
+  `missing SITE_DATA <n> <category> parameter <k>` name the file the same way, a page by its
+  place in the file's `pages` and a parameter by its place in `parameters`, from 1.
+- A `script` refusal of `build` for the `sites` or the negative rule names the stream by the
+  place of its stream line, `SCRIPT <n>:<line>: sites` or `SCRIPT <n>:<line>: negative`, and the
+  `output` refusal of `split` names the `--out` argument alone.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.

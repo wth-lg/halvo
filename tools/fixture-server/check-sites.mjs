@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { CATEGORIES, loadSites, readArgs, references } from './sites.mjs';
+import { CATEGORIES, fileNumber, loadSites, readArgs, references } from './sites.mjs';
 
 function refuse(cause, detail) {
   process.stderr.write(`REFUSED ${cause}: ${detail}\n`);
@@ -33,13 +33,14 @@ const lines = [`checked files=${args.files.length}`];
 for (const category of CATEGORIES) {
   lines.push(`services ${category} ${loaded.sites.filter((site) => site.category === category).length}`);
 }
+const number = (i) => `SITE_DATA ${fileNumber(args.files, i)}`;
 loaded.sites.forEach((site, i) => {
-  for (const page of site.pages) {
-    if (page.password_input) lines.push(`password ${args.files[i]} ${page.page}`);
-  }
-  for (const page of site.pages) {
-    if (page.card_title) lines.push(`card ${args.files[i]} ${page.page}`);
-  }
+  site.pages.forEach((page, k) => {
+    if (page.password_input) lines.push(`password ${number(i)} page ${k + 1}`);
+  });
+  site.pages.forEach((page, k) => {
+    if (page.card_title) lines.push(`card ${number(i)} page ${k + 1}`);
+  });
 });
 let missing = 0;
 if (rows !== null) {
@@ -49,7 +50,8 @@ if (rows !== null) {
     const used = new Set(site.pages.flatMap((page) => [...references(page.title), ...references(page.text)]));
     for (const name of [...site.parameters, ...used]) {
       const key = `${site.category} ${name}`;
-      if (!names.has(key) && !rows.has(key)) absent.push(`missing ${args.files[i]} ${key}`);
+      const place = site.parameters.indexOf(name) + 1;
+      if (!names.has(key) && !rows.has(key)) absent.push(`missing ${number(i)} ${site.category} parameter ${place}`);
       names.add(key);
     }
   });
