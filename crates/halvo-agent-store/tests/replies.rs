@@ -1143,3 +1143,32 @@ fn the_keeper_does_not_order_two_agents_rows_by_their_instants() {
         );
     }
 }
+
+#[test]
+fn after_a_run_s_end_a_repeat_of_the_newest_row_is_answered_as_the_first_and_a_new_row_is_refused()
+{
+    let mut store = two_agents();
+    begun_of_run_1(&mut store);
+    ok(
+        &mut store,
+        reply(1, 1, 1, "m2", Some("d2"), None, "drafted"),
+    );
+    end_run(&mut store, 1).expect("end_run");
+    let before = rows(&store, "agent_reply");
+    let mut again = reply(1, 1, 1, "m2", Some("d2"), None, "drafted");
+    again["at"] = json!(ROW_AT + 11);
+    assert_eq!(put_reply(&mut store, again), Ok(stored(1)));
+    assert_eq!(
+        put_reply(&mut store, ended_unknown(1, 1, 3, "m1", "d1", 1)),
+        Ok(stored(1))
+    );
+    assert_eq!(rows(&store, "agent_reply"), before);
+    refused(
+        &mut store,
+        reply(1, 1, 1, "m3", Some("d3"), None, "drafted"),
+    );
+    refused(
+        &mut store,
+        reply(1, 1, 2, "m2", Some("d2"), Some(2), "begun"),
+    );
+}
