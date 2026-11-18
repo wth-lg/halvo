@@ -59,7 +59,9 @@ stub_repo() {
   printf 'echo\n' >"$dir/backend/gate/checks/10-subscription.sh"
   printf 'echo\n' >"$dir/backend/gate/checks/55-metering.sh"
   printf 'exit 0\n' >"$dir/backend/scripts/stack.sh"
-  printf 'cat "$STAMP_STUB_GATE"\n' >"$dir/backend/scripts/gate.sh"
+  cat >"$dir/backend/scripts/gate.sh" <<'EOF'
+cat "$STAMP_STUB_GATE"
+EOF
   printf 'const how = process.env.STAMP_STUB_MEMORY;\nif (how === "pass") console.log("PASS metering-memory: setting=25 rounds=4");\nif (how === "fail") console.log("FAIL metering-memory: setting=25 rounds=4; first failure: 484 of 484 databases live on");\nprocess.exit(how === "pass" || how === "silent" ? 0 : 1);\n' >"$dir/backend/test-kit/fake-meter/rerun/check.mjs"
   printf 'm\n' >"$dir/formal/r7-ledger/m.tla"
   cp "$records_check" "$dir/scripts/r7/ci.d/22-r7-backend-records.sh" || exit 2
