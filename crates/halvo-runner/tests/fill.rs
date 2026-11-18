@@ -340,10 +340,12 @@ fn a_wall_limit_ends_the_run_limit_with_the_cause_wall() {
 
 /// A read that fails is handed back, and the wait for the handback's reply, which comes after `PAUSE`, is no time of
 /// the run's `wall_s`: the finish's `wall_s` is at most the time from before the runner's start to the finish frame
-/// less `PAUSE`, in whole seconds, however slowly the run's own steps go.
+/// less `PAUSE`, in whole seconds, however slowly the run's own steps go. A runner that counts the wait reports the
+/// whole seconds of its own time, which pass that bound whenever its late start and the finish frame's way to the
+/// test take together at most `PAUSE` less 1 s, 2.5 s.
 #[test]
 fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
-    const PAUSE: Duration = Duration::from_millis(1500);
+    const PAUSE: Duration = Duration::from_millis(3500);
     let files = FillFiles::new("read-fails", 1);
     std::fs::write(&files.source, "a,b\r\n").expect("a source with a carriage return");
     let before = files.workbook_bytes();
