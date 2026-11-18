@@ -419,3 +419,93 @@ impl Runner {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+    use std::io::Write;
+    use std::sync::{Arc, Mutex};
+
+    use halvo_policy::{check_playbook, preset};
+    use halvo_schema::executable::step::Target;
+    use halvo_schema::{AgentId, Category, WorkflowId};
+
+    use crate::link::Link;
+
+    struct Out(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Out {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("lock").extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    const READ: &str = r#"{"v":1,"n":1,"kind":"file","verb":"read","target":{"file":"source","sheet":null,"range":null},"args":[{"name":"as","from":"const","value":"rows","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+
+    const WRITE_DEST: &str = r#"{"v":1,"n":2,"kind":"file","verb":"write","target":{"file":"dest","sheet":"sheet","range":"range"},"args":[{"name":"values","from":"extract","value":null,"key":"rows"}],"pre":[],"post":[],"effect":"none","class":"local_edit"}"#;
+
+    /// A9.4, CP-178 (7), CP-218 N3: the file step itself refuses a write step whose `file` is the slot `dest`, a
+    /// step that `check_playbook` refuses at the load and that here reaches the step without it, with the cause
+    /// `workbook` and before any frame: no load, no checkpoint row and no effect row.
+    #[test]
+    fn the_file_step_refuses_a_write_to_a_slot_other_than_workbook_before_any_frame() {
+        let read = ExecutableStep::parse(READ.as_bytes()).expect("the read step");
+        let write = ExecutableStep::parse(WRITE_DEST.as_bytes()).expect("the write step");
+        let workflow = WorkflowId::from_random([9; 16]);
+        let agent = AgentId::from_random([8; 16]);
+        let config =
+            preset(Category::SpreadsheetFill, workflow.clone(), agent.clone()).expect("a preset");
+        assert_eq!(
+            check_playbook(config.category, &[read, write.clone()])
+                .err()
+                .map(|differs| differs.cause()),
+            Some(Cause::Workbook),
+            "a step that check_playbook refuses at the load"
+        );
+        let Some(Target::File(target)) = write.target.clone() else {
+            panic!("a file target")
+        };
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let link = Link::start(
+            Box::new(std::io::empty()),
+            Box::new(Out(Arc::clone(&out))),
+            Box::new(|| {}),
+        );
+        let run = "0b".repeat(16);
+        let words = [
+            "--run",
+            &run,
+            "--agent",
+            agent.as_str(),
+            "--workflow",
+            workflow.as_str(),
+            "--mode",
+            "replay",
+            "--browser",
+            "none",
+            "--utc-offset",
+            "0",
+        ];
+        let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+        let args = crate::args::parse(&words).expect("the arguments");
+        let mut runner = Runner::new(args, link);
+        runner
+            .kept
+            .insert("rows".to_string(), vec![vec![Value::Text("a".to_string())]]);
+        let got = runner.file_write(&write, &target);
+        assert!(
+            matches!(got, Err(Failure::Step(Cause::Workbook))),
+            "the step fails with workbook: {got:?}"
+        );
+        assert!(
+            out.lock().expect("lock").is_empty(),
+            "no frame: no load, no checkpoint row and no effect row"
+        );
+    }
+}
