@@ -966,6 +966,14 @@ fn write_and_compare_of_a_file_that_differs_keeps_the_written_file_under_the_tar
 
 #[test]
 fn write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("match") {
+        leaf_child(
+            "write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own",
+            "match",
+            false,
+        );
+        return;
+    }
     let text = committed("names.txt");
     write_and_compare("names.txt", &text);
     let own = format!("golden-names-txt-{}-", std::process::id());
