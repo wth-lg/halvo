@@ -221,6 +221,13 @@ impl Call {
 ///     request.body = Some(b"{}".to_vec());
 /// }
 /// ```
+///
+/// It implements no `Default`, so no request is made that `build` did not check:
+///
+/// ```compile_fail,E0277
+/// fn made_by_default<T: Default>() {}
+/// made_by_default::<halvo_wire::request::Request>();
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     method: &'static str,
