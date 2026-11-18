@@ -728,3 +728,21 @@ fn a_store_fault_in_the_sweep_still_sends_the_load_of_another_agents_run_and_dro
     );
     assert!(lost_start(&w, 7));
 }
+
+#[test]
+fn a_store_fault_at_a_start_run_under_another_agent_leaves_a_start_held_with_no_facts_as_it_was() {
+    let mut w = learned_world();
+    w.add_pair(2);
+    w.replay(3);
+    w.start(42, "replay");
+    assert!(!w.handlers.facts.contains_key(&id(42)) && held_under(&w, 42, 1, true));
+    w.host.agent.hidden_runs.push(run(42));
+    let answer = coordinator_at(&mut w, 2, start_of_agent_2(42));
+    assert!(accepted(&answer), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(
+        held_under(&w, 42, 1, true),
+        "agent 1's start of run 42 stays as it was"
+    );
+    assert!(!w.handlers.facts.contains_key(&id(42)));
+}
