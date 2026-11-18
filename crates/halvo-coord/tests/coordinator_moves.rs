@@ -10427,3 +10427,79 @@ fn rd133_a_waiting_switch_off_whose_read_is_refused_for_the_life_holds_no_later_
     assert!(tick_worked(&c, m), "the tick does its work");
     c.ports().ports.clear_refusals();
 }
+
+/// A runner's end that the window kept and that comes again, in a move whose first read fails
+/// and whose run drive's read answers, is made with the runner's outcome, no dying tree and no
+/// kill (the fifth review, finding 1).
+#[test]
+fn rd133_a_kept_natural_end_sent_again_when_only_the_first_read_fails_sends_no_kill() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&run);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed))),
+        Err(Cause::NoService)
+    );
+    let m = mark(&c);
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.ports().fail_read_at.set(Some(0));
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed)));
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    assert_eq!(
+        ends_of(&c, &run),
+        vec![RunEnd::Failed],
+        "the runner's outcome"
+    );
+    c.ports()
+        .ports
+        .set_clock(T0 + 2_000 + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    c.tick();
+    let _ = c.quit_stop();
+    c.quit_kill();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        0,
+        "no kill to a run that ended on its own"
+    );
+}
+
+/// An answer to another agent's confirmation in the window does not take the place of the
+/// waiting settle: the first item still settles at the next read that answers (the fifth
+/// review, finding 2).
+#[test]
+fn rd133_an_answer_to_another_item_in_the_window_keeps_the_waiting_settle() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    c.on_run(&run0, ask_confirm(&run0, 0)).unwrap();
+    let item0 = item_of_agent(&c, 0);
+    let run1 = start(&c, 1);
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let item1 = item_of_agent(&c, 1);
+    assert_eq!(c.shown_on_page(&item0, 0), Ok(()));
+    assert_eq!(c.shown_on_page(&item1, 0), Ok(()));
+    c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+    c.tick();
+    let m = mark(&c);
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item0, Choice::Allow, None, 0)
+    });
+    clock_fails(&c);
+    let _ = c.answer(&item1, Choice::Allow, None, 0);
+    clock_answers(&c);
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.arm_ms + 1_000, DAY);
+    c.tick();
+    assert_eq!(lost_lapses(&c, &item0), 1, "the first item settles");
+    assert_eq!(cancels_of(&c, m, &run0), 1, "its run's one cancel");
+}

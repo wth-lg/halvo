@@ -99,7 +99,7 @@ struct State<C> {
     quitting: bool,
     sync: Sync,
     mark: Mark,
-    answering: Option<ItemId>,
+    answering: Vec<ItemId>,
     returned: bool,
     unstamped: Vec<RunId>,
     offs: Vec<AgentId>,
@@ -299,7 +299,7 @@ struct LapseParts<'a> {
     held: &'a mut Vec<Held>,
     binds: &'a mut Vec<HeldBind>,
     handbacks: &'a mut Vec<(ItemId, HandbackAsk)>,
-    answering: &'a mut Option<ItemId>,
+    answering: &'a mut Vec<ItemId>,
 }
 
 fn candidates(param: Param, workflow: &FullWorkflow) -> Vec<(Vec<String>, CandidateFrom)> {
@@ -336,7 +336,7 @@ where
                 quitting: false,
                 sync: Sync::new(),
                 mark: Mark::default(),
-                answering: None,
+                answering: Vec::new(),
                 returned: false,
                 unstamped: Vec::new(),
                 offs: Vec::new(),
@@ -393,13 +393,13 @@ where
     /// clock: only a move that would take the waiting item waits and answers `no_service`, and
     /// every other move goes on (ruling RD-133 1).
     fn waits_on_item(st: &State<Cfg<P>>, item: &ItemId) -> bool {
-        st.answering.as_ref() == Some(item)
+        st.answering.contains(item)
     }
 
     /// Whether an event of `run` waits for the settle of RD-84: the run of the waiting item
     /// (ruling RD-133 1).
     fn waits_on_run(st: &State<Cfg<P>>, run: &RunId) -> bool {
-        st.answering.as_ref().is_some_and(|item| {
+        st.answering.iter().any(|item| {
             st.held
                 .iter()
                 .any(|h| h.item() == item && h.ask().run() == run)
@@ -409,7 +409,7 @@ where
     /// Whether a tick is held: a settle of RD-84 or a stop or switch-off of RD-133 still waits
     /// for a read of the clock that answers, so the tick does none of its work.
     fn holds_tick(st: &State<Cfg<P>>) -> bool {
-        st.answering.is_some()
+        !st.answering.is_empty()
             || !st.unstamped.is_empty()
             || !st.offs.is_empty()
             || !st.ended.is_empty()
@@ -435,7 +435,6 @@ where
         self.noted(Some(stamp.now()));
         self.stamp_waiting(st, stamp);
         for (run, outcome) in std::mem::take(&mut st.ended) {
-            self.unmark(st, &run);
             let _ = self.end_of_run(st, &run, outcome);
         }
         self.offs_at_stamp(st, stamp);
@@ -575,9 +574,13 @@ where
     /// next move that reads the clock settles it; an item that is no longer `answered`, as after
     /// the person's Stop of its run, is not touched.
     fn settle(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
-        let Some(item) = st.answering.take() else {
-            return;
-        };
+        for item in std::mem::take(&mut st.answering) {
+            self.settle_item(st, stamp, item);
+        }
+    }
+
+    /// The settle of one item that `answering` noted.
+    fn settle_item(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp, item: ItemId) {
         let State {
             board,
             table,
@@ -1269,6 +1272,7 @@ where
         run: &RunId,
         outcome: Option<crate::types::Outcome>,
     ) -> Result<(), Cause> {
+        self.unmark(st, run);
         let State {
             board,
             table,
@@ -1283,8 +1287,13 @@ where
         };
         let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
         self.noted(done.report.read);
-        if done.report.unstamped && !st.ended.iter().any(|(r, _)| r == run) {
-            st.ended.push((run.clone(), outcome));
+        if !done.report.unstamped {
+            st.ended.retain(|(r, _)| r != run);
+        }
+        if done.report.unstamped {
+            if !st.ended.iter().any(|(r, _)| r == run) {
+                st.ended.push((run.clone(), outcome));
+            }
             let marked = st.board.as_mut().is_some_and(|board| {
                 board
                     .runs
@@ -1362,10 +1371,10 @@ where
             binds.retain(|b| *b.state() != items::BindState::Closed);
         } else if open.kind == RunItemKind::Confirm {
             if let Some(h) = held.iter_mut().find(|h| h.item() == &open.item) {
-                let lost = answering.as_ref() == Some(&open.item)
+                let lost = answering.contains(&open.item)
                     && matches!(h.confirmation().state(), ConfirmState::Answered(_));
                 if stop && lost {
-                    **answering = None;
+                    answering.retain(|a| a != &open.item);
                     let _ = items::lapse(
                         &self.ports,
                         l,
@@ -1835,7 +1844,9 @@ where
         let agent = board.members[i].facts.agent.clone();
         let l = ledger(ledgers, board, i);
         let mut reading = Reading::new(&self.ports, board, i);
-        *answering = Some(item.clone());
+        if !answering.contains(item) {
+            answering.push(item.clone());
+        }
         let out = items::answer_reading(
             &self.ports,
             l,
@@ -1846,7 +1857,7 @@ where
             &self.limits,
             &mut |l| reading.read(l),
         );
-        *answering = None;
+        answering.retain(|a| a != item);
         let stopped = reading.stopped;
         let closed = !h.confirmation().state().is_open();
         self.read_back(board, i);
