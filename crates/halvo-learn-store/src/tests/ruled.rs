@@ -1,6 +1,8 @@
 use halvo_learn::AdmitCause;
+use halvo_schema::executable::names::{Mode, Outcome};
+use halvo_schema::executable::record::AgentRun;
 use halvo_schema::executable::{RunId, RunnerCall, RunnerReply};
-use halvo_schema::WorkflowId;
+use halvo_schema::{AgentId, WorkflowId};
 use serde_json::{json, Value};
 
 use super::coordinator::edit_row;
@@ -308,15 +310,18 @@ fn f4_a_finish_that_the_agent_store_refuses_for_a_run_that_still_goes_keeps_the_
     w.replay(2);
     w.log(2, &[(2, "step_ok", 2, None)]);
     let record = |workflow: String| {
-        json!({
-            "v": 1, "workflow": workflow, "agent": agent(1), "run": run(2), "day": DAY,
-            "mode": "replay", "outcome": "completed", "playbook": null, "steps": 3, "prompts": 0,
-            "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
-            "tokens_in": 0, "tokens_out": 0, "wall_s": 9, "model": null,
-            "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
-            "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
-            "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
-        })
+        let mut made = AgentRun::new(
+            WorkflowId::parse(&workflow).expect("a workflow id"),
+            AgentId::parse(&agent(1)).expect("an agent id"),
+            id(2),
+            DAY,
+            Some(Mode::Replay),
+            Outcome::Completed,
+        );
+        made.steps = 3;
+        made.wall_s = 9;
+        let text = made.to_json().expect("a made record");
+        serde_json::from_str::<Value>(&text).expect("the made record's text")
     };
     let wrong = json!({"op": "finish", "agent": agent(1), "run": run(2), "record": record(wf(2))});
     assert!(w.runner(wrong).is_err());
