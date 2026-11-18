@@ -5854,6 +5854,30 @@ mod tests {
             )
         }
 
+        /// The run's status that the child of
+        /// [`a_timed_run_ends_its_process_with_its_own_status`] printed. With
+        /// --nocapture libtest writes the test's name and ` ... ` with no line
+        /// end before the test runs, so the child's line can follow it on the
+        /// same line (seen on hosted run 44263002333).
+        fn run_status_in(out: &str) -> Option<i32> {
+            out.lines()
+                .find_map(|line| line.split_once("child status=").map(|(_, rest)| rest))
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|status| status.parse::<i32>().ok())
+        }
+
+        #[test]
+        fn the_status_of_the_childs_run_is_read_also_after_the_test_line() {
+            assert_eq!(
+                run_status_in(
+                    "running 1 test\ntest daemon::supervisor::tests::stress_cases::a_timed_run_ends_its_process_with_its_own_status ... child status=1 let_go=0\n"
+                ),
+                Some(1)
+            );
+            assert_eq!(run_status_in("child status=4 let_go=1\n"), Some(4));
+            assert_eq!(run_status_in("running 1 test\n"), None);
+        }
+
         /// N1's real end, run as a child of this test binary: a stop for capture off
         /// whose input stop blocks 30 s, on a supervisor with the product's ending,
         /// is ended with 5 by the watchdog at its deadline. It runs on the hosted
@@ -5920,11 +5944,7 @@ mod tests {
                 std::process::exit(outcome.status);
             }
             let (status, out, took) = child_of(NAME, CHILD);
-            let answered = out
-                .lines()
-                .find_map(|line| line.strip_prefix("child status="))
-                .and_then(|rest| rest.split(' ').next())
-                .and_then(|status| status.parse::<i32>().ok());
+            let answered = run_status_in(&out);
             println!(
                 "daemon-2 n2 real end exit_status={status:?} run_status={answered:?} took_ms={}",
                 took.as_millis()
