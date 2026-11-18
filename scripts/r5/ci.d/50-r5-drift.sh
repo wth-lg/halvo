@@ -745,6 +745,13 @@ self_test() {
   printf 'memory\n' >"$FX/first-line-store" || broken
   check FAIL-store "FAIL $name (store)"
 
+  fixture derived-lines-name-the-memory-store-beside-a-miss
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/lines-store" || broken
+  play_lines dev memory 2 "" miss >"$FX/dev-first.out" || broken
+  printf '1\n' >"$FX/dev-first.code" || broken
+  check FAIL-store "FAIL $name (store)"
+
   fixture derived-first-play-alone
   : >"$FX/derived-dev-first"
   check FAIL-store "FAIL $name (store)"
