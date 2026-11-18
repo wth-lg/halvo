@@ -213,13 +213,17 @@ TASK_WORDS = ("bill", "reply", "order", "cleanup", "fill", "gen")
 KIND_WORDS = ("compile", "recover", "write", "replay")
 PAIRS = [(t, k) for t in TASKS for k in ("compile", "replay", "recover")] + [("reply", "write")]
 DRIVE_KEYS = tuple((kind, int(i)) for kind, i in RUNS)
+U64_MAX = "18446744073709551615"
 
 
 def figure(text):
-    """An integer of the importer: ASCII digits with no leading zero but 0 itself, at most 2^64 - 1."""
-    if re.fullmatch(r"0|[1-9][0-9]*", text) and int(text) < 2**64:
-        return int(text)
-    return None
+    """An integer of the importer: ASCII digits with no leading zero but 0 itself, at most 2^64 - 1. The
+    bound is read from the digits before any conversion, so no text of a file reaches int() unbounded."""
+    if not re.fullmatch(r"0|[1-9][0-9]*", text):
+        return None
+    if len(text) > len(U64_MAX) or (len(text) == len(U64_MAX) and text > U64_MAX):
+        return None
+    return int(text)
 
 
 def import_block(data, name):
@@ -1599,6 +1603,30 @@ def self_test():
         expect("main() --write, the file it wrote", written, ("t\n```text\n" + "\n".join(full("m_a") + ["verdict driver=m_a path=A writer=m_a"]) + "\n```\n").encode("utf-8"))
     except Exception as error:
         failures.append("main() with a root of fixtures: %s: %s" % (type(error).__name__, error))
+
+    long = "1" * 4301
+    plain = full("m_z")
+    long_attempt = [with_value(plain[0], "steps", long)] + plain[1:]
+    long_drive = plain[:5] + [with_value(plain[5], "wall_s", long)] + plain[6:]
+    long_cells = cells.replace(b"bound_bytes=1 ", ("bound_bytes=%s " % long).encode())
+
+    def long_figure(lines, cells_bytes):
+        with tempfile.TemporaryDirectory() as root:
+            trials = os.path.join(root, "docs", "r3", "trials")
+            os.makedirs(trials)
+            with open(os.path.join(trials, "driver.md"), "wb") as f:
+                f.write(("t\n```text\n" + "\n".join(lines + [none]) + "\n```\n").encode("utf-8"))
+            with open(os.path.join(trials, "model-cells.md"), "wb") as f:
+                f.write(cells_bytes)
+            told = io.StringIO()
+            with contextlib.redirect_stderr(told), contextlib.redirect_stdout(io.StringIO()):
+                code = entry(["--check"], lambda argv: main(argv, root))
+            return code, (told.getvalue().splitlines() or [""])[-1][:80]
+
+    expect("a figure of 4301 digits in an attempt line, which the importer refuses", long_figure(long_attempt, cells), (2, "REFUSED source: route-gate import refuses the files at driver:3"))
+    expect("a figure of 4301 digits in a drive line, which the importer takes", long_figure(long_drive, cells), (2, "REFUSED source: a drive line is not of the form of A13.6: drive model=m_z machin"))
+    expect("a figure of 4301 digits in a bound line, which the importer refuses", long_figure(plain, long_cells), (2, "REFUSED source: route-gate import refuses the files at cells:2"))
+    expect("a figure at 2^64 - 1 and at 2^64", (figure("18446744073709551615"), figure("18446744073709551616"), figure("99999999999999999999"), figure("1" * 19)), (2**64 - 1, None, None, int("1" * 19)))
 
     def crash(argv):
         return [][len(argv)]
