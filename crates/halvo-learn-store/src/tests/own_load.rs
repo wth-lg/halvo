@@ -1,4 +1,5 @@
 use halvo_agent_store::{Host, Now};
+use halvo_schema::executable::body::StepsReply;
 use halvo_schema::executable::{CoordinatorReply, RunId, RunnerReply};
 use halvo_schema::learning::record::LearnRun;
 use halvo_schema::{ErrorName, RowRead, TypedRecord, WorkflowId, WorkflowItem};
@@ -201,4 +202,47 @@ fn a_store_fault_at_the_handlers_own_load_at_a_start_run_under_another_agent_dro
     assert!(left_out(&w));
     assert_eq!(w.handlers.facts[&id(42)].agent.as_str(), agent(1));
     assert_eq!(w.handlers.starts[&id(42)].agent.as_str(), agent(1));
+}
+
+fn runner_at(w: &mut World, at: u32, body: Value) -> Result<RunnerReply, Refused> {
+    let mut host = FaultAt {
+        host: &mut w.host,
+        calls: 0,
+        at,
+    };
+    let answer = w.handlers.runner(&mut host, body.to_string().as_bytes());
+    assert!(host.calls >= at, "the request made {} calls", host.calls);
+    answer
+}
+
+fn steps_of(reply: RunnerReply) -> Vec<Value> {
+    let RunnerReply::Steps(StepsReply { steps }) = reply else {
+        panic!("a steps reply: {reply:?}");
+    };
+    steps
+        .iter()
+        .map(|s| serde_json::to_value(s).expect("a step's JSON"))
+        .collect()
+}
+
+#[test]
+fn a_store_fault_at_the_handlers_own_load_at_an_answered_load_steps_returns_the_compiled_steps_and_loses_the_run(
+) {
+    let mut w = learned_world();
+    w.start(3, "replay");
+    w.load(3);
+    w.loaded = 1;
+    assert!(w.handlers.facts.contains_key(&id(3)));
+    let commits = w.host.commits.get();
+    let body =
+        json!({"op": "load_steps", "agent": agent(1), "run": run(3), "number": 1, "from": 1});
+    let answer = runner_at(&mut w, 2, body);
+    let served = steps_of(answer.expect("the agent store's steps"));
+    assert_eq!(served, compiled());
+    assert!(left_out(&w));
+    assert_eq!(w.host.commits.get(), commits);
+    assert!(holds_nothing_of(&w, 3));
+    let again = w.load_steps(3, 1, 1);
+    assert_eq!(again, compiled());
+    learns_nothing_more(&mut w, 3);
 }
