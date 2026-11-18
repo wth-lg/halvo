@@ -149,9 +149,9 @@ impl Confirmation {
 /// `recorded`, `released` or `lapsed`, `stale`; from a source that is not the item's
 /// presenter, `presenter`; on an item that is `shown`, `early`. A `record` takes only a
 /// decision with one entry per effect of the request, with its digest and the answer of the
-/// item. A lapse takes any of the six causes from `shown` or `armed`, `run_ended`,
-/// `cancelled`, `no_record` or `app_ended` from `answered`, and `run_ended` or `app_ended`
-/// from `recorded`. Every other pair gives `state`.
+/// item. A lapse takes every cause but `answer_lost` from `shown` or `armed`, `run_ended`,
+/// `cancelled`, `no_record`, `app_ended` or `answer_lost` from `answered` (ruling RD-84), and
+/// `run_ended` or `app_ended` from `recorded`. Every other pair gives `state`.
 pub fn confirm_step(
     item: Option<&Confirmation>,
     mv: ConfirmMove<'_>,
@@ -185,8 +185,16 @@ pub fn confirm_step(
             Ok(item.to(Recorded(decision.clone())))
         }
         (Recorded(decision), ConfirmMove::Release) => Ok(item.to(Released(decision.clone()))),
-        (Shown | Armed, ConfirmMove::Lapse(cause))
-        | (Answered(_), ConfirmMove::Lapse(cause @ (RunEnded | Cancelled | NoRecord | AppEnded)))
+        (
+            Shown | Armed,
+            ConfirmMove::Lapse(
+                cause @ (Digest | RunEnded | WaitLimit | Cancelled | NoRecord | AppEnded),
+            ),
+        )
+        | (
+            Answered(_),
+            ConfirmMove::Lapse(cause @ (RunEnded | Cancelled | NoRecord | AppEnded | AnswerLost)),
+        )
         | (Recorded(_), ConfirmMove::Lapse(cause @ (RunEnded | AppEnded))) => {
             Ok(item.to(Lapsed(cause)))
         }

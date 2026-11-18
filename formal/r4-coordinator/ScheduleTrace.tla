@@ -81,7 +81,8 @@ StartCands(s) == Cat([a \in 1..NAgents |-> [i \in 1..4 |-> S(a, PortSeq[i])]])
 
 LiveCands(s, id) ==
     <<H(id), [m |-> "wait", run |-> id], [m |-> "resume", run |-> id], X(id, "cancelled")>>
-    \o (IF (CHOOSE r \in s.runs : r.id = id).phase = "waiting" THEN <<X(id, "lapsed")>> ELSE <<>>)
+    \o (IF (CHOOSE r \in s.runs : r.id = id).phase = "waiting"
+        THEN <<X(id, "lapsed"), X(id, "answer_lost")>> ELSE <<>>)
     \o [f \in 1..Len(FrameSeq) |-> E(id, FrameSeq[f], "ok")]
 
 RunCands(s) ==

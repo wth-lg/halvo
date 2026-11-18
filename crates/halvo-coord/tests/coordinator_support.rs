@@ -25,6 +25,8 @@ pub const PERSON: A = A {
 /// `recorded`, can have each call of `log` and `send` name the function that made it, and can
 /// make `start`, `cancel`, `answer_confirm`, `answer_bind`, `agents` or the `log` of an
 /// `item_lapsed` row panic, and can fail one read of the clock.
+/// It can also make `history`, the `log` of `item_answered` rows, and `answer_confirm` after its
+/// record returned and before the send or after the send, panic (ruling RD-84 item 8).
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
@@ -38,6 +40,11 @@ pub struct Both {
     pub loss_waits_for_row: Cell<Option<LostAckRow>>,
     pub clock_fails: Cell<bool>,
     pub fail_read_at: Cell<Option<u32>>,
+    /// Where set, that many more reads of the clock answer and every later one fails, until
+    /// it is cleared.
+    pub fail_reads_after: Cell<Option<u32>>,
+    /// Whether `Clock::day` fails.
+    pub day_fails: Cell<bool>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -104,6 +111,24 @@ impl Owner for Both {
         if lapses && self.panics.get() == Some("log_lapsed") {
             panic!("the port log panics at item_lapsed");
         }
+        let ends = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::RunEnded { .. }));
+        if ends && self.panics.get() == Some("log_ended") {
+            panic!("the port log panics at run_ended");
+        }
+        let holds = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::HoldSet { .. }));
+        if holds && self.panics.get() == Some("log_hold_set") {
+            panic!("the port log panics at hold_set");
+        }
+        let answers = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::ItemAnswered { .. }));
+        if answers && self.panics.get() == Some("log_answered") {
+            panic!("the port log panics at item_answered");
+        }
         let waits = self
             .loss_waits_for_row
             .get()
@@ -134,6 +159,9 @@ impl Owner for Both {
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
+        if self.panics.get() == Some("history") {
+            panic!("the port history panics");
+        }
         if self.next_history_fails.take() {
             return Err(PortError::NoService);
         }
@@ -191,6 +219,20 @@ impl Runs for Both {
     ) -> Result<(), PortError> {
         if self.panics.get() == Some("answer_confirm") {
             panic!("the port answer_confirm panics");
+        }
+        if self.panics.get() == Some("answer_confirm_after_record") {
+            let _ = self.ports.answer_confirm(run, answers, &mut |d| {
+                let kept = record(d);
+                if kept.is_ok() {
+                    panic!("the port answer_confirm panics after its record returned");
+                }
+                kept
+            });
+            return Err(PortError::NoService);
+        }
+        if self.panics.get() == Some("answer_confirm_after_send") {
+            let _ = self.ports.answer_confirm(run, answers, record);
+            panic!("the port answer_confirm panics after it sent the decision");
         }
         if self.drop_decision.replace(false) {
             let mut kept = Ok(());
@@ -251,6 +293,11 @@ impl Clock for Both {
         if self.clock_fails.get() {
             return Err(PortError::NoService);
         }
+        match self.fail_reads_after.get() {
+            Some(0) => return Err(PortError::NoService),
+            Some(n) => self.fail_reads_after.set(Some(n - 1)),
+            None => {}
+        }
         match self.fail_read_at.get() {
             Some(0) => {
                 self.fail_read_at.set(None);
@@ -263,6 +310,9 @@ impl Clock for Both {
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {
+        if self.day_fails.get() {
+            return Err(PortError::NoService);
+        }
         self.ports.day(at)
     }
 }
@@ -328,6 +378,8 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         loss_waits_for_row: Cell::new(None),
         clock_fails: Cell::new(false),
         fail_read_at: Cell::new(None),
+        fail_reads_after: Cell::new(None),
+        day_fails: Cell::new(false),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }

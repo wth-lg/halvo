@@ -240,7 +240,7 @@ fn closed_lists_have_the_contract_names_in_order() {
     );
     assert_eq!(
         names(&LapseCause::ALL.iter().map(|c| c.name()).collect::<Vec<_>>()),
-        "digest,run_ended,wait_limit,cancelled,no_record,app_ended"
+        "digest,run_ended,wait_limit,cancelled,no_record,app_ended,answer_lost"
     );
 }
 
@@ -647,6 +647,7 @@ fn an_item_lapses_with_the_causes_of_its_kind() {
     assert_eq!(
         confirm,
         [
+            "answer_lost",
             "app_ended",
             "cancelled",
             "digest",
@@ -654,7 +655,7 @@ fn an_item_lapses_with_the_causes_of_its_kind() {
             "run_ended",
             "wait_limit"
         ],
-        "a confirmation lapses with the six causes of I4.2"
+        "a confirmation lapses with the seven causes of I4.2"
     );
     let other: Vec<&str> = [
         OtherLapse::RunEnded,

@@ -532,14 +532,13 @@ impl Sched {
                             self.table = self.table.stop(&run);
                             let _ = halvo_coord::ports::Runs::cancel(&self.ports, &run);
                         }
-                        Act::Stop {
-                            run,
-                            by: if a["cause"] == "lapsed" {
-                                StopBy::WaitLimit
-                            } else {
-                                StopBy::Person
-                            },
-                        }
+                        let by = match a["cause"].as_str() {
+                            Some("cancelled") => StopBy::Person,
+                            Some("lapsed") => StopBy::WaitLimit,
+                            Some("answer_lost") => StopBy::AnswerLost,
+                            other => panic!("{at}: no stop cause {other:?}"),
+                        };
+                        Act::Stop { run, by }
                     }
                 };
                 let done = self.act(act);
@@ -1519,7 +1518,12 @@ impl Conf {
                                     LapseCause::parse(a["cause"].as_str().unwrap()).unwrap();
                                 let lives =
                                     !matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded);
-                                if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
+                                if matches!(
+                                    cause,
+                                    LapseCause::WaitLimit
+                                        | LapseCause::Cancelled
+                                        | LapseCause::AnswerLost
+                                ) {
                                     self.table = self.table.stop(&self.run);
                                     self.state = "stopped";
                                     p.push(json!({"call": "cancel"}));
@@ -1529,7 +1533,10 @@ impl Conf {
                                     sent = entries(&d);
                                     p.push(json!({"call": "answer_confirm", "item": name, "answer": "reject"}));
                                 }
-                                if lives && matches!(conf.state(), ConfirmState::Answered(_)) {
+                                if lives
+                                    && cause != LapseCause::AnswerLost
+                                    && matches!(conf.state(), ConfirmState::Answered(_))
+                                {
                                     let d = self.mint(&conf, EffectAnswer::RejectOnce);
                                     sent = entries(&d);
                                 }
@@ -1867,4 +1874,87 @@ fn formal_traces_refuses_a_pair_whose_stamps_differ() {
     let refused = read_pair(SCHEDULE, &other);
     assert!(refused.is_err_and(|e| e.contains("two stamps")));
     assert!(read_pair(SCHEDULE, CONFIRM).is_ok());
+}
+
+const CONFIRM_MODEL: &str = include_str!("../../../formal/r4-coordinator/Confirm4.tla");
+const SCHEDULE_MODEL: &str = include_str!("../../../formal/r4-coordinator/Schedule.tla");
+
+/// The set that a line `<head>{"a", "b"}` of a model names, sorted.
+fn model_set<'a>(model: &'a str, head: &str) -> Vec<&'a str> {
+    let line = model
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with(head))
+        .unwrap_or_else(|| panic!("no line {head}"));
+    let set = line[head.len()..].trim_end().trim_end_matches('}');
+    let mut names: Vec<&str> = set.split(", ").map(|n| n.trim_matches('"')).collect();
+    names.sort_unstable();
+    names
+}
+
+#[test]
+fn formal_traces_the_models_take_the_codes_cause_answer_lost() {
+    let mut code: Vec<&str> = LapseCause::ALL.iter().map(|c| c.name()).collect();
+    code.sort_unstable();
+    assert_eq!(
+        model_set(CONFIRM_MODEL, "Causes == {"),
+        code,
+        "Confirm4's Causes are the causes of a lapse of a confirmation (ruling RD-84 item 5)"
+    );
+    assert_eq!(
+        model_set(SCHEDULE_MODEL, "/\\ StopCauses \\subseteq {"),
+        ["answer_lost", "cancelled", "lapsed"],
+        "Schedule's bound on the stop causes holds answer_lost (ruling RD-84 item 5)"
+    );
+}
+
+/// The directed traces of the settle of a lost answer (I5.13, RD-84 items 2 and 4; the start
+/// object's "a directed trace for the settle"): exported from this commit's models with the case
+/// `answer_lost_settle` added to copies of ScheduleTrace.tla and Confirm4Trace.tla alone. The
+/// schedule stops a waiting run with `answer_lost` and the run ends `failed`; the confirmation is
+/// answered, lapses with `answer_lost` with one cancel and nothing sent, and the guard refuses
+/// the allow that the lost move may have handed on.
+const SETTLE_SCHEDULE: &str = r##"{"n":215,"case":"answer_lost_settle","moves":[{"m":"start","a":{"agent":"a4","trigger":"person","port":"ok"},"r":"ok","e":[{"agent":"a4","event":"run_started","run":"r1","slot":null,"trigger":"person"}],"p":[{"call":"defer"},{"call":"start_run","run":"r1"},{"call":"start","run":"r1"}],"s":{"run":"r1","day":1,"runs":{"r1":"starting"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"hello","a":{"run":"r1"},"r":"ok","e":[],"p":[],"s":{"day":1,"runs":{"r1":"working"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"wait","a":{"run":"r1"},"r":"ok","e":[],"p":[],"s":{"day":1,"runs":{"r1":"waiting"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"stop","a":{"run":"r1","cause":"answer_lost"},"r":"ok","e":[],"p":[{"call":"cancel","run":"r1"}],"s":{"day":1,"runs":{"r1":"stopping"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"end","a":{"run":"r1","frame":null,"port":"ok","left":"no"},"r":"ok","e":[{"agent":"a4","event":"run_ended","run":"r1","cause":"failed"}],"p":[],"s":{"cause":"failed","next":[],"day":1,"runs":{},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,1,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"tick","a":{"day":1,"grace":"yes","port":"ok","left":"no"},"r":"ok","e":[{"agent":"a2","event":"run_started","run":"r2","slot":1,"trigger":"schedule"}],"p":[{"call":"kill","run":"r1"},{"call":"defer"},{"call":"start_run","run":"r2"},{"call":"start","run":"r2"}],"s":{"stopped":[],"ended":[],"next":[],"raised":["a1","a3"],"started":[{"agent":"a2","r":"ok","run":"r2"}],"day":1,"runs":{"r2":"starting"},"queue":[],"ready":["a1","a3"],"held":[],"starts":[0,1,0,1,0],"slot":[null,1,null,null,null],"fails":[0,0,0,1,0],"gone":[],"lost":[],"open":["r1","r2"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"start","a":{"agent":"a4","trigger":"person","port":"ok"},"r":"state","e":[],"p":[],"s":{"run":null,"day":1,"runs":{"r2":"starting"},"queue":[],"ready":["a1","a3"],"held":[],"starts":[0,1,0,1,0],"slot":[null,1,null,null,null],"fails":[0,0,0,1,0],"gone":[],"lost":[],"open":["r1","r2"],"unknown":[],"cleared":[],"owing":[],"life":1}}]}"##;
+const SETTLE_CONFIRM: &str = r##"{"n":216,"case":"answer_lost_settle","moves":[{"m":"issue","a":{"effects":[{"effect":"e1","class":"send","digest":"d1"},{"effect":"e2","class":"payment","digest":"d2"}],"digest_ok":"yes"},"r":"ok","e":[{"event":"item_raised","item":"i1"}],"p":[],"s":{"item":"i1","sent":[],"items":{"i1":"shown"},"table":[],"used":[],"run":"live","binds":{}}},{"m":"arm","a":{"item":"i1"},"r":"ok","e":[],"p":[],"s":{"items":{"i1":"armed"},"table":[],"used":[],"run":"live","binds":{}}},{"m":"answer","a":{"item":"i1","answer":"allow","from":"native"},"r":"ok","e":[],"p":[{"call":"answer_confirm","item":"i1","answer":"allow"}],"s":{"approvals":["p1","p2"],"items":{"i1":"answered"},"table":[],"used":[],"run":"live","binds":{}}},{"m":"lapse","a":{"item":"i1","cause":"answer_lost","stored":null},"r":"ok","e":[{"event":"item_lapsed","item":"i1","cause":"answer_lost"}],"p":[{"call":"cancel"}],"s":{"sent":[],"items":{"i1":"lapsed"},"table":[],"used":[],"run":"stopped","binds":{}}},{"m":"guard","a":{"effect":"e1","class":"send","state":"approved","digest":"d1","approval":"p1","policy":null},"r":"approval","e":[],"p":[],"s":{"items":{"i1":"lapsed"},"table":[],"used":[],"run":"stopped","binds":{}}},{"m":"lapse","a":{"item":"i1","cause":"run_ended","stored":null},"r":"state","e":[],"p":[],"s":{"sent":[],"items":{"i1":"lapsed"},"table":[],"used":[],"run":"stopped","binds":{}}}]}"##;
+
+fn directed(line: &str) -> Vec<Trace> {
+    read_file(&format!("{{\"stamp\":\"directed\"}}\n{line}"))
+        .unwrap()
+        .1
+}
+
+#[test]
+fn formal_traces_the_directed_settle_of_a_lost_answer_replays() {
+    let schedule = directed(SETTLE_SCHEDULE);
+    let confirm = directed(SETTLE_CONFIRM);
+    let stop = schedule[0]
+        .moves
+        .iter()
+        .position(|m| m["m"] == "stop" && m["a"]["cause"] == "answer_lost")
+        .expect("the schedule trace stops with answer_lost");
+    assert_eq!(schedule[0].moves[stop + 1]["m"], json!("end"));
+    assert_eq!(
+        schedule[0].moves[stop + 1]["e"][0]["cause"],
+        json!("failed"),
+        "the run's end is failed (RD-84 item 4)"
+    );
+    let lapse = confirm[0]
+        .moves
+        .iter()
+        .find(|m| m["m"] == "lapse" && m["a"]["cause"] == "answer_lost")
+        .expect("the confirm trace lapses with answer_lost");
+    assert_eq!(
+        lapse["p"],
+        json!([{"call": "cancel"}]),
+        "one cancel and no decision"
+    );
+    assert_eq!(lapse["s"]["sent"], json!([]), "nothing sent");
+    let mut faults = replay_schedule(&schedule);
+    faults.extend(replay_confirm(&confirm));
+    assert!(
+        faults.is_empty(),
+        "{} lines differ from the model:\n{}",
+        faults.len(),
+        faults.join("\n")
+    );
 }
