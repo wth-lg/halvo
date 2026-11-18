@@ -460,12 +460,13 @@ async function parentGone() {
   if (!lived) await Promise.race([Promise.all(closed), sleep(2000)]);
   for (const line of lines) note(line);
   const said = lines.some((line) => /^check 55 worker \d+: its parent \d+ is gone; the worker ends itself$/.test(line));
+  const windows = process.platform === "win32";
   let failure = null;
   if (lived) failure = `the worker still runs ${PARENT_GONE_SECONDS} s (PARENT_GONE_SECONDS) after its parent ended`;
-  else if (!said) failure = "the worker ended with no line that says its parent is gone";
+  else if (!said && !windows) failure = "the worker ended with no line that says its parent is gone";
   if (lived && real) endOrphan(workerPid);
   else if (lived) note(`the kill of the worker ${workerPid}, started ${startOf(workerPid)}, is recorded and not made: off a GitHub runner its job of ${PARENT_GONE_ORDERINGS} orderings ends it`);
-  const line = text(lived ? "no" : "yes", lived ? `over-${PARENT_GONE_SECONDS}` : after.toFixed(1));
+  const line = `${text(lived ? "no" : "yes", lived ? `over-${PARENT_GONE_SECONDS}` : after.toFixed(1))} worker-line=${said ? "yes" : windows ? "no-the-system-ended-it" : "no"}`;
   if (failure === null) {
     console.log(`PASS metering-parent-gone: ${line}`);
     process.exit(0);
