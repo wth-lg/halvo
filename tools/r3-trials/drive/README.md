@@ -209,12 +209,17 @@ verdict's driver and writer:
 - a `reply` line has `bodies` of at most 2, `bodies=2` exactly when its `write` line has
   `pass=yes`, the `wall_s` of its `write` line, and `model_tokens` as that line's `tokens_in`
   plus `tokens_out`;
-- the block's last line is the verdict line that the rule gives, else `--check` exits 1; the
-  importer does not compute the verdict.
+- the block's last line is the verdict line that the rule gives: on a pair that the importer
+  takes, `--check` exits 1 when it is not, and a pair that the importer refuses is refused
+  first; the importer does not compute the verdict.
 
-The self-test holds the importer's cases of `crates/halvo-route-gate/tests/import_rules.rs` as
-that file stands at d6fca8dc. No job of main's workflow runs `verdict.py`, so a later change of
-the importer is not seen here until it is carried into `verdict.py` and its self-test.
+The self-test holds each pair of trial files that a test of
+`crates/halvo-route-gate/tests/import_rules.rs` reads, as that file stands at d6fca8dc, the
+golden files of `tests/data/r3` included, each with the importer's detail. Of the tests of the
+command line and of the files written (usage, `--out`, `--date`, paths, rows and dates), it holds
+the pair of trial files alone: `verdict.py` has no such command line and writes no such files.
+No job of main's workflow runs `verdict.py`, so a later change of the importer is not seen here
+until it is carried into `verdict.py` and its self-test.
 
 ## How the cells of unit U0.6 ran
 

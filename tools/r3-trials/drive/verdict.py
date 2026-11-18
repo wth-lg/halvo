@@ -25,8 +25,9 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
           the last line of the block is not this verdict line.
 --write   puts this verdict line in the block in place of its verdict line, at its end; it and
           the call with no argument refuse when the importer would refuse the file so written.
---self-test runs the rule on fixtures of its own and the importer's cases of
-          crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc, each with its detail.
+--self-test runs the rule on fixtures of its own and on each pair of trial files that a test
+          of crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc reads, each with the
+          importer's detail.
 
 Exit 0: done and every check holds; 1: a check missed; 2: a refusal, one line
 "REFUSED <cause>: <detail>" on standard error, causes usage and source; 3: a crash of
@@ -1218,21 +1219,89 @@ def import_cases():
         other_line(0),
     )
     root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
-    golden = os.path.join(root, "crates", "halvo-route-gate", "tests", "data", "r3", "no_driver")
-    with open(os.path.join(golden, "driver.md"), "rb") as f:
-        text = f.read().decode("utf-8")
+
+    def golden_bytes(case, name):
+        with open(os.path.join(root, "crates", "halvo-route-gate", "tests", "data", "r3", case, name), "rb") as f:
+            return f.read()
+
+    def golden_lines(case, name):
+        text = golden_bytes(case, name).decode("utf-8")
+        return [piece[:-1] if piece.endswith("\r") else piece for piece in text.split("\n")[: -1 if text.endswith("\n") else None]]
+
     kept = [
         line
-        for line in (piece[:-1] if piece.endswith("\r") else piece for piece in text.split("\n")[: -1 if text.endswith("\n") else None])
+        for line in golden_lines("no_driver", "driver.md")
         if not line.startswith("drive model=m_tiny ") and (not line.startswith("attempt model=m_tiny ") or " kind=recover " in line)
     ]
     driver = "\n".join(kept + [""]).encode("utf-8")
-    with open(os.path.join(golden, "model-cells.md"), "rb") as f:
-        golden_cells = f.read()
+    golden_cells = golden_bytes("no_driver", "model-cells.md")
     if git_blob(driver) == "1f9f96fd225b36f133c25375e12da93ad70e29ce":
         files("the golden no_driver file as U0.2 wrote it", driver, golden_cells, "driver:7")
     else:
         files("the golden no_driver file as U0.2 wrote it, not found as such", driver, golden_cells, "not the blob 1f9f96fd")
+    indented = " attempt model=m_small machine=mac task=bill seed=1 kind=compile i=9 pass=no steps=1 wall_s=1 tokens_in=1 tokens_out=1"
+    limits_reply = "limits task=reply wall_s=120 model_tokens=700"
+
+    def no_writer_with(inserted):
+        lines = [line for line in golden_lines("no_writer", "driver.md") if line not in (indented, limits_reply)]
+        for number, line in inserted:
+            lines.insert(number - 1, line)
+        return "\n".join(lines + [""]).encode("utf-8")
+
+    no_writer_cells = golden_bytes("no_writer", "model-cells.md")
+    driver = no_writer_with([(48, indented), (136, indented), (185, limits_reply)])
+    if git_blob(driver) == "ae70b7a15a9896c831849a78021ff7a151e29e1c":
+        files("the golden no_writer file as U0.2 wrote it", driver, no_writer_cells, "driver:48")
+    else:
+        files("the golden no_writer file as U0.2 wrote it, not found as such", driver, no_writer_cells, "not the blob ae70b7a1")
+    files("the golden no_writer file with its limits line of reply", no_writer_with([(183, limits_reply)]), no_writer_cells, "driver:183")
+    full_driver, full_cells = golden_bytes("full", "driver.md"), golden_bytes("full", "model-cells.md")
+    files("the golden full files swapped", full_cells, full_driver, "driver:16")
+    files("the golden full driver file given as both files", full_driver, full_driver, "cells:7")
+    files("the golden full files", full_driver, full_cells, None)
+
+    def tabbed(data):
+        text = data.decode("utf-8")
+        start = text.find("\n```\n") + 5
+        after = start + text[start:].find("\n") + 1
+        return (text[:after] + "\t```\n" + text[after:]).encode("utf-8")
+
+    files("a fence line that a tab indents inside the golden full driver block", tabbed(full_driver), full_cells, "driver:block")
+    files("a fence line that a tab indents inside the golden full cells block", full_driver, tabbed(full_cells), "cells:block")
+    named_tiny = full_driver.replace(b"verdict driver=m_small path=A writer=m_small\n", b"verdict driver=m_tiny path=A writer=m_tiny\n")
+    files("a verdict naming the golden driver m_tiny whose own lines failed", named_tiny if named_tiny != full_driver else b"", full_cells, "driver:170")
+    run("the pair of the good pair and of the two date tests", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND], None)
+    run("a driver block with no attempt line", [IMP_VERDICT], [IMP_BOUND], None)
+    run("a refusal of the source in the driver file, as for the files written", [IMP_ATTEMPT, IMP_VERDICT, attempt_with("pass", "maybe")], [IMP_BOUND], "driver:6")
+    run("a refusal of the source in the cells file, as for the files written", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND, "bound model=m_a"], "cells:4")
+    run("the source refusal behind file before source", [IMP_ATTEMPT, attempt_with("seed", "4"), IMP_VERDICT], [IMP_BOUND], "driver:5")
+    many = [line for model in ("m_a", "m_b") for machine in MACHINES for seed in SEEDS for line in drive_cell(model, machine, "bill", seed)]
+    run("a row count of many attempts", many + [IMP_VERDICT], [IMP_BOUND], None)
+    replay_cell = drive_cell("m_a", "hosted-win", "order", 2)
+    replay_cell[1] = "attempt model=m_a machine=hosted-win task=order seed=2 kind=replay i=1 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0"
+    recover_cell = drive_cell("m_a", "mac", "order", 1)
+    recover_cell[4] = "attempt model=m_a machine=mac task=order seed=1 kind=recover i=1 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1"
+    run(
+        "rows and models in byte order with routing tokens",
+        ["attempt model=m_b machine=mac task=reply seed=3 kind=write i=1 pass=no steps=0 wall_s=7 tokens_in=1 tokens_out=2", IMP_ATTEMPT]
+        + replay_cell
+        + recover_cell
+        + ["reply model=m_b machine=mac seed=3 bodies=0 of=2 wall_s=7 model_tokens=3", IMP_VERDICT],
+        [
+            "bound model=ternary_bonsai_2_9b machine=mac bound_bytes=0 fits=not-measured",
+            "bound model=s5_nano_4b machine=hosted-win bound_bytes=18446744073709551615 fits=no",
+            IMP_BOUND,
+            "bound model=gemma_4_e4b machine=mac bound_bytes=1 fits=yes",
+            "bound model=gemma_4_e2b machine=mac bound_bytes=2 fits=yes",
+            "bound model=gemma_4_e2 machine=mac bound_bytes=3 fits=yes",
+        ],
+        None,
+    )
+    write_line = "attempt model=m_c machine=mac task=reply seed=1 kind=write i=1 pass=yes steps=%s wall_s=10 tokens_in=5 tokens_out=6"
+    beside_set("a write line with steps of 21 digits", [write_line % ("1" * 21), reply_cell("m_c", "mac", 1)[1]], other_line(0))
+    beside_set("a write line with steps of an ASCII digit and an Arabic-Indic digit", [write_line % "1١", reply_cell("m_c", "mac", 1)[1]], other_line(0))
+    beside_set("a counted reply line twice beside its one write line", reply_cell("m_c", "mac", 1) + [reply_cell("m_c", "mac", 1)[1]], other_line(1))
+    beside_set("a drive line of a model of 33 characters, which no line counts", drive_cell("m" * 33, "mac", "bill", 1)[5:], None)
     no_drive = full[:5] + full[6:]
     no_reply = full[:73] + full[74:]
     for name, lines, want in [
