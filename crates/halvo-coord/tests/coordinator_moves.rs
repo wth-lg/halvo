@@ -8302,6 +8302,60 @@ fn rd80_with_a_full_roster_the_note_of_the_mark_stands_and_roster_full_comes_bac
 }
 
 #[test]
+fn rd80_while_the_mark_stands_each_kind_of_start_is_no_service_and_a_stop_is_taken() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    let slotted = coordinator(
+        &[support::A {
+            person: true,
+            slotted: true,
+        }],
+        Limits::PRODUCT,
+    );
+    slotted.tick();
+    let (ready, kind) = open_item(&slotted);
+    assert_eq!(kind, ItemKind::Ready);
+    tick_that_panics(&c);
+    tick_that_panics(&slotted);
+    let m = mark(&c);
+    assert_eq!(
+        c.control(&agent(1), Action::SwitchOn),
+        Err(Cause::NoService),
+        "switch_on"
+    );
+    assert_eq!(
+        c.control(&agent(0), Action::RunNow),
+        Err(Cause::NoService),
+        "run_now"
+    );
+    let step = shown_step_mark_or_zero(&slotted, &ready);
+    assert_eq!(
+        slotted.answer(&ready, Choice::Start, None, step),
+        Err(Cause::NoService),
+        "the start of a ready item"
+    );
+    assert_eq!(started(&slotted).len(), 0);
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Start(_) | Call::Log(_))),
+        "nothing started or stored"
+    );
+    assert_eq!(
+        c.control(&agent(0), Action::Stop),
+        Ok(()),
+        "a stop is taken"
+    );
+    assert_eq!(cancels_of(&c, m, &run), 1);
+    c.tick();
+    slotted.tick();
+    assert_eq!(c.control(&agent(1), Action::SwitchOn), Ok(()));
+    let step = shown_step_mark_or_zero(&slotted, &ready);
+    assert_eq!(slotted.answer(&ready, Choice::Start, None, step), Ok(()));
+}
+
+#[test]
 fn rd80_a_first_tick_that_panics_leaves_the_stand_in() {
     let c = Coordinator::new(owner(&[MANUAL], Limits::PRODUCT), Limits::PRODUCT);
     tick_that_panics(&c);

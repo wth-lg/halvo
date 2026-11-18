@@ -1553,9 +1553,15 @@ where
         answered(&schedule::drive(&self.ports, board, &self.limits, mv))
     }
 
+    /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
+    /// step of the quit, and `no_service` while the mark of a tick that did not return stands
+    /// (ruling RD-80 4.5).
     fn start_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
         if st.quitting {
             return Err(Cause::State);
+        }
+        if st.mark.tick {
+            return Err(Cause::NoService);
         }
         self.act(
             st,
@@ -1585,7 +1591,9 @@ where
     /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
     /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
     /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
-    /// step of the quit every start is `state`. The person's `stop` lapses the open item of a
+    /// step of the quit every start is `state`; while the mark of a tick that did not return
+    /// stands, `run_now` and `switch_on` are `no_service` (ruling RD-80 4.5). The person's
+    /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
     /// switch-off control lapses that item in the same way before its own move.
@@ -1610,6 +1618,7 @@ where
         match action {
             _ if gone => Err(Cause::UnknownAgent),
             Action::RunNow => self.start_in(st, agent),
+            Action::SwitchOn if st.mark.tick => Err(Cause::NoService),
             Action::SwitchOn => self.schedule(
                 st,
                 Move::SwitchOn {
