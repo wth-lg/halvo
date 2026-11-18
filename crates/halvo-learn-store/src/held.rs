@@ -44,6 +44,15 @@ impl LearnHandlers {
         self.starts.remove(run);
     }
 
+    /// Drops the run where its facts or its remembered start are held under `agent`, and nothing under another agent.
+    pub(crate) fn drop_of_agent(&mut self, agent: &AgentId, run: &RunId) {
+        let of_agent = self.facts.get(run).is_some_and(|f| &f.agent == agent)
+            || self.starts.get(run).is_some_and(|s| &s.agent == agent);
+        if of_agent {
+            self.drop_run(run);
+        }
+    }
+
     /// The handlers' own `load` of a run, which stores nothing. A refusal with a name other than `store` and
     /// `internal` is the sign of a run that can store nothing more, and drops the run.
     pub(crate) fn load_of(
@@ -99,11 +108,7 @@ impl LearnHandlers {
             return;
         }
         if was_load {
-            let of_agent = self.facts.get(run).is_some_and(|f| &f.agent == agent)
-                || self.starts.get(run).is_some_and(|s| &s.agent == agent);
-            if of_agent {
-                self.drop_run(run);
-            }
+            self.drop_of_agent(agent, run);
             return;
         }
         if let Some(agent) = self.facts.get(run).map(|f| f.agent.clone()) {

@@ -42,8 +42,13 @@ impl LearnHandlers {
         let reply = halvo_agent_store::coordinator(host.agent_host(), now, body)?;
         match (&call, &reply) {
             (Some(CoordinatorCall::StartRun(b)), CoordinatorReply::Accepted(_)) => {
-                self.sweep(host)?;
-                let outcome = self.started(host, b);
+                let outcome = match self.sweep(host) {
+                    Ok(()) => self.started(host, b),
+                    Err(name) => {
+                        self.drop_of_agent(&b.agent, &b.run);
+                        Err(name.into())
+                    }
+                };
                 self.leave(outcome);
             }
             (Some(CoordinatorCall::CreateAgent(b)), CoordinatorReply::Rev(_)) => {

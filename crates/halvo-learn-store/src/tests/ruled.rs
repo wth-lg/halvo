@@ -567,15 +567,18 @@ fn g4_a_load_whose_held_start_names_another_agent_makes_no_facts_and_its_verifie
 }
 
 #[test]
-fn g4_a_store_fault_in_the_sweep_at_a_start_is_answered_store_and_a_repeat_stores_the_row_once() {
+fn g4_a_store_fault_in_the_sweep_at_a_start_returns_the_agent_stores_reply_and_a_repeat_stores_the_row_once(
+) {
     let mut w = active_world();
     w.replay(2);
     w.host.agent.fault = true;
     let body = json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(3), "mode": "replay"});
-    assert_eq!(
+    assert!(matches!(
         w.coordinator(body.clone()),
-        Err(crate::Refused::Error(halvo_schema::ErrorName::Store))
-    );
+        Ok(crate::CoordinatorAnswer::Agent(
+            halvo_schema::executable::CoordinatorReply::Accepted(_)
+        ))
+    ));
     assert!(revs(&w, 3).is_empty());
     w.host.agent.fault = false;
     assert!(w.coordinator(body).is_ok());
