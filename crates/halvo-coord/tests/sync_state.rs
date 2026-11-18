@@ -118,3 +118,36 @@ fn sync_alone_a_page_whose_seq_is_not_the_syncs_gets_the_whole_state() {
         }
     }
 }
+
+#[test]
+fn sync_alone_a_publish_after_a_move_that_did_not_return_raises_seq_though_nothing_differs() {
+    let mut sync = Sync::new();
+    let (rows, items, note) = state(State::Ten);
+    sync.publish(rows.clone(), items.clone(), note.clone());
+    let mut page = Page::shown(&sync);
+    let before = sync.snapshot();
+    assert!(!sync.publish(rows.clone(), items.clone(), note.clone()));
+    assert!(!page.next(&sync), "an equal state raises nothing");
+    sync.publish_again(rows, items, note);
+    let after = sync.snapshot();
+    assert_eq!(after.seq, before.seq + 1);
+    assert_eq!(
+        (&after.rows, &after.items, &after.note),
+        (&before.rows, &before.items, &before.note)
+    );
+    assert!(page.next(&sync), "the page takes the state again");
+    assert_eq!(page.held, after);
+}
+
+#[test]
+fn sync_alone_a_publish_after_a_move_that_did_not_return_takes_the_new_state() {
+    let mut sync = Sync::new();
+    let (rows, items, note) = state(State::Ten);
+    sync.publish(rows, items, note);
+    let before = sync.snapshot();
+    let (rows, items, note) = state(State::Queue);
+    sync.publish_again(rows.clone(), items.clone(), note.clone());
+    let after = sync.snapshot();
+    assert_eq!(after.seq, before.seq + 1);
+    assert_eq!((after.rows, after.items, after.note), (rows, items, note));
+}

@@ -118,16 +118,16 @@ What the check asks of the table and of the files, each with the cause that ends
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,846,323 | 66,152,756 | 17 |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two. A run stops with `cancelled`, `lapsed` or `answer_lost` (ruling RD-84) | 2,884,911 | 105,751,493 | 17 |
 | `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 265,562 | 6,450,629 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
-| `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,515 | 12 |
+| `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and the three stops, `cancelled`, `lapsed` and `answer_lost` (ruling RD-84): the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 20,426 | 392,913 | 14 |
 | `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 27,234 | 647,916 | 11 |
 | `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,768 | 14 |
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
-| `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 35,360 | 4,938,947 | 25 |
-| `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on, and no second step (`Binds` is 0, so L11 holds there with nothing bound) | 4,092 | 530,515 | 21 |
-| `Confirm4` | `bound` | `Confirm4-bound.cfg` | no | the model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4): one run with three requests in all, each a confirmation or a second step, at most two second steps, two effects; the confirm walks are drawn from it | 591,780 | 92,316,599 | 30 |
+| `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 35,856 | 5,063,579 | 25 |
+| `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on, and no second step (`Binds` is 0, so L11 holds there with nothing bound) | 4,260 | 560,587 | 21 |
+| `Confirm4` | `bound` | `Confirm4-bound.cfg` | no | the model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4): one run with three requests in all, each a confirmation or a second step, at most two second steps, two effects; the confirm walks are drawn from it | 597,556 | 94,352,511 | 30 |
 
 | Configuration | Rows of the table of wrong designs that TLC reports in it | `Reach` properties that TLC reports violated in it |
 |---|---|---|
@@ -164,16 +164,16 @@ configuration, with three workers, in the hosted jobs of run 43680897604 on 2026
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
-| `Schedule` | `full` | 3367.18 s, four workers, on 2026-11-14 with the model of unit U1.2c, on the lane for timed runs | 2,051,145,728 bytes | 53.66 | not run | not run |
+| `Schedule` | `full` | 2283.73 s, four workers, on 2026-11-18 with the model of unit U2.4m (RD-84: a third stop cause), on the lane for timed runs; 3367.18 s before it, on 2026-11-14 with the model of unit U1.2c | not measured in that run | 66.43 | not run | not run |
 | `Schedule` | `days` | 475.60 s, three workers, on 2026-11-14 (U1.2c) | 1,878,720,512 bytes | 50.98 | 130 s | 209 s |
 | `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 3 s | 4 s |
-| `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
+| `Schedule` | `store` | 17.70 s, one worker, on 2026-11-18 with the model of unit U2.4m (RD-84: a third stop cause, which doubles its states), on the lane of that unit; 57.91 s before it at a load of 301 | not measured in that run | 16.55 | 7 s before U2.4m | 7 s before U2.4m |
 | `Schedule` | `holds` | 68.09 s, two workers, on 2026-11-14 (U1.2c) | 1,180,041,216 bytes | 111.99 | 17 s | 22 s |
 | `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 8 s | 7 s |
 | `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 4 s | 4 s |
-| `Confirm4` | `full` | 58.22 s, two workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1) | 1,205,305,344 bytes | 53.26 | 32 s | 30 s |
-| `Confirm4` | `apart` | 9.81 s, one worker, on 2026-11-15 with the model of commit 47a097f9a | 746,471,424 bytes | 82.23 | 5 s | 5 s |
-| `Confirm4` | `bound` | 966.08 s, four workers, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1), on the lane for timed runs | 1,810,808,832 bytes | 43.16 | not run | not run |
+| `Confirm4` | `full` | 39.29 s, two workers, on 2026-11-18 with the model of unit U2.4m (RD-84), on the lane of that unit; 58.22 s before it, on 2026-11-15 with the model of commit 47a097f9a (RD-109 Addition 1) | 1,205,305,344 bytes | 53.26 | 32 s | 30 s |
+| `Confirm4` | `apart` | 7.09 s, one worker, on 2026-11-18 with the model of unit U2.4m (RD-84), on the lane of that unit; 9.81 s before it, on 2026-11-15 with the model of commit 47a097f9a | 746,471,424 bytes | 82.23 | 5 s | 5 s |
+| `Confirm4` | `bound` | 615.59 s, four workers, on 2026-11-18 with the model of unit U2.4m (RD-84), on the lane for timed runs | not measured in that run | 22.08 | not run | not run |
 
 In that run the check took 242 s and its self-test 35 s in the
 `macos` job, and 320 s and 96 s in the `windows` job; the
@@ -439,9 +439,12 @@ follow these readings.
    is no longer due (reading 14); it stays at the head when step 4 fails, and then
    no start behind it is tried. One end takes one start from the queue. A tick takes one
    start from the queue when it killed no run and no run is live.
-7. A run that was stopped ends with the cause of its stop, whatever frame its runner sends.
-   A run that was not stopped keeps the outcome of its last frame, and `interrupted` with
-   no frame. The switch-off control stops with `cancelled`, and takes the agent's queued
+7. A run that was stopped ends with the cause of its stop, whatever frame its runner sends,
+   and a run stopped with `answer_lost`, the settle of a confirmation that an answer's move
+   left `answered`, ends `failed`, which counts toward the hold `failures` (ruling RD-84
+   item 4); the history writes that end on its own (`HOwes`), and the state through
+   `StopEnd`. A run that was not stopped keeps the outcome of its last frame, and
+   `interrupted` with no frame. The switch-off control stops with `cancelled`, and takes the agent's queued
    start out of the queue with nothing stored for it (ruling RD-52 (d)).
 8. `delete` takes the workflow out of the owner's list and stops nothing. The first tick
    after it stops the run of that workflow with the cause `deleted`, also a run that was
@@ -496,9 +499,10 @@ follow these readings.
     No property of the schedule reads which of the three phases a live run has, so a
     tie to an item would change none of C1 to C11; the link between the close of an item
     and `resume` is held by the code's test of `wait` and `resume` and by no property.
-    The search also stops a run with `lapsed` in every phase but `stopping`, which is
-    more than a wait limit can do; the walks stop with `lapsed` only a run that is
-    `waiting`.
+    The search also stops a run with `lapsed`, and with `answer_lost` where the
+    configuration names it (`full` and `store`), in every phase but `stopping`, which is
+    more than a wait limit or a lost answer can do; the walks stop with `lapsed` or
+    `answer_lost` only a run that is `waiting`.
 
 16. The agent store has one run of an agent that it has not ended, from the `start_run`
     of its start on. A runner's `finish` ends it there: an `end` with a frame, also of a
@@ -582,7 +586,7 @@ sound because `ready` decides only its own next value and the `raised` of a tick
 phases decide only which of `hello`, `wait` and `resume` is accepted, each of which leads
 to a state of the same class, every stop, end, kill, switch-off and deletion treats the
 three alike, and the history holds neither. `VIEW` keeps the cause of a stop, `cancelled`,
-`lapsed` or `deleted`, in the state and in the history: C10 reads it, and a view that took
+`lapsed`, `answer_lost` or `deleted`, in the state and in the history: C10 reads it, and a view that took
 `lapsed` for `cancelled` hid a coordinator that stores `cancelled` for a lapsed stop. The
 `Reach` properties that name the cause of a stop run without the `VIEW` line, as before.
 `VIEW` also takes `dying` out: it decides only its own next value and the `Runs::kill`
@@ -598,6 +602,9 @@ start that was refused: a coordinator that holds an agent longer than I5.4 asks,
 `check` that the person's answer does not end or that a restart brings back, breaks none
 of C1 to C12. The directed trace `store_not_ended` holds a start after an answered
 `check`, and `ReachCheckAnswered` is not reached under the first of those two designs.
+A limit of the model (ruling RD-133): Schedule.tla's `Off` has no arm for a switch-off whose
+read of the clock fails, which the code makes at once on the board and the guard's table and
+stamps at the next read that answers; the model holds no clock, so it cannot tell the two.
 
 ## Confirm4
 
@@ -630,7 +637,7 @@ names effect 1 with another digest, so its presenter is `page`.
 | L1 | a decision holds `allow_once` only after an accepted `answer` with `allow` on its own item, while that item was `armed`, from that item's presenter | for every `allow_once` entry of `h.got`, `h.answers` holds such an answer of the decision's item |
 | L2 | the digests of a released decision are the digests of the request that was shown | the effects and digests of a released decision of `h.got` are `h.shown` of its item |
 | L3 | an approval id stands in at most one decision and in at most one row; the id of an acknowledged row whose decision was released stands in that decision; a lapse's decision holds no id of the answer and no id that a row holds or will hold | the four clauses over `h.got`, `h.stored`, `h.acked` and `h.minted` |
-| L4 | no move leaves `released` or `lapsed`, and a `recorded` item lapses only with `run_ended` or `app_ended`; an `answered` item lapses only with `run_ended`, `cancelled`, `no_record` or `app_ended`, as the table of I4.2 has it | in `h.moves`, a `release` or a `lapse` is the last move of its item, a `lapse` after an `answer` has one of the four causes, and a `lapse` after a `record` one of the two |
+| L4 | no move leaves `released` or `lapsed`, and a `recorded` item lapses only with `run_ended` or `app_ended`; an `answered` item lapses only with `run_ended`, `cancelled`, `no_record`, `app_ended` or `answer_lost` (ruling RD-84), as the table of I4.2 has it | in `h.moves`, a `release` or a `lapse` is the last move of its item, a `lapse` after an `answer` has one of the four causes, and a `lapse` after a `record` one of the two |
 | L5 | no decision is released before its rows are acknowledged, as whole entries; an `item_released` row stands only for a decision that the runner received, with its entries | the entries of a released decision of `h.got` are the rows of `h.acked` of its item, and every row of `h.released` has its released decision in `h.got` |
 | L6 | a lapse's decision holds `reject_once` only; once a run was stopped no later decision holds `allow_once`; no `item_released` row names an item that lapsed | over `h.got`, its mark of the stop, `h.released` and `h.moves` |
 | L7 | the guard passes a record `approved` only with a matching unused acknowledged row of the same effect and digest whose decision was released with `allow_once`; a repeat, whose effect, digest and approval id equal those of the record that used the row, passes again | every `approved` record of `h.passed` has such a row in `h.acked` with its release in `h.got`, and either no earlier record used its approval id or an `approved` record of the same effect, digest and approval id passed before; and `h.refused` is empty |
@@ -669,12 +676,16 @@ How the model reads I4:
    class of the presenter `native`, which still needs its used row. With an approval the
    answer of the port changes nothing: an approval id that no row holds is refused under
    `run` too.
-6. `confirm_step` takes a lapse with any of the six causes from `shown` or `armed`, from
-   `answered` only with `run_ended`, `cancelled`, `no_record` or `app_ended`, and from
-   `recorded` only with `run_ended` or `app_ended`. The wait limit does not lapse an item
+6. `confirm_step` takes a lapse with any cause but `answer_lost` from `shown` or `armed`,
+   from `answered` only with `run_ended`, `cancelled`, `no_record`, `app_ended` or
+   `answer_lost`, and from `recorded` only with `run_ended` or `app_ended`. A lapse with
+   `answer_lost` (ruling RD-84) stops the run as one with `wait_limit` or `cancelled`
+   does, and the history counts it among the stops (`HAfter`), but it sends no decision
+   and mints no approval id: the coordinator settles such an item after an answer's move
+   that did not return, with `Runs::cancel` once and nothing sent. The wait limit does not lapse an item
    that the person has answered (I4.2): such a lapse, and one with `digest`, is answered
    `state`. The walks hold
-   only the causes that can arise: `no_record` after an answer, `digest` at `issue`.
+   only the causes that can arise: `no_record` and `answer_lost` after an answer, `digest` at `issue`.
 7. The move `release` stores the `item_released` row. A restart is the app's end: the open
    item lapses with `app_ended`, and no move follows.
 8. A record `approved` that matches a row which an earlier record used is a repeat: it has
@@ -740,7 +751,7 @@ or after two (the confirmation of the page presenter beside a second step among 
 the kill and the recovery over three requests' rows. The own bound `bound` holds those
 orders, and the confirm walks are drawn from it.
 
-The model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4). With the history of RD-109 Addition 1 (commit 47a097f9a), three requests in all, at most two second steps (`Requests` 3, `Binds` 2), TLC ended on 2026-11-15 with no error, 591,780 distinct states, 92,316,599 generated, depth 30, in 966.08 s with four workers on the lane for timed runs. `Confirm4-bound.cfg` holds it, the confirm walks are drawn from it, and row 77 of the wrong designs, a Bind that hands `allow` at the third request, is reported there by L11 and in no configuration that CI runs. The product of two and two (`Requests` 4) runs after it once, with a limit of 90 minutes of TLC, off the path of the round; it started at 04:25:42Z on 2026-11-15, after the own bound, and ended within the limit with no error: 4,252,580 distinct states, 734,139,599 generated, depth 35, in 4,724.61 s with four workers, 2,044,723,200 bytes, the same model. It is not the own bound at this commit, because the walks, the export and the record were made from three requests before it ended (RD-109 Addition 1, point 4). Before RD-109 Addition 1, with the model of commit 383563cc8, three requests ended with no error at 430,868 distinct states in 766.66 s and the product at 2,691,076 distinct states in 3,309.62 s, both with four workers; the Addition changed the history that L11 reads, so those runs do not check this model. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs the own bound, and so does the verifier at the gate of the phase in which the change lands; no CI job runs it. A violation of an invariant there is a fault of the model or of the code (ruling RD-106 (8)).
+The model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4). With the history of RD-109 Addition 1 (commit 47a097f9a), three requests in all, at most two second steps (`Requests` 3, `Binds` 2), TLC ended on 2026-11-15 with no error, 591,780 distinct states, 92,316,599 generated, depth 30, in 966.08 s with four workers on the lane for timed runs. With the cause `answer_lost` of unit U2.4m (ruling RD-84), taken from `answered` alone, TLC ended on 2026-11-18 with no error, 597,556 distinct states, 94,352,511 generated, depth 30, in 615.59 s with four workers on the lane for timed runs; that run, not the one before it, checks the model at this commit. `Confirm4-bound.cfg` holds it, the confirm walks are drawn from it, and row 77 of the wrong designs, a Bind that hands `allow` at the third request, is reported there by L11 and in no configuration that CI runs. The product of two and two (`Requests` 4) runs after it once, with a limit of 90 minutes of TLC, off the path of the round; it started at 04:25:42Z on 2026-11-15, after the own bound, and ended within the limit with no error: 4,252,580 distinct states, 734,139,599 generated, depth 35, in 4,724.61 s with four workers, 2,044,723,200 bytes, the same model. It is not the own bound at this commit, because the walks, the export and the record were made from three requests before it ended (RD-109 Addition 1, point 4). Before RD-109 Addition 1, with the model of commit 383563cc8, three requests ended with no error at 430,868 distinct states in 766.66 s and the product at 2,691,076 distinct states in 3,309.62 s, both with four workers; the Addition changed the history that L11 reads, so those runs do not check this model. Whoever changes `Confirm4.tla` or a Confirm4 configuration runs the own bound, and so does the verifier at the gate of the phase in which the change lands; no CI job runs it. A violation of an invariant there is a fault of the model or of the code (ruling RD-106 (8)).
 
 Proved at no bound of this model, each with what holds it (ruling RD-106 (7)):
 - the third value of the guard table's release number, which needs three confirmations
@@ -874,20 +885,31 @@ Each row is a coordinator or a guard that is wrong by I4 or I5, made from the mo
 exact replacement in the functions that `Step` calls; `Hist` and the invariants stay as they
 are. Row 45 alone is a wrong environment, the run of reading 9 without its rule. TLC was run on each with every invariant of its configuration and reports the
 property of the third column first. The last column counts the committed traces in which a
-replay of that design gives another answer, event, call or state at some move; a count
-"n of 213" is of the export of 213 schedule traces before the join of U2.4b and U1.2c, and
-was not run again on the joined model's 214.
+replay of that design gives another answer, event, call or state at some move. The 33 counts
+of schedule rows that were made before the join of U2.4b and U1.2c were run again in unit
+U2.4m (ruling RD-84) on that unit's model and against its 214 schedule traces, each row with
+TLC in the configuration that this section names and with the export of the wrong model whose
+configurations have no invariant line: "n of 214" is that export compared line by line;
+"(soft export)" marks a row whose wrong model the export refused (an answer missing from the
+walks, a directed trace that ends otherwise), exported again with those checks printing and
+going on; "n of 200 walks" marks a row whose wrong model cannot make the directed traces of
+the named configurations at all (TLC ends with an error there), so that the 200 walks alone are
+compared, each by its number. Each row's TLC run reported the property of the third column, and
+rows 66 and 68 reported none. The counts of the confirm rows are against the confirm walks of
+their own rounds: U2.4m's walks offer `answer_lost` beside every `answered` item, which moves
+the draws, and 100 of the 215 committed confirm traces differ from those before it, so those
+counts read walks that are no longer committed.
 
 | # | Wrong design | TLC reports | Traces that differ |
 |---|---|---|---|
-| 1 | a restart rebuilds the day's count of starts from this life only | C7 | 40 of 213 (before the join) |
-| 2 | a start that failed at step 7 or 8 is not counted | C7 | 54 of 213 (before the join) |
-| 3 | the budget counts only the person's starts | C7 | 85 of 213 (before the join) |
-| 4 | the budget counts only the scheduler's starts | C7 | 210 of 213 (before the join) |
-| 5 | the hold `failures` is lost at a restart | C4 | 0 of 213 (before the join) |
-| 6 | the scheduler starts an agent that never had a completed run | C5 | 158 of 213 (before the join) |
-| 7 | a new life takes the agent of a workflow that was removed before it for known and listed | C8 | 15 of 213 (before the join) |
-| 8 | the kill comes only for runs stopped for `deleted` | C9 | 47 of 213 (before the join) |
+| 1 | a restart rebuilds the day's count of starts from this life only | C7 | 40 of 214 |
+| 2 | a start that failed at step 7 or 8 is not counted | C7 | 56 of 214 |
+| 3 | the budget counts only the person's starts | C7 | 88 of 214 |
+| 4 | the budget counts only the scheduler's starts | C7 | 211 of 214 (soft export) |
+| 5 | the hold `failures` is lost at a restart | C4 | 0 of 214 |
+| 6 | the scheduler starts an agent that never had a completed run | C5 | 166 of 214 (soft export) |
+| 7 | a new life takes the agent of a workflow that was removed before it for known and listed | C8 | 15 of 214 |
+| 8 | the kill comes only for runs stopped for `deleted` | C9 | 44 of 200 walks (no directed trace in `left`) |
 | 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4; L3 when the lapse's decision also holds the approval ids of the answer; L9, checked alone, when the guard then also counts a row before its release | 175 of 215 |
 | 10 | the table takes the stored rows of a `no_record` lapse | L7, and not L9: the lapse's decision holds new ids | 27 of 215 |
 | 11 | the guard passes every `releasing` record of a native class | L8 | 202 of 215 |
@@ -896,28 +918,28 @@ was not run again on the joined model's 214.
 | 14 | the `approved` match does not ask for `allow_once` | L7 | 190 of 215 |
 | 15 | a `releasing` record with an unused row passes | L8 | 42 of 215 |
 | 16 | the `approved` match drops the effect id | L7 | 47 of 215 |
-| 17 | step 3 asks only the live run, not the queue | C3 | 125 of 213 (before the join) |
-| 18 | the tick asks "needs the person" only | C5 | 158 of 213 (before the join) |
-| 19 | a person's start names no slot | C6 | 186 of 213 (before the join) |
-| 20 | a failed start is not counted | C7 | 54 of 213 (before the join) |
-| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0; with step 0 in place that start is answered `state` and no property is broken | C8 | 17 of 213 (before the join) |
+| 17 | step 3 asks only the live run, not the queue | C3 | 123 of 214 |
+| 18 | the tick asks "needs the person" only | C5 | 166 of 214 (soft export) |
+| 19 | a person's start names no slot | C6 | 184 of 214 |
+| 20 | a failed start is not counted | C7 | 56 of 214 |
+| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0; with step 0 in place that start is answered `state` and no property is broken | C8 | 17 of 214 |
 | 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 201 of 215 |
 | 23 | a lapse is taken from `recorded` with any cause | L4 | 175 of 215 |
 | 24 | the guard's rule for `releasing` records of a native class is dropped | L8 | 202 of 215 |
 | 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | 131 of 215 |
 | 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | 47 of 215 |
 | 27 | a `releasing` record of the class `send` passes with another digest | L10 | 42 of 215 |
-| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | 94 of 213 (before the join) |
-| 29 | a run that was not stopped and whose last frame says `failed` is stored `cancelled` | C10 | 26 of 213 (before the join) |
-| 30 | a tick starts an agent that needs no person and whose workflow has no schedule | C11 | 134 of 213 (before the join) |
-| 31 | a tick starts for a slot that a served run has closed | C11 | 2 of 213 (before the join) |
-| 32 | a tick starts for a slot that is older than `catch_up_days` | C11 | 48 of 213 (before the join) |
-| 33 | a start of the scheduler leaves the queue without being asked for its slot again | C11 | 4 of 213 (before the join) |
-| 34 | the end of a run whose workflow is gone stores `run_ended` | C10 | 17 of 213 (before the join) |
+| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | 95 of 214 |
+| 29 | a run that was not stopped and whose last frame says `failed` is stored `cancelled` | C10 | 28 of 214 |
+| 30 | a tick starts an agent that needs no person and whose workflow has no schedule | C11 | 137 of 214 (soft export) |
+| 31 | a tick starts for a slot that a served run has closed | C11 | 2 of 214 |
+| 32 | a tick starts for a slot that is older than `catch_up_days` | C11 | 49 of 214 |
+| 33 | a start of the scheduler leaves the queue without being asked for its slot again | C11 | 3 of 214 |
+| 34 | the end of a run whose workflow is gone stores `run_ended` | C10 | 20 of 214 |
 | 35 | an item that the person has answered lapses with `wait_limit` | L4 | 192 of 215 |
 | 36 | a release from `answered`, before the acknowledgement, that writes the rows itself and then sends the decision | L5; L7, L8 and L10, each checked alone, once a record passes on those rows | 189 of 215 |
 | 37 | the same release that sends the decision and then writes the rows | L5; L10 checked alone | 189 of 215 |
-| 38 | a run that a lapse stopped is stored `cancelled` | C10 | 1 of 213 (before the join) |
+| 38 | a run that a lapse stopped is stored `cancelled` | C10 | 1 of 214 |
 | 39 | the record stores one row of two, and the release sends both | L5 | 102 of 215 |
 | 40 | the guard passes every `releasing` record with no approval, whatever the port `Policy` answers | L10 | 115 of 215 |
 | 41 | the answer `run` passes a `releasing` record of a native class with no approval | L8 | 109 of 215 |
@@ -925,17 +947,17 @@ was not run again on the joined model's 214.
 | 43 | the guard counts a repeat as a second use and refuses it | L7 | 35 of 215 |
 | 44 | a repeat is matched by its approval id alone, so a record on a used row passes with another effect or another digest | L7 | 38 of 215 |
 | 45 | the run asks again for an effect that its earlier item rejected or let lapse | `AskedOnApproval`; none of L1 to L10 | 200 of 215 |
-| 46 | a start by the person does not ask whether the store has ended the agent's newest run | C4 | 120 of 213 (before the join) |
-| 47 | no hold `check` from the store's `unknown`: no `check` after a kill of a run whose request may have left | C4 | 60 of 213 (before the join) |
-| 48 | recovery sends `end_run` for a run that `reap` answered `alive` | C12 | 8 of 213 (before the join) |
-| 49 | recovery sends `end_run` only for the runs that it ends itself, so one that is owed from the earlier life is forgotten | C12 | 16 of 213 (before the join) |
-| 50 | one answered `check` clears every later `check` | C4 | 4 of 213 (before the join) |
+| 46 | a start by the person does not ask whether the store has ended the agent's newest run | C4 | 118 of 200 walks (no directed trace in `holds` and `left`) |
+| 47 | no hold `check` from the store's `unknown`: no `check` after a kill of a run whose request may have left | C4 | 58 of 200 walks (no directed trace in `left`) |
+| 48 | recovery sends `end_run` for a run that `reap` answered `alive` | C12 | 7 of 214 |
+| 49 | recovery sends `end_run` only for the runs that it ends itself, so one that is owed from the earlier life is forgotten | C12 | 16 of 214 (soft export) |
+| 50 | one answered `check` clears every later `check` | C4 | 2 of 214 |
 | 51 | a lapse sends its decision under new approval ids and the port's count of ids does not go on, so a later answer gets the same ids | L3, in `apart` alone | 4 of 215 |
 | 52 | the same for the decision of an `issue` whose digests do not hold | L3, in `apart` alone | 9 of 215 |
-| 53 | no `end_run` after a start whose step 7 failed | C12 | 59 of 213 (before the join) |
-| 54 | no `end_run` after a start whose step 8 failed | C12 | 54 of 213 (before the join) |
-| 55 | a start of the agent before the store's record of a run that the coordinator owes, a failed start among them | C4 | 92 of 213 (before the join) |
-| 56 | the scheduler's start in a tick does not ask whether the store has ended the agent's newest run | C4, in `holds` alone | 16 of 213 (before the join) |
+| 53 | no `end_run` after a start whose step 7 failed | C12 | 62 of 200 walks (no directed trace in `holds`) |
+| 54 | no `end_run` after a start whose step 8 failed | C12 | 55 of 200 walks (no directed trace in `holds`) |
+| 55 | a start of the agent before the store's record of a run that the coordinator owes, a failed start among them | C4 | 95 of 200 walks (no directed trace in `holds`) |
+| 56 | the scheduler's start in a tick does not ask whether the store has ended the agent's newest run | C4, in `holds` alone | 17 of 214 |
 | 57 | a press calls `Runs::answer_bind` although its row got no acknowledgement | L11 | 34 of 215 |
 | 58 | a press of Allow is taken after a stored `decline` that the run did not take | none: the press stores an acknowledged `allow` row first | 77 of 215 |
 | 59 | a press of Don't allow after a stored `allow` that the run did not take sends that `allow` | L11 | 2 of 215 |
@@ -944,10 +966,10 @@ was not run again on the joined model's 214.
 | 62 | a press of Don't allow whose row lost its acknowledgement keeps the step at its stored `allow`, so that the next press of Allow sends it with no row of its own | L11 | 2 of 215 |
 | 63 | a lapse of a second step with `wait_limit` or `cancelled` does not stop the run | L9 | 187 of 215 |
 | 64 | a step closes when `Runs::answer_bind` answers `busy` | L11: the runner still waits on the step that closed, so the `allow` that a press of the next step hands is recorded for the closed one (none before RD-109 Addition 1, whose history counts every Bind) | 144 of 215 |
-| 65 | a start goes on with the verdict that it computed before the read that brought a lost `hold_set` | C4 | 15 of 213 (before the join) |
-| 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 213 (before the join) |
+| 65 | a start goes on with the verdict that it computed before the read that brought a lost `hold_set` | C4 | 15 of 214 |
+| 66 | a start that would be queued with an open `ready` item queues after its read shows the hold | none: the start is dropped with `hold` when it leaves the queue | 5 of 214 |
 | 67 | the start by the person under the hold `failures` takes its verdict from the state before its store of `hold_cleared` and launches on the state after the read, with no second decision, which is the code's design with the second decision of schedule/drive.rs line 754 taken out (ruling RD-109 Addition 1, point 5) | C4, in `holds` alone. The test `a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms` (tests/coordinator_moves.rs line 3850) holds the code's second decision: with it taken out the test fails with `Reply left: Ok(()) right: Err(Hold)`. The directed trace `failures_start_after_lost_off` of `traces-schedule.jsonl` holds the case against the code (the join of U2.4b and U1.2c, RD-114 Addition 1) | 1 of 214: the directed trace `failures_start_after_lost_off`, whose last start the design answers `ok` and starts a run where the model answers `hold` (the join, RD-114 Addition 2) |
-| 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 6 of 213 (before the join) |
+| 68 | a start whose read brought a lost `hold_set` sends no `set_state` `paused` | none: no property reads `set_state` | 7 of 214 |
 | 69 | a press of Allow calls `Runs::answer_bind` before its row is written, in the same move | L11 | 0 of 215 |
 | 70 | a press of Don't allow after a stored `allow` stores its row, loses the reply, reports no row and keeps the step at `allow`, so that the next press of Allow sends it | L11 | 34 of 215 |
 | 71 | the same press reports its row under the other step's item | L11 | 34 of 215 |
@@ -1023,8 +1045,8 @@ then holds the old file.
 A walk is at most 16 moves from the first state. It takes its steps from the model's own
 `Step`. A generator in the trace module picks each move; TLC's random numbers and TLC's
 order of sets are not used. In the committed files the model refuses 396 of the
-3,200 moves of the schedule walks (12.4%) and 323 of the 1,430
-moves of the confirm walks (22.6%); a start that is answered `queued`, a record
+3,200 moves of the schedule walks (12.4%) and 317 of the 1,423
+moves of the confirm walks (22.3%); a start that is answered `queued`, a record
 that is answered `repeat`, a switch-off whose reply is lost, a press that the ports answer
 `no_service` or `busy` and a Bind of a stopped run count as accepted in these two shares. A confirm walk also
 takes a refusal whenever no move is left that the model accepts. Two exports with one seed and count gave the same
@@ -1226,7 +1248,7 @@ runner ended with `left` `yes`, and an agent's entry goes at its next stored sta
 |---|---|---|---|---|
 | `start` | `agent`, `trigger` (always `person`), `port` | `ok`, `queued`, `hold`, `budget`, `state`, `queue_full`, `no_service`, `unknown_agent` | `run`: the run whose `run_started` event was stored, or null | `start_step`, then steps 5 to 8 |
 | `hello`, `wait`, `resume` | `run` | `ok`, `state` | none | `run_step` |
-| `stop` | `run`, `cause`: `cancelled` for the person's stop, `lapsed` for a lapse with `wait_limit` | `ok`, `state` | none | `run_step` |
+| `stop` | `run`, `cause`: `cancelled` for the person's stop, `lapsed` for a lapse with `wait_limit`, `answer_lost` for the settle of RD-84 | `ok`, `state` | none | `run_step` |
 | `end` | `run`, `frame`: the outcome of the runner's last frame, or null when the runner went without one; `port`; `left`: with no frame, whether a request of the run may have left (`yes`, `no`), and null with a frame | `ok`, `state` | with `ok`: `cause`, the cause of the end, which is stored unless the workflow is gone, and `next` | `run_step` |
 | `tick` | `day`, `grace`, `port`; `left`: whether a request of the runs that this tick kills may have left | `ok` | `stopped`, the runs that the tick stopped because their workflow is gone; `ended`, the runs that the kill ended; `next`, the start that the tick took from the queue; `raised`, the agents that get a `ready` item; `started`, the scheduler's starts in the order of the agents | `tick_step` with `delete_step` |
 | `restart` | `day`, the day that the new life reads; `alive`, the runs for which `reap` answers `alive`, every other run of `open` being answered `gone`; `left`: whether a request of the live runs that `reap` answers `gone` may have left | `ok` | `ended` | `recover_step` |

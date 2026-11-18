@@ -365,6 +365,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo cannot show your agents right now.",
     ),
     (
+        "note.out_of_date",
+        "This list may be out of date. To start an agent, close Halvo and open it again.",
+    ),
+    (
         "note.roster_full",
         "You have as many agents as Halvo can hold, so it cannot add one for a new task.",
     ),

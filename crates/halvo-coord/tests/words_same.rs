@@ -151,6 +151,7 @@ fn expected_keys() -> BTreeSet<String> {
         "confirm.changed",
         "confirm.present",
         "note.no_service",
+        "note.out_of_date",
         "note.roster_full",
         "tray.needs",
         "item.link_account.origin",
@@ -289,7 +290,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 250);
+    assert_eq!(seen.len(), 251);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

@@ -2,7 +2,7 @@ use crate::guard::{self, EffectRecord, Policy, Refusal, Table};
 use crate::items::drive::{self as items, Held, HeldBind, Ledger, SetupDone};
 use crate::items::{
     compose_check, compose_link_account, compose_plain, params, raise_confirm, raise_step,
-    ConfirmAnswer, ConfirmMove, Plain, Raise, Setup, SetupInput, SetupParam, Source,
+    ConfirmAnswer, ConfirmMove, ConfirmState, Plain, Raise, Setup, SetupInput, SetupParam, Source,
 };
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::roster::{self, Placed};
@@ -16,6 +16,7 @@ use crate::types::{
     Status,
 };
 use crate::words;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 /// What the app's quit hook waits for after the first step of the quit (I5.7, ruling RD-8): the
@@ -45,6 +46,42 @@ pub struct Coordinator<P: Owner> {
     limits: Limits,
     label: fn(&FullWorkflow) -> Option<String>,
     state: Mutex<State<Cfg<P>>>,
+    /// The latest read of the clock that answered in this life, in milliseconds, `NO_READ` before
+    /// the first (ruling RD-133, answer (b)): the coordinator's own reads and the read that
+    /// stamped each drive's move. Named limits: a read inside the items drive is not noted, so
+    /// the noted read can be older than the last read of the life, never later than it.
+    last_read: AtomicU64,
+    /// How many reads of the clock answered in this life, so that a tick knows whether its own
+    /// work read one (ruling RD-138 (2)).
+    reads: AtomicU64,
+}
+
+const NO_READ: u64 = 0;
+
+/// Where the rest of a switch-off that waited for the clock stands after a read that answered.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OffRest {
+    /// The hold shows on the board and the move `off` made the rest.
+    Done,
+    /// A read of the clock failed again: the switch-off waits for the next one.
+    Clock,
+    /// The owner has not taken the `hold_set`, or its events could not be read: the agent is
+    /// held off on the board (`hold_place`) and the next ticks try again, with no tick held.
+    Owner,
+}
+
+/// A clock that answers one instant, the last read of this life, with the day that the
+/// app's clock gives it, so that a row is stamped at that read (ruling RD-133, answer (b)).
+struct LastRead<'a, P>(&'a P, u64);
+
+impl<P: Clock> Clock for LastRead<'_, P> {
+    fn now(&self) -> Result<u64, PortError> {
+        Ok(self.1)
+    }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.0.day(at)
+    }
 }
 
 /// An open item that a live run waits on, of a kind other than `confirm` and other than the
@@ -76,6 +113,72 @@ struct State<C> {
     forgotten: Vec<AgentId>,
     quitting: bool,
     sync: Sync,
+    mark: Mark,
+    answering: Vec<ItemId>,
+    returned: bool,
+    offs: Vec<AgentId>,
+    ended: Vec<(RunId, Option<crate::types::Outcome>)>,
+    marked: Vec<RunId>,
+    held_off: Vec<AgentId>,
+}
+
+/// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
+/// until the first publish after such a move, which raises `seq` also when nothing differs;
+/// `tick` from a tick that did not return until a tick returns, while every publish carries the
+/// note `note.out_of_date`; `defers` from such a tick until the next move forgets the defers of
+/// the runs on the board (ruling RD-122).
+#[derive(Clone, Copy, Default)]
+struct Mark {
+    unpublished: bool,
+    tick: bool,
+    defers: bool,
+}
+
+/// How a call takes the coordinator's lock: a tick, another move, or a call that reads or
+/// notes and moves nothing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Entry {
+    Tick,
+    Move,
+    Read,
+}
+
+/// The coordinator's state while a call holds its lock. A call that does not return leaves the
+/// mark and rings the bell as it unwinds, and runs nothing else there (ruling RD-80 4.2); a call
+/// made while another panic already unwinds its thread, and that returns, leaves none.
+struct Entered<'a, P: Owner + Page> {
+    st: MutexGuard<'a, State<Cfg<P>>>,
+    ports: &'a P,
+    entry: Entry,
+    unwinding: bool,
+}
+
+impl<P: Owner + Page> std::ops::Deref for Entered<'_, P> {
+    type Target = State<Cfg<P>>;
+
+    fn deref(&self) -> &State<Cfg<P>> {
+        &self.st
+    }
+}
+
+impl<P: Owner + Page> std::ops::DerefMut for Entered<'_, P> {
+    fn deref_mut(&mut self) -> &mut State<Cfg<P>> {
+        &mut self.st
+    }
+}
+
+impl<P: Owner + Page> Drop for Entered<'_, P> {
+    fn drop(&mut self) {
+        if self.unwinding || !std::thread::panicking() {
+            return;
+        }
+        self.st.mark.unpublished = true;
+        if self.entry == Entry::Tick {
+            self.st.mark.tick = true;
+            self.st.mark.defers = true;
+        }
+        let _ = self.ports.changed();
+    }
 }
 
 fn plain_label(workflow: &FullWorkflow) -> Option<String> {
@@ -157,6 +260,14 @@ fn waiting_on(doing: &Doing) -> Option<RunItem> {
     }
 }
 
+/// Whether a stop on the board, or the stop of a dying tree, has no time yet: the record of a
+/// stop that no read of the clock answered, written before its cancel, whose time the next read
+/// that answers gives (rulings RD-133 1, RD-138 (1)).
+fn unstamped_stops<C>(board: &Board<C>) -> bool {
+    board.runs.iter().any(|r| r.stop.is_some_and(|s| s.at == 0))
+        || board.dying.iter().any(|d| d.stopped == 0)
+}
+
 fn live_unstopped_run<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
     board
         .runs
@@ -211,6 +322,7 @@ struct LapseParts<'a> {
     held: &'a mut Vec<Held>,
     binds: &'a mut Vec<HeldBind>,
     handbacks: &'a mut Vec<(ItemId, HandbackAsk)>,
+    answering: &'a mut Vec<ItemId>,
 }
 
 fn candidates(param: Param, workflow: &FullWorkflow) -> Vec<(Vec<String>, CandidateFrom)> {
@@ -246,7 +358,16 @@ where
                 forgotten: Vec::new(),
                 quitting: false,
                 sync: Sync::new(),
+                mark: Mark::default(),
+                answering: Vec::new(),
+                returned: false,
+                offs: Vec::new(),
+                ended: Vec::new(),
+                marked: Vec::new(),
+                held_off: Vec::new(),
             }),
+            last_read: AtomicU64::new(NO_READ),
+            reads: AtomicU64::new(0),
         }
     }
 
@@ -261,8 +382,319 @@ where
         &self.ports
     }
 
-    fn lock(&self) -> MutexGuard<'_, State<Cfg<P>>> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Takes the lock for a call. A move first takes up what a move that did not return left;
+    /// then the first call after such a move publishes, before its own work (ruling RD-80 3.4,
+    /// 4.2).
+    fn enter(&self, entry: Entry) -> Entered<'_, P> {
+        let mut st = Entered {
+            st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
+            ports: &self.ports,
+            entry,
+            unwinding: std::thread::panicking(),
+        };
+        if entry != Entry::Read {
+            let tick = st.mark.tick;
+            if let Some(board) = st.board.as_mut() {
+                board.hold_queue(tick);
+            }
+            self.take_up(&mut st);
+            let held = st.mark.tick && entry == Entry::Move;
+            if let Some(board) = st.board.as_mut() {
+                board.hold_queue(held);
+            }
+        }
+        if st.mark.unpublished {
+            self.publish(&mut st);
+        }
+        st
+    }
+
+    fn lock(&self) -> Entered<'_, P> {
+        self.enter(Entry::Read)
+    }
+
+    /// Whether an answer for `item` waits for the settle of RD-84, which could not read the
+    /// clock: only a move that would take the waiting item waits and answers `no_service`, and
+    /// every other move goes on (ruling RD-133 1).
+    fn waits_on_item(st: &State<Cfg<P>>, item: &ItemId) -> bool {
+        st.answering.contains(item)
+    }
+
+    /// Whether an event of `run` waits for the settle of RD-84: the run of the waiting item
+    /// (ruling RD-133 1).
+    fn waits_on_run(st: &State<Cfg<P>>, run: &RunId) -> bool {
+        st.answering.iter().any(|item| {
+            st.held
+                .iter()
+                .any(|h| h.item() == item && h.ask().run() == run)
+        })
+    }
+
+    /// Whether a tick is held: a settle of RD-84 or a stop or switch-off of RD-133 still waits
+    /// for a read of the clock that answers, so the tick does none of its work. A stop waits
+    /// while its time on the board is 0 (`unstamped_stops`), the record that it wrote before its
+    /// cancel (ruling RD-138 (1)). A held tick publishes, so that what its take-up changed shows
+    /// (RD-138 (3)), and only a tick whose own work read the clock clears the mark (RD-138 (2)).
+    fn holds_tick(st: &State<Cfg<P>>) -> bool {
+        !st.answering.is_empty()
+            || st.board.as_ref().is_some_and(unstamped_stops)
+            || !st.offs.is_empty()
+            || !st.ended.is_empty()
+            || st.ledgers.iter().any(|(_, l)| l.has_unstamped())
+    }
+
+    /// What a move takes up first: after a tick that did not return, the defers of the runs on
+    /// the board are not known (ruling RD-122); then, at one read of the clock that answers,
+    /// what waited for a stamp (`stamp_waiting`) and the settle of RD-84.
+    fn take_up(&self, st: &mut State<Cfg<P>>) {
+        if st.mark.defers {
+            st.mark.defers = false;
+            if let Some(board) = st.board.as_mut() {
+                board.defers_not_known();
+            }
+        }
+        if !Self::holds_tick(st) {
+            return;
+        }
+        let Ok(stamp) = crate::ports::Stamp::read(&self.ports) else {
+            return;
+        };
+        self.noted(Some(stamp.now()));
+        self.stamp_waiting(st, stamp);
+        for (run, outcome) in std::mem::take(&mut st.ended) {
+            let _ = self.end_of_run(st, &run, outcome);
+        }
+        self.offs_at_stamp(st, stamp);
+        self.settle(st, stamp);
+    }
+
+    /// What a stop or a switch-off made with no read of the clock left, at the first read that
+    /// answers and before the move's own work (ruling RD-133 1): each stop on the board takes
+    /// that read as its time, so that the kill counts `cancel_grace_s` from it; the rows that
+    /// waited are stamped with it and sent. The runner's ends that the window kept and the rest
+    /// of each switch-off follow in `take_up` (`end_of_run`, `offs_at_stamp`).
+    fn stamp_waiting(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
+        let State { board, ledgers, .. } = st;
+        let Some(board) = board.as_mut() else { return };
+        for stop in board.runs.iter_mut().filter_map(|r| r.stop.as_mut()) {
+            if stop.at == 0 {
+                stop.at = stamp.now();
+            }
+        }
+        for d in board.dying.iter_mut().filter(|d| d.stopped == 0) {
+            d.stopped = stamp.now();
+        }
+        for (agent, l) in ledgers.iter_mut() {
+            if !l.has_unstamped() {
+                continue;
+            }
+            l.stamp_unstamped(stamp);
+            let _ = items::flush(&self.ports, l, &self.limits);
+            if let Some(i) = index(board, agent) {
+                self.read_back(board, i);
+            }
+        }
+    }
+
+    /// The switch-offs that waited for a read of the clock, after the runner's ends that the
+    /// window kept are made, so that the rest of a switch-off does not stop a run that ended.
+    fn offs_at_stamp(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
+        let State {
+            board,
+            ledgers,
+            offs,
+            held_off,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let waiting: Vec<AgentId> = std::mem::take(offs);
+        for agent in waiting {
+            match self.off_at_stamp(board, ledgers, &agent, stamp) {
+                OffRest::Done => {}
+                OffRest::Clock => offs.push(agent),
+                OffRest::Owner => {
+                    board.hold_place(&agent, true);
+                    if !held_off.contains(&agent) {
+                        held_off.push(agent);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The tick's turn at the switch-offs whose `hold_set` the owner has not taken: each is
+    /// tried again at one read of the clock, and the agent stays held off on the board until its
+    /// hold shows; then the board holds its place as its ledger says.
+    fn held_off_at_tick(
+        &self,
+        board: &mut Board<Cfg<P>>,
+        st_ledgers: &mut Vec<(AgentId, Ledger)>,
+        held_off: &mut Vec<AgentId>,
+    ) {
+        if held_off.is_empty() {
+            return;
+        }
+        let stamp = crate::ports::Stamp::read(&self.ports).ok();
+        if let Some(stamp) = stamp {
+            self.noted(Some(stamp.now()));
+        }
+        for agent in std::mem::take(held_off) {
+            let rest = match stamp {
+                Some(stamp) => self.off_at_stamp(board, st_ledgers, &agent, stamp),
+                None => OffRest::Clock,
+            };
+            if rest == OffRest::Done {
+                let keep = st_ledgers
+                    .iter()
+                    .any(|(a, l)| a == &agent && l.holds_place());
+                board.hold_place(&agent, keep);
+            } else if index(board, &agent).is_some() {
+                board.hold_place(&agent, true);
+                held_off.push(agent);
+            }
+        }
+    }
+
+    /// The rest of a switch-off that no read of the clock stamped, at `stamp`, the first read
+    /// that answered: whether the agent still waits. The agent's events are read first, so
+    /// that a `hold_set` that the owner acknowledged is seen whatever an earlier read-back
+    /// gave; a `hold_set` that still waits for the owner goes again and is never queued a
+    /// second time; with no `hold_set` stored, the ledger stores one at `stamp`; once the
+    /// board shows the hold, the move `off` makes the rest. Where the owner does not take the
+    /// `hold_set`, or the agent's events cannot be read, whatever the name of the refusal, the
+    /// agent leaves the switch-offs that hold the tick and is held off on the board until a
+    /// later tick sees its hold (`held_off_at_tick`), so that no refusal holds every tick and no
+    /// tick starts the agent.
+    fn off_at_stamp(
+        &self,
+        board: &mut Board<Cfg<P>>,
+        ledgers: &mut Vec<(AgentId, Ledger)>,
+        agent: &AgentId,
+        stamp: crate::ports::Stamp,
+    ) -> OffRest {
+        let Some(i) = index(board, agent) else {
+            return OffRest::Done;
+        };
+        let l = ledger(ledgers, board, i);
+        if !l.waiting().is_empty() {
+            let _ = items::flush(&self.ports, l, &self.limits);
+        }
+        if l.waits_with_a_persons_hold() {
+            return OffRest::Owner;
+        }
+        if self.read_agent(board, i).is_err() {
+            return OffRest::Owner;
+        }
+        if !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off) {
+            let l = ledger(ledgers, board, i);
+            if items::store_held_off(&self.ports, l, &self.limits, stamp).is_err()
+                || self.read_agent(board, i).is_err()
+                || !schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off)
+            {
+                return OffRest::Owner;
+            }
+        }
+        let report = schedule::drive(
+            &self.ports,
+            board,
+            &self.limits,
+            Move::Off {
+                agent: agent.clone(),
+            },
+        );
+        if report.unstamped {
+            OffRest::Clock
+        } else if matches!(report.answer, Err(Cause::Busy)) {
+            OffRest::Owner
+        } else {
+            OffRest::Done
+        }
+    }
+
+    /// Reads the agent's events back onto the board.
+    fn read_agent(&self, board: &mut Board<Cfg<P>>, i: usize) -> Result<(), PortError> {
+        let facts = &mut board.members[i].facts;
+        let last = schedule::resync(&self.ports, &facts.agent, &mut facts.events)?;
+        board.set_last(i, last);
+        Ok(())
+    }
+
+    /// The settle of a confirmation that an answer's move left `answered` and did not return
+    /// (ruling RD-84 items 1 and 2), keyed on the item that the move noted, never on the state
+    /// alone: at one read of the clock, the run stopped on the board with `answer_lost`, then the
+    /// lapse with `answer_lost`, which stops the run in the guard's table, queues its row,
+    /// sends `Runs::cancel` once and no decision, and then the row. Where the clock cannot be
+    /// read the moves on the item and its run wait (`waits_on_item`, `waits_on_run`) and the
+    /// next move that reads the clock settles it; an item that is no longer `answered`, as after
+    /// the person's Stop of its run, is not touched.
+    fn settle(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
+        for item in std::mem::take(&mut st.answering) {
+            let settled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.settle_item(st, stamp, item)
+            }));
+            if settled.is_err() {
+                st.mark.unpublished = true;
+                let _ = self.ports.changed();
+            }
+        }
+    }
+
+    /// The quit's first step while a settle waits for the clock (ruling RD-138 (4)): the run of
+    /// each waiting item is stopped on the guard's table and the board with `answer_lost` and no
+    /// time, so that the quit's stop-all does not stop it `cancelled` and its lapse at the quit
+    /// leaves the item to the settle, which lapses it `answer_lost` and sends the one cancel at
+    /// the next read that answers.
+    fn stop_for_settles(&self, st: &mut State<Cfg<P>>) {
+        let State {
+            board,
+            table,
+            held,
+            answering,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        for h in held.iter().filter(|h| answering.contains(h.item())) {
+            if matches!(h.confirmation().state(), ConfirmState::Answered(_)) {
+                hold_stop(board, table, h.ask().run(), 0, StopBy::AnswerLost);
+            }
+        }
+    }
+
+    /// The settle of one item that `answering` noted. `settle` holds the unwind of each item's
+    /// settle to that item, marking the move and ringing the bell, so that a panic there does not
+    /// undo another agent's Stop or Switch off that the same move takes (RD-138 Addition 1).
+    fn settle_item(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp, item: ItemId) {
+        let State {
+            board,
+            table,
+            ledgers,
+            held,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let Some(h) = held.iter_mut().find(|h| h.item() == &item) else {
+            return;
+        };
+        if !matches!(h.confirmation().state(), ConfirmState::Answered(_)) {
+            return;
+        }
+        let Some(i) = index(board, h.ask().agent()) else {
+            return;
+        };
+        let run = h.ask().run().clone();
+        hold_stop(board, table, &run, stamp.now(), StopBy::AnswerLost);
+        let l = ledger(ledgers, board, i);
+        let _ = items::lapse_at(
+            &self.ports,
+            l,
+            table,
+            h,
+            LapseCause::AnswerLost,
+            &self.limits,
+            stamp,
+        );
+        held.retain(|h| h.item() != &item || h.confirmation().state().is_open());
+        self.read_back(board, i);
     }
 
     /// One tick (I5.9): the recovery of I5.8 at the first, the creation move of I5.5, the run
@@ -273,7 +705,15 @@ where
     /// of the items' ledgers and makes the run drive's `QuitTick`, which kills each stopping run
     /// and dying tree at its grace with nothing stored and sends what the board owes.
     pub fn tick(&self) {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Tick);
+        if Self::holds_tick(&st) {
+            if let Some(board) = st.board.as_mut() {
+                board.held_tick();
+            }
+            self.publish(&mut st);
+            return;
+        }
+        let reads = self.reads.load(Ordering::Relaxed);
         if st.quitting {
             let State { board, ledgers, .. } = &mut *st;
             if let Some(board) = board.as_mut() {
@@ -285,6 +725,10 @@ where
             self.tick_in(&mut st, &before);
             self.finish_switch_offs_after_reads(&mut st, &before);
         }
+        if self.reads.load(Ordering::Relaxed) != reads {
+            st.mark.tick = false;
+        }
+        st.returned = true;
         self.publish(&mut st);
     }
 
@@ -327,8 +771,20 @@ where
             let State { board, ledgers, .. } = &mut *st;
             let Some(board) = board.as_mut() else { return };
             share_lasts(board, ledgers);
-            schedule::drive(&self.ports, board, &self.limits, Move::Create);
+            let created = schedule::drive(&self.ports, board, &self.limits, Move::Create);
+            self.noted(created.read);
             self.flush_ledgers(board, ledgers);
+        }
+        {
+            let State {
+                board,
+                ledgers,
+                held_off,
+                ..
+            } = &mut *st;
+            if let Some(board) = board.as_mut() {
+                self.held_off_at_tick(board, ledgers, held_off);
+            }
         }
         self.finish_switch_offs_after_reads(st, before);
         let State {
@@ -346,6 +802,7 @@ where
         let Some(board) = board.as_mut() else { return };
         share_lasts(board, ledgers);
         let done = run::drive(&self.ports, board, table, &self.limits, Act::Tick);
+        self.noted(done.report.read);
         for workflow in &done.gone {
             for m in board
                 .members
@@ -474,6 +931,7 @@ where
             let before = (l.last(), l.waiting().len());
             let _ = items::flush(&self.ports, l, &self.limits);
             if let Ok(stamp) = crate::ports::Stamp::read(&self.ports) {
+                self.noted(Some(stamp.now()));
                 let lapses = matches!(
                     items::due(h, stamp.now(), &self.limits),
                     Some(ConfirmMove::Lapse(LapseCause::WaitLimit))
@@ -497,7 +955,7 @@ where
     /// `items::time_out` and its run is stopped with `wait_limit`, so that it ends `lapsed`. An
     /// item that its run no longer waits on is forgotten.
     fn tick_waits(&self, st: &mut State<Cfg<P>>) {
-        let Ok(now) = self.ports.now() else { return };
+        let Ok(now) = self.clock_now() else { return };
         let State {
             board,
             table,
@@ -533,7 +991,7 @@ where
     }
 
     fn tick_binds(&self, st: &mut State<Cfg<P>>) {
-        let Ok(now) = self.ports.now() else { return };
+        let Ok(now) = self.clock_now() else { return };
         let State {
             board,
             table,
@@ -578,7 +1036,10 @@ where
     /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
     /// with that cause and is answered `state`.
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
+        if Self::waits_on_run(&st, run) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let out = self.on_run_in(&mut st, run, &event);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -616,13 +1077,7 @@ where
                 self.lapse_binds(st, i, run, OtherLapse::RunEnded);
                 st.handbacks.retain(|(_, a)| &a.run != run);
                 st.waits.retain(|w| &w.run != run);
-                self.act(
-                    st,
-                    Act::End {
-                        run: run.clone(),
-                        outcome: *outcome,
-                    },
-                )
+                self.end_of_run(st, run, *outcome)
             }
             RunEvent::Confirm(_) | RunEvent::Handback(_) | RunEvent::Bind(_) | RunEvent::Other => {
                 let facts = &board.members[i].facts;
@@ -684,7 +1139,7 @@ where
                             run: run.clone(),
                             agent: agent.clone(),
                             item: open.clone(),
-                            raised_at: self.ports.now().ok(),
+                            raised_at: self.clock_now().ok(),
                         });
                         if let RunEvent::Handback(ask) = event {
                             st.handbacks.push((open.item.clone(), ask.clone()));
@@ -856,6 +1311,102 @@ where
         let board = board.as_mut().ok_or(Cause::State)?;
         share_lasts(board, ledgers);
         let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
+        self.noted(done.report.read);
+        answered(&done.report)
+    }
+
+    /// Takes off the stop that a kept end put on the board for its run before the end is made,
+    /// so that the end is made as one that no stop preceded: with the runner's outcome, no
+    /// dying tree and no kill.
+    fn unmark(&self, st: &mut State<Cfg<P>>, run: &RunId) {
+        let before = st.marked.len();
+        st.marked.retain(|r| r != run);
+        if st.marked.len() == before {
+            return;
+        }
+        if let Some(r) = st
+            .board
+            .as_mut()
+            .and_then(|b| b.runs.iter_mut().find(|r| &r.run == run))
+        {
+            r.stop = None;
+        }
+    }
+
+    /// Keeps the read of the clock that stamped a move as the last time that this life read
+    /// (ruling RD-133 1, (b)).
+    fn noted(&self, read: Option<u64>) {
+        if let Some(now) = read {
+            self.last_read.store(now, Ordering::Relaxed);
+            self.reads.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// One read of the app's clock, noted as the last read of this life where it answers.
+    fn clock_now(&self) -> Result<u64, PortError> {
+        let now = self.ports.now();
+        self.noted(now.as_ref().ok().copied());
+        now
+    }
+
+    /// The last read of the clock of this life as a stamp, where there was one.
+    fn last_stamp(&self) -> Option<crate::ports::Stamp> {
+        let at = self.last_read.load(Ordering::Relaxed);
+        if at == NO_READ {
+            return None;
+        }
+        crate::ports::Stamp::read(&LastRead(&self.ports, at)).ok()
+    }
+
+    /// The runner's end through the run drive. Where no read of the clock answers, the end is
+    /// kept and made again at the next read that answers, so that a run that a person stopped
+    /// ends with the person's cause and no later kill ends it `interrupted` (ruling RD-133 1).
+    /// A kept end of a run that no stop reached puts a stop with the runner's own cause on the
+    /// board at once, stamped at that read, so that no Stop, switch-off or quit stops a run
+    /// that ended and its end keeps the runner's outcome.
+    fn end_of_run(
+        &self,
+        st: &mut State<Cfg<P>>,
+        run: &RunId,
+        outcome: Option<crate::types::Outcome>,
+    ) -> Result<(), Cause> {
+        self.unmark(st, run);
+        let State {
+            board,
+            table,
+            ledgers,
+            ..
+        } = st;
+        let board = board.as_mut().ok_or(Cause::State)?;
+        share_lasts(board, ledgers);
+        let act = Act::End {
+            run: run.clone(),
+            outcome,
+        };
+        let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
+        self.noted(done.report.read);
+        if !done.report.unstamped {
+            st.ended.retain(|(r, _)| r != run);
+        }
+        if done.report.unstamped {
+            if !st.ended.iter().any(|(r, _)| r == run) {
+                st.ended.push((run.clone(), outcome));
+            }
+            let marked = st.board.as_mut().is_some_and(|board| {
+                board
+                    .runs
+                    .iter_mut()
+                    .find(|r| &r.run == run && r.stop.is_none())
+                    .is_some_and(|r| {
+                        let cause = outcome.map_or(crate::types::RunEnd::Interrupted, Into::into);
+                        r.stop = Some(schedule::Stop { at: 0, cause });
+                        true
+                    })
+            });
+            if marked {
+                st.marked.push(run.clone());
+            }
+        }
         answered(&done.report)
     }
 
@@ -874,6 +1425,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
@@ -883,6 +1435,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
         };
         self.lapse_open(board, &mut parts, i, run, open, stop);
     }
@@ -902,6 +1455,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
         } = parts;
         let l = ledger(ledgers, board, i);
         let cause = if stop {
@@ -914,7 +1468,19 @@ where
             binds.retain(|b| *b.state() != items::BindState::Closed);
         } else if open.kind == RunItemKind::Confirm {
             if let Some(h) = held.iter_mut().find(|h| h.item() == &open.item) {
-                if stop {
+                let lost = answering.contains(&open.item)
+                    && matches!(h.confirmation().state(), ConfirmState::Answered(_));
+                if stop && lost {
+                    answering.retain(|a| a != &open.item);
+                    let _ = items::lapse(
+                        &self.ports,
+                        l,
+                        table,
+                        h,
+                        LapseCause::AnswerLost,
+                        &self.limits,
+                    );
+                } else if stop {
                     let _ = items::stop_confirm(&self.ports, l, table, h, &self.limits);
                 } else {
                     let _ =
@@ -930,6 +1496,7 @@ where
     }
 
     fn switch_off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
+        let person = matches!(mv, Move::SwitchOff { .. });
         let State {
             board,
             table,
@@ -938,6 +1505,7 @@ where
             binds,
             handbacks,
             waits,
+            answering,
             ..
         } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
@@ -949,6 +1517,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
         };
         let mut halt = |board: &mut Board<Cfg<P>>, i: usize, run: &RunId| {
             *parts.table = parts.table.stop(run);
@@ -957,8 +1526,90 @@ where
             true
         };
         let report = schedule::drive_with(&self.ports, board, &self.limits, mv, Some(&mut halt));
+        self.noted(report.read);
+        if person && report.unstamped {
+            return self.switch_off_unstamped(st, i);
+        }
         waits.retain(|w| !report.stopped.contains(&w.run));
         answered(&report)
+    }
+
+    /// The person's switch-off when no read of the clock answers (ruling RD-133 1): the
+    /// agent's live run is stopped on the guard's table and the board at once and its open item
+    /// lapses with `cancelled`, `Runs::cancel` goes out in this move, and its queued start
+    /// leaves the queue; the run's stop time, the rows and the rest of the switch-off wait for
+    /// the next read that answers (`stamp_waiting`), and meanwhile the agent takes no start
+    /// (`hold`) and no switch-on (`no_service`). The `hold_set` is stored at once at the last
+    /// read of the clock of this life (`last_stamp`), so that the agent stays off across a new
+    /// life; its time and day may be older than the press by as long as the clock failed
+    /// (answer (b)). Named limits: with no read of a move noted yet in this life (recovery's own
+    /// read does not count), where the day of the last read cannot be read, or where the owner
+    /// does not acknowledge the `hold_set`, the hold is kept only in this life's state until the
+    /// next read that answers, and a new life before it loses the hold. In the window it refuses
+    /// what a stamped switch-off refuses for a reason other than the clock: an agent set aside
+    /// (`no_service`), one whose dismissed workflow's events were not read, or one already off
+    /// with no run to stop (`state`). The order is the root (ruling RD-138 (1)): first what
+    /// cannot fail, the stop on the guard's table and the board at time 0, the queue and the list
+    /// of switch-offs; then the `hold_set`'s store, whose panic is held until the cancel went out;
+    /// then `Runs::cancel`, sent here or by the lapse of the run's open item. A cancel that does
+    /// not return so loses neither the hold nor the stop's grace, and a refused store does not
+    /// refuse the press.
+    fn switch_off_unstamped(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        let Some(board) = st.board.as_mut() else {
+            return Err(Cause::NoService);
+        };
+        let agent = board.members[i].facts.agent.clone();
+        if board.aside(&agent) {
+            return Err(Cause::NoService);
+        }
+        if board.dismissed_unread(&agent) {
+            return Err(Cause::State);
+        }
+        let pending = st
+            .ledgers
+            .iter()
+            .any(|(a, l)| a == &agent && l.waits_with_a_persons_hold());
+        let standing = pending
+            || st.offs.contains(&agent)
+            || schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
+        let live =
+            live_unstopped_run(board, &agent).filter(|run| !st.ended.iter().any(|(r, _)| r == run));
+        if standing && live.is_none() {
+            return Err(Cause::State);
+        }
+        let open = waiting_on(&board.members[i].facts.doing);
+        if let Some(run) = &live {
+            run::stop_unstamped(board, &mut st.table, run, StopBy::Person);
+        }
+        if board.queue.remove(&agent) {
+            let facts = &mut board.members[i].facts;
+            if let Doing::Queued(item) = &facts.doing {
+                facts.doing = Doing::Idle(item.clone());
+            }
+        }
+        if !st.offs.contains(&agent) {
+            st.offs.push(agent);
+        }
+        let store = if standing { None } else { self.last_stamp() };
+        let stored = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if let (Some(at), Some(board)) = (store, st.board.as_mut()) {
+                share_lasts(board, &mut st.ledgers);
+                let l = ledger(&mut st.ledgers, board, i);
+                let _ = items::store_held_off(&self.ports, l, &self.limits, at);
+                self.read_back(board, i);
+            }
+        }));
+        if let Some(run) = live {
+            match &open {
+                Some(open) => self.close_run_item(st, i, &run, open, true),
+                None => run::send_cancel(&self.ports, &run),
+            }
+            st.waits.retain(|w| w.run != run);
+        }
+        if let Err(unwind) = stored {
+            std::panic::resume_unwind(unwind);
+        }
+        Ok(())
     }
 
     fn stopped_at_raise(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
@@ -1022,16 +1673,21 @@ where
             table,
             ledgers,
             held,
+            answering,
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
         let l = ledger(ledgers, board, i);
-        for h in held.iter_mut().filter(|h| h.ask().run() == run) {
+        let settles = |h: &Held| answering.contains(h.item());
+        for h in held
+            .iter_mut()
+            .filter(|h| h.ask().run() == run && !settles(h))
+        {
             if h.confirmation().state().is_open() {
                 let _ = items::lapse(&self.ports, l, table, h, cause, &self.limits);
             }
         }
-        held.retain(|h| h.ask().run() != run);
+        held.retain(|h| h.ask().run() != run || settles(h));
         self.read_back(board, i);
     }
 
@@ -1112,8 +1768,11 @@ where
         pick: Option<(Param, u32)>,
         step: u32,
     ) -> Result<(), Cause> {
-        let now = self.ports.now().ok();
-        let mut st = self.lock();
+        let now = self.clock_now().ok();
+        let mut st = self.enter(Entry::Move);
+        if Self::waits_on_item(&st, item) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let by = AnsweredBy {
             step: Some(step),
@@ -1132,8 +1791,11 @@ where
             ConfirmAnswer::Allow => Choice::Allow,
             ConfirmAnswer::Reject => Choice::Reject,
         };
-        let now = self.ports.now().ok();
-        let mut st = self.lock();
+        let now = self.clock_now().ok();
+        let mut st = self.enter(Entry::Move);
+        if Self::waits_on_item(&st, item) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let by = AnsweredBy {
             step: None,
@@ -1272,6 +1934,7 @@ where
             table,
             ledgers,
             held,
+            answering,
             ..
         } = st;
         let board = board.as_mut().ok_or(Cause::State)?;
@@ -1285,6 +1948,9 @@ where
         let agent = board.members[i].facts.agent.clone();
         let l = ledger(ledgers, board, i);
         let mut reading = Reading::new(&self.ports, board, i);
+        if !answering.contains(item) {
+            answering.push(item.clone());
+        }
         let out = items::answer_reading(
             &self.ports,
             l,
@@ -1295,6 +1961,7 @@ where
             &self.limits,
             &mut |l| reading.read(l),
         );
+        answering.retain(|a| a != item);
         let stopped = reading.stopped;
         let closed = !h.confirmation().state().is_open();
         self.read_back(board, i);
@@ -1391,7 +2058,10 @@ where
         text: &str,
         step: u32,
     ) -> Result<(), Cause> {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
+        if Self::waits_on_item(&st, item) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let out = self.setup(&mut st, item, SetupInput::Typed { param, text }, step);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1422,7 +2092,7 @@ where
     /// noted; a confirmation that is answered or later is `stale`; a step that is not the item's
     /// is `state`. The first report counts, and a later one answers ok and changes nothing.
     pub fn shown_on_page(&self, item: &ItemId, step: u32) -> Result<(), Cause> {
-        let now = self.ports.now().map_err(|e| cause_of(&e));
+        let now = self.clock_now().map_err(|e| cause_of(&e));
         let mut st = self.lock();
         let held = st.held.iter().position(|h| h.item() == item);
         let closed = st.board.as_ref().is_some_and(|b| {
@@ -1469,7 +2139,7 @@ where
     /// The presenter's first report that a confirmation is on screen, from which it arms (I4.2).
     pub fn on_screen(&self, item: &ItemId) {
         let mut st = self.lock();
-        let Ok(now) = self.ports.now() else { return };
+        let Ok(now) = self.clock_now() else { return };
         if let Some(h) = st.held.iter_mut().find(|h| h.item() == item) {
             items::on_screen(h, now);
         }
@@ -1479,12 +2149,23 @@ where
         let State { board, ledgers, .. } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         share_lasts(board, ledgers);
-        answered(&schedule::drive(&self.ports, board, &self.limits, mv))
+        let report = schedule::drive(&self.ports, board, &self.limits, mv);
+        self.noted(report.read);
+        answered(&report)
     }
 
+    /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
+    /// step of the quit, and `no_service` while the mark of a tick that did not return stands
+    /// (ruling RD-80 4.5).
     fn start_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
         if st.quitting {
             return Err(Cause::State);
+        }
+        if st.mark.tick {
+            return Err(Cause::NoService);
+        }
+        if st.offs.contains(agent) || st.held_off.contains(agent) {
+            return Err(Cause::Hold);
         }
         self.act(
             st,
@@ -1514,12 +2195,14 @@ where
     /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
     /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
     /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
-    /// step of the quit every start is `state`. The person's `stop` lapses the open item of a
+    /// step of the quit every start is `state`; while the mark of a tick that did not return
+    /// stands, `run_now` and `switch_on` are `no_service` (ruling RD-80 4.5). The person's
+    /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
     /// switch-off control lapses that item in the same way before its own move.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let out = self.control_in(&mut st, agent, action);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1539,6 +2222,14 @@ where
         match action {
             _ if gone => Err(Cause::UnknownAgent),
             Action::RunNow => self.start_in(st, agent),
+            Action::SwitchOn
+                if st.mark.tick || st.offs.contains(agent) || st.held_off.contains(agent) =>
+            {
+                Err(Cause::NoService)
+            }
+            Action::SwitchOff if st.offs.contains(agent) || st.held_off.contains(agent) => {
+                Err(Cause::State)
+            }
             Action::SwitchOn => self.schedule(
                 st,
                 Move::SwitchOn {
@@ -1556,11 +2247,33 @@ where
         }
     }
 
+    /// The person's Stop (I5.7). It is refused by no read of the clock (ruling RD-133 1): where
+    /// none answers, the stop goes on the guard's table and the board at once, with its time and
+    /// its rows waiting for the next read that answers (`stamp_waiting`), and `Runs::cancel` goes
+    /// out in this move, for a run with an open item here and for one with none in the run
+    /// drive's stop. A new life before that read shows the waiting rows lost in the way that
+    /// recovery reads them: it ends the run `interrupted` and lapses its item `app_ended`, so the
+    /// person reads that it stopped because Halvo closed, not that they stopped it. A Stop of an agent with no live run takes its queued start out of the
+    /// queue, at any time and with no read of the clock (Addition 1 item 5).
     fn stop_in(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
-        let State { board, table, .. } = st;
+        let now = self.clock_now().ok();
+        let State {
+            board,
+            table,
+            ended,
+            ..
+        } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         let agent = board.members[i].facts.agent.clone();
-        let Some(run) = live_unstopped_run(board, &agent) else {
+        let live =
+            live_unstopped_run(board, &agent).filter(|run| !ended.iter().any(|(r, _)| r == run));
+        let Some(run) = live else {
+            if board.queue.remove(&agent) {
+                let facts = &mut board.members[i].facts;
+                if let Doing::Queued(item) = &facts.doing {
+                    facts.doing = Doing::Idle(item.clone());
+                }
+            }
             return Ok(());
         };
         let Some(open) = waiting_on(&board.members[i].facts.doing) else {
@@ -1572,8 +2285,12 @@ where
                 },
             );
         };
-        let now = self.ports.now().map_err(|e| cause_of(&e))?;
-        hold_stop(board, table, &run, now, StopBy::Person);
+        match now {
+            Some(now) => hold_stop(board, table, &run, now, StopBy::Person),
+            None => {
+                run::stop_unstamped(board, table, &run, StopBy::Person);
+            }
+        }
         self.close_run_item(st, i, &run, &open, true);
         Ok(())
     }
@@ -1586,9 +2303,11 @@ where
     /// latest stop of a live run, where a stop that reads later than the first step counts from
     /// the first step (ruling RD-28 (e)), and the first step's time when no run is live.
     pub fn quit_stop(&self) -> QuitWait {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         st.quitting = true;
-        let now = self.ports.now().unwrap_or(0);
+        self.stop_for_settles(&mut st);
+        let last = self.last_read.load(Ordering::Relaxed);
+        let now = self.clock_now().unwrap_or(last);
         let members = st.board.as_ref().map_or(0, |b| b.members.len());
         for i in 0..members {
             self.lapse_at_quit(&mut st, i);
@@ -1601,7 +2320,7 @@ where
             .and_then(|b| {
                 b.runs
                     .iter()
-                    .filter_map(|r| r.stop.map(|s| s.at.min(now)))
+                    .filter_map(|r| r.stop.map(|s| if s.at == 0 { now } else { s.at.min(now) }))
                     .max()
             })
             .map_or(now, |at| at.saturating_add(grace));
@@ -1615,7 +2334,7 @@ where
     /// dying tree through the run drive's kill-all and stores no `run_ended`, so that recovery
     /// ends those runs `interrupted` in the next life.
     pub fn quit_kill(&self) {
-        let mut st = self.lock();
+        let mut st = self.enter(Entry::Move);
         let State { board, ledgers, .. } = &mut *st;
         if let Some(board) = board.as_mut() {
             self.flush_ledgers(board, ledgers);
@@ -1708,7 +2427,11 @@ where
     /// whose setup body the owner ended, is `unknown_agent`, as for every control.
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
-        let board = st.board.as_ref().ok_or(Cause::NoService)?;
+        let board = st
+            .board
+            .as_ref()
+            .filter(|_| st.returned)
+            .ok_or(Cause::NoService)?;
         let shown = Self::shown(&st, board);
         let k = shown
             .iter()
@@ -1733,9 +2456,21 @@ where
         self.lock().sync.next(after)
     }
 
-    /// The reply of `agents_next` after `next_wait_s` with no change (I8.1).
+    /// The reply of `agents_next` after `next_wait_s` with no change (I8.1); the whole state
+    /// where this call is the one that publishes after a move that did not return (ruling
+    /// RD-80 4.2), so that the page takes the raised `seq` with its state.
     pub fn same(&self) -> Snapshot {
-        self.lock().sync.same()
+        let mut st = Entered {
+            st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
+            ports: &self.ports,
+            entry: Entry::Read,
+            unwinding: std::thread::panicking(),
+        };
+        if st.mark.unpublished {
+            self.publish(&mut st);
+            return st.sync.snapshot();
+        }
+        st.sync.same()
     }
 
     fn publish(&self, st: &mut State<Cfg<P>>) {
@@ -1752,7 +2487,14 @@ where
         }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
-        if st.sync.publish(rows, items, note) {
+        let changed = if st.mark.unpublished {
+            st.mark.unpublished = false;
+            st.sync.publish_again(rows, items, note);
+            true
+        } else {
+            st.sync.publish(rows, items, note)
+        };
+        if changed {
             let _ = self.ports.changed();
             let _ = self
                 .ports
@@ -1761,7 +2503,7 @@ where
     }
 
     fn compose(&self, st: &State<Cfg<P>>) -> (Vec<Row>, Vec<Item>, Option<String>) {
-        let Some(board) = st.board.as_ref() else {
+        let Some(board) = st.board.as_ref().filter(|_| st.returned) else {
             return (
                 Vec::new(),
                 Vec::new(),
@@ -1778,7 +2520,12 @@ where
         shown.extend(still.iter().copied());
         shown.sort_by(|a, b| a.agent.cmp(&b.agent));
         let Ok(names) = roster::names(&shown, self.label) else {
-            return (Vec::new(), Vec::new(), None);
+            let note = st
+                .mark
+                .tick
+                .then(|| words::text("note.out_of_date", &[]).ok())
+                .flatten();
+            return (Vec::new(), Vec::new(), note);
         };
         let mut placed: Vec<(Placed, Option<Item>)> = Vec::new();
         for (facts, name) in shown.iter().zip(&names) {
@@ -1841,10 +2588,13 @@ where
                 item.clone().placed(name, n, pages).unwrap_or(item)
             })
             .collect();
-        let note = board
-            .roster_full
-            .then(|| words::text("note.roster_full", &[]).ok())
-            .flatten();
+        let note = if st.mark.tick {
+            words::text("note.out_of_date", &[]).ok()
+        } else if board.roster_full {
+            words::text("note.roster_full", &[]).ok()
+        } else {
+            None
+        };
         (rows.into_iter().map(|p| p.row).collect(), items, note)
     }
 
