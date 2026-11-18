@@ -190,6 +190,19 @@ self_test() {
   newline_case .DS_Store '' x.seg segment-name-after-a-line-feed-at-the-root macos
   newline_case target target 0123.seg segment-name-after-a-line-feed-beside-target windows
   fresh
+  printf '*\n' >>"$tree/.gitignore"
+  git -C "$tree" add .gitignore || exit 2
+  wide_head=$(commit_tree "$tree") || exit 2
+  git -C "$tree" update-ref HEAD "$wide_head" || exit 2
+  line_name=$(printf 'a\nx')
+  line_name="${line_name%x}b.seg"
+  if : >"$tree/$line_name" 2>/dev/null && [ -f "$tree/$line_name" ]; then
+    run_case segment-name-after-a-line-feed-under-a-rule-that-ignores-every-name FAIL macos "$wide_head"
+  else
+    skipped="$skipped segment-name-under-a-wide-rule"
+    printf 'case %s/segment-name-under-a-wide-rule skipped: this system keeps no line feed in a file name\n' "$name"
+  fi
+  fresh
   if mkdir "$tree/a:b" 2>/dev/null && printf '*.tmp\n' >"$tree/a:b/.gitignore" 2>/dev/null; then
     git -C "$tree" add "a:b/.gitignore" || exit 2
     colon_head=$(commit_tree "$tree") || exit 2
