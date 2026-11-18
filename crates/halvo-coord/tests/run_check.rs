@@ -10,7 +10,7 @@ use halvo_coord::schedule::{drive as schedule_drive, holds, Answer, Hold, Move, 
 use halvo_coord::types::{
     Agent, AgentId, Answered, Body, Category, Cause, CheckAnswer, Class, Decision, Doing, EffectId,
     Event, HandbackResult, ItemId, Lapsed, Name, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised,
-    ReadyAnswer, Reply, ReplyRow, ReplyState, RunId, RunSpec, Unknown, What, Workflow,
+    ReadyAnswer, Replies, Reply, ReplyRow, ReplyState, RunId, RunSpec, Unknown, What, Workflow,
 };
 use support::{agent, flow, world, World, A, DAY, MANUAL, T0};
 
@@ -2595,6 +2595,7 @@ fn the_reply_read_is_asked_at_each_tick_while_the_card_is_open_and_not_after_the
     w.set_clock(T0 + 9000, DAY);
     w.act(Act::Tick);
     assert_eq!(reads(&w), after, "no read once an answer names the run");
+    assert_eq!(w.facts(0).replies, Replies::NotAsked, "no answer is kept");
     assert!(!holds(w.facts(0)).contains(&Hold::Check));
 }
 
@@ -2660,4 +2661,106 @@ fn recovery_whose_reply_read_does_not_answer_raises_nothing_and_starts_nothing()
     let press = w.act(Act::Start { agent: agent(0) });
     assert_eq!(press.report.answer, Err(Cause::Hold));
     assert_eq!(press.checked, vec![agent(0)]);
+}
+
+#[test]
+fn no_reply_read_while_the_store_has_not_ended_the_newest_run() {
+    let mut w = world(&[MANUAL]);
+    to_mail(&mut w, 0);
+    let run = ended_unknown(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.reply_reads.borrow_mut().clear();
+    w.set_clock(T0 + 2000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(reads(&w), 0, "the run is not ended in the store");
+    assert_eq!(w.facts(0).replies, Replies::NotAsked);
+    w.store_end(0, &run, Outcome::Failed, 0);
+    w.set_clock(T0 + 3000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert_eq!(*w.ports.reply_reads.borrow(), vec![run]);
+}
+
+#[test]
+fn an_agent_set_aside_whose_reply_read_does_not_answer_is_not_started_by_the_tick_that_reads_it_again(
+) {
+    let mut w = world(&[SLOTTED]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("internal"));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(w.board.aside(&agent(0)), "recovery set the agent aside");
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 2 * 86_400_000, DAY + 2);
+    let tick = w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)), "the tick read it again");
+    assert!(
+        tick.report
+            .started
+            .iter()
+            .all(|s| s.answer == Err(Cause::State)),
+        "the tick's start is refused with state"
+    );
+    assert!(!starts(&w.calls()));
+    assert_eq!(
+        halvo_coord::roster::status(w.facts(0), &w.limits, None),
+        halvo_coord::types::StatusLine::Store
+    );
+}
+
+#[test]
+fn the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record() {
+    let mut w = world(&[]);
+    let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0c11)).unwrap();
+    let workflow = halvo_coord::types::FullWorkflow {
+        state: halvo_coord::types::WorkflowState::Approved,
+        agent: None,
+        category: Category::Email,
+        ..support::workflow(0, SLOTTED)
+    };
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(workflow));
+    let config = support::config_text(0, false)
+        .replace(agent(0).as_str(), made.as_str())
+        .replace("calendar_cleanup", "email")
+        .replace("graph_calendar", "graph_mail");
+    w.ports.agents.borrow_mut().push(Agent {
+        workflow: flow(0),
+        agent: made.clone(),
+        config: halvo_coord::mem::Config::parse(&config).unwrap(),
+        state: halvo_coord::types::AgentState::Approved,
+        slots: vec![Name::parse("reply_senders").unwrap()],
+        session: false,
+        last: Some(halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY - 1,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        }),
+        unknown: vec![],
+    });
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+    assert_eq!(report.created, vec![made.clone()]);
+    let facts = &w
+        .board
+        .members
+        .iter()
+        .find(|m| m.facts.agent == made)
+        .unwrap()
+        .facts;
+    assert_eq!(
+        facts.replies,
+        Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    assert!(holds(facts).contains(&Hold::Check));
 }

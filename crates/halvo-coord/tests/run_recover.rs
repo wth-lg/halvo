@@ -190,6 +190,13 @@ fn refusal_interrupted_no_retry_holds_the_check_from_the_roster_key_that_end_run
         kept: vec![],
     };
     w.ports.release(effect.clone());
+    w.ports.release(Unknown {
+        run: RunId::parse(&format!("{:032x}", 0x0dd0)).unwrap(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe302)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    });
     w.ports.refuse(Method::EndRun, PortError::NoService);
     relife(&mut w, &[(run.clone(), Reaped::Gone)]);
     assert_eq!(
@@ -216,7 +223,11 @@ fn refusal_interrupted_no_retry_holds_the_check_from_the_roster_key_that_end_run
         Some((run.clone(), 0)),
         "the store's record of end_run counts 0"
     );
-    assert_eq!(entry.unknown, vec![effect], "and its key names the effect");
+    assert_eq!(
+        entry.unknown,
+        vec![effect],
+        "and its key names the effect of that run alone"
+    );
     let press = w.act(Act::Start { agent: agent(0) });
     assert_eq!(press.report.answer, Err(Cause::Hold));
     assert_eq!(press.checked, vec![agent(0)]);
