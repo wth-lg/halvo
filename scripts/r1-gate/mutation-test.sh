@@ -483,8 +483,8 @@ link_line() {
 }
 
 compiled_by_build() {
-  compiled_path=$tree_abs/$1
-  compiled_info=$tree_abs/target/r1-gate/debug/halvo-capture.d
+  compiled_path=$tree/$1
+  compiled_info=$tree/target/r1-gate/debug/halvo-capture.d
   [ -f "$compiled_info" ] || return 1
   LC_ALL=C awk -v want="$compiled_path" '
     function norm(p,   n, i, k, part, stack, out) {
@@ -675,8 +675,11 @@ row_clock() {
 }
 
 run_rows() {
-  tree=$1; run_repo=$2; run_commit=$3
+  run_repo=$2; run_commit=$3
   failures=0; opens=0; transitionals=0; unrun=0; budget_unrun=0; caught=0
+  stop_check
+  tree=$(cd "$1" && pwd -P)
+  step_check $? "read of the copy's path" || return 2
   table=$work/rows.tsv
   rows_table "$run_repo" "$run_commit" "$tree" "$table"
   case $? in 0) ;; 3) return 1 ;; *) say FAIL rows "the row files of the copy could not be read"; return 2 ;; esac
@@ -713,9 +716,6 @@ run_rows() {
     return 1
   fi
   built_unmutated=no; copy_built=no
-  stop_check
-  tree_abs=$(cd "$tree" && pwd -P)
-  step_check $? "read of the copy's path" || return 2
   if [ -n "$only" ]; then
     : > "$work/rows.loop"
     only_seen=' '
@@ -1943,8 +1943,9 @@ gate_roots_are_the_copy() {
   fixture_run "$1" no > "$gate_scratch/$1.out"
   roots_got=$(cat "$gate_scratch/$1/bin/gate-roots" "$gate_scratch/$1/bin/store-roots" | sort -u)
   roots_calls=$(cat "$gate_scratch/$1/bin/gate-roots" "$gate_scratch/$1/bin/store-roots" | wc -l | tr -d ' ')
-  [ "$roots_got" = "$gate_scratch/$1" ] && [ "$roots_calls" -eq "$2" ] && return 0
-  printf 'GATE_ROOT of %s calls: %s\n' "$roots_calls" "$roots_got" | tr '\n' '|'
+  roots_want=$(cd "$gate_scratch/$1" && pwd -P)
+  [ "$roots_got" = "$roots_want" ] && [ "$roots_calls" -eq "$2" ] && return 0
+  printf 'GATE_ROOT of %s calls: %s (want %s alone)\n' "$roots_calls" "$roots_got" "$roots_want" | tr '\n' '|'
   return 1
 }
 
