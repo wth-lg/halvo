@@ -122,7 +122,7 @@ fn the_loopback_route_stands_under_the_feature_that_the_tests_name_with_its_mark
         super::LOOPBACK_MARKER,
         "halvo-connect-loopback-route-of-tests"
     );
-    let manifest = include_str!("../../Cargo.toml");
+    let manifest = include_str!("../../Cargo.toml").replace("\r\n", "\n");
     assert!(manifest.contains("[features]\nloopback = []\n"));
     assert!(manifest.contains("halvo-connect = { path = \".\", features = [\"loopback\"] }"));
 }
