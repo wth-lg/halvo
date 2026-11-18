@@ -416,25 +416,17 @@ fn newest_on(
     )
 }
 
-/// Plays one train in one stream on the derived store of `host` (L10.2, L10.4), as `play` does on the memory store:
-/// the workflow from a summary of day `LAST_DAY` + 3, whose open on day 1 removes it, so that no summary of the
-/// play stands outside the train's days; the compile on day 1, with `LearnStep` after the test proposer; then each
-/// day from 1 to `LAST_DAY`, until the first day whose figures differ from the train's, the store opened again on
-/// the day first (the coordinator's ruling LM-67), then the stub runner's replay run where the stream carries the
-/// day's occurrence as a run, then one batch of the analysis, with the day's summary where the stream carries the
-/// occurrence as a summary and empty otherwise, after which the store runs the step; and the mark and the period of
-/// the newest routine row, as the gate's read hands the rows out, compared with the train's. Answers what the play
-/// did and the host, whose store stands as the play left it.
+/// Plays one train in one stream on the derived store of `host` (L10.2, L10.4), as `play` does on the memory store,
+/// to the day `last`, which the command gives as `LAST_DAY`: the workflow from a summary of day `LAST_DAY` + 3, whose
+/// open on day 1 removes it, so that no summary of the play stands outside the train's days; the compile on day 1,
+/// with `LearnStep` after the test proposer; then each day from 1 to `last`, at most `LAST_DAY`, until the first day
+/// whose figures differ from the train's, the store opened again on the day first (the coordinator's ruling LM-67),
+/// then the stub runner's replay run where the stream carries the day's occurrence as a run, then one batch of the
+/// analysis, with the day's summary where the stream carries the occurrence as a summary and empty otherwise, after
+/// which the store runs the step; and the mark and the period of the newest routine row, as the gate's read hands
+/// the rows out, compared with the train's. Answers what the play did and the host, whose store stands as the play
+/// left it.
 pub fn play_derived(
-    train: &Train,
-    stream: Stream,
-    host: DerivedHost,
-) -> Result<(Played, DerivedHost), String> {
-    play_derived_to(train, stream, host, LAST_DAY)
-}
-
-/// `play_derived` with its last day `last`, at most `LAST_DAY`, in place of `LAST_DAY`.
-pub fn play_derived_to(
     train: &Train,
     stream: Stream,
     host: DerivedHost,
@@ -687,12 +679,21 @@ where
 pub fn report_derived(trains: &[Train]) -> Result<Report, Refusal> {
     whole(trains)?;
     let scratch = Scratch::make().map_err(|detail| Refusal::new(Cause::Store, detail))?;
+    report_derived_in(trains, &scratch, LAST_DAY)
+}
+
+/// `report_derived` with the plays' directories under `scratch` and their last day `last` (`play_derived`).
+pub fn report_derived_in(
+    trains: &[Train],
+    scratch: &Scratch,
+    last: u32,
+) -> Result<Report, Refusal> {
     let key = process_key();
     let first = &trains[..DERIVED_TRAINS];
     let plays = first.len() * Stream::BOTH.len();
     let played = played_all(first, plays, |train, stream| {
         let host = DerivedHost::new(scratch.play_dir()?, key.clone(), 1);
-        play_derived(train, stream, host).map(|(played, _)| played)
+        play_derived(train, stream, host, last).map(|(played, _)| played)
     })?;
     Ok(line_with(first.len(), &played, " store=derived"))
 }

@@ -110,19 +110,34 @@ fn delete_workflow_on_the_derived_store_takes_its_rows_by_the_decision_and_leave
 {
     let memory = fresh("delete-workflow-memory");
     let derived = fresh("delete-workflow-derived");
+    let temp = fresh("delete-workflow-temp");
     let call = |dir: &Path, store: &str| {
-        gate(&[
-            "delete",
-            "--what",
-            "workflow",
-            "--data-dir",
-            dir.to_str().expect("a path"),
-            "--store",
-            store,
-        ])
+        Command::new(env!("CARGO_BIN_EXE_learn-gate"))
+            .args([
+                "delete",
+                "--what",
+                "workflow",
+                "--data-dir",
+                dir.to_str().expect("a path"),
+                "--store",
+                store,
+            ])
+            .current_dir(repo())
+            .env("TMPDIR", &temp)
+            .env("TMP", &temp)
+            .env("TEMP", &temp)
+            .output()
+            .expect("learn-gate runs")
     };
     let memory_line = line_of(&call(&memory, "memory"));
     let derived_line = line_of(&call(&derived, "derived"));
+    assert_eq!(
+        std::fs::read_dir(&temp)
+            .expect("the temporary directory")
+            .count(),
+        0,
+        "the command writes nothing outside its data directory"
+    );
     assert_eq!(
         derived_line,
         memory_line.replacen(" store=memory ", " store=derived ", 1)

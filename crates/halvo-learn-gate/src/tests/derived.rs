@@ -1,13 +1,18 @@
+use std::collections::hash_map::RandomState;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use halvo_schema::executable::names::LocatorBy;
 use halvo_schema::executable::step::Target;
-use halvo_schema::executable::ExecutableStep;
+use halvo_schema::executable::{ExecutableStep, RunnerReply};
+use halvo_schema::WorkflowId;
+use serde_json::json;
 
 use crate::delete::{seed_case, MARKERS, SEED_DAY};
-use crate::derived::{process_key, DerivedHost};
-use crate::host::PlayHost;
-use crate::stub::{play_all, Arm, Play};
+use crate::derived::{key_bytes, process_key, DerivedHost, AGENT_OPS, LEARN_OPS};
+use crate::host::{GateHost, PlayHost};
+use crate::store::MemoryStore;
+use crate::stub::{id, play_all, Arm, Play};
 
 fn scratch(name: &str) -> PathBuf {
     let exe = std::env::current_exe().expect("the test binary");
@@ -35,6 +40,111 @@ fn first_role_name(steps: &[ExecutableStep]) -> Option<String> {
 fn last_day() -> u32 {
     let case = seed_case(MARKERS[0], SEED_DAY);
     case.occurrences[case.occurrences.len() - 1].day
+}
+
+fn served_to_a_run<H: PlayHost>(play: &mut Play<'_, H>, run: u32, restart: bool) -> Option<String> {
+    let (workflow, agent, run) = (play.workflow().to_owned(), id('4', 1), id('5', run));
+    let body = |value: serde_json::Value| value.to_string().into_bytes();
+    play.host
+        .coordinator(&body(json!({"op": "start_run", "workflow": workflow, "agent": agent, "run": run, "mode": "replay"})))
+        .expect("a start");
+    if restart {
+        play.restart().expect("a restart of the host and the store");
+    }
+    let RunnerReply::Load(load) = play
+        .host
+        .runner(&body(json!({"op": "load", "agent": agent, "run": run})))
+        .expect("a load")
+    else {
+        panic!("a load answered with another reply");
+    };
+    let number = load.playbook.expect("a playbook").number.get();
+    let RunnerReply::Steps(steps) = play
+        .host
+        .runner(&body(
+            json!({"op": "load_steps", "agent": agent, "run": run, "number": number, "from": 1}),
+        ))
+        .expect("a load_steps")
+    else {
+        panic!("a load_steps answered with another reply");
+    };
+    first_role_name(&steps.steps)
+}
+
+fn a_run_started_before_a_restart_is_served_no_learned_step<H: PlayHost>(host: H) {
+    let case = seed_case(MARKERS[0], SEED_DAY);
+    let mut play = Play::with_host(&case, Arm::Admit, 1, host);
+    play_all(&mut play, false).expect("the seeded case plays");
+    assert_eq!(
+        served_to_a_run(&mut play, 900, false).as_deref(),
+        Some(MARKERS[0])
+    );
+    assert_ne!(
+        served_to_a_run(&mut play, 901, true).as_deref(),
+        Some(MARKERS[0]),
+        "the run that the old handlers started is a lost run after the restart (contracts.md L4.2)"
+    );
+}
+
+#[test]
+fn derived_the_handlers_in_front_take_every_op_of_the_agent_store_and_list_refinements() {
+    let mut want: Vec<&str> = AGENT_OPS.to_vec();
+    want.push("list_refinements");
+    assert_eq!(LEARN_OPS, want.as_slice());
+    let mut ops: Vec<&str> = AGENT_OPS.to_vec();
+    ops.sort_unstable();
+    ops.dedup();
+    assert_eq!(ops.len(), 8);
+}
+
+#[test]
+fn derived_the_key_holds_four_words_of_its_own_and_another_state_gives_another_key() {
+    let state = RandomState::new();
+    let bytes = key_bytes(&state);
+    let words: BTreeSet<&[u8]> = bytes.chunks(8).collect();
+    assert_eq!(words.len(), 4);
+    assert_eq!(key_bytes(&state), bytes);
+    assert_ne!(key_bytes(&RandomState::new()), bytes);
+}
+
+#[test]
+fn derived_the_delete_reads_as_stored_the_workflow_that_it_names_alone() {
+    let case = seed_case(MARKERS[0], SEED_DAY);
+    let host = DerivedHost::new(scratch("stored"), process_key(), SEED_DAY);
+    let mut play = Play::with_host(&case, Arm::Admit, 1, host);
+    play_all(&mut play, false).expect("the seeded case plays on the derived store");
+    let absent = WorkflowId::from_random([9; 16]);
+    assert!(!play
+        .host
+        .delete_workflow(&absent)
+        .expect("the decision delete of a workflow that is not stored"));
+    let stored = WorkflowId::parse(play.workflow()).expect("the play's workflow id");
+    assert!(play
+        .host
+        .delete_workflow(&stored)
+        .expect("the decision delete of the stored workflow"));
+    assert!(play
+        .host
+        .learn_rows("learn_edit")
+        .expect("a read")
+        .is_empty());
+}
+
+#[test]
+fn derived_a_run_started_before_a_restart_is_served_the_compiled_steps_after_it() {
+    a_run_started_before_a_restart_is_served_no_learned_step(DerivedHost::new(
+        scratch("lost-run"),
+        process_key(),
+        SEED_DAY,
+    ));
+}
+
+#[test]
+fn memory_a_run_started_before_a_restart_is_served_the_compiled_steps_after_it() {
+    a_run_started_before_a_restart_is_served_no_learned_step(GateHost::new(
+        MemoryStore::new(),
+        SEED_DAY,
+    ));
 }
 
 #[test]

@@ -37,7 +37,8 @@ pub const READ_ROLE: &str = "learn_gate_read";
 /// The app of every summary and workflow that the gate makes.
 pub const APP: &str = "com.example.browser";
 
-const AGENT_OPS: &[&str] = &[
+/// The `op` names of the agent store's coordinator bodies (AG-A7.2), which its handler takes.
+pub const AGENT_OPS: &[&str] = &[
     "create_agent",
     "set_bindings",
     "set_state",
@@ -48,7 +49,9 @@ const AGENT_OPS: &[&str] = &[
     "mark_checkpoint",
 ];
 
-const LEARN_OPS: &[&str] = &[
+/// The `op` names that `LearnHandlers` take in front of the agent store's handler: every one of `AGENT_OPS` and
+/// `list_refinements`, which they answer themselves (contracts.md L4.1, L2.2).
+pub const LEARN_OPS: &[&str] = &[
     "create_agent",
     "set_bindings",
     "set_state",
@@ -65,17 +68,23 @@ const LEARN_OPS: &[&str] = &[
 /// handed to `Store::open` alone, held in memory and never written, printed or logged (L0.9). A store that the gate
 /// made cannot be opened after its process has ended.
 pub fn process_key() -> DbKey {
-    let state = RandomState::new();
+    let mut bytes = key_bytes(&RandomState::new());
+    let key = DbKey::new(bytes);
+    bytes.fill(0);
+    std::hint::black_box(&bytes);
+    key
+}
+
+/// The 32 bytes of a key from `state`: four words of 8 bytes, each the state's hash of its own place, so that every
+/// word is one of its own.
+pub fn key_bytes(state: &RandomState) -> [u8; 32] {
     let mut bytes = [0u8; 32];
     for (at, chunk) in (0u64..).zip(bytes.chunks_mut(8)) {
         let mut hasher = state.build_hasher();
         hasher.write_u64(at);
         chunk.copy_from_slice(&hasher.finish().to_le_bytes());
     }
-    let key = DbKey::new(bytes);
-    bytes.fill(0);
-    std::hint::black_box(&bytes);
-    key
+    bytes
 }
 
 /// The site of the workflow numbered `n`: each workflow of one store under a key of its own (W-C2.4).
@@ -562,6 +571,8 @@ pub struct DerivedHost {
     kept: Option<PathBuf>,
     seen_runs: BTreeSet<String>,
     counted_runs: BTreeSet<String>,
+    #[cfg(test)]
+    opens: u32,
 }
 
 impl DerivedHost {
@@ -588,6 +599,8 @@ impl DerivedHost {
             kept: None,
             seen_runs: BTreeSet::new(),
             counted_runs: BTreeSet::new(),
+            #[cfg(test)]
+            opens: 0,
         }
     }
 
@@ -643,8 +656,18 @@ impl DerivedHost {
             let store = Store::open(&self.data, &self.key, &entries, host, &mut self.ids)
                 .map_err(|e| format!("the derived store does not open: {e}"))?;
             self.store = Some(store);
+            #[cfg(test)]
+            {
+                self.opens += 1;
+            }
         }
         Ok(())
+    }
+
+    /// The opens of the store that the host has made.
+    #[cfg(test)]
+    pub fn opens(&self) -> u32 {
+        self.opens
     }
 
     fn store(&mut self) -> Result<&mut Store, String> {
@@ -909,7 +932,11 @@ pub struct Scratch {
 
 impl Scratch {
     pub fn make() -> Result<Scratch, String> {
-        let base = std::env::temp_dir();
+        Scratch::make_in(&std::env::temp_dir())
+    }
+
+    /// The directory made under `base` in place of the system's temporary directory.
+    pub fn make_in(base: &Path) -> Result<Scratch, String> {
         for n in 0u32..1_000 {
             let path = base.join(format!("learn-gate-{}-{n}", std::process::id()));
             match std::fs::create_dir(&path) {
@@ -924,6 +951,12 @@ impl Scratch {
             }
         }
         Err("the gate's temporary directory cannot be made".to_owned())
+    }
+
+    /// The directory itself.
+    #[cfg(test)]
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     /// A new empty directory for one play.
