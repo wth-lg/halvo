@@ -5,10 +5,12 @@ mod support;
 
 use coord::{agent, calls_since, coordinator, mark, Both, MANUAL};
 use halvo_coord::guard::Table;
-use halvo_coord::items::chars::{self, blank, columns, composed, mark as is_mark, no_form};
+use halvo_coord::items::chars::{
+    self, blank, columns, combining, composed, mark as is_mark, marks_in_a_row, no_form, MOST_MARKS,
+};
 use halvo_coord::items::{
-    admits, bound_field, compose_confirm, confirm_step, native_lines, value_bound, ConfirmMove,
-    Marking, CARD_COLUMNS, CARD_LINES,
+    admits, bound_field, class_fields, compose_confirm, confirm_step, native_lines, value_bound,
+    ConfirmAnswer, ConfirmMove, Marking, CARD_COLUMNS, CARD_LINES,
 };
 use halvo_coord::mem::Call;
 use halvo_coord::types::{
@@ -69,6 +71,11 @@ out += table(
     "/// The code points of the general categories Mn and Me of Unicode 13.0.0.",
     "MARKS",
     lambda c: u.category(c) in ("Mn", "Me"),
+)
+out += table(
+    "/// The code points of the general category Mc of Unicode 13.0.0.",
+    "SPACING_MARKS",
+    lambda c: u.category(c) == "Mc",
 )
 out += table(
     "/// The assigned code points whose East Asian width is W or F in Unicode 13.0.0.",
@@ -804,4 +811,386 @@ fn each_line_that_halvo_sets_with_no_value_fits_a_native_card() {
         assert!(columns(&line) <= CARD_COLUMNS, "{key}");
         assert_eq!(native_lines(&[halvo(&line)]), Ok(vec![line]), "{key}");
     }
+}
+
+fn ask_for(run: &RunId, n: usize, effects: Vec<AskedEffect>) -> RunEvent {
+    RunEvent::Confirm(ConfirmAsk::new(run.clone(), agent(n), effects).unwrap())
+}
+
+fn fields_named(class: Class, names: &[&str]) -> Vec<BoundField> {
+    let all = fields_of(class);
+    names
+        .iter()
+        .map(|n| all.iter().find(|f| f.name.as_str() == *n).unwrap().clone())
+        .collect()
+}
+
+/// The end with which the run `run` ended once the grace after `now` has passed.
+fn ended_by(c: &Coordinator<Both>, run: &RunId, now: u64) -> Option<RunEnd> {
+    c.ports()
+        .ports
+        .set_clock(now + Limits::PRODUCT.cancel_grace_s * 1000, coord::DAY);
+    c.tick();
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunEnded { run: r, cause, .. } if r == run => Some(*cause),
+            _ => None,
+        })
+}
+
+/// Arms the open item of `c` at `T0 + 1_000` and answers it with allow.
+fn allow_open_item(c: &Coordinator<Both>) {
+    let item = open_item(c);
+    c.on_screen(item.item());
+    c.ports().ports.set_clock(coord::T0 + 1_000, coord::DAY);
+    c.tick();
+    let answered = match item.presenter() {
+        Some(Presenter::Native) => c.answer_native(item.item(), ConfirmAnswer::Allow),
+        _ => c.answer(item.item(), Choice::Allow, None, item.step()),
+    };
+    assert_eq!(answered, Ok(()));
+}
+
+#[test]
+fn rd131_own_01a_a_site_subject_of_64_stacked_marks_is_refused_at_the_raise() {
+    let mut sent = fields_of(Class::Send);
+    sent[1] = field(
+        "subject",
+        BoundFrom::Extract,
+        &format!("Re{}", "\u{301}".repeat(64)),
+    );
+    refused_at_the_raise(vec![
+        effect(1, Class::Sign, fields_of(Class::Sign)),
+        effect(2, Class::Send, sent),
+    ]);
+}
+
+#[test]
+fn rd131_every_mark_of_category_m_counts_and_more_than_three_in_a_row_are_refused() {
+    for code in [0x301, 0x316, 0x489, 0x20DD, 0x93E, 0x93F, 0xBBE] {
+        assert!(combining(c(code)), "U+{code:04X}");
+    }
+    for ch in ['e', ' ', '\u{4e00}'] {
+        assert!(!combining(ch), "{ch:?}");
+    }
+    assert_eq!(MOST_MARKS, 3);
+    assert_eq!(marks_in_a_row("Re\u{301}\u{301}\u{301}"), 3);
+    assert_eq!(
+        marks_in_a_row("\u{301}\u{301}Re"),
+        2,
+        "a leading run counts"
+    );
+    assert_eq!(
+        marks_in_a_row("a \u{301}\u{301}\u{301}\u{301}b"),
+        4,
+        "after a blank"
+    );
+    assert_eq!(
+        marks_in_a_row("\u{915}\u{93e}\u{93e}\u{93e}\u{93e}"),
+        4,
+        "Mc counts"
+    );
+    let table = Table::new();
+    let native = |subject: &str| {
+        let mut sent = fields_of(Class::Send);
+        sent[1] = field("subject", BoundFrom::Extract, subject);
+        ask_of(
+            1,
+            1,
+            vec![
+                effect(1, Class::Sign, fields_of(Class::Sign)),
+                effect(2, Class::Send, sent),
+            ],
+        )
+    };
+    for code in [0x301, 0x316, 0x489, 0x93E] {
+        let m = c(code).to_string();
+        assert!(
+            admits(&native(&format!("Re{}", m.repeat(3))), &table),
+            "U+{code:04X} x3"
+        );
+        assert!(
+            !admits(&native(&format!("Re{}", m.repeat(4))), &table),
+            "U+{code:04X} x4"
+        );
+        assert!(
+            !admits(&native(&format!("{}Re", m.repeat(4))), &table),
+            "U+{code:04X} x4 leading"
+        );
+    }
+    let page = |subject: &str| {
+        let mut sent = fields_of(Class::Send);
+        sent[1] = field("subject", BoundFrom::Extract, subject);
+        ask_of(1, 1, vec![effect(1, Class::Send, sent)])
+    };
+    assert!(
+        admits(&page(&format!("Re{}", "\u{301}".repeat(64))), &table),
+        "the page shows free text whole"
+    );
+    for (party, ok) in [
+        ("\u{921}\u{93c}\u{947}\u{902}", true),
+        ("\u{642}\u{652}\u{651}\u{650}", true),
+        ("\u{c95}\u{cc6}\u{cc6}\u{c82}", true),
+        ("Ann\u{93e}\u{93e}\u{93e}\u{93e}", false),
+        ("Ann\u{301}\u{316}\u{489}\u{93e}", false),
+    ] {
+        let mut signed = fields_of(Class::Sign);
+        signed[1] = field("party", BoundFrom::Slot, party);
+        assert_eq!(
+            admits(&ask_of(1, 1, vec![effect(1, Class::Sign, signed)]), &table),
+            ok,
+            "{party:?}"
+        );
+    }
+}
+
+#[test]
+fn rd132_f1_05_each_class_holds_its_deciding_fields_once_in_the_order_of_a_a9_3() {
+    let table = Table::new();
+    let deciding: [(Class, &[&str]); 6] = [
+        (Class::Payment, &["payee", "amount", "instrument", "origin"]),
+        (
+            Class::Purchase,
+            &["seller", "items", "amount", "instrument", "origin"],
+        ),
+        (Class::Send, &["to"]),
+        (Class::Delete, &["items"]),
+        (Class::Submit, &["origin"]),
+        (Class::Sign, &["document", "party"]),
+    ];
+    for (class, names) in deciding {
+        let support: Vec<String> = fields_of(class)
+            .iter()
+            .map(|f| f.name.as_str().to_owned())
+            .collect();
+        assert_eq!(class_fields(class), support.as_slice(), "{class:?}");
+        let got: Vec<&str> = class_fields(class)
+            .iter()
+            .copied()
+            .filter(|n| bound_field(class, n).map(|(_, m)| m) == Some(Marking::Deciding))
+            .collect();
+        assert_eq!(got, names, "{class:?}");
+        assert!(admits(
+            &ask_of(1, 1, vec![effect(1, class, fields_of(class))]),
+            &table
+        ));
+        for missing in names {
+            let left: Vec<&str> = class_fields(class)
+                .iter()
+                .copied()
+                .filter(|n| n != missing)
+                .collect();
+            let ask = ask_of(1, 1, vec![effect(1, class, fields_named(class, &left))]);
+            assert!(!admits(&ask, &table), "{class:?} with no {missing}");
+        }
+    }
+    let paid = |names: &[&str]| {
+        ask_of(
+            1,
+            1,
+            vec![effect(
+                1,
+                Class::Payment,
+                fields_named(Class::Payment, names),
+            )],
+        )
+    };
+    assert!(
+        !admits(&paid(&["payee", "instrument", "origin"]), &table),
+        "no amount"
+    );
+    let mut twice = fields_of(Class::Payment);
+    twice.insert(1, field("payee", BoundFrom::Slot, "Other Shop"));
+    assert!(
+        !admits(
+            &ask_of(1, 1, vec![effect(1, Class::Payment, twice)]),
+            &table
+        ),
+        "two payees"
+    );
+    assert!(
+        !admits(&paid(&["amount", "payee", "instrument", "origin"]), &table),
+        "out of order"
+    );
+    assert!(
+        admits(&paid(&["payee", "amount", "instrument", "origin"]), &table),
+        "whole"
+    );
+    let sent = ask_of(
+        1,
+        1,
+        vec![effect(
+            1,
+            Class::Send,
+            fields_named(Class::Send, &["to", "body"]),
+        )],
+    );
+    assert!(admits(&sent, &table), "free text may be absent");
+}
+
+fn payment_and_delete() -> Vec<AskedEffect> {
+    vec![
+        effect(1, Class::Payment, fields_of(Class::Payment)),
+        effect(2, Class::Delete, fields_of(Class::Delete)),
+    ]
+}
+
+#[test]
+fn b2_a_re_ask_whose_changed_line_takes_its_native_card_over_its_lines_ends_kind() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    assert_eq!(c.on_run(&run, ask_on(&run, payment_and_delete())), Ok(()));
+    let card = c.native_card(open_item(&c).item()).unwrap();
+    assert_eq!(
+        card.lines().len(),
+        13,
+        "the card with no line confirm.changed"
+    );
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let paid = vec![effect(1, Class::Payment, fields_of(Class::Payment))];
+    assert_eq!(c.on_run(&run, ask_on(&run, paid)), Ok(()));
+    allow_open_item(&c);
+    let before = items_raised(&c);
+    assert_eq!(
+        c.on_run(&run, ask_on(&run, payment_and_delete())),
+        Err(Cause::State),
+        "15 lines with the line confirm.changed"
+    );
+    assert_eq!(items_raised(&c), before, "no item_raised");
+    assert!(c.snapshot().items.is_empty(), "no card");
+    assert_eq!(ended_by(&c, &run, coord::T0 + 1_000), Some(RunEnd::Kind));
+}
+
+#[test]
+fn b3_a_request_that_takes_the_last_item_of_its_run_and_fails_admits_ends_kind() {
+    let limits = Limits {
+        items_per_run: 1,
+        ..Limits::PRODUCT
+    };
+    for (bad, end) in [(true, RunEnd::Kind), (false, RunEnd::Budget)] {
+        let c = coordinator(&[MANUAL], limits);
+        let run = start(&c, 0);
+        let first = vec![effect(1, Class::Send, fields_of(Class::Send))];
+        assert_eq!(c.on_run(&run, ask_on(&run, first)), Ok(()));
+        allow_open_item(&c);
+        let mut sent = fields_of(Class::Send);
+        if bad {
+            sent[0] = field("to", BoundFrom::Extract, "Ann  Lee");
+        }
+        let second = vec![effect(2, Class::Send, sent)];
+        assert_eq!(
+            c.on_run(&run, ask_on(&run, second)),
+            Err(Cause::State),
+            "{bad}"
+        );
+        assert_eq!(ended_by(&c, &run, coord::T0 + 1_000), Some(end), "{bad}");
+    }
+}
+
+#[test]
+fn b4_a_second_effect_alone_that_breaks_a_rule_of_admits_is_refused() {
+    let table = Table::new();
+    let good = fields_of(Class::Sign);
+    let with = |fields: Vec<BoundField>| {
+        ask_of(
+            1,
+            1,
+            vec![
+                effect(1, Class::Delete, fields_of(Class::Delete)),
+                effect(2, Class::Sign, fields),
+            ],
+        )
+    };
+    assert!(admits(&with(good.clone()), &table));
+    let cases: Vec<(&str, Vec<BoundField>)> = vec![
+        (
+            "a source that A-A9.3 does not admit",
+            vec![
+                field("document", BoundFrom::Model, "Lease"),
+                good[1].clone(),
+            ],
+        ),
+        (
+            "a field that A-A9.3 does not bind",
+            vec![
+                good[0].clone(),
+                good[1].clone(),
+                field("note", BoundFrom::Slot, "x"),
+            ],
+        ),
+        (
+            "two blanks in a deciding value",
+            vec![good[0].clone(), field("party", BoundFrom::Slot, "Ann  Lee")],
+        ),
+        (
+            "an empty deciding value",
+            vec![good[0].clone(), field("party", BoundFrom::Slot, "")],
+        ),
+        (
+            "four marks in a row",
+            vec![
+                good[0].clone(),
+                field("party", BoundFrom::Slot, "Ann\u{301}\u{301}\u{301}\u{301}"),
+            ],
+        ),
+        ("a deciding field missing", vec![good[0].clone()]),
+        (
+            "a deciding field twice",
+            vec![good[0].clone(), good[0].clone(), good[1].clone()],
+        ),
+        ("out of order", vec![good[1].clone(), good[0].clone()]),
+    ];
+    for (why, fields) in cases {
+        assert!(!admits(&with(fields), &table), "{why}");
+    }
+    let page = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, fields_of(Class::Send)),
+            effect(
+                2,
+                Class::Delete,
+                vec![field("items", BoundFrom::Model, "msg-1")],
+            ),
+        ],
+    );
+    assert!(!admits(&page, &table), "a page request's second effect");
+}
+
+#[test]
+fn b5_two_held_native_confirmations_each_answer_their_own_card() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let runs = [start(&c, 0), start(&c, 1)];
+    let classes = [Class::Payment, Class::Sign];
+    for (n, (run, class)) in runs.iter().zip(classes).enumerate() {
+        let effects = vec![effect(1 + n as u32, class, fields_of(class))];
+        assert_eq!(c.on_run(run, ask_for(run, n, effects)), Ok(()), "{class:?}");
+    }
+    let items = c.snapshot().items;
+    assert_eq!(items.len(), 2);
+    let mut titles = Vec::new();
+    for item in &items {
+        let card = c.native_card(item.item()).unwrap();
+        assert_eq!(card.title(), item.title());
+        assert_eq!(card.lines(), lines_of(item).as_slice());
+        titles.push(card.title().to_owned());
+    }
+    assert_ne!(titles[0], titles[1]);
+}
+
+#[test]
+fn b6_the_proven_bounds_are_13_lines_and_96_columns() {
+    let read = "run 44227930432: on macOS 13 lines of 96 columns of W read a window 615 points high in 684 visible; on Windows 410 pixels in a work area of 720";
+    assert_eq!(CARD_LINES, 13, "{read}");
+    assert_eq!(CARD_COLUMNS, 96, "{read}");
 }

@@ -1,4 +1,4 @@
-use super::chars::{columns, composed, no_form};
+use super::chars::{columns, composed, marks_in_a_row, no_form, MOST_MARKS};
 use super::drive::Held;
 use super::key::{say, Key};
 use super::presenter::request_presenter;
@@ -6,9 +6,9 @@ use super::raise::choices;
 use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
-    AgentId, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, Cause, Choice,
-    ChoiceText, Class, ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits, Origin, Param,
-    ParamEntry, Presenter, Unknown, YesNo,
+    AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, Cause,
+    Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits,
+    Origin, Param, ParamEntry, Presenter, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
@@ -340,6 +340,37 @@ pub fn bound_field(class: Class, field: &str) -> Option<(&'static [BoundFrom], M
     Some(row)
 }
 
+/// The fields of a confirm class in the order of A-A9.3; none for a class that I4.3 does not
+/// confirm.
+pub fn class_fields(class: Class) -> &'static [&'static str] {
+    match class {
+        Class::Payment => &["payee", "amount", "instrument", "origin"],
+        Class::Purchase => &["seller", "items", "amount", "instrument", "origin"],
+        Class::Send => &["to", "subject", "body"],
+        Class::Delete => &["items"],
+        Class::Submit => &["origin", "fields"],
+        Class::Sign => &["document", "party"],
+        _ => &[],
+    }
+}
+
+/// Whether the fields of `effect` stand in the order of A-A9.3, each at most once, with every
+/// deciding field of its class (ruling RD-132 item 2).
+fn fields_in_order(effect: &AskedEffect) -> bool {
+    let order = class_fields(effect.class);
+    let mut next = 0;
+    for field in &effect.fields {
+        match order[next..].iter().position(|n| *n == field.name.as_str()) {
+            Some(k) => next += k + 1,
+            None => return false,
+        }
+    }
+    order.iter().all(|n| {
+        bound_field(effect.class, n).map(|(_, m)| m) != Some(Marking::Deciding)
+            || effect.fields.iter().any(|f| f.name.as_str() == *n)
+    })
+}
+
 fn field_line(label: &str, source: &str, value: &str) -> Result<String, Cause> {
     Key::parse("confirm.field")?.text(&[("label", label), ("source", source), ("value", value)])
 }
@@ -365,8 +396,10 @@ fn field_admitted(class: Class, field: &BoundField) -> bool {
     }
 }
 
-/// Whether a confirm request may show a card (ruling RD-89 item 4, ruling RD-90 items 1 to 4):
-/// each field is one that A-A9.3 binds for its class, with a source that A-A9.3 admits for it;
+/// Whether a confirm request may show a card (ruling RD-89 item 4, ruling RD-90 items 1 to 4,
+/// ruling RD-131 item 1, ruling RD-132 item 2): each effect holds every deciding field of its
+/// class, no field twice, in the order of A-A9.3 (`class_fields`); each field is one that
+/// A-A9.3 binds for its class, with a source that A-A9.3 admits for it;
 /// each deciding field's value equals its own composed form at its bound; and, for a request of
 /// the presenter `native`, its card composes (`native_lines`, with the lines `confirm.changed`
 /// that `table`, the guard's table of this life, gives). A request that it refuses ends its run
@@ -378,6 +411,7 @@ pub fn admits(ask: &ConfirmAsk, table: &Table) -> bool {
         .iter()
         .all(|e| e.fields.iter().all(|f| field_admitted(e.class, f)));
     bound
+        && ask.effects().iter().all(fields_in_order)
         && (request_presenter(ask) == Presenter::Page
             || confirm_fields(ask, named(ask), table)
                 .and_then(|f| native_lines(&f))
@@ -388,8 +422,9 @@ pub fn admits(ask: &ConfirmAsk, table: &Table) -> bool {
 /// 3): a field with a value is the line `confirm.field` with its label, its source text and its
 /// value, its pieces joined with nothing; a field with no value is its label alone; an empty
 /// line stands between two fields. `malformed` for a field whose source text is empty, a line
-/// that holds a character with no visible form (`chars::no_form`) or takes more than
-/// `CARD_COLUMNS` columns, and more than `CARD_LINES` lines.
+/// that holds a character with no visible form (`chars::no_form`), more than
+/// `chars::MOST_MARKS` marks in a row (ruling RD-131 item 1) or more than `CARD_COLUMNS`
+/// columns, and more than `CARD_LINES` lines.
 pub fn native_lines(fields: &[Field]) -> Result<Vec<String>, Cause> {
     let mut lines = Vec::new();
     for field in fields {
@@ -404,7 +439,10 @@ pub fn native_lines(fields: &[Field]) -> Result<Vec<String>, Cause> {
         } else {
             field_line(&field.label, &field.from_text, &field.value.concat())?
         };
-        if line.chars().any(no_form) || columns(&line) > CARD_COLUMNS {
+        if line.chars().any(no_form)
+            || marks_in_a_row(&line) > MOST_MARKS
+            || columns(&line) > CARD_COLUMNS
+        {
             return Err(Cause::Malformed);
         }
         lines.push(line);
