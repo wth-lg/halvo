@@ -47,6 +47,29 @@ impl StopBy {
     }
 }
 
+/// A stop that no read of the clock answered (ruling RD-133 1): the run is stopped on the guard's
+/// table and the board at once, with the time 0 on the board until the coordinator takes the
+/// next read that answers, and `Runs::cancel` goes out where `cancel` says so, which is where
+/// the run has no open item whose lapse sends it. Whether the board took a new stop.
+pub fn stop_unstamped<P: Runs, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    table: &mut Table,
+    run: &RunId,
+    by: StopBy,
+    cancel: bool,
+) -> bool {
+    *table = table.stop(run);
+    if board.runs.iter().any(|r| &r.run == run && r.stop.is_some()) {
+        return false;
+    }
+    stop_run(board, run, 0, by.cause().end());
+    if cancel {
+        let _ = ports.cancel(run);
+    }
+    true
+}
+
 /// A move that the run drive carries out on the ports, the board of the schedule and the
 /// guard's table of this life.
 #[derive(Clone, Debug, PartialEq, Eq)]

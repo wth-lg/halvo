@@ -73,6 +73,7 @@ pub struct Ledger {
     refused: bool,
     learnt: bool,
     dismissed: bool,
+    unstamped: Vec<What>,
 }
 
 impl Ledger {
@@ -94,6 +95,22 @@ impl Ledger {
             refused: false,
             dismissed: false,
             learnt: false,
+            unstamped: Vec::new(),
+        }
+    }
+
+    /// Whether rows of a stop or a switch-off wait for a read of the clock that answers
+    /// (ruling RD-133 1).
+    pub fn has_unstamped(&self) -> bool {
+        !self.unstamped.is_empty()
+    }
+
+    /// Stamps the rows that waited for a read of the clock with `at`, the first read that
+    /// answered, and queues them after the waiting ones (ruling RD-133 1).
+    pub fn stamp_unstamped(&mut self, at: Stamp) {
+        let whats = std::mem::take(&mut self.unstamped);
+        if !whats.is_empty() {
+            queue_at(self, whats, at);
         }
     }
 
@@ -898,6 +915,25 @@ fn store_at<P: Owner + Clock>(
     flush(ports, ledger, limits)
 }
 
+/// Stores a lapse's row at one read of the clock; where no read answers, the row of a stop or
+/// a switch-off (`holds`) waits in the ledger for the next read that answers, and any other
+/// row is lost, a named limit (rulings RD-101 (g), RD-133 1).
+fn store_or_hold<P: Owner + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    row: What,
+    holds: bool,
+) {
+    match Stamp::read(ports) {
+        Ok(stamp) => {
+            let _ = store_at(ports, ledger, limits, vec![row], stamp);
+        }
+        Err(_) if holds => ledger.unstamped.push(row),
+        Err(_) => {}
+    }
+}
+
 fn queue_at(ledger: &mut Ledger, whats: Vec<What>, at: Stamp) {
     let whats: Vec<What> = whats
         .into_iter()
@@ -1422,8 +1458,9 @@ fn lapse_stamped<P: Owner + Runs + Clock>(
     ) {
         held.confirmation = next;
         *table = table.lapse(&held.item).stop(&run);
-        if let Some(stamp) = stamp.or_else(|| Stamp::read(ports).ok()) {
-            queue_at(ledger, vec![lapsed], stamp);
+        match stamp.or_else(|| Stamp::read(ports).ok()) {
+            Some(stamp) => queue_at(ledger, vec![lapsed], stamp),
+            None => ledger.unstamped.push(lapsed),
         }
         let cancelled = ports.cancel(&run);
         if decides
@@ -1493,7 +1530,7 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
         item: open.item.clone(),
         lapsed,
     };
-    let _ = store(ports, ledger, limits, vec![row]);
+    store_or_hold(ports, ledger, limits, row, cause == OtherLapse::Cancelled);
     if matches!(cause, OtherLapse::WaitLimit | OtherLapse::Cancelled) {
         *table = table.stop(run);
         let _ = ports.cancel(run);
@@ -1960,7 +1997,13 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
         item: held.item.clone(),
         lapsed: Lapsed::SignIn(cause),
     };
-    let _ = store(ports, ledger, limits, vec![lapsed]);
+    store_or_hold(
+        ports,
+        ledger,
+        limits,
+        lapsed,
+        cause == OtherLapse::Cancelled,
+    );
     if lives {
         let _ = ports.cancel(&run);
     }

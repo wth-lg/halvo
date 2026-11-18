@@ -10,6 +10,6 @@ mod step;
 
 pub use check::check_due;
 pub use delete::{delete_step, forgotten, Gone};
-pub use drive::{drive, Act, Done, StopBy};
+pub use drive::{drive, stop_unstamped, Act, Done, StopBy};
 pub use recover::{recover, recover_step, Earlier, Life, Recovery};
 pub use step::{run_step, Ending, Next, Phase, RunMove, StopCause};

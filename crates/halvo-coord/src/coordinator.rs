@@ -79,6 +79,8 @@ struct State<C> {
     mark: Mark,
     answering: Option<ItemId>,
     returned: bool,
+    unstamped: Vec<RunId>,
+    offs: Vec<AgentId>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -273,6 +275,7 @@ struct LapseParts<'a> {
     held: &'a mut Vec<Held>,
     binds: &'a mut Vec<HeldBind>,
     handbacks: &'a mut Vec<(ItemId, HandbackAsk)>,
+    answering: &'a mut Option<ItemId>,
 }
 
 fn candidates(param: Param, workflow: &FullWorkflow) -> Vec<(Vec<String>, CandidateFrom)> {
@@ -311,6 +314,8 @@ where
                 mark: Mark::default(),
                 answering: None,
                 returned: false,
+                unstamped: Vec::new(),
+                offs: Vec::new(),
             }),
         }
     }
@@ -338,6 +343,10 @@ where
         };
         if entry != Entry::Read {
             self.take_up(&mut st);
+            let held = st.mark.tick && entry == Entry::Move;
+            if let Some(board) = st.board.as_mut() {
+                board.hold_queue(held);
+            }
         }
         if st.mark.unpublished {
             self.publish(&mut st);
@@ -349,16 +358,35 @@ where
         self.enter(Entry::Read)
     }
 
-    /// Whether a move waits for the settle of RD-84, which could not read the clock: such a move
-    /// does none of its own work and answers `no_service`, so that no move takes the item before
-    /// it is settled, and the next move settles it.
-    fn waits(st: &State<Cfg<P>>) -> bool {
-        st.answering.is_some()
+    /// Whether an answer for `item` waits for the settle of RD-84, which could not read the
+    /// clock: only a move that would take the waiting item waits and answers `no_service`, and
+    /// every other move goes on (ruling RD-133 1).
+    fn waits_on_item(st: &State<Cfg<P>>, item: &ItemId) -> bool {
+        st.answering.as_ref() == Some(item)
     }
 
-    /// What a move takes up first after a move that did not return: after a tick, the defers of
-    /// the runs on the board are not known (ruling RD-122); after an answer's move, the settle of
-    /// RD-84.
+    /// Whether an event of `run` waits for the settle of RD-84: the run of the waiting item
+    /// (ruling RD-133 1).
+    fn waits_on_run(st: &State<Cfg<P>>, run: &RunId) -> bool {
+        st.answering.as_ref().is_some_and(|item| {
+            st.held
+                .iter()
+                .any(|h| h.item() == item && h.ask().run() == run)
+        })
+    }
+
+    /// Whether a tick is held: a settle of RD-84 or a stop or switch-off of RD-133 still waits
+    /// for a read of the clock that answers, so the tick does none of its work.
+    fn holds_tick(st: &State<Cfg<P>>) -> bool {
+        st.answering.is_some()
+            || !st.unstamped.is_empty()
+            || !st.offs.is_empty()
+            || st.ledgers.iter().any(|(_, l)| l.has_unstamped())
+    }
+
+    /// What a move takes up first: after a tick that did not return, the defers of the runs on
+    /// the board are not known (ruling RD-122); then, at one read of the clock that answers,
+    /// what waited for a stamp (`stamp_waiting`) and the settle of RD-84.
     fn take_up(&self, st: &mut State<Cfg<P>>) {
         if st.mark.defers {
             st.mark.defers = false;
@@ -366,7 +394,64 @@ where
                 board.defers_not_known();
             }
         }
-        self.settle(st);
+        if !Self::holds_tick(st) {
+            return;
+        }
+        let Ok(stamp) = crate::ports::Stamp::read(&self.ports) else {
+            return;
+        };
+        self.stamp_waiting(st, stamp);
+        self.settle(st, stamp);
+    }
+
+    /// What a stop or a switch-off made with no read of the clock left, at the first read that
+    /// answers and before the move's own work (ruling RD-133 1): each stop on the board takes
+    /// that read as its time, so that the kill counts `cancel_grace_s` from it; the rows that
+    /// waited are stamped with it and sent; a switch-off makes the rest of its move, its
+    /// `hold_set` among it, and waits again where that is refused.
+    fn stamp_waiting(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
+        let State {
+            board,
+            ledgers,
+            unstamped,
+            offs,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        for run in unstamped.drain(..) {
+            if let Some(stop) = board
+                .runs
+                .iter_mut()
+                .find(|r| r.run == run)
+                .and_then(|r| r.stop.as_mut())
+            {
+                stop.at = stamp.now();
+            }
+        }
+        for (agent, l) in ledgers.iter_mut() {
+            if !l.has_unstamped() {
+                continue;
+            }
+            l.stamp_unstamped(stamp);
+            let _ = items::flush(&self.ports, l, &self.limits);
+            if let Some(i) = index(board, agent) {
+                self.read_back(board, i);
+            }
+        }
+        let waiting: Vec<AgentId> = std::mem::take(offs);
+        for agent in waiting {
+            let report = schedule::drive(
+                &self.ports,
+                board,
+                &self.limits,
+                Move::SwitchOff {
+                    agent: agent.clone(),
+                },
+            );
+            if report.answer.is_err() && board.members.iter().any(|m| m.facts.agent == agent) {
+                offs.push(agent);
+            }
+        }
     }
 
     /// The settle of a confirmation that an answer's move left `answered` and did not return
@@ -374,15 +459,10 @@ where
     /// alone: at one read of the clock, the run stopped on the board with `answer_lost`, then the
     /// lapse with `answer_lost`, which stops the run in the guard's table, queues its row,
     /// sends `Runs::cancel` once and no decision, and then the row. Where the clock cannot be
-    /// read the move waits (`waits`) and the next move settles it; an item that is no longer
-    /// `answered` is not touched.
-    fn settle(&self, st: &mut State<Cfg<P>>) {
-        if st.answering.is_none() {
-            return;
-        }
-        let Ok(stamp) = crate::ports::Stamp::read(&self.ports) else {
-            return;
-        };
+    /// read the moves on the item and its run wait (`waits_on_item`, `waits_on_run`) and the
+    /// next move that reads the clock settles it; an item that is no longer `answered`, as after
+    /// the person's Stop of its run, is not touched.
+    fn settle(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
         let Some(item) = st.answering.take() else {
             return;
         };
@@ -428,7 +508,10 @@ where
     /// and dying tree at its grace with nothing stored and sends what the board owes.
     pub fn tick(&self) {
         let mut st = self.enter(Entry::Tick);
-        if Self::waits(&st) {
+        if Self::holds_tick(&st) {
+            if let Some(board) = st.board.as_mut() {
+                board.defer_failed();
+            }
             return;
         }
         if st.quitting {
@@ -738,7 +821,7 @@ where
     /// with that cause and is answered `state`.
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
-        if Self::waits(&st) {
+        if Self::waits_on_run(&st, run) {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
@@ -1036,6 +1119,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
@@ -1045,6 +1129,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
         };
         self.lapse_open(board, &mut parts, i, run, open, stop);
     }
@@ -1064,6 +1149,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
         } = parts;
         let l = ledger(ledgers, board, i);
         let cause = if stop {
@@ -1076,7 +1162,19 @@ where
             binds.retain(|b| *b.state() != items::BindState::Closed);
         } else if open.kind == RunItemKind::Confirm {
             if let Some(h) = held.iter_mut().find(|h| h.item() == &open.item) {
-                if stop {
+                let lost = answering.as_ref() == Some(&open.item)
+                    && matches!(h.confirmation().state(), ConfirmState::Answered(_));
+                if stop && lost {
+                    **answering = None;
+                    let _ = items::lapse(
+                        &self.ports,
+                        l,
+                        table,
+                        h,
+                        LapseCause::AnswerLost,
+                        &self.limits,
+                    );
+                } else if stop {
                     let _ = items::stop_confirm(&self.ports, l, table, h, &self.limits);
                 } else {
                     let _ =
@@ -1092,6 +1190,7 @@ where
     }
 
     fn switch_off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
+        let person = matches!(mv, Move::SwitchOff { .. });
         let State {
             board,
             table,
@@ -1100,6 +1199,7 @@ where
             binds,
             handbacks,
             waits,
+            answering,
             ..
         } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
@@ -1111,6 +1211,7 @@ where
             held,
             binds,
             handbacks,
+            answering,
         };
         let mut halt = |board: &mut Board<Cfg<P>>, i: usize, run: &RunId| {
             *parts.table = parts.table.stop(run);
@@ -1119,8 +1220,53 @@ where
             true
         };
         let report = schedule::drive_with(&self.ports, board, &self.limits, mv, Some(&mut halt));
+        if person && report.unstamped {
+            return self.switch_off_unstamped(st, i);
+        }
         waits.retain(|w| !report.stopped.contains(&w.run));
         answered(&report)
+    }
+
+    /// The person's switch-off when no read of the clock answers (ruling RD-133 1): the
+    /// agent's live run is stopped on the guard's table and the board at once and its open item
+    /// lapses with `cancelled`, `Runs::cancel` goes out in this move, and its queued start
+    /// leaves the queue; the run's stop time, the rows and the rest of the switch-off with its
+    /// `hold_set` wait for the next read that answers (`stamp_waiting`), and meanwhile the
+    /// agent takes no start (`hold`) and no switch-on (`no_service`).
+    fn switch_off_unstamped(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
+        let Some(board) = st.board.as_mut() else {
+            return Err(Cause::NoService);
+        };
+        let agent = board.members[i].facts.agent.clone();
+        let open = waiting_on(&board.members[i].facts.doing);
+        if let Some(run) = live_unstopped_run(board, &agent) {
+            if run::stop_unstamped(
+                &self.ports,
+                board,
+                &mut st.table,
+                &run,
+                StopBy::Person,
+                open.is_none(),
+            ) {
+                st.unstamped.push(run.clone());
+            }
+            if let Some(open) = &open {
+                self.close_run_item(st, i, &run, open, true);
+            }
+            st.waits.retain(|w| w.run != run);
+        }
+        if let Some(board) = st.board.as_mut() {
+            if board.queue.remove(&agent) {
+                let facts = &mut board.members[i].facts;
+                if let Doing::Queued(item) = &facts.doing {
+                    facts.doing = Doing::Idle(item.clone());
+                }
+            }
+        }
+        if !st.offs.contains(&agent) {
+            st.offs.push(agent);
+        }
+        Ok(())
     }
 
     fn stopped_at_raise(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
@@ -1276,7 +1422,7 @@ where
     ) -> Result<(), Cause> {
         let now = self.ports.now().ok();
         let mut st = self.enter(Entry::Move);
-        if Self::waits(&st) {
+        if Self::waits_on_item(&st, item) {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
@@ -1299,7 +1445,7 @@ where
         };
         let now = self.ports.now().ok();
         let mut st = self.enter(Entry::Move);
-        if Self::waits(&st) {
+        if Self::waits_on_item(&st, item) {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
@@ -1563,7 +1709,7 @@ where
         step: u32,
     ) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
-        if Self::waits(&st) {
+        if Self::waits_on_item(&st, item) {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
@@ -1666,6 +1812,9 @@ where
         if st.mark.tick {
             return Err(Cause::NoService);
         }
+        if st.offs.contains(agent) {
+            return Err(Cause::Hold);
+        }
         self.act(
             st,
             Act::Start {
@@ -1702,9 +1851,6 @@ where
     /// switch-off control lapses that item in the same way before its own move.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
-        if Self::waits(&st) {
-            return Err(Cause::NoService);
-        }
         let before = Self::agents_held_off(&st);
         let out = self.control_in(&mut st, agent, action);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1724,7 +1870,7 @@ where
         match action {
             _ if gone => Err(Cause::UnknownAgent),
             Action::RunNow => self.start_in(st, agent),
-            Action::SwitchOn if st.mark.tick => Err(Cause::NoService),
+            Action::SwitchOn if st.mark.tick || st.offs.contains(agent) => Err(Cause::NoService),
             Action::SwitchOn => self.schedule(
                 st,
                 Move::SwitchOn {
@@ -1742,14 +1888,30 @@ where
         }
     }
 
+    /// The person's Stop (I5.7). It is refused by no read of the clock (ruling RD-133 1): where
+    /// none answers, the stop goes on the guard's table and the board at once, with its time and
+    /// its rows waiting for the next read that answers (`stamp_waiting`), and `Runs::cancel` goes
+    /// out in this move.
     fn stop_in(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
-        let State { board, table, .. } = st;
+        let now = self.ports.now().ok();
+        let State {
+            board,
+            table,
+            unstamped,
+            ..
+        } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         let agent = board.members[i].facts.agent.clone();
         let Some(run) = live_unstopped_run(board, &agent) else {
             return Ok(());
         };
         let Some(open) = waiting_on(&board.members[i].facts.doing) else {
+            if now.is_none() {
+                if run::stop_unstamped(&self.ports, board, table, &run, StopBy::Person, true) {
+                    unstamped.push(run);
+                }
+                return Ok(());
+            }
             return self.act(
                 st,
                 Act::Stop {
@@ -1758,8 +1920,14 @@ where
                 },
             );
         };
-        let now = self.ports.now().map_err(|e| cause_of(&e))?;
-        hold_stop(board, table, &run, now, StopBy::Person);
+        match now {
+            Some(now) => hold_stop(board, table, &run, now, StopBy::Person),
+            None => {
+                if run::stop_unstamped(&self.ports, board, table, &run, StopBy::Person, false) {
+                    unstamped.push(run.clone());
+                }
+            }
+        }
         self.close_run_item(st, i, &run, &open, true);
         Ok(())
     }

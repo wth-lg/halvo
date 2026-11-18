@@ -8634,7 +8634,7 @@ fn rd80_same_as_the_first_call_after_a_lost_tick_answers_the_state_with_the_note
 
 #[test]
 fn rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles() {
-    for next in ["stop", "confirm", "press", "native", "typed", "tick"] {
+    for next in ["confirm", "press", "native", "typed", "tick"] {
         let (c, run, item) = armed_confirmation();
         let m = mark(&c);
         panicking(&c, "answer_confirm_after_send", || {
@@ -8646,7 +8646,6 @@ fn rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles() {
             .set(Some(u32::from(matches!(next, "press" | "native"))));
         let at = mark(&c);
         let out = match next {
-            "stop" => c.control(&agent(0), Action::Stop),
             "confirm" => c.on_run(&run, ask_confirm(&run, 0)),
             "press" => c.answer(&item, Choice::Reject, None, 0),
             "native" => c.answer_native(&item, ConfirmAnswer::Reject),
@@ -8912,4 +8911,492 @@ fn rd84_the_quits_second_step_settles_a_lost_answer_first() {
         "the settle comes before the quit's kill"
     );
     assert_eq!(cancels_of(&c, m, &run), 1, "the settle's one cancel");
+}
+
+fn lost_answer_beside_other_runs(others: usize) -> (Coordinator<Both>, RunId, ItemId, Vec<RunId>) {
+    lost_answer_beside(others, 0)
+}
+
+fn lost_answer_beside(
+    others: usize,
+    idle: usize,
+) -> (Coordinator<Both>, RunId, ItemId, Vec<RunId>) {
+    let limits = Limits {
+        max_live_runs: (1 + others + idle) as u32,
+        ..Limits::PRODUCT
+    };
+    let spec: Vec<support::A> = std::iter::repeat_n(MANUAL, 1 + others + idle).collect();
+    let c = coordinator(&spec, limits);
+    let run0 = start(&c, 0);
+    c.on_run(&run0, ask_confirm(&run0, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()));
+    c.ports().ports.set_clock(T0 + Limits::PRODUCT.arm_ms, DAY);
+    c.tick();
+    let runs: Vec<RunId> = (1..=others).map(|n| start(&c, n)).collect();
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item, Choice::Allow, None, 0)
+    });
+    (c, run0, item, runs)
+}
+
+fn clock_fails(c: &Coordinator<Both>) {
+    c.ports().clock_fails.set(true);
+}
+
+fn clock_answers(c: &Coordinator<Both>) {
+    c.ports().clock_fails.set(false);
+    c.ports().fail_read_at.set(None);
+}
+
+fn lapses_of(c: &Coordinator<Both>, item: &ItemId, cause: &str) -> usize {
+    events(c)
+        .iter()
+        .filter(|w| {
+            matches!(w, What::ItemLapsed { item: i, lapsed } if i == item && lapsed.cause().name() == cause)
+        })
+        .count()
+}
+
+fn ends_of(c: &Coordinator<Both>, run: &RunId) -> Vec<RunEnd> {
+    events(c)
+        .iter()
+        .filter_map(|w| match w {
+            What::RunEnded { run: r, cause, .. } if r == run => Some(*cause),
+            _ => None,
+        })
+        .collect()
+}
+
+fn item_of_agent(c: &Coordinator<Both>, n: usize) -> ItemId {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.agent() == &agent(n))
+        .map(|i| i.item().clone())
+        .unwrap()
+}
+
+fn after_the_grace(c: &Coordinator<Both>) {
+    let later = T0 + Limits::PRODUCT.arm_ms + 1_000 + Limits::PRODUCT.cancel_grace_s * 1000;
+    c.ports().ports.set_clock(later, DAY);
+    c.tick();
+}
+
+#[test]
+fn rd133_another_agents_stop_goes_on_with_no_clock_while_a_settle_waits() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let item1 = item_of_agent(&c, 1);
+    clock_fails(&c);
+    let m = mark(&c);
+    let out = c.control(&agent(1), Action::Stop);
+    assert_eq!(out, Ok(()), "Stop is refused by no clock read (RD-133 1)");
+    assert_eq!(
+        cancels_of(&c, m, &run1),
+        1,
+        "the cancel reaches the runner in that move"
+    );
+    assert_eq!(
+        lapses_of(&c, &item1, "cancelled"),
+        0,
+        "its row waits for a stamp"
+    );
+    clock_answers(&c);
+    c.tick();
+    assert_eq!(
+        lapses_of(&c, &item1, "cancelled"),
+        1,
+        "the row follows at the next clock read"
+    );
+    c.ports().ports.end_runner(&run1);
+    assert_eq!(c.on_run(&run1, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(ends_of(&c, &run1), vec![RunEnd::Cancelled]);
+}
+
+#[test]
+fn rd133_a_working_runs_stop_goes_on_with_no_clock_and_the_grace_counts_from_the_stamp() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    assert_eq!(cancels_of(&c, m, &run1), 1, "the cancel in that move");
+    clock_answers(&c);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run1),
+        0,
+        "no kill before cancel_grace_s from the read that stamped the stop"
+    );
+    after_the_grace(&c);
+    assert_eq!(
+        kills_of(&c, m, &run1),
+        1,
+        "killed once the grace from that read passed"
+    );
+    assert_eq!(ends_of(&c, &run1), vec![RunEnd::Cancelled]);
+}
+
+#[test]
+fn rd133_another_agents_switch_off_goes_on_with_no_clock_and_its_hold_follows() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    let m = mark(&c);
+    let out = c.control(&agent(1), Action::SwitchOff);
+    assert_eq!(
+        out,
+        Ok(()),
+        "Switch off is refused by no clock read (RD-133 1)"
+    );
+    assert_eq!(
+        cancels_of(&c, m, &run1),
+        1,
+        "the cancel reaches the runner in that move"
+    );
+    clock_answers(&c);
+    c.tick();
+    let holds = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(1)
+                && matches!(
+                    e.what,
+                    What::HoldSet {
+                        cause: HoldSetCause::Person
+                    }
+                )
+        })
+        .count();
+    assert_eq!(holds, 1, "the hold_set follows at the next clock read");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+    assert_eq!(c.control(&agent(1), Action::RunNow), Err(Cause::Hold));
+}
+
+#[test]
+fn rd133_while_a_settle_waits_only_the_moves_on_its_item_and_its_run_wait() {
+    let (c, run0, item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    assert_eq!(
+        c.answer(&item, Choice::Reject, None, 0),
+        Err(Cause::NoService),
+        "page answer"
+    );
+    assert_eq!(
+        c.answer_native(&item, ConfirmAnswer::Reject),
+        Err(Cause::NoService),
+        "native answer"
+    );
+    assert_eq!(
+        c.setup_typed(&item, Param::Start, "Flat 2", 0),
+        Err(Cause::NoService),
+        "typed value on the item's id"
+    );
+    assert_eq!(
+        c.on_run(&run0, ask_confirm(&run0, 0)),
+        Err(Cause::NoService),
+        "an event of the waiting item's run"
+    );
+    assert_eq!(
+        c.on_run(&run1, RunEvent::Hello),
+        Err(Cause::State),
+        "an event of another run goes on to its own answer"
+    );
+    clock_answers(&c);
+    assert_eq!(
+        lost_lapses(&c, &item),
+        0,
+        "nothing settled while the clock failed"
+    );
+    c.tick();
+    assert_eq!(
+        lost_lapses(&c, &item),
+        1,
+        "the next move that reads the clock settles first"
+    );
+}
+
+#[test]
+fn rd133_the_waiting_agents_own_stop_goes_first_and_the_run_ends_stopped() {
+    let (c, run0, item, _runs) = lost_answer_beside_other_runs(0);
+    let m = mark(&c);
+    let sent = decisions_since(&c, m).len();
+    clock_fails(&c);
+    let at = mark(&c);
+    assert_eq!(
+        c.control(&agent(0), Action::Stop),
+        Ok(()),
+        "the own Stop goes on"
+    );
+    assert_eq!(
+        cancels_of(&c, at, &run0),
+        1,
+        "the cancel reaches the runner in that move"
+    );
+    clock_answers(&c);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        decisions_since(&c, m).len(),
+        sent,
+        "no decision sent or recorded"
+    );
+    assert!(
+        !events(&c)
+            .iter()
+            .any(|w| matches!(w, What::ItemReleased { item: i, .. } if i == &item)),
+        "no release"
+    );
+    assert_eq!(
+        lapses_of(&c, &item, "answer_lost"),
+        1,
+        "the item lapses answer_lost once"
+    );
+    assert_eq!(
+        lapses_of(&c, &item, "cancelled"),
+        0,
+        "and with no other cause"
+    );
+    assert_eq!(
+        cancels_of(&c, at, &run0),
+        1,
+        "the later settle touches nothing"
+    );
+    c.ports().ports.end_runner(&run0);
+    assert_eq!(c.on_run(&run0, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(
+        ends_of(&c, &run0),
+        vec![RunEnd::Cancelled],
+        "run_ended once, the person's stop"
+    );
+}
+
+#[test]
+fn rd133_the_guard_refuses_at_once_in_the_window_before_the_stamp() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    let record = halvo_coord::guard::EffectRecord {
+        agent: agent(1),
+        ..approved_under(&run1, None)
+    };
+    assert_eq!(
+        c.check_record(&record),
+        Err(halvo_coord::guard::Refusal::Approval),
+        "the guard's table holds the stop before any stamp"
+    );
+    clock_answers(&c);
+}
+
+#[test]
+fn rd133_a_clock_that_never_answers_leaves_the_run_stopped_with_its_rows_unstamped() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let item1 = item_of_agent(&c, 1);
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    for _ in 0..3 {
+        c.tick();
+    }
+    assert_eq!(cancels_of(&c, m, &run1), 1, "stopped and cancelled once");
+    assert_eq!(kills_of(&c, m, &run1), 0, "no kill with no stamp");
+    assert_eq!(
+        lapses_of(&c, &item1, "cancelled"),
+        0,
+        "the row stays unstamped"
+    );
+    assert_eq!(
+        row_line(&c.snapshot(), 1),
+        text("line.working.stopping"),
+        "the board holds the stop"
+    );
+    clock_answers(&c);
+}
+
+#[test]
+fn rd133_rows_that_waited_for_a_stamp_are_read_lost_by_the_next_lives_recovery() {
+    let (c, _run0, _item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let item1 = item_of_agent(&c, 1);
+    clock_fails(&c);
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    assert_eq!(
+        lapses_of(&c, &item1, "cancelled"),
+        0,
+        "the row never left this life"
+    );
+    let life = next_life(&c, |_| {});
+    let closed: Vec<String> = life
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemLapsed { item: i, lapsed } if i == &item1 => {
+                Some(lapsed.cause().name().to_string())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        closed,
+        vec!["app_ended".to_string()],
+        "recovery lapses the open item"
+    );
+    let ended: Vec<RunEnd> = life
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run: r, cause, .. } if r == &run1 => Some(*cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        ended,
+        vec![RunEnd::Interrupted],
+        "and ends the run interrupted"
+    );
+}
+
+#[test]
+fn rd133_a_start_of_another_agent_is_not_refused_because_a_settle_waits() {
+    let (c, _run0, item, _runs) = lost_answer_beside(0, 1);
+    c.ports().fail_read_at.set(Some(0));
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()), "H2 (ii)");
+    assert!(
+        calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Start(_))),
+        "the start goes out"
+    );
+    assert_eq!(
+        lost_lapses(&c, &item),
+        0,
+        "the settle still waits for its own read"
+    );
+    clock_answers(&c);
+}
+
+#[test]
+fn rd133_each_tick_held_by_a_waiting_settle_counts_a_failed_defer_for_each_run() {
+    let (c, run0, item, runs) = lost_answer_beside_other_runs(1);
+    let run1 = runs[0].clone();
+    clock_fails(&c);
+    for _ in 0..4 {
+        c.tick();
+    }
+    clock_answers(&c);
+    c.tick();
+    assert_eq!(
+        lost_lapses(&c, &item),
+        1,
+        "settled at the first tick that reads the clock"
+    );
+    for run in [&run0, &run1] {
+        c.ports().ports.end_runner(run);
+        let _ = c.on_run(run, RunEvent::Ended(Some(Outcome::Completed)));
+    }
+    for run in [&run0, &run1] {
+        let defers = events(&c).iter().find_map(|w| match w {
+            What::RunEnded { run: r, defers, .. } if r == run => Some(*defers),
+            _ => None,
+        });
+        assert_eq!(
+            defers.flatten().map(|d| d.ticks_failed),
+            Some(4),
+            "four held ticks, each known to send no defer (RD-133 4)"
+        );
+    }
+}
+
+#[test]
+fn rd133_a_queued_start_stays_queued_at_a_runs_end_while_the_mark_stands() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run0 = start(&c, 0);
+    assert_eq!(
+        c.control(&agent(1), Action::RunNow),
+        Ok(()),
+        "queued behind run 0"
+    );
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    let before = started(&c).len();
+    tick_that_panics(&c);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Err(Cause::NoService));
+    c.ports().ports.end_runner(&run0);
+    let _ = c.on_run(&run0, RunEvent::Ended(Some(Outcome::Completed)));
+    assert_eq!(started(&c).len(), before, "no start while the mark stands");
+    assert_eq!(c.queued(), vec![(agent(1), false)], "the queue keeps it");
+    assert_eq!(c.snapshot().note, Some(text("note.out_of_date")));
+    c.tick();
+    assert_eq!(
+        started(&c).len(),
+        before + 1,
+        "the run drive of a tick that returned starts it"
+    );
+}
+
+#[test]
+fn rd133_a_queued_start_waits_for_a_tick_that_returns_with_one_live_run() {
+    let one = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], one);
+    let first = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(started(&c).len(), 1, "agent 1 waits in the queue");
+    tick_that_panics(&c);
+    let m = mark(&c);
+    c.ports().ports.end_runner(&first);
+    c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Start(_))),
+        "no start went out while the mark of the tick stood"
+    );
+    assert_eq!(c.snapshot().note, Some(text("note.out_of_date")));
+    c.tick();
+    assert!(
+        calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Start(_))),
+        "the tick that returned starts it"
+    );
+}
+
+#[test]
+fn rd133_a_switch_off_of_a_queued_agent_under_the_mark_takes_it_out_of_the_queue() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run0 = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    let before = started(&c).len();
+    tick_that_panics(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(c.queued(), vec![], "out of the queue");
+    c.ports().ports.end_runner(&run0);
+    let _ = c.on_run(&run0, RunEvent::Ended(Some(Outcome::Completed)));
+    c.tick();
+    assert_eq!(
+        started(&c).len(),
+        before,
+        "it does not start when the tick returns"
+    );
 }

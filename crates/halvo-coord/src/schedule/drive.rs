@@ -122,6 +122,9 @@ pub struct Report {
     /// For a tick, the agents of the workflows that are gone whose queued start or open item it
     /// dropped; for a skip, the agent whose queued start it dropped (ruling RD-102 item 2).
     pub dropped: Vec<AgentId>,
+    /// Whether the move was refused because no read of the clock answered, before any of its
+    /// work (ruling RD-133 1).
+    pub unstamped: bool,
 }
 
 impl Default for Report {
@@ -136,6 +139,7 @@ impl Default for Report {
             started: Vec::new(),
             created: Vec::new(),
             dropped: Vec::new(),
+            unstamped: false,
         }
     }
 }
@@ -1989,7 +1993,10 @@ where
             if matches!(mv, Move::Tick) {
                 board.defer_failed();
             }
-            return refused(port_cause(&e));
+            return Report {
+                unstamped: true,
+                ..refused(port_cause(&e))
+            };
         }
     };
     let cx = MoveContext {
@@ -2017,7 +2024,8 @@ where
                 (None, None) => RunEnd::Interrupted,
             };
             let listed = listing(&cx, board, None).ok();
-            let serving = listed.is_some() && fresh(&cx, board, None).is_ok();
+            let serving =
+                !board.queue_held() && listed.is_some() && fresh(&cx, board, None).is_ok();
             let listed = listed.unwrap_or_else(|| known(board));
             Report {
                 ended: vec![end_run(&cx, board, &run, cause, &listed, false, serving)],

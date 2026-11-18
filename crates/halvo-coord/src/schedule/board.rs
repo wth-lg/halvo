@@ -153,6 +153,7 @@ pub struct Board<C> {
     defers: Vec<(RunId, Defers)>,
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
+    queue_held: bool,
 }
 
 impl<C> Board<C> {
@@ -182,7 +183,20 @@ impl<C> Board<C> {
             defers: Vec::new(),
             unread: Vec::new(),
             dismissed: Vec::new(),
+            queue_held: false,
         }
+    }
+
+    /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
+    /// which keeps its starts and gives them no reply, and a tick still serves it (ruling RD-133
+    /// 3: a queued start waits while the mark of a tick that did not return stands).
+    pub fn hold_queue(&mut self, held: bool) {
+        self.queue_held = held;
+    }
+
+    /// Whether the queue is held, so that the end of a run serves none of it.
+    pub fn queue_held(&self) -> bool {
+        self.queue_held
     }
 
     /// Takes from the owner's list that a move read which workflows it shows dismissed (I7.2,
