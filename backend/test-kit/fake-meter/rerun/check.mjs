@@ -1,6 +1,7 @@
-import { fork, spawnSync } from "node:child_process";
+import { fork, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,19 @@ const MEMORY_ROUNDS = 4;
 const MEMORY_DATABASES_PER_ROUND = 121;
 const MEMORY_DATABASES_AT_LEAST = MEMORY_ROUNDS * MEMORY_DATABASES_PER_ROUND;
 const MEMORY_LIVE_BOUND = 2;
+const SEED_SECONDS = 1800;
+const SETTING_SECONDS = 2400;
+const ONCE_SECONDS = 120;
+const MEMORY_SECONDS = 120;
+const BOUNDS = {
+  seed: ["SEED_SECONDS", SEED_SECONDS],
+  case: ["SETTING_SECONDS", SETTING_SECONDS],
+  once: ["ONCE_SECONDS", ONCE_SECONDS],
+  memory: ["MEMORY_SECONDS", MEMORY_SECONDS],
+};
+const KILL_WAIT_SECONDS = 10;
+const PARENT_GONE_SECONDS = 10;
+const PARENT_GONE_ORDERINGS = 3000;
 const TESTS = [
   [
     "expiry-on-time",
@@ -72,6 +86,8 @@ const seeds = option("--seeds") === undefined ? (planKind === "bounded" ? BOUNDE
 const orderings = Number(option("--orderings") ?? (planKind === "bounded" ? BOUNDED_ORDERINGS : ORDERINGS));
 const settings = option("--settings") === undefined ? Array.from({ length: SETTINGS }, (_, index) => index) : list(option("--settings"));
 const workers = Math.max(1, Math.min(WORKERS, Number(option("--workers") ?? WORKERS)));
+const jobSecondsText = option("--job-seconds");
+const jobSeconds = jobSecondsText === undefined ? Number.POSITIVE_INFINITY : Number(jobSecondsText);
 const selfTestCopy = args.includes("--self-test-copy");
 const LINE = selfTestCopy ? "self-test copy, no git: " : "";
 
@@ -114,6 +130,19 @@ async function fakeChecks() {
   if (!rules.every((r) => r.ok)) fail(`the fake meter fails its own check ${rules.find((r) => !r.ok)?.name}`);
 }
 
+function boundOf(job) {
+  const [name, seconds] = BOUNDS[job.kind];
+  return jobSeconds < seconds ? { name: "--job-seconds", seconds: jobSeconds } : { name, seconds };
+}
+
+function endWorker(child) {
+  child.kill("SIGKILL");
+}
+
+function megabytes(bytes) {
+  return typeof bytes === "number" ? String(Math.round(bytes / 1048576)) : "?";
+}
+
 function runJobs(jobs, execArgv = []) {
   return new Promise((resolve) => {
     const results = new Map();
@@ -126,13 +155,36 @@ function runJobs(jobs, execArgv = []) {
       const child = fork(join(HERE, "worker.mjs"), [], { cwd: ROOT, stdio: ["ignore", "inherit", "inherit", "ipc"], execArgv: [...process.execArgv, ...execArgv] });
       alive += 1;
       let current = null;
+      let timer = null;
+      let exited = false;
+      const ended = () => {
+        if (exited) return false;
+        exited = true;
+        clearTimeout(timer);
+        alive -= 1;
+        return true;
+      };
+      const overrun = (job, bound) => {
+        results.set(job.id, { id: job.id, bound: `the job ran past its bound of ${bound.seconds} s (${bound.name})` });
+        console.error(`  job ${job.id} ran past its bound of ${bound.seconds} s (${bound.name}); the check ends its worker`);
+        current = null;
+        endWorker(child);
+        setTimeout(() => {
+          if (!ended()) return;
+          fail(`a worker of check 55 did not end within ${KILL_WAIT_SECONDS} s (KILL_WAIT_SECONDS) of the check's kill after the job ${job.id} ran past its bound`);
+          finish();
+        }, KILL_WAIT_SECONDS * 1000).unref();
+      };
       const next = () => {
         current = queue.shift();
         if (current === undefined) {
           child.send({ kind: "exit" });
           return;
         }
-        child.send(current);
+        const job = current;
+        const bound = boundOf(job);
+        timer = setTimeout(() => overrun(job, bound), bound.seconds * 1000);
+        child.send(job);
       };
       child.on("message", (message) => {
         if (message.ready !== undefined) {
@@ -140,14 +192,17 @@ function runJobs(jobs, execArgv = []) {
           next();
           return;
         }
+        clearTimeout(timer);
         results.set(message.id, message);
         const failure = message.error ?? message.result?.failure?.check ?? null;
-        console.error(`  job ${message.id} ended after ${message.result?.seconds?.toFixed(1) ?? "?"} s: ${failure === null ? "every check passed" : failure}`);
+        console.error(
+          `  job ${message.id} ended after ${message.result?.seconds?.toFixed(1) ?? "?"} s, worker resident ${megabytes(message.memory?.resident)} MB, peak ${megabytes(message.memory?.peak)} MB: ${failure === null ? "every check passed" : failure}`,
+        );
         current = null;
         next();
       });
       child.on("exit", (code, signal) => {
-        alive -= 1;
+        if (!ended()) return;
         if (current !== null && current !== undefined && !results.has(current.id)) {
           results.set(current.id, { id: current.id, error: `the worker ended with ${signal ?? `exit ${code}`} during the job` });
         }
@@ -180,6 +235,10 @@ async function rule() {
       note(`seed ${seed}: not run, after a failure elsewhere`);
       continue;
     }
+    if (message.bound !== undefined) {
+      failures.push(`seed ${seed} of the generated orderings: ${message.bound}`);
+      continue;
+    }
     if (message.error !== undefined) {
       failures.push(`seed ${seed} of the generated orderings: the run threw ${message.error}`);
       continue;
@@ -199,6 +258,10 @@ async function rule() {
     const message = results.get(`setting-${index}`);
     if (message === undefined) {
       note(`search setting ${index}: not run, after a failure elsewhere`);
+      continue;
+    }
+    if (message.bound !== undefined) {
+      failures.push(`the fault-sequence search, setting ${index}: ${message.bound}`);
       continue;
     }
     if (message.error !== undefined) {
@@ -297,9 +360,10 @@ async function memory() {
   const text =
     run === undefined
       ? "unmeasured"
-      : `setting=${MEMORY_SETTING} rounds=${MEMORY_ROUNDS} databases=${run.databases} live-after-collection=${run.live} bound=${MEMORY_LIVE_BOUND} heap-after-collection-mb=${Math.round(run.heapUsed / 1048576)}`;
+      : `setting=${MEMORY_SETTING} rounds=${MEMORY_ROUNDS} databases=${run.databases} databases-at-least=${MEMORY_DATABASES_AT_LEAST} live-after-collection=${run.live} bound=${MEMORY_LIVE_BOUND} time-bound-seconds=${MEMORY_SECONDS} heap-after-collection-mb=${Math.round(run.heapUsed / 1048576)} resident-mb=${megabytes(message.memory?.resident)} peak-resident-mb=${megabytes(message.memory?.peak)}`;
   let failure = firstFailure;
-  if (failure === null && run === undefined) failure = `the worker's run threw ${message?.error ?? "nothing it reported"}`;
+  if (failure === null && message?.bound !== undefined) failure = `the memory job: ${message.bound}`;
+  else if (failure === null && run === undefined) failure = `the worker's run threw ${message?.error ?? "nothing it reported"}`;
   else if (failure === null && run.databases < MEMORY_DATABASES_AT_LEAST) failure = `the worker opened ${run.databases} databases, fewer than the ${MEMORY_DATABASES_AT_LEAST} that the count needs`;
   else if (failure === null && run.live > MEMORY_LIVE_BOUND) failure = `${run.live} of ${run.databases} databases live on in the worker after their worlds closed, above the bound ${MEMORY_LIVE_BOUND}`;
   if (failure === null) {
@@ -307,6 +371,106 @@ async function memory() {
     process.exit(0);
   }
   console.log(`FAIL metering-memory: ${text}; first failure: ${failure}`);
+  process.exit(1);
+}
+
+const STAND_IN_PARENT = `
+const { fork } = require("node:child_process");
+const [workerPath, orderings, how] = process.argv.slice(-3);
+const child = fork(workerPath, [], { stdio: ["ignore", "ignore", "inherit", "ipc"] });
+child.on("message", (message) => {
+  if (message.ready === undefined) return;
+  child.send({ id: "parent-gone", kind: "seed", seed: 1, orderings: Number(orderings) });
+  process.stdout.write("worker " + child.pid + " started its job\\n");
+  if (how === "own-exit") setTimeout(() => process.exit(0), 500);
+});
+`;
+
+function endParent(parent) {
+  parent.kill("SIGKILL");
+}
+
+function endOrphan(pid) {
+  process.kill(pid, "SIGKILL");
+}
+
+function startOf(pid) {
+  const run = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8" });
+  return run.status === 0 ? run.stdout.trim() : "unread";
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
+  }
+}
+
+async function parentGone() {
+  const real = process.env.GITHUB_ACTIONS === "true";
+  const how = real ? "real-kill" : "own-exit";
+  const parent = spawn(process.execPath, ["-e", STAND_IN_PARENT, join(HERE, "worker.mjs"), String(PARENT_GONE_ORDERINGS), how], {
+    cwd: ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const lines = [];
+  const closed = [];
+  for (const stream of [parent.stdout, parent.stderr]) {
+    let rest = "";
+    stream.setEncoding("utf8");
+    stream.on("data", (text) => {
+      const parts = `${rest}${text}`.split("\n");
+      rest = parts.pop() ?? "";
+      lines.push(...parts);
+    });
+    closed.push(new Promise((resolve) => stream.on("close", resolve)));
+  }
+  let parentEnded = null;
+  parent.on("exit", () => {
+    parentEnded = performance.now();
+  });
+  const text = (worker, after) =>
+    `bound-seconds=${PARENT_GONE_SECONDS} job-orderings=${PARENT_GONE_ORDERINGS} parent-ended-by=${how} worker-ended=${worker} ended-after-seconds=${after}`;
+  const started = performance.now();
+  let workerPid = null;
+  while (workerPid === null && parentEnded === null && performance.now() - started < 60_000) {
+    const named = lines.map((line) => /^worker (\d+) started its job$/.exec(line)).find((match) => match !== null && match !== undefined);
+    if (named !== undefined) workerPid = Number(named[1]);
+    else await sleep(50);
+  }
+  if (workerPid === null) {
+    for (const line of lines) note(line);
+    console.log(`FAIL metering-parent-gone: ${text("unmeasured", "unmeasured")}; first failure: the stand-in parent named no worker that started its job within 60 s`);
+    if (parentEnded === null) endParent(parent);
+    process.exit(1);
+  }
+  if (real) endParent(parent);
+  else note(`the kill of the stand-in parent ${parent.pid}, started ${startOf(parent.pid)}, is recorded and not made: off a GitHub runner the parent ends by its own exit`);
+  while (parentEnded === null && performance.now() - started < 90_000) await sleep(20);
+  if (parentEnded === null) {
+    console.log(`FAIL metering-parent-gone: ${text("unmeasured", "unmeasured")}; first failure: the stand-in parent did not end`);
+    endParent(parent);
+    process.exit(1);
+  }
+  while (alive(workerPid) && performance.now() - parentEnded < PARENT_GONE_SECONDS * 1000) await sleep(100);
+  const after = (performance.now() - parentEnded) / 1000;
+  const lived = alive(workerPid);
+  if (!lived) await Promise.race([Promise.all(closed), sleep(2000)]);
+  for (const line of lines) note(line);
+  const said = lines.some((line) => /^check 55 worker \d+: its parent \d+ is gone; the worker ends itself$/.test(line));
+  let failure = null;
+  if (lived) failure = `the worker still runs ${PARENT_GONE_SECONDS} s (PARENT_GONE_SECONDS) after its parent ended`;
+  else if (!said) failure = "the worker ended with no line that says its parent is gone";
+  if (lived && real) endOrphan(workerPid);
+  else if (lived) note(`the kill of the worker ${workerPid}, started ${startOf(workerPid)}, is recorded and not made: off a GitHub runner its job of ${PARENT_GONE_ORDERINGS} orderings ends it`);
+  const line = text(lived ? "no" : "yes", lived ? `over-${PARENT_GONE_SECONDS}` : after.toFixed(1));
+  if (failure === null) {
+    console.log(`PASS metering-parent-gone: ${line}`);
+    process.exit(0);
+  }
+  console.log(`FAIL metering-parent-gone: ${line}; first failure: ${failure}`);
   process.exit(1);
 }
 
@@ -327,7 +491,11 @@ async function ownCases() {
 if (args.includes("--plan")) await plan();
 if (args.includes("--model-cases")) await ownCases();
 if (args.includes("--memory-self-check")) await memory();
+if (args.includes("--parent-gone-self-check")) await parentGone();
 
+if (jobSecondsText !== undefined && !(Number.isInteger(jobSeconds) && jobSeconds >= 1)) {
+  planRefusal = `--job-seconds ${jobSecondsText} is refused: it takes a whole number of seconds from 1, which lowers the bound of every job`;
+}
 if (planRefusal !== null) {
   console.log(`${LINE}FAIL metering: plan=refused; first failure: ${planRefusal}`);
   process.exit(1);
