@@ -30,6 +30,7 @@ const BOUNDS = {
   once: ["ONCE_SECONDS", ONCE_SECONDS],
   memory: ["MEMORY_SECONDS", MEMORY_SECONDS],
 };
+const READY_SECONDS = 120;
 const KILL_WAIT_SECONDS = 10;
 const PARENT_GONE_SECONDS = 10;
 const PARENT_GONE_ORDERINGS = 3000;
@@ -131,7 +132,7 @@ async function fakeChecks() {
 }
 
 function boundOf(job) {
-  const [name, seconds] = BOUNDS[job.kind];
+  const [name, seconds] = job === null ? ["READY_SECONDS", READY_SECONDS] : BOUNDS[job.kind];
   return jobSeconds < seconds ? { name: "--job-seconds", seconds: jobSeconds } : { name, seconds };
 }
 
@@ -164,17 +165,25 @@ function runJobs(jobs, execArgv = []) {
         alive -= 1;
         return true;
       };
+      let ready = false;
       const overrun = (job, bound) => {
-        results.set(job.id, { id: job.id, bound: `the job ran past its bound of ${bound.seconds} s (${bound.name})` });
-        console.error(`  job ${job.id} ran past its bound of ${bound.seconds} s (${bound.name}); the check ends its worker`);
+        if (job === null) {
+          fail(`a worker of check 55 sent no ready message within its bound of ${bound.seconds} s (${bound.name})`);
+          console.error(`  a worker sent no ready message within ${bound.seconds} s (${bound.name}); the check ends it`);
+        } else {
+          results.set(job.id, { id: job.id, bound: `the job ran past its bound of ${bound.seconds} s (${bound.name})` });
+          console.error(`  job ${job.id} ran past its bound of ${bound.seconds} s (${bound.name}); the check ends its worker`);
+        }
         current = null;
         endWorker(child);
         setTimeout(() => {
           if (!ended()) return;
-          fail(`a worker of check 55 did not end within ${KILL_WAIT_SECONDS} s (KILL_WAIT_SECONDS) of the check's kill after the job ${job.id} ran past its bound`);
+          fail(`a worker of check 55 did not end within ${KILL_WAIT_SECONDS} s (KILL_WAIT_SECONDS) of the check's kill after ${job === null ? "its ready bound" : `the job ${job.id} ran past its bound`}`);
           finish();
         }, KILL_WAIT_SECONDS * 1000).unref();
       };
+      const readyBound = boundOf(null);
+      timer = setTimeout(() => overrun(null, readyBound), readyBound.seconds * 1000);
       const next = () => {
         current = queue.shift();
         if (current === undefined) {
@@ -188,10 +197,13 @@ function runJobs(jobs, execArgv = []) {
       };
       child.on("message", (message) => {
         if (message.ready !== undefined) {
+          clearTimeout(timer);
+          ready = true;
           if (message.ready !== SETTINGS) fail(`the search holds ${message.ready} settings, and the plan SETTINGS is ${SETTINGS}`);
           next();
           return;
         }
+        if (results.get(message.id)?.bound !== undefined) return;
         clearTimeout(timer);
         results.set(message.id, message);
         const failure = message.error ?? message.result?.failure?.check ?? null;
@@ -203,6 +215,7 @@ function runJobs(jobs, execArgv = []) {
       });
       child.on("exit", (code, signal) => {
         if (!ended()) return;
+        if (!ready) fail(`a worker of check 55 ended with ${signal ?? `exit ${code}`} before it was ready`);
         if (current !== null && current !== undefined && !results.has(current.id)) {
           results.set(current.id, { id: current.id, error: `the worker ended with ${signal ?? `exit ${code}`} during the job` });
         }
@@ -496,6 +509,9 @@ if (args.includes("--parent-gone-self-check")) await parentGone();
 
 if (jobSecondsText !== undefined && !(Number.isInteger(jobSeconds) && jobSeconds >= 1)) {
   planRefusal = `--job-seconds ${jobSecondsText} is refused: it takes a whole number of seconds from 1, which lowers the bound of every job`;
+}
+if (new Set(seeds).size !== seeds.length || new Set(settings).size !== settings.length) {
+  planRefusal = `--seeds ${seeds.join(",")} --settings ${settings.join(",")} is refused: a seed or a setting named twice would count twice in the line`;
 }
 if (planRefusal !== null) {
   console.log(`${LINE}FAIL metering: plan=refused; first failure: ${planRefusal}`);

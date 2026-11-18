@@ -18,8 +18,11 @@ function endSelf() {
 }
 setInterval(() => {
   if (!gone()) return;
-  writeSync(2, "check 55 worker " + process.pid + ": its parent " + workerData.parent + " is gone; the worker ends itself\\n");
-  endSelf();
+  try {
+    writeSync(2, "check 55 worker " + process.pid + ": its parent " + workerData.parent + " is gone; the worker ends itself\\n");
+  } finally {
+    endSelf();
+  }
 }, workerData.pollMs);
 `;
 new Worker(WATCHDOG, { eval: true, workerData: { parent: process.ppid, pollMs: PARENT_POLL_MS } }).unref();

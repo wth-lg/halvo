@@ -1,0 +1,14 @@
+{
+  "args": ["--seeds", "", "--settings", "25", "--job-seconds", "5"],
+  "line": [
+    "FAIL metering: ",
+    "first failure: a worker of check 55 sent no ready message within its bound of 5 s (--job-seconds)"
+  ],
+  "edits": [
+    {
+      "file": "test-kit/fake-meter/rerun/worker.mjs",
+      "find": "process.send({ ready: cases.length });",
+      "replace": "setInterval(() => {}, 1000);"
+    }
+  ]
+}
