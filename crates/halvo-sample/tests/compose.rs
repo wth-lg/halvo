@@ -765,4 +765,8 @@ fn compose_late_n_writes_late_keys_in_that_stream_alone_and_its_built_stream_hol
         refused(&with(bad, &format!("bad-{bad}")), "usage");
         assert!(!dir.join(format!("bad-{bad}")).exists(), "{bad}");
     }
+    let last = with("20", "late-last");
+    assert_eq!(last.code, 0, "{}", last.stderr);
+    let text = fs::read_to_string(dir.join("late-last/s020.jsonl")).expect("s020");
+    assert!(text.contains(",\"late\":30000}"));
 }

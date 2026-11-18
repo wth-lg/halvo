@@ -983,3 +983,22 @@ fn a_refusal_of_check_labels_names_the_dir_argument_and_the_places_alone() {
     fs::write(dir.join("script-manifest.jsonl"), "").expect("w");
     refusal(&dir, "batches", "");
 }
+
+#[test]
+fn a_range_whose_episode_has_no_episode_row_in_its_stream_names_its_own_row_for_the_episode() {
+    let dir = copy_golden("no-episode-row");
+    edit_labels(
+        &dir,
+        r#"{"row":"range","episode":"golden-e01","step":"g-cart-basket","start":1767430830000000000,"#,
+        r#"{"row":"range","episode":"golden-e99","step":"g-cart-basket","start":1767430831000000000,"#,
+    );
+    let o = run(&["check-labels", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    assert!(
+        o.stdout.contains(
+            "FAIL range s1 l3 l3 1767430831000000000 1767430875000000000 titles=0 own=0\n"
+        ),
+        "{}",
+        o.stdout
+    );
+}

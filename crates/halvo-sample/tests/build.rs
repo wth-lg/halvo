@@ -990,3 +990,62 @@ fn the_golden_script_and_the_committed_scripts_hold_no_late_key_and_read_back_to
     }
     assert!(lines > 10_000, "{lines}");
 }
+
+#[test]
+fn a_late_key_moves_the_last_keystroke_of_its_item_alone_and_seq_rises_across_the_day_files() {
+    let dir = scratch("late-days");
+    let day = 86_400 * SEC;
+    let lines = [
+        HEADER.to_owned(),
+        r#"{"line":"stream","stream":"s1","sites":"seen"}"#.to_owned(),
+        common::step_line("pa", "alpha-one.test", "Bills - Alpha", false),
+        common::step_line("pb", "alpha-one.test", "Pay - Alpha", false),
+        common::episode(
+            "s1",
+            "e1",
+            "t1",
+            "email",
+            "one_off",
+            1,
+            &[common::item("pa", day - 4 * SEC, day, 2, 0, 0)
+                .replace("\"scrolls\":0}", "\"scrolls\":0,\"late\":30000}")],
+        ),
+        common::episode(
+            "s1",
+            "e2",
+            "t2",
+            "email",
+            "one_off",
+            2,
+            &[common::item("pb", 0, 60 * SEC, 0, 50, 50)],
+        ),
+    ];
+    write(
+        &dir.join("s.jsonl"),
+        &lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
+    );
+    let o = run(&[
+        "build",
+        "--seed",
+        "3",
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("s.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let one = records(&dir.join("out/streams/s1/day-001.jsonl"));
+    let two = records(&dir.join("out/streams/s1/day-002.jsonl"));
+    let seqs: Vec<u64> = one.iter().chain(&two).map(|r| r.1).collect();
+    assert_eq!(seqs, (0..seqs.len() as u64).collect::<Vec<_>>());
+    let keys: Vec<i64> = one
+        .iter()
+        .filter(|r| r.2 == "keystroke")
+        .map(|r| r.0)
+        .collect();
+    assert_eq!(keys.len(), 2);
+    assert!(
+        keys[0] < keys[1],
+        "the earlier keystroke keeps its place: {keys:?}"
+    );
+    assert_eq!(one.last().map(|r| r.2.as_str()), Some("keystroke"));
+}

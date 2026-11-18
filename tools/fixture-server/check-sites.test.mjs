@@ -132,4 +132,21 @@ test('checker: a site file of about 1,500,000 values is refused with too-large a
   assert.equal(checked.stderr, '');
   assert.equal(checked.status, 0);
   assert.match(checked.stdout, /^password SITE_DATA 1 page 1$/m);
+  const exact = wide(29_000);
+  const list = exact.values[`${MARKER}_item`];
+  let need = 262_144 - Buffer.byteLength(`${JSON.stringify(exact)}\n`);
+  for (let j = list.length - 1; need > 0; j -= 1) {
+    const add = Math.min(need, 64 - list[j].length);
+    list[j] += 'x'.repeat(add);
+    need -= add;
+  }
+  const atBound = put(dir, 'd-shop.json', exact);
+  assert.equal(statSync(atBound).size, 262_144);
+  const bound = runChecker([atBound]);
+  assert.equal(bound.stderr, '');
+  assert.equal(bound.status, 0);
+  list[0] += 'x';
+  const over = put(dir, 'e-shop.json', exact);
+  assert.equal(statSync(over).size, 262_145);
+  assert.equal(runChecker([over]).stderr, 'REFUSED too-large: SITE_DATA 1\n');
 });
