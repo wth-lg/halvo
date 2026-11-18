@@ -55,11 +55,17 @@
 mod activation;
 #[path = "hosted/gate.rs"]
 mod gate;
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[path = "hosted/ink.rs"]
+mod ink;
 
-use halvo_coord::items::chars::{columns, MOST_MARKS};
+use halvo_coord::items::chars::columns;
 use halvo_coord::items::{ConfirmAnswer, CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Class, Field, FieldFrom, Limits};
 use halvo_coord_app::Card;
+use ink::ink_cases;
+#[cfg(target_os = "macos")]
+use ink::{ink_reading, Ink};
 use std::time::Duration;
 
 /// The variable that makes this target show the narrow bound card once and print its reading.
@@ -149,79 +155,6 @@ fn bound_cases() -> Vec<(&'static str, Card)> {
         .collect()
 }
 
-/// What an ink case asserts.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Ink {
-    /// The ink stays inside the field's room and reaches no other line's box.
-    Room,
-    /// The control: the ink reaches another line's box.
-    Control,
-    /// One mark more than `MOST_MARKS`: printed, never asserted.
-    Probe,
-    /// The marked line is the last: no control is drawn over.
-    Last,
-}
-
-/// `count` marks taken in turn from `marks`.
-fn stack(marks: &[char], count: usize) -> String {
-    marks.iter().cycle().take(count).collect()
-}
-
-/// The ink cases: a name, the marked line plain and with its marks, and what the case asserts.
-/// The count is `MOST_MARKS`, the most that a native card holds, so that a copy that allows one
-/// more mark reads one more here.
-fn ink_cases() -> Vec<(String, String, String, Ink)> {
-    let most = MOST_MARKS;
-    let subject = "Subject (From the site): Re";
-    let payee = "Pay to (You gave this): Anne";
-    let mut cases = Vec::new();
-    for (name, mark) in [
-        ("above-0301", '\u{301}'),
-        ("below-0316", '\u{316}'),
-        ("enclosing-0489", '\u{489}'),
-    ] {
-        cases.push((
-            format!("{name}x{most}"),
-            subject.to_owned(),
-            format!("{subject}{}", stack(&[mark], most)),
-            Ink::Room,
-        ));
-        cases.push((
-            format!("{name}x{}", most + 1),
-            subject.to_owned(),
-            format!("{subject}{}", stack(&[mark], most + 1)),
-            Ink::Probe,
-        ));
-    }
-    cases.push((
-        format!("deciding-{most}"),
-        payee.to_owned(),
-        format!(
-            "{payee}{}",
-            stack(&['\u{301}', '\u{316}', '\u{302}', '\u{303}'], most)
-        ),
-        Ink::Room,
-    ));
-    for (name, mark) in [
-        ("last-below-0316", '\u{316}'),
-        ("last-enclosing-0489", '\u{489}'),
-    ] {
-        cases.push((
-            format!("{name}x{most}"),
-            subject.to_owned(),
-            format!("{subject}{}", stack(&[mark], most)),
-            Ink::Last,
-        ));
-    }
-    cases.push((
-        "control-0301x64".to_owned(),
-        subject.to_owned(),
-        format!("{subject}{}", stack(&['\u{301}'], 64)),
-        Ink::Control,
-    ));
-    cases
-}
-
 /// A card of five lines, a deciding line, an empty line, `middle`, an empty line and a deciding
 /// line, or, for `last`, of three, a deciding line, an empty line and `middle`.
 #[cfg(target_os = "macos")]
@@ -242,75 +175,6 @@ fn ink_card(middle: &str, last: bool) -> Card {
         lines.push(field("Amount (From the site): 42.10 USD"));
     }
     Card::new(&[Class::Payment], &lines).expect("the words of payment")
-}
-
-/// The runs of rows that hold ink, as their first row and the row after their last.
-#[cfg(target_os = "macos")]
-fn ink_runs(rows: &[bool]) -> Vec<(usize, usize)> {
-    let mut runs = Vec::new();
-    let mut start = None;
-    for (y, ink) in rows.iter().enumerate() {
-        match (ink, start) {
-            (true, None) => start = Some(y),
-            (false, Some(a)) => {
-                runs.push((a, y));
-                start = None;
-            }
-            _ => {}
-        }
-    }
-    if let Some(a) = start {
-        runs.push((a, rows.len()));
-    }
-    runs
-}
-
-/// The reading of an ink case of five lines.
-#[cfg(target_os = "macos")]
-struct Reading5 {
-    pitch: f64,
-    room: (f64, f64),
-    ink: (usize, usize),
-    in_room: bool,
-    reaches: bool,
-}
-
-/// The middle line's room in the plain card, and the marked card's ink outside the first and the
-/// last line's own ink: whether it stays in the room and whether it reaches a row of the first or
-/// the last line's box.
-#[cfg(target_os = "macos")]
-fn ink_reading(plain: &[bool], marked: &[bool]) -> Result<Reading5, String> {
-    let runs = ink_runs(plain);
-    if runs.len() != 3 {
-        return Err(format!(
-            "{} runs of ink in the plain card, not 3",
-            runs.len()
-        ));
-    }
-    let pitch = (runs[2].0 - runs[0].0) as f64 / 4.0;
-    let centre = |run: (usize, usize)| (run.0 + run.1) as f64 / 2.0;
-    let boxed = |run: (usize, usize)| (centre(run) - pitch / 2.0, centre(run) + pitch / 2.0);
-    let middle = boxed(runs[1]);
-    let room = (middle.0 - pitch / 2.0, middle.1 + pitch / 2.0);
-    let own = |y: usize| (runs[0].0..runs[0].1).contains(&y) || (runs[2].0..runs[2].1).contains(&y);
-    let rows: Vec<usize> = (0..marked.len())
-        .filter(|y| marked[*y] && !own(*y))
-        .collect();
-    let (Some(&first), Some(&last)) = (rows.first(), rows.last()) else {
-        return Err("no ink of the middle line".to_owned());
-    };
-    let within = |y: usize, b: (f64, f64)| y as f64 + 1.0 > b.0 && (y as f64) < b.1;
-    let reaches = rows
-        .iter()
-        .any(|y| within(*y, boxed(runs[0])) || within(*y, boxed(runs[2])));
-    let in_room = first as f64 >= room.0 && (last + 1) as f64 <= room.1;
-    Ok(Reading5 {
-        pitch,
-        room,
-        ink: (first, last + 1),
-        in_room,
-        reaches,
-    })
 }
 
 /// Prints the line that counts the ink cases and returns how many failed.
@@ -1444,8 +1308,8 @@ mod cases {
                     match ink_reading(&rows(plain_read), &rows(marked_read)) {
                         Ok(r) => {
                             println!(
-                                "dialog_hosted ink reading {name}: pitch={:.1} room={:.1}..{:.1} ink={}..{} in_room={} reaches_another_line={}",
-                                r.pitch, r.room.0, r.room.1, r.ink.0, r.ink.1, r.in_room, r.reaches
+                                "dialog_hosted ink reading {name}: pitch={:.1} room={:.1}..{:.1} ink={}..{} margin_above={:.1} margin_below={:.1} in_room={} reaches_another_line={}",
+                                r.pitch, r.room.0, r.room.1, r.ink.0, r.ink.1, r.margin().0, r.margin().1, r.in_room, r.reaches
                             );
                             match ink {
                                 Ink::Room if !r.in_room => {
