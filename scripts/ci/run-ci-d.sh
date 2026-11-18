@@ -620,9 +620,29 @@ st_pick() {
   st_pick_i=0
   st_pick_alone=
   while [ "$st_pick_i" -lt "$st_n" ]; do
+    eval "st_pk=\$st_kind_$st_pick_i:\$st_state_$st_pick_i"
+    [ "$st_pk" != own:waiting ] || return 0
+    st_pick_i=$((st_pick_i + 1))
+  done
+  for st_w in $st_firsts; do
+    st_pick_i=0
+    while [ "$st_pick_i" -lt "$st_n" ]; do
+      eval "st_pk=\$st_kind_$st_pick_i:\${st_name_$st_pick_i-}"
+      [ "$st_pk" != "script:$st_w" ] || break
+      st_pick_i=$((st_pick_i + 1))
+    done
+    if [ "$st_pick_i" -lt "$st_n" ]; then
+      eval "st_pk=\$st_state_$st_pick_i:\${st_solo_$st_pick_i-}"
+      [ "$st_pk" != waiting: ] || return 0
+    elif [ -z "$st_ready" ]; then
+      return 1
+    fi
+  done
+  st_pick_i=0
+  while [ "$st_pick_i" -lt "$st_n" ]; do
     eval "st_pk=\$st_kind_$st_pick_i:\$st_state_$st_pick_i:\${st_solo_$st_pick_i-}"
     case $st_pk in
-      own:waiting:* | script:waiting:) return 0 ;;
+      script:waiting:) return 0 ;;
       script:waiting:alone) [ -n "$st_pick_alone" ] || st_pick_alone=$st_pick_i ;;
     esac
     st_pick_i=$((st_pick_i + 1))
@@ -640,7 +660,6 @@ st_fill() {
       st_start "$st_pick_i" || continue
     fi
     st_count=$((st_count + 1))
-    [ "$st_pick_i" != "$st_pick_alone" ] || return 0
   done
 }
 
@@ -2352,6 +2371,26 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   case_first="line of 10-a${nl}PASS self-test:10-a (1 failing fixtures rejected)${nl}seconds 10-a "
   case_then="line of 20-b${nl}PASS self-test:20-b (1 failing fixtures rejected)${nl}seconds 20-b "
   own_case output-of-an-alone-self-test-and-of-those-after-it-in-the-order-of-the-run 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  first_list=scripts/ci/self-test-first.txt
+  first_b="$prelude; [ -e \"\$CI_D_REPO/end.20-b\" ] || { printf \"FAIL self-test:%s (20-b had not ended when it started)\\n\" \"\$me\"; exit 1; }; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$first_b" && add_script r1 20-b.sh "$good" "$prelude; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '# the longest first\n\n20-b\n' >"$fixture/$first_list"
+  case_jobs=1
+  own_case name-of-the-first-list-starts-before-an-earlier-script 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$first_b" && add_script r1 20-b.sh "$good" "$prelude; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-b\r\n' >"$fixture/$first_list"
+  case_jobs=1
+  own_case first-list-line-with-a-carriage-return 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '99-gone\n' >"$fixture/$first_list"
+  own_case first-list-names-no-script 1 "FAIL run-ci-d ($first_list names 99-gone, which is no script)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    add_script r1 20-w.sh "# jobs: windows$nl# rule: A fixture rule." "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-w\n' >"$fixture/$first_list"
+  own_case first-list-names-a-script-of-the-other-job 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '*\n' >"$fixture/$first_list"
+  own_case first-list-line-with-a-glob-character-names-no-script 1 "FAIL run-ci-d ($first_list names *, which is no script)" macos --self-test 10-a
   if own_gate two-at-a-time; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
@@ -2937,6 +2976,9 @@ st_count=0
 st_naps=0
 st_alone=' '
 st_list=$root/ci/self-test-alone.txt
+st_first_list=$root/ci/self-test-first.txt
+st_firsts=
+st_first_words=
 st_d=
 st_p=
 st_t=
@@ -3024,6 +3066,26 @@ if [ "$mode" = self-test ]; then
       exit 1
     }
   fi
+  if [ -e "$st_first_list" ] || [ -L "$st_first_list" ]; then
+    { [ -f "$st_first_list" ] && [ -r "$st_first_list" ]; } || {
+      printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_first_list"
+      exit 1
+    }
+    while IFS= read -r st_line || [ -n "$st_line" ]; do
+      st_entry "$st_line"
+      case $st_word in
+        '' | '#'*) ;;
+        *[!a-z0-9-]*) st_first_words="$st_first_words$st_word$nl" ;;
+        *)
+          st_firsts="$st_firsts$st_word "
+          st_first_words="$st_first_words$st_word$nl"
+          ;;
+      esac
+    done <"$st_first_list" || {
+      printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_first_list"
+      exit 1
+    }
+  fi
 fi
 
 tree_start
@@ -3074,6 +3136,15 @@ if [ "$mode" = self-test ]; then
       esac
     done <"$st_list"
   fi
+  while IFS= read -r st_word; do
+    [ -n "$st_word" ] || continue
+    case $seen in
+      *" $st_word "*) ;;
+      *) note "FAIL run-ci-d ($st_first_list names $st_word, which is no script)" ;;
+    esac
+  done <<EOF
+$st_first_words
+EOF
   st_ready=yes
   while :; do
     st_poll
