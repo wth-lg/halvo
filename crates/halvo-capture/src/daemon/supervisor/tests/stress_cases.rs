@@ -442,6 +442,28 @@ impl TimedAtLimits {
 /// screen 6 s), so that no source is let go and the stop path reaches its
 /// cut. The run's own answer is status 1 with its loss line.
 fn timed_run_at_its_limits() -> TimedAtLimits {
+    let ending = Stamped::default();
+    let (outcome, returned, supervisor, gate) =
+        timed_run_at_its_limits_ending(Arc::new(ending.clone()));
+    TimedAtLimits {
+        outcome,
+        returned,
+        ending,
+        supervisor,
+        gate,
+    }
+}
+
+/// The run of [`timed_run_at_its_limits`] with the ending `ending`: its
+/// answer, the moment it returned, its supervisor and the store's gate.
+fn timed_run_at_its_limits_ending(
+    ending: Arc<dyn EndCall>,
+) -> (
+    crate::daemon::RunOutcome,
+    Instant,
+    Supervisor<Factory, RealClock>,
+    Arc<std::sync::atomic::AtomicU8>,
+) {
     let mode = Arc::new(std::sync::atomic::AtomicU8::new(CLOSED));
     let gate = mode.clone();
     let main_loop = RealClock {
@@ -477,9 +499,7 @@ fn timed_run_at_its_limits() -> TimedAtLimits {
         source.on_stop = Some(hook);
         source.stop = Ok(());
     });
-    let ending = Stamped::default();
-    let mut supervisor =
-        Supervisor::new(Platform::Macos, factory, main_loop).with_ending(Arc::new(ending.clone()));
+    let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop).with_ending(ending);
     let mut run = run_of(1);
     run.switches = crate::daemon::SwitchFlags(vec![(crate::floor::Switch::ScreenActivity, true)]);
     let store = GateStore {
@@ -495,13 +515,7 @@ fn timed_run_at_its_limits() -> TimedAtLimits {
         SETTLE_BOUND,
     )
     .unwrap();
-    TimedAtLimits {
-        outcome,
-        returned: Instant::now(),
-        ending,
-        supervisor,
-        gate: mode,
-    }
+    (outcome, Instant::now(), supervisor, mode)
 }
 
 /// Asserts that no ending call came by 500 ms after the run returned, the
@@ -1607,4 +1621,109 @@ fn adv2f_a_source_let_go_when_the_owner_ends_is_not_shut_down_a_second_time() {
         1,
         "a source let go when the owner ended was shut down again: {stops:?}"
     );
+}
+
+/// Runs this test binary's test `name` alone as a child with `env` set, and
+/// gives its exit status, its standard output and the time it took.
+fn child_of(name: &str, env: &str) -> (Option<i32>, String, Duration) {
+    let started = Instant::now();
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--ignored",
+            "--exact",
+            name,
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(env, "1")
+        .output()
+        .unwrap();
+    (
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        started.elapsed(),
+    )
+}
+
+/// N1's real end, run as a child of this test binary: a stop for capture off
+/// whose input stop blocks 30 s, on a supervisor with the product's ending,
+/// is ended with 5 by the watchdog at its deadline. It runs on the hosted
+/// jobs alone (the round's step names it with --ignored); no process is
+/// ended on this Mac.
+#[test]
+#[ignore = "ruling DM-25: the real end runs on the hosted jobs alone"]
+fn a_blocked_stop_for_capture_off_ends_its_process_with_5() {
+    const NAME: &str = "daemon::supervisor::tests::stress_cases::a_blocked_stop_for_capture_off_ends_its_process_with_5";
+    const CHILD: &str = "HALVO_DAEMON_N1_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+        let mut f = fixture_on_owner(
+            input_stop(Duration::from_secs(30), Ok(()), &peek, &seen),
+            ModelStore::new(),
+        );
+        ending_with(
+            &mut f,
+            Factory::new(),
+            Arc::new(crate::daemon::main_loop::ExitNow),
+        );
+        f.start(&two());
+        f.tick();
+        let link = f.link.take().unwrap();
+        let _ = f
+            .supervisor
+            .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+        return;
+    }
+    let (status, _, took) = child_of(NAME, CHILD);
+    println!(
+        "daemon-2 n1 real end exit_status={status:?} took_ms={}",
+        took.as_millis()
+    );
+    assert_eq!(status, Some(exit::SOURCE_NOT_STOPPED));
+    assert!(
+        took >= Duration::from_millis(ENTRY_DEADLINE_MS)
+            && took < Duration::from_millis(ENTRY_DEADLINE_MS + 3_000),
+        "{took:?}"
+    );
+}
+
+/// N2's real end, run as a child of this test binary: the timed run of
+/// [`timed_run_at_its_limits`] on a supervisor with the product's ending
+/// returns with no source let go, and the child exits with the run's own
+/// status 500 ms after the return; no watchdog call ends it first with 3. It
+/// runs on the hosted jobs alone; no process is ended on this Mac.
+#[test]
+#[ignore = "ruling DM-25: the real end runs on the hosted jobs alone"]
+fn a_timed_run_ends_its_process_with_its_own_status() {
+    const NAME: &str =
+        "daemon::supervisor::tests::stress_cases::a_timed_run_ends_its_process_with_its_own_status";
+    const CHILD: &str = "HALVO_DAEMON_N2_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let (outcome, _, supervisor, _) =
+            timed_run_at_its_limits_ending(Arc::new(crate::daemon::main_loop::ExitNow));
+        println!(
+            "child status={} let_go={}",
+            outcome.status,
+            outcome.let_go.len()
+        );
+        drop(supervisor);
+        std::thread::sleep(Duration::from_millis(500));
+        std::process::exit(outcome.status);
+    }
+    let (status, out, took) = child_of(NAME, CHILD);
+    let answered = out
+        .lines()
+        .find_map(|line| line.strip_prefix("child status="))
+        .and_then(|rest| rest.split(' ').next())
+        .and_then(|status| status.parse::<i32>().ok());
+    println!(
+        "daemon-2 n2 real end exit_status={status:?} run_status={answered:?} took_ms={}",
+        took.as_millis()
+    );
+    assert!(answered.is_some(), "the child printed no status");
+    assert_eq!(
+        status, answered,
+        "the child did not end with the run's own status"
+    );
+    assert_ne!(status, Some(exit::TIMED_RUN_SOURCE_FAILED));
 }
