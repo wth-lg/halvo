@@ -602,6 +602,9 @@ start that was refused: a coordinator that holds an agent longer than I5.4 asks,
 `check` that the person's answer does not end or that a restart brings back, breaks none
 of C1 to C12. The directed trace `store_not_ended` holds a start after an answered
 `check`, and `ReachCheckAnswered` is not reached under the first of those two designs.
+A limit of the model (ruling RD-133): Schedule.tla's `Off` has no arm for a switch-off whose
+read of the clock fails, which the code makes at once on the board and the guard's table and
+stamps at the next read that answers; the model holds no clock, so it cannot tell the two.
 
 ## Confirm4
 

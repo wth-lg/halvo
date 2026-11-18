@@ -1320,9 +1320,11 @@ where
     /// the next read that answers (`stamp_waiting`), and meanwhile the agent takes no start
     /// (`hold`) and no switch-on (`no_service`). The `hold_set` is stored at once at the last
     /// read of the clock of this life (`last_stamp`), so that the agent stays off across a new
-    /// life; its time and day may be older than the press (answer (b)). With no read noted yet
-    /// in this life it waits with the rest, and a new life before the next read loses it, a
-    /// named limit.
+    /// life; its time and day may be older than the press by as long as the clock failed
+    /// (answer (b)). Named limits: with no read of a move noted yet in this life (recovery's own
+    /// read does not count), where the day of the last read cannot be read, or where the owner
+    /// does not acknowledge the `hold_set`, the hold is kept only in this life's state until the
+    /// next read that answers, and a new life before it loses the hold.
     fn switch_off_unstamped(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         let Some(board) = st.board.as_mut() else {
             return Err(Cause::NoService);
@@ -1990,7 +1992,9 @@ where
     /// none answers, the stop goes on the guard's table and the board at once, with its time and
     /// its rows waiting for the next read that answers (`stamp_waiting`), and `Runs::cancel` goes
     /// out in this move, for a run with an open item here and for one with none in the run
-    /// drive's stop. A Stop of an agent with no live run takes its queued start out of the
+    /// drive's stop. A new life before that read shows the waiting rows lost in the way that
+    /// recovery reads them: it ends the run `interrupted` and lapses its item `app_ended`, so the
+    /// person reads that it stopped because Halvo closed, not that they stopped it. A Stop of an agent with no live run takes its queued start out of the
     /// queue, at any time and with no read of the clock (Addition 1 item 5).
     fn stop_in(&self, st: &mut State<Cfg<P>>, i: usize) -> Result<(), Cause> {
         let now = self.clock_now().ok();

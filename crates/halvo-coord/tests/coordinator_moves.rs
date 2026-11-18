@@ -8957,6 +8957,7 @@ fn clock_answers(c: &Coordinator<Both>) {
     c.ports().clock_fails.set(false);
     c.ports().fail_read_at.set(None);
     c.ports().fail_reads_after.set(None);
+    c.ports().day_fails.set(false);
 }
 
 fn lapses_of(c: &Coordinator<Both>, item: &ItemId, cause: &str) -> usize {
@@ -9290,6 +9291,24 @@ fn rd133_rows_that_waited_for_a_stamp_are_read_lost_by_the_next_lives_recovery()
     assert!(
         !s.items.iter().any(|i| i.agent() == &agent(1)),
         "and no card of the lost item stands"
+    );
+    life.ports().ports.histories.borrow_mut().push((
+        agent(1),
+        halvo_coord::types::RunHistory {
+            run: PastRun {
+                run: run1.clone(),
+                day: DAY,
+                outcome: Outcome::Failed,
+                unknown: 0,
+            },
+            effects: Vec::new(),
+        },
+    ));
+    assert_eq!(
+        life.card(&agent(1)).unwrap().runs[0].text,
+        text("line.run.interrupted"),
+        "the person reads that it stopped because Halvo closed, not that they stopped it \
+         (RD-133, Addition 2 C)"
     );
 }
 
@@ -9819,7 +9838,86 @@ fn rd133_with_no_read_in_this_life_a_switch_off_under_a_failing_clock_waits_as_i
     assert_eq!(out, Ok(()), "the Switch off goes on");
     assert_eq!(person_holds(&c, 1).len(), 0, "no read to stamp it with");
     let life = next_life(&c, |_| {});
-    assert_ne!(row_line(&life.snapshot(), 1), text("line.off.person"));
+    assert_ne!(
+        row_line(&life.snapshot(), 1),
+        text("line.off.person"),
+        "a new life before the next read loses it"
+    );
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    let holds = person_holds(&c, 1);
+    assert_eq!(holds.len(), 1, "the next read that answers stores it");
+    assert_eq!(holds[0].at, at_of(T0 + 4_000), "at that read");
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+}
+
+const DUE: support::A = support::A {
+    person: false,
+    slotted: true,
+};
+
+/// Two days on: the next slot of a `DUE` agent, which a new life's first tick starts.
+const NEXT_SLOT: (u64, u32) = (T0 + 2 * 86_400_000, DAY + 2);
+
+/// A Switch off of a slotted agent under a failing clock, then a new life at its next slot
+/// (ruling RD-133, Addition 2 A): the `hold_set` was stored at once at the last read, so the
+/// agent is still off, the new life starts no run of it, its first tick included, and its row
+/// reads switched off.
+#[test]
+fn rd133_a_switch_off_under_a_failing_clock_holds_a_slotted_agent_off_across_a_new_life() {
+    let c = coordinator(&[MANUAL, DUE], Limits::PRODUCT);
+    let run1 = started(&c)[0].clone();
+    let press = T0 + 7_000;
+    c.ports().ports.set_clock(press, DAY);
+    clock_fails(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert_eq!(cancels_of(&c, m, &run1), 1, "the cancel in the move");
+    let holds = person_holds(&c, 1);
+    assert_eq!(holds.len(), 1, "stored at once");
+    assert_eq!(holds[0].at, at_of(T0), "at the last read");
+    assert!(holds[0].at <= at_of(press), "never later than the press");
+    let life = next_life(&c, |b| b.ports.set_clock(NEXT_SLOT.0, NEXT_SLOT.1));
+    assert_eq!(started(&life), vec![], "its first tick starts no run of it");
+    life.ports()
+        .ports
+        .set_clock(NEXT_SLOT.0 + 1_000, NEXT_SLOT.1);
+    life.tick();
+    assert_eq!(started(&life), vec![], "nor a later tick");
+    assert_eq!(row_line(&life.snapshot(), 1), text("line.off.person"));
+}
+
+/// The limits of the stored `hold_set` (ruling RD-133, Addition 2 A): where the day of the last
+/// read cannot be read, or the owner does not acknowledge the `hold_set`, the hold is kept only in
+/// this life's memory; after a new life the agent is on and its due slot starts it.
+#[test]
+fn rd133_a_hold_with_no_day_or_no_acknowledgement_is_lost_at_a_new_life() {
+    for case in ["day", "owner"] {
+        let c = coordinator(&[MANUAL, DUE], Limits::PRODUCT);
+        c.ports().ports.set_clock(T0 + 7_000, DAY);
+        clock_fails(&c);
+        if case == "day" {
+            c.ports().day_fails.set(true);
+        } else {
+            c.ports().ports.refuse(Method::Log, PortError::NoService);
+        }
+        assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()), "{case}");
+        assert_eq!(person_holds(&c, 1).len(), 0, "{case}: no hold stored");
+        assert_eq!(
+            c.control(&agent(1), Action::RunNow),
+            Err(Cause::Hold),
+            "{case}: held off in this life"
+        );
+        let life = next_life(&c, |b| b.ports.set_clock(NEXT_SLOT.0, NEXT_SLOT.1));
+        assert_eq!(started(&life).len(), 1, "{case}: the due slot starts it");
+        assert_ne!(
+            row_line(&life.snapshot(), 1),
+            text("line.off.person"),
+            "{case}"
+        );
+        c.ports().ports.clear_refusals();
+        clock_answers(&c);
+    }
 }
 
 /// A Switch off after a tick, or after a start whose only read is the drive's stamp, stores its

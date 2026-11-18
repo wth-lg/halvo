@@ -43,6 +43,8 @@ pub struct Both {
     /// Where set, that many more reads of the clock answer and every later one fails, until
     /// it is cleared.
     pub fail_reads_after: Cell<Option<u32>>,
+    /// Whether `Clock::day` fails.
+    pub day_fails: Cell<bool>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -287,6 +289,9 @@ impl Clock for Both {
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {
+        if self.day_fails.get() {
+            return Err(PortError::NoService);
+        }
         self.ports.day(at)
     }
 }
@@ -353,6 +358,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         clock_fails: Cell::new(false),
         fail_read_at: Cell::new(None),
         fail_reads_after: Cell::new(None),
+        day_fails: Cell::new(false),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }
