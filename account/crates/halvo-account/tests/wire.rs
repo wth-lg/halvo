@@ -8,7 +8,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::{Seek, Write};
 use std::process::Stdio;
-use support::{helper, keep_sign_in, scratch, store_at, Listener, Ran, Seen};
+use support::{helper, keep_sign_in, scratch, scratch_path, store_at, Listener, Ran, Seen};
 
 const TRANSPORT: &str = include_str!("../transport-headers.txt");
 
@@ -180,6 +180,44 @@ fn each_command_sends_its_route_with_the_stored_sign_in_and_only_the_listed_head
     }
     for name in transport_names() {
         assert!(every_name.contains(&name), "no request carried {name}");
+    }
+}
+
+#[test]
+fn scratch_passes_over_a_name_that_an_earlier_process_of_the_same_id_left() {
+    for n in 0..128 {
+        let left = scratch_path("left", n);
+        fs::create_dir_all(&left).expect("a directory that an earlier process left");
+        fs::write(left.join("store"), b"left").expect("what that process left");
+    }
+    let first = scratch("left");
+    let second = scratch("left");
+    assert_ne!(first, second);
+    for dir in [&first, &second] {
+        let name = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("a name");
+        let n: usize = name
+            .rsplit('-')
+            .next()
+            .and_then(|n| n.parse().ok())
+            .expect("a number");
+        assert!(n >= 128, "{name} is a name that an earlier process left");
+        assert_eq!(
+            *dir,
+            scratch_path("left", n),
+            "scratch and scratch_path name alike"
+        );
+    }
+    for dir in [&first, &second] {
+        let entries = fs::read_dir(dir).expect("the directory is read").count();
+        assert_eq!(
+            entries,
+            0,
+            "{} holds what another process left",
+            dir.display()
+        );
     }
 }
 
