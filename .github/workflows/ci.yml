@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,75 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 22-daemon-no-dead-allow 23-daemon-port-only 26-daemon-owner-growth
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only 26-daemon-owner-growth
+      - name: Loop (daemon-2-fast, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- --exact daemon::supervisor::tests::stress_cases::the_entry_that_meets_a_timeout_arms_with_its_status_and_ends_with_5 daemon::supervisor::tests::stress_cases::an_overrunning_stop_does_not_carry_the_entry_past_its_deadline daemon::supervisor::tests::stress_cases::a_timed_run_ended_by_a_grant_restart_arms_the_watchdog_with_4 daemon::supervisor::tests::stress_cases::the_capture_off_arms_read_their_deadlines daemon::supervisor::tests::stress_cases::the_timed_run_arm_reads_its_deadline daemon::supervisor::tests::stress_cases::an_owner_that_ended_after_some_writes_counts_only_the_events_not_persisted daemon::supervisor::tests::stress_cases::a_timed_run_with_a_source_let_go_keeps_an_arm_with_its_own_status daemon::supervisor::tests::stress_cases::the_ma9_line_of_a_stop_for_capture_off_comes_at_the_first_answer daemon::supervisor::tests::stress_cases::the_ma9_line_of_a_lost_grant_comes_at_the_first_answer daemon::supervisor::tests::stress_cases::adv1_f8_a_refused_hold_keeps_the_source_that_was_let_go daemon::supervisor::tests::stress_cases::adv3_a_refused_run_with_a_source_let_go_keeps_it_in_its_answer daemon::supervisor::tests::stress_cases::adv3_p10_an_owner_that_ended_in_a_run_whose_hold_was_refused_gives_the_owner_ended_line daemon::supervisor::tests::stress_cases::adv3_a_source_that_died_just_before_a_drain_stop_is_named daemon::supervisor::tests::stress_cases::adv3_p4_a_source_that_died_in_the_slice_of_a_signal_is_named daemon::supervisor::tests::stress_cases::adv3_p4_a_source_that_died_in_the_slice_of_the_owner_end_is_named daemon::supervisor::tests::stress_cases::adv1_f4_the_final_record_of_a_timeout_then_ok_names_the_source daemon::supervisor::tests::stress_cases::adv1_f6_the_capture_off_stop_asks_no_source_before_the_barrier_is_answered daemon::supervisor::tests::stress_cases::a_barrier_that_is_never_answered_lets_the_stops_begin_after_its_wait daemon::supervisor::tests::stress_cases::adv2f_a_source_let_go_when_the_owner_ends_is_not_shut_down_a_second_time daemon::supervisor::tests::a_stop_that_blocks_10_s_still_ends_inside_the_budget_with_the_batch_acknowledged daemon::supervisor::tests::the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget daemon::supervisor::tests::the_settle_after_a_late_pause_is_cut_to_the_budget daemon::tests::a_source_that_does_not_stop_adds_its_line_and_exits_3 daemon::tests::a_refused_hold_ends_the_run_with_no_report daemon::stop_tests::a_refusal_that_the_sources_learn_at_their_stop_ends_the_run daemon::stop_tests::a_refused_hold_with_a_failed_drain_gives_the_refusal_and_then_the_loss_line daemon::stop_tests::a_refused_hold_after_a_drop_that_a_good_write_followed_gives_the_loss_line  ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop daemon-2-fast: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: daemon-2 real-clock loop
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          passed=0
+          for round in $(seq 1 5); do
+            cargo test --locked -p halvo-capture --lib -- --exact daemon::supervisor::tests::stress_cases::a_late_ok_in_a_stop_for_capture_off_reads_not_stopped daemon::supervisor::tests::stress_cases::a_blocked_stop_for_capture_off_is_ended_with_5_by_its_deadline daemon::supervisor::tests::stress_cases::a_stop_for_capture_off_whose_sources_all_stop_ends_nothing daemon::supervisor::tests::stress_cases::a_late_ok_on_the_lost_grant_reads_not_stopped daemon::supervisor::tests::stress_cases::a_blocked_stop_on_the_lost_grant_is_ended_with_5_by_its_deadline daemon::supervisor::tests::stress_cases::adv1_f1c_on_one_clock_with_every_source_stopped_no_ending_call_follows_the_return daemon::supervisor::tests::stress_cases::adv2_no_ending_call_follows_a_timed_run_whose_stop_path_reaches_its_cut daemon::supervisor::tests::stress_cases::adv3_no_ending_call_follows_a_timed_run_whose_cut_stop_path_reaches_the_budget daemon::supervisor::tests::stress_cases::adv2_the_lost_grant_arms_the_watchdog_at_its_first_answer daemon::supervisor::tests::the_watchdog_ends_at_its_earlier_deadline_with_its_later_status daemon::supervisor::tests::a_disarmed_watchdog_ends_nothing_and_a_later_arm_counts_again > "$RUNNER_TEMP/d2-real-$round.txt" 2>&1
+            if grep -q '^test result: ok\. 11 passed' "$RUNNER_TEMP/d2-real-$round.txt"; then
+              passed=$((passed + 1))
+            else
+              grep -E '^test result|FAILED|^dm25 ' "$RUNNER_TEMP/d2-real-$round.txt" | head -8
+            fi
+          done
+          printf 'loop daemon-2-real: passed %s of 5\n' "$passed"
+          [ "$passed" = 5 ]
+      - name: daemon-2 gate lines
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          note() { printf 'daemon-2 %s\n' "$*"; }
+          cargo test --locked -p halvo-capture --test main_run_loop -- --exact the_main_thread_turns_the_main_run_loop > "$RUNNER_TEMP/d2-rl.txt" 2>&1
+          code=$?
+          note "main_run_loop exit=$code $(grep -E '^test result' "$RUNNER_TEMP/d2-rl.txt")"
+          grep -q '^test result: ok\. 1 passed' "$RUNNER_TEMP/d2-rl.txt" || failed=$((failed + 1))
+          for name in daemon::supervisor::tests::the_watchdog_ends_a_blocked_process_with_its_status daemon::supervisor::tests::stress_cases::a_blocked_stop_for_capture_off_ends_its_process_with_5 daemon::supervisor::tests::stress_cases::a_timed_run_ends_its_process_with_its_own_status; do
+            cargo test --locked -p halvo-capture --lib -- --ignored --exact "$name" --nocapture > "$RUNNER_TEMP/d2-end.txt" 2>&1
+            code=$?
+            note "real end ${name##*::} exit=$code $(grep -E '^watchdog_child|^daemon-2 n[12] real end|^test result' "$RUNNER_TEMP/d2-end.txt" | tr '\n' ' ')"
+            grep -q '^test result: ok\. 1 passed' "$RUNNER_TEMP/d2-end.txt" || failed=$((failed + 1))
+          done
+          out=$(target/debug/halvo-capture --self-check run-loop)
+          code=$?
+          note "self-check debug: $out exit=$code"
+          ms=${out#run_loop_block_ms=}
+          { [ "$code" = 0 ] && [ -n "$ms" ] && [ "$ms" -le 250 ]; } || failed=$((failed + 1))
+          D=$(mktemp -d)
+          n=$(target/debug/halvo-capture --timed-run 5 --store-dir "$D" | grep -c '^modality=screen_frame count=0$')
+          code=$?
+          note "default timed run: screen_frame count=0 lines=$n"
+          [ "$n" = 1 ] || failed=$((failed + 1))
+          sh scripts/r1-gate/mutation-test.sh --only watchdog-never-ends --only capture-off-stays-up --only stop-path-budget-not-counted --only owner-ended-count-ignores-persisted --only capture-off-watchdog-deadline-x10 --only entry-watchdog-deadline-x10 --only timed-run-watchdog-deadline-x10 --only entry-watchdog-never-armed --only capture-off-armed-after-its-stops --only lost-grant-armed-after-its-stop --only entry-armed-after-its-stops --only late-ok-read-as-a-stop --only entry-ends-nothing --only second-ask-past-the-deadline --only arm-kept-after-every-stop --only timed-run-arm-kept-after-the-return --only let-go-arm-without-the-run-status --only grant-restart-armed-with-3 --only stop-path-margin-gone > "$RUNNER_TEMP/d2-rows.txt" 2>&1
+          code=$?
+          grep -E '^(PASS|FAIL|SKIP|ERROR)' "$RUNNER_TEMP/d2-rows.txt"
+          note "rows exit=$code"
+          [ "$code" = 0 ] || failed=$((failed + 1))
+          note "failed=$failed"
+          exit "$failed"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +211,60 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 22-daemon-no-dead-allow 23-daemon-port-only
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 22-daemon-no-dead-allow 23-daemon-port-only
+      - name: Loop (daemon-2-fast, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test --locked -p halvo-capture --lib -- --exact daemon::supervisor::tests::stress_cases::the_entry_that_meets_a_timeout_arms_with_its_status_and_ends_with_5 daemon::supervisor::tests::stress_cases::an_overrunning_stop_does_not_carry_the_entry_past_its_deadline daemon::supervisor::tests::stress_cases::a_timed_run_ended_by_a_grant_restart_arms_the_watchdog_with_4 daemon::supervisor::tests::stress_cases::the_capture_off_arms_read_their_deadlines daemon::supervisor::tests::stress_cases::the_timed_run_arm_reads_its_deadline daemon::supervisor::tests::stress_cases::an_owner_that_ended_after_some_writes_counts_only_the_events_not_persisted daemon::supervisor::tests::stress_cases::a_timed_run_with_a_source_let_go_keeps_an_arm_with_its_own_status daemon::supervisor::tests::stress_cases::the_ma9_line_of_a_stop_for_capture_off_comes_at_the_first_answer daemon::supervisor::tests::stress_cases::the_ma9_line_of_a_lost_grant_comes_at_the_first_answer daemon::supervisor::tests::stress_cases::adv1_f8_a_refused_hold_keeps_the_source_that_was_let_go daemon::supervisor::tests::stress_cases::adv3_a_refused_run_with_a_source_let_go_keeps_it_in_its_answer daemon::supervisor::tests::stress_cases::adv3_p10_an_owner_that_ended_in_a_run_whose_hold_was_refused_gives_the_owner_ended_line daemon::supervisor::tests::stress_cases::adv3_a_source_that_died_just_before_a_drain_stop_is_named daemon::supervisor::tests::stress_cases::adv3_p4_a_source_that_died_in_the_slice_of_a_signal_is_named daemon::supervisor::tests::stress_cases::adv3_p4_a_source_that_died_in_the_slice_of_the_owner_end_is_named daemon::supervisor::tests::stress_cases::adv1_f4_the_final_record_of_a_timeout_then_ok_names_the_source daemon::supervisor::tests::stress_cases::adv1_f6_the_capture_off_stop_asks_no_source_before_the_barrier_is_answered daemon::supervisor::tests::stress_cases::a_barrier_that_is_never_answered_lets_the_stops_begin_after_its_wait daemon::supervisor::tests::stress_cases::adv2f_a_source_let_go_when_the_owner_ends_is_not_shut_down_a_second_time daemon::supervisor::tests::a_stop_that_blocks_10_s_still_ends_inside_the_budget_with_the_batch_acknowledged daemon::supervisor::tests::the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget daemon::supervisor::tests::the_settle_after_a_late_pause_is_cut_to_the_budget daemon::tests::a_source_that_does_not_stop_adds_its_line_and_exits_3 daemon::tests::a_refused_hold_ends_the_run_with_no_report daemon::stop_tests::a_refusal_that_the_sources_learn_at_their_stop_ends_the_run daemon::stop_tests::a_refused_hold_with_a_failed_drain_gives_the_refusal_and_then_the_loss_line daemon::stop_tests::a_refused_hold_after_a_drop_that_a_good_write_followed_gives_the_loss_line  ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop daemon-2-fast: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: daemon-2 real-clock loop
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          passed=0
+          for round in $(seq 1 5); do
+            cargo test --locked -p halvo-capture --lib -- --exact daemon::supervisor::tests::stress_cases::a_late_ok_in_a_stop_for_capture_off_reads_not_stopped daemon::supervisor::tests::stress_cases::a_blocked_stop_for_capture_off_is_ended_with_5_by_its_deadline daemon::supervisor::tests::stress_cases::a_stop_for_capture_off_whose_sources_all_stop_ends_nothing daemon::supervisor::tests::stress_cases::a_late_ok_on_the_lost_grant_reads_not_stopped daemon::supervisor::tests::stress_cases::a_blocked_stop_on_the_lost_grant_is_ended_with_5_by_its_deadline daemon::supervisor::tests::stress_cases::adv1_f1c_on_one_clock_with_every_source_stopped_no_ending_call_follows_the_return daemon::supervisor::tests::stress_cases::adv2_no_ending_call_follows_a_timed_run_whose_stop_path_reaches_its_cut daemon::supervisor::tests::stress_cases::adv3_no_ending_call_follows_a_timed_run_whose_cut_stop_path_reaches_the_budget daemon::supervisor::tests::stress_cases::adv2_the_lost_grant_arms_the_watchdog_at_its_first_answer daemon::supervisor::tests::the_watchdog_ends_at_its_earlier_deadline_with_its_later_status daemon::supervisor::tests::a_disarmed_watchdog_ends_nothing_and_a_later_arm_counts_again > "$RUNNER_TEMP/d2-real-$round.txt" 2>&1
+            if grep -q '^test result: ok\. 11 passed' "$RUNNER_TEMP/d2-real-$round.txt"; then
+              passed=$((passed + 1))
+            else
+              grep -E '^test result|FAILED|^dm25 ' "$RUNNER_TEMP/d2-real-$round.txt" | head -8
+            fi
+          done
+          printf 'loop daemon-2-real: passed %s of 5\n' "$passed"
+          [ "$passed" = 5 ]
+      - name: daemon-2 gate lines
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          note() { printf 'daemon-2 %s\n' "$*"; }
+          cargo test --locked -p halvo-capture --lib -- daemon::supervisor daemon::sources daemon::board daemon::permissions daemon::children daemon::main_loop daemon::stop_tests > "$RUNNER_TEMP/d2-lib.txt" 2>&1
+          code=$?
+          note "seven modules exit=$code $(grep -E '^test result' "$RUNNER_TEMP/d2-lib.txt")"
+          [ "$code" = 0 ] || failed=$((failed + 1))
+          for name in daemon::supervisor::tests::the_watchdog_ends_a_blocked_process_with_its_status daemon::supervisor::tests::stress_cases::a_blocked_stop_for_capture_off_ends_its_process_with_5 daemon::supervisor::tests::stress_cases::a_timed_run_ends_its_process_with_its_own_status; do
+            cargo test --locked -p halvo-capture --lib -- --ignored --exact "$name" --nocapture > "$RUNNER_TEMP/d2-end.txt" 2>&1
+            code=$?
+            note "real end ${name##*::} exit=$code $(grep -E '^watchdog_child|^daemon-2 n[12] real end|^test result' "$RUNNER_TEMP/d2-end.txt" | tr '\n' ' ')"
+            grep -q '^test result: ok\. 1 passed' "$RUNNER_TEMP/d2-end.txt" || failed=$((failed + 1))
+          done
+          note "failed=$failed"
+          exit "$failed"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
