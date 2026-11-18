@@ -18,5 +18,8 @@ pub use error::{AnswerFault, BuildError, CallError, Effect, NotMade};
 #[cfg(feature = "loopback")]
 pub use graph::LOOPBACK_MARKER;
 pub use graph::{Graph, Route};
-pub use mail::{Draft, DraftToSend, Drafts, Mail, MailCounts, Message, Messages, ReplyRule};
+pub use mail::{
+    Draft, DraftFailure, DraftToSend, Drafted, Drafts, Mail, MailCounts, Message, Messages,
+    ReplyRule, Unfinished, Unsent, UnsentDraft,
+};
 pub use token::{Token, TokenError};

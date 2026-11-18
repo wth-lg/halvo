@@ -35,8 +35,15 @@ fn message(id: &str, is_read: bool, from: &str, to: &[&str]) -> Value {
 }
 
 fn draft(id: &str, to: &str, subject: &str) -> String {
-    json!({"id": id, "subject": subject, "toRecipients": [{"emailAddress": {"address": to}}]})
-        .to_string()
+    json!({
+        "id": id,
+        "subject": subject,
+        "isDraft": true,
+        "toRecipients": [{"emailAddress": {"address": to}}],
+        "ccRecipients": [],
+        "bccRecipients": [],
+    })
+    .to_string()
 }
 
 fn seen(method: &str, path: &str, body: Option<Value>) -> Seen {
@@ -64,12 +71,12 @@ fn the_reply_task_makes_exactly_its_requests() {
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "POST /v1.0/me/messages/m%2F3/createReply".to_owned(),
             201,
-            json!({"id": "d/3"}).to_string(),
+            json!({"id": "d/3", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -101,7 +108,8 @@ fn the_reply_task_makes_exactly_its_requests() {
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     let drafts = graph
         .mail_draft_reply(&token(), messages, "Thanks.")
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     let kept: Vec<_> = drafts
         .iter()
         .map(|d| (d.id(), d.message(), d.to().to_vec(), d.subject()))
@@ -154,7 +162,7 @@ fn draft_reply_stops_at_the_first_error() {
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -170,7 +178,10 @@ fn draft_reply_stops_at_the_first_error() {
     );
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     assert_eq!(
-        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .err()
+            .map(|f| f.error()),
         Some(CallError::Status(503, None))
     );
     let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});
@@ -294,12 +305,12 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
             (
                 "POST /v1.0/me/messages/m1/createReply".to_owned(),
                 201,
-                json!({"id": first}).to_string(),
+                json!({"id": first, "isDraft": true}).to_string(),
             ),
             (
                 "POST /v1.0/me/messages/m2/createReply".to_owned(),
                 201,
-                json!({"id": second}).to_string(),
+                json!({"id": second, "isDraft": true}).to_string(),
             ),
             (
                 "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -320,7 +331,10 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
         );
         let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
         assert_eq!(
-            graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+            graph
+                .mail_draft_reply(&token(), messages, "Thanks.")
+                .err()
+                .map(|f| f.error()),
             Some(CallError::Answer(AnswerFault::Repeated)),
             "createReply answers {first} then {second}"
         );
@@ -354,7 +368,8 @@ fn the_reply_body_reaches_the_patch_byte_for_byte() {
     let body = " Thanks,\n\tAnn. ";
     graph
         .mail_draft_reply(&token(), messages, body)
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     let patched: Vec<_> = stub
         .seen()
         .into_iter()
@@ -374,7 +389,7 @@ fn reply_stub(create: u16, patch: u16, send: u16) -> Stub {
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             create,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -407,7 +422,8 @@ fn each_request_takes_its_own_success_status_alone() {
             .expect("mail_list answers");
         let drafts = graph
             .mail_draft_reply(&token(), messages, "Thanks.")
-            .expect("mail_draft_reply answers");
+            .expect("mail_draft_reply answers")
+            .into_drafts();
         let handle = drafts.into_sends().next().expect("a draft");
         let error = graph.mail_send(&token(), handle).expect_err("not 202");
         assert_eq!(error, CallError::Status(send, None));
@@ -420,7 +436,10 @@ fn each_request_takes_its_own_success_status_alone() {
             .mail_list(&token(), &reply_rule())
             .expect("mail_list answers");
         assert_eq!(
-            graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+            graph
+                .mail_draft_reply(&token(), messages, "Thanks.")
+                .err()
+                .map(|f| f.error()),
             Some(CallError::Status(status, None)),
             "createReply answered {create}, the PATCH {patch}"
         );
@@ -460,7 +479,7 @@ fn a_create_reply_answer_that_names_a_listed_message_is_refused_before_its_patch
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "m2"}).to_string(),
+            json!({"id": "m2", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/m2".to_owned(),
@@ -474,7 +493,10 @@ fn a_create_reply_answer_that_names_a_listed_message_is_refused_before_its_patch
         .expect("mail_list answers");
     assert_eq!(messages.len(), 1, "m2 is read, so the rule keeps m1 alone");
     assert_eq!(
-        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .err()
+            .map(|f| f.error()),
         Some(CallError::Answer(AnswerFault::Repeated))
     );
     assert_eq!(
@@ -494,7 +516,7 @@ fn a_patch_answer_that_names_another_item_is_refused() {
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -507,7 +529,10 @@ fn a_patch_answer_that_names_another_item_is_refused() {
         .mail_list(&token(), &reply_rule())
         .expect("mail_list answers");
     assert_eq!(
-        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .err()
+            .map(|f| f.error()),
         Some(CallError::Answer(AnswerFault::Item))
     );
     let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});

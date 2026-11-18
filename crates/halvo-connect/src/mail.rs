@@ -35,18 +35,26 @@ pub trait Mail {
     fn mail_list(&self, token: &Token, rule: &ReplyRule) -> Result<Messages, CallError>;
 
     /// For each message of `messages`, once and in order: createReply, then PATCH of the draft's body to `body` as
-    /// plain text. Keeps `drafts`, each with its `to` and `subject` as the PATCH answered them. Takes `messages`
-    /// whole, so that a list is drafted once. Refuses a createReply answer whose id is the id of any message of the
-    /// list answer, kept by the rule or not, or of an earlier draft with `Answer(Repeated)`, before its PATCH, and
-    /// a PATCH answer whose id is not the draft's with `Answer(Item)`, so that a handle exists only for a draft
-    /// that createReply made for its own message. Stops at the first error; drafts made before it stay with the
-    /// provider, unsent.
+    /// plain text. Takes `messages` whole, so that a list is drafted once, and removes no draft.
+    ///
+    /// Before the PATCH the call fails, and no request names the answered id, when createReply does not answer
+    /// 201, when its answer does not carry `isDraft` true (`Answer(Draft)`), or when its id is the id of any
+    /// message of the list's answers, kept by the rule or not, or of an earlier draft of the call
+    /// (`Answer(Repeated)`). After the PATCH the call fails when the answer's id is not the draft's
+    /// (`Answer(Item)`), or when it lacks `isDraft`, `toRecipients`, `ccRecipients` or `bccRecipients`, or an
+    /// entry of them has no address (`Answer(Form)`). Otherwise a draft whose answer does not carry `isDraft` true
+    /// is returned unsent as `NotDraft`, and then a draft is held back, unsent, for the first reason of
+    /// [`Unsent`] that its answer meets, each compare byte for byte; the other drafts are kept in `drafts`, each
+    /// with its one recipient and its subject as the PATCH answered them.
+    ///
+    /// A failed call returns, beside its error, the drafts that it finished, the drafts that it returned unsent,
+    /// the draft whose PATCH gave no answer that passed, and the messages that it did not reach.
     fn mail_draft_reply(
         &self,
         token: &Token,
         messages: Messages,
         body: &str,
-    ) -> Result<Drafts, CallError>;
+    ) -> Result<Drafted, Box<DraftFailure>>;
 
     /// POST send of the one draft that `draft` holds: one effect. `Drafts::into_sends` gives one handle per draft
     /// and this call takes the handle, so a draft is sent at most once:
@@ -326,6 +334,161 @@ impl DraftToSend {
     }
 }
 
+/// Why `mail_draft_reply` gives no send handle for a draft that its PATCH answered: `NotDraft`, or one of the
+/// closed list of CP-160 (4) (b), for which the draft is held back and counts in `held_recipient`. Each compare
+/// holds the texts as the provider's JSON gave them, byte for byte.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unsent {
+    /// The answer does not carry `isDraft` true: the draft stays drafted, and a later run sends its PATCH again.
+    NotDraft,
+    /// `toRecipients` holds no address or more than one.
+    Recipients,
+    /// The one address of `toRecipients` is not the sender of the message that the draft answers.
+    Recipient,
+    /// `ccRecipients` or `bccRecipients` holds an address.
+    Copy,
+    /// `conversationId` is present and is not the conversation of the message that the draft answers.
+    Conversation,
+}
+
+impl Unsent {
+    /// Whether the draft is held back for a reason of the closed list, so that it counts in `held_recipient`.
+    pub fn is_held(self) -> bool {
+        self != Unsent::NotDraft
+    }
+}
+
+/// A draft that `mail_draft_reply` made and gives no send handle for: the id of the message that it answers, its
+/// own id and why. `Debug` prints none of its text.
+#[derive(Clone, PartialEq, Eq)]
+pub struct UnsentDraft {
+    message: String,
+    draft: String,
+    why: Unsent,
+}
+
+impl UnsentDraft {
+    /// The provider's id of the message that the draft answers.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// The provider's id of the draft.
+    pub fn draft(&self) -> &str {
+        &self.draft
+    }
+
+    /// Why it has no send handle.
+    pub fn why(&self) -> Unsent {
+        self.why
+    }
+}
+
+/// The answer of `mail_draft_reply`: the kept list `drafts`, and the drafts that it made and returned unsent, in
+/// the order of the messages.
+pub struct Drafted {
+    drafts: Drafts,
+    unsent: Vec<UnsentDraft>,
+}
+
+impl Drafted {
+    /// The drafts that it returned unsent, with their reasons.
+    pub fn unsent(&self) -> &[UnsentDraft] {
+        &self.unsent
+    }
+
+    /// The count `held_recipient` of A7.4: the drafts held back for a reason of the closed list.
+    pub fn held_recipient(&self) -> u32 {
+        let held = self
+            .unsent
+            .iter()
+            .filter(|unsent| unsent.why.is_held())
+            .count();
+        u32::try_from(held).unwrap_or(u32::MAX)
+    }
+
+    /// The kept list `drafts`, each with a send handle.
+    pub fn drafts(&self) -> &Drafts {
+        &self.drafts
+    }
+
+    /// The kept list `drafts`, for its send handles.
+    pub fn into_drafts(self) -> Drafts {
+        self.drafts
+    }
+}
+
+/// A draft that createReply made and whose PATCH gave no answer that passed: the ids of its message and of the
+/// draft.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Unfinished {
+    message: String,
+    draft: String,
+}
+
+impl Unfinished {
+    /// The provider's id of the message that the draft answers.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// The provider's id of the draft.
+    pub fn draft(&self) -> &str {
+        &self.draft
+    }
+}
+
+/// Why `mail_draft_reply` stopped, with what it made before (CP-109 (g)). No request of the adapter removes a
+/// draft, so each draft that it names lies in the person's Drafts folder. None of them has a send handle.
+pub struct DraftFailure {
+    error: CallError,
+    finished: Vec<Draft>,
+    unsent: Vec<UnsentDraft>,
+    unfinished: Option<Unfinished>,
+    unreached: Vec<String>,
+}
+
+impl DraftFailure {
+    /// The error that stopped the call.
+    pub fn error(&self) -> CallError {
+        self.error
+    }
+
+    /// The drafts that it finished before the error, each of which would have had a send handle.
+    pub fn finished(&self) -> &[Draft] {
+        &self.finished
+    }
+
+    /// The drafts that it returned unsent before the error.
+    pub fn unsent(&self) -> &[UnsentDraft] {
+        &self.unsent
+    }
+
+    /// The draft whose PATCH gave no answer that passed, where the error came after createReply had answered.
+    pub fn unfinished(&self) -> Option<&Unfinished> {
+        self.unfinished.as_ref()
+    }
+
+    /// The ids of the messages for which it made no draft that it knows of, in order: the message whose
+    /// createReply failed, and every message after the one where it stopped.
+    pub fn unreached(&self) -> &[String] {
+        &self.unreached
+    }
+}
+
+impl fmt::Display for DraftFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+impl std::error::Error for DraftFailure {}
+
+enum Made {
+    Draft(Draft),
+    Unsent(UnsentDraft),
+}
+
 impl Mail for Graph {
     fn mail_list(&self, token: &Token, rule: &ReplyRule) -> Result<Messages, CallError> {
         let firsts: Vec<String> = rule
@@ -371,38 +534,36 @@ impl Mail for Graph {
         token: &Token,
         messages: Messages,
         body: &str,
-    ) -> Result<Drafts, CallError> {
+    ) -> Result<Drafted, Box<DraftFailure>> {
         let content = json!({"body": {"contentType": "text", "content": body}});
         let mut ids = Ids::of(messages.listed.iter().map(String::as_str));
         let mut drafts = Vec::with_capacity(messages.len());
-        for message in messages.kept {
-            let created = self.json(
-                token,
-                Method::POST,
-                &format!("/v1.0/me/messages/{}/createReply", segment(&message.id)),
-                Some(&json!({})),
-                201,
-            )?;
-            let id = answer::id(&created)?;
-            ids.first(&id)?;
-            let patched = self.json(
-                token,
-                Method::PATCH,
-                &format!("/v1.0/me/messages/{}", segment(&id)),
-                Some(&content),
-                200,
-            )?;
-            if answer::id(&patched)? != id {
-                return Err(CallError::Answer(AnswerFault::Item));
+        let mut unsent = Vec::new();
+        let mut queue = messages.kept.into_iter();
+        while let Some(message) = queue.next() {
+            match self.draft_one(token, &content, &mut ids, &message) {
+                Ok(Made::Draft(draft)) => drafts.push(draft),
+                Ok(Made::Unsent(draft)) => unsent.push(draft),
+                Err((error, unfinished)) => {
+                    let mut unreached = Vec::new();
+                    if unfinished.is_none() {
+                        unreached.push(message.id);
+                    }
+                    unreached.extend(queue.map(|message| message.id));
+                    return Err(Box::new(DraftFailure {
+                        error,
+                        finished: drafts,
+                        unsent,
+                        unfinished,
+                        unreached,
+                    }));
+                }
             }
-            drafts.push(Draft {
-                to: recipients(&patched)?,
-                subject: answer::text(&patched, "subject")?,
-                id,
-                message: message.id,
-            });
         }
-        Ok(Drafts(drafts))
+        Ok(Drafted {
+            drafts: Drafts(drafts),
+            unsent,
+        })
     }
 
     fn mail_send(&self, token: &Token, draft: DraftToSend) -> Result<(), CallError> {
@@ -413,6 +574,91 @@ impl Mail for Graph {
             202,
         )
     }
+}
+
+impl Graph {
+    fn draft_one(
+        &self,
+        token: &Token,
+        content: &Value,
+        ids: &mut Ids,
+        message: &Message,
+    ) -> Result<Made, (CallError, Option<Unfinished>)> {
+        let created = self
+            .json(
+                token,
+                Method::POST,
+                &format!("/v1.0/me/messages/{}/createReply", segment(&message.id)),
+                Some(&json!({})),
+                201,
+            )
+            .map_err(|error| (error, None))?;
+        let id = answer::id(&created).map_err(|error| (error, None))?;
+        if created.get("isDraft").and_then(Value::as_bool) != Some(true) {
+            return Err((CallError::Answer(AnswerFault::Draft), None));
+        }
+        ids.first(&id).map_err(|error| (error, None))?;
+        let unfinished = || {
+            Some(Unfinished {
+                message: message.id.clone(),
+                draft: id.clone(),
+            })
+        };
+        let patched = self
+            .json(
+                token,
+                Method::PATCH,
+                &format!("/v1.0/me/messages/{}", segment(&id)),
+                Some(content),
+                200,
+            )
+            .map_err(|error| (error, unfinished()))?;
+        patched_draft(&patched, id.clone(), message).map_err(|error| (error, unfinished()))
+    }
+}
+
+fn patched_draft(patched: &Value, id: String, message: &Message) -> Result<Made, CallError> {
+    if answer::id(patched)? != id {
+        return Err(CallError::Answer(AnswerFault::Item));
+    }
+    let is_draft = patched
+        .get("isDraft")
+        .and_then(Value::as_bool)
+        .ok_or(FORM)?;
+    let to = recipients(patched, "toRecipients")?;
+    let copies =
+        recipients(patched, "ccRecipients")?.len() + recipients(patched, "bccRecipients")?.len();
+    let subject = answer::subject(patched).ok_or(FORM)?;
+    let conversation = match patched.get("conversationId") {
+        None => None,
+        Some(conversation) => Some(conversation.as_str().ok_or(FORM)?),
+    };
+    let why = if !is_draft {
+        Some(Unsent::NotDraft)
+    } else if to.len() != 1 {
+        Some(Unsent::Recipients)
+    } else if to[0] != message.sender {
+        Some(Unsent::Recipient)
+    } else if copies > 0 {
+        Some(Unsent::Copy)
+    } else if conversation.is_some_and(|conversation| conversation != message.conversation) {
+        Some(Unsent::Conversation)
+    } else {
+        None
+    };
+    Ok(match why {
+        Some(why) => Made::Unsent(UnsentDraft {
+            message: message.id.clone(),
+            draft: id,
+            why,
+        }),
+        None => Made::Draft(Draft {
+            id,
+            message: message.id.clone(),
+            to,
+            subject,
+        }),
+    })
 }
 
 pub(crate) fn yes_no(fact: bool) -> YesNo {
@@ -490,8 +736,8 @@ fn addresses(value: Option<&Value>) -> Option<Vec<String>> {
         .collect()
 }
 
-fn recipients(item: &Value) -> Result<Vec<String>, CallError> {
-    item.get("toRecipients")
+fn recipients(item: &Value, key: &str) -> Result<Vec<String>, CallError> {
+    item.get(key)
         .and_then(Value::as_array)
         .ok_or(FORM)?
         .iter()
@@ -540,6 +786,41 @@ impl fmt::Debug for Drafts {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Drafts")
             .field("len", &self.0.len())
+            .finish()
+    }
+}
+
+impl fmt::Debug for UnsentDraft {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UnsentDraft")
+            .field("why", &self.why)
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Unfinished {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Unfinished").finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Drafted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Drafted")
+            .field("drafts", &self.drafts.len())
+            .field("unsent", &self.unsent.len())
+            .finish()
+    }
+}
+
+impl fmt::Debug for DraftFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DraftFailure")
+            .field("error", &self.error)
+            .field("finished", &self.finished.len())
+            .field("unsent", &self.unsent.len())
+            .field("unfinished", &self.unfinished.is_some())
+            .field("unreached", &self.unreached.len())
             .finish()
     }
 }

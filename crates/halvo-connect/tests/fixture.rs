@@ -203,7 +203,8 @@ fn mail_draft_reply() {
             .collect();
         let drafts = graph
             .mail_draft_reply(&token, messages, BODY)
-            .expect("mail_draft_reply answers");
+            .expect("mail_draft_reply answers")
+            .into_drafts();
         let got: Vec<_> = drafts
             .iter()
             .map(|d| {
@@ -248,7 +249,8 @@ fn mail_send() {
             .expect("mail_list answers");
         let drafts = graph
             .mail_draft_reply(&token, messages, BODY)
-            .expect("mail_draft_reply answers");
+            .expect("mail_draft_reply answers")
+            .into_drafts();
         for draft in drafts.into_sends() {
             graph.mail_send(&token, draft).expect("mail_send answers");
         }
@@ -389,7 +391,7 @@ fn unauthorized() {
     let error = mail
         .mail_draft_reply(&wrong, messages, BODY)
         .expect_err("a 401");
-    errors.push(error);
+    errors.push(error.error());
     assert!(fixture.state()["mail"]["drafts"] == 0, "no draft is made");
 
     let messages = mail
@@ -397,7 +399,8 @@ fn unauthorized() {
         .expect("mail_list answers");
     let drafts = mail
         .mail_draft_reply(&right, messages, BODY)
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     let mut sends = drafts.into_sends();
     let error = mail
         .mail_send(&wrong, sends.next().expect("a draft"))
@@ -467,7 +470,8 @@ fn no_text_of_a_value_holds_the_token() {
     texts.extend(messages.iter().map(|m| format!("{m:?}")));
     let drafts = mail
         .mail_draft_reply(&token, messages, BODY)
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     texts.push(format!("{drafts:?}"));
     texts.extend(drafts.iter().map(|d| format!("{d:?}")));
     for draft in drafts.into_sends() {
