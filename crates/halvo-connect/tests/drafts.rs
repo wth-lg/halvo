@@ -435,3 +435,104 @@ fn a_mark_whose_answer_names_another_message_or_no_read_flag_fails() {
     );
     assert_eq!(send_and_mark(&stub), [Err(CallError::Status(429, None))]);
 }
+
+#[test]
+fn a_create_reply_answer_naming_an_id_of_the_page_where_the_bound_was_met_fails_before_its_patch() {
+    let page: Vec<String> = (0..11).map(|n| format!("m{n}")).collect();
+    let page: Vec<&str> = page.iter().map(String::as_str).collect();
+    for answered in ["m10", "m1"] {
+        let stub = routes(
+            &page,
+            vec![
+                create("m0", 201, created(answered)),
+                patch(answered, 200, draft(answered, "m0")),
+            ],
+        );
+        let failure = reply(&stub).expect_err("the call fails");
+        assert_eq!(
+            failure.error(),
+            CallError::Answer(AnswerFault::Repeated),
+            "createReply answered {answered}"
+        );
+        assert!(failure.unfinished().is_none(), "{answered}: no PATCH");
+        assert_eq!(
+            methods(&stub),
+            [
+                "GET /v1.0/me/mailFolders/inbox/messages",
+                "POST /v1.0/me/messages/m0/createReply"
+            ],
+            "{answered}: no request names the answered id"
+        );
+    }
+}
+
+#[test]
+fn a_create_reply_id_that_a_path_would_lose_fails_the_call_before_its_patch() {
+    for id in ["", ".", ".."] {
+        let stub = routes(
+            &["m1"],
+            vec![create(
+                "m1",
+                201,
+                json!({"id": id, "isDraft": true}).to_string(),
+            )],
+        );
+        let failure = reply(&stub).expect_err("the call fails");
+        assert_eq!(
+            failure.error(),
+            CallError::Answer(AnswerFault::Id),
+            "{id:?}"
+        );
+        assert!(failure.unfinished().is_none(), "{id:?}");
+        assert_eq!(failure.unreached(), ["m1"], "{id:?}");
+        assert_eq!(
+            methods(&stub),
+            [
+                "GET /v1.0/me/mailFolders/inbox/messages",
+                "POST /v1.0/me/messages/m1/createReply"
+            ],
+            "{id:?}: no PATCH"
+        );
+    }
+}
+
+#[test]
+fn the_mark_names_the_answered_message_as_one_encoded_path_segment() {
+    let stub = routes(
+        &["m/3"],
+        vec![
+            create("m%2F3", 201, created("d3")),
+            patch("d3", 200, draft("d3", "m/3")),
+            send("d3"),
+            (
+                "PATCH /v1.0/me/messages/m%2F3".to_owned(),
+                200,
+                json!({"id": "m/3", "isRead": true}).to_string(),
+            ),
+        ],
+    );
+    assert_eq!(send_and_mark(&stub), [Ok(Marked::Read)]);
+    let last = stub.seen().pop().expect("a request");
+    assert_eq!(
+        (last.method.as_str(), last.path.as_str(), last.body),
+        (
+            "PATCH",
+            "/v1.0/me/messages/m%2F3",
+            Some(json!({"isRead": true}))
+        )
+    );
+}
+
+#[test]
+fn a_draft_whose_conversation_differs_in_ascii_case_alone_is_held_back() {
+    let mut answer = draft("d1", "m1");
+    answer["conversationId"] = json!("C-M1");
+    let stub = routes(
+        &["m1"],
+        vec![create("m1", 201, created("d1")), patch("d1", 200, answer)],
+    );
+    let drafted = reply(&stub).expect("the call answers");
+    assert_eq!(drafted.drafts().len(), 0, "no send handle");
+    let whys: Vec<Unsent> = drafted.unsent().iter().map(|u| u.why()).collect();
+    assert_eq!(whys, [Unsent::Conversation]);
+}

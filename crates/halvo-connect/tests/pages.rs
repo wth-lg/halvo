@@ -606,3 +606,55 @@ fn the_same_events_are_selected_in_either_order_of_the_view_below_the_bound() {
     assert_eq!(sets[0], ids(&["e0", "e3", "e6", "e9"]));
     assert_eq!(sets[0], sets[1]);
 }
+
+#[test]
+fn a_calendar_link_to_another_collection_fails_the_call_and_no_request_is_sent_to_it() {
+    for path in [
+        "/v1.0/me/events",
+        "/v1.0/me/mailFolders/inbox/messages",
+        "/v1.0/me/calendarView/x",
+    ] {
+        let stub = Stub::start_at(|port| {
+            vec![
+                (
+                    format!("GET {WINDOW}"),
+                    200,
+                    page(
+                        vec![event("e1", true)],
+                        Some(format!("http://calendar.agent.test:{port}{path}?$skip=1")),
+                    ),
+                ),
+                (format!("GET {path}?$skip=1"), 200, page(Vec::new(), None)),
+            ]
+        });
+        assert_eq!(
+            event_ids(&stub),
+            Err(CallError::Answer(AnswerFault::Link)),
+            "{path}"
+        );
+        assert_eq!(stub.seen(), [seen(WINDOW)], "{path}");
+    }
+}
+
+#[test]
+fn a_next_link_with_a_password_and_no_user_fails_the_call_and_no_request_is_sent_to_it() {
+    let next = "/v1.0/me/mailFolders/inbox/messages?$skip=1";
+    let stub = Stub::start_at(|port| {
+        vec![
+            (
+                format!("GET {ANN}"),
+                200,
+                page(
+                    Vec::new(),
+                    Some(format!("http://:p@mail.agent.test:{port}{next}")),
+                ),
+            ),
+            (format!("GET {next}"), 200, page(Vec::new(), None)),
+        ]
+    });
+    assert_eq!(
+        mail_ids(&stub, "ann@people.test"),
+        Err(CallError::Answer(AnswerFault::Link))
+    );
+    assert_eq!(stub.seen(), [seen(ANN)]);
+}
