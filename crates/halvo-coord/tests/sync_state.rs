@@ -138,3 +138,16 @@ fn sync_alone_a_publish_after_a_move_that_did_not_return_raises_seq_though_nothi
     assert!(page.next(&sync), "the page takes the state again");
     assert_eq!(page.held, after);
 }
+
+#[test]
+fn sync_alone_a_publish_after_a_move_that_did_not_return_takes_the_new_state() {
+    let mut sync = Sync::new();
+    let (rows, items, note) = state(State::Ten);
+    sync.publish(rows, items, note);
+    let before = sync.snapshot();
+    let (rows, items, note) = state(State::Queue);
+    sync.publish_again(rows.clone(), items.clone(), note.clone());
+    let after = sync.snapshot();
+    assert_eq!(after.seq, before.seq + 1);
+    assert_eq!((after.rows, after.items, after.note), (rows, items, note));
+}

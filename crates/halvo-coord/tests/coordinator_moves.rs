@@ -8693,3 +8693,223 @@ fn rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles() {
         );
     }
 }
+
+#[test]
+fn rd80_while_the_tick_mark_stands_switch_off_and_the_cards_open_are_answered_as_always() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    tick_that_panics(&c);
+    assert_eq!(
+        c.snapshot().note,
+        Some(text("note.out_of_date")),
+        "the mark stands"
+    );
+    let m = mark(&c);
+    assert!(c.card(&agent(0)).is_ok(), "the card's open");
+    assert_eq!(
+        c.control(&agent(0), Action::SwitchOff),
+        Ok(()),
+        "Switch off is never withheld"
+    );
+    assert_eq!(cancels_of(&c, m, &run), 1, "the switch-off stops the run");
+    assert_eq!(c.snapshot().note, Some(text("note.out_of_date")));
+}
+
+#[test]
+fn rd84_after_a_returned_answer_a_tick_whose_clock_read_fails_still_does_its_work() {
+    let (c, _run, item) = armed_confirmation();
+    assert_eq!(c.answer(&item, Choice::Allow, None, 0), Ok(()));
+    c.ports().fail_read_at.set(Some(0));
+    let at = mark(&c);
+    c.tick();
+    c.ports().fail_read_at.set(None);
+    assert!(
+        calls_since(&c, at)
+            .iter()
+            .any(|call| matches!(call, Call::Agents | Call::Workflows)),
+        "a returned answer leaves no note, so no settle holds the tick's work"
+    );
+}
+
+#[test]
+fn rd84_the_settle_of_the_second_agents_item_logs_under_that_agent() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let _run0 = start(&c, 0);
+    let run1 = start(&c, 1);
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let (item, _) = open_item(&c);
+    c.on_screen(&item);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let step = shown_step_mark_or_zero(&c, &item);
+    panicking(&c, "answer_confirm", || {
+        c.answer(&item, Choice::Allow, None, step)
+    });
+    c.tick();
+    let lapsed: Vec<AgentId> = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            matches!(&e.what, What::ItemLapsed { item: i, lapsed } if i == &item && lapsed.cause().name() == "answer_lost")
+        })
+        .map(|e| e.agent.clone())
+        .collect();
+    assert_eq!(
+        lapsed,
+        vec![agent(1)],
+        "one answer_lost row, under the item's own agent"
+    );
+}
+
+#[test]
+fn rd84_the_settles_row_takes_the_moves_one_clock_read() {
+    let (c, _run, item) = armed_confirmation();
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item, Choice::Allow, None, 0)
+    });
+    c.ports().fail_read_at.set(Some(1));
+    c.tick();
+    c.ports().fail_read_at.set(None);
+    c.tick();
+    assert_eq!(
+        lost_lapses(&c, &item),
+        1,
+        "the item_lapsed row is stamped at the settle's one read (RD-84 item 2, RD-101 item 1)"
+    );
+}
+
+#[test]
+fn rd84_a_settle_whose_cancel_panics_still_ends_the_run_failed_at_the_grace() {
+    let (c, run, item) = armed_confirmation();
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item, Choice::Allow, None, 0)
+    });
+    panicking(&c, "cancel", || c.control(&agent(0), Action::Stop));
+    assert_eq!(lost_lapses(&c, &item), 0, "the row waits in the ledger");
+    let later = T0 + Limits::PRODUCT.arm_ms + 1_000 + Limits::PRODUCT.cancel_grace_s * 1000;
+    c.ports().ports.set_clock(later, DAY);
+    c.tick();
+    c.tick();
+    assert!(
+        events(&c)
+            .iter()
+            .any(|w| matches!(w, What::RunEnded { run: r, cause: RunEnd::Failed, .. } if r == &run)),
+        "the run is stopped on the board before the cancel, so the kill at the grace ends it failed"
+    );
+    assert_eq!(lost_lapses(&c, &item), 1, "one answer_lost row");
+}
+
+#[test]
+fn rd122_a_lost_move_that_is_no_tick_keeps_the_defers_of_a_run_seen_whole() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    c.tick();
+    panicking(&c, "start", || c.control(&agent(1), Action::RunNow));
+    c.tick();
+    c.ports().ports.end_runner(&run0);
+    assert_eq!(
+        c.on_run(&run0, RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    let defers = events(&c).iter().find_map(|w| match w {
+        What::RunEnded { run: r, defers, .. } if r == &run0 => Some(*defers),
+        _ => None,
+    });
+    assert!(
+        matches!(defers, Some(Some(_))),
+        "only a tick that did not return makes the defers not known: {defers:?}"
+    );
+}
+
+#[test]
+fn rd122_an_owed_run_end_keeps_its_defers_through_a_lost_tick() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.tick();
+    c.ports().ports.end_runner(&run);
+    c.ports().loss.set(Some(support::Loss::Nothing));
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().loss.set(None);
+    let owed_first = !events(&c)
+        .iter()
+        .any(|w| matches!(w, What::RunEnded { run: r, .. } if r == &run));
+    tick_that_panics(&c);
+    c.tick();
+    c.tick();
+    let defers = events(&c).iter().find_map(|w| match w {
+        What::RunEnded { run: r, defers, .. } if r == &run => Some(*defers),
+        _ => None,
+    });
+    assert_eq!(
+        (owed_first, matches!(defers, Some(Some(_)))),
+        (true, true),
+        "a run that left the board before the lost tick, its end owed, was seen whole: {defers:?}"
+    );
+}
+
+#[test]
+fn rd80_the_publish_after_a_lost_move_rings_the_bell_and_sets_the_trays_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+    tick_that_panics(&c);
+    let m = mark(&c);
+    let s = c.snapshot();
+    assert_eq!(s.note, Some(text("note.out_of_date")));
+    let calls = calls_since(&c, m);
+    assert!(calls.contains(&Call::Changed), "the bell: {calls:?}");
+    assert!(
+        calls.contains(&Call::Attention(1)),
+        "the tray's count of the agents that need the person: {calls:?}"
+    );
+}
+
+#[test]
+fn rd84_the_quits_first_step_settles_a_lost_answer_first() {
+    let (c, run, item) = armed_confirmation();
+    let m = mark(&c);
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item, Choice::Allow, None, 0)
+    });
+    let _ = c.quit_stop();
+    assert_eq!(
+        lost_lapses(&c, &item),
+        1,
+        "the settle comes before the quit's lapses"
+    );
+    assert!(
+        !events(&c).iter().any(|w| matches!(
+            w,
+            What::ItemLapsed { item: i, lapsed } if i == &item && lapsed.cause().name() == "app_ended"
+        )),
+        "the quit does not lapse the settled item again"
+    );
+    assert_eq!(cancels_of(&c, m, &run), 1, "one cancel");
+}
+
+#[test]
+fn rd84_the_quits_second_step_settles_a_lost_answer_first() {
+    let (c, run, item) = armed_confirmation();
+    let m = mark(&c);
+    panicking(&c, "answer_confirm_after_send", || {
+        c.answer(&item, Choice::Allow, None, 0)
+    });
+    c.quit_kill();
+    assert_eq!(
+        lost_lapses(&c, &item),
+        1,
+        "the settle comes before the quit's kill"
+    );
+    assert_eq!(cancels_of(&c, m, &run), 1, "the settle's one cancel");
+}
