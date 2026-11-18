@@ -1,6 +1,10 @@
 #[path = "run_support.rs"]
 mod support;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "coordinator_support.rs"]
+mod coord;
+
 use halvo_coord::guard::Table;
 use halvo_coord::mem::Call;
 use halvo_coord::mem::Method;
@@ -3130,4 +3134,66 @@ fn verifier56_92_went_through_on_an_open_card_whose_key_entry_left_is_taken() {
         Ok(Answer::Ok),
         "the answer ends the hold"
     );
+}
+
+fn check_fields(c: &halvo_coord::Coordinator<coord::Both>) -> Vec<Vec<String>> {
+    let items = c.snapshot().items;
+    let card = items
+        .iter()
+        .find(|i| i.kind() == halvo_coord::types::ItemKind::Check)
+        .expect("the check card");
+    card.fields().iter().map(|f| f.value.clone()).collect()
+}
+
+#[test]
+fn the_check_card_takes_its_kept_fields_from_the_entry_that_made_the_hold_with_no_second_roster_read(
+) {
+    let c = coord::coordinator(&[coord::MANUAL], halvo_coord::types::Limits::PRODUCT);
+    assert_eq!(
+        c.control(&agent(0), halvo_coord::types::Action::RunNow),
+        Ok(())
+    );
+    let run = coord::started(&c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, halvo_coord::types::RunEvent::Hello), Ok(()));
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, halvo_coord::types::RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(Unknown {
+            run: run.clone(),
+            effect: EffectId::parse(&format!("{:032x}", 0xe401)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    c.ports().ports.set_clock(T0 + 5000, DAY);
+    c.tick();
+    assert_eq!(check_fields(&c), vec![vec!["Ann Lee".to_string()]]);
+    let agents_reads = |from: usize| {
+        coord::calls_since(&c, from)
+            .iter()
+            .filter(|call| matches!(call, Call::Agents))
+            .count()
+    };
+    let from = coord::mark(&c);
+    c.ports().ports.set_clock(T0 + 6000, DAY);
+    c.tick();
+    assert_eq!(
+        agents_reads(from),
+        1,
+        "one read of the roster in the tick, its own: the page makes no second one"
+    );
+    assert_eq!(check_fields(&c), vec![vec!["Ann Lee".to_string()]]);
 }
