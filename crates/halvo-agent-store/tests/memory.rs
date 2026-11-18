@@ -159,6 +159,8 @@ fn the_kind_table_is_the_family_agent() {
             "agent_log",
             "agent_session",
             "agent_checkpoint",
+            "agent_reply",
+            "agent_start",
         ]
     );
     let capture: Vec<&str> = AGENT_KINDS

@@ -4,7 +4,7 @@ use common::*;
 use halvo_agent_store::MemoryStore;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerCall, RunnerReply};
+use halvo_schema::executable::{AgentLog, AgentPlaybook, AgentSession, RunnerReply};
 use halvo_schema::ErrorName;
 use serde_json::{json, Value};
 
@@ -562,7 +562,7 @@ fn every_row(store: &MemoryStore) -> Vec<(&'static str, Vec<String>)> {
 }
 
 #[test]
-fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothing() {
+fn the_bodies_reply_row_and_load_replies_are_answered_by_their_handlers() {
     let mut store = store_with("utility_bill_payment");
     let record = json!({
         "v": 1,
@@ -577,19 +577,20 @@ fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothin
         "effect": null,
         "state": "drafted",
     });
+    let body = json!({"op": "reply_row", "agent": agent(1), "run": run(1), "record": record});
+    assert_eq!(runner(&mut store, body), Ok(stored(1)));
+    assert_eq!(rows(&store, "agent_reply").len(), 1);
     let before = every_row(&store);
-    assert!(before.iter().any(|(_, rows)| !rows.is_empty()));
-    for body in [
-        json!({"op": "reply_row", "agent": agent(1), "run": run(1), "record": record}),
-        json!({"op": "load_replies", "agent": agent(1), "run": run(1), "message_ids": ["msg-1", "msg-2"]}),
-    ] {
-        assert!(
-            RunnerCall::parse(body.to_string().as_bytes()).is_ok(),
-            "the schema reads the body, so the store's arm answers it: {body}"
-        );
-        assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
-        assert_eq!(every_row(&store), before);
-    }
+    let body = json!({"op": "load_replies", "agent": agent(1), "run": run(1), "message_ids": ["msg-1", "msg-2"]});
+    let reply = format!(
+        r#"{{"replies":[{}],"blocked":[],"blocked_withheld":[]}}"#,
+        record
+    );
+    assert_eq!(
+        runner(&mut store, body),
+        Ok(RunnerReply::parse(reply.as_bytes()).expect("a reply of load_replies"))
+    );
+    assert_eq!(every_row(&store), before);
 }
 
 #[test]
@@ -899,4 +900,83 @@ fn a_row_stamped_by_day_of_at_the_store_s_offset_is_taken_and_its_utc_stamp_is_r
         );
         assert_eq!(rows(&store, "agent_run").len(), 1, "{offset}");
     }
+}
+
+fn file_step(n: u32, verb: &str, file: &str) -> Value {
+    let (args, class, sheet) = match verb {
+        "read" => (
+            json!([{"name": "as", "from": "const", "value": "rows", "key": null}]),
+            "read",
+            Value::Null,
+        ),
+        _ => (
+            json!([{"name": "values", "from": "extract", "value": null, "key": "rows"}]),
+            "local_edit",
+            json!("sheet"),
+        ),
+    };
+    json!({
+        "v": 1,
+        "n": n,
+        "kind": "file",
+        "verb": verb,
+        "target": {"file": file, "sheet": sheet.clone(), "range": if sheet.is_null() { Value::Null } else { json!("range") }},
+        "args": args,
+        "pre": [],
+        "post": [],
+        "effect": "none",
+        "class": class,
+    })
+}
+
+#[test]
+fn put_playbook_answers_a_write_to_a_file_that_is_not_the_slot_workbook_with_playbook() {
+    for category in ["spreadsheet_fill", "utility_bill_payment"] {
+        let mut store = store_with(category);
+        for file in ["dest", "workbooks", "old_workbook"] {
+            assert_eq!(
+                put_steps(
+                    &mut store,
+                    1,
+                    vec![file_step(1, "read", "source"), file_step(2, "write", file)]
+                ),
+                Err(declared("playbook")),
+                "{category} {file}"
+            );
+            assert!(playbook_rows(&store).is_empty(), "{category} {file}");
+        }
+        assert_eq!(
+            put_steps(
+                &mut store,
+                1,
+                vec![
+                    file_step(1, "read", "source"),
+                    file_step(2, "write", "workbook")
+                ]
+            ),
+            Ok(stored(2)),
+            "{category}"
+        );
+    }
+}
+
+#[test]
+fn a_repeat_of_a_stored_stopped_row_stores_nothing_and_is_answered_with_its_count() {
+    let mut store = store_with("utility_bill_payment");
+    let mut stopped = log_line(2);
+    stopped["event"] = json!("stopped");
+    stopped["cause"] = json!("no_start");
+    for _ in 0..3 {
+        assert_eq!(put_log(&mut store, vec![stopped.clone()]), Ok(stored(1)));
+        assert_eq!(rows(&store, "agent_log").len(), 2);
+    }
+    assert_eq!(
+        put_log(&mut store, vec![stopped.clone(), log_line(3)]),
+        Ok(stored(2))
+    );
+    assert_eq!(
+        put_log(&mut store, vec![stopped, log_line(3)]),
+        Ok(stored(2))
+    );
+    assert_eq!(rows(&store, "agent_log").len(), 3);
 }

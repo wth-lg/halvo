@@ -1,8 +1,8 @@
 use crate::ports::{Clock, Owner, Rng, Stamp};
 use crate::schedule::{holds, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold};
 use crate::types::{
-    hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, ItemKind, Lapsed, Limits, OtherLapse,
-    OwnItem, OwnItemKind, Raised, What,
+    hex, AgentId, Category, Cleared, ConfigView, Doing, Event, Facts, ItemId, ItemKind, Lapsed,
+    Limits, OtherLapse, OwnItem, OwnItemKind, Raised, Replies, What,
 };
 use std::num::NonZeroU32;
 
@@ -20,6 +20,42 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
         Doing::Queued(_) | Doing::Live(_) => false,
     };
     !gone && idle && holds(facts).contains(&Hold::Check)
+}
+
+/// The read of the reply rows of an agent of the category `email` (rulings RD-67 3.3, 3.4, RD-81
+/// 8.4), which each move that computes the agent's holds makes once its facts hold the owner's
+/// answer of that move: the move that raises the item `check` and each tick while it is open
+/// among them. It asks `Owner::replies` for the newest run where the agent store has ended that
+/// run and no `hold_cleared` of the cause `check` names it, and for no other agent or category;
+/// the facts take the rows, or `Replies::NoAnswer` for a read that did not answer. While such a
+/// read leaves the hold `check` not standing, the run counts as not ended by the store in that move,
+/// so that no start passes and the row says that the agent waits for its last run to be closed
+/// (I5.5 step 3); a read that did not answer ends no hold that stands.
+pub(crate) fn read_replies<P, C>(ports: &P, facts: &mut Facts<C>)
+where
+    P: Owner + ?Sized,
+    C: ConfigView,
+{
+    facts.replies = Replies::NotAsked;
+    if facts.workflow.category != Category::Email || !facts.store_ended {
+        return;
+    }
+    let Some(newest) = facts.runs.first().map(|r| r.run.clone()) else {
+        return;
+    };
+    let answered = facts.events.iter().any(|e| {
+        matches!(&e.what, What::HoldCleared { cause: Cleared::Check { run, .. } } if *run == newest)
+    });
+    if answered {
+        return;
+    }
+    facts.replies = match ports.replies(&facts.workflow.id, &facts.agent, &newest) {
+        Ok(rows) => Replies::Rows(rows),
+        Err(_) => Replies::NoAnswer,
+    };
+    if facts.replies == Replies::NoAnswer && !holds(facts).contains(&Hold::Check) {
+        facts.store_ended = false;
+    }
 }
 
 /// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`

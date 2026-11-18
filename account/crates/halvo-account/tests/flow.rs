@@ -1012,6 +1012,93 @@ fn status_reports_each_result_of_the_route() {
     }
 }
 
+fn source(path: &str) -> String {
+    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
+    std::fs::read_to_string(&file)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", file.display()))
+        .replace("\r\n", "\n")
+}
+
+fn block<'a>(text: &'a str, start: &str) -> &'a str {
+    let from = text.find(start).unwrap_or_else(|| panic!("no {start:?}"));
+    let rest = &text[from..];
+    let end = rest.find("\n}\n").expect("the block ends");
+    &rest[..end]
+}
+
+#[test]
+fn status_maps_each_result_of_the_generated_type_by_name_with_no_wildcard_arm() {
+    let types = source("../halvo-wire/src/types.rs");
+    let variants: Vec<&str> = block(&types, "pub enum StatusAnswerResult {")
+        .lines()
+        .skip(1)
+        .map(str::trim)
+        .filter(|line| !line.starts_with('#') && line.ends_with(','))
+        .map(|line| line.trim_end_matches(','))
+        .collect();
+    assert_eq!(variants.len(), 7, "{variants:?}");
+    let flow = source("src/flow.rs");
+    let status = block(&flow, "fn status(");
+    let arms: String = status.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(
+        !arms.contains("_=>"),
+        "a wildcard arm in status():\n{status}"
+    );
+    for variant in &variants {
+        let named = format!("StatusAnswerResult::{variant}");
+        assert_eq!(
+            status.matches(&named).count(),
+            1,
+            "{named} in status():\n{status}"
+        );
+    }
+    assert_eq!(
+        status.matches("StatusAnswerResult::").count(),
+        variants.len()
+    );
+}
+
+const CLOSING: &str = r#"{"result":"closing"}"#;
+
+const CLOSING_NOTE: &str = "the backend answered that the account is closing: its delete has begun and the backend is waiting for the payment provider's answer to its request to cancel any paid plan; the backend sees to that and finishes the delete by itself, nothing is asked of you, and when that happens is not known";
+
+#[test]
+fn status_reads_closing_and_prints_its_line_and_its_sentence() {
+    let held = sign_in(3);
+    let world = World::holding(&held).answering(200, CLOSING);
+    let outcome = world.run(&["status"]);
+    assert_eq!(
+        (outcome.code(), outcome.line(), outcome.note()),
+        (0, "result=closing".to_string(), CLOSING_NOTE)
+    );
+    assert_eq!(world.log(), ["read", "send"]);
+    assert_eq!(world.stored(), Some(held.to_secret().expose().to_vec()));
+}
+
+#[test]
+fn status_that_goes_from_cancelled_back_to_closing_prints_closing_again() {
+    let held = sign_in(4);
+    let world = World::holding(&held)
+        .answering(200, r#"{"result":"closing"}"#)
+        .answering(200, r#"{"result":"cancelled"}"#)
+        .answering(200, CLOSING);
+    let lines: Vec<(u8, String, &str)> = (0..3)
+        .map(|_| {
+            let outcome = world.run(&["status"]);
+            (outcome.code(), outcome.line(), outcome.note())
+        })
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            (0, "result=closing".to_string(), CLOSING_NOTE),
+            (0, "result=cancelled".to_string(), "the backend answered"),
+            (0, "result=closing".to_string(), CLOSING_NOTE),
+        ]
+    );
+    assert_eq!(world.stored(), Some(held.to_secret().expose().to_vec()));
+}
+
 #[test]
 fn cap_and_set_cap_report_the_cap_with_what_is_spent_and_held_and_the_period_end() {
     let body = r#"{"result":"cap","cap":{"amount":5,"period":"month"},"spend":{"spent":1,"held":2,"period_end":1767225600000}}"#;

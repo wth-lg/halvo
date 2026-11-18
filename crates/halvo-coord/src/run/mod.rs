@@ -9,6 +9,7 @@ mod recover;
 mod step;
 
 pub use check::check_due;
+pub(crate) use check::read_replies;
 pub use delete::{delete_step, forgotten, Gone};
 pub use drive::{drive, Act, Done, StopBy};
 pub use recover::{recover, recover_step, Earlier, Life, Recovery};

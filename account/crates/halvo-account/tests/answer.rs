@@ -392,7 +392,9 @@ fn every_answer_of_the_vendored_samples_is_read_with_its_result() {
             read_count += 1;
         }
     }
-    assert_eq!(read_count, 29);
+    assert_eq!(read_count, 30);
+    let read = answer::<StatusAnswer>("status", &answers["status"]["closing"].to_string());
+    assert_eq!(read.result, StatusAnswerResult::Closing);
     let read = answer::<CheckoutAnswer>(
         "checkout-start",
         &answers["checkout-start"]["session"].to_string(),

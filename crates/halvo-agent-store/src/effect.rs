@@ -1,4 +1,4 @@
-use halvo_policy::{decide, effect_step, Checkpoint, Effect, EffectMove};
+use halvo_policy::{decide, effect_step, Checkpoint, Decision, Effect, EffectMove};
 use halvo_schema::executable::body::{PutEffect, Stored};
 use halvo_schema::executable::names::{Cause, EffectState};
 use halvo_schema::executable::{AgentConfig, AgentEffect, ApprovalId, RunnerReply};
@@ -31,7 +31,15 @@ pub(crate) fn put(host: &mut dyn Host, now: Now, b: &PutEffect) -> Result<Runner
     bind::open_run(&*host, &row.run)?;
     match mine.split_first() {
         None => first(&config, row)?,
-        Some((first_row, _)) => later(&all, &mine, first_row, row)?,
+        Some((first_row, _)) => {
+            later(&all, &mine, first_row, row)?;
+            if row.state == EffectState::Releasing
+                && decide(&config, first_row.class, checkpoint_of(first_row)).decision()
+                    == Decision::Refuse
+            {
+                return Err(Own::Effect.into());
+            }
+        }
     }
     day::commit(host, now, vec![record(rows::AGENT_EFFECT, row.to_json())?])?;
     Ok(stored())
@@ -50,16 +58,19 @@ fn repeats(last: &AgentEffect, row: &AgentEffect) -> bool {
     dated == *row
 }
 
+fn checkpoint_of(first_row: &AgentEffect) -> Checkpoint {
+    if first_row.state == EffectState::Cleared {
+        Checkpoint::Yes
+    } else {
+        Checkpoint::No
+    }
+}
+
 fn first(config: &AgentConfig, row: &AgentEffect) -> Result<(), ErrorName> {
     if row.seq.get() != 1 {
         return Err(Own::Effect.into());
     }
-    let checkpoint = if row.state == EffectState::Cleared {
-        Checkpoint::Yes
-    } else {
-        Checkpoint::No
-    };
-    let decided = decide(config, row.class, checkpoint);
+    let decided = decide(config, row.class, checkpoint_of(row));
     match effect_step(None, EffectMove::Propose(decided)) {
         Ok(state) if state == row.state => Ok(()),
         _ => Err(Own::Effect.into()),

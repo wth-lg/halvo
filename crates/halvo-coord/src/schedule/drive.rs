@@ -199,19 +199,34 @@ fn refresh<C: Clone>(member: &mut Member<C>, entry: Option<&Agent<C>>, history: 
         facts.runs.insert(0, l.clone());
         facts.runs.truncate(history);
     }
+    if let Some(a) = entry {
+        facts.take_unknown(&a.unknown);
+    }
 }
 
-fn fresh<P: Owner<Config = C>, C: Clone>(
+fn fresh<P: Owner<Config = C>, C: ConfigView + Clone>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
     only: Option<usize>,
 ) -> Result<(), PortError> {
-    let agents = cx.ports.agents()?;
+    let agents = match cx.ports.agents() {
+        Ok(agents) => agents,
+        Err(e) => {
+            for (k, m) in board.members.iter_mut().enumerate() {
+                if only.is_none_or(|i| i == k) {
+                    m.facts.unknown.clear();
+                    m.facts.replies = crate::types::Replies::NotAsked;
+                }
+            }
+            return Err(e);
+        }
+    };
     let history = cx.limits.history_runs as usize;
     for (k, m) in board.members.iter_mut().enumerate() {
         if only.is_none_or(|i| i == k) {
             let entry = agents.iter().find(|a| a.agent == m.facts.agent);
             refresh(m, entry, history);
+            crate::run::read_replies(cx.ports, &mut m.facts);
         }
     }
     Ok(())
@@ -1253,6 +1268,7 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
         facts.events = events;
         facts.store_ended = newest_started(facts)
             .is_none_or(|run| facts.runs.first().is_some_and(|l| &l.run == run));
+        crate::run::read_replies(cx.ports, facts);
         let workflow = facts.workflow.id.clone();
         board.set_last(i, last);
         let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
@@ -1543,20 +1559,24 @@ where
         {
             continue;
         }
-        let member = Member {
+        let mut member = Member {
             facts: Facts {
                 agent: id.clone(),
                 workflow,
                 config: a.config.clone(),
                 slots: a.slots.clone(),
                 runs: a.last.clone().into_iter().collect(),
+                unknown: Vec::new(),
                 events: Vec::new(),
                 store_ended: true,
+                replies: crate::types::Replies::NotAsked,
                 today: board.day,
                 doing: Doing::Idle(None),
             },
             session: a.session,
         };
+        member.facts.take_unknown(&a.unknown);
+        crate::run::read_replies(cx.ports, &mut member.facts);
         let at = board
             .members
             .partition_point(|m| m.facts.agent < member.facts.agent);

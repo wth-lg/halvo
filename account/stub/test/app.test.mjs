@@ -285,7 +285,7 @@ test("every answer in every state validates against its schema and agrees with r
       }
     }
   }
-  const never = { "checkout-start": ["unavailable"], "cap-get": ["no-cap"], manage: ["unavailable"] };
+  const never = { "checkout-start": ["unavailable"], status: ["closing"], "cap-get": ["no-cap"], manage: ["unavailable"] };
   for (const name of APP_ROUTES) {
     const want = Object.keys(ROUTE[name].results).filter((value) => !(never[name] ?? []).includes(value));
     assert.deepEqual([...seen.get(name)].sort(), want.sort(), name);

@@ -51,6 +51,7 @@ fn follows(last: &AgentCheckpoint, row: &AgentCheckpoint) -> bool {
         && last.agent == row.agent
         && last.folder == row.folder
         && last.copy == row.copy
+        && last.at <= row.at
 }
 
 pub(crate) fn put(

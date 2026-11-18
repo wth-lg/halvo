@@ -5,8 +5,8 @@ use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use crate::schedule::{self, stop_run, Board, Move, Report, Stop};
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, Cause, ConfigView, Decision, Doing, Event,
-    HandbackResult, Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow,
-    WorkflowId,
+    HandbackResult, Limits, Live, Outcome, Reply, ReplyRow, RunEnd, RunId, RunItem, RunSpec,
+    Workflow, WorkflowId,
 };
 use std::cell::RefCell;
 
@@ -225,6 +225,15 @@ impl<P: Owner> Owner for Watch<'_, P> {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.ports.send(body)
+    }
+
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
     }
 }
 
