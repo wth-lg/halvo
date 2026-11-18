@@ -67,16 +67,67 @@ pub fn combining(c: char) -> bool {
     mark(c) || within(SPACING_MARKS, c)
 }
 
-/// The longest run of marks of the general category M (`combining`) in `text`, a run at its
-/// start or after a blank counted as well.
-pub fn marks_in_a_row(text: &str) -> usize {
+/// The marks of `c`'s canonical decomposition and whether a character that is no mark starts it;
+/// none for a character that decomposes to no mark.
+fn decomposed(c: char) -> Option<(usize, bool)> {
+    let c = u32::from(c);
+    DECOMPOSED
+        .binary_search_by(|&(lo, hi, _, _)| {
+            if hi < c {
+                std::cmp::Ordering::Less
+            } else if lo > c {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .ok()
+        .map(|i| (usize::from(DECOMPOSED[i].2), DECOMPOSED[i].3))
+}
+
+/// The longest run of marks of the general category M in the canonical decomposition (NFD) of
+/// `text`, so that a precomposed letter counts the marks that it carries (ruling RD-137 M1), and
+/// whether a mark stands with no base before it: at the start, after a blank or after a
+/// character with no visible form (ruling RD-137 M2).
+fn mark_scan(text: &str) -> (usize, bool) {
     let mut run = 0;
     let mut most = 0;
+    let mut orphan = false;
+    let mut before: Option<char> = None;
     for c in text.chars() {
-        run = if combining(c) { run + 1 } else { 0 };
+        let marks = match decomposed(c) {
+            Some((k, true)) => {
+                run = 0;
+                k
+            }
+            Some((k, false)) => k,
+            None if combining(c) => 1,
+            None => {
+                run = 0;
+                0
+            }
+        };
+        let starts_with_mark = marks > 0 && decomposed(c).is_none_or(|(_, base)| !base);
+        if starts_with_mark && run == 0 && before.is_none_or(|b| blank(b) || no_form(b)) {
+            orphan = true;
+        }
+        run += marks;
         most = most.max(run);
+        before = Some(c);
     }
-    most
+    (most, orphan)
+}
+
+/// The longest run of marks of the general category M in `text`, counted on its canonical
+/// decomposition, a run at its start or after a blank counted as well.
+pub fn marks_in_a_row(text: &str) -> usize {
+    mark_scan(text).0
+}
+
+/// Whether a mark of `text` has no base before it: at its start, after a blank or after a
+/// character with no visible form.
+pub fn orphan_mark(text: &str) -> bool {
+    mark_scan(text).1
 }
 
 /// The columns that `text` takes on a line: none for a `mark`, two for a character whose East
@@ -99,26 +150,22 @@ pub fn columns(text: &str) -> usize {
 
 /// Whether `value` equals its own composed form (ruling RD-90 item 2) at the bound of `most`
 /// columns: at least one character, no character with no visible form, no blank at its start or
-/// end and no two blanks in a row, no mark (`combining`) at its start and no more than
-/// `MOST_MARKS` marks in a row, and at most `most` columns.
+/// end and no two blanks in a row, no mark with no base before it (`orphan_mark`), no more than
+/// `MOST_MARKS` marks in a row on its canonical decomposition (`marks_in_a_row`), and at most
+/// `most` columns.
 pub fn composed(value: &str, most: usize) -> bool {
     let chars: Vec<char> = value.chars().collect();
     if chars.is_empty() {
         return false;
     }
-    let mut marks = 0;
     for (i, &c) in chars.iter().enumerate() {
-        marks = if combining(c) { marks + 1 } else { 0 };
         let edge = i == 0 || i + 1 == chars.len();
-        if no_form(c)
-            || (blank(c) && (edge || blank(chars[i + 1])))
-            || (marks > 0 && i + 1 == marks)
-            || marks > MOST_MARKS
-        {
+        if no_form(c) || (blank(c) && (edge || blank(chars[i + 1]))) {
             return false;
         }
     }
-    columns(value) <= most
+    let (marks, orphan) = mark_scan(value);
+    !orphan && marks <= MOST_MARKS && columns(value) <= most
 }
 
 /// The code points of the general categories Cc, Cf, Zl, Zp, Co, Cs and Cn of Unicode 13.0.0.
@@ -1447,4 +1494,327 @@ const WIDE: &[(u32, u32)] = &[
     (0x2CEB0, 0x2EBE0),
     (0x2F800, 0x2FA1D),
     (0x30000, 0x3134A),
+];
+
+/// The code points whose canonical decomposition in Unicode 13.0.0 holds marks of the
+/// general category M: each range with the count of those marks and whether a character that
+/// is no mark starts the decomposition.
+const DECOMPOSED: &[(u32, u32, u8, bool)] = &[
+    (0x00C0, 0x00C5, 1, true),
+    (0x00C7, 0x00CF, 1, true),
+    (0x00D1, 0x00D6, 1, true),
+    (0x00D9, 0x00DD, 1, true),
+    (0x00E0, 0x00E5, 1, true),
+    (0x00E7, 0x00EF, 1, true),
+    (0x00F1, 0x00F6, 1, true),
+    (0x00F9, 0x00FD, 1, true),
+    (0x00FF, 0x010F, 1, true),
+    (0x0112, 0x0125, 1, true),
+    (0x0128, 0x0130, 1, true),
+    (0x0134, 0x0137, 1, true),
+    (0x0139, 0x013E, 1, true),
+    (0x0143, 0x0148, 1, true),
+    (0x014C, 0x0151, 1, true),
+    (0x0154, 0x0165, 1, true),
+    (0x0168, 0x017E, 1, true),
+    (0x01A0, 0x01A1, 1, true),
+    (0x01AF, 0x01B0, 1, true),
+    (0x01CD, 0x01D4, 1, true),
+    (0x01D5, 0x01DC, 2, true),
+    (0x01DE, 0x01E1, 2, true),
+    (0x01E2, 0x01E3, 1, true),
+    (0x01E6, 0x01EB, 1, true),
+    (0x01EC, 0x01ED, 2, true),
+    (0x01EE, 0x01F0, 1, true),
+    (0x01F4, 0x01F5, 1, true),
+    (0x01F8, 0x01F9, 1, true),
+    (0x01FA, 0x01FB, 2, true),
+    (0x01FC, 0x021B, 1, true),
+    (0x021E, 0x021F, 1, true),
+    (0x0226, 0x0229, 1, true),
+    (0x022A, 0x022D, 2, true),
+    (0x022E, 0x022F, 1, true),
+    (0x0230, 0x0231, 2, true),
+    (0x0232, 0x0233, 1, true),
+    (0x0340, 0x0341, 1, false),
+    (0x0343, 0x0343, 1, false),
+    (0x0344, 0x0344, 2, false),
+    (0x0385, 0x0386, 1, true),
+    (0x0388, 0x038A, 1, true),
+    (0x038C, 0x038C, 1, true),
+    (0x038E, 0x038F, 1, true),
+    (0x0390, 0x0390, 2, true),
+    (0x03AA, 0x03AF, 1, true),
+    (0x03B0, 0x03B0, 2, true),
+    (0x03CA, 0x03CE, 1, true),
+    (0x03D3, 0x03D4, 1, true),
+    (0x0400, 0x0401, 1, true),
+    (0x0403, 0x0403, 1, true),
+    (0x0407, 0x0407, 1, true),
+    (0x040C, 0x040E, 1, true),
+    (0x0419, 0x0419, 1, true),
+    (0x0439, 0x0439, 1, true),
+    (0x0450, 0x0451, 1, true),
+    (0x0453, 0x0453, 1, true),
+    (0x0457, 0x0457, 1, true),
+    (0x045C, 0x045E, 1, true),
+    (0x0476, 0x0477, 1, true),
+    (0x04C1, 0x04C2, 1, true),
+    (0x04D0, 0x04D3, 1, true),
+    (0x04D6, 0x04D7, 1, true),
+    (0x04DA, 0x04DF, 1, true),
+    (0x04E2, 0x04E7, 1, true),
+    (0x04EA, 0x04F5, 1, true),
+    (0x04F8, 0x04F9, 1, true),
+    (0x0622, 0x0626, 1, true),
+    (0x06C0, 0x06C0, 1, true),
+    (0x06C2, 0x06C2, 1, true),
+    (0x06D3, 0x06D3, 1, true),
+    (0x0929, 0x0929, 1, true),
+    (0x0931, 0x0931, 1, true),
+    (0x0934, 0x0934, 1, true),
+    (0x0958, 0x095F, 1, true),
+    (0x09CB, 0x09CC, 2, false),
+    (0x09DC, 0x09DD, 1, true),
+    (0x09DF, 0x09DF, 1, true),
+    (0x0A33, 0x0A33, 1, true),
+    (0x0A36, 0x0A36, 1, true),
+    (0x0A59, 0x0A5B, 1, true),
+    (0x0A5E, 0x0A5E, 1, true),
+    (0x0B48, 0x0B48, 2, false),
+    (0x0B4B, 0x0B4C, 2, false),
+    (0x0B5C, 0x0B5D, 1, true),
+    (0x0B94, 0x0B94, 1, true),
+    (0x0BCA, 0x0BCC, 2, false),
+    (0x0C48, 0x0C48, 2, false),
+    (0x0CC0, 0x0CC0, 2, false),
+    (0x0CC7, 0x0CC8, 2, false),
+    (0x0CCA, 0x0CCA, 2, false),
+    (0x0CCB, 0x0CCB, 3, false),
+    (0x0D4A, 0x0D4C, 2, false),
+    (0x0DDA, 0x0DDA, 2, false),
+    (0x0DDC, 0x0DDC, 2, false),
+    (0x0DDD, 0x0DDD, 3, false),
+    (0x0DDE, 0x0DDE, 2, false),
+    (0x0F43, 0x0F43, 1, true),
+    (0x0F4D, 0x0F4D, 1, true),
+    (0x0F52, 0x0F52, 1, true),
+    (0x0F57, 0x0F57, 1, true),
+    (0x0F5C, 0x0F5C, 1, true),
+    (0x0F69, 0x0F69, 1, true),
+    (0x0F73, 0x0F73, 2, false),
+    (0x0F75, 0x0F76, 2, false),
+    (0x0F78, 0x0F78, 2, false),
+    (0x0F81, 0x0F81, 2, false),
+    (0x0F93, 0x0F93, 2, false),
+    (0x0F9D, 0x0F9D, 2, false),
+    (0x0FA2, 0x0FA2, 2, false),
+    (0x0FA7, 0x0FA7, 2, false),
+    (0x0FAC, 0x0FAC, 2, false),
+    (0x0FB9, 0x0FB9, 2, false),
+    (0x1026, 0x1026, 1, true),
+    (0x1B06, 0x1B06, 1, true),
+    (0x1B08, 0x1B08, 1, true),
+    (0x1B0A, 0x1B0A, 1, true),
+    (0x1B0C, 0x1B0C, 1, true),
+    (0x1B0E, 0x1B0E, 1, true),
+    (0x1B12, 0x1B12, 1, true),
+    (0x1B3B, 0x1B3B, 2, false),
+    (0x1B3D, 0x1B3D, 2, false),
+    (0x1B40, 0x1B41, 2, false),
+    (0x1B43, 0x1B43, 2, false),
+    (0x1E00, 0x1E07, 1, true),
+    (0x1E08, 0x1E09, 2, true),
+    (0x1E0A, 0x1E13, 1, true),
+    (0x1E14, 0x1E17, 2, true),
+    (0x1E18, 0x1E1B, 1, true),
+    (0x1E1C, 0x1E1D, 2, true),
+    (0x1E1E, 0x1E2D, 1, true),
+    (0x1E2E, 0x1E2F, 2, true),
+    (0x1E30, 0x1E37, 1, true),
+    (0x1E38, 0x1E39, 2, true),
+    (0x1E3A, 0x1E4B, 1, true),
+    (0x1E4C, 0x1E53, 2, true),
+    (0x1E54, 0x1E5B, 1, true),
+    (0x1E5C, 0x1E5D, 2, true),
+    (0x1E5E, 0x1E63, 1, true),
+    (0x1E64, 0x1E69, 2, true),
+    (0x1E6A, 0x1E77, 1, true),
+    (0x1E78, 0x1E7B, 2, true),
+    (0x1E7C, 0x1E99, 1, true),
+    (0x1E9B, 0x1E9B, 1, true),
+    (0x1EA0, 0x1EA3, 1, true),
+    (0x1EA4, 0x1EB7, 2, true),
+    (0x1EB8, 0x1EBD, 1, true),
+    (0x1EBE, 0x1EC7, 2, true),
+    (0x1EC8, 0x1ECF, 1, true),
+    (0x1ED0, 0x1EE3, 2, true),
+    (0x1EE4, 0x1EE7, 1, true),
+    (0x1EE8, 0x1EF1, 2, true),
+    (0x1EF2, 0x1EF9, 1, true),
+    (0x1F00, 0x1F01, 1, true),
+    (0x1F02, 0x1F07, 2, true),
+    (0x1F08, 0x1F09, 1, true),
+    (0x1F0A, 0x1F0F, 2, true),
+    (0x1F10, 0x1F11, 1, true),
+    (0x1F12, 0x1F15, 2, true),
+    (0x1F18, 0x1F19, 1, true),
+    (0x1F1A, 0x1F1D, 2, true),
+    (0x1F20, 0x1F21, 1, true),
+    (0x1F22, 0x1F27, 2, true),
+    (0x1F28, 0x1F29, 1, true),
+    (0x1F2A, 0x1F2F, 2, true),
+    (0x1F30, 0x1F31, 1, true),
+    (0x1F32, 0x1F37, 2, true),
+    (0x1F38, 0x1F39, 1, true),
+    (0x1F3A, 0x1F3F, 2, true),
+    (0x1F40, 0x1F41, 1, true),
+    (0x1F42, 0x1F45, 2, true),
+    (0x1F48, 0x1F49, 1, true),
+    (0x1F4A, 0x1F4D, 2, true),
+    (0x1F50, 0x1F51, 1, true),
+    (0x1F52, 0x1F57, 2, true),
+    (0x1F59, 0x1F59, 1, true),
+    (0x1F5B, 0x1F5B, 2, true),
+    (0x1F5D, 0x1F5D, 2, true),
+    (0x1F5F, 0x1F5F, 2, true),
+    (0x1F60, 0x1F61, 1, true),
+    (0x1F62, 0x1F67, 2, true),
+    (0x1F68, 0x1F69, 1, true),
+    (0x1F6A, 0x1F6F, 2, true),
+    (0x1F70, 0x1F7D, 1, true),
+    (0x1F80, 0x1F81, 2, true),
+    (0x1F82, 0x1F87, 3, true),
+    (0x1F88, 0x1F89, 2, true),
+    (0x1F8A, 0x1F8F, 3, true),
+    (0x1F90, 0x1F91, 2, true),
+    (0x1F92, 0x1F97, 3, true),
+    (0x1F98, 0x1F99, 2, true),
+    (0x1F9A, 0x1F9F, 3, true),
+    (0x1FA0, 0x1FA1, 2, true),
+    (0x1FA2, 0x1FA7, 3, true),
+    (0x1FA8, 0x1FA9, 2, true),
+    (0x1FAA, 0x1FAF, 3, true),
+    (0x1FB0, 0x1FB1, 1, true),
+    (0x1FB2, 0x1FB2, 2, true),
+    (0x1FB3, 0x1FB3, 1, true),
+    (0x1FB4, 0x1FB4, 2, true),
+    (0x1FB6, 0x1FB6, 1, true),
+    (0x1FB7, 0x1FB7, 2, true),
+    (0x1FB8, 0x1FBC, 1, true),
+    (0x1FC1, 0x1FC1, 1, true),
+    (0x1FC2, 0x1FC2, 2, true),
+    (0x1FC3, 0x1FC3, 1, true),
+    (0x1FC4, 0x1FC4, 2, true),
+    (0x1FC6, 0x1FC6, 1, true),
+    (0x1FC7, 0x1FC7, 2, true),
+    (0x1FC8, 0x1FD1, 1, true),
+    (0x1FD2, 0x1FD3, 2, true),
+    (0x1FD6, 0x1FD6, 1, true),
+    (0x1FD7, 0x1FD7, 2, true),
+    (0x1FD8, 0x1FDB, 1, true),
+    (0x1FDD, 0x1FE1, 1, true),
+    (0x1FE2, 0x1FE3, 2, true),
+    (0x1FE4, 0x1FE6, 1, true),
+    (0x1FE7, 0x1FE7, 2, true),
+    (0x1FE8, 0x1FEE, 1, true),
+    (0x1FF2, 0x1FF2, 2, true),
+    (0x1FF3, 0x1FF3, 1, true),
+    (0x1FF4, 0x1FF4, 2, true),
+    (0x1FF6, 0x1FF6, 1, true),
+    (0x1FF7, 0x1FF7, 2, true),
+    (0x1FF8, 0x1FFC, 1, true),
+    (0x212B, 0x212B, 1, true),
+    (0x219A, 0x219B, 1, true),
+    (0x21AE, 0x21AE, 1, true),
+    (0x21CD, 0x21CF, 1, true),
+    (0x2204, 0x2204, 1, true),
+    (0x2209, 0x2209, 1, true),
+    (0x220C, 0x220C, 1, true),
+    (0x2224, 0x2224, 1, true),
+    (0x2226, 0x2226, 1, true),
+    (0x2241, 0x2241, 1, true),
+    (0x2244, 0x2244, 1, true),
+    (0x2247, 0x2247, 1, true),
+    (0x2249, 0x2249, 1, true),
+    (0x2260, 0x2260, 1, true),
+    (0x2262, 0x2262, 1, true),
+    (0x226D, 0x2271, 1, true),
+    (0x2274, 0x2275, 1, true),
+    (0x2278, 0x2279, 1, true),
+    (0x2280, 0x2281, 1, true),
+    (0x2284, 0x2285, 1, true),
+    (0x2288, 0x2289, 1, true),
+    (0x22AC, 0x22AF, 1, true),
+    (0x22E0, 0x22E3, 1, true),
+    (0x22EA, 0x22ED, 1, true),
+    (0x2ADC, 0x2ADC, 1, true),
+    (0x304C, 0x304C, 1, true),
+    (0x304E, 0x304E, 1, true),
+    (0x3050, 0x3050, 1, true),
+    (0x3052, 0x3052, 1, true),
+    (0x3054, 0x3054, 1, true),
+    (0x3056, 0x3056, 1, true),
+    (0x3058, 0x3058, 1, true),
+    (0x305A, 0x305A, 1, true),
+    (0x305C, 0x305C, 1, true),
+    (0x305E, 0x305E, 1, true),
+    (0x3060, 0x3060, 1, true),
+    (0x3062, 0x3062, 1, true),
+    (0x3065, 0x3065, 1, true),
+    (0x3067, 0x3067, 1, true),
+    (0x3069, 0x3069, 1, true),
+    (0x3070, 0x3071, 1, true),
+    (0x3073, 0x3074, 1, true),
+    (0x3076, 0x3077, 1, true),
+    (0x3079, 0x307A, 1, true),
+    (0x307C, 0x307D, 1, true),
+    (0x3094, 0x3094, 1, true),
+    (0x309E, 0x309E, 1, true),
+    (0x30AC, 0x30AC, 1, true),
+    (0x30AE, 0x30AE, 1, true),
+    (0x30B0, 0x30B0, 1, true),
+    (0x30B2, 0x30B2, 1, true),
+    (0x30B4, 0x30B4, 1, true),
+    (0x30B6, 0x30B6, 1, true),
+    (0x30B8, 0x30B8, 1, true),
+    (0x30BA, 0x30BA, 1, true),
+    (0x30BC, 0x30BC, 1, true),
+    (0x30BE, 0x30BE, 1, true),
+    (0x30C0, 0x30C0, 1, true),
+    (0x30C2, 0x30C2, 1, true),
+    (0x30C5, 0x30C5, 1, true),
+    (0x30C7, 0x30C7, 1, true),
+    (0x30C9, 0x30C9, 1, true),
+    (0x30D0, 0x30D1, 1, true),
+    (0x30D3, 0x30D4, 1, true),
+    (0x30D6, 0x30D7, 1, true),
+    (0x30D9, 0x30DA, 1, true),
+    (0x30DC, 0x30DD, 1, true),
+    (0x30F4, 0x30F4, 1, true),
+    (0x30F7, 0x30FA, 1, true),
+    (0x30FE, 0x30FE, 1, true),
+    (0xFB1D, 0xFB1D, 1, true),
+    (0xFB1F, 0xFB1F, 1, true),
+    (0xFB2A, 0xFB2B, 1, true),
+    (0xFB2C, 0xFB2D, 2, true),
+    (0xFB2E, 0xFB36, 1, true),
+    (0xFB38, 0xFB3C, 1, true),
+    (0xFB3E, 0xFB3E, 1, true),
+    (0xFB40, 0xFB41, 1, true),
+    (0xFB43, 0xFB44, 1, true),
+    (0xFB46, 0xFB4E, 1, true),
+    (0x1109A, 0x1109A, 1, true),
+    (0x1109C, 0x1109C, 1, true),
+    (0x110AB, 0x110AB, 1, true),
+    (0x1112E, 0x1112F, 2, false),
+    (0x1134B, 0x1134C, 2, false),
+    (0x114BB, 0x114BC, 2, false),
+    (0x114BE, 0x114BE, 2, false),
+    (0x115BA, 0x115BB, 2, false),
+    (0x11938, 0x11938, 2, false),
+    (0x1D15E, 0x1D15F, 1, true),
+    (0x1D160, 0x1D164, 2, true),
+    (0x1D1BB, 0x1D1BC, 1, true),
+    (0x1D1BD, 0x1D1C0, 2, true),
 ];

@@ -82,6 +82,45 @@ out += table(
     "WIDE",
     lambda c: u.east_asian_width(c) in ("W", "F") and u.category(c) != "Cn",
 )
+
+
+def full(cp):
+    d = u.decomposition(chr(cp))
+    if not d or d.startswith("<"):
+        return [cp]
+    parts = []
+    for x in d.split():
+        parts += full(int(x, 16))
+    return parts
+
+
+def decomposed(cp):
+    f = full(cp)
+    if f == [cp]:
+        return None
+    k = sum(1 for x in f if u.category(chr(x)).startswith("M"))
+    if not k:
+        return None
+    return (k, "true" if not u.category(chr(f[0])).startswith("M") else "false")
+
+
+out += [
+    "",
+    "/// The code points whose canonical decomposition in Unicode 13.0.0 holds marks of the",
+    "/// general category M: each range with the count of those marks and whether a character that",
+    "/// is no mark starts the decomposition.",
+    "const DECOMPOSED: &[(u32, u32, u8, bool)] = &[",
+]
+start = None
+for cp in range(0x110000 + 1):
+    d = decomposed(cp) if cp < 0x110000 else None
+    if start is not None and (d != start[1] or cp != prev + 1):
+        out.append("    (0x%04X, 0x%04X, %d, %s)," % (start[0], prev, start[1][0], start[1][1]))
+        start = None
+    if d is not None and start is None:
+        start = (cp, d)
+    prev = cp
+out.append("];")
 sys.stdout.write("\n".join(out[1:]) + "\n")
 "#;
 
@@ -1193,4 +1232,92 @@ fn b6_the_proven_bounds_are_13_lines_and_96_columns() {
     let read = "run 44227930432: on macOS 13 lines of 96 columns of W read a window 615 points high in 684 visible; on Windows 410 pixels in a work area of 720";
     assert_eq!(CARD_LINES, 13, "{read}");
     assert_eq!(CARD_COLUMNS, 96, "{read}");
+}
+
+fn sign_and_send(subject: &str) -> ConfirmAsk {
+    let mut sent = fields_of(Class::Send);
+    sent[1] = field("subject", BoundFrom::Extract, subject);
+    ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Sign, fields_of(Class::Sign)),
+            effect(2, Class::Send, sent),
+        ],
+    )
+}
+
+fn signed_by(party: &str) -> ConfirmAsk {
+    let mut signed = fields_of(Class::Sign);
+    signed[1] = field("party", BoundFrom::Slot, party);
+    ask_of(1, 1, vec![effect(1, Class::Sign, signed)])
+}
+
+#[test]
+fn rd137_m1_marks_count_on_the_canonical_decomposition() {
+    let table = Table::new();
+    assert_eq!(marks_in_a_row("\u{1eb6}"), 2, "A with breve and dot below");
+    assert_eq!(marks_in_a_row("\u{1eb6}\u{316}\u{316}\u{316}"), 5);
+    assert_eq!(marks_in_a_row("\u{1eb6}\u{316}"), 3);
+    assert_eq!(
+        marks_in_a_row("\u{344}"),
+        2,
+        "a mark that decomposes to two"
+    );
+    assert_eq!(marks_in_a_row("\u{e9}\u{e9}"), 1, "a base starts a new run");
+    for value in [
+        "R\u{1eb6}\u{316}\u{316}\u{316}",
+        "R\u{1eb6}\u{316}\u{316}",
+        "Ra\u{344}\u{301}\u{301}",
+    ] {
+        assert!(
+            !admits(&sign_and_send(value), &table),
+            "{value:?} in native free text"
+        );
+    }
+    assert!(
+        !admits(&signed_by("Ann \u{1eb6}\u{316}\u{316}"), &table),
+        "a deciding value"
+    );
+    for value in ["R\u{1eb6}\u{316}", "Nguy\u{1ec5}n", "\u{1eb6}"] {
+        assert!(admits(&sign_and_send(value), &table), "{value:?}");
+    }
+    assert!(admits(&signed_by("Nguy\u{1ec5}n \u{1eb6}"), &table));
+    assert!(!composed("x\u{1eb6}\u{316}\u{316}", 40));
+    assert!(composed("x\u{1eb6}\u{316}", 40));
+}
+
+#[test]
+fn rd137_m2_a_mark_with_no_base_before_it_is_refused_at_the_raise() {
+    let table = Table::new();
+    for marks in 1..=3 {
+        let run = "\u{301}".repeat(marks);
+        for value in [
+            format!("{run}Re"),
+            format!("Re {run}x"),
+            format!("Re {run}"),
+        ] {
+            assert!(!admits(&sign_and_send(&value), &table), "{value:?}");
+        }
+    }
+    assert!(
+        !admits(&sign_and_send("Re \u{344}x"), &table),
+        "a mark that decomposes to marks"
+    );
+    assert!(
+        !admits(&signed_by("Ann \u{301}Lee"), &table),
+        "after a blank in a deciding value"
+    );
+    assert!(!composed("Ann \u{301}Lee", 40));
+    assert!(
+        admits(&sign_and_send("Re\u{301} x"), &table),
+        "a mark on its letter, then a blank"
+    );
+    assert!(admits(&signed_by("Ren\u{e9}e Lee"), &table));
+    let mut sent = fields_of(Class::Send);
+    sent[1] = field("subject", BoundFrom::Extract, "\u{301}Re");
+    refused_at_the_raise(vec![
+        effect(1, Class::Sign, fields_of(Class::Sign)),
+        effect(2, Class::Send, sent),
+    ]);
 }
