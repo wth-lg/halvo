@@ -16,7 +16,7 @@ use halvo_schema::{AgentId, ErrorName, RowRead};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, checkpoint, day, effect, end};
+use crate::{bind, checkpoint, day, effect, end, reply};
 
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
@@ -88,7 +88,8 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::Log(b) => put_log(host, now, &b),
         RunnerCall::Finish(b) => end::finish(host, now, &b),
         RunnerCall::Checkpoint(b) => checkpoint::put(host, now, &b),
-        RunnerCall::ReplyRow(_) | RunnerCall::LoadReplies(_) => Err(ErrorName::Malformed),
+        RunnerCall::ReplyRow(b) => reply::put(host, now, &b),
+        RunnerCall::LoadReplies(_) => Err(ErrorName::Malformed),
     }
 }
 

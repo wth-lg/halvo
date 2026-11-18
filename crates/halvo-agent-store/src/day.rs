@@ -25,9 +25,9 @@ fn check(host: &dyn Host, today: u32, record: &TypedRecord) -> Result<(), ErrorN
     let Some(entry) = registry().find(|e| e.name == record.kind) else {
         return Ok(());
     };
-    let Some(days) = bound(record.kind) else {
+    if !entry.fields.contains(&("day", FieldType::Day)) {
         return Ok(());
-    };
+    }
     let value: Value = serde_json::from_str(&record.json).map_err(|_| Own::Day)?;
     let day = value
         .get("day")
@@ -44,7 +44,11 @@ fn check(host: &dyn Host, today: u32, record: &TypedRecord) -> Result<(), ErrorN
             return Err(Own::Day.into());
         }
     }
-    if !within(today, days, day) {
+    let held = match bound(record.kind) {
+        Some(days) => within(today, days, day),
+        None => day <= today,
+    };
+    if !held {
         return Err(Own::Day.into());
     }
     Ok(())

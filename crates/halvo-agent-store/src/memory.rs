@@ -10,9 +10,8 @@ use halvo_schema::{
 
 use crate::host::Host;
 
-/// The eight kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key
-/// `workflow`. The memory store takes rows of these kinds alone. Where the registry holds the entry of a kind, the
-/// store checks a record against it with `check_record` and takes the kind's origin from it; the six kinds of
+/// The kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key `workflow`.
+/// The memory store takes rows of these kinds alone. Where the registry holds the entry of a kind, the store checks a record against it with `check_record` and takes the kind's origin from it; the six kinds of
 /// origin own have no entry until U3.3 adds them, and until then this table gives their origin.
 pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_config", Origin::Capture),
@@ -23,6 +22,7 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_log", Origin::Own),
     ("agent_session", Origin::Own),
     ("agent_checkpoint", Origin::Own),
+    ("agent_reply", Origin::Own),
 ];
 
 /// Why the typed commit of the memory store refused a whole list (W-C25.3): the first record that breaks a rule.

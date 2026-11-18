@@ -562,7 +562,7 @@ fn every_row(store: &MemoryStore) -> Vec<(&'static str, Vec<String>)> {
 }
 
 #[test]
-fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothing() {
+fn the_body_reply_row_is_answered_by_its_handler_and_load_replies_is_answered_malformed() {
     let mut store = store_with("utility_bill_payment");
     let record = json!({
         "v": 1,
@@ -577,19 +577,14 @@ fn the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothin
         "effect": null,
         "state": "drafted",
     });
+    let body = json!({"op": "reply_row", "agent": agent(1), "run": run(1), "record": record});
+    assert_eq!(runner(&mut store, body), Ok(stored(1)));
+    assert_eq!(rows(&store, "agent_reply").len(), 1);
     let before = every_row(&store);
-    assert!(before.iter().any(|(_, rows)| !rows.is_empty()));
-    for body in [
-        json!({"op": "reply_row", "agent": agent(1), "run": run(1), "record": record}),
-        json!({"op": "load_replies", "agent": agent(1), "run": run(1), "message_ids": ["msg-1", "msg-2"]}),
-    ] {
-        assert!(
-            RunnerCall::parse(body.to_string().as_bytes()).is_ok(),
-            "the schema reads the body, so the store's arm answers it: {body}"
-        );
-        assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
-        assert_eq!(every_row(&store), before);
-    }
+    let body = json!({"op": "load_replies", "agent": agent(1), "run": run(1), "message_ids": ["msg-1", "msg-2"]});
+    assert!(RunnerCall::parse(body.to_string().as_bytes()).is_ok());
+    assert_eq!(runner(&mut store, body), Err(ErrorName::Malformed));
+    assert_eq!(every_row(&store), before);
 }
 
 #[test]
