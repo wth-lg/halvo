@@ -410,7 +410,12 @@ word=$store
 if [ -e "$FX/lines-store" ]; then
   word=$(cat "$FX/lines-store")
 fi
-sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out"
+if [ -e "$FX/first-line-store" ]; then
+  sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out" |
+    awk -v first="store=$(cat "$FX/first-line-store")" '$1 == "case" && !done { $6 = first; done = 1 } { print }'
+else
+  sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out"
+fi
 if [ -e "$FX/$set_name-$play.err" ]; then
   cat "$FX/$set_name-$play.err" >&2
 fi
@@ -733,6 +738,11 @@ self_test() {
 
   fixture memory-lines-name-the-derived-store
   printf 'derived\n' >"$FX/lines-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-first-case-line-names-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/first-line-store" || broken
   check FAIL-store "FAIL $name (store)"
 
   fixture derived-first-play-alone
