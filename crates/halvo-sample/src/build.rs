@@ -52,13 +52,31 @@ pub fn record_id(at: i64, w1: u64, w2: u64) -> String {
 }
 
 /// One record before its id and seq are drawn: its instant, its rank among records of one instant, its day,
-/// its app and its payload.
+/// its app, its payload and, for the last keystroke of a late item, the nanoseconds of its lateness.
 struct Pending {
     at: i64,
     rank: u8,
     day: u32,
     app: Option<String>,
     payload: Payload,
+    late: Option<i64>,
+}
+
+/// The records in the order of instant, then each late record moved after every record of its day whose
+/// instant is at most its own plus its lateness, in the order of the late records' own instants.
+fn place_late(mut pending: Vec<Pending>) -> Vec<Pending> {
+    pending.sort_by_key(|p| (p.at, p.rank));
+    let (late, mut placed): (Vec<Pending>, Vec<Pending>) =
+        pending.into_iter().partition(|p| p.late.is_some());
+    for p in late {
+        let bound = p.at + p.late.unwrap_or(0);
+        let after = placed
+            .iter()
+            .rposition(|q| q.day == p.day && q.at <= bound)
+            .map_or(0, |k| k + 1);
+        placed.insert(after, p);
+    }
+    placed
 }
 
 enum Event<'a> {
@@ -131,6 +149,7 @@ pub fn render_stream(script: &Script, stream: &str, seed: u64) -> BTreeMap<u32, 
                     Edge::Start => SeamEdge::Start,
                     Edge::End => SeamEdge::End,
                 }),
+                late: None,
             }),
             Event::Item { at, day, item } => {
                 let step = &script.steps[&item.step];
@@ -144,6 +163,7 @@ pub fn render_stream(script: &Script, stream: &str, seed: u64) -> BTreeMap<u32, 
                         day: *day,
                         app: Some(step.app.clone()),
                         payload: Payload::ForegroundApp,
+                        late: None,
                     });
                 }
                 pending.push(Pending {
@@ -162,6 +182,7 @@ pub fn render_stream(script: &Script, stream: &str, seed: u64) -> BTreeMap<u32, 
                         }),
                         site: step.site.as_deref().and_then(|s| Domain::parse(s).ok()),
                     }),
+                    late: None,
                 });
                 let end = script.instant(*day, item.end);
                 let first = at.div_euclid(SECOND) + 1;
@@ -177,18 +198,25 @@ pub fn render_stream(script: &Script, stream: &str, seed: u64) -> BTreeMap<u32, 
                 for _ in 0..item.scrolls {
                     counts.push(1 + draw.below(SCROLL_COUNT_MAX));
                 }
+                let keys = chosen.len().min(item.keys as usize);
+                let last_key = chosen[..keys].iter().max().copied();
                 for (i, s) in chosen.iter().enumerate() {
-                    let (rank, payload) = if (i as u64) < item.keys {
+                    let (rank, payload) = if i < keys {
                         (3, Payload::Keystroke(Some(classes[i])))
                     } else {
                         (4, Payload::Pointer(Pointer::Click(Some(Button::Primary))))
                     };
+                    let late = item
+                        .late
+                        .filter(|_| i < keys && Some(*s) == last_key)
+                        .map(|ms| ms as i64 * MILLI);
                     pending.push(Pending {
                         at: *s,
                         rank,
                         day: *day,
                         app: Some(step.app.clone()),
                         payload,
+                        late,
                     });
                 }
                 for (s, c) in scroll_at.iter().zip(counts) {
@@ -201,14 +229,14 @@ pub fn render_stream(script: &Script, stream: &str, seed: u64) -> BTreeMap<u32, 
                             Motion::Scroll,
                             halvo_seam::record::Count::new(c),
                         )),
+                        late: None,
                     });
                 }
                 last = Some((*day, step.app.clone()));
             }
         }
     }
-    pending.sort_by_key(|p| (p.at, p.rank));
-    lines_of(pending, &mut draw)
+    lines_of(place_late(pending), &mut draw)
 }
 
 fn lines_of(pending: Vec<Pending>, draw: &mut Draw) -> BTreeMap<u32, Vec<u8>> {
@@ -480,6 +508,7 @@ mod tests {
             day: 1,
             app: app.map(str::to_owned),
             payload,
+            late: None,
         };
         let records = vec![
             pending(None, Payload::RunMark(SeamEdge::Start), SECOND),

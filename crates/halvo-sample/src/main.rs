@@ -58,6 +58,12 @@ fn seed(flags: &BTreeMap<String, String>) -> Result<u64, Refusal> {
     parse_seed(&s).ok_or_else(|| Refusal::new("usage", "--seed"))
 }
 
+/// A place counted from 1: decimal digits with no sign and no leading zero.
+fn parse_place(s: &str) -> Option<usize> {
+    let digits = !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) && !s.starts_with('0');
+    digits.then(|| s.parse().ok()).flatten()
+}
+
 fn paths(list: &[String]) -> Vec<PathBuf> {
     list.iter().map(PathBuf::from).collect()
 }
@@ -126,7 +132,7 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             halvo_sample::split::split(&a).map(done)
         }
         "compose" => {
-            let (f, rest) = parse(args, &["--rates", "--out"], &["--ranges"])?;
+            let (f, rest) = parse(args, &["--rates", "--out", "--late"], &["--ranges"])?;
             if f.contains_key("--ranges") {
                 if f.len() != 1 || !rest.is_empty() {
                     return Err(Refusal::new("usage", "--ranges"));
@@ -136,10 +142,15 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             if rest.is_empty() {
                 return Err(Refusal::new("usage", "missing SITE_DATA"));
             }
+            let late = match f.get("--late") {
+                None => None,
+                Some(n) => Some(parse_place(n).ok_or_else(|| Refusal::new("usage", "--late"))?),
+            };
             let a = halvo_sample::compose::ComposeArgs {
                 rates: PathBuf::from(need(&f, "--rates")?),
                 out: PathBuf::from(need(&f, "--out")?),
                 sites: paths(&rest),
+                late,
             };
             halvo_sample::compose::compose(&a).map(done)
         }

@@ -6,9 +6,20 @@ contracts.md C9 to C12 of the run ledger. Run it as
 `build`, `check-labels`, `input-copy`, `leak` and `mask-layers`.
 
 The library holds the readers and writers of a body: the tier manifest (`manifest`), the label
-rows (`labels`), the script manifest (`manifest`), the script with its rules S1 to S15
+rows (`labels`), the script manifest (`manifest`), the script with its rules S1 to S16
 (`script`), and the site names, title tokens, site-masked titles and templates of C12.4
 (`text`).
+
+## Late keystrokes
+
+An item of a script may end with the key `late`, an integer from 1,000 to 30,000: the
+milliseconds by which its last keystroke reaches the store late, as a Mac's store holds such
+a record (contracts.md C4.7). Rule S16 refuses `late` outside that range, on an item with
+`keys` 0 and on an item whose step has `password_input` true. `compose --late N` writes
+`"late":30000` on every item with keystrokes of the stream with place N among the stream ids
+in byte order, from 1, and writes every other byte as it does without the flag. `split`
+copies the key as it stands. tools/r2-driver plays a script on a test bed and cannot make a
+keystroke reach the store late, so a late key has no effect on a recorded body.
 
 ## The draws of `build`
 
@@ -31,8 +42,13 @@ order, `build` draws:
 4. One word for each scroll record. Its `count` is 1 + (w mod 20).
 
 `build` then sorts the records of the stream by instant. At one instant the order is
-`run_mark`, `foreground_app`, `window_title`, `keystroke`, click, scroll. For each record in
-that order it draws two words, w1 and w2, for the record's id. The id is a UUID of version 7:
+`run_mark`, `foreground_app`, `window_title`, `keystroke`, click, scroll. Then each late
+keystroke moves, in the order of its own instant: the last keystroke record of an item with
+`late`, the keystroke with the latest second, goes right after the last record of its day
+whose instant is at most its own plus `late` milliseconds. It keeps its instant and its
+class. For each record in that order `build` draws two words, w1 and w2, for the record's id.
+So a script without `late` draws and writes what it did before the key existed. The id is a
+UUID of version 7:
 
 - the first 48 bits hold the millisecond of `at`, rounded down;
 - then the version 7;

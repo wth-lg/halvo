@@ -814,3 +814,179 @@ fn a_script_file_of_another_suffix_a_dot_name_or_a_directory_is_refused() {
     );
     assert_eq!(o.code, 0, "{}", o.stderr);
 }
+
+/// The records of a day file in file order: at, seq, kind, and the line without its id and seq.
+fn records(path: &std::path::Path) -> Vec<(i64, u64, String, String)> {
+    fs::read_to_string(path)
+        .expect("day file")
+        .lines()
+        .map(|l| {
+            let mut v: serde_json::Value = serde_json::from_str(l).expect("a record");
+            let at = v["at"].as_i64().expect("at");
+            let seq = v["seq"].as_u64().expect("seq");
+            let kind = v["kind"].as_str().expect("kind").to_owned();
+            let o = v.as_object_mut().expect("object");
+            o.remove("id");
+            o.remove("seq");
+            (at, seq, kind, v.to_string())
+        })
+        .collect()
+}
+
+fn late_script(late: &str) -> String {
+    let lines = [
+        HEADER.to_owned(),
+        r#"{"line":"stream","stream":"s1","sites":"seen"}"#.to_owned(),
+        common::step_line("pa", "alpha-one.test", "Bills - Alpha", false),
+        common::step_line("pb", "alpha-one.test", "Pay - Alpha", false),
+        common::episode(
+            "s1",
+            "e1",
+            "t1",
+            "email",
+            "one_off",
+            1,
+            &[
+                common::item("pa", 0, 3 * SEC, 1, 0, 0)
+                    .replace("\"scrolls\":0}", &format!("\"scrolls\":0{late}}}")),
+                common::item("pb", 3 * SEC, 60 * SEC, 0, 50, 50),
+            ],
+        ),
+    ];
+    lines.iter().map(|l| format!("{l}\n")).collect()
+}
+
+#[test]
+fn a_late_item_writes_its_last_keystroke_after_the_records_up_to_its_late_ms_with_seq_in_file_order(
+) {
+    let dir = scratch("late");
+    write(&dir.join("late.jsonl"), &late_script(",\"late\":30000"));
+    write(&dir.join("plain.jsonl"), &late_script(""));
+    for name in ["late", "plain"] {
+        let o = run(&[
+            "build",
+            "--seed",
+            "3",
+            "--out",
+            &s(&dir.join(format!("{name}-out"))),
+            &s(&dir.join(format!("{name}.jsonl"))),
+        ]);
+        assert_eq!(o.code, 0, "{name}: {}", o.stderr);
+    }
+    let late = records(&dir.join("late-out/streams/s1/day-001.jsonl"));
+    let plain = records(&dir.join("plain-out/streams/s1/day-001.jsonl"));
+    let seqs: Vec<u64> = late.iter().map(|r| r.1).collect();
+    assert_eq!(seqs, (0..late.len() as u64).collect::<Vec<_>>());
+    let keys: Vec<usize> = (0..late.len())
+        .filter(|k| late[*k].2 == "keystroke")
+        .collect();
+    assert_eq!(keys.len(), 1);
+    let k = keys[0];
+    let at = late[k].0;
+    let bound = at + 30_000_000_000;
+    assert!(late[..k].iter().all(|r| r.0 <= bound));
+    assert!(late[k + 1..].iter().all(|r| r.0 > bound));
+    assert!(
+        late[..k].iter().any(|r| r.0 > at),
+        "the keystroke stands after a later record"
+    );
+    let mut a: Vec<String> = late.iter().map(|r| r.3.clone()).collect();
+    let mut b: Vec<String> = plain.iter().map(|r| r.3.clone()).collect();
+    assert_ne!(a, b);
+    let mut sorted = late.clone();
+    sorted.sort_by_key(|r| r.0);
+    assert_eq!(
+        sorted.iter().map(|r| r.0).collect::<Vec<_>>(),
+        plain.iter().map(|r| r.0).collect::<Vec<_>>()
+    );
+    a.sort();
+    b.sort();
+    assert_eq!(a, b, "the same records, the keystroke moved");
+}
+
+#[test]
+fn a_late_key_below_1000_above_30000_on_an_item_with_no_keys_or_on_a_password_item_is_refused() {
+    let dir = scratch("late-refused");
+    let password = late_script(",\"late\":30000").replace(
+        r#""titles":["Bills - Alpha"],"paths":["/p"],"password_input":false"#,
+        r#""titles":["Bills - Alpha"],"paths":["/p"],"password_input":true"#,
+    );
+    let cases = [
+        ("low", late_script(",\"late\":999")),
+        ("high", late_script(",\"late\":30001")),
+        ("zero", late_script(",\"late\":0")),
+        (
+            "no-keys",
+            late_script(",\"late\":30000").replace(
+                "\"start\":0,\"end\":3000000000,\"keys\":1",
+                "\"start\":0,\"end\":3000000000,\"keys\":0",
+            ),
+        ),
+        ("password", password.clone()),
+        (
+            "password-no-keys",
+            password.replace(
+                "\"start\":0,\"end\":3000000000,\"keys\":1",
+                "\"start\":0,\"end\":3000000000,\"keys\":0",
+            ),
+        ),
+    ];
+    for (name, text) in cases {
+        assert!(text.contains("\"late\":"), "{name}");
+        write(&dir.join(format!("{name}.jsonl")), &text);
+        let o = run(&[
+            "build",
+            "--seed",
+            "3",
+            "--out",
+            &s(&dir.join(format!("{name}-out"))),
+            &s(&dir.join(format!("{name}.jsonl"))),
+        ]);
+        refused(&o, "script");
+        assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:5: S16\n", "{name}");
+    }
+    for name in ["null", "text"] {
+        let value = if name == "null" { "null" } else { "\"30000\"" };
+        write(
+            &dir.join(format!("{name}.jsonl")),
+            &late_script(&format!(",\"late\":{value}")),
+        );
+        let o = run(&[
+            "build",
+            "--seed",
+            "3",
+            "--out",
+            &s(&dir.join(format!("{name}-out"))),
+            &s(&dir.join(format!("{name}.jsonl"))),
+        ]);
+        refused(&o, "script");
+        assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:5: S15\n", "{name}");
+    }
+}
+
+#[test]
+fn the_golden_script_and_the_committed_scripts_hold_no_late_key_and_read_back_to_their_bytes() {
+    let repo = common::repo();
+    let mut files = vec![golden().join("script.jsonl"), golden().join("marked.jsonl")];
+    for side in ["seen", "unseen"] {
+        let dir = repo.join("fixtures/r2/scripts").join(side);
+        let mut listed: Vec<std::path::PathBuf> = fs::read_dir(&dir)
+            .expect("the scripts")
+            .map(|e| e.expect("entry").path())
+            .collect();
+        listed.sort();
+        assert_eq!(listed.len(), 480, "{side}");
+        files.extend(listed);
+    }
+    let mut lines = 0usize;
+    for f in &files {
+        let text = fs::read_to_string(f).expect("a script file");
+        assert!(!text.contains("\"late\""), "{}", s(f));
+        for l in text.lines() {
+            let line = halvo_sample::script::parse_line(l.as_bytes()).expect("a line of C12.2");
+            assert_eq!(line.write(), l);
+            lines += 1;
+        }
+    }
+    assert!(lines > 10_000, "{lines}");
+}

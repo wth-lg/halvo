@@ -681,3 +681,88 @@ fn compose_takes(o: &common::Out, k: usize) -> bool {
         code => panic!("compose on case {k}: exit {code}, {}", o.stderr),
     }
 }
+
+#[test]
+fn compose_late_n_writes_late_keys_in_that_stream_alone_and_its_built_stream_holds_late_keystrokes()
+{
+    let dir = scratch("compose-late");
+    let sites = services(&dir.join("sites"));
+    let plain = compose(&dir, &rates(20, 4).write(), &sites, "plain");
+    assert_eq!(plain.code, 0, "{}", plain.stderr);
+    let with = |late: &str, out: &str| {
+        let mut args = vec![
+            "compose".to_owned(),
+            "--rates".to_owned(),
+            s(&dir.join("rates.toml")),
+            "--late".to_owned(),
+            late.to_owned(),
+            "--out".to_owned(),
+            s(&dir.join(out)),
+        ];
+        args.extend(sites.iter().map(|p| s(p)));
+        let a: Vec<&str> = args.iter().map(String::as_str).collect();
+        run(&a)
+    };
+    let o = with("3", "late");
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert_eq!(o.stdout, plain.stdout);
+    let names = files_under(&dir.join("plain"));
+    assert_eq!(names, files_under(&dir.join("late")));
+    for f in &names {
+        let p = fs::read_to_string(dir.join("plain").join(f)).expect("plain");
+        let l = fs::read_to_string(dir.join("late").join(f)).expect("late");
+        if f.starts_with("s003.") {
+            assert!(l.contains(",\"late\":30000}"), "{f}");
+            assert_eq!(l.replace(",\"late\":30000}", "}"), p, "{f}");
+        } else {
+            assert_eq!(l, p, "{f}");
+        }
+    }
+    let body = dir.join("body");
+    let o = run(&[
+        "build",
+        "--seed",
+        "5",
+        "--out",
+        &s(&body),
+        &s(&dir.join("late/s003.jsonl")),
+        &s(&dir.join("late/s003.marked.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let c = run(&["check-labels", &s(&body)]);
+    assert_eq!(c.code, 0, "{}", c.stdout);
+    let mut late_keys = 0;
+    for f in files_under(&body.join("streams/s003")) {
+        if !f.starts_with("day-") {
+            continue;
+        }
+        let text = fs::read_to_string(body.join("streams/s003").join(&f)).expect("day file");
+        let records: Vec<(i64, String)> = text
+            .lines()
+            .map(|l| {
+                let v: serde_json::Value = serde_json::from_str(l).expect("a record");
+                (
+                    v["at"].as_i64().expect("at"),
+                    v["kind"].as_str().expect("kind").to_owned(),
+                )
+            })
+            .collect();
+        let mut highest = i64::MIN;
+        for (at, kind) in &records {
+            if *at < highest {
+                assert_eq!(
+                    kind, "keystroke",
+                    "{f}: only a keystroke stands after a later record"
+                );
+                assert!(highest - at <= 30_000_000_000, "{f}");
+                late_keys += 1;
+            }
+            highest = highest.max(*at);
+        }
+    }
+    assert!(late_keys > 0, "a keystroke stands after a later record");
+    for bad in ["0", "21", "03", "x", "-1"] {
+        refused(&with(bad, &format!("bad-{bad}")), "usage");
+        assert!(!dir.join(format!("bad-{bad}")).exists(), "{bad}");
+    }
+}
