@@ -61,6 +61,7 @@ impl Rows {
             .flat_map(|(k, rows)| rows.iter().map(move |r| (*k, r.json.as_str())))
     }
 
+    #[cfg(test)]
     pub fn count(&self, kind: &str) -> usize {
         self.by_kind.get(kind).map_or(0, Vec::len)
     }

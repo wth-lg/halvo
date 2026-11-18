@@ -1723,6 +1723,7 @@ name = "halvo-learn-gate"
 version = "0.0.0"
 dependencies = [
  "halvo-agent-store",
+ "halvo-derived",
  "halvo-learn",
  "halvo-learn-store",
  "halvo-policy",

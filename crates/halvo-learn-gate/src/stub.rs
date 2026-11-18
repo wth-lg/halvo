@@ -1,21 +1,20 @@
 use std::collections::BTreeSet;
 use std::num::NonZeroU32;
 
-use halvo_learn_store::LearnHandlers;
 use halvo_policy::class_of;
 use halvo_schema::executable::names::{LocatorBy, Mode, Outcome};
 use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::RunId;
-use halvo_schema::executable::{AgentRun, CoordinatorReply, ExecutableStep, RunnerReply};
+use halvo_schema::executable::{AgentRun, ExecutableStep, RunnerReply};
 use halvo_schema::learning::record::LearnEdit;
-use halvo_schema::{AgentId, RowRead, SeedCategory, Workflow, WorkflowId};
+use halvo_schema::{AgentId, SeedCategory, Workflow, WorkflowId};
 use serde_json::{json, Value};
 
 use crate::case::{Case, Occurrence, Verb};
 use crate::forms::{drifts, Counts};
-use crate::host::GateHost;
+use crate::host::{GateHost, PlayHost};
 use crate::page::{control, play_step, Control, Locator, Role};
-use crate::store::{Family, MemoryStore};
+use crate::store::MemoryStore;
 
 /// The category of the workflow that the gate host makes for a case.
 pub const CATEGORY: &str = "utility_bill_payment";
@@ -148,13 +147,13 @@ pub(crate) fn recovered_step(served: &ExecutableStep, repaired: &Control) -> Res
     Ok(step)
 }
 
-/// The edits of the family `learn` in the state `reverted`, as (edit id, first locator of its list, step number).
-fn reverted(rows: &dyn RowRead) -> Result<Vec<(String, Option<Locator>, u32)>, String> {
+/// The edits among the `learn_edit` rows that are in the state `reverted`, as (edit id, first locator of its list,
+/// step number).
+fn reverted(rows: &[String]) -> Result<Vec<(String, Option<Locator>, u32)>, String> {
     let mut out = Vec::new();
     let mut failed = None;
-    rows.for_each(
-        "learn_edit",
-        &mut |row| match LearnEdit::parse(row.as_bytes()) {
+    for row in rows {
+        match LearnEdit::parse(row.as_bytes()) {
             Ok(_) => {
                 let value: Value = serde_json::from_str(row).unwrap_or(Value::Null);
                 if value["state"] == "reverted" {
@@ -179,45 +178,52 @@ fn reverted(rows: &dyn RowRead) -> Result<Vec<(String, Option<Locator>, u32)>, S
                 }
             }
             Err(_) => failed = Some(row.to_owned()),
-        },
-    );
+        }
+    }
     match failed {
         Some(_) => Err("a stored learn_edit row that its parser refuses".into()),
         None => Ok(out),
     }
 }
 
-/// One case played in one arm on a store of its own: the gate host, the handlers of the arm and the case's ids.
-pub struct Play<'c> {
+/// One case played in one arm on a store of its own: the host of the store with the handlers of the arm, and the
+/// case's ids.
+pub struct Play<'c, H: PlayHost = GateHost> {
     case: &'c Case,
     arm: Arm,
-    pub host: GateHost,
-    handlers: LearnHandlers,
-    after_compile: Option<MemoryStore>,
+    pub host: H,
+    number: u32,
     workflow: String,
     agent: String,
     runs: u32,
 }
 
-impl<'c> Play<'c> {
-    /// A play of the case under the workflow, agent and runs numbered `workflow`, on the given store.
-    pub fn new(case: &'c Case, arm: Arm, workflow: u32, store: MemoryStore) -> Play<'c> {
+impl<'c> Play<'c, GateHost> {
+    /// A play of the case under the workflow, agent and runs numbered `workflow`, on the given memory store.
+    pub fn new(case: &'c Case, arm: Arm, workflow: u32, store: MemoryStore) -> Play<'c, GateHost> {
+        Play::with_host(
+            case,
+            arm,
+            workflow,
+            GateHost::new(store, case.occurrences[0].day),
+        )
+    }
+}
+
+impl<'c, H: PlayHost> Play<'c, H> {
+    /// A play of the case under the workflow, agent and runs numbered `workflow`, on the store of the given host,
+    /// which links the handlers of the arm.
+    pub fn with_host(case: &'c Case, arm: Arm, workflow: u32, mut host: H) -> Play<'c, H> {
+        host.link(arm);
         Play {
             case,
             arm,
-            host: GateHost::new(store, case.occurrences[0].day),
-            handlers: LearnHandlers::new(),
-            after_compile: None,
+            host,
+            number: workflow,
             workflow: id('3', workflow),
             agent: id('4', workflow),
-            runs: 0,
+            runs: workflow.saturating_sub(1).saturating_mul(1_000),
         }
-        .numbered_from(workflow)
-    }
-
-    fn numbered_from(mut self, workflow: u32) -> Play<'c> {
-        self.runs = workflow.saturating_sub(1).saturating_mul(1_000);
-        self
     }
 
     pub fn workflow(&self) -> &str {
@@ -245,37 +251,15 @@ impl<'c> Play<'c> {
     }
 
     fn coordinator(&mut self, body: Value) -> Result<(), String> {
-        let bytes = body.to_string();
-        let answer = match self.arm {
-            Arm::Admit => self
-                .handlers
-                .coordinator(&mut self.host, bytes.as_bytes())
-                .map(|_| ())
-                .map_err(|e| format!("{e:?}")),
-            Arm::None | Arm::Plain => {
-                let now = self.host.now();
-                halvo_agent_store::coordinator(&mut self.host.store, now, bytes.as_bytes())
-                    .map(|_: CoordinatorReply| ())
-                    .map_err(|e| format!("{e:?}"))
-            }
-        };
-        answer.map_err(|e| format!("{}: {e}", body["op"]))
+        self.host
+            .coordinator(body.to_string().as_bytes())
+            .map_err(|e| format!("{}: {e}", body["op"]))
     }
 
     fn runner(&mut self, body: Value) -> Result<RunnerReply, String> {
-        let bytes = body.to_string();
-        let answer = match self.arm {
-            Arm::Admit => self
-                .handlers
-                .runner(&mut self.host, bytes.as_bytes())
-                .map_err(|e| format!("{e:?}")),
-            Arm::None | Arm::Plain => {
-                let now = self.host.now();
-                halvo_agent_store::runner(&mut self.host.store, now, bytes.as_bytes())
-                    .map_err(|e| format!("{e:?}"))
-            }
-        };
-        answer.map_err(|e| format!("{}: {e}", body["op"]))
+        self.host
+            .runner(body.to_string().as_bytes())
+            .map_err(|e| format!("{}: {e}", body["op"]))
     }
 
     fn next_run(&mut self) -> String {
@@ -295,7 +279,7 @@ impl<'c> Play<'c> {
             WorkflowId::parse(&self.workflow).map_err(|_| "the play's workflow id")?,
             AgentId::parse(&self.agent).map_err(|_| "the play's agent id")?,
             RunId::parse(run).map_err(|_| "a run id")?,
-            halvo_agent_store::Host::day(&self.host.store, self.host.now().at),
+            self.host.request_day(),
             Some(mode),
             outcome,
         );
@@ -309,10 +293,11 @@ impl<'c> Play<'c> {
     }
 
     /// The workflow, the agent and the compile of the case from the page of its first occurrence (L10.3). It
-    /// stores the workflow, then sends, in order: `create_agent`, a `start_run` of the mode `compile`, a `load`,
-    /// the `put_playbook` of the compiled playbook under number 1, `finish`, and `set_state` to `active`. That the
-    /// stub sends these "as the runner does" is shown by code for the `load` alone (the product's runner loads
-    /// straight after its hello in every run); the runner's compile path is not built.
+    /// stores the workflow through the host, which answers its id, then sends, in order: `create_agent`, a
+    /// `start_run` of the mode `compile`, a `load`, the `put_playbook` of the compiled playbook under number 1,
+    /// `finish`, and `set_state` to `active`. That the stub sends these "as the runner does" is shown by code for
+    /// the `load` alone (the product's runner loads straight after its hello in every run); the runner's compile
+    /// path is not built.
     pub fn compile(&mut self) -> Result<(), String> {
         let first = &self.case.occurrences[0].page;
         let mut steps = Vec::new();
@@ -321,9 +306,7 @@ impl<'c> Play<'c> {
                 control(first, &step.control).ok_or("the first page lacks a step's control")?;
             steps.push(compiled_step(step.n, step.verb, intended)?);
         }
-        self.host
-            .store
-            .put_workflow(workflow_record(&self.workflow));
+        self.workflow = self.host.store_workflow(self.number, &self.workflow)?;
         let (workflow, agent) = (self.workflow.clone(), self.agent.clone());
         self.coordinator(json!({"op": "create_agent", "workflow": workflow, "agent": agent}))?;
         let run = self.next_run();
@@ -343,18 +326,17 @@ impl<'c> Play<'c> {
         self.coordinator(
             json!({"op": "set_state", "workflow": workflow, "agent": agent, "state": "active"}),
         )?;
+        self.host.ended()?;
         if self.arm == Arm::None {
-            self.after_compile = Some(self.host.store.clone());
+            self.host.keep_after_compile()?;
         }
         Ok(())
     }
 
     /// Closes and opens the host and the store on the clock's day: the handlers lose the facts of every run, and
-    /// the open expires bounded rows. Answers the `learn_run` rows that the open removed.
-    pub fn restart(&mut self) -> u32 {
-        self.handlers = LearnHandlers::new();
-        let expired = self.host.store.open(self.host.day);
-        u32::try_from(expired.of("learn_run")).unwrap_or(u32::MAX)
+    /// the open expires bounded rows. Answers the `learn_run` rows that passed their bound since the last open.
+    pub fn restart(&mut self) -> Result<u32, String> {
+        self.host.restart()
     }
 
     /// Plays one occurrence as one replay run of the stub runner (L10.3): `start_run`, `load`, `load_steps`, the
@@ -367,10 +349,10 @@ impl<'c> Play<'c> {
         &mut self,
         occurrence: &Occurrence,
     ) -> Result<(bool, bool, bool, u32), String> {
-        if let (Arm::None, Some(store)) = (self.arm, &self.after_compile) {
-            self.host.store = store.clone();
+        if self.arm == Arm::None {
+            self.host.back_to_after_compile()?;
         }
-        let before: BTreeSet<String> = reverted(self.host.store.rows(Family::Learn))?
+        let before: BTreeSet<String> = reverted(&self.host.learn_rows("learn_edit")?)?
             .into_iter()
             .map(|(edit, _, _)| edit)
             .collect();
@@ -436,7 +418,7 @@ impl<'c> Play<'c> {
             .map(|(seq, (event, step, cause))| {
                 json!({
                     "v": 1, "workflow": workflow, "agent": agent, "run": run, "seq": seq,
-                    "day": halvo_agent_store::Host::day(&self.host.store, self.host.now().at), "at": self.host.now().at.0, "event": event, "step": step,
+                    "day": self.host.request_day(), "at": self.host.now().at.0, "event": event, "step": step,
                     "cause": cause, "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
                 })
             })
@@ -452,8 +434,9 @@ impl<'c> Play<'c> {
         };
         let record = self.record(&run, Mode::Replay, outcome, number, lines.len())?;
         self.runner(json!({"op": "finish", "agent": agent, "run": run, "record": record}))?;
+        self.host.ended()?;
         let mut good = 0;
-        for (edit, first, n) in reverted(self.host.store.rows(Family::Learn))? {
+        for (edit, first, n) in reverted(&self.host.learn_rows("learn_edit")?)? {
             if before.contains(&edit) {
                 continue;
             }
@@ -480,18 +463,18 @@ pub fn play_case(case: &Case, arm: Arm, restart_all: bool) -> Result<Tally, Stri
 }
 
 /// Plays every occurrence of the play's case, compiling before the first.
-pub fn play_all(play: &mut Play<'_>, restart_all: bool) -> Result<Tally, String> {
+pub fn play_all<H: PlayHost>(play: &mut Play<'_, H>, restart_all: bool) -> Result<Tally, String> {
     let case = play.case;
     let mut tally = Tally::default();
     tally.counts.occurrences = u32::try_from(case.occurrences.len()).unwrap_or(u32::MAX);
     tally.counts.drifts = drifts(case);
     for (at, occurrence) in case.occurrences.iter().enumerate() {
-        play.host.day = occurrence.day;
+        play.host.set_day(occurrence.day);
         if at == 0 {
-            tally.expired_runs += play.restart();
+            tally.expired_runs += play.restart()?;
             play.compile()?;
         } else if occurrence.restart || restart_all {
-            tally.expired_runs += play.restart();
+            tally.expired_runs += play.restart()?;
         }
         let (asked, wrong, completed, good) = play.occurrence(occurrence)?;
         tally.counts.assisted += u32::from(asked);
@@ -499,7 +482,6 @@ pub fn play_all(play: &mut Play<'_>, restart_all: bool) -> Result<Tally, String>
         tally.counts.failed += u32::from(!completed);
         tally.reverted_good += good;
     }
-    tally.edit_rows =
-        u32::try_from(play.host.store.rows(Family::Learn).count("learn_edit")).unwrap_or(u32::MAX);
+    tally.edit_rows = u32::try_from(play.host.learn_rows("learn_edit")?.len()).unwrap_or(u32::MAX);
     Ok(tally)
 }

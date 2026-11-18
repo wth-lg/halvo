@@ -68,6 +68,14 @@ impl StoreName {
         }
     }
 
+    /// The name of the store in a line of L10.4: `memory` or `derived`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StoreName::Memory => "memory",
+            StoreName::Derived => "derived",
+        }
+    }
+
     /// The memory store, or the refusal `store` for the derived store, which this build does not hold (L10.1).
     pub fn memory_only(self) -> Result<(), Refusal> {
         match self {
