@@ -245,9 +245,12 @@ measure() {
   member_paths=$(member_manifests "$work/metadata.json") || fail "$member_paths"
   printf '%s\n' "$member_paths" >"$work/members"
   git ls-files -z >"$work/tracked.z" || fail "git ls-files failed"
-  LC_ALL=C tr '\0' '\n' <"$work/tracked.z" | grep -E '(^|/)(Cargo\.toml|package\.json)$' >"$work/tracked"
+  LC_ALL=C tr '\n\0' '\001\n' <"$work/tracked.z" | LC_ALL=C grep -E '(^|/)(Cargo\.toml|package\.json)$' >"$work/tracked"
   left_manifests >"$work/left"
-  found=$(manifest_defect "$work/tracked" "$work/members" "$work/left" package.json "$version") || fail "$found"
+  if ! found=$(manifest_defect "$work/tracked" "$work/members" "$work/left" package.json "$version"); then
+    shown=$(printf '%s' "$found" | LC_ALL=C tr '\001' '?')
+    fail "$shown"
+  fi
   packages=$(tr -d '\n' <"$work/metadata.json" | grep -o -E '\{"name":"[^"]*","version":"[^"]*","id":"' | grep -c .)
   file_count=$(printf '%s\n' "$files" | grep -c .)
   printf 'workspace packages: %s, versions: 1, workflow and ci.d files read: %s\n' "$packages" "$file_count"
