@@ -29,7 +29,8 @@ else none; under path B the writer is the first candidate with bodies=2 on all s
           crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc, each with its detail.
 
 Exit 0: done and every check holds; 1: a check missed; 2: a refusal, one line
-"REFUSED <cause>: <detail>" on standard error, causes usage and source.
+"REFUSED <cause>: <detail>" on standard error, causes usage and source; 3: a crash of
+verdict.py itself, its traceback and one line "CRASH <exception>" on standard error.
 """
 
 import contextlib
@@ -39,6 +40,7 @@ import os
 import re
 import sys
 import tempfile
+import traceback
 
 MACHINES = ("mac", "hosted-win")
 SEEDS = ("1", "2", "3")
@@ -1593,6 +1595,27 @@ def self_test():
     except Exception as error:
         failures.append("main() with a root of fixtures: %s: %s" % (type(error).__name__, error))
 
+    def crash(argv):
+        return [][len(argv)]
+
+    def refuse(argv):
+        raise Refusal("usage", "a stand-in refusal")
+
+    try:
+        exits = []
+        for call in (crash, refuse, lambda argv: 1, lambda argv: 0):
+            told = io.StringIO()
+            with contextlib.redirect_stderr(told):
+                exits.append((entry(["--check"], call), told.getvalue().splitlines()[-1:]))
+        expect("a crash exits 3, a refusal 2 and a call its own status", exits, [
+            (3, ["CRASH IndexError"]),
+            (2, ["REFUSED usage: a stand-in refusal"]),
+            (1, []),
+            (0, []),
+        ])
+    except Exception as error:
+        failures.append("entry() of the command line: %s: %s" % (type(error).__name__, error))
+
     if failures:
         for failure in failures:
             print("self-test: " + failure)
@@ -1640,9 +1663,20 @@ def main(argv, root=None):
     return 0
 
 
-if __name__ == "__main__":
+def entry(argv, call=main):
+    """The exit status of the command line: that of `call`; 2 after a refusal, with its line on
+    standard error; 3 after any other exception, a fault of verdict.py itself, with its traceback and
+    the line `CRASH <exception>` on standard error, so that no crash reads as 1, a verdict that differs."""
     try:
-        sys.exit(main(sys.argv[1:]))
+        return call(argv)
     except Refusal as refusal:
         sys.stderr.write("REFUSED %s: %s\n" % (refusal.cause, refusal.detail))
-        sys.exit(2)
+        return 2
+    except Exception as error:
+        traceback.print_exc()
+        sys.stderr.write("CRASH %s\n" % type(error).__name__)
+        return 3
+
+
+if __name__ == "__main__":
+    sys.exit(entry(sys.argv[1:]))
