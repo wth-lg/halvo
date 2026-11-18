@@ -953,12 +953,14 @@ fn write_and_compare_of_a_file_that_differs_keeps_the_written_file_under_the_tar
     let (shown, _) = shown.split_once(", first at line ").unwrap();
     let out = PathBuf::from(shown);
     let kept = out.parent().unwrap().to_path_buf();
-    let held = Leaf(kept.clone());
     assert_eq!(
         kept.parent(),
         Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
         "{message}"
     );
+    let name = kept.file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("golden-no-such-golden-file-"), "{message}");
+    let held = Leaf(kept.clone());
     assert_eq!(std::fs::read_to_string(&out).unwrap(), "x\n");
     drop(held);
     assert!(!kept.exists(), "{}", kept.display());
