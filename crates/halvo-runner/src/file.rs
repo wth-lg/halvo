@@ -425,7 +425,8 @@ mod tests {
     use super::*;
     use std::ffi::OsString;
     use std::io::Write;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{mpsc, Arc, Mutex};
+    use std::time::Duration;
 
     use halvo_policy::{check_playbook, preset};
     use halvo_schema::executable::step::Target;
@@ -450,9 +451,14 @@ mod tests {
 
     const WRITE_DEST: &str = r#"{"v":1,"n":2,"kind":"file","verb":"write","target":{"file":"dest","sheet":"sheet","range":"range"},"args":[{"name":"values","from":"extract","value":null,"key":"rows"}],"pre":[],"post":[],"effect":"none","class":"local_edit"}"#;
 
+    /// How long the link's input stays open at most while the step runs: a step that waits for a reply then meets
+    /// the link's end and returns, so that the test fails and does not hang.
+    const INPUT_OPEN: Duration = Duration::from_secs(5);
+
     /// A9.4, CP-178 (7), CP-218 N3: the file step itself refuses a write step whose `file` is the slot `dest`, a
     /// step that `check_playbook` refuses at the load and that here reaches the step without it, with the cause
-    /// `workbook` and before any frame: no load, no checkpoint row and no effect row.
+    /// `workbook` and before any frame: no load, no checkpoint row and no effect row. The link's input is a pipe
+    /// that stays open until the step returns, so that a frame written before the refusal reaches the output.
     #[test]
     fn the_file_step_refuses_a_write_to_a_slot_other_than_workbook_before_any_frame() {
         let read = ExecutableStep::parse(READ.as_bytes()).expect("the read step");
@@ -472,8 +478,16 @@ mod tests {
             panic!("a file target")
         };
         let out = Arc::new(Mutex::new(Vec::new()));
+        let (input, writer) = std::io::pipe().expect("a pipe");
+        let writer = Arc::new(Mutex::new(Some(writer)));
+        let (returned, watched) = mpsc::channel::<()>();
+        let held = Arc::clone(&writer);
+        let watchdog = std::thread::spawn(move || {
+            let _ = watched.recv_timeout(INPUT_OPEN);
+            held.lock().expect("lock").take();
+        });
         let link = Link::start(
-            Box::new(std::io::empty()),
+            Box::new(input),
             Box::new(Out(Arc::clone(&out))),
             Box::new(|| {}),
         );
@@ -499,6 +513,8 @@ mod tests {
             .kept
             .insert("rows".to_string(), vec![vec![Value::Text("a".to_string())]]);
         let got = runner.file_write(&write, &target);
+        let _ = returned.send(());
+        watchdog.join().expect("the watchdog");
         assert!(
             matches!(got, Err(Failure::Step(Cause::Workbook))),
             "the step fails with workbook: {got:?}"
