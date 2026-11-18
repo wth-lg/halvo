@@ -674,8 +674,9 @@ where
 
 /// Plays the first `DERIVED_TRAINS` trains of the sample, which must hold `TRAINS`, in both streams, each play on a
 /// derived store of its own under the command's temporary directory, opened with the command's key (`play_derived`),
-/// each on a thread of its own, since a play waits on the store's flushes to the drive at every commit more than it
-/// computes, and gives the line of L10.4 with `store=derived`; a play that failed refuses as `report_with` says.
+/// spread over `threads()` threads as on the memory store, since ten plays on threads of their own took several times
+/// as long as one after another on a hosted Windows runner of four processors, and gives the line of L10.4 with
+/// `store=derived`; a play that failed refuses as `report_with` says.
 pub fn report_derived(trains: &[Train]) -> Result<Report, Refusal> {
     whole(trains)?;
     let scratch = Scratch::make().map_err(|detail| Refusal::new(Cause::Store, detail))?;
@@ -690,8 +691,7 @@ pub fn report_derived_in(
 ) -> Result<Report, Refusal> {
     let key = process_key();
     let first = &trains[..DERIVED_TRAINS];
-    let plays = first.len() * Stream::BOTH.len();
-    let played = played_all(first, plays, |train, stream| {
+    let played = played_all(first, threads(), |train, stream| {
         let host = DerivedHost::new(scratch.play_dir()?, key.clone(), 1);
         play_derived(train, stream, host, last).map(|(played, _)| played)
     })?;
