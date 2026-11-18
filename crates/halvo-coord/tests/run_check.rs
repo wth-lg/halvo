@@ -3341,3 +3341,54 @@ fn the_memory_owners_end_run_lists_a_releasing_effect_under_its_own_agent() {
     assert_eq!(agents[1].unknown[0].run, run);
     assert_eq!(agents[1].last.as_ref().map(|l| l.run.clone()), Some(run));
 }
+
+#[test]
+fn pr_review40_contract_02_a_roster_read_that_does_not_answer_keeps_the_hold_of_a_raised_card() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0));
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0), "the card stays open");
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "a read that did not answer ends no hold that stands: the board's facts still hold check"
+    );
+}
+
+#[test]
+fn a_roster_read_that_does_not_answer_keeps_the_hold_of_an_email_card_that_a_new_life_could_not_raise_again(
+) {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    fn raises(e: &Event) -> bool {
+        matches!(e.what, What::ItemRaised { .. })
+    }
+    w.ports
+        .refuse_record(raises, PortError::Refused(Name::parse("internal").unwrap()));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(life.checked.is_empty(), "the new life's raise was refused");
+    assert_eq!(w.facts(0).doing, Doing::Idle(None), "no card on the board");
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "the stored card's hold stands through a roster read that did not answer"
+    );
+    assert!(
+        !halvo_coord::roster::controls(w.facts(0)).contains(&halvo_coord::types::Control::RunNow),
+        "the row offers no Run now beside the card"
+    );
+}

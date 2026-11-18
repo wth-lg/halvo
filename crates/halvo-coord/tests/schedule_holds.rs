@@ -558,7 +558,11 @@ fn check_stands_for_a_reply_row_that_is_not_known_and_after_a_raised_card_until_
         "a later read that answers too"
     );
     f.replies = Replies::NotAsked;
-    assert_eq!(holds(&f), Vec::<Hold>::new(), "no read, no such clause");
+    assert_eq!(
+        holds(&f),
+        vec![Hold::Check],
+        "and a roster read that did not answer, so no read of the rows"
+    );
     f.replies = Replies::NoAnswer;
     f.events.push(raised(
         4,
