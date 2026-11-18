@@ -621,7 +621,7 @@ fn join_senders_refuses_an_entry_of_white_space_alone_as_the_reader_does() {
     }
     assert_eq!(
         format!("{:?}", join_senders(&senders_list(&["\t", "a@x.test"]))),
-        "Err(Read(Empty(1)))"
+        "Err(Read(Empty(..)))"
     );
 }
 
@@ -634,7 +634,7 @@ fn join_senders_refuses_one_address_twice_after_the_readers_trim() {
             "{:?}",
             join_senders(&senders_list(&["\ta@x.test", "a@x.test"]))
         ),
-        "Err(Read(Twice { earlier: 1, later: 2 }))"
+        "Err(Read(Twice { .. }))"
     );
 }
 
@@ -644,7 +644,7 @@ fn join_senders_refuses_a_sender_with_a_letter_outside_ascii_as_the_reader_does(
     refused_as_the_reader_refuses(&["\u{e4}@x.test", "\u{c4}@x.test"]);
     assert_eq!(
         format!("{:?}", join_senders(&senders_list(&["\u{e4}@x.test"]))),
-        "Err(Read(NotAscii(1)))"
+        "Err(Read(NotAscii(..)))"
     );
 }
 
@@ -659,7 +659,7 @@ fn seed_binding_binds_no_reply_senders_that_the_reader_refuses() {
             "{:?}",
             seed_binding(&seed, SeedTask::Reply, PORT).map(|_| ())
         ),
-        "Err(Senders(Read(NotAnAddress(1))))"
+        "Err(Senders(Read(NotAnAddress(..))))"
     );
 }
 
