@@ -495,11 +495,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         failed
     }
 
-    /// One tick: the owner's reports and snapshot, the source health, the
+    /// One tick: the source health, the owner's reports and snapshot, the
     /// restarts that are due and the permission answers. `Some` when the run
-    /// must end.
+    /// must end. The health is read first, so that a source that died in the
+    /// slice of the owner's end or of a drain stop is named (ruling DM-25
+    /// N5).
     pub fn tick(&mut self, owner: Option<&dyn OwnerLink>) -> Option<Ending> {
         let now = self.main_loop.now();
+        if !self.stopped_for_drain {
+            self.read_health(now);
+        }
         if let Some(owner) = owner {
             if !owner.is_running() {
                 self.stop_every_source();
@@ -516,7 +521,6 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.follow_the_drain(now);
         }
         if !self.stopped_for_drain {
-            self.read_health(now);
             self.restart_due(now);
         }
         if let Some(ending) = self.read_permissions(now, owner) {
@@ -531,10 +535,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if stops && !self.stopped_for_drain {
             self.stopped_for_drain = true;
             for (name, answer) in self.sources.stop() {
-                if !is_a_stop(&answer) {
-                    if let Err(error) = answer {
-                        self.board.record_failure(name, error);
-                    }
+                if let Err(error) = answer {
+                    self.board.record_failure(name, error);
                 }
             }
             self.backoff.clear();
@@ -1055,6 +1057,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let until = self.main_loop.now() + window;
         loop {
             if stop.load(Ordering::SeqCst) {
+                if !self.stopped_for_drain {
+                    self.read_health(self.main_loop.now());
+                }
                 return true;
             }
             if self.tick(owner).is_some() {

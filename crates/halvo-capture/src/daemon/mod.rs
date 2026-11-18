@@ -810,14 +810,16 @@ mod gate {
 }
 
 /// The `failed_source=` entry of a source's answer to its stop at the run's
-/// end: none for `Ok` and for `ThreadEnded`, an entry for every other answer
-/// (contracts.md C4 item 7).
+/// end: none for `Ok`, an entry for every other answer (contracts.md C4 item
+/// 7). `ThreadEnded` is a stop for the stop sequence and the end routine,
+/// and it is named here: the source had died before its stop (ruling DM-25
+/// N5).
 pub fn stop_failure(
     name: SourceName,
     answer: Result<(), crate::source::CaptureError>,
 ) -> Option<FailedSource> {
     match answer {
-        Ok(()) | Err(crate::source::CaptureError::ThreadEnded) => None,
+        Ok(()) => None,
         Err(error) => Some(FailedSource {
             name: name.as_str(),
             error: error.to_string(),
@@ -3136,10 +3138,20 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::TIMED_RUN_SOURCE_FAILED);
         let text = outcome.report.render();
-        assert_eq!(line_of(&text, "failed_sources="), "failed_sources=1");
-        assert_eq!(
-            line_of(&text, "failed_source="),
-            format!("failed_source=screen: {timeout}")
+        // Ruling DM-25 N5: a stop that answers ThreadEnded is a stop, and
+        // its source, which died before the stop, is named in the list.
+        assert_eq!(line_of(&text, "failed_sources="), "failed_sources=2");
+        assert!(
+            text.contains(&format!("\nfailed_source=screen: {timeout}\n")),
+            "{text}"
+        );
+        assert!(
+            text.contains(&format!(
+                "\nfailed_source={}: {}\n",
+                scripted.sources[2].0.as_str(),
+                CaptureError::ThreadEnded
+            )),
+            "{text}"
         );
     }
 

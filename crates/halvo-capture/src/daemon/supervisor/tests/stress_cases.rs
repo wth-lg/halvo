@@ -1236,3 +1236,128 @@ fn adv3_p10_an_owner_that_ended_in_a_run_whose_hold_was_refused_gives_the_owner_
         "{text}"
     );
 }
+
+/// N5 and A3-1 (the verifier's kept item 6, drain stop): a source that
+/// died just before a drain stop is named in the run's list.
+#[test]
+fn adv3_a_source_that_died_just_before_a_drain_stop_is_named() {
+    let named = |drain_fails_too: bool| {
+        let store = ModelStore::new();
+        let mut made = 0;
+        let mut f = fixture_on_owner(
+            Factory::adjusting(move |source| {
+                if source.name == SourceName::Foreground {
+                    made += 1;
+                    if made == 1 {
+                        source.stop = Err(CaptureError::ThreadEnded);
+                    }
+                }
+            }),
+            store.clone(),
+        );
+        f.start(&two());
+        f.tick();
+        f.supervisor
+            .factory()
+            .health_of(SourceName::Foreground)
+            .set(SourceState::Failed {
+                reason: HealthReason::ThreadEnded,
+                error: CaptureError::ThreadEnded,
+            });
+        if drain_fails_too {
+            drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+            f.tick();
+            store.fail_every_write(None);
+            f.supervisor.main_loop().turn(RETRY_FIRST);
+            f.link.as_ref().unwrap().settle();
+        }
+        for _ in 0..30 {
+            f.later(Duration::from_millis(100));
+        }
+        let board = f.supervisor.board().failed_sources();
+        let stopped = RunSources::stop(&mut f.supervisor);
+        println!(
+            "dm25 n5 adv3-p4 drain_fails_too={drain_fails_too} board_failed={:?} run_stop_failed={:?} begins_foreground={}",
+            board.iter().map(|e| e.name).collect::<Vec<_>>(),
+            stopped.iter().map(|e| e.name).collect::<Vec<_>>(),
+            f.supervisor.factory().calls.of("begin foreground").len()
+        );
+        stopped.iter().any(|entry| entry.name == "foreground")
+    };
+    assert!(
+        named(false),
+        "control: the death is named without a drain stop"
+    );
+    assert!(
+        named(true),
+        "the foreground source died in the window and the run names it nowhere"
+    );
+}
+
+/// N5 and A3-1 (kept item 6, signal), P4, signal trigger: the foreground source died in the last slice of the
+/// window and the signal came in the same slice: wait_on returns at its
+/// flag check with no tick, and the stop's ThreadEnded is a stop.
+#[test]
+fn adv3_p4_a_source_that_died_in_the_slice_of_a_signal_is_named() {
+    let mut f = fixture(Factory::adjusting(|source| {
+        if source.name == SourceName::Foreground {
+            source.stop = Err(CaptureError::ThreadEnded);
+        }
+    }));
+    assert!(f.start(&two()).is_empty());
+    assert!(f.tick().is_none());
+    f.supervisor
+        .factory()
+        .health_of(SourceName::Foreground)
+        .set(SourceState::Failed {
+            reason: HealthReason::ThreadEnded,
+            error: CaptureError::ThreadEnded,
+        });
+    assert!(f
+        .supervisor
+        .wait_on(Duration::from_secs(1), &AtomicBool::new(true), None));
+    let failed = RunSources::stop(&mut f.supervisor);
+    println!(
+        "dm25 n5 adv3-p4-signal failed={:?}",
+        failed.iter().map(|e| e.name).collect::<Vec<_>>()
+    );
+    assert!(
+        failed.iter().any(|entry| entry.name == "foreground"),
+        "a source that died in the slice of the signal is named nowhere: {failed:?}"
+    );
+}
+
+/// N5 and A3-1 (kept item 6, owner's end), P4, owner-gone trigger: the owner ended in the slice in which the
+/// foreground source died: tick stops every source and returns OwnerGone
+/// before the health read.
+#[test]
+fn adv3_p4_a_source_that_died_in_the_slice_of_the_owner_end_is_named() {
+    let mut f = fixture_on_owner(
+        Factory::adjusting(|source| {
+            if source.name == SourceName::Foreground {
+                source.stop = Err(CaptureError::ThreadEnded);
+            }
+        }),
+        ModelStore::new(),
+    );
+    assert!(f.start(&two()).is_empty());
+    assert!(f.tick().is_none());
+    f.supervisor
+        .factory()
+        .health_of(SourceName::Foreground)
+        .set(SourceState::Failed {
+            reason: HealthReason::ThreadEnded,
+            error: CaptureError::ThreadEnded,
+        });
+    f.link.as_ref().expect("an owner link").running.set(false);
+    assert!(matches!(f.tick(), Some(Ending::OwnerGone)));
+    let failed = RunSources::stop(&mut f.supervisor);
+    println!(
+        "dm25 n5 adv3-p4-owner failed={:?}",
+        failed.iter().map(|e| e.name).collect::<Vec<_>>()
+    );
+    assert!(
+        failed.iter().any(|entry| entry.name == "foreground"),
+        "a source that died in the slice of the owner's end is named nowhere: {failed:?}"
+    );
+}
