@@ -277,11 +277,14 @@ impl Call {
 /// made_by_deserialize::<halvo_wire::request::Request>();
 /// ```
 ///
-/// It has no method that takes `&mut self` or `mut self`, so a built request is not changed; the
-/// example compiles when a method of any one of these names is added:
+/// It has no method of the names that the example lists, which would take `&mut self` or
+/// `mut self`, and implements none of the standard traits that it lists, whose methods take
+/// `&mut self`, so a built request is not changed; the example compiles when any one of them is
+/// added:
 ///
 /// ```compile_fail,E0308
 /// use halvo_wire::request::Request;
+/// use std::marker::PhantomData;
 /// struct Missing;
 /// struct Added;
 /// struct NotAdded;
@@ -292,15 +295,36 @@ impl Call {
 /// impl<F: Fn(Missing) -> Missing> Fell for &Probe<F> {}
 /// trait Found { fn found(&self) -> Added { Added } }
 /// impl<F> Found for Probe<F> {}
-/// macro_rules! pins {
-///     ($($name:ident),*) => {
+/// macro_rules! named {
+///     ($($name:ident),*) => {{
 ///         trait Fallback { $(fn $name(_: Missing) -> Missing { Missing })* }
 ///         impl Fallback for Request {}
-///         let added: Added = NotAdded $(.or((&&Probe(Request::$name)).found()))*;
-///     };
+///         NotAdded $(.or((&&Probe(Request::$name)).found()))*
+///     }};
 /// }
-/// pins!(set_method, set_path, set_headers, set_header, push_header, insert_header, set_body,
-///     headers_mut, body_mut, take_body, with_header, with_body);
+/// struct Bound<T>(PhantomData<T>);
+/// macro_rules! holds {
+///     ($($bound:tt)+) => {{
+///         trait Lacks { fn found(&self) -> NotAdded { NotAdded } }
+///         impl<T> Lacks for Bound<T> {}
+///         trait Holds { fn found(&self) -> Added { Added } }
+///         impl<T: $($bound)+> Holds for &Bound<T> {}
+///         (&&Bound::<Request>(PhantomData)).found()
+///     }};
+/// }
+/// let added: Added = named!(set_method, set_path, set_headers, set_header, push_header,
+///     insert_header, set_body, headers_mut, body_mut, take_body, with_header, with_body)
+///     .or(holds!(std::ops::DerefMut))
+///     .or(holds!(std::ops::IndexMut<usize>))
+///     .or(holds!(AsMut<Vec<u8>>))
+///     .or(holds!(AsMut<[u8]>))
+///     .or(holds!(AsMut<Option<Vec<u8>>>))
+///     .or(holds!(AsMut<Vec<(&'static str, String)>>))
+///     .or(holds!(Extend<u8>))
+///     .or(holds!(Extend<(&'static str, String)>))
+///     .or(holds!(std::io::Write))
+///     .or(holds!(std::fmt::Write))
+///     .or(holds!(Iterator));
 /// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
