@@ -1674,6 +1674,8 @@ mod burst_rounds {
         }
     }
 
+    const LONG_FORM_TIME_RULE_ROUNDS: usize = 1;
+
     /// The rounds of one browser's burst: the freed_at_ms of each counted round
     /// that the time rule decided, and each counted round that failed.
     #[derive(Debug, Default)]
@@ -1684,16 +1686,47 @@ mod burst_rounds {
 
     impl Burst {
         /// Takes one round of the burst; `None` stands for a round that was not counted.
-        pub(super) fn take(&mut self, _round: u32, _counted: Option<&Counted>) {}
+        pub(super) fn take(&mut self, round: u32, counted: Option<&Counted>) {
+            let Some(counted) = counted else {
+                return;
+            };
+            match decided(counted) {
+                Ok(Decided::ByTheTimeRule { freed_at_ms }) => self.freed_at_ms.push(freed_at_ms),
+                Ok(Decided::ByARuleOfTheSwap) => {}
+                Err(why) => self.failures.push(format!("round {round}: {why}")),
+            }
+        }
 
         /// The count of the rounds that the time rule decided and their freed_at_ms values.
         pub(super) fn fields(&self) -> String {
-            String::new()
+            let freed = if self.freed_at_ms.is_empty() {
+                "-".to_string()
+            } else {
+                self.freed_at_ms
+                    .iter()
+                    .map(i64::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
+            format!(
+                "rounds_decided_by_the_time_rule={} freed_at_ms_of_those_rounds={freed}",
+                self.freed_at_ms.len()
+            )
         }
 
         /// Fails on a counted round that failed, and in the long form on more
         /// than one round that the time rule decided.
-        pub(super) fn verdict(&self, _form: Form) -> Result<(), String> {
+        pub(super) fn verdict(&self, form: Form) -> Result<(), String> {
+            if !self.failures.is_empty() {
+                return Err(self.failures.join("; "));
+            }
+            if form == Form::Long && self.freed_at_ms.len() > LONG_FORM_TIME_RULE_ROUNDS {
+                return Err(format!(
+                    "the long form takes at most {LONG_FORM_TIME_RULE_ROUNDS} round of the burst's five \
+                     that the time rule decided: {}",
+                    self.fields()
+                ));
+            }
             Ok(())
         }
     }
@@ -1921,6 +1954,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
         let mut sink_differs = 0;
         let mut closed_before_the_step = 0;
         let mut waited_for_the_type = 0;
+        let mut burst = burst_rounds::Burst::default();
         for round in 0..5 {
             let _ = seam::take_marks();
             let gate_before_the_step = keyboard.source.field_state();
@@ -2021,20 +2055,21 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                     r.line()
                 ),
             );
-            if r.counted {
-                if let Err(why) = burst_rounds::decided(&burst_rounds::Counted {
-                    first_letter_rule: r.keys.first_letter_rule,
-                    records: burst_rounds::Records {
-                        letters: r.keys.letters,
-                        tabs: r.keys.tabs,
-                        other: r.keys.other,
-                        keystroke_events: r.sink,
-                    },
-                    freed_at_ms: r.page.freed_at,
-                }) {
-                    panic!("round {round}: {why}");
-                }
-            }
+            burst.take(
+                round,
+                r.counted
+                    .then_some(burst_rounds::Counted {
+                        first_letter_rule: r.keys.first_letter_rule,
+                        records: burst_rounds::Records {
+                            letters: r.keys.letters,
+                            tabs: r.keys.tabs,
+                            other: r.keys.other,
+                            keystroke_events: r.sink,
+                        },
+                        freed_at_ms: r.page.freed_at,
+                    })
+                    .as_ref(),
+            );
         }
         let _ = keyboard.stop();
         say(
@@ -2043,9 +2078,13 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                 "phase=burst counted={counted} password_letters_recorded={recorded} \
                  rounds_whose_step_found_a_closed_gate={closed_before_the_step} \
                  rounds_that_waited_for_the_page_type={waited_for_the_type} \
-                 rounds_where_the_sink_differs_from_the_seam={sink_differs}"
+                 rounds_where_the_sink_differs_from_the_seam={sink_differs} {}",
+                burst.fields()
             ),
         );
+        if let Err(why) = burst.verdict(super::stall::form()) {
+            panic!("{why}");
+        }
         out.store(recorded, Ordering::SeqCst);
         assert!(
             counted >= 1,
