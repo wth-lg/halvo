@@ -48,26 +48,25 @@ impl StopBy {
 }
 
 /// A stop that no read of the clock answered (ruling RD-133 1): the run is stopped on the guard's
-/// table and the board at once, with the time 0 on the board until the coordinator takes the
-/// next read that answers, and `Runs::cancel` goes out where `cancel` says so, which is where
-/// the run has no open item whose lapse sends it. Whether the board took a new stop.
-pub fn stop_unstamped<P: Runs, C>(
-    ports: &P,
-    board: &mut Board<C>,
-    table: &mut Table,
-    run: &RunId,
-    by: StopBy,
-    cancel: bool,
-) -> bool {
+/// table and the board at once, with the time 0 on the board, which is the record that the
+/// coordinator stamps at the next read that answers. It sends nothing: the coordinator writes the
+/// rest of the record and then sends the cancel (`send_cancel`), or the lapse of the run's open
+/// item sends it (ruling RD-138 (1)). Whether the board took a new stop.
+pub fn stop_unstamped<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, by: StopBy) -> bool {
     *table = table.stop(run);
     if board.runs.iter().any(|r| &r.run == run && r.stop.is_some()) {
         return false;
     }
     stop_run(board, run, 0, by.cause().end());
-    if cancel {
-        let _ = ports.cancel(run);
-    }
     true
+}
+
+/// Sends `Runs::cancel` for a run whose stop is already on the guard's table and the board, and
+/// whose record (its board stop at time 0 where no read of the clock answered, the switch-off's
+/// list and `hold_set`) the coordinator wrote first, so that a cancel that does not return loses
+/// none of it (ruling RD-138 (1)).
+pub fn send_cancel<P: Runs>(ports: &P, run: &RunId) {
+    let _ = ports.cancel(run);
 }
 
 /// A move that the run drive carries out on the ports, the board of the schedule and the
@@ -153,9 +152,6 @@ pub struct Done {
     pub checked: Vec<AgentId>,
     /// The runs and dying trees that the second step of the quit killed.
     pub killed: Vec<RunId>,
-    /// The runs that a stop put on the board with no read of the clock, whose time the
-    /// coordinator takes at the next read that answers (ruling RD-133 1).
-    pub unstamped: Vec<RunId>,
 }
 
 fn refused_with(error: &PortError, name: &str) -> bool {
@@ -172,7 +168,6 @@ fn answer(cause: Option<Cause>) -> Done {
         gone: Vec::new(),
         checked: Vec::new(),
         killed: Vec::new(),
-        unstamped: Vec::new(),
     }
 }
 
@@ -183,7 +178,6 @@ fn of_report(report: Report) -> Done {
         gone: Vec::new(),
         checked: Vec::new(),
         killed: Vec::new(),
-        unstamped: Vec::new(),
     }
 }
 
@@ -407,7 +401,6 @@ where
         gone: gone.map(|g| g.seen).unwrap_or_default(),
         checked: raise_checks(ports, board, limits, None),
         killed: Vec::new(),
-        unstamped: Vec::new(),
     }
 }
 
@@ -531,7 +524,6 @@ where
             ItemLapse::LapsedByQuit,
         );
         done.report.stopped.extend(stopped.report.stopped);
-        done.unstamped.extend(stopped.unstamped);
         if stopped.report.read.is_some() {
             done.report.read = stopped.report.read;
         }
@@ -705,9 +697,6 @@ where
     }
     let mut done = answer(None);
     done.report.stopped.push(run.clone());
-    if now.is_none() {
-        done.unstamped.push(run.clone());
-    }
     done.report.read = now;
     done
 }
