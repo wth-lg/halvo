@@ -3022,3 +3022,34 @@ fn review_an_agent_set_aside_with_an_open_card_keeps_its_hold_when_the_tick_read
     );
     assert!(holds_check_item(&w, 0), "the card is open for the person");
 }
+
+#[test]
+fn a_tick_whose_roster_read_fails_raises_nothing_from_the_key_entries_of_an_earlier_read() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(
+        w.facts(0).unknown.len(),
+        1,
+        "the schedule's tick took the key"
+    );
+    assert_eq!(check_items(&w, 0), 0, "and raised no check");
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(
+        tick.checked.is_empty(),
+        "a roster read that did not answer raises nothing"
+    );
+    assert!(
+        w.facts(0).unknown.is_empty(),
+        "no entry of an earlier read is kept"
+    );
+    assert!(w.calls().is_empty());
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 4000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+}
