@@ -521,6 +521,8 @@ fn review_life_2() {
     );
 }
 
+/// Stores `what` as the owner's next event of agent `n`, as a log of the coordinator whose
+/// acknowledgement was lost.
 fn stored_unacknowledged(w: &World, n: usize, what: What) {
     let last = w
         .ports
@@ -685,8 +687,12 @@ fn a_read_whose_later_events_raise_and_close_an_item_takes_up_no_item() {
     assert_eq!(check_items(&w, 0), 1);
 }
 
+/// The end of the local day `DAY` in the zone of `world`.
 const END_OF_LOCAL_DAY: u64 = T0 + 6_400_000;
 
+/// The `item_raised` row of a check that a start raises, with the clock from 8 ms before local
+/// midnight to 3 ms after it and moving on 1 ms at each read, carries the local day of its `at`
+/// (I7.1).
 #[test]
 fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     let mut days = Vec::new();
@@ -719,6 +725,10 @@ fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
 
+/// The rows of the moves that go through the run drive and so through its clock wrapper `Watch`
+/// (src/run/drive.rs): a start, a tick and a switch-off, with the clock from 8 ms before local
+/// midnight to 3 ms after it and moving on 1 ms at each read. Every row carries the memory
+/// clock's day of its `at` (I7.1; ruling RD-69 E1).
 #[test]
 fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
     let mut days = Vec::new();
@@ -2285,17 +2295,21 @@ fn a_reply_row_is_not_known_in_the_state_unknown_and_when_its_reader_could_not_r
     assert!(ReplyRow::Unreadable.not_known());
 }
 
+/// The store ends the run through its own `end_run` while the run left an effect `releasing`
+/// (`Ports::release`): the record counts 0 and the roster entry's key `unknown` names the effect.
 fn ended_with_key(w: &World, n: usize, run: &RunId) {
-    w.store_end(n, run, Outcome::Failed, 0);
-    let mut agents = w.ports.agents.borrow_mut();
-    let entry = agents.iter_mut().find(|a| a.agent == agent(n)).unwrap();
-    entry.unknown.push(Unknown {
+    w.ports.release(Unknown {
         run: run.clone(),
         effect: EffectId::parse(&format!("{:032x}", 0xe100 + n)).unwrap(),
         day: DAY,
         class: Class::Send,
         kept: vec![],
     });
+    assert!(w.ports.send(&Body::EndRun { run: run.clone() }).is_ok());
+    let agents = w.ports.agents.borrow();
+    let entry = agents.iter().find(|a| a.agent == agent(n)).unwrap();
+    assert_eq!(entry.last.as_ref().map(|l| l.unknown), Some(0));
+    assert!(entry.unknown.iter().any(|u| &u.run == run));
 }
 
 fn starts(calls: &[String]) -> bool {
@@ -2433,6 +2447,8 @@ fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
     assert!(holds(facts).contains(&Hold::Check));
 }
 
+/// Makes the agent `n` of the world an agent of the category `email` whose one parameter has its
+/// slot, in the owner's list, the roster and the board.
 fn to_mail(w: &mut World, n: usize) {
     let text = support::config_text(n, false)
         .replace("calendar_cleanup", "email")
@@ -2471,6 +2487,7 @@ fn reads(w: &World) -> usize {
     w.ports.reply_reads.borrow().len()
 }
 
+/// An `email` agent whose newest run the store ended with a record of 0 and no key entry.
 fn mail_ended(w: &mut World, n: usize) -> RunId {
     to_mail(w, n);
     let run = ended_unknown(w, n);
@@ -3196,4 +3213,131 @@ fn the_check_card_takes_its_kept_fields_from_the_entry_that_made_the_hold_with_n
         "one read of the roster in the tick, its own: the page makes no second one"
     );
     assert_eq!(check_fields(&c), vec![vec!["Ann Lee".to_string()]]);
+}
+
+#[test]
+fn recovery_takes_the_key_before_it_reads_the_reply_rows() {
+    let mut w = world(&[MANUAL]);
+    to_mail(&mut w, 0);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(
+        life.checked,
+        vec![agent(0)],
+        "the key's hold stands whatever the reply read gives"
+    );
+    assert!(w.facts(0).store_ended);
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn the_creation_takes_the_key_before_it_reads_the_reply_rows() {
+    let mut w = world(&[]);
+    let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0c21)).unwrap();
+    let workflow = halvo_coord::types::FullWorkflow {
+        state: halvo_coord::types::WorkflowState::Approved,
+        agent: None,
+        category: Category::Email,
+        ..support::workflow(0, SLOTTED)
+    };
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(workflow));
+    let config = support::config_text(0, false)
+        .replace(agent(0).as_str(), made.as_str())
+        .replace("calendar_cleanup", "email")
+        .replace("graph_calendar", "graph_mail");
+    w.ports.agents.borrow_mut().push(Agent {
+        workflow: flow(0),
+        agent: made.clone(),
+        config: halvo_coord::mem::Config::parse(&config).unwrap(),
+        state: halvo_coord::types::AgentState::Approved,
+        slots: vec![Name::parse("reply_senders").unwrap()],
+        session: false,
+        last: Some(halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY - 1,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        }),
+        unknown: vec![Unknown {
+            run: run.clone(),
+            effect: EffectId::parse(&format!("{:032x}", 0xe221)).unwrap(),
+            day: DAY - 1,
+            class: Class::Send,
+            kept: vec![],
+        }],
+    });
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+    assert_eq!(report.created, vec![made.clone()]);
+    let facts = &w
+        .board
+        .members
+        .iter()
+        .find(|m| m.facts.agent == made)
+        .unwrap()
+        .facts;
+    assert!(facts.store_ended);
+    assert!(holds(facts).contains(&Hold::Check));
+}
+
+#[test]
+fn a_move_for_one_agent_reads_no_other_agents_reply_rows() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let first = mail_ended(&mut w, 0);
+    let second = mail_ended(&mut w, 1);
+    w.ports.reply_reads.borrow_mut().clear();
+    w.act(Act::Start { agent: agent(1) });
+    let reads = w.ports.reply_reads.borrow().clone();
+    assert!(reads.contains(&second), "its own read");
+    assert!(!reads.contains(&first), "and no other agent's");
+}
+
+#[test]
+fn a_failed_roster_read_of_one_agents_move_leaves_the_other_agents_facts() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    to_mail(&mut w, 0);
+    let run = ended_unknown(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    ended_with_key(&w, 0, &run);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    let unknown = w.facts(0).unknown.clone();
+    let replies = w.facts(0).replies.clone();
+    assert_eq!(unknown.len(), 1);
+    assert_eq!(
+        replies,
+        Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.set_clock(T0 + 3000, DAY);
+    assert_eq!(
+        w.act(Act::Start { agent: agent(1) }).report.answer,
+        Err(Cause::NoService)
+    );
+    assert_eq!(w.facts(0).unknown, unknown, "agent 0's key entries stay");
+    assert_eq!(w.facts(0).replies, replies, "and its reply answer");
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn the_memory_owners_end_run_lists_a_releasing_effect_under_its_own_agent() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let run = ended_unknown(&mut w, 1);
+    ended_with_key(&w, 1, &run);
+    let agents = w.ports.agents.borrow();
+    assert!(agents[0].unknown.is_empty(), "not under another agent");
+    assert_eq!(agents[1].unknown.len(), 1);
+    assert_eq!(agents[1].unknown[0].run, run);
+    assert_eq!(agents[1].last.as_ref().map(|l| l.run.clone()), Some(run));
 }

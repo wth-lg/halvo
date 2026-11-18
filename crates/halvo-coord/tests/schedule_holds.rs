@@ -581,3 +581,20 @@ fn check_stands_for_a_reply_row_that_is_not_known_and_after_a_raised_card_until_
     f.store_ended = false;
     assert_eq!(holds(&f), Vec::<Hold>::new());
 }
+
+#[test]
+fn a_reply_row_unknown_that_is_not_the_last_row_holds() {
+    let mut f = facts(Category::Email, "graph_mail", vec![]);
+    f.slots = names(&["reply_senders"]);
+    f.runs = vec![past(2, 103, Outcome::Failed, 0)];
+    f.replies = Replies::Rows(vec![
+        ReplyRow::Read(ReplyState::Unknown),
+        ReplyRow::Read(ReplyState::Committed),
+    ]);
+    assert_eq!(holds(&f), vec![Hold::Check]);
+    f.replies = Replies::Rows(vec![
+        ReplyRow::Unreadable,
+        ReplyRow::Read(ReplyState::Withheld),
+    ]);
+    assert_eq!(holds(&f), vec![Hold::Check]);
+}
