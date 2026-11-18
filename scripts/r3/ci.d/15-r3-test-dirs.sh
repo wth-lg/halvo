@@ -38,7 +38,6 @@ crates/halvo-route-gate/tests/product_cli.rs 1 routing run; exclusive create ret
 crates/halvo-route-gate/tests/product_recorded_cli.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/sequences_same.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-wire/tests/gateway_check.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
-crates/halvo-runner/tests/support/mod.rs 1 agent-setup run, U4.1
 crates/halvo-sample/tests/common/mod.rs 1 workflow run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-web/src/child.rs 1 agent-setup run, U2.6
 crates/halvo-web/src/guard.rs 2 agent-setup run, U2.6
@@ -58,9 +57,9 @@ tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=40
-pinned_places=53
-pinned_paths=1472626537
+pinned_rows=39
+pinned_places=52
+pinned_paths=3988852588
 
 program='
 function code(s) {
