@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,45 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-mutants 15-gate-self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-mutants
+      - name: mutants-7 gate self-tests whole (scratch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          set -u
+          case ${TMPDIR:-} in '') export TMPDIR=/tmp/ ;; */) ;; *) export TMPDIR="$TMPDIR/" ;; esac
+          echo "mutants-7: TMPDIR $TMPDIR; its physical form $(cd "$TMPDIR" && pwd -P)"
+          started=$(date +%s)
+          sh scripts/r1-gate/run.sh --self-test > "$RUNNER_TEMP/gate-first.out" 2>&1
+          first=$?
+          grep -E '^(PASS|FAIL) self-test|^case .* want=' "$RUNNER_TEMP/gate-first.out"
+          echo "mutants-7: first pass: run.sh --self-test exit $first in $(( $(date +%s) - started )) s"
+          dash_failed=0
+          dash_ran=0
+          if command -v dash > /dev/null 2>&1; then
+            for script in scripts/r1-gate/check-*.sh; do
+              started=$(date +%s)
+              dash "$script" --self-test > "$RUNNER_TEMP/gate-dash.out" 2>&1
+              code=$?
+              dash_ran=$((dash_ran + 1))
+              [ "$code" = 0 ] || dash_failed=$((dash_failed + 1))
+              grep -E '^case .* want=' "$RUNNER_TEMP/gate-dash.out"
+              echo "mutants-7: dash pass: dash ${script##*/} --self-test exit $code in $(( $(date +%s) - started )) s: $(grep -E '^(PASS|FAIL) self-test' "$RUNNER_TEMP/gate-dash.out" | tail -n 1)"
+            done
+          else
+            echo "mutants-7: dash pass: dash is not installed"
+            dash_failed=1
+          fi
+          echo "mutants-7: gate self-tests: first pass exit $first; dash pass $dash_ran scripts, $dash_failed failed"
+          [ "$first" = 0 ] && [ "$dash_failed" = 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -153,21 +174,13 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
