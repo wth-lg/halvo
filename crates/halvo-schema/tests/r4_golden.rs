@@ -668,17 +668,48 @@ fn leaf_whose_path_is_gone_drops_without_a_panic() {
     assert!(dropped.is_ok());
 }
 
-#[test]
-fn leaf_of_a_comparison_that_matches_is_gone() {
+fn names_comparison_left() -> Vec<String> {
+    let own = format!("r4-golden-names-txt-{}-", std::process::id());
+    let listed = || -> Vec<String> {
+        std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(&own))
+            .collect()
+    };
+    let before = listed();
     let lines: Vec<String> = committed("names.txt").lines().map(str::to_owned).collect();
     written_equals_committed("names.txt", &lines);
-    let own = format!("r4-golden-names-txt-{}-", std::process::id());
-    let left: Vec<String> = std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|name| name.starts_with(&own))
-        .collect();
+    listed()
+        .into_iter()
+        .filter(|name| !before.contains(name))
+        .collect()
+}
+
+#[test]
+fn leaf_of_a_comparison_that_matches_is_gone() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("match") {
+        leaf_child("leaf_of_a_comparison_that_matches_is_gone", "match", false);
+        return;
+    }
+    let left = names_comparison_left();
     assert!(left.is_empty(), "{left:?}");
+}
+
+#[test]
+fn leaf_of_a_comparison_that_matches_counts_no_leaf_of_its_name_that_stood_before() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("before") {
+        leaf_child(
+            "leaf_of_a_comparison_that_matches_counts_no_leaf_of_its_name_that_stood_before",
+            "before",
+            false,
+        );
+        return;
+    }
+    let earlier = leaf("r4-golden-names-txt");
+    let left = names_comparison_left();
+    assert!(left.is_empty(), "{left:?}");
+    assert!(earlier.path().is_dir(), "{}", earlier.path().display());
 }
 
 #[test]

@@ -966,6 +966,23 @@ fn write_and_compare_of_a_file_that_differs_keeps_the_written_file_under_the_tar
     assert!(!kept.exists(), "{}", kept.display());
 }
 
+fn names_compare_left() -> Vec<String> {
+    let own = format!("golden-names-txt-{}-", std::process::id());
+    let listed = || -> Vec<String> {
+        std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(&own))
+            .collect()
+    };
+    let before = listed();
+    write_and_compare("names.txt", &committed("names.txt"));
+    listed()
+        .into_iter()
+        .filter(|name| !before.contains(name))
+        .collect()
+}
+
 #[test]
 fn write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own() {
     if std::env::var(LEAF_CHILD).as_deref() != Ok("match") {
@@ -976,15 +993,24 @@ fn write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own() {
         );
         return;
     }
-    let text = committed("names.txt");
-    write_and_compare("names.txt", &text);
-    let own = format!("golden-names-txt-{}-", std::process::id());
-    let left: Vec<String> = std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|name| name.starts_with(&own))
-        .collect();
+    let left = names_compare_left();
     assert!(left.is_empty(), "{left:?}");
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_matches_counts_no_directory_of_its_name_that_stood_before() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("before") {
+        leaf_child(
+            "write_and_compare_of_a_file_that_matches_counts_no_directory_of_its_name_that_stood_before",
+            "before",
+            false,
+        );
+        return;
+    }
+    let earlier = leaf("golden-names-txt");
+    let left = names_compare_left();
+    assert!(left.is_empty(), "{left:?}");
+    assert!(earlier.path().is_dir(), "{}", earlier.path().display());
 }
 
 struct Leaf(PathBuf);
