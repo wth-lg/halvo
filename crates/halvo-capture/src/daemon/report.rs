@@ -140,6 +140,10 @@ pub struct RunOutcome {
     /// The sources whose stop answered neither Ok nor ThreadEnded; the run
     /// ends by the ending call when one is named.
     pub let_go: Vec<&'static str>,
+    /// The text of the system's refusal of the secure-input hold, with the
+    /// loss line on a line of its own when the life lost events: such a run
+    /// answers this text and status 1, with no report (ruling DM-25 N4).
+    pub refusal: Option<String>,
 }
 
 /// The loss line of contracts.md C3.2 and the cause of status 1 that holds,

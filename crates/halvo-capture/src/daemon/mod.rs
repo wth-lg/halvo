@@ -225,12 +225,30 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
 /// loss line on `err`, and the run's status; a run that let a source go ends
 /// here by [`finish_run`] with that status. A report that cannot be written,
 /// as into a pipe whose reader is gone, gives exit 1 with a line, and the
-/// loss line still follows it.
+/// loss line still follows it. A run whose hold the system refused answers
+/// the refusal's line as the binary's error arm writes it, no report and
+/// status 1, and it too ends by [`finish_run`] when it let a source go.
 pub fn outcome_answer(
     outcome: &RunOutcome,
     out: &mut dyn std::io::Write,
     err: &mut dyn std::io::Write,
 ) -> i32 {
+    answer_with(outcome, out, err, process_ending())
+}
+
+/// [`outcome_answer`] with the ending `ending`.
+fn answer_with(
+    outcome: &RunOutcome,
+    out: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+    ending: &dyn main_loop::EndCall,
+) -> i32 {
+    if let Some(refusal) = &outcome.refusal {
+        let _ = writeln!(err, "halvo-capture: {refusal}");
+        let _ = err.flush();
+        finish_run(outcome, halvo_control::exit::ERROR, ending, err);
+        return halvo_control::exit::ERROR;
+    }
     let printed = out
         .write_all(outcome.report.render().as_bytes())
         .and_then(|()| out.flush());
@@ -244,7 +262,7 @@ pub fn outcome_answer(
         Ok(()) => outcome.status,
         Err(_) => halvo_control::exit::ERROR,
     };
-    finish_run(outcome, status, process_ending(), err);
+    finish_run(outcome, status, ending, err);
     status
 }
 
@@ -1109,15 +1127,25 @@ where
             Err(_) => owner.snapshot(),
         };
         let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
-        return Err(
-            match stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports) {
-                Some(loss) => DaemonError::RefusedWithLoss {
-                    refusal: Box::new(refusal),
-                    loss,
-                },
-                None => refusal,
+        let loss = if last.is_err() && !supervisor::OwnerLink::is_running(&owner) {
+            Some(owner_ended(&settled, &sink_counts))
+        } else {
+            stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports)
+        };
+        let refusal = match loss.clone() {
+            Some(loss) => DaemonError::RefusedWithLoss {
+                refusal: Box::new(refusal),
+                loss,
             },
-        );
+            None => refusal,
+        };
+        return Ok(RunOutcome {
+            report: report_of(&settled, &sink_counts, &figures, failed, run.secure_input),
+            status: exit::ERROR,
+            loss,
+            let_go: let_go_of(sources),
+            refusal: Some(refusal.to_string()),
+        });
     }
     let last = match last {
         Ok(_) => {
@@ -1164,12 +1192,19 @@ where
         report: report_of(&settled, &sink_counts, &figures, failed, run.secure_input),
         status,
         loss,
-        let_go: sources
-            .let_go()
-            .into_iter()
-            .map(SourceName::as_str)
-            .collect(),
+        let_go: let_go_of(sources),
+        refusal: None,
     })
+}
+
+/// The names of the sources that `sources` let go.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn let_go_of<P: RunSources>(sources: &P) -> Vec<&'static str> {
+    sources
+        .let_go()
+        .into_iter()
+        .map(SourceName::as_str)
+        .collect()
 }
 
 /// The loss line of a run whose owner thread ended before it answered the
@@ -1413,6 +1448,7 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
             status: halvo_control::exit::CLEAN,
             loss: None,
             let_go: Vec::new(),
+            refusal: None,
         })
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -2822,10 +2858,20 @@ mod tests {
             &stop,
             Duration::from_millis(300),
         );
-        assert!(matches!(
-            ended,
-            Err(DaemonError::SecureInputRefused(-25291))
-        ));
+        // Ruling DM-25 N4: the refusal is carried in the outcome, and the
+        // binary's answer to it is its line and status 1 with no report.
+        let outcome = ended.unwrap();
+        assert_eq!(
+            outcome.refusal,
+            Some(DaemonError::SecureInputRefused(-25291).to_string())
+        );
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        assert_eq!(outcome_answer(&outcome, &mut out, &mut err), 1);
+        assert!(out.is_empty());
+        assert_eq!(
+            String::from_utf8(err).unwrap(),
+            "halvo-capture: the system refused the secure-input hold (status -25291)\n"
+        );
     }
 
     #[test]

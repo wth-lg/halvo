@@ -1047,3 +1047,192 @@ fn the_ma9_line_of_a_lost_grant_comes_at_the_first_answer() {
     );
     line_right_after_the_first_stop("lost-grant second=Ok", &lost_grant_with_hold(Ok(())));
 }
+
+/// The sources of a run whose hold of secure input the system refused.
+struct Refusing(Factory);
+
+impl SourceFactory for Refusing {
+    fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
+        self.0.make(name)
+    }
+}
+
+impl SystemSources for Refusing {
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        Some(DaemonError::SecureInputRefused(-25_293))
+    }
+}
+
+/// N4 and A1-F8 (the verifier's kept item 5): a timed run whose input stop
+/// answers Timeout and whose hold the system refused reaches the binary's
+/// answer with the refusal and the source let go: the refusal's line as the
+/// error arm writes it, status 1, the line that input did not stop, and the
+/// ending call with 1, here a recorder.
+#[test]
+fn adv1_f8_a_refused_hold_keeps_the_source_that_was_let_go() {
+    let ending = Stamped::default();
+    let mut supervisor = Supervisor::new(
+        Platform::Macos,
+        Refusing(Factory::adjusting(|source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+            }
+        })),
+        real_loop(),
+    )
+    .with_ending(Arc::new(ending.clone()));
+    let result = run_timed(
+        &run_of(1),
+        &mut supervisor,
+        ModelStore::new(),
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    );
+    println!(
+        "dm25 n4 a1-f8 result={:?}",
+        result
+            .as_ref()
+            .map(|outcome| (
+                outcome.status,
+                outcome.let_go.clone(),
+                outcome.refusal.clone()
+            ))
+            .map_err(ToString::to_string)
+    );
+    let outcome = match result {
+        Ok(outcome) => outcome,
+        Err(error) => panic!(
+            "input was let go and run_timed returned Err({error}): the binary's error arm prints it and returns from main, with no finish_run"
+        ),
+    };
+    assert_eq!(outcome.let_go, ["input"]);
+    assert_eq!(supervisor.watchdog_armed(), Some(exit::ERROR));
+    let answered = Stamped::default();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = crate::daemon::answer_with(&outcome, &mut out, &mut err, &answered);
+    let err = String::from_utf8(err).unwrap();
+    println!(
+        "dm25 n4 a1-f8 status={status} err={err:?} ended={:?}",
+        answered.statuses()
+    );
+    assert_eq!(status, exit::ERROR);
+    assert!(out.is_empty(), "a refused run wrote a report");
+    assert_eq!(
+        err,
+        "halvo-capture: the system refused the secure-input hold (status -25293)\n\
+         halvo-capture: the source input did not stop; the process ends without waiting for it\n"
+    );
+    assert_eq!(answered.statuses(), [exit::ERROR]);
+}
+
+/// The sources of a one-shot run whose hold of secure input the system
+/// refused, with `let_go` let go at the stop.
+struct RefusedShot {
+    script: Vec<crate::event::FloorEvent>,
+    linger: Duration,
+    let_go: Vec<SourceName>,
+}
+
+impl RunSources for RefusedShot {
+    fn start(
+        &mut self,
+        ctx: &SourceContext,
+        _wanted: &[SourceName],
+        _hold_after: Option<Duration>,
+    ) -> Vec<FailedSource> {
+        for event in self.script.drain(..) {
+            let _ = ctx.sink().emit_event(event);
+        }
+        Vec::new()
+    }
+
+    fn wait(&mut self, _window: Duration, _stop: &AtomicBool) -> bool {
+        std::thread::sleep(self.linger);
+        false
+    }
+
+    fn stop(&mut self) -> Vec<FailedSource> {
+        self.let_go
+            .iter()
+            .map(|name| FailedSource {
+                name: name.as_str(),
+                error: "timeout".to_owned(),
+            })
+            .collect()
+    }
+
+    fn figures(&self) -> SourceCounters {
+        SourceCounters::default()
+    }
+
+    fn hold_refusal(&self) -> Option<DaemonError> {
+        Some(DaemonError::SecureInputRefused(-25_293))
+    }
+
+    fn let_go(&self) -> Vec<SourceName> {
+        self.let_go.clone()
+    }
+}
+
+/// N4 and A3-2: a refused run whose stop let a source go keeps it in its
+/// answer.
+#[test]
+fn adv3_a_refused_run_with_a_source_let_go_keeps_it_in_its_answer() {
+    let result = run_timed(
+        &run_of(1),
+        &mut RefusedShot {
+            script: Vec::new(),
+            linger: Duration::ZERO,
+            let_go: vec![SourceName::Screen],
+        },
+        ModelStore::new(),
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    );
+    let shown = match &result {
+        Ok(outcome) => format!("Ok status={} let_go={:?}", outcome.status, outcome.let_go),
+        Err(error) => format!("Err {error}"),
+    };
+    println!("dm25 n4 a3-refused-let-go answer={shown:?}");
+    assert!(
+        matches!(&result, Ok(outcome) if outcome.let_go == ["screen"] && outcome.refusal.is_some()),
+        "the refused run dropped the source it let go: {shown}"
+    );
+}
+
+/// N4 and A3-2 (P10): an owner that ended in a run whose hold was refused
+/// gives the owner-ended line after the refusal, not the line of an
+/// unanswered pause.
+#[test]
+fn adv3_p10_an_owner_that_ended_in_a_run_whose_hold_was_refused_gives_the_owner_ended_line() {
+    let mut run = RefusedShot {
+        script: (0..600).map(|_| foreground_now()).collect(),
+        linger: Duration::from_millis(300),
+        let_go: Vec::new(),
+    };
+    let quiet = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let answer = run_timed(
+        &run_of(1),
+        &mut run,
+        PanickingStore(ModelStore::new()),
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    );
+    std::panic::set_hook(quiet);
+    let text = match &answer {
+        Ok(outcome) => format!("Ok status={} refusal={:?}", outcome.status, outcome.refusal),
+        Err(error) => format!("Err {error}"),
+    };
+    println!("dm25 n4 a3-p10 answer={text:?}");
+    assert!(
+        matches!(&answer, Ok(outcome) if outcome.refusal.as_deref() == Some(
+            "the system refused the secure-input hold (status -25293)\n\
+             halvo-capture: owner ended; events accepted and not persisted=600"
+        ) && outcome.status == exit::ERROR),
+        "{text}"
+    );
+}
