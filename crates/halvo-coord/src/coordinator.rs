@@ -1882,18 +1882,11 @@ where
                 .find(|s| s.item() == item)
                 .and_then(|s| s.page_item(name, &self.limits).ok()),
             ItemKind::Check => {
-                let newest = facts.runs.first().map(|r| r.run.clone());
-                let unknown = match (&facts.doing, newest) {
-                    (Doing::Idle(_) | Doing::Queued(_), Some(run)) => self
-                        .ports
-                        .agents()
-                        .ok()
-                        .and_then(|all| all.into_iter().find(|a| &a.agent == agent))
-                        .map(|a| a.unknown.into_iter().filter(|u| u.run == run).collect())
-                        .unwrap_or_default(),
-                    _ => Vec::new(),
+                let unknown: &[_] = match &facts.doing {
+                    Doing::Idle(_) | Doing::Queued(_) => &facts.unknown,
+                    Doing::Live(_) => &[],
                 };
-                compose_check(item, agent, name, &unknown).ok()
+                compose_check(item, agent, name, unknown).ok()
             }
         }
     }

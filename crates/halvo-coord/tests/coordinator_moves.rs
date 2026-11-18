@@ -3462,8 +3462,8 @@ fn a_stop_after_an_answer_whose_row_was_stored_and_whose_handback_failed_stores_
 
 /// The person's Stop for `who`, which has no live run: answers ok, makes the calls `calls` alone,
 /// stores no event, and leaves the rows and the items of the snapshot as they were (ruling
-/// RD-43 (a) to (c)). The snapshot of the hold's check card reads `Owner::agents` for the
-/// unknown effects that the card shows, after every move of the person while it stands.
+/// RD-43 (a) to (c)). The hold's check card takes the unknown effects that it shows from the
+/// facts of the move's own read of the roster and makes no read of its own (ruling RD-81 8.3).
 fn a_stop_changes_nothing(c: &Coordinator<Both>, who: &AgentId, calls: &[Call], case: &str) {
     let before = c.snapshot();
     let stored = events(c).len();
@@ -3498,7 +3498,7 @@ fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothin
     c.ports().ports.set_clock(T0 + 1_000, DAY);
     c.tick();
     assert_eq!(open_item(&c).1, ItemKind::Check, "the hold's check");
-    a_stop_changes_nothing(&c, &agent(0), &[Call::Agents], "the hold's check");
+    a_stop_changes_nothing(&c, &agent(0), &[], "the hold's check");
 
     let (c, made, _) = setup_agent();
     assert_eq!(open_item(&c).1, ItemKind::Setup);

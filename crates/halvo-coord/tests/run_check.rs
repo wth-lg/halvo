@@ -1,6 +1,10 @@
 #[path = "run_support.rs"]
 mod support;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "coordinator_support.rs"]
+mod coord;
+
 use halvo_coord::guard::Table;
 use halvo_coord::mem::Call;
 use halvo_coord::mem::Method;
@@ -8,11 +12,11 @@ use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, Act};
 use halvo_coord::schedule::{drive as schedule_drive, holds, Answer, Hold, Move, Owing};
 use halvo_coord::types::{
-    Agent, AgentId, Answered, Body, Cause, CheckAnswer, Decision, Doing, Event, HandbackResult,
-    ItemId, Lapsed, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer, Reply, RunId,
-    RunSpec, What, Workflow,
+    Agent, AgentId, Answered, Body, Category, Cause, CheckAnswer, Class, Decision, Doing, EffectId,
+    Event, HandbackResult, ItemId, Lapsed, Name, OtherLapse, Outcome, OwnItem, OwnItemKind, Raised,
+    ReadyAnswer, Replies, Reply, ReplyRow, ReplyState, RunId, RunSpec, Unknown, What, Workflow,
 };
-use support::{agent, world, World, A, DAY, MANUAL, T0};
+use support::{agent, flow, world, World, A, DAY, MANUAL, T0};
 
 const SLOTTED: A = A {
     person: false,
@@ -1229,6 +1233,15 @@ impl<P: Owner> Owner for Late<'_, P> {
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.ports.send(body)
     }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
+    }
 }
 
 impl<P: Runs> Runs for Late<'_, P> {
@@ -2219,5 +2232,1163 @@ fn a_runs_check_item_that_a_read_brings_is_not_taken_up_as_the_agents_item() {
         w.facts(0).doing,
         Doing::Idle(None),
         "the board takes no item"
+    );
+}
+
+fn refusal(name: &str) -> PortError {
+    PortError::Refused(Name::parse(name).unwrap())
+}
+
+#[test]
+fn the_memory_owner_gives_the_reply_rows_of_one_run_and_refuses_as_the_store_does() {
+    let w = world(&[SLOTTED, SLOTTED]);
+    let mine = RunId::parse(&format!("{:032x}", 0x5101)).unwrap();
+    let other = RunId::parse(&format!("{:032x}", 0x5102)).unwrap();
+    w.ports.replies.borrow_mut().extend([
+        (mine.clone(), ReplyRow::Read(ReplyState::Drafted)),
+        (other.clone(), ReplyRow::Read(ReplyState::Unknown)),
+        (mine.clone(), ReplyRow::Unreadable),
+    ]);
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(0), &mine),
+        Ok(vec![
+            ReplyRow::Read(ReplyState::Drafted),
+            ReplyRow::Unreadable
+        ]),
+        "the rows of its run in the store's order, an unreadable one kept"
+    );
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(0), &other),
+        Ok(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(1), &mine),
+        Err(refusal("binding"))
+    );
+    assert_eq!(
+        w.ports.replies(&flow(7), &agent(0), &mine),
+        Err(refusal("no_workflow"))
+    );
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    assert_eq!(
+        w.ports.replies(&flow(0), &agent(0), &mine),
+        Err(PortError::NoService)
+    );
+    assert_eq!(
+        *w.ports.reply_reads.borrow(),
+        vec![mine.clone(), other, mine.clone(), mine.clone(), mine]
+    );
+}
+
+#[test]
+fn a_reply_row_is_not_known_in_the_state_unknown_and_when_its_reader_could_not_read_it() {
+    for (state, not_known) in [
+        (ReplyState::Drafted, false),
+        (ReplyState::Begun, false),
+        (ReplyState::Committed, false),
+        (ReplyState::Unknown, true),
+        (ReplyState::Lost, false),
+        (ReplyState::Withheld, false),
+    ] {
+        assert_eq!(ReplyRow::Read(state).not_known(), not_known, "{state:?}");
+    }
+    assert!(ReplyRow::Unreadable.not_known());
+}
+
+/// The store ends the run through its own `end_run` while the run left an effect `releasing`
+/// (`Ports::release`): the record counts 0 and the roster entry's key `unknown` names the effect.
+fn ended_with_key(w: &World, n: usize, run: &RunId) {
+    w.ports.release(Unknown {
+        run: run.clone(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe100 + n)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    });
+    assert!(w.ports.send(&Body::EndRun { run: run.clone() }).is_ok());
+    let agents = w.ports.agents.borrow();
+    let entry = agents.iter().find(|a| a.agent == agent(n)).unwrap();
+    assert_eq!(entry.last.as_ref().map(|l| l.unknown), Some(0));
+    assert!(entry.unknown.iter().any(|u| &u.run == run));
+}
+
+fn starts(calls: &[String]) -> bool {
+    calls.iter().any(|c| c == "start" || c == "start_run")
+}
+
+#[test]
+fn a_tick_raises_the_check_of_a_record_of_0_that_the_roster_key_names_and_starts_nothing() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.forget();
+    w.set_clock(T0 + 2000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    assert!(!starts(&w.calls()), "no start in that move");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold), "Run now is held");
+    assert!(w.calls().is_empty(), "the press stores and sends nothing");
+}
+
+#[test]
+fn a_roster_read_that_does_not_answer_starts_nothing_and_the_check_stands_at_the_next_read() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 2000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(tick.checked.is_empty() && tick.report.started.is_empty());
+    assert!(w.calls().is_empty(), "nothing stored and nothing started");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::NoService));
+    assert!(w.calls().is_empty());
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)], "the first read that answers");
+    assert!(!starts(&w.calls()));
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+}
+
+#[test]
+fn recovery_takes_the_roster_key_and_raises_the_check_of_a_record_of_0() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(life.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(w.facts(0).unknown.len(), 1);
+    assert_eq!(w.facts(0).unknown[0].run, run);
+}
+
+#[test]
+fn an_entry_of_an_older_run_raises_no_check_and_the_facts_keep_none_of_it() {
+    let mut w = world(&[SLOTTED]);
+    let run = ended_unknown(&mut w, 0);
+    let older = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    {
+        let mut agents = w.ports.agents.borrow_mut();
+        agents[0].unknown.push(Unknown {
+            run: older,
+            effect: EffectId::parse(&format!("{:032x}", 0xe1ff)).unwrap(),
+            day: DAY - 2,
+            class: Class::Send,
+            kept: vec![],
+        });
+    }
+    w.store_end(0, &run, Outcome::Completed, 0);
+    w.forget();
+    w.set_clock(T0 + 2000, DAY + 2);
+    let tick = w.act(Act::Tick);
+    assert!(tick.checked.is_empty());
+    assert!(
+        w.facts(0).unknown.is_empty(),
+        "the facts keep the newest run's"
+    );
+}
+
+#[test]
+fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
+    let mut w = world(&[]);
+    let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0c01)).unwrap();
+    let older = RunId::parse(&format!("{:032x}", 0x0c00)).unwrap();
+    let workflow = halvo_coord::types::FullWorkflow {
+        state: halvo_coord::types::WorkflowState::Approved,
+        agent: None,
+        ..support::workflow(0, SLOTTED)
+    };
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(workflow));
+    let config = support::config_text(0, false).replace(agent(0).as_str(), made.as_str());
+    let entry = |run: &RunId, k: u32| Unknown {
+        run: run.clone(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe200 + k)).unwrap(),
+        day: DAY - 1,
+        class: Class::Send,
+        kept: vec![],
+    };
+    w.ports.agents.borrow_mut().push(Agent {
+        workflow: flow(0),
+        agent: made.clone(),
+        config: halvo_coord::mem::Config::parse(&config).unwrap(),
+        state: halvo_coord::types::AgentState::Approved,
+        slots: vec![],
+        session: false,
+        last: Some(halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY - 1,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        }),
+        unknown: vec![entry(&older, 0), entry(&run, 1)],
+    });
+    let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+    assert_eq!(report.created, vec![made.clone()]);
+    let facts = &w
+        .board
+        .members
+        .iter()
+        .find(|m| m.facts.agent == made)
+        .unwrap()
+        .facts;
+    assert_eq!(facts.unknown, vec![entry(&run, 1)]);
+    assert!(holds(facts).contains(&Hold::Check));
+}
+
+/// Makes the agent `n` of the world an agent of the category `email` whose one parameter has its
+/// slot, in the owner's list, the roster and the board.
+fn to_mail(w: &mut World, n: usize) {
+    let text = support::config_text(n, false)
+        .replace("calendar_cleanup", "email")
+        .replace("graph_calendar", "graph_mail");
+    let config = halvo_coord::mem::Config::parse(&text).unwrap();
+    let slots = vec![Name::parse("reply_senders").unwrap()];
+    for a in w.ports.agents.borrow_mut().iter_mut() {
+        if a.agent == agent(n) {
+            a.config = config.clone();
+            a.slots = slots.clone();
+        }
+    }
+    for f in w.ports.workflows.borrow_mut().iter_mut() {
+        if let Workflow::Full(f) = f {
+            if f.id == flow(n) {
+                f.category = Category::Email;
+            }
+        }
+    }
+    let m = w
+        .board
+        .members
+        .iter_mut()
+        .find(|m| m.facts.agent == agent(n))
+        .unwrap();
+    m.facts.config = config;
+    m.facts.slots = slots;
+    m.facts.workflow.category = Category::Email;
+}
+
+fn reply_row(w: &World, run: &RunId, row: ReplyRow) {
+    w.ports.replies.borrow_mut().push((run.clone(), row));
+}
+
+fn reads(w: &World) -> usize {
+    w.ports.reply_reads.borrow().len()
+}
+
+/// An `email` agent whose newest run the store ended with a record of 0 and no key entry.
+fn mail_ended(w: &mut World, n: usize) -> RunId {
+    to_mail(w, n);
+    let run = ended_unknown(w, n);
+    w.store_end(n, &run, Outcome::Failed, 0);
+    run
+}
+
+#[test]
+fn for_email_a_reply_row_unknown_beside_a_record_of_0_raises_the_check_and_starts_nothing() {
+    let mut w = world(&[SLOTTED]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Committed));
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.forget();
+    w.set_clock(T0 + 2000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    assert!(!starts(&w.calls()), "no start in that move");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(w.calls().is_empty());
+}
+
+#[test]
+fn for_email_a_reply_row_that_its_reader_could_not_read_raises_the_check() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert_eq!(press.checked, vec![agent(0)], "a card with both choices");
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn for_email_rows_that_are_all_known_hold_nothing_and_the_start_goes() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Committed));
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Withheld));
+    w.ports.reply_reads.borrow_mut().clear();
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Ok(Answer::Ok));
+    assert_eq!(*w.ports.reply_reads.borrow(), vec![run], "one read");
+}
+
+#[test]
+fn for_email_a_start_in_a_move_whose_reply_read_did_not_answer_is_refused_with_nothing_stored() {
+    let mut w = world(&[SLOTTED]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.forget();
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::State));
+    assert!(press.checked.is_empty(), "nothing known, nothing raised");
+    assert!(w.calls().is_empty(), "nothing stored and nothing sent");
+    assert_eq!(
+        halvo_coord::roster::status(w.facts(0), &w.limits, None),
+        halvo_coord::types::StatusLine::Store,
+        "the row waits for its last run to be closed"
+    );
+    w.set_clock(T0 + 2000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(tick.checked.is_empty() && tick.report.started.is_empty());
+    assert!(!starts(&w.calls()), "the tick starts nothing either");
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)], "the first read that answers");
+    assert!(!starts(&w.calls()));
+}
+
+#[test]
+fn the_reply_read_is_asked_for_email_alone() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let mail = mail_ended(&mut w, 0);
+    let other = ended_unknown(&mut w, 1);
+    w.store_end(1, &other, Outcome::Failed, 0);
+    reply_row(&w, &other, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.reply_reads.borrow_mut().clear();
+    w.set_clock(T0 + 2000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(*w.ports.reply_reads.borrow(), vec![mail.clone()]);
+    assert_eq!(
+        w.act(Act::Start { agent: agent(1) }).report.answer,
+        Ok(Answer::Ok),
+        "a row of another category is never read and holds nothing"
+    );
+    assert!(!w.ports.reply_reads.borrow().contains(&other));
+}
+
+#[test]
+fn the_reply_read_is_asked_at_each_tick_while_the_card_is_open_and_not_after_the_answer() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.reply_reads.borrow_mut().clear();
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert_eq!(reads(&w), 1, "in the move that raises the card");
+    for k in 0..3u64 {
+        w.set_clock(T0 + 3000 + k * 1000, DAY);
+        w.act(Act::Tick);
+    }
+    assert_eq!(reads(&w), 4, "again at each tick while the card is open");
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(answer(&mut w, 0, CheckAnswer::WentThrough), Ok(Answer::Ok));
+    let after = reads(&w);
+    w.set_clock(T0 + 9000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(reads(&w), after, "no read once an answer names the run");
+    assert_eq!(w.facts(0).replies, Replies::NotAsked, "no answer is kept");
+    assert!(!holds(w.facts(0)).contains(&Hold::Check));
+}
+
+#[test]
+fn the_check_card_keeps_both_choices_while_the_reply_read_does_not_answer() {
+    for choice in [CheckAnswer::TryAgain, CheckAnswer::WentThrough] {
+        let mut w = world(&[MANUAL]);
+        let run = mail_ended(&mut w, 0);
+        reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+        w.set_clock(T0 + 2000, DAY);
+        assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+        w.ports.refuse(Method::Replies, PortError::NoService);
+        w.set_clock(T0 + 3000, DAY);
+        w.act(Act::Tick);
+        assert!(holds_check_item(&w, 0), "the card stays open");
+        assert!(holds(w.facts(0)).contains(&Hold::Check), "the hold stands");
+        assert_eq!(
+            w.act(Act::Start { agent: agent(0) }).report.answer,
+            Err(Cause::Hold)
+        );
+        assert_eq!(answer(&mut w, 0, choice), Ok(Answer::Ok), "{choice:?}");
+        assert_eq!(w.facts(0).doing, Doing::Idle(None));
+        assert!(w.ports.events.borrow().iter().any(|e| matches!(
+            &e.what,
+            What::HoldCleared {
+                cause: halvo_coord::types::Cleared::Check { run: r, answer },
+            } if *r == run && *answer == choice
+        )));
+    }
+}
+
+#[test]
+fn recovery_reads_the_reply_rows_and_raises_the_check_of_an_email_agent() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(life.checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn recovery_whose_reply_read_does_not_answer_raises_nothing_and_starts_nothing() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(life.checked.is_empty());
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Err(Cause::State)
+    );
+    w.ports.clear_refusals();
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert_eq!(press.checked, vec![agent(0)]);
+}
+
+#[test]
+fn no_reply_read_while_the_store_has_not_ended_the_newest_run() {
+    let mut w = world(&[MANUAL]);
+    to_mail(&mut w, 0);
+    let run = ended_unknown(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports.reply_reads.borrow_mut().clear();
+    w.set_clock(T0 + 2000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(reads(&w), 0, "the run is not ended in the store");
+    assert_eq!(w.facts(0).replies, Replies::NotAsked);
+    w.store_end(0, &run, Outcome::Failed, 0);
+    w.set_clock(T0 + 3000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert_eq!(*w.ports.reply_reads.borrow(), vec![run]);
+}
+
+#[test]
+fn an_agent_set_aside_whose_reply_read_does_not_answer_is_not_started_by_the_tick_that_reads_it_again(
+) {
+    let mut w = world(&[SLOTTED]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("internal"));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(w.board.aside(&agent(0)), "recovery set the agent aside");
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 2 * 86_400_000, DAY + 2);
+    let tick = w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)), "the tick read it again");
+    assert!(
+        tick.report
+            .started
+            .iter()
+            .all(|s| s.answer == Err(Cause::State)),
+        "the tick's start is refused with state"
+    );
+    assert!(!starts(&w.calls()));
+    assert_eq!(
+        halvo_coord::roster::status(w.facts(0), &w.limits, None),
+        halvo_coord::types::StatusLine::Store
+    );
+}
+
+#[test]
+fn the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record() {
+    let mut w = world(&[]);
+    let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0c11)).unwrap();
+    let workflow = halvo_coord::types::FullWorkflow {
+        state: halvo_coord::types::WorkflowState::Approved,
+        agent: None,
+        category: Category::Email,
+        ..support::workflow(0, SLOTTED)
+    };
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(workflow));
+    let config = support::config_text(0, false)
+        .replace(agent(0).as_str(), made.as_str())
+        .replace("calendar_cleanup", "email")
+        .replace("graph_calendar", "graph_mail");
+    w.ports.agents.borrow_mut().push(Agent {
+        workflow: flow(0),
+        agent: made.clone(),
+        config: halvo_coord::mem::Config::parse(&config).unwrap(),
+        state: halvo_coord::types::AgentState::Approved,
+        slots: vec![Name::parse("reply_senders").unwrap()],
+        session: false,
+        last: Some(halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY - 1,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        }),
+        unknown: vec![],
+    });
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+    assert_eq!(report.created, vec![made.clone()]);
+    let facts = &w
+        .board
+        .members
+        .iter()
+        .find(|m| m.facts.agent == made)
+        .unwrap()
+        .facts;
+    assert_eq!(
+        facts.replies,
+        Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    assert!(holds(facts).contains(&Hold::Check));
+}
+
+#[test]
+fn review_went_through_is_taken_after_a_recovery_whose_reply_read_does_not_answer() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(
+        holds_check_item(&w, 0),
+        "the card is open in the first life"
+    );
+    w.ports.new_life();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::WentThrough),
+        Ok(Answer::Ok),
+        "went_through stays a choice of the card across a recovery whose reply read did not answer"
+    );
+    assert!(w.ports.events.borrow().iter().any(|e| matches!(
+        &e.what,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check { run: r, answer: a },
+        } if *r == run && *a == CheckAnswer::WentThrough
+    )));
+}
+
+#[test]
+fn review_try_again_is_taken_after_a_recovery_and_a_tick_whose_reply_reads_fail() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.new_life();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert!(!starts(&w.calls()), "the tick starts nothing");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert!(press.report.answer.is_err(), "Run now starts nothing");
+    assert!(!starts(&w.calls()));
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::TryAgain),
+        Ok(Answer::Ok),
+        "try_again stays a choice after a recovery and a tick whose reply reads did not answer"
+    );
+    assert!(!holds(w.facts(0)).contains(&Hold::Check));
+}
+
+#[test]
+fn review_a_read_that_answers_after_the_card_was_raised_ends_no_hold_and_the_card_takes_a_choice() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.ports.replies.borrow_mut().clear();
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Committed));
+    w.set_clock(T0 + 4000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        holds_check_item(&w, 0),
+        "the open card is not closed by a read"
+    );
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::TryAgain),
+        Ok(Answer::Ok),
+        "the open card keeps try_again after the read fails and comes back"
+    );
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+}
+
+#[test]
+fn review_a_tick_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(
+        w.facts(0).replies,
+        Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    assert_eq!(check_items(&w, 0), 0, "the schedule's tick raises no check");
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(
+        tick.checked.is_empty(),
+        "a roster read that did not answer raises nothing"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    assert!(!holds_check_item(&w, 0));
+    assert!(w.calls().is_empty(), "nothing stored and nothing started");
+    w.ports.clear_refusals();
+}
+
+#[test]
+fn review_an_end_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(check_items(&w, 0), 0);
+    let other = w.act(Act::Start { agent: agent(1) }).report.run.unwrap();
+    assert_eq!(
+        check_items(&w, 0),
+        0,
+        "a start of agent 1 reads no check of agent 0"
+    );
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let done = w.act(Act::End {
+        run: other,
+        outcome: None,
+    });
+    assert!(
+        !done.checked.contains(&agent(0)),
+        "an end whose roster read did not answer raises no check from an earlier move's rows"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    w.ports.clear_refusals();
+}
+
+#[test]
+fn review_a_start_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(check_items(&w, 0), 0);
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert!(press.report.answer.is_err());
+    assert!(
+        press.checked.is_empty(),
+        "a roster read that did not answer raises nothing"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    assert!(w.calls().is_empty(), "nothing stored and nothing started");
+    w.ports.clear_refusals();
+}
+
+#[test]
+fn review_a_card_of_an_earlier_life_keeps_its_hold_when_recoverys_reply_read_does_not_answer() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "the hold of the earlier life still stands after recovery"
+    );
+    assert!(
+        holds_check_item(&w, 0),
+        "the card is still open after recovery"
+    );
+}
+
+#[test]
+fn review_went_through_is_taken_after_a_second_life_and_a_tick_whose_reply_reads_fail() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::WentThrough),
+        Ok(Answer::Ok),
+        "the card keeps went_through while the reply read does not answer"
+    );
+    assert!(w.ports.events.borrow().iter().any(|e| matches!(
+        &e.what,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check { run: r, .. },
+        } if *r == run
+    )));
+}
+
+#[test]
+fn review_a_card_raised_for_an_unreadable_row_survives_a_second_life_whose_reply_read_fails() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        holds_check_item(&w, 0),
+        "the card stays open across the second life"
+    );
+    assert!(holds(w.facts(0)).contains(&Hold::Check), "the hold stands");
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Err(Cause::Hold),
+        "Run now meets the standing hold"
+    );
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+}
+
+#[test]
+fn review_an_agent_set_aside_with_an_open_card_keeps_its_hold_when_the_tick_reads_it_again() {
+    let mut w = world(&[SLOTTED]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("internal"));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(w.board.aside(&agent(0)));
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 2 * 86_400_000, DAY + 2);
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)));
+    assert!(!starts(&w.calls()), "the tick starts nothing");
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "a read that did not answer ends no hold that stands"
+    );
+    assert!(holds_check_item(&w, 0), "the card is open for the person");
+}
+
+#[test]
+fn a_tick_whose_roster_read_fails_raises_nothing_from_the_key_entries_of_an_earlier_read() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(
+        w.facts(0).unknown.len(),
+        1,
+        "the schedule's tick took the key"
+    );
+    assert_eq!(check_items(&w, 0), 0, "and raised no check");
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(
+        tick.checked.is_empty(),
+        "a roster read that did not answer raises nothing"
+    );
+    assert!(
+        w.facts(0).unknown.is_empty(),
+        "no entry of an earlier read is kept"
+    );
+    assert!(w.calls().is_empty());
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 4000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+}
+
+/// A non-email agent whose check card a tick raised from the roster's key, after which the key's
+/// entry leaves the roster: the state of verifier-56's cases 25, 39, 73 and 92.
+fn card_by_key_then_key_gone(w: &mut World) -> RunId {
+    let run = ended_unknown(w, 0);
+    ended_with_key(w, 0, &run);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(holds_check_item(w, 0));
+    w.ports.agents.borrow_mut()[0].unknown.clear();
+    w.set_clock(T0 + 5000, DAY);
+    w.forget();
+    run
+}
+
+#[test]
+fn verifier56_25_run_now_beside_an_open_card_whose_key_entry_left_is_held() {
+    let mut w = world(&[MANUAL]);
+    card_by_key_then_key_gone(&mut w);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(!starts(&w.calls()), "nothing starts beside the open card");
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    assert!(holds_check_item(&w, 0), "the card stays open");
+}
+
+#[test]
+fn verifier56_39_run_now_beside_an_open_card_whose_key_entry_left_is_held_while_a_reply_read_fails()
+{
+    let mut w = world(&[MANUAL]);
+    card_by_key_then_key_gone(&mut w);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(!starts(&w.calls()));
+    assert_eq!(reads(&w), 0, "a calendar agent's rows are never read");
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn verifier56_73_an_older_runs_key_entry_does_not_end_the_open_cards_hold() {
+    let mut w = world(&[MANUAL]);
+    card_by_key_then_key_gone(&mut w);
+    w.ports.agents.borrow_mut()[0].unknown.push(Unknown {
+        run: RunId::parse(&format!("{:032x}", 0x0abc)).unwrap(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe902)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    });
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(!starts(&w.calls()));
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn verifier56_92_went_through_on_an_open_card_whose_key_entry_left_is_taken() {
+    let mut w = world(&[MANUAL]);
+    let run = card_by_key_then_key_gone(&mut w);
+    assert_eq!(answer(&mut w, 0, CheckAnswer::WentThrough), Ok(Answer::Ok));
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    let cleared = w.ports.events.borrow().iter().any(|e| {
+        matches!(
+            &e.what,
+            What::HoldCleared {
+                cause: halvo_coord::types::Cleared::Check { run: r, answer },
+            } if *r == run && *answer == CheckAnswer::WentThrough
+        )
+    });
+    assert!(cleared, "hold_cleared names the run");
+    assert!(w.events_of(0).iter().any(|e| e.as_str() == "slot_skipped"));
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok),
+        "the answer ends the hold"
+    );
+}
+
+fn check_fields(c: &halvo_coord::Coordinator<coord::Both>) -> Vec<Vec<String>> {
+    let items = c.snapshot().items;
+    let card = items
+        .iter()
+        .find(|i| i.kind() == halvo_coord::types::ItemKind::Check)
+        .expect("the check card");
+    card.fields().iter().map(|f| f.value.clone()).collect()
+}
+
+#[test]
+fn the_check_card_takes_its_kept_fields_from_the_entry_that_made_the_hold_with_no_second_roster_read(
+) {
+    let c = coord::coordinator(&[coord::MANUAL], halvo_coord::types::Limits::PRODUCT);
+    assert_eq!(
+        c.control(&agent(0), halvo_coord::types::Action::RunNow),
+        Ok(())
+    );
+    let run = coord::started(&c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, halvo_coord::types::RunEvent::Hello), Ok(()));
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, halvo_coord::types::RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(Unknown {
+            run: run.clone(),
+            effect: EffectId::parse(&format!("{:032x}", 0xe401)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    c.ports().ports.set_clock(T0 + 5000, DAY);
+    c.tick();
+    assert_eq!(check_fields(&c), vec![vec!["Ann Lee".to_string()]]);
+    let agents_reads = |from: usize| {
+        coord::calls_since(&c, from)
+            .iter()
+            .filter(|call| matches!(call, Call::Agents))
+            .count()
+    };
+    let from = coord::mark(&c);
+    c.ports().ports.set_clock(T0 + 6000, DAY);
+    c.tick();
+    assert_eq!(
+        agents_reads(from),
+        1,
+        "one read of the roster in the tick, its own: the page makes no second one"
+    );
+    assert_eq!(check_fields(&c), vec![vec!["Ann Lee".to_string()]]);
+}
+
+#[test]
+fn recovery_takes_the_key_before_it_reads_the_reply_rows() {
+    let mut w = world(&[MANUAL]);
+    to_mail(&mut w, 0);
+    let run = ended_unknown(&mut w, 0);
+    ended_with_key(&w, 0, &run);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(
+        life.checked,
+        vec![agent(0)],
+        "the key's hold stands whatever the reply read gives"
+    );
+    assert!(w.facts(0).store_ended);
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn the_creation_takes_the_key_before_it_reads_the_reply_rows() {
+    let mut w = world(&[]);
+    let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0x0c21)).unwrap();
+    let workflow = halvo_coord::types::FullWorkflow {
+        state: halvo_coord::types::WorkflowState::Approved,
+        agent: None,
+        category: Category::Email,
+        ..support::workflow(0, SLOTTED)
+    };
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(workflow));
+    let config = support::config_text(0, false)
+        .replace(agent(0).as_str(), made.as_str())
+        .replace("calendar_cleanup", "email")
+        .replace("graph_calendar", "graph_mail");
+    w.ports.agents.borrow_mut().push(Agent {
+        workflow: flow(0),
+        agent: made.clone(),
+        config: halvo_coord::mem::Config::parse(&config).unwrap(),
+        state: halvo_coord::types::AgentState::Approved,
+        slots: vec![Name::parse("reply_senders").unwrap()],
+        session: false,
+        last: Some(halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY - 1,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        }),
+        unknown: vec![Unknown {
+            run: run.clone(),
+            effect: EffectId::parse(&format!("{:032x}", 0xe221)).unwrap(),
+            day: DAY - 1,
+            class: Class::Send,
+            kept: vec![],
+        }],
+    });
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    let report = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Create);
+    assert_eq!(report.created, vec![made.clone()]);
+    let facts = &w
+        .board
+        .members
+        .iter()
+        .find(|m| m.facts.agent == made)
+        .unwrap()
+        .facts;
+    assert!(facts.store_ended);
+    assert!(holds(facts).contains(&Hold::Check));
+}
+
+#[test]
+fn a_move_for_one_agent_reads_no_other_agents_reply_rows() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let first = mail_ended(&mut w, 0);
+    let second = mail_ended(&mut w, 1);
+    w.ports.reply_reads.borrow_mut().clear();
+    w.act(Act::Start { agent: agent(1) });
+    let reads = w.ports.reply_reads.borrow().clone();
+    assert!(reads.contains(&second), "its own read");
+    assert!(!reads.contains(&first), "and no other agent's");
+}
+
+#[test]
+fn a_failed_roster_read_of_one_agents_move_leaves_the_other_agents_facts() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    to_mail(&mut w, 0);
+    let run = ended_unknown(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    ended_with_key(&w, 0, &run);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    let unknown = w.facts(0).unknown.clone();
+    let replies = w.facts(0).replies.clone();
+    assert_eq!(unknown.len(), 1);
+    assert_eq!(
+        replies,
+        Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.set_clock(T0 + 3000, DAY);
+    assert_eq!(
+        w.act(Act::Start { agent: agent(1) }).report.answer,
+        Err(Cause::NoService)
+    );
+    assert_eq!(w.facts(0).unknown, unknown, "agent 0's key entries stay");
+    assert_eq!(w.facts(0).replies, replies, "and its reply answer");
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn the_memory_owners_end_run_lists_a_releasing_effect_under_its_own_agent() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let run = ended_unknown(&mut w, 1);
+    ended_with_key(&w, 1, &run);
+    let agents = w.ports.agents.borrow();
+    assert!(agents[0].unknown.is_empty(), "not under another agent");
+    assert_eq!(agents[1].unknown.len(), 1);
+    assert_eq!(agents[1].unknown[0].run, run);
+    assert_eq!(agents[1].last.as_ref().map(|l| l.run.clone()), Some(run));
+}
+
+#[test]
+fn pr_review40_contract_02_a_roster_read_that_does_not_answer_keeps_the_hold_of_a_raised_card() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0));
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0), "the card stays open");
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "a read that did not answer ends no hold that stands: the board's facts still hold check"
+    );
+}
+
+#[test]
+fn a_roster_read_that_does_not_answer_keeps_the_hold_of_an_email_card_that_a_new_life_could_not_raise_again(
+) {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    fn raises(e: &Event) -> bool {
+        matches!(e.what, What::ItemRaised { .. })
+    }
+    w.ports
+        .refuse_record(raises, PortError::Refused(Name::parse("internal").unwrap()));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(life.checked.is_empty(), "the new life's raise was refused");
+    assert_eq!(w.facts(0).doing, Doing::Idle(None), "no card on the board");
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "the stored card's hold stands through a roster read that did not answer"
+    );
+    assert!(
+        !halvo_coord::roster::controls(w.facts(0)).contains(&halvo_coord::types::Control::RunNow),
+        "the row offers no Run now beside the card"
     );
 }

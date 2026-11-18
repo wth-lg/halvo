@@ -4,7 +4,7 @@
 
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
-    Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    Reply, ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
@@ -52,6 +52,19 @@ pub trait Owner {
         let _ = (workflow, agent, runs);
         Err(PortError::NoService)
     }
+
+    /// The rows of `agent_reply` of the run `run` of the agent, in the order in which the store
+    /// keeps them (ruling RD-67 3.4). A row that the reader cannot read is `ReplyRow::Unreadable`
+    /// and fails no other row; a read that did not answer is an error, never an empty list. The
+    /// owner refuses a workflow that is not in its list with `no_workflow` and an agent that is
+    /// not the workflow's with `binding`. The coordinator asks it for an agent of the category
+    /// `email` alone (I5.4; ruling RD-81 8.4).
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError>;
 }
 
 /// The runners of the agent-setup run, through its supervisor library.

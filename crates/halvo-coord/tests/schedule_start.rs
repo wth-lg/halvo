@@ -72,6 +72,8 @@ fn facts(spec: &Spec, whats: Vec<(u32, What)>) -> Facts<Config> {
         runs: vec![],
         events,
         store_ended: true,
+        replies: halvo_coord::types::Replies::NotAsked,
+        unknown: Vec::new(),
         today: TODAY,
         doing: Doing::Idle(None),
     }

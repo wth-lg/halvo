@@ -123,6 +123,8 @@ fn member(world: &World, n: usize) -> Member<Config> {
             config: config(n, &a),
             slots: names(a.slots),
             store_ended: newest.is_none_or(|r| last.as_ref().is_some_and(|l| l.run == r)),
+            replies: halvo_coord::types::Replies::NotAsked,
+            unknown: Vec::new(),
             runs: last.into_iter().collect(),
             events,
             today: world.board.day,

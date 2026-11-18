@@ -398,6 +398,16 @@ impl Owner for Shared {
         let _turn = self.enter();
         self.ports.agent_history(workflow, agent, runs)
     }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        let _turn = self.enter();
+        self.ports.replies(workflow, agent, run)
+    }
 }
 
 impl Runs for Shared {
