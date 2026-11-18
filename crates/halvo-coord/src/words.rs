@@ -344,6 +344,7 @@ pub const KEYS: &[(&str, &str)] = &[
         "confirm.asked_by_place",
         "Question {n} of {count}. The agent “{name}” asks for this.",
     ),
+    ("confirm.field", "{label} ({source}): {value}"),
     ("from.you", "You gave this"),
     ("from.site", "From the site"),
     ("from.agent", "Written by the agent"),

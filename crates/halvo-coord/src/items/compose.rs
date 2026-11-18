@@ -1,11 +1,16 @@
+use super::chars::{
+    below_in_a_row, columns, composed, marks_in_a_row, no_form, orphan_mark, MOST_BELOW, MOST_MARKS,
+};
+use super::drive::Held;
 use super::key::{say, Key};
+use super::presenter::request_presenter;
 use super::raise::choices;
 use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
-    AgentId, BindResult, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class,
-    ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry,
-    Presenter, Unknown, YesNo,
+    AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, Cause,
+    Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits,
+    Origin, Param, ParamEntry, Presenter, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
@@ -238,6 +243,30 @@ pub fn compose_confirm(
     let presenter = confirmation.presenter();
     let named = named(ask);
     let count = ask.effects().len();
+    let fields = confirm_fields(ask, named, table)?;
+    let choices = match presenter {
+        Presenter::Native => vec![ChoiceText {
+            choice: Choice::Present,
+            text: say("confirm.present")?,
+            safe: YesNo::Yes,
+        }],
+        Presenter::Page => vec![
+            confirm_choice(named, Choice::Reject, count, true)?,
+            confirm_choice(named, Choice::Allow, count, false)?,
+        ],
+    };
+    Ok(Item::confirm(
+        item.clone(),
+        ask.agent().clone(),
+        presenter,
+        (*confirmation.state() == ConfirmState::Armed).into(),
+        confirm_title(named, count)?,
+        fields,
+        choices,
+    ))
+}
+
+fn confirm_fields(ask: &ConfirmAsk, named: Named, table: &Table) -> Result<Vec<Field>, Cause> {
     let mut fields = Vec::new();
     for effect in ask.effects() {
         if let Named::Mixed = named {
@@ -261,26 +290,232 @@ pub fn compose_confirm(
             fields.push(site_field("confirm.new_site", origin)?);
         }
     }
-    let choices = match presenter {
-        Presenter::Native => vec![ChoiceText {
-            choice: Choice::Present,
-            text: say("confirm.present")?,
-            safe: YesNo::Yes,
-        }],
-        Presenter::Page => vec![
-            confirm_choice(named, Choice::Reject, count, true)?,
-            confirm_choice(named, Choice::Allow, count, false)?,
-        ],
+    Ok(fields)
+}
+
+/// The most lines of the native dialog's message, the empty line between two fields counted
+/// (ruling RD-90 items 1 and 9): the dialog's proven bound, the smaller of the two systems', read
+/// on a hosted screen of 1,024 by 768 by the target dialog_hosted of halvo-coord-app. On macOS a
+/// card of `W` lines of 96 columns reads a window of 405, 685 and 965 points for 7, 15 and 23
+/// lines in 684 visible, 35 points a line; on Windows one of 23 lines reads 635 pixels in a work
+/// area of 720. `CARD_COLUMNS` holds the longest line that Halvo sets with no value.
+pub const CARD_LINES: usize = 13;
+
+/// The most columns (`chars::columns`, display width) of the native dialog's title, of one line
+/// of its message and of one control text (ruling RD-90 items 1 and 9): the dialog's proven
+/// bound, the smaller of the two systems', read on a hosted screen as `CARD_LINES` is.
+pub const CARD_COLUMNS: usize = 96;
+
+/// What a bound field is to a confirmation (ruling RD-90 item 3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Marking {
+    /// A field on which the person decides: its value equals its own composed form
+    /// (`chars::composed`) at its bound (`value_bound`).
+    Deciding,
+    /// Free text: shown on the page whole and as it is bound; in the native dialog it holds no
+    /// character with no visible form, a line end among them, and its line fits.
+    FreeText,
+}
+
+/// The table of I4.3 with A-A9.3: for a field of a confirm class, the sources that A-A9.3
+/// admits for it and its marking (ruling RD-89 item 4, ruling RD-90 item 3); none for a field
+/// that the class does not bind.
+pub fn bound_field(class: Class, field: &str) -> Option<(&'static [BoundFrom], Marking)> {
+    use BoundFrom::*;
+    use Marking::*;
+    let row: (&'static [BoundFrom], Marking) = match (class, field) {
+        (Class::Payment, "payee" | "instrument") => (&[Slot], Deciding),
+        (Class::Payment, "amount") => (&[Extract], Deciding),
+        (Class::Payment, "origin") => (&[Const], Deciding),
+        (Class::Purchase, "seller" | "instrument") => (&[Slot], Deciding),
+        (Class::Purchase, "items" | "amount") => (&[Extract], Deciding),
+        (Class::Purchase, "origin") => (&[Const], Deciding),
+        (Class::Send, "to") => (&[Extract], Deciding),
+        (Class::Send, "subject") => (&[Extract], FreeText),
+        (Class::Send, "body") => (&[Model, Const], FreeText),
+        (Class::Delete, "items") => (&[Extract], Deciding),
+        (Class::Submit, "origin") => (&[Const], Deciding),
+        (Class::Submit, "fields") => (&[Const, Slot], FreeText),
+        (Class::Sign, "document" | "party") => (&[Slot], Deciding),
+        _ => return None,
     };
-    Ok(Item::confirm(
-        item.clone(),
-        ask.agent().clone(),
-        presenter,
-        (*confirmation.state() == ConfirmState::Armed).into(),
-        confirm_title(named, count)?,
-        fields,
-        choices,
-    ))
+    Some(row)
+}
+
+/// The fields of a confirm class in the order of A-A9.3; none for a class that I4.3 does not
+/// confirm.
+pub fn class_fields(class: Class) -> &'static [&'static str] {
+    match class {
+        Class::Payment => &["payee", "amount", "instrument", "origin"],
+        Class::Purchase => &["seller", "items", "amount", "instrument", "origin"],
+        Class::Send => &["to", "subject", "body"],
+        Class::Delete => &["items"],
+        Class::Submit => &["origin", "fields"],
+        Class::Sign => &["document", "party"],
+        _ => &[],
+    }
+}
+
+/// Whether the fields of `effect` stand in the order of A-A9.3, each at most once, with every
+/// deciding field of its class (ruling RD-132 item 2).
+fn fields_in_order(effect: &AskedEffect) -> bool {
+    let order = class_fields(effect.class);
+    let mut next = 0;
+    for field in &effect.fields {
+        match order[next..].iter().position(|n| *n == field.name.as_str()) {
+            Some(k) => next += k + 1,
+            None => return false,
+        }
+    }
+    order.iter().all(|n| {
+        bound_field(effect.class, n).map(|(_, m)| m) != Some(Marking::Deciding)
+            || effect.fields.iter().any(|f| f.name.as_str() == *n)
+    })
+}
+
+fn field_line(label: &str, source: &str, value: &str) -> Result<String, Cause> {
+    Key::parse("confirm.field")?.text(&[("label", label), ("source", source), ("value", value)])
+}
+
+/// The most columns of the value of a field of `class` named `field` with the source `from`:
+/// what the line `confirm.field` with its label and its source leaves of `CARD_COLUMNS`.
+/// `malformed` for a field that the words table has no label for.
+pub fn value_bound(class: Class, field: &str, from: BoundFrom) -> Result<usize, Cause> {
+    let label = say(&format!("field.{}.{field}", class.name()))?;
+    let source = say(&format!("from.{}", field_from(from).name()))?;
+    let prefix = field_line(&label, &source, "")?;
+    Ok(CARD_COLUMNS.saturating_sub(columns(&prefix)))
+}
+
+fn field_admitted(class: Class, field: &BoundField) -> bool {
+    let name = field.name.as_str();
+    match bound_field(class, name) {
+        Some((sources, _)) if !sources.contains(&field.from) => false,
+        Some((_, Marking::Deciding)) => value_bound(class, name, field.from)
+            .is_ok_and(|most| composed(&field.value.concat(), most)),
+        Some((_, Marking::FreeText)) => true,
+        None => false,
+    }
+}
+
+/// Whether a confirm request may show a card (ruling RD-89 item 4, ruling RD-90 items 1 to 4,
+/// ruling RD-131 item 1, ruling RD-132 item 2): each effect holds every deciding field of its
+/// class, no field twice, in the order of A-A9.3 (`class_fields`); each field is one that
+/// A-A9.3 binds for its class, with a source that A-A9.3 admits for it;
+/// each deciding field's value equals its own composed form at its bound; and, for a request of
+/// the presenter `native`, its card composes (`native_lines`, with the lines `confirm.changed`
+/// that `table`, the guard's table of this life, gives). A request that it refuses ends its run
+/// at the raise with `kind`, as one of more effects than `request_records` does (ruling RD-73
+/// 7.4); nothing is cut and nothing cleaned.
+pub fn admits(ask: &ConfirmAsk, table: &Table) -> bool {
+    let bound = ask
+        .effects()
+        .iter()
+        .all(|e| e.fields.iter().all(|f| field_admitted(e.class, f)));
+    bound
+        && ask.effects().iter().all(fields_in_order)
+        && (request_presenter(ask) == Presenter::Page
+            || confirm_fields(ask, named(ask), table)
+                .and_then(|f| native_lines(&f))
+                .is_ok())
+}
+
+/// The message lines of the native dialog for the fields of an item (ruling RD-89 items 1 to
+/// 3): a field with a value is the line `confirm.field` with its label, its source text and its
+/// value, its pieces joined with nothing; a field with no value is its label alone; an empty
+/// line stands between two fields. `malformed` for a field whose source text is empty, a line
+/// that holds a character with no visible form (`chars::no_form`), more than
+/// `chars::MOST_MARKS` marks or more than `chars::MOST_BELOW` marks of a below class in a row on
+/// its canonical decomposition (ruling RD-131 item 1, ruling RD-137 M1 and M3), a mark with no
+/// base before it (ruling RD-137 M2) or more than
+/// `CARD_COLUMNS` columns, and more than `CARD_LINES` lines.
+pub fn native_lines(fields: &[Field]) -> Result<Vec<String>, Cause> {
+    let mut lines = Vec::new();
+    for field in fields {
+        if field.from_text.is_empty() {
+            return Err(Cause::Malformed);
+        }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        let line = if field.value.is_empty() {
+            field.label.clone()
+        } else {
+            field_line(&field.label, &field.from_text, &field.value.concat())?
+        };
+        if line.chars().any(no_form)
+            || marks_in_a_row(&line) > MOST_MARKS
+            || below_in_a_row(&line) > MOST_BELOW
+            || orphan_mark(&line)
+            || columns(&line) > CARD_COLUMNS
+        {
+            return Err(Cause::Malformed);
+        }
+        lines.push(line);
+    }
+    if lines.len() > CARD_LINES {
+        return Err(Cause::Malformed);
+    }
+    Ok(lines)
+}
+
+/// The card of the native dialog (ruling RD-77 part 12).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeCard {
+    title: String,
+    lines: Vec<String>,
+    reject: ChoiceText,
+    allow: ChoiceText,
+}
+
+impl NativeCard {
+    /// The title: that of the native item for the same id.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    /// The message lines, with an empty line between two fields (`native_card`).
+    pub fn lines(&self) -> &[String] {
+        &self.lines
+    }
+
+    /// The rejecting control, the safe one, which stands first.
+    pub fn reject(&self) -> &ChoiceText {
+        &self.reject
+    }
+
+    /// The allowing control.
+    pub fn allow(&self) -> &ChoiceText {
+        &self.allow
+    }
+}
+
+/// The card of the native dialog of `held` (ruling RD-77 12.1 to 12.3, ruling RD-89 items 1 to
+/// 4): the title of the native item that the state holds for the same id, one message line for
+/// each of its fields in its order with an empty line between two (`native_lines`), and the two
+/// choices that `compose_confirm` gives the same ask under the presenter `page`, the rejecting
+/// one first. It calls no port and stores nothing. `stale` for a confirmation that is released
+/// or lapsed; `presenter` for one of the presenter `page`; `malformed` for a card whose fields
+/// do not compose, a field whose source text is empty, and a card over `CARD_LINES` lines or a
+/// line over `CARD_COLUMNS` columns (`native_lines`); its title is a words entry and needs no
+/// check.
+pub fn native_card(held: &Held) -> Result<NativeCard, Cause> {
+    let confirmation = held.confirmation();
+    if !confirmation.state().is_open() {
+        return Err(Cause::Stale);
+    }
+    if confirmation.presenter() != Presenter::Native {
+        return Err(Cause::Presenter);
+    }
+    let item = held.page_item()?;
+    let named = named(held.ask());
+    let count = held.ask().effects().len();
+    Ok(NativeCard {
+        title: item.title().to_owned(),
+        lines: native_lines(item.fields())?,
+        reject: confirm_choice(named, Choice::Reject, count, true)?,
+        allow: confirm_choice(named, Choice::Allow, count, false)?,
+    })
 }
 
 /// The item of a plain kind (I3.4): `item.<kind>.title` with the agent's name, `item.<kind>.text`
