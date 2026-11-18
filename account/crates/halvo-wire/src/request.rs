@@ -261,6 +261,13 @@ impl Call {
 /// impl<T: From<serde_json::Value>> ByJson for &&&&&&&&&&Probe<T> {}
 /// (&&&&&&&&&&&Probe::<Request>(PhantomData)).made();
 /// ```
+///
+/// It implements no `Deserialize`, so no request is read from bytes that `build` did not check:
+///
+/// ```compile_fail,E0277
+/// fn made_by_deserialize<T: serde::Deserialize<'static>>() {}
+/// made_by_deserialize::<halvo_wire::request::Request>();
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     method: &'static str,
