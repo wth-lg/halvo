@@ -532,6 +532,8 @@ pub enum StatusAnswerResult {
     PaymentFailed,
     #[serde(rename = "cancelled")]
     Cancelled,
+    #[serde(rename = "closing")]
+    Closing,
     #[serde(rename = "no-such-account")]
     NoSuchAccount,
     #[serde(rename = "credential-mismatch")]
@@ -544,6 +546,7 @@ impl ::std::fmt::Display for StatusAnswerResult {
             Self::Active => f.write_str("active"),
             Self::PaymentFailed => f.write_str("payment-failed"),
             Self::Cancelled => f.write_str("cancelled"),
+            Self::Closing => f.write_str("closing"),
             Self::NoSuchAccount => f.write_str("no-such-account"),
             Self::CredentialMismatch => f.write_str("credential-mismatch"),
         }
@@ -559,6 +562,7 @@ impl ::std::str::FromStr for StatusAnswerResult {
             "active" => Ok(Self::Active),
             "payment-failed" => Ok(Self::PaymentFailed),
             "cancelled" => Ok(Self::Cancelled),
+            "closing" => Ok(Self::Closing),
             "no-such-account" => Ok(Self::NoSuchAccount),
             "credential-mismatch" => Ok(Self::CredentialMismatch),
             _ => Err("invalid value".into()),

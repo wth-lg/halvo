@@ -115,7 +115,12 @@ fn object_pointers(value: &Value, pointer: String, out: &mut Vec<String>) {
 #[test]
 fn every_sample_parses_into_its_type_and_prints_back_the_same_value() {
     let samples = samples();
-    assert_eq!(samples.len(), 32);
+    assert_eq!(samples.len(), 33);
+    assert!(samples
+        .iter()
+        .any(|(label, def, value)| label == "answers/status/closing"
+            && def == "StatusAnswer"
+            && *value == serde_json::json!({"result": "closing"})));
     let failed: Vec<String> = samples
         .iter()
         .filter_map(|(label, def, value)| match read_as(def, value) {
