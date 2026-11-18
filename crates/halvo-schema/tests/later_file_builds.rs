@@ -283,24 +283,19 @@ fn fixture(root: &Path, name: &str, later: &[&str]) -> PathBuf {
     std::fs::write(dir.join("src").join("learning.rs"), text).expect("learning.rs of the fixture");
     let manifest = std::fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("the manifest");
     assert_eq!(manifest.matches("name = \"halvo-schema\"").count(), 1);
-    let core = manifest_dir.join("../halvo-schema-core");
-    let core = core.to_str().expect("a path of UTF-8").replace('\\', "/");
-    assert_eq!(
-        manifest.matches("path = \"../halvo-schema-core\"").count(),
-        1
+    let mut manifest = manifest.replacen(
+        "name = \"halvo-schema\"",
+        &format!("name = \"later-file-{name}\""),
+        1,
     );
-    let manifest = manifest
-        .replacen(
-            "name = \"halvo-schema\"",
-            &format!("name = \"later-file-{name}\""),
-            1,
-        )
-        .replacen(
-            "path = \"../halvo-schema-core\"",
-            &format!("path = \"{core}\""),
-            1,
-        )
-        + "\n[workspace]\n";
+    for sibling in ["halvo-schema-core", "halvo-test-dir"] {
+        let from = format!("path = \"../{sibling}\"");
+        assert_eq!(manifest.matches(&from).count(), 1, "{from}");
+        let to = manifest_dir.join("..").join(sibling);
+        let to = to.to_str().expect("a path of UTF-8").replace('\\', "/");
+        manifest = manifest.replacen(&from, &format!("path = \"{to}\""), 1);
+    }
+    let manifest = manifest + "\n[workspace]\n";
     std::fs::write(dir.join("Cargo.toml"), manifest).expect("the manifest of the fixture");
     std::fs::copy(
         manifest_dir.join("../../Cargo.lock"),

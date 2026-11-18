@@ -1375,7 +1375,7 @@ fn neither_crate_has_a_build_script() {
 
 const CORE_MANIFEST: &str = "[package]\nname = \"halvo-schema-core\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\npsl = \"=2.1.246\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n";
 
-const SCHEMA_MANIFEST: &str = "[package]\nname = \"halvo-schema\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nhalvo-schema-core = { path = \"../halvo-schema-core\" }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n\n[dev-dependencies]\nproc-macro2 = { version = \"1.0.107\", default-features = false }\n";
+const SCHEMA_MANIFEST: &str = "[package]\nname = \"halvo-schema\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nhalvo-schema-core = { path = \"../halvo-schema-core\" }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n\n[dev-dependencies]\nhalvo-test-dir = { path = \"../halvo-test-dir\" }\nproc-macro2 = { version = \"1.0.107\", default-features = false }\n";
 
 fn manifest_faults(name: &str, text: &str, want: &str) -> Vec<String> {
     if text == want {

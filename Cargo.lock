@@ -1812,6 +1812,7 @@ name = "halvo-schema"
 version = "0.0.0"
 dependencies = [
  "halvo-schema-core",
+ "halvo-test-dir",
  "proc-macro2",
  "serde",
  "serde_json",
