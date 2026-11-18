@@ -9,8 +9,11 @@ pub enum CallError {
     Unauthorized,
     /// The provider answered this status, which is neither 401 nor the success status that Microsoft Graph
     /// documents for the request and the fixture answers: 200 for a GET and for the PATCH, 201 for createReply,
-    /// 202 for send, 204 for DELETE. Another 2xx is such a status too. No redirect is followed.
-    Status(u16),
+    /// 202 for send, 204 for DELETE. Another 2xx is such a status too. No redirect is followed. For a 429 and a 5xx
+    /// it carries the seconds of the answer's `Retry-After` when that header is a whole number of seconds, written in
+    /// ASCII digits alone, that a `u32` holds; for every other status, and for any other form of the header, none.
+    /// The adapter never waits and never sends a request again.
+    Status(u16, Option<u32>),
     /// The request left and its answer did not arrive whole: the adapter's time limit, counted from the start of
     /// the request to the end of the answer's body, ran out, or the connection ended before the body did.
     NoAnswer,
@@ -23,10 +26,15 @@ pub enum CallError {
 pub enum AnswerFault {
     /// The body is not JSON of the form that the operation reads.
     Form,
-    /// The list goes on in another page (`@odata.nextLink`), which no operation requests.
-    Paged,
-    /// Two items of the list have the same id.
+    /// A link to a next page (`@odata.nextLink`) is not of the request's scheme, host and port, or its path names
+    /// another collection; the token is never sent to it.
+    Link,
+    /// A page holds more items than the page size that the request asked for.
+    Page,
+    /// Two items of one page have the same id.
     Repeated,
+    /// The answer of createReply is not a draft: it does not carry `isDraft` true.
+    Draft,
     /// An id is empty, `.` or `..`.
     Id,
     /// The answer names another item than the one that the request addressed.
@@ -38,13 +46,25 @@ pub enum AnswerFault {
 /// Whether the effect of a call of the class `send` or `delete` that returned an error was made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Effect {
-    /// Taken as not made: the request did not leave, or the provider answered 401 or 429, which A11.2 rules are
-    /// taken as not made. Nothing here says what such an answer left with the provider.
-    NotMade,
+    /// Taken as not made, with which of the three cases of A11.2 it was. Nothing here says what an answered
+    /// request left with the provider.
+    NotMade(NotMade),
     /// Nothing says whether the provider made it: the request left and no whole answer came, the answer does not
     /// have the form of the face, or the provider answered a status that is neither the request's success status
     /// nor 401 nor 429.
     Unknown,
+}
+
+/// The three cases of A11.2 in which the effect of a call of the class `send` or `delete` is taken as not made, a
+/// closed type of the adapter's own: the runner maps each to its cause and reads no status.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotMade {
+    /// The request did not leave.
+    NotSent,
+    /// The provider answered 401.
+    Unauthorized,
+    /// The provider answered 429.
+    Throttled,
 }
 
 /// Why `Graph::new` gave no adapter.
@@ -63,9 +83,10 @@ impl CallError {
     /// What the error says of the effect of a call of the class `send` or `delete` (A4.3, A11.2).
     pub fn effect(&self) -> Effect {
         match self {
-            CallError::NotSent | CallError::Unauthorized => Effect::NotMade,
-            CallError::Status(429) => Effect::NotMade,
-            CallError::Status(_) | CallError::NoAnswer | CallError::Answer(_) => Effect::Unknown,
+            CallError::NotSent => Effect::NotMade(NotMade::NotSent),
+            CallError::Unauthorized => Effect::NotMade(NotMade::Unauthorized),
+            CallError::Status(429, _) => Effect::NotMade(NotMade::Throttled),
+            CallError::Status(..) | CallError::NoAnswer | CallError::Answer(_) => Effect::Unknown,
         }
     }
 }
@@ -75,12 +96,14 @@ impl fmt::Display for CallError {
         match self {
             CallError::NotSent => f.write_str("the request did not leave"),
             CallError::Unauthorized => f.write_str("the provider answered 401"),
-            CallError::Status(status) => write!(f, "the provider answered the status {status}"),
+            CallError::Status(status, _) => write!(f, "the provider answered the status {status}"),
             CallError::NoAnswer => f.write_str("no whole answer came within the time limit"),
             CallError::Answer(fault) => f.write_str(match fault {
                 AnswerFault::Form => "the answer is not of the form of the face",
-                AnswerFault::Paged => "the answer goes on in another page",
+                AnswerFault::Link => "the answer links to a page of another place",
+                AnswerFault::Page => "the answer holds more items than the page size",
                 AnswerFault::Repeated => "the answer holds one id twice",
+                AnswerFault::Draft => "the answer of createReply is not a draft",
                 AnswerFault::Id => "the answer holds an id that is empty, . or ..",
                 AnswerFault::Item => "the answer names another item than the request",
                 AnswerFault::Size => "the answer is longer than 33554432 bytes",
