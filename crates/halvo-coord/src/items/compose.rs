@@ -450,7 +450,8 @@ impl NativeCard {
 /// one first. It calls no port and stores nothing. `stale` for a confirmation that is released
 /// or lapsed; `presenter` for one of the presenter `page`; `malformed` for a card whose fields
 /// do not compose, a field whose source text is empty, and a card over `CARD_LINES` lines or a
-/// line or a title over `CARD_COLUMNS` columns.
+/// line over `CARD_COLUMNS` columns (`native_lines`); its title is a words entry and needs no
+/// check.
 pub fn native_card(held: &Held) -> Result<NativeCard, Cause> {
     let confirmation = held.confirmation();
     if !confirmation.state().is_open() {
@@ -462,12 +463,8 @@ pub fn native_card(held: &Held) -> Result<NativeCard, Cause> {
     let item = held.page_item()?;
     let named = named(held.ask());
     let count = held.ask().effects().len();
-    let title = item.title().to_owned();
-    if title.chars().any(no_form) || columns(&title) > CARD_COLUMNS {
-        return Err(Cause::Malformed);
-    }
     Ok(NativeCard {
-        title,
+        title: item.title().to_owned(),
         lines: native_lines(item.fields())?,
         reject: confirm_choice(named, Choice::Reject, count, true)?,
         allow: confirm_choice(named, Choice::Allow, count, false)?,

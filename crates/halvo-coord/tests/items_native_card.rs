@@ -401,6 +401,12 @@ fn a_field_whose_source_a_9_3_does_not_admit_is_refused_at_the_raise() {
         &ask_of(1, 1, vec![effect(1, Class::Payment, fields)]),
         &table
     ));
+    let mut fields = fields_of(Class::Send);
+    fields.push(field("cc", BoundFrom::Extract, "Ann Lee"));
+    assert!(
+        !admits(&ask_of(1, 1, vec![effect(1, Class::Send, fields)]), &table),
+        "a field that A-A9.3 does not bind for a page class"
+    );
 }
 
 #[test]
