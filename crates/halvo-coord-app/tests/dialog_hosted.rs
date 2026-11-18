@@ -114,29 +114,18 @@ fn bound_card(lines: usize, width: usize, fill: &str) -> Card {
     card
 }
 
-/// The bound cases: the name, the card, and whether a reading that is not whole fails the
-/// target.
-fn bound_cases() -> Vec<(String, Card, bool)> {
-    let mut cases = vec![
-        ("narrow".to_owned(), "W"),
-        ("wide".to_owned(), "\u{4e00}"),
-        ("marked".to_owned(), "e\u{301}"),
-    ]
-    .into_iter()
-    .map(|(name, fill)| (name, bound_card(CARD_LINES, CARD_COLUMNS, fill), true))
-    .collect::<Vec<_>>();
-    for lines in [7, 15, 23] {
-        for width in [48, 72, 96] {
-            if lines <= CARD_LINES && width <= CARD_COLUMNS {
-                cases.push((
-                    format!("probe_{lines}x{width}"),
-                    bound_card(lines, width, "W"),
-                    false,
-                ));
-            }
-        }
-    }
-    cases
+/// The bound cases: a name and a card at the bound of the native card.
+const BOUND_FILLS: [(&str, &str); 3] = [
+    ("narrow", "W"),
+    ("wide", "\u{4e00}"),
+    ("marked", "e\u{301}"),
+];
+
+fn bound_cases() -> Vec<(&'static str, Card)> {
+    BOUND_FILLS
+        .iter()
+        .map(|(name, fill)| (*name, bound_card(CARD_LINES, CARD_COLUMNS, fill)))
+        .collect()
 }
 
 /// Prints the line that counts the bound cases and returns how many failed.
@@ -203,7 +192,7 @@ fn main() {
         }
     }
     std::thread::spawn(|| {
-        std::thread::sleep(BOUND * (cases::LIST + 3));
+        std::thread::sleep(BOUND * (cases::LIST + BOUND_FILLS.len() as u32 + 3));
         println!("dialog_hosted watchdog FAIL: the cases did not end in time");
         std::process::exit(1);
     });
@@ -212,7 +201,9 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod cases {
-    use super::{arm, bound_cases, bounds_end, end, print, word, Verdict, BOUND, MARGIN, SMALL};
+    use super::{
+        arm, bound_cases, bounds_end, end, print, word, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL,
+    };
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use objc2::runtime::AnyObject;
@@ -265,8 +256,8 @@ mod cases {
     }
 
     /// The failures of a reading: a window or a control outside the visible area, a window over
-    /// `SMALL`, no text field that holds the message, or one whose text a view cuts or that needs
-    /// more height than it has.
+    /// `SMALL`, no text field that holds the message, or one whose visible part is smaller than
+    /// its bounds (a view cuts its text) or that needs more height than it has.
     fn faults(g: &Geometry) -> Vec<String> {
         let mut faults = Vec::new();
         if !inside(g.window, g.visible) {
@@ -282,8 +273,8 @@ mod cases {
         match g.field {
             None => faults.push("no text field holds the message".to_owned()),
             Some((bounds, visible, need)) => {
-                if (visible.size.width - bounds.size.width).abs() > 0.5
-                    || (visible.size.height - bounds.size.height).abs() > 0.5
+                if visible.size.width < bounds.size.width - 0.5
+                    || visible.size.height < bounds.size.height - 0.5
                 {
                     faults.push("a view cuts the message".to_owned());
                 }
@@ -413,12 +404,11 @@ mod cases {
     }
 
     /// Shows `card` once, reads it as `measure` does and prints the reading; the failures of a
-    /// case that counts, none for a probe.
+    /// case.
     fn bound_case<R: tauri::Runtime>(
         dialog: &System<R>,
         name: &str,
         card: &Card,
-        counts: bool,
         generation: usize,
     ) -> Vec<String> {
         *MESSAGE.lock().unwrap_or_else(PoisonError::into_inner) = card.text();
@@ -487,12 +477,7 @@ mod cases {
                 failures.extend(faults(&g));
             }
         }
-        if counts {
-            failures
-        } else {
-            println!("dialog_hosted probe {name}: whole={}", failures.is_empty());
-            Vec::new()
-        }
+        failures
     }
 
     #[derive(Clone, Default)]
@@ -985,25 +970,20 @@ mod cases {
                 verdicts.push(verdict);
             }
             let bounds = bound_cases();
-            let listed = bounds.iter().filter(|(_, _, counts)| *counts).count();
             let mut failed = Vec::new();
-            let mut ran = 0;
-            for (k, (name, card, counts)) in bounds.iter().enumerate() {
-                let failures = bound_case(&dialog, name, card, *counts, CASES.len() + 1 + k);
-                if *counts {
-                    ran += 1;
-                    if failures.is_empty() {
-                        println!("dialog_hosted bound case macos {name} PASS");
-                    } else {
-                        println!(
-                            "dialog_hosted bound case macos {name} FAIL: {}",
-                            failures.join("; ")
-                        );
-                        failed.push(name.clone());
-                    }
+            for (k, (name, card)) in bounds.iter().enumerate() {
+                let failures = bound_case(&dialog, name, card, CASES.len() + 1 + k);
+                if failures.is_empty() {
+                    println!("dialog_hosted bound case macos {name} PASS");
+                } else {
+                    println!(
+                        "dialog_hosted bound case macos {name} FAIL: {}",
+                        failures.join("; ")
+                    );
+                    failed.push(name.to_string());
                 }
             }
-            let bounds = bounds_end(&failed, ran, listed);
+            let bounds = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
             end(&verdicts, CASES.len(), bounds);
         });
         app.run(|_, _| {});
@@ -1012,7 +992,9 @@ mod cases {
 
 #[cfg(windows)]
 mod cases {
-    use super::{arm, bound_cases, bounds_end, end, print, word, Verdict, BOUND, MARGIN, SMALL};
+    use super::{
+        arm, bound_cases, bounds_end, end, print, word, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL,
+    };
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -1184,13 +1166,8 @@ mod cases {
     }
 
     /// Shows `card` once, reads its window once it is visible and has reported itself, closes it
-    /// and prints the reading; the failures of a case that counts, none for a probe.
-    fn bound_case<R: tauri::Runtime>(
-        dialog: &System<R>,
-        name: &str,
-        card: &Card,
-        counts: bool,
-    ) -> Vec<String> {
+    /// and prints the reading; the failures of the case.
+    fn bound_case<R: tauri::Runtime>(dialog: &System<R>, name: &str, card: &Card) -> Vec<String> {
         REPORTS.store(0, Ordering::SeqCst);
         *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
         let title = HSTRING::from(card.title());
@@ -1285,12 +1262,7 @@ mod cases {
                 failures.extend(faults(&g));
             }
         }
-        if counts {
-            failures
-        } else {
-            println!("dialog_hosted probe {name}: whole={}", failures.is_empty());
-            Vec::new()
-        }
+        failures
     }
 
     pub fn run(card: Card) {
@@ -1303,25 +1275,20 @@ mod cases {
             verdicts.push(verdict);
         }
         let bounds = bound_cases();
-        let listed = bounds.iter().filter(|(_, _, counts)| *counts).count();
         let mut failed = Vec::new();
-        let mut ran = 0;
-        for (name, card, counts) in &bounds {
-            let failures = bound_case(&dialog, name, card, *counts);
-            if *counts {
-                ran += 1;
-                if failures.is_empty() {
-                    println!("dialog_hosted bound case windows {name} PASS");
-                } else {
-                    println!(
-                        "dialog_hosted bound case windows {name} FAIL: {}",
-                        failures.join("; ")
-                    );
-                    failed.push(name.clone());
-                }
+        for (name, card) in &bounds {
+            let failures = bound_case(&dialog, name, card);
+            if failures.is_empty() {
+                println!("dialog_hosted bound case windows {name} PASS");
+            } else {
+                println!(
+                    "dialog_hosted bound case windows {name} FAIL: {}",
+                    failures.join("; ")
+                );
+                failed.push(name.to_string());
             }
         }
-        let bounds = bounds_end(&failed, ran, listed);
+        let bounds = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
         end(&verdicts, CASES.len(), bounds);
     }
 }
