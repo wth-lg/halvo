@@ -60,6 +60,25 @@ fn derived_a_learned_edit_is_read_back_and_served_after_the_host_and_the_store_r
 }
 
 #[test]
+fn derived_list_refinements_goes_to_the_handlers_in_front_and_lists_the_learned_edit() {
+    let case = seed_case(MARKERS[0], SEED_DAY);
+    let host = DerivedHost::new(scratch("refinements"), process_key(), SEED_DAY);
+    let mut play = Play::with_host(&case, Arm::Admit, 1, host);
+    play_all(&mut play, false).expect("the seeded case plays on the derived store");
+    let body = serde_json::json!({
+        "op": "list_refinements",
+        "workflow": play.workflow(),
+        "agent": crate::stub::id('4', 1),
+    })
+    .to_string();
+    let reply = play
+        .host
+        .coordinator_reply(&body)
+        .expect("the handlers in front answer list_refinements");
+    assert!(reply.starts_with(r#"{"refinements":[{"day":"#), "{reply}");
+}
+
+#[test]
 fn derived_the_store_s_files_hold_neither_the_sqlite_header_nor_a_learned_label() {
     let root = scratch("cipher");
     let case = seed_case(MARKERS[0], SEED_DAY);

@@ -597,8 +597,9 @@ impl DerivedHost {
         self
     }
 
-    /// The host that makes a workflow from a summary of `day`, with its clock on that day, and then opens the store
-    /// again on the clock's day, whose expiry removes that summary where `day` lies more than two days after it.
+    /// The host that makes a workflow from a summary of `day`, with its clock on that day, and then sets the clock
+    /// back to its day: the store's next open on a day more than two days before `day` removes that summary, and no
+    /// read of summaries hands it out before.
     pub fn with_seed_day(mut self, day: u32) -> DerivedHost {
         self.seed_day = Some(day);
         self
@@ -658,6 +659,13 @@ impl DerivedHost {
     pub fn reopen(&mut self) -> Result<(), String> {
         self.store = None;
         self.open()
+    }
+
+    /// The reply to one `coordinator_write` body, as its text.
+    #[cfg(test)]
+    pub fn coordinator_reply(&mut self, body: &str) -> Result<String, String> {
+        self.handle("coordinator_write", body)
+            .map(|reply| reply.get().to_owned())
     }
 
     /// The store's expiry on the clock's day, as every open runs it (`Store::expire`): the number of rows that it
@@ -829,11 +837,7 @@ impl PlayHost for DerivedHost {
         self.day.set(seed);
         let made = self.seed_workflow(n, seed);
         self.day.set(today);
-        let id = made?;
-        if seed != today {
-            self.reopen()?;
-        }
-        Ok(id.as_str().to_owned())
+        Ok(made?.as_str().to_owned())
     }
 
     fn coordinator(&mut self, body: &[u8]) -> Result<(), String> {
