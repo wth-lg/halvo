@@ -8634,19 +8634,23 @@ fn rd80_same_as_the_first_call_after_a_lost_tick_answers_the_state_with_the_note
 
 #[test]
 fn rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles() {
-    for next in ["stop", "confirm", "press", "tick"] {
+    for next in ["stop", "confirm", "press", "native", "typed", "tick"] {
         let (c, run, item) = armed_confirmation();
         let m = mark(&c);
         panicking(&c, "answer_confirm_after_send", || {
             c.answer(&item, Choice::Allow, None, 0)
         });
         let sent = decisions_since(&c, m).len();
-        c.ports().fail_read_at.set(Some(u32::from(next == "press")));
+        c.ports()
+            .fail_read_at
+            .set(Some(u32::from(matches!(next, "press" | "native"))));
         let at = mark(&c);
         let out = match next {
             "stop" => c.control(&agent(0), Action::Stop),
             "confirm" => c.on_run(&run, ask_confirm(&run, 0)),
             "press" => c.answer(&item, Choice::Reject, None, 0),
+            "native" => c.answer_native(&item, ConfirmAnswer::Reject),
+            "typed" => c.setup_typed(&item, Param::Start, "Flat 2", 0),
             _ => {
                 c.tick();
                 let worked = calls_since(&c, at)
