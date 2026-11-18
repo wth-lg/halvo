@@ -3053,3 +3053,81 @@ fn a_tick_whose_roster_read_fails_raises_nothing_from_the_key_entries_of_an_earl
     w.set_clock(T0 + 4000, DAY);
     assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
 }
+
+/// A non-email agent whose check card a tick raised from the roster's key, after which the key's
+/// entry leaves the roster: the state of verifier-56's cases 25, 39, 73 and 92.
+fn card_by_key_then_key_gone(w: &mut World) -> RunId {
+    let run = ended_unknown(w, 0);
+    ended_with_key(w, 0, &run);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(holds_check_item(w, 0));
+    w.ports.agents.borrow_mut()[0].unknown.clear();
+    w.set_clock(T0 + 5000, DAY);
+    w.forget();
+    run
+}
+
+#[test]
+fn verifier56_25_run_now_beside_an_open_card_whose_key_entry_left_is_held() {
+    let mut w = world(&[MANUAL]);
+    card_by_key_then_key_gone(&mut w);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(!starts(&w.calls()), "nothing starts beside the open card");
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    assert!(holds_check_item(&w, 0), "the card stays open");
+}
+
+#[test]
+fn verifier56_39_run_now_beside_an_open_card_whose_key_entry_left_is_held_while_a_reply_read_fails()
+{
+    let mut w = world(&[MANUAL]);
+    card_by_key_then_key_gone(&mut w);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(!starts(&w.calls()));
+    assert_eq!(reads(&w), 0, "a calendar agent's rows are never read");
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn verifier56_73_an_older_runs_key_entry_does_not_end_the_open_cards_hold() {
+    let mut w = world(&[MANUAL]);
+    card_by_key_then_key_gone(&mut w);
+    w.ports.agents.borrow_mut()[0].unknown.push(Unknown {
+        run: RunId::parse(&format!("{:032x}", 0x0abc)).unwrap(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe902)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    });
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert!(!starts(&w.calls()));
+    assert!(holds_check_item(&w, 0));
+}
+
+#[test]
+fn verifier56_92_went_through_on_an_open_card_whose_key_entry_left_is_taken() {
+    let mut w = world(&[MANUAL]);
+    let run = card_by_key_then_key_gone(&mut w);
+    assert_eq!(answer(&mut w, 0, CheckAnswer::WentThrough), Ok(Answer::Ok));
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    let cleared = w.ports.events.borrow().iter().any(|e| {
+        matches!(
+            &e.what,
+            What::HoldCleared {
+                cause: halvo_coord::types::Cleared::Check { run: r, answer },
+            } if *r == run && *answer == CheckAnswer::WentThrough
+        )
+    });
+    assert!(cleared, "hold_cleared names the run");
+    assert!(w.events_of(0).iter().any(|e| e.as_str() == "slot_skipped"));
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok),
+        "the answer ends the hold"
+    );
+}
