@@ -231,6 +231,11 @@ fn steps_of(reply: RunnerReply) -> Vec<Value> {
 fn a_store_fault_at_the_handlers_own_load_at_an_answered_load_steps_returns_the_compiled_steps_and_loses_the_run(
 ) {
     let mut w = learned_world();
+    w.add_pair(2);
+    w.pair = 2;
+    w.replay(6);
+    w.pair = 1;
+    w.replay(5);
     w.start(3, "replay");
     w.load(3);
     w.loaded = 1;
@@ -244,6 +249,14 @@ fn a_store_fault_at_the_handlers_own_load_at_an_answered_load_steps_returns_the_
     assert!(left_out(&w));
     assert_eq!(w.host.commits.get(), commits);
     assert!(holds_nothing_of(&w, 3));
+    assert!(
+        w.handlers.facts.contains_key(&id(5)) && w.handlers.starts.contains_key(&id(5)),
+        "another run of the same agent keeps what the handlers hold of it"
+    );
+    assert!(
+        w.handlers.facts.contains_key(&id(6)) && w.handlers.starts.contains_key(&id(6)),
+        "a run of another agent keeps what the handlers hold of it"
+    );
     let again = w.load_steps(3, 1, 1);
     assert_eq!(again, compiled());
     learns_nothing_more(&mut w, 3);
