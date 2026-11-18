@@ -181,9 +181,20 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
     }
 }
 
+/// The arguments as UTF-8 text. An argument that is no UTF-8 is `usage`, before any file is read, so every
+/// command orders and prints paths as UTF-8 text (contracts.md C11.1).
+fn utf8_args() -> Result<Vec<String>, Refusal> {
+    std::env::args_os()
+        .skip(1)
+        .map(|a| {
+            a.into_string()
+                .map_err(|_| Refusal::new("usage", "an argument that is no UTF-8"))
+        })
+        .collect()
+}
+
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    match run(&args) {
+    match utf8_args().and_then(|args| run(&args)) {
         Ok((lines, pass)) => {
             let mut text = String::new();
             for l in lines {

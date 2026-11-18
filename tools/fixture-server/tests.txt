@@ -82,3 +82,4 @@ all sites.test.mjs site data: every case of the shared list of crates/halvo-samp
 all sites.test.mjs site data: every fixture of this file stands in the shared list with its verdict and rule
 all sites.test.mjs site data: this file reads site data only through its wrappers
 all check-sites.test.mjs checker: the password, card and missing lines name a site file, a page and a parameter by number, never by name
+all check-sites.test.mjs arguments: the checker and the server refuse an argument that is no UTF-8 with usage, before they read a file

@@ -251,6 +251,115 @@ fn a_tier_build_names_a_refused_stream_by_its_line_and_never_by_its_id() {
     assert_eq!(o.code, 0, "{}", o.stderr);
 }
 
+/// An argument that is no UTF-8: a byte 0xFF on Unix, a lone surrogate on Windows.
+fn not_utf8(before: &str) -> std::ffi::OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        let mut bytes = before.as_bytes().to_vec();
+        bytes.extend([0xFF, b'x']);
+        std::ffi::OsString::from_vec(bytes)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+        let mut wide: Vec<u16> = before.encode_utf16().collect();
+        wide.extend([0xD800, u16::from(b'x')]);
+        std::ffi::OsString::from_wide(&wide)
+    }
+}
+
+#[test]
+fn every_command_refuses_an_argument_that_is_no_utf8_with_usage_and_reads_nothing() {
+    let dir = scratch("not-utf8");
+    let out = dir.join("out");
+    let g = golden();
+    let repo = common::repo();
+    let site = fs::read_dir(repo.join("tools/fixture-server/sites"))
+        .expect("the site files")
+        .map(|e| e.expect("entry").path())
+        .min()
+        .expect("a site file");
+    let rates = repo.join("fixtures/r2/scripts/rates.toml");
+    let script = g.join("script.jsonl");
+    let bad = not_utf8(&s(&dir.join("a")));
+    let plain = |p: &std::path::Path| std::ffi::OsString::from(s(p));
+    let word = std::ffi::OsString::from;
+    let cases: Vec<Vec<std::ffi::OsString>> = vec![
+        vec![
+            word("compose"),
+            word("--rates"),
+            plain(&rates),
+            word("--out"),
+            plain(&out),
+            bad.clone(),
+        ],
+        vec![
+            word("compose"),
+            word("--rates"),
+            bad.clone(),
+            word("--out"),
+            plain(&out),
+            plain(&site),
+        ],
+        vec![
+            word("split"),
+            word("--sides"),
+            word("seen,unseen"),
+            word("--seed"),
+            word("1"),
+            word("--out"),
+            plain(&out),
+            bad.clone(),
+        ],
+        vec![
+            word("build"),
+            word("--seed"),
+            word("1"),
+            word("--out"),
+            plain(&out),
+            plain(&script),
+            bad.clone(),
+        ],
+        vec![
+            word("build"),
+            word("--seed"),
+            word("1"),
+            word("--out"),
+            bad.clone(),
+            plain(&script),
+        ],
+        vec![word("check-labels"), bad.clone()],
+        vec![
+            word("input-copy"),
+            word("--input-set"),
+            bad.clone(),
+            plain(&g),
+            plain(&out),
+        ],
+        vec![word("leak"), plain(&g), bad.clone()],
+        vec![word("mask-layers"), word("--out"), plain(&out), bad.clone()],
+        vec![bad.clone()],
+    ];
+    for args in cases {
+        let o = std::process::Command::new(env!("CARGO_BIN_EXE_halvo-sample"))
+            .args(&args)
+            .output()
+            .expect("the binary runs");
+        let o = common::Out {
+            code: o.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+        };
+        refused(&o, "usage");
+        assert_eq!(
+            o.stderr, "REFUSED usage: an argument that is no UTF-8\n",
+            "{args:?}"
+        );
+        assert!(!out.exists(), "{args:?}");
+    }
+}
+
 #[test]
 fn build_refusals() {
     let dir = scratch("refusals");

@@ -114,6 +114,10 @@ name, from 1. No name below the argument is printed, because a file's name may b
 - A `script` refusal of `build` for the `sites` or the negative rule names the stream by the
   place of its stream line, `SCRIPT <n>:<line>: sites` or `SCRIPT <n>:<line>: negative`, and the
   `output` refusal of `split` names the `--out` argument alone.
+- Every command of `halvo-sample`, the fixture server and the site checker refuses an argument
+  that is no UTF-8 with `usage` before it reads a file, and orders paths by their bytes as UTF-8
+  text. Node hands such a byte on as U+FFFD, so the server and the checker also refuse a path
+  whose name holds a written U+FFFD.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.

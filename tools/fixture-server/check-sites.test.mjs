@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { scratchDir } from './servers.mjs';
 
 const CHECKER = fileURLToPath(new URL('./check-sites.mjs', import.meta.url));
+const SERVER = fileURLToPath(new URL('./server.mjs', import.meta.url));
 const MARKER = 'qzmq';
 const ROOT = scratchDir('fixture-server-check-sites-');
 after(ROOT.remove);
@@ -76,4 +77,36 @@ test('checker: the password, card and missing lines name a site file, a page and
     'missing SITE_DATA 2 shop_order parameter 2',
   ]);
   assert.match(run.stdout, /^parameters names=2 missing=1$/m);
+});
+
+/**
+ * Runs `script` with `args` and, last, one argument that holds a byte that is no UTF-8: 0xFF through sh on Unix,
+ * a lone surrogate on Windows, which reaches the child as U+FFFD.
+ */
+function runWithBadLast(script, args) {
+  if (process.platform === 'win32') {
+    return spawnSync(process.execPath, [script, ...args, 'bad\uD800.json'], { encoding: 'utf8', input: '' });
+  }
+  return spawnSync('/bin/sh', ['-c', 'exec "$@" "$(printf "bad\\377.json")"', 'sh', process.execPath, script, ...args], {
+    encoding: 'utf8',
+    input: '',
+  });
+}
+
+test('arguments: the checker and the server refuse an argument that is no UTF-8 with usage, before they read a file', () => {
+  const dir = mkdtempSync(join(ROOT.dir, 'utf8-'));
+  const good = put(dir, 'acorn-news.json', news());
+  const missing = join(dir, 'missing.json');
+  for (const [script, args] of [
+    [CHECKER, [missing]],
+    [CHECKER, [good]],
+    [CHECKER, [good, '--parameters']],
+    [SERVER, [missing]],
+    [SERVER, ['--port', '0', good]],
+  ]) {
+    const run = runWithBadLast(script, args);
+    assert.equal(run.status, 2, `${run.stdout}${run.stderr}`);
+    assert.equal(run.stdout, '');
+    assert.match(run.stderr, /^REFUSED usage: [^\n]*\n$/);
+  }
 });

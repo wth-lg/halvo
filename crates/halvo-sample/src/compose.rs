@@ -206,16 +206,12 @@ fn short(detail: &str) -> Refusal {
     Refusal::new("short", detail.to_owned())
 }
 
-/// The number of the path at `index` among `paths` in byte order, from 1; equal paths keep the order in which
-/// they are given (contracts.md C11.1).
+/// The number of the path at `index` among `paths` in byte order of the paths as UTF-8 text, from 1; equal paths
+/// keep the order in which they are given (contracts.md C11.1). The binary refuses an argument that is no UTF-8.
 pub fn file_number(paths: &[PathBuf], index: usize) -> usize {
+    let text: Vec<_> = paths.iter().map(|p| p.to_string_lossy()).collect();
     let mut order: Vec<usize> = (0..paths.len()).collect();
-    order.sort_by(|a, b| {
-        paths[*a]
-            .as_os_str()
-            .as_encoded_bytes()
-            .cmp(paths[*b].as_os_str().as_encoded_bytes())
-    });
+    order.sort_by(|a, b| text[*a].as_bytes().cmp(text[*b].as_bytes()));
     order.iter().position(|k| *k == index).map_or(0, |n| n + 1)
 }
 
