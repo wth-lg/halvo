@@ -1784,7 +1784,7 @@ mod burst_rounds {
             .all(|(at, rule)| !rules[..at].contains(rule));
         assert!(
             rules.len() == 11 && distinct,
-            "the record cases read {} first-letter values, and None with the ten rules are 11",
+            "the record cases read {} rules of the first letter and not 11",
             rules.len()
         );
         for rule in rules {
