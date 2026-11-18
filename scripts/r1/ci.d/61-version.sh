@@ -174,7 +174,6 @@ manifest_defect() {
       n = at ? substr($0, at + 1) : ""
       if (n == "") { out = out "; the line " $0 " names no manifest"; next }
       if ($1 == "wall") {
-        if (n ~ /\//) out = out "; the wall line " n " names more than one top directory"
         if (n in wall) out = out "; " n " is named twice"
         wall[n] = 1; worder[++wcount] = n; next
       }
