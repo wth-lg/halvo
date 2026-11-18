@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,64 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-r3-test-dirs 18-hook-scan 19-home-paths 20-r4-core 21-tree-bans 24-r7-wall 30-core-boundary-proofs 45-r4-words 46-r4-dialog-ran
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 15-r3-test-dirs 18-hook-scan 19-home-paths 20-r4-core 21-tree-bans 24-r7-wall 30-core-boundary-proofs 45-r4-words 46-r4-dialog-ran
+      - name: Loop (U2.4l new tests, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=${U24L_ROUNDS:-200}
+          bin() { cargo test --locked "$@" --no-run 2>&1 | sed -n 's/^ *Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1; }
+          core=$(bin -p halvo-coord --test items_native_card)
+          app=$(bin -p halvo-coord-app --lib)
+          room=$(bin -p halvo-coord-app --test ink_room)
+          case "$RUNNER_OS" in macOS) want=31; rooms=6 ;; *) want=30; rooms=4 ;; esac
+          pass=0
+          for n in $(seq 1 "$rounds"); do
+            "$core" > "$RUNNER_TEMP/u24l-core-$n.log" 2>&1
+            "$app" the_bounds_are_the_cores_proven_bounds_counted_in_columns > "$RUNNER_TEMP/u24l-app-$n.log" 2>&1
+            "$room" > "$RUNNER_TEMP/u24l-room-$n.log" 2>&1
+            if grep -q "^test result: ok\. $want passed; 0 failed" "$RUNNER_TEMP/u24l-core-$n.log" && grep -q '^test result: ok\. 1 passed; 0 failed' "$RUNNER_TEMP/u24l-app-$n.log" && grep -q "^test result: ok\. $rooms passed; 0 failed" "$RUNNER_TEMP/u24l-room-$n.log"; then
+              pass=$((pass + 1))
+            else
+              echo "round $n failed:"
+              tail -n 20 "$RUNNER_TEMP/u24l-core-$n.log" "$RUNNER_TEMP/u24l-app-$n.log" "$RUNNER_TEMP/u24l-room-$n.log"
+            fi
+          done
+          echo "loop u24l-tests: passed $pass of $rounds (items_native_card with $want tests, the app's bound test and ink_room with $rooms tests, by their result lines)"
+          [ "$pass" = "$rounds" ]
+      - name: Loop (dialog_hosted, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=${U24L_ROUNDS:-20}
+          bin=$(cargo test --locked -p halvo-coord-app --test dialog_hosted --no-run 2>&1 | sed -n 's/^ *Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1)
+          case "$RUNNER_OS" in macOS) cases=4 ;; *) cases=5 ;; esac
+          pass=0
+          for n in $(seq 1 "$rounds"); do
+            "$bin" > "$RUNNER_TEMP/u24l-dialog-$n.log" 2>&1
+            code=$?
+            if [ "$code" = 0 ] && grep -qx "dialog_hosted end: cases ran $cases of $cases, failed 0" "$RUNNER_TEMP/u24l-dialog-$n.log" && grep -qx 'dialog_hosted bounds: cases ran 3 of 3, failed 0' "$RUNNER_TEMP/u24l-dialog-$n.log"; then
+              pass=$((pass + 1))
+            else
+              echo "round $n failed with status $code:"
+              grep -E '^(dialog_hosted|hosted alone)' "$RUNNER_TEMP/u24l-dialog-$n.log" | tail -n 40
+            fi
+            if [ "$n" = 1 ]; then
+              grep -E '^dialog_hosted (bound|probe|start|inconclusive|timing)' "$RUNNER_TEMP/u24l-dialog-1.log"
+            fi
+          done
+          grep -h -E '^dialog_hosted (bound case|probe) ' "$RUNNER_TEMP"/u24l-dialog-*.log | sort | uniq -c
+          echo "loop dialog_hosted: passed $pass of $rounds (the end line of $cases of $cases and the bounds line of 3 of 3 with status 0)"
+          [ "$pass" = "$rounds" ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +200,64 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 15-r3-test-dirs 19-home-paths 20-r4-core 21-tree-bans 24-r7-wall 30-core-boundary-proofs 45-r4-words 46-r4-dialog-ran
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 15-r3-test-dirs 19-home-paths 20-r4-core 21-tree-bans 24-r7-wall 30-core-boundary-proofs 45-r4-words 46-r4-dialog-ran
+      - name: Loop (U2.4l new tests, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=${U24L_ROUNDS:-200}
+          bin() { cargo test --locked "$@" --no-run 2>&1 | sed -n 's/^ *Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1; }
+          core=$(bin -p halvo-coord --test items_native_card)
+          app=$(bin -p halvo-coord-app --lib)
+          room=$(bin -p halvo-coord-app --test ink_room)
+          case "$RUNNER_OS" in macOS) want=31; rooms=6 ;; *) want=30; rooms=4 ;; esac
+          pass=0
+          for n in $(seq 1 "$rounds"); do
+            "$core" > "$RUNNER_TEMP/u24l-core-$n.log" 2>&1
+            "$app" the_bounds_are_the_cores_proven_bounds_counted_in_columns > "$RUNNER_TEMP/u24l-app-$n.log" 2>&1
+            "$room" > "$RUNNER_TEMP/u24l-room-$n.log" 2>&1
+            if grep -q "^test result: ok\. $want passed; 0 failed" "$RUNNER_TEMP/u24l-core-$n.log" && grep -q '^test result: ok\. 1 passed; 0 failed' "$RUNNER_TEMP/u24l-app-$n.log" && grep -q "^test result: ok\. $rooms passed; 0 failed" "$RUNNER_TEMP/u24l-room-$n.log"; then
+              pass=$((pass + 1))
+            else
+              echo "round $n failed:"
+              tail -n 20 "$RUNNER_TEMP/u24l-core-$n.log" "$RUNNER_TEMP/u24l-app-$n.log" "$RUNNER_TEMP/u24l-room-$n.log"
+            fi
+          done
+          echo "loop u24l-tests: passed $pass of $rounds (items_native_card with $want tests, the app's bound test and ink_room with $rooms tests, by their result lines)"
+          [ "$pass" = "$rounds" ]
+      - name: Loop (dialog_hosted, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=${U24L_ROUNDS:-20}
+          bin=$(cargo test --locked -p halvo-coord-app --test dialog_hosted --no-run 2>&1 | sed -n 's/^ *Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1)
+          case "$RUNNER_OS" in macOS) cases=4 ;; *) cases=5 ;; esac
+          pass=0
+          for n in $(seq 1 "$rounds"); do
+            "$bin" > "$RUNNER_TEMP/u24l-dialog-$n.log" 2>&1
+            code=$?
+            if [ "$code" = 0 ] && grep -qx "dialog_hosted end: cases ran $cases of $cases, failed 0" "$RUNNER_TEMP/u24l-dialog-$n.log" && grep -qx 'dialog_hosted bounds: cases ran 3 of 3, failed 0' "$RUNNER_TEMP/u24l-dialog-$n.log"; then
+              pass=$((pass + 1))
+            else
+              echo "round $n failed with status $code:"
+              grep -E '^(dialog_hosted|hosted alone)' "$RUNNER_TEMP/u24l-dialog-$n.log" | tail -n 40
+            fi
+            if [ "$n" = 1 ]; then
+              grep -E '^dialog_hosted (bound|probe|start|inconclusive|timing)' "$RUNNER_TEMP/u24l-dialog-1.log"
+            fi
+          done
+          grep -h -E '^dialog_hosted (bound case|probe) ' "$RUNNER_TEMP"/u24l-dialog-*.log | sort | uniq -c
+          echo "loop dialog_hosted: passed $pass of $rounds (the end line of $cases of $cases and the bounds line of 3 of 3 with status 0)"
+          [ "$pass" = "$rounds" ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
