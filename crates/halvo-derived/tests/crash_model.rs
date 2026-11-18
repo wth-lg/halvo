@@ -21,9 +21,13 @@ const BATCHES: [&[Episode]; 3] = [
 ];
 const RECORDS_PER_BATCH: usize = 2;
 const READS_PER_STORE: u8 = 4;
-const HANDLER_SEGMENTS: [u8; 2] = [0b10001, 0b00100];
+const HANDLER_SEGMENTS: [u8; 3] = [0b10001, 0b00100, 0b10000];
 const HANDLER_COMMITS_PER_STORE: u8 = 2;
-const PURGES: [Purge; 11] = [
+const PURGES: [Purge; 15] = [
+    Purge::Ordinals(0b00000),
+    Purge::Ordinals(0b11111),
+    Purge::Ordinals(0b10100),
+    Purge::Below(0),
     Purge::Ordinals(0b00001),
     Purge::Ordinals(0b00010),
     Purge::Ordinals(0b00100),
@@ -56,7 +60,8 @@ fn ordinals(set: u8) -> impl Iterator<Item = u8> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Kind {
     Evidence(u8),
-    Typed,
+    Step,
+    Handler,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -135,13 +140,13 @@ impl Store {
         self.raise_mark(first_live);
     }
 
-    fn typed_commit(&mut self, capture: u8, segments: u8) -> bool {
+    fn typed_commit(&mut self, kind: Kind, capture: u8, segments: u8) -> bool {
         let mark = self.mark;
         if self.names_purged(mark, segments) {
             return true;
         }
         self.insert(Row {
-            kind: Kind::Typed,
+            kind,
             capture,
             segments,
         });
@@ -205,6 +210,8 @@ struct State {
     purges: u8,
     handled: u8,
     deletes: u8,
+    stepped: u8,
+    stepped_twice: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -262,6 +269,8 @@ impl State {
             purges: 0,
             handled: 0,
             deletes: 0,
+            stepped: 0,
+            stepped_twice: false,
         }
     }
 
@@ -271,7 +280,11 @@ impl State {
             .expect("an owner that runs has opened its store")
     }
 
-    fn violation(&self) -> Option<&'static str> {
+    fn violation(&self, reads: &mut usize) -> Option<&'static str> {
+        *reads += 1;
+        if self.stepped_twice {
+            return Some("the steps of one batch ran twice");
+        }
         let store = self.store.as_ref()?;
         for row in &store.window {
             if row.capture != self.capture {
@@ -375,7 +388,7 @@ impl State {
             })
         };
         let live = self.deleting == Deleting::No;
-        if self.owner || self.read.is_some() {
+        {
             let mut next = self.clone();
             next.owner = false;
             next.read = None;
@@ -402,6 +415,7 @@ impl State {
                 next.reads = 0;
                 next.purges = 0;
                 next.handled = 0;
+                next.stepped = 0;
                 next.deleting = Deleting::No;
                 push(Action::DeleteAllEnd, next);
             }
@@ -435,7 +449,11 @@ impl State {
                 let mut next = self.clone();
                 next.work = Work::Idle;
                 let segments = read.episodes()[read.episodes().len() - 1].segments;
-                let dropped = next.store().typed_commit(read.capture, segments);
+                next.stepped_twice |= next.stepped & (1 << read.batch) != 0;
+                next.stepped |= 1 << read.batch;
+                let dropped = next
+                    .store()
+                    .typed_commit(Kind::Step, read.capture, segments);
                 out.push(Step {
                     action: if dropped {
                         Action::StepDrop
@@ -510,7 +528,7 @@ impl State {
                 let mut next = self.clone();
                 next.handled += 1;
                 let capture = next.capture;
-                let dropped = next.store().typed_commit(capture, segments);
+                let dropped = next.store().typed_commit(Kind::Handler, capture, segments);
                 out.push(Step {
                     action: if dropped {
                         Action::HandlerDrop(segments)
@@ -539,6 +557,11 @@ struct Walk {
     skipped: usize,
     top_purged_at_the_mark: usize,
     second_store_states: usize,
+    states_with_evidence: usize,
+    states_with_step_rows: usize,
+    states_with_handler_rows: usize,
+    purges_that_removed_rows: usize,
+    top_only_dropped: usize,
     deepest: usize,
 }
 
@@ -580,12 +603,27 @@ fn walk() -> Walk {
     queue.push_back((first, 0));
     while let Some((state, at)) = queue.pop_front() {
         walk.states += 1;
-        walk.invariant_reads += 1;
         walk.deepest = walk.deepest.max(depth[at]);
         if state.capture > 0 {
             walk.second_store_states += 1;
         }
-        if let Some(fault) = state.violation() {
+        if let Some(store) = &state.store {
+            let holds = |kind: Kind| store.window.iter().any(|row| row.kind == kind);
+            if store
+                .window
+                .iter()
+                .any(|row| matches!(row.kind, Kind::Evidence(_)))
+            {
+                walk.states_with_evidence += 1;
+            }
+            if holds(Kind::Step) {
+                walk.states_with_step_rows += 1;
+            }
+            if holds(Kind::Handler) {
+                walk.states_with_handler_rows += 1;
+            }
+        }
+        if let Some(fault) = state.violation(&mut walk.invariant_reads) {
             fail(&parent, at, None, fault, &state);
         }
         for step in state.steps() {
@@ -619,6 +657,16 @@ fn walk() -> Walk {
                     );
                 }
                 walk.dropped_for_a_shredded_ordinal += 1;
+                if segments == 1 << TOP {
+                    walk.top_only_dropped += 1;
+                }
+            }
+            if let (Action::Purge(_), Some(before), Some(after)) =
+                (step.action, &state.store, &step.state.store)
+            {
+                if after.window.len() < before.window.len() {
+                    walk.purges_that_removed_rows += 1;
+                }
             }
             if !index.contains_key(&step.state) {
                 let n = parent.len();
@@ -662,6 +710,15 @@ fn no_window_row_names_a_shredded_ordinal_at_any_step_or_crash_of_commit_purge_a
         walk.top_purged_at_the_mark,
         walk.second_store_states
     );
+    println!(
+        "crash model rows: {} states hold an evidence row, {} a step's row, {} a handler's row; {} purges removed a \
+         row; {} records that name only the ordinal {TOP} dropped",
+        walk.states_with_evidence,
+        walk.states_with_step_rows,
+        walk.states_with_handler_rows,
+        walk.purges_that_removed_rows,
+        walk.top_only_dropped
+    );
     assert!(BATCHES.iter().all(|batch| batch.len() == RECORDS_PER_BATCH));
     assert_eq!(walk.invariant_reads, walk.states);
     assert!(walk.crashes > 0);
@@ -672,4 +729,9 @@ fn no_window_row_names_a_shredded_ordinal_at_any_step_or_crash_of_commit_purge_a
     assert!(walk.skipped > 0);
     assert!(walk.top_purged_at_the_mark > 0);
     assert!(walk.second_store_states > 0);
+    assert!(walk.states_with_evidence > 0);
+    assert!(walk.states_with_step_rows > 0);
+    assert!(walk.states_with_handler_rows > 0);
+    assert!(walk.purges_that_removed_rows > 0);
+    assert!(walk.top_only_dropped > 0);
 }
