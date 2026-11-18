@@ -183,9 +183,12 @@ mod by_reference {
     }
 
     #[cfg(feature = "keychain")]
-    fn look(account: &str) -> Result<Vec<Vec<u8>>, String> {
+    fn look(account: &str, tries: usize) -> Result<Vec<Vec<u8>>, String> {
         let mut codes = Vec::new();
-        for _ in 0..20 {
+        for _ in 0..tries {
+            if !codes.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
             let mut count = search(account);
             count.load_attributes(true).limit(Limit::All);
             let items = match count.search() {
@@ -193,7 +196,6 @@ mod by_reference {
                 Err(error) if error.code() == -25300 => 0,
                 Err(error) => {
                     codes.push(error.code());
-                    std::thread::sleep(std::time::Duration::from_millis(50));
                     continue;
                 }
             };
@@ -212,10 +214,7 @@ mod by_reference {
                         })
                         .collect())
                 }
-                Err(error) => {
-                    codes.push(error.code());
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                }
+                Err(error) => codes.push(error.code()),
             }
         }
         Err(format!("searches refused with {codes:?}"))
@@ -329,7 +328,7 @@ mod by_reference {
             find_generic_password(None, SERVICE, account).expect("the control's item is found");
         assert_eq!(&*password, HELD);
         item.delete();
-        let left = look(account).map(|held| held.len());
+        let left = look(account, 20).map(|held| held.len());
         let _ = search(account).delete();
         left
     }
@@ -351,7 +350,7 @@ mod by_reference {
                 .expect("the default keychain")
                 .add_generic_password(SERVICE, &account, &later)
                 .expect("the child adds a later item");
-            let saw = match look(&account) {
+            let saw = match look(&account, 20) {
                 Ok(held) if held.len() == 1 => [b"bytes:".as_slice(), &held[0]].concat(),
                 Ok(held) => format!("items:{}", held.len()).into_bytes(),
                 Err(codes) => format!("refused:{codes}").into_bytes(),
@@ -404,12 +403,12 @@ mod by_reference {
             } else {
                 String::from_utf8_lossy(&saw).into_owned()
             };
-            let parent_before = match look(account) {
+            let parent_before = match look(account, 1) {
                 Ok(held) => format!("{} items", held.len()),
                 Err(codes) => codes,
             };
             item.delete();
-            let left = look(account);
+            let left = look(account, 20);
             let shown = match &left {
                 Ok(held) if *held == [later.clone()] => "later".to_string(),
                 Ok(held) if held.is_empty() => "none".to_string(),
