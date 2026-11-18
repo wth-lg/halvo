@@ -12,3 +12,12 @@ node_modules/
 # macOS
 .DS_Store
 /fixtures/r5/cases/heldout/
+
+/store.db*
+/store.key
+/create.pending
+/writer.lock
+/daemon.lock
+/daemon-state.json
+/delete-all.intent
+/*.seg

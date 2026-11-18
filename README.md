@@ -2,9 +2,21 @@
 
 Halvo is a desktop app for macOS and Windows that lets a person with no technical
 background get real work done through AI agents, without opening a terminal, writing
-a prompt or choosing a model. This repository holds the app. At this stage it builds
-an unsigned app on both platforms that shows its version in a window and prints it
-with `--version`; the product features come in later runs, see `docs/plan.md`.
+a prompt or choosing a model. The plan is in `docs/plan.md` and the decisions are in
+`docs/adr/`.
+
+This repository holds:
+
+| Path | What it holds |
+|---|---|
+| `src-tauri/` | The app's Rust crate (Tauri 2), which builds the binary `halvo`. |
+| `ui/` | The page that the app's window shows, and its tests. |
+| `crates/` | The other Rust crates of the Cargo workspace. `crates/halvo-capture/` builds the second binary, `halvo-capture`, the process that records activity into an encrypted store on the computer. |
+| `account/` | A second Cargo workspace, which the root `Cargo.toml` excludes. |
+| `backend/` | The subscription and billing backend, a pnpm project with its own `README.md`. |
+| `formal/` | Formal models, one directory for each. |
+| `scripts/` | The prerequisites, release and repository check scripts, and the CI checks under `scripts/<run>/ci.d/`. |
+| `docs/`, `tools/`, `fixtures/` | Plans, decision records, test tools and fixtures. |
 
 ## Prerequisites
 
@@ -12,19 +24,51 @@ with `--version`; the product features come in later runs, see `docs/plan.md`.
 sh scripts/prerequisites.sh
 ```
 
-One command, run from the repository root. It installs only as the current user, with
-no sudo, and is safe to run twice. It installs rustup and the Rust toolchain pinned in
-`rust-toolchain.toml` into `~/.rustup` and `~/.cargo`, the Tauri CLI into
-`node_modules/` with `npm ci`, and cargo-release into `~/.cargo/bin` from a prebuilt
-binary (or with `cargo install` when no prebuilt binary matches the platform). It
-also sets `core.hooksPath` to `.githooks` in this clone, so git runs two hooks. The
-commit-msg hook rejects an attribution line in a commit message before the commit is
-made, and the pre-push hook refuses a push that would add a commit with such a line.
-If another git setting overrides the path, the command names that setting and stops.
+One command, run from the repository root: on macOS in Terminal, and on Windows in
+Git Bash, the shell that comes with Git for Windows. Use Git Bash, not WSL: under WSL
+the commands run as on Linux, and this repository builds no Linux app. The command
+installs only as the
+current user, with no sudo, and is safe to run twice.
 
-It expects `curl`, `node` and `npm` on PATH, plus the Xcode Command Line Tools on
-macOS (`xcode-select --install`) or the Visual Studio C++ build tools on Windows.
-The GitHub Actions runners already have all of these.
+It first checks that `curl`, `node` and `npm` are on PATH and, on macOS, that
+`xcode-select -p` finds the Xcode Command Line Tools (`xcode-select --install`). It
+names each one that is missing and stops before any download. On Windows it does not
+check for the Visual Studio C++ build tools, which Rust needs there, and prints a
+warning that says so. The GitHub Actions runners have all of these.
+
+Then it:
+
+- sets `core.hooksPath` to `.githooks` in this clone, so git runs two hooks: the
+  commit-msg hook rejects an attribution line in a commit message before the commit
+  is made, and the pre-push hook refuses a push that would add a commit with such a
+  line. If another git setting overrides the path, the command names that setting
+  and stops;
+- installs rustup and the Rust toolchain that `rust-toolchain.toml` pins, with the
+  components that file lists (`clippy` and `rustfmt`), into `~/.rustup` and
+  `~/.cargo`;
+- installs the Tauri CLI into `node_modules/` with `npm ci`;
+- installs cargo-release into `~/.cargo/bin` from the prebuilt archive of its release,
+  after it has checked the archive's sha256 against the digest that the script pins.
+  A digest that differs, an archive that does not unpack, a copy that fails or an
+  installed cargo-release that does not report the pinned version stops the command.
+  Only a failed download, or a platform with no prebuilt archive, makes it build
+  cargo-release with `cargo install` instead. A version check that fails after
+  the install leaves the new binary in place, and the next run's presence check
+  installs again;
+- installs cargo-deny from its prebuilt archive after the same kind of sha256 check,
+  fetches the crates of `account/Cargo.lock`, and
+  sets up the backend: the pinned pnpm, the packages of its lock, its pinned tools
+  and the licences of its packages.
+
+rustup is installed with `--no-modify-path`, so after a first install `cargo` is not
+on the PATH of the shell. Every command that this file documents and that runs cargo
+puts `~/.cargo/bin` on its own PATH, so none of them needs that. To run `cargo` yourself, add
+`~/.cargo/bin` to PATH.
+
+Supported systems: macOS 14 or later on Apple silicon (arm64), with no build for Intel
+Macs, and Windows on x86_64. The macOS floor is a plan that the app bundle does not
+yet declare: `src-tauri/tauri.conf.json` sets no minimum system version, so the
+bundle carries Tauri's default until the packaging work sets 14.
 
 ## Build
 
@@ -32,41 +76,67 @@ The GitHub Actions runners already have all of these.
 npm run tauri build
 ```
 
-Run from the repository root. The command builds the Rust crate in `src-tauri/` in
-release mode with the static page in `ui/` and, on macOS, bundles it as an app. The
-output is unsigned: no signing identity is configured, so macOS applies only the
-ad-hoc signature the linker adds to every arm64 binary.
+Run from the repository root. `npm run tauri` runs the Tauri CLI through
+`scripts/tauri.js`, which puts `~/.cargo/bin` on PATH. The command builds the Rust
+crate in `src-tauri/` in release mode with the page in `ui/` and, on macOS, bundles
+it as an app. The output is unsigned: no signing identity is configured, so macOS
+applies only the ad-hoc signature that the linker adds to every arm64 binary.
 
-| Platform | Build command | Unsigned app | Binary to run with `--version` |
-|---|---|---|---|
-| macOS | `npm run tauri build` | `target/release/bundle/macos/Halvo.app` | `target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo` |
-| Windows | `npm run tauri build -- --no-bundle` | `target/release/halvo.exe` | `target/release/halvo.exe` |
+| Platform | Build command | Unsigned app |
+|---|---|---|
+| macOS | `npm run tauri build` | `target/release/bundle/macos/Halvo.app` |
+| Windows | `npm run tauri build -- --no-bundle` | `target/release/halvo.exe` |
 
-On Windows the app is the bare executable; no installer is produced yet. The
-`--no-bundle` flag skips Tauri's bundling step, which would otherwise download
-installer tooling at build time, and the config lists no Windows bundle target.
-
-The `target/` directory is at the repository root because the root `Cargo.toml` is a
-Cargo workspace. Double-clicking the app opens the version window; running the binary
-with `--version` prints the version and exits before any window opens:
+On Windows the app is the bare executable and no installer is produced; the bundle
+targets in `src-tauri/tauri.conf.json` are `["app"]`. The `target/` directory is at
+the repository root because the root `Cargo.toml` is a Cargo workspace. On macOS,
+running the binary with `--version` prints the version and exits before any window
+opens:
 
 ```sh
 target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version
 ```
 
+### Tests, lint and the gate
+
+CI runs its checks through one driver, the same on a developer's machine. Run it
+from the repository root, with `macos` on macOS and `windows` on Windows in Git
+Bash. The driver puts `~/.cargo/bin` first on PATH.
+
+```sh
+sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+```
+
+- `10-format` runs `cargo fmt --check`.
+- `11-clippy` runs `cargo clippy --workspace --all-targets --locked -- -D warnings`.
+- `12-test` runs `cargo test` over every package of the workspace with the
+  committed lockfile.
+- `sh scripts/ci/run-ci-d.sh macos` runs every check of the macOS job,
+  `sh scripts/ci/run-ci-d.sh --rules` prints the rule of each check, and
+  `--self-test` after the job runs the checks' own cases. `scripts/ci/README.md`
+  describes the driver.
+- `sh scripts/r1-gate/run.sh --self-test` proves the logic of the R1 gate on
+  fixtures, and `sh scripts/r1-gate/run.sh --help` lists its sub-checks and its
+  measured form; `scripts/r1-gate/README.md` describes it.
+- The checks of the repository's rules in `AGENTS.md`:
+  `sh scripts/check-changelog.sh`, `sh scripts/check-line-endings.sh`,
+  `sh scripts/check-own-source-reads.sh` and `sh scripts/check-commit-messages.sh`.
+
 ## Version
 
-The version lives in one place: the `version` field of `[package]` in
-`src-tauri/Cargo.toml`, which is `0.0.0` now.
+One version covers every package of the workspace and both binaries, `halvo` and
+`halvo-capture`. `cargo metadata` reports it for both binaries from the `version`
+of `[workspace.package]` in the root `Cargo.toml`, which is `0.0.0` now. The other
+packages of the workspace inherit that value or write the same value in their own
+manifests, and the
+check `61-version` fails when any package reports another.
 
-- The window and the `--version` flag both read it at compile time through
-  `env!("CARGO_PKG_VERSION")` in `src-tauri/src/main.rs`. The window title is
-  `Halvo <version>` and the page shows `Version <version>`; `--version` prints the
-  bare version string, for example `0.0.0`, to stdout and exits with code 0.
-- The Tauri bundle takes its version from the same field, because
+- Both binaries read it at compile time through `env!("CARGO_PKG_VERSION")`, in
+  `src-tauri/src/app.rs` and in `crates/halvo-capture/src/bin/halvo-capture.rs`,
+  and `halvo --version` prints it.
+- The Tauri bundle takes its version from the same value, because
   `src-tauri/tauri.conf.json` sets no `version` of its own.
-- The release tool (see Release) reads that field to compute the next version and
-  rewrites it when a release is executed.
+- A release sets every package of the workspace to the next version (see Release).
 
 ## Release
 
@@ -74,23 +144,40 @@ The version lives in one place: the `version` field of `[package]` in
 sh scripts/release.sh --dry-run
 ```
 
-The release tool is cargo-release, configured in `release.toml`. The dry run exits
-0, writes nothing, and prints the next version (`0.0.1` from `0.0.0`), the tag
-(`v0.0.1`) and the `## [0.0.1]` section it would write to `CHANGELOG.md` from the
-`## [Unreleased]` section. The script runs cargo-release's own dry run, which prints
-the version bump and the changelog diff, then adds the tag name and the full section
-body, which cargo-release does not print.
-
-To perform the release, which bumps `src-tauri/Cargo.toml`, promotes the changelog
-section, commits and tags `v<version>` without pushing:
+The release tool is cargo-release, configured in `release.toml` and
+`src-tauri/release.toml`, and `scripts/release.sh` runs it with `~/.cargo/bin` on
+PATH. The dry run prints the next version (`0.0.1` from `0.0.0`), the commit
+message, the tag (`v0.0.1`) and the `CHANGELOG.md` section that the release would
+write. It changes no tracked file: it writes `target/release-commit-message.toml`,
+and cargo writes its own files under the ignored `target/`. Every dry run and every
+release asks index.crates.io about each package of the workspace by its name, sends
+nothing else from the repository, and needs the network.
 
 ```sh
 sh scripts/release.sh --execute
 ```
 
+The release runs on the branch `main` only and, in a clone with a remote named
+`origin`, only when HEAD is the newest commit of `main` there. It sets every package of the workspace to the next version,
+moves the entries of `## [Unreleased]` under a heading of that version, grouped by
+type under the Keep a Changelog headings (`### Added`, `### Changed` and so on),
+and makes one local commit and one tag `v<version>`. It pushes nothing. The date in
+the new heading is the UTC date of the release.
+
+No release is made before the store unit store-4 is on `main`. Until then
+`--execute` stops before cargo-release while a tracked file under
+`crates/halvo-capture/src` holds the statement that creates the search index
+`events_fts`, which store-4 takes out, and it makes no commit and no tag; the dry run
+prints the line where `--execute` would stop. Named limit: a tag that a person
+pushes by hand before store-4 is on `main` still runs the build check of CI in a
+red job, which uploads that build as an artifact.
+
+Pushing the commit and the tag, a GitHub release, signing and publishing are the
+owner's own steps.
+
 Both forms take an optional bump level after the flag: `patch` (default), `minor` or
-`major`. `CHANGELOG.md` follows Keep a Changelog, and the release promotes its
-`## [Unreleased]` section. Every change goes into that section as one line at the end
-of the list, `- <Type>: <text>`, where Type is Added, Changed, Deprecated, Removed,
-Fixed or Security. A pull request adds one entry for each type of change it makes,
-and `sh scripts/check-changelog.sh` checks the file.
+`major`. `CHANGELOG.md` follows Keep a Changelog. Every change goes into its
+`## [Unreleased]` section as one line at the end of the list, `- <Type>: <text>`,
+where Type is Added, Changed, Deprecated, Removed, Fixed or Security. A pull request
+adds one entry for each type of change it makes, and `sh scripts/check-changelog.sh`
+checks the file.
