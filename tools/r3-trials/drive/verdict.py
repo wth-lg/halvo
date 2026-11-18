@@ -463,12 +463,14 @@ def import_count(keyed, counted):
     smallest number of a cell's first counted line, or of its first attempt line when it has none."""
     cells = {}
     for number, cell in counted:
-        tally = cells.setdefault(cell, [0, number, 0, None])
+        tally = cells.setdefault(cell, [0, None, 0, None])
         tally[0] += 1
+        tally[1] = number if tally[1] is None else tally[1]
     for number, (task, kind, model, machine, seed, _) in keyed:
         cell = ("reply", model, machine, seed) if kind == "write" else ("drive", model, machine, task, seed)
-        tally = cells.setdefault(cell, [0, None, 0, number])
+        tally = cells.setdefault(cell, [0, None, 0, None])
         tally[2] += 1
+        tally[3] = number if tally[3] is None else tally[3]
     broken = [
         first_line if first_line is not None else first_attempt
         for cell, (lines, first_line, attempts, first_attempt) in cells.items()
@@ -1183,6 +1185,9 @@ def import_cases():
         drive.replace(" machine=mac", "\tmachine=mac", 1),
         drive.replace("seed=1 ", "seed=1\t", 1),
         reply.replace(" seed=1", "\tseed=1", 1),
+        drive.replace("seed=1", "seed:1", 1),
+        drive.replace("machine=mac", "machine:mac", 1),
+        reply.replace("seed=1", "seed:1", 1),
     ]:
         beside_set("a line outside the counted form: %r" % line, [line], None)
     cell = drive_cell("m_c", "mac", "bill", 1)
