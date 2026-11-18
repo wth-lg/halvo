@@ -279,12 +279,14 @@ impl Call {
 /// made_by_deserialize::<halvo_wire::request::Request>();
 /// ```
 ///
-/// It has no public method of the names that the example lists and implements none of the
-/// standard traits that it lists, whose methods take `&mut self`: a public method of one of those
-/// names, whatever its receiver, or an impl of one of those traits on `Request` makes this example
-/// compile. A method of another name, a generic one, a method of a listed name that is not public,
-/// one in a trait of the crate and a standard trait outside the list, such as `AddAssign` or
-/// `Hasher`, do not, and are not pinned:
+/// It has no public inherent method of the names that the example lists and implements none of
+/// the standard traits in the forms that it lists, whose methods take `&mut self`: a public
+/// inherent method of one of those names with no type or const parameter, whatever its receiver,
+/// or an impl of one of the listed forms on `Request` itself makes this example compile. A method
+/// with a type parameter, an argument in `impl Trait` form included (such a `set_body` fails this
+/// example with E0283 and does not compile it), a method of another name or one that is not
+/// public, one in a trait of the crate, an impl on a wrapper of `Request`, and a trait or form
+/// outside the list, such as `AddAssign` or `Extend<&u8>`, do not, and are not pinned:
 ///
 /// ```compile_fail,E0308
 /// use halvo_wire::request::Request;
