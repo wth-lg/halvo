@@ -2644,3 +2644,104 @@ fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
     let name = held.path().file_name().unwrap().to_str().unwrap();
     assert!(name.starts_with("locked-files-leaf-"), "{name}");
 }
+
+const TARGET_TMP: &str = concat!("CARGO_TARGET", "_TMPDIR");
+
+fn fixed_target_tmp_names(text: &str) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut bound: Vec<String> = Vec::new();
+    let mut found = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        let mut statement = String::new();
+        for next in lines.iter().skip(i).take(6) {
+            statement.push_str(next.trim());
+            let end = next.trim_end();
+            if end.ends_with(';') || end.ends_with('{') || end.ends_with('}') {
+                break;
+            }
+        }
+        let from_tmp = line.contains(TARGET_TMP);
+        let from_bound = bound
+            .iter()
+            .any(|name| line.contains(&format!("{name}.join(\"")));
+        if !from_tmp && !from_bound {
+            continue;
+        }
+        let joined: Vec<&str> = statement
+            .split(".join(\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect();
+        if from_tmp && joined.is_empty() {
+            if let Some(name) = line
+                .trim()
+                .strip_prefix("let ")
+                .and_then(|rest| rest.split(' ').next())
+            {
+                bound.push(name.to_owned());
+            }
+        }
+        for name in joined {
+            if !name.ends_with('-') {
+                found.push(format!("line {}: {name}", i + 1));
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn no_test_of_halvo_schema_or_the_probes_joins_a_fixed_name_to_the_target_tmp_directory() {
+    let schema = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut faults = Vec::new();
+    let mut read = 0;
+    for dir in [
+        schema.join("tests"),
+        schema.join("../../tools/r2-probes/tests"),
+    ] {
+        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .map(|entry| entry.expect("a directory entry").path())
+            .filter(|path| path.extension().is_some_and(|x| x == "rs"))
+            .collect();
+        files.sort();
+        for file in files {
+            read += 1;
+            let text = std::fs::read_to_string(&file).expect("a test file");
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            faults.extend(
+                fixed_target_tmp_names(&text)
+                    .into_iter()
+                    .map(|fault| format!("{name} {fault}")),
+            );
+        }
+    }
+    assert!(read >= 40, "{read} test files read");
+    assert_eq!(faults, Vec::<String>::new());
+}
+
+#[test]
+fn the_scan_of_fixed_names_reads_a_join_on_the_line_a_bound_name_and_a_prefix() {
+    let on_line =
+        format!("    let root = &Path::new(env!(\"{TARGET_TMP}\")).join(\"later-file-builds\");\n");
+    assert_eq!(
+        fixed_target_tmp_names(&on_line),
+        ["line 1: later-file-builds"]
+    );
+    let next_line =
+        format!("    let out = Path::new(env!(\"{TARGET_TMP}\"))\n        .join(\"lines\");\n");
+    assert_eq!(fixed_target_tmp_names(&next_line), ["line 1: lines"]);
+    let bound = format!("    let tmp = Path::new(env!(\"{TARGET_TMP}\"));\n    let out = tmp.join(\"halvo-schema-golden-r3\");\n");
+    assert_eq!(
+        fixed_target_tmp_names(&bound),
+        ["line 2: halvo-schema-golden-r3"]
+    );
+    let prefix = format!(
+        "    let place = Path::new(env!(\"{TARGET_TMP}\")).join(\"export-names-leaf-line-\");\n"
+    );
+    assert_eq!(fixed_target_tmp_names(&prefix), Vec::<String>::new());
+    let maker = format!("    let tmp = Path::new(env!(\"{TARGET_TMP}\"));\n    match halvo_test_dir::make(tmp, word) {{\n");
+    assert_eq!(fixed_target_tmp_names(&maker), Vec::<String>::new());
+    let other = "    let src = held.path().join(\"src\");\n";
+    assert_eq!(fixed_target_tmp_names(other), Vec::<String>::new());
+}
