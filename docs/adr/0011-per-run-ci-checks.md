@@ -32,19 +32,23 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 
 - A check is one file under its run's ci.d directory and needs no line of ci.yml.
   After gate-1 the writers of ci.yml are jobtime-1 and jobtime-4, in the order
-  of contract C16 item 11, and jobtime-9 by ruling PR-31 item 1, for the two
-  `timeout-minutes` lines alone, release-1, release-2, and gate-4 and gate-5 for
-  the job timeout only.
+  of contract C16 item 11, jobtime-9 by ruling PR-31 item 1 and jobtime-11 by
+  ruling JB-52, for the two `timeout-minutes` lines alone, release-1, release-2,
+  and gate-4 and gate-5 for the job timeout only.
 - The job timeout was 30 minutes at this commit; jobtime-1 made it 60 (contract
-  C16 item 11), jobtime-4 made it 90 (ruling JB-6) and jobtime-9 made it 120
-  (ruling PR-31 item 1). Its value lives in the bounds key `ci_job_timeout_min`
-  of docs/baseline/r1-gate-bounds.txt.
-- Each job's limit is 120 minutes since jobtime-9 (ruling PR-31 item 1), because
-  a job that the limit cuts off saves no cache and shows no result, and the macos
-  job was reckoned at about 5,340 s on a normal runner after landing 43 against
-  the 5,400 s of 90 minutes, with landing 41's slow attempt at about 5,700 to
-  5,780 s by projection, and the cuts in hand were not reckoned to bring it under
-  5,400 s. It is 120 and not 100 minutes because that slow attempt's 5,780 s with
-  store-3's 430 s more reads 6,210 s, over the 6,000 s of 100 minutes, and it is
-  no more than 120 because the limit is there to end a job that hangs; these
-  figures are reckoned, not measured.
+  C16 item 11), jobtime-4 made it 90 (ruling JB-6), jobtime-9 made it 120
+  (ruling PR-31 item 1) and jobtime-11 made it 150 (ruling JB-52). Its value
+  lives in the bounds key `ci_job_timeout_min` of
+  docs/baseline/r1-gate-bounds.txt.
+- Each job's limit is 150 minutes since jobtime-11 (ruling JB-52), because the
+  macos job stood within minutes of 7,200 s for five landings and one slow
+  runner or one dropped and rerun job cost two hours each time. It was 120
+  minutes from jobtime-9 (ruling PR-31 item 1), because a job that the limit
+  cuts off saves no cache and shows no result, and the macos job was reckoned
+  at about 5,340 s on a normal runner after landing 43 against the 5,400 s of
+  90 minutes, with landing 41's slow attempt at about 5,700 to 5,780 s by
+  projection, and the cuts in hand were not reckoned to bring it under 5,400 s.
+  It was 120 and not 100 minutes because that slow attempt's 5,780 s with
+  store-3's 430 s more read 6,210 s, over the 6,000 s of 100 minutes, and no
+  more than 120 because the limit is there to end a job that hangs; those
+  figures were reckoned, not measured.

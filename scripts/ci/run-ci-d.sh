@@ -2131,7 +2131,7 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   case_first='FAIL 10-a (time limit 1800 s)'
   case_then='PASS 20-b'
   own_case limit-line-of-1800-reached-past-1800-s 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
-  own_tree_case limit-lines-of-the-repository "scripts/r1/ci.d/12-test.sh: # limit: 1800${nl}scripts/r1/ci.d/15-gate-self-test.sh: # limit: 1800"
+  own_tree_case limit-lines-of-the-repository "scripts/r1/ci.d/12-test.sh: # limit: 1800${nl}scripts/r1/ci.d/15-gate-self-test.sh: # limit: 1800${nl}scripts/r1/ci.d/30-mutants.sh: # limit: 1900"
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
