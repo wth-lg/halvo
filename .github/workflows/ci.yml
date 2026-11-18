@@ -82,9 +82,6 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
         env:
@@ -150,9 +147,6 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
         env:
