@@ -380,7 +380,7 @@ self_test() {
   members_case() {
     case_name=$1 want=$2 expected=$3
     got=FAIL
-    found=$(member_manifests "$work/$case_name.json") && [ "$found" = "$expected" ] && got=PASS
+    found=$(member_manifests "$work/$case_name.json") && { [ "$want" = FAIL ] || [ "$found" = "$expected" ]; } && got=PASS
     verdict "$case_name" "$want" "$got"
   }
   metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 >"$work/members-of-unix-metadata.json"
@@ -391,6 +391,8 @@ crates/halvo-capture/Cargo.toml"
 crates/halvo-capture/Cargo.toml"
   metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 | sed 's|"manifest_path":"/w/crates/halvo-capture|"manifest_path":"/v/crates/halvo-capture|' >"$work/member-outside-the-workspace-root.json"
   members_case member-outside-the-workspace-root FAIL ''
+  metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 | sed 's|"manifest_path":"/w/crates/halvo-capture|"manifest_path":"/wx/crates/halvo-capture|' >"$work/member-in-a-sibling-of-the-workspace-root.json"
+  members_case member-in-a-sibling-of-the-workspace-root FAIL ''
   metadata_fixture halvo=1.2.3 halvo-capture=1.2.3 | sed 's|,"manifest_path":"/w/crates/halvo-capture/Cargo.toml"||' >"$work/member-without-a-manifest-path.json"
   members_case member-without-a-manifest-path FAIL ''
   metadata_fixture halvo=1.2.3 | sed 's|,"workspace_root":"/w"||' >"$work/metadata-without-a-workspace-root.json"
@@ -421,14 +423,18 @@ crates/halvo-capture/Cargo.toml"
   manifest_case package-json-at-the-version PASS
   printf '{"name":"halvo","version":"v1.2.3"}\n' >"$work/package.json"
   manifest_case package-json-at-the-version-with-a-v FAIL
-  printf '{"name":"halvo",\r\n "version" : "1.2.3"\r\n}\r\n' >"$work/package.json"
-  manifest_case package-json-at-the-version-with-crlf PASS
+  printf '{"name":"halvo",\r\n "version"\r\n:\r\n"9.9.9"\r\n}\r\n' >"$work/package.json"
+  manifest_case package-json-at-another-version-with-crlf-around-the-colon FAIL
   printf '{"name":"halvo","engines":{"version":"9.9.9"},"files":["version"]}\n' >"$work/package.json"
   manifest_case package-json-with-a-nested-version-alone PASS
   printf '{"name":"halvo","version":"1.2.3","version":"9.9.9"}\n' >"$work/package.json"
   manifest_case package-json-with-two-versions FAIL
   printf '{"name":"halvo","version":123}\n' >"$work/package.json"
   manifest_case package-json-with-a-version-that-is-no-string FAIL
+  printf '{"name":"halvo","version":01.2.3"}\n' >"$work/package.json"
+  manifest_case package-json-with-a-version-that-is-no-string-and-ends-in-a-quote FAIL
+  printf '{"d":"\\"","version":"1.2.3"}\n' >"$work/package.json"
+  manifest_case package-json-with-an-escaped-quote-before-the-version PASS
   printf '{"name":"halvo","version":"1.2.3\n' >"$work/package.json"
   manifest_case package-json-cut-inside-the-version FAIL
   printf '{"name":"ha\\"lvo","x":"\\\\","version":"9.9.9"}\n' >"$work/package.json"
