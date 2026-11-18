@@ -1123,7 +1123,7 @@ mod tests {
         use super::super::hold::Uptime;
         use super::super::notice::{
             notice_came, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread, Observed,
-            NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE,
+            NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY,
         };
         use core_foundation::base::{kCFAllocatorDefault, CFType, TCFType};
         use core_foundation::runloop::{
@@ -1459,22 +1459,26 @@ mod tests {
             let mark = NoticeMark::new();
             let mut thread = started(&mark);
             assert!(until(Duration::from_millis(300), || observed_of(1).len() == 1));
+            let refused = observed_of(1)[0];
             FRONT.store(2, Ordering::SeqCst);
-            assert!(until(Duration::from_millis(300), || observed_of(2).len() == 1));
+            assert!(until(Duration::from_millis(500), || observed_of(2).len() == 1));
             OBSERVE.store(0, Ordering::SeqCst);
-            let back = Instant::now();
             FRONT.store(1, Ordering::SeqCst);
-            let tried = until(Duration::from_millis(300), || observed_of(1).len() == 2);
-            let after = back.elapsed();
+            let tried = until(NO_GRANT_RETRY + Duration::from_millis(500), || {
+                observed_of(1).len() == 2
+            });
+            let again = observed_of(1).get(1).map(|at| at.duration_since(refused));
             assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(tried, "tried again when it came back");
             assert!(
-                tried && after <= NOTICE_FRONT_STEP + Duration::from_millis(60),
-                "tried again {after:?} after it came back"
+                again.is_some_and(|again| again < NO_GRANT_RETRY),
+                "tried again {again:?} after its refusal: another program in front ended the wait of {NO_GRANT_RETRY:?}"
             );
         }
 
         #[test]
-        fn another_program_in_front_after_a_refused_grant_is_tried_within_one_step() {
+        fn another_program_in_front_after_a_refused_grant_is_tried_before_the_wait_of_the_grant_ends(
+        ) {
             let _serial = serial();
             SUBROLE.store(1, Ordering::SeqCst);
             OBSERVE.store(-25211, Ordering::SeqCst);
@@ -1483,14 +1487,17 @@ mod tests {
             let mark = NoticeMark::new();
             let mut thread = started(&mark);
             assert!(until(Duration::from_millis(300), || observed_of(1).len() == 1));
-            let changed = Instant::now();
+            let refused = observed_of(1)[0];
             FRONT.store(2, Ordering::SeqCst);
-            let tried = until(Duration::from_millis(300), || observed_of(2).len() == 1);
-            let after = changed.elapsed();
+            let tried = until(NO_GRANT_RETRY + Duration::from_millis(500), || {
+                observed_of(2).len() == 1
+            });
+            let after = observed_of(2).first().map(|at| at.duration_since(refused));
             assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(tried);
             assert!(
-                tried && after <= NOTICE_FRONT_STEP + Duration::from_millis(60),
-                "tried {after:?} after the change"
+                after.is_some_and(|after| after < NO_GRANT_RETRY),
+                "program 2 tried {after:?} after the refusal of program 1: the wait of {NO_GRANT_RETRY:?} is program 1's alone"
             );
         }
 
