@@ -15,7 +15,7 @@ fn fill(n: u8, files: &FillFiles) -> Supervisor {
 
 /// A releasing effect must be handed back as effect_unknown before finish (A6.4). The commit row is refused,
 /// so the effect stays releasing after the replace; then the store refuses the log line of the handback.
-/// `close` ignores a `Stop::End` from `handback`, so the handback frame is never written and finish still goes.
+/// `handback` goes on past the refused line, so the handback frame is written, and finish follows it.
 #[test]
 fn a_refused_log_line_does_not_keep_the_effect_unknown_handback_from_opening() {
     let files = FillFiles::new("review-twice-1", 1);
@@ -159,8 +159,8 @@ fn a_wall_limit_passed_during_the_edit_ends_the_run_before_its_effect() {
 }
 
 /// The begin's first send meets a store fault, which may come after the releasing row was stored (the comment of
-/// ROW_SENDS says so). The repeat is then refused with `effect`. Only a begin whose every send faults counts as
-/// releasing, so here the runner drops the "may be stored" state: no effect_unknown handback, finish unknown 0.
+/// ROW_SENDS says so). The repeat is then refused with `effect`. A begin that met a fault counts as releasing, so
+/// the runner lets nothing leave and hands the effect back as effect_unknown before its finish, with unknown 1.
 #[test]
 fn a_begin_that_met_a_fault_and_then_a_refusal_is_handed_back_unknown() {
     let files = FillFiles::new("review-twice-2", 2);
@@ -374,7 +374,7 @@ fn next_after_an_open_run(seed: u8, n: u8, is: impl Fn(&FromRunner) -> bool, nth
 /// that a request added between the two fails on every run (CP-225 N1); after the close at most the propose is on
 /// its way, and no replace follows.
 #[test]
-fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
+fn a_close_of_input_after_the_checkpoints_made_row_lets_at_most_the_propose_out() {
     assert_eq!(
         next_after_an_open_run(1, 101, |f| is_checkpoint(f, CheckpointState::Made), 1),
         "store effect Cleared",
@@ -453,7 +453,8 @@ fn a_close_of_input_after_the_load_before_the_begin_lets_at_most_the_begin_out()
             .frames
             .iter()
             .all(|f| is_effect(f, EffectState::Releasing)),
-        "only the begin can be on its way"
+        "only the begin can be on its way: {:?}",
+        after.names()
     );
 }
 
@@ -487,7 +488,8 @@ fn a_close_of_input_after_the_last_fault_of_the_begin_lets_at_most_one_frame_out
             .frames
             .iter()
             .any(|f| matches!(f, FromRunner::Handback(_) | FromRunner::Done(_))),
-        "no handback and no done after the close"
+        "no handback and no done after the close: {:?}",
+        after.names()
     );
 }
 

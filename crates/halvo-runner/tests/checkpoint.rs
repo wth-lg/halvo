@@ -1,16 +1,15 @@
 mod support;
 
-use halvo_schema::executable::body::RunnerCall;
 use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::text::V1;
-use halvo_schema::executable::{AgentCheckpoint, Cause, CheckpointState, FromRunner, Outcome};
+use halvo_schema::executable::{AgentCheckpoint, Cause, CheckpointState, Outcome};
 use halvo_schema::Category;
 use halvo_sheet::Sha256;
 
 use support::{
-    is_op, offset_of_another_day, person_changes, serve_loads, set_slot, store_error, stored, Act,
-    FillFiles, Seen, Supervisor, LONG,
+    is_checkpoint, is_op, offset_of_another_day, person_changes, serve_loads, set_slot,
+    store_error, stored, Act, FillFiles, Seen, Supervisor, LONG,
 };
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
@@ -19,10 +18,6 @@ fn fill(n: u8, files: &FillFiles) -> Supervisor {
 
 fn checkpoint_name(sup: &Supervisor) -> String {
     format!("formulas.halvo-checkpoint-{}.xlsx", sup.run.as_str())
-}
-
-fn is_checkpoint(frame: &FromRunner, state: CheckpointState) -> bool {
-    matches!(frame, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Checkpoint(b) if b.record.state == state))
 }
 
 fn prepared_copies(files: &FillFiles) -> usize {
