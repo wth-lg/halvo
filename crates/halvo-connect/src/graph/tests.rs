@@ -289,6 +289,7 @@ fn an_answer_429_or_5xx_carries_the_seconds_of_retry_after_and_no_other_does() {
         ("302 Found", 302, "Retry-After: 30", None),
         ("201 Created", 201, "Retry-After: 30", None),
     ];
+    let mut answered = Vec::new();
     for (line, status, header, seconds) in rows {
         let (port, seen) = listen(answer_with(line, header, "{}"));
         let client = graph(port, LIMIT);
@@ -304,11 +305,13 @@ fn an_answer_429_or_5xx_carries_the_seconds_of_retry_after_and_no_other_does() {
         );
         assert!(seen.recv_timeout(LIMIT).is_ok());
         assert!(seen.recv_timeout(LIMIT).is_ok());
-        assert!(
-            seen.recv_timeout(QUIET).is_err(),
-            "no request is sent again"
-        );
+        answered.push(seen);
     }
+    thread::sleep(QUIET);
+    assert!(
+        answered.iter().all(|seen| seen.try_recv().is_err()),
+        "no request is sent again"
+    );
 }
 
 #[test]
