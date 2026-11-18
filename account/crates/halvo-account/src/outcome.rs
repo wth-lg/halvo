@@ -54,8 +54,9 @@ pub enum Answer {
     /// `result=R credential=removed` or `result=R credential=kept`, the answer of `delete`.
     Delete { result: String, removed: bool },
     /// `result=closing`, the answer of `status` while the account's delete has begun and the
-    /// backend holds no answer of the provider to the end of its plan. Its sentence says no more
-    /// about the plan at the provider and names no time at which the delete ends.
+    /// backend holds no answer of the payment provider to its request to cancel any paid plan.
+    /// Its sentence says no more about the plan at the provider and names no time at which the
+    /// delete ends.
     Closing,
 }
 
@@ -199,7 +200,7 @@ impl Outcome {
     /// The sentence on standard error.
     pub fn note(&self) -> &'static str {
         match self {
-            Outcome::Answered(Answer::Closing) => "the backend answered that the account is closing: its delete has begun and the backend has not yet heard from the provider that its plan is ended; the backend sees to the end of the plan and finishes the delete by itself, nothing is asked of you, and when that happens is not known",
+            Outcome::Answered(Answer::Closing) => "the backend answered that the account is closing: its delete has begun and the backend is waiting for the payment provider's answer to its request to cancel any paid plan; the backend sees to that and finishes the delete by itself, nothing is asked of you, and when that happens is not known",
             Outcome::Answered(_) => "the backend answered",
             Outcome::Failed(Failure::NoAnswer) => "the call failed: no answer came; nothing more was sent",
             Outcome::Failed(Failure::Unread(Unread::Status(_))) => "the call failed: the answer has a status other than 200 or 4xx; nothing more was sent",

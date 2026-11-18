@@ -1059,7 +1059,7 @@ fn status_maps_each_result_of_the_generated_type_by_name_with_no_wildcard_arm() 
 
 const CLOSING: &str = r#"{"result":"closing"}"#;
 
-const CLOSING_NOTE: &str = "the backend answered that the account is closing: its delete has begun and the backend has not yet heard from the provider that its plan is ended; the backend sees to the end of the plan and finishes the delete by itself, nothing is asked of you, and when that happens is not known";
+const CLOSING_NOTE: &str = "the backend answered that the account is closing: its delete has begun and the backend is waiting for the payment provider's answer to its request to cancel any paid plan; the backend sees to that and finishes the delete by itself, nothing is asked of you, and when that happens is not known";
 
 #[test]
 fn status_reads_closing_and_prints_its_line_and_its_sentence() {

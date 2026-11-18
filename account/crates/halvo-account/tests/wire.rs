@@ -244,7 +244,7 @@ fn the_binary_prints_the_line_and_the_sentence_of_closing_for_status() {
         (
             0,
             "result=closing\n",
-            "halvo-account: the backend answered that the account is closing: its delete has begun and the backend has not yet heard from the provider that its plan is ended; the backend sees to the end of the plan and finishes the delete by itself, nothing is asked of you, and when that happens is not known\n"
+            "halvo-account: the backend answered that the account is closing: its delete has begun and the backend is waiting for the payment provider's answer to its request to cancel any paid plan; the backend sees to that and finishes the delete by itself, nothing is asked of you, and when that happens is not known\n"
         )
     );
 }

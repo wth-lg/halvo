@@ -263,9 +263,12 @@ fn the_sentence_of_closing_names_no_time_and_no_failure() {
     }
     assert!(note.contains("not known"), "{note}");
     assert!(
-        note.contains("not yet heard from the provider that its plan is ended"),
+        note.contains(
+            "waiting for the payment provider's answer to its request to cancel any paid plan"
+        ),
         "{note}"
     );
     assert!(!note.contains("not yet ended"), "{note}");
+    assert!(!note.contains("plan is ended"), "{note}");
     assert!(note.contains("nothing is asked of you"), "{note}");
 }
