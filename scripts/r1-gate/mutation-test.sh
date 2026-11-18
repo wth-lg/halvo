@@ -61,7 +61,8 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
       --budget starts no row once SECONDS have passed since the first row
       started, lets a running row end, prints NOT-RUN mutation:<name> (the
       budget of SECONDS s is used) for each row that it did not start, and
-      prints seconds mutation:<name> <n> after each row that it started.
+      prints seconds mutation:<name> <n> after each row that it started;
+      --apply-only prints the same seconds line after each row.
   sh scripts/r1-gate/mutation-test.sh --apply-only
       Apply the substitution of each row that a run would apply here and
       compile its mutant: cargo check of the package and target that the build
@@ -745,10 +746,12 @@ run_rows() {
       say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
     fi
     case " $only " in "  "|*" $row_name "*) ;; *) continue ;; esac
-    if [ -n "$budget" ]; then
+    if [ -n "$budget" ] || [ "$apply_only" = yes ]; then
       row_clock
       row_seconds
-      if [ -z "$budget_start" ]; then
+      if [ -z "$budget" ]; then
+        :
+      elif [ -z "$budget_start" ]; then
         budget_start=$row_now
       elif [ "$((row_now - budget_start))" -ge "$budget" ]; then
         say NOT-RUN "$row_name" "the budget of $budget s is used"; budget_unrun=$((budget_unrun + 1))
@@ -906,7 +909,7 @@ run_rows() {
     step_check $? "restore of the mutated file" || return 2
   done 3< "$work/rows.loop"
   stop_check
-  if [ -n "$budget" ]; then
+  if [ -n "$budget" ] || [ "$apply_only" = yes ]; then
     row_clock
     row_seconds
   fi
@@ -1346,6 +1349,7 @@ cases() {
   t budget-used-starts-no-row PASS with_budget 0 with_only 'second first' fixture_says ordered 'NOT-RUN mutation:first (the budget of 0 s is used)' yes
   t budget-times-the-row-it-ran PASS with_budget 0 with_only 'second first' fixture_in_order ordered 'PASS mutation:second' 'seconds mutation:second '
   t budget-not-used-leaves-no-row-out FAIL with_budget 600 fixture_says ordered 'NOT-RUN mutation:' yes
+  t apply-only-times-each-row-with-no-budget PASS seconds_lines ordered ' first second'
   t only-runs-a-name-given-twice-once PASS with_only 'second second first' fixture_once ordered 'PASS mutation:second'
   t only-runs-a-name-given-once-once PASS with_only 'first' fixture_once ordered 'PASS mutation:first'
   t only-skips-a-name-not-given FAIL with_only 'first' fixture_once ordered 'PASS mutation:second'
