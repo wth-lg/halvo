@@ -8,7 +8,7 @@ use halvo_wire::request::{build, Call, Request};
 use halvo_wire::types::{
     CapGetAnswer, CapGetAnswerResult, CapSetAnswer, CapSetAnswerResult, CheckoutAnswer,
     CheckoutAnswerResult, DeleteAnswer, DeleteAnswerResult, ManageAnswer, ManageAnswerResult,
-    Spend, StatusAnswer, Url,
+    Spend, StatusAnswer, StatusAnswerResult, Url,
 };
 
 /// Where the sign-in is kept: the store of `halvo-secrets`, or a stand-in in a test.
@@ -196,7 +196,17 @@ fn status(sign_in: &SignIn, reach: &Reach<'_>) -> Outcome {
     match exchange::<StatusAnswer>(sign_in, &Call::Status, reach.transport) {
         Err(outcome) => outcome,
         Ok(Reading::Rejected) => Outcome::Rejected,
-        Ok(Reading::Answer(answer)) => Outcome::Answered(Answer::Result(answer.result.to_string())),
+        Ok(Reading::Answer(answer)) => match answer.result {
+            StatusAnswerResult::Closing => Outcome::Answered(Answer::Closing),
+            StatusAnswerResult::Pending
+            | StatusAnswerResult::Active
+            | StatusAnswerResult::PaymentFailed
+            | StatusAnswerResult::Cancelled
+            | StatusAnswerResult::NoSuchAccount
+            | StatusAnswerResult::CredentialMismatch => {
+                Outcome::Answered(Answer::Result(answer.result.to_string()))
+            }
+        },
     }
 }
 

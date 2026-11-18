@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 95 and 72: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 102 and 72: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -12,10 +12,7 @@ esac
 nl='
 '
 tab=$(printf '\t')
-files='schema.v1.json contract/schema/v1.json
-routes.v1.json contract/routes/v1.json
-samples.v1.json contract/samples/v1.json
-prompt-budget.json gate/prompt-budget.json'
+vendored_names='schema.v1.json routes.v1.json samples.v1.json prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
 outside_licences='webpki-root-certs 1.0.11'
@@ -23,8 +20,11 @@ windows_cases='no-repository unchanged hosted-windows hosted-line-inside-another
 deny-other-version deny-absent vendored-byte-schema.v1.json recorded-sha256-schema.v1.json
 vendored-byte-routes.v1.json recorded-sha256-routes.v1.json vendored-byte-samples.v1.json
 recorded-sha256-samples.v1.json vendored-byte-prompt-budget.json
-recorded-sha256-prompt-budget.json record-without-a-file record-with-another-commit-line
-commit-of-41-digits commit-in-upper-case sum-of-65-digits sum-in-upper-case
+recorded-sha256-prompt-budget.json record-without-a-file record-of-the-old-form
+record-with-a-commit-line record-line-with-a-path-outside-backend record-line-with-a-fourth-word
+record-line-without-a-path backend-byte-schema.v1.json
+backend-byte-routes.v1.json backend-byte-samples.v1.json backend-byte-prompt-budget.json
+backend-without-a-file sum-of-65-digits sum-in-upper-case
 record-with-a-fifth-line fifth-line-without-newline config-source-replacement
 config-patch-under-account config-name-in-another-case link-out-of-account escaped-path-key
 escaped-build-key path-outside-account git-source-in-lock crlf-line-ends licence-added-to-list
@@ -108,29 +108,32 @@ check_vendored() {
   [ -f "$record" ] || fail 'account/schema/vendored.txt is missing'
   without_cr "$record" record.txt
   exec 3<"$work/record.txt"
-  IFS= read -r first <&3 || first=
-  case $first in
-    'commit '*) commit=${first#'commit '} ;;
-    *) commit= ;;
-  esac
-  lower_hex "$commit" 40 || fail 'account/schema/vendored.txt does not start with the line of its commit'
   compared=0
-  while read -r want_name want_path; do
+  for want_name in $vendored_names; do
     IFS= read -r line <&3 || line=
     recorded=${line%% *}
-    if ! lower_hex "$recorded" 64 || [ "$line" != "$recorded $want_name $want_path" ]; then
+    at=${line#"$recorded $want_name "}
+    case $at in
+      '' | *' '* | *"$tab"*) at= ;;
+    esac
+    if ! lower_hex "$recorded" 64 || [ -z "$at" ] || [ "$line" != "$recorded $want_name $at" ]; then
       fail 'account/schema/vendored.txt does not name the four vendored files'
     fi
     actual=$(sha256_of "account/schema/$want_name") || fail "account/schema/$want_name cannot be read"
     [ "$actual" = "$recorded" ] || fail "account/schema/$want_name differs from its recorded sha256"
     compared=$((compared + 1))
-  done <<EOF
-$files
-EOF
+  done
   if IFS= read -r line <&3 || [ -n "$line" ]; then
     fail 'account/schema/vendored.txt does not name the four vendored files'
   fi
   exec 3<&-
+  drift=$(TMPDIR=$work sh account/schema/vendor.sh --check 2>&1)
+  code=$?
+  if [ "$code" -ne 0 ]; then
+    first=${drift%%"$nl"*}
+    first=${first#vendor-check: }
+    fail "sh account/schema/vendor.sh --check exited $code: ${first#vendor: }"
+  fi
 }
 
 is_cargo_config_name() {
@@ -874,6 +877,12 @@ git_fixture() {
   git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -A >/dev/null 2>&1
 }
 
+place_contract() {
+  while read -r _ contract_copy contract_place; do
+    mkdir -p "$fixture/${contract_place%/*}" && cp "$repo/account/schema/$contract_copy" "$fixture/$contract_place" || return 1
+  done <"$work/record.txt"
+}
+
 make_fixture() {
   fixture=$work/$1
   if ! takes_case "$1"; then
@@ -884,6 +893,7 @@ make_fixture() {
   for entry in Cargo.toml Cargo.lock deny.toml schema crates; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
   done
+  place_contract
   mkdir "$fixture/scripts" && cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh" || return 1
   mkdir "$fixture/outside" && printf 'pub fn included() {}\n' >"$fixture/outside/code.rs"
 }
@@ -931,6 +941,13 @@ edit() {
   mv "$file.edited" "$file"
 }
 
+edit_contract() {
+  file=$fixture/$1
+  sed '1s/{/[/' <"$file" >"$file.edited" && ! cmp -s "$file" "$file.edited" && mv "$file.edited" "$file" && return 0
+  wrong="$wrong ${fixture##*/}"
+  return 1
+}
+
 to_crlf() {
   file=$fixture/account/$1
   awk 'BEGIN { ORS = "\r\n" } 1' <"$file" >"$file.crlf" || return 1
@@ -951,6 +968,7 @@ make_probe_fixture() {
   for entry in Cargo.toml deny.toml schema; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
   done
+  place_contract || return 1
   cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh" || return 1
   write_crate "$fixture/account/crates/probe" probe || return 1
   mkdir "$fixture/account/crates/probe/inner" || return 1
@@ -1211,6 +1229,13 @@ self_test() {
   stub=$work/stub
   write_stub "$stub" || fail 'cannot write the stub cargo'
   check_vendored
+  vendor_test=$(TMPDIR=$work sh account/schema/vendor.sh --self-test 2>&1)
+  code=$?
+  printf 'vendor.sh --self-test: %s\n' "${vendor_test##*"$nl"}"
+  if [ "$code" -ne 0 ]; then
+    printf '%s\n' "$vendor_test"
+    fail "sh account/schema/vendor.sh --self-test exited $code"
+  fi
   check_deny_config
   deny_pin
   check_metadata
@@ -1233,7 +1258,7 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_deny="cargo deny --version is not cargo-deny $pin; sh scripts/prerequisites.sh installs it"
   cause_fetch="cargo fetch --locked --offline exited 101; sh scripts/prerequisites.sh fetches the packages of account/Cargo.lock"
   cause_record='account/schema/vendored.txt does not name the four vendored files'
-  cause_commit='account/schema/vendored.txt does not start with the line of its commit'
+  cause_drift='sh account/schema/vendor.sh --check exited 1'
   cause_config='a cargo configuration file sits at the repository root or under account/'
   cause_admitted='account/deny.toml differs from the configuration that this script admits'
   cause_ban='account/deny.toml holds a ban that this script does not admit'
@@ -1305,12 +1330,26 @@ $calls_after"
   done
   make_fixture record-without-a-file && edit schema/vendored.txt sed '/ prompt-budget.json /d' &&
     run_case record-without-a-file "FAIL $name ($cause_record)" stub
-  make_fixture record-with-another-commit-line && edit schema/vendored.txt sed '1s/^commit /commit: /' &&
-    run_case record-with-another-commit-line "FAIL $name ($cause_commit)" stub
-  make_fixture commit-of-41-digits && edit schema/vendored.txt sed '1s/$/0/' &&
-    run_case commit-of-41-digits "FAIL $name ($cause_commit)" stub
-  make_fixture commit-in-upper-case && edit schema/vendored.txt sed '1s/^commit //; 1y/abcdef/ABCDEF/; 1s/^/commit /' &&
-    run_case commit-in-upper-case "FAIL $name ($cause_commit)" stub
+  make_fixture record-of-the-old-form && edit schema/vendored.txt awk 'BEGIN { print "commit 651e68fb43c14381c8ae104a7fa3f40d4d3311f7"; while ((getline line) > 0) { split(line, word, " "); sub(/^[^\/]*\//, "", word[3]); print word[1] " " word[2] " " word[3] } }' &&
+    run_case record-of-the-old-form "FAIL $name ($cause_record)" stub
+  make_fixture record-with-a-commit-line && edit schema/vendored.txt awk 'BEGIN { print "commit 651e68fb43c14381c8ae104a7fa3f40d4d3311f7" } { print }' &&
+    run_case record-with-a-commit-line "FAIL $name ($cause_record)" stub
+  make_fixture record-line-with-a-path-outside-backend && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) { split(line, word, " "); if (word[2] == "routes.v1.json") { sub(/^[^\/]*\//, "", word[3]); line = word[1] " " word[2] " " word[3] } print line } }' &&
+    run_case record-line-with-a-path-outside-backend "FAIL $name ($cause_drift: vendored.txt differs from the files that it names)" stub
+  make_fixture record-line-with-a-fourth-word && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) { split(line, word, " "); if (word[2] == "routes.v1.json") line = line " x"; print line } }' &&
+    run_case record-line-with-a-fourth-word "FAIL $name ($cause_record)" stub
+  make_fixture record-line-without-a-path && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) { split(line, word, " "); if (word[2] == "routes.v1.json") line = word[1] " " word[2] " "; print line } }' &&
+    run_case record-line-without-a-path "FAIL $name ($cause_record)" stub
+  contract=$(cat "$work/record.txt") || fail 'account/schema/vendored.txt cannot be read'
+  while read -r _ vendored contract_at; do
+    make_fixture "backend-byte-$vendored" && edit_contract "$contract_at" &&
+      run_case "backend-byte-$vendored" "FAIL $name ($cause_drift: $vendored differs from $contract_at)" stub
+    gone=$contract_at
+  done <<EOF
+$contract
+EOF
+  make_fixture backend-without-a-file && mv "$fixture/$gone" "$fixture/${gone##*/}.gone" &&
+    run_case backend-without-a-file "FAIL $name ($cause_drift: $gone is missing)" stub
   make_fixture sum-of-65-digits && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) { if (++n == 2) { split(line, word, " "); line = word[1] "0 " word[2] " " word[3] } print line } }' &&
     run_case sum-of-65-digits "FAIL $name ($cause_record)" stub
   make_fixture sum-in-upper-case && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) { if (++n == 2) { split(line, word, " "); line = toupper(word[1]) " " word[2] " " word[3] } print line } }' &&
@@ -1321,8 +1360,8 @@ $calls_after"
     run_case fifth-line-without-newline "FAIL $name ($cause_record)" stub
   make_fixture record-line-with-another-name && edit schema/vendored.txt sed 's/ schema\.v1\.json / schema.v2.json /' &&
     run_case record-line-with-another-name "FAIL $name ($cause_record)" stub
-  make_fixture record-line-with-another-path && edit schema/vendored.txt sed 's| contract/routes/v1\.json$| contract/routes/v2.json|' &&
-    run_case record-line-with-another-path "FAIL $name ($cause_record)" stub
+  make_fixture record-line-with-another-path && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) { split(line, word, " "); if (word[2] == "routes.v1.json") { sub(/v1\.json$/, "v2.json", word[3]); line = word[1] " " word[2] " " word[3] } print line } }' &&
+    run_case record-line-with-another-path "FAIL $name ($cause_drift: vendored.txt differs from the files that it names)" stub
 
   make_fixture config-source-replacement && mkdir "$fixture/.cargo" &&
     printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "vendor"\n' >"$fixture/.cargo/config.toml" &&

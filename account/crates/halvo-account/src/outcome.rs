@@ -8,7 +8,7 @@ use halvo_wire::types::Period;
 ///
 /// | code | kind | line |
 /// |---|---|---|
-/// | 0 | the backend answered with a result of the route | `result=R`, with more pairs for some results; after `delete` it is `result=R credential=removed` or `result=R credential=kept` |
+/// | 0 | the backend answered with a result of the route | `result=R`, with more pairs for some results; after `delete` it is `result=R credential=removed` or `result=R credential=kept`; after `status` answered `closing` it is `result=closing`, with a sentence of its own that names no time |
 /// | 1 | a failed call: no answer, an answer that was not read, or a page outside the list | `error=failed-call` |
 /// | 2 | the backend rejected the request | `error=rejected` |
 /// | 3 | no credential is stored, and nothing was sent | `error=no-credential` |
@@ -53,6 +53,11 @@ pub enum Answer {
     },
     /// `result=R credential=removed` or `result=R credential=kept`, the answer of `delete`.
     Delete { result: String, removed: bool },
+    /// `result=closing`, the answer of `status` while the account's delete has begun and the
+    /// backend holds no answer of the payment provider to its request to cancel any paid plan.
+    /// Its sentence says no more about the plan at the provider and names no time at which the
+    /// delete ends.
+    Closing,
 }
 
 /// Why a call failed.
@@ -178,6 +183,7 @@ impl Outcome {
                 "result={result} credential={}",
                 if *removed { "removed" } else { "kept" }
             ),
+            Outcome::Answered(Answer::Closing) => "result=closing".to_string(),
             Outcome::Failed(_) => "error=failed-call".to_string(),
             Outcome::Rejected => "error=rejected".to_string(),
             Outcome::NoCredential => "error=no-credential".to_string(),
@@ -194,6 +200,7 @@ impl Outcome {
     /// The sentence on standard error.
     pub fn note(&self) -> &'static str {
         match self {
+            Outcome::Answered(Answer::Closing) => "the backend answered that the account is closing: its delete has begun and the backend is waiting for the payment provider's answer to its request to cancel any paid plan; the backend sees to that and finishes the delete by itself, nothing is asked of you, and when that happens is not known",
             Outcome::Answered(_) => "the backend answered",
             Outcome::Failed(Failure::NoAnswer) => "the call failed: no answer came; nothing more was sent",
             Outcome::Failed(Failure::Unread(Unread::Status(_))) => "the call failed: the answer has a status other than 200 or 4xx; nothing more was sent",
