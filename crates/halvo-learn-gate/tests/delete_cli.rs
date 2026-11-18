@@ -94,22 +94,81 @@ fn delete_all_on_the_memory_store_is_not_run() {
     );
 }
 
+fn fresh(name: &str) -> PathBuf {
+    halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), name).expect("a test directory")
+}
+
+fn line_of(out: &Output) -> String {
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(out.stderr.is_empty(), "{out:?}");
+    let text = String::from_utf8(out.stdout.clone()).expect("UTF-8");
+    text.strip_suffix('\n').expect("one line").to_owned()
+}
+
 #[test]
-fn delete_refuses_the_derived_store_and_wrong_calls() {
-    let dir = data_dir("delete-refusals");
-    let dir = dir.to_str().expect("a path");
-    refused(
-        &gate(&[
+fn delete_workflow_on_the_derived_store_takes_its_rows_by_the_decision_and_leaves_the_other_served()
+{
+    let memory = fresh("delete-workflow-memory");
+    let derived = fresh("delete-workflow-derived");
+    let call = |dir: &Path, store: &str| {
+        gate(&[
             "delete",
             "--what",
             "workflow",
             "--data-dir",
-            dir,
+            dir.to_str().expect("a path"),
             "--store",
-            "derived",
-        ]),
-        "store",
+            store,
+        ])
+    };
+    let memory_line = line_of(&call(&memory, "memory"));
+    let derived_line = line_of(&call(&derived, "derived"));
+    assert_eq!(
+        derived_line,
+        memory_line.replacen(" store=memory ", " store=derived ", 1)
     );
+    assert!(
+        derived_line.starts_with("delete what=workflow store=derived rows_left=0 other_rows="),
+        "{derived_line}"
+    );
+    assert!(
+        derived_line.ends_with(" other_served=yes result=ok"),
+        "{derived_line}"
+    );
+    let entries: Vec<String> = std::fs::read_dir(&derived)
+        .expect("the data directory")
+        .map(|e| {
+            e.expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(entries, ["derived"]);
+}
+
+#[test]
+fn delete_all_on_the_derived_store_is_not_run() {
+    let dir = fresh("delete-all-derived");
+    let out = gate(&[
+        "delete",
+        "--what",
+        "all",
+        "--data-dir",
+        dir.to_str().expect("a path"),
+        "--store",
+        "derived",
+    ]);
+    assert_eq!(
+        line_of(&out),
+        "delete what=all store=derived exit=- files_left=- result=not-run"
+    );
+}
+
+#[test]
+fn delete_refuses_wrong_calls() {
+    let dir = data_dir("delete-refusals");
+    let dir = dir.to_str().expect("a path");
     refused(&gate(&["delete", "--what", "workflow"]), "usage");
     refused(&gate(&["delete", "--data-dir", dir]), "usage");
     refused(

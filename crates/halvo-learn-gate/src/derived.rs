@@ -768,6 +768,18 @@ impl DerivedHost {
             .map_err(|e| format!("the approval is refused: {e}"))?;
         Ok(id)
     }
+
+    /// The decision `delete` of the workflow, the store's cascade (W-C3.10, contracts.md L5.1), and whether the
+    /// workflow was stored before it.
+    pub fn delete_workflow(&mut self, id: &WorkflowId) -> Result<bool, String> {
+        let stored = self.listed()?.iter().any(|workflow| workflow.id() == id);
+        let delete =
+            InterfaceDecision::delete(&InterfaceRole::claim(), self.request_id(), id.clone());
+        self.store()?
+            .decide(&delete)
+            .map_err(|e| format!("the delete is refused: {e}"))?;
+        Ok(stored)
+    }
 }
 
 impl PlayHost for DerivedHost {
