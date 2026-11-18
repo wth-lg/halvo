@@ -339,3 +339,53 @@ fn a_finish_of_a_run_with_no_candidate_makes_one_own_load_and_no_read_of_the_com
     );
     assert!(matches!(answer, Ok(RunnerReply::Stored(_))), "{answer:?}");
 }
+
+#[test]
+fn a_store_fault_at_the_first_load_of_the_sweep_still_drops_a_later_held_run_whose_load_is_refused()
+{
+    let mut w = learned_world();
+    w.replay(3);
+    w.replay(5);
+    assert!(w.handlers.facts.contains_key(&id(3)));
+    assert!(w.handlers.facts.contains_key(&id(5)));
+    w.host.agent.hidden_runs.push(run(5));
+    let answer = coordinator_at(&mut w, 2, start_body(6));
+    assert!(
+        matches!(
+            answer,
+            Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
+        ),
+        "{answer:?}"
+    );
+    assert!(left_out(&w));
+    assert!(
+        w.handlers.facts.contains_key(&id(3)),
+        "a store fault at the load of run 3 says nothing of run 3"
+    );
+    assert!(
+        !w.handlers.facts.contains_key(&id(5)),
+        "the agent store refuses the load of run 5, so its slot values go at the latest at this start (L4.3)"
+    );
+}
+
+#[test]
+fn a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drops_a_start_held_with_no_facts(
+) {
+    let mut w = learned_world();
+    w.replay(3);
+    w.start(4, "replay");
+    assert!(w.handlers.starts.contains_key(&id(4)));
+    assert!(!w.handlers.facts.contains_key(&id(4)));
+    let answer = coordinator_at(&mut w, 2, start_body(4));
+    assert!(
+        matches!(
+            answer,
+            Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
+        ),
+        "{answer:?}"
+    );
+    assert!(left_out(&w));
+    assert!(holds_nothing_of(&w, 4));
+    w.load(4);
+    assert!(holds_nothing_of(&w, 4));
+}

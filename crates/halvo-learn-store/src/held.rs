@@ -80,17 +80,22 @@ impl LearnHandlers {
             .and_then(|reply| reply.playbook.map(|p| p.number)))
     }
 
-    /// The handlers' own `load` of every run that has facts, which drops those that the agent store refuses.
+    /// The handlers' own `load` of every run that has facts, which drops those that the agent store refuses; a
+    /// `store` or `internal` fault of one `load` leaves that run as it was, the other loads are still sent, and the
+    /// first fault is returned.
     pub(crate) fn sweep(&mut self, host: &mut dyn LearnHost) -> Result<(), ErrorName> {
         let held: Vec<(RunId, AgentId)> = self
             .facts
             .iter()
             .map(|(run, facts)| (run.clone(), facts.agent.clone()))
             .collect();
+        let mut first = Ok(());
         for (run, agent) in held {
-            self.load_of(host, &agent, &run)?;
+            if let Err(name) = self.load_of(host, &agent, &run) {
+                first = first.and(Err(name));
+            }
         }
-        Ok(())
+        first
     }
 
     /// After the agent store refused a runner body of a run: a refused `load` under the run's own agent drops the
