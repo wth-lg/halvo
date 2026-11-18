@@ -1172,3 +1172,15 @@ fn after_a_run_s_end_a_repeat_of_the_newest_row_is_answered_as_the_first_and_a_n
         reply(1, 1, 2, "m2", Some("d2"), Some(2), "begun"),
     );
 }
+
+#[test]
+fn a_repeat_of_a_begun_row_a_day_later_with_the_day_of_its_at_is_answered_as_the_first() {
+    let mut store = two_agents();
+    begun_of_run_1(&mut store);
+    let before = rows(&store, "agent_reply");
+    let mut again = reply(1, 1, 2, "m1", Some("d1"), Some(1), "begun");
+    again["at"] = json!(ROW_AT + NANOS_PER_DAY);
+    again["day"] = json!(ROW_DAY + 1);
+    assert_eq!(put_reply(&mut store, again), Ok(stored(1)));
+    assert_eq!(rows(&store, "agent_reply"), before);
+}
