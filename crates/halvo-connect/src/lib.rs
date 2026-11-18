@@ -14,6 +14,8 @@ mod token;
 pub use address::{reply_senders, same_address, Senders, SendersError};
 pub use calendar::{Calendar, Event, EventToDelete, Events, RunDay};
 pub use error::{AnswerFault, BuildError, CallError, Effect, NotMade};
+#[cfg(feature = "loopback")]
+pub use graph::LOOPBACK_MARKER;
 pub use graph::{Graph, Route};
 pub use mail::{Draft, DraftToSend, Drafts, Mail, Message, Messages, ReplyRule};
 pub use token::{Token, TokenError};

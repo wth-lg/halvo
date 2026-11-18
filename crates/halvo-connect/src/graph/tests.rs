@@ -116,6 +116,18 @@ fn segment_keeps_unreserved_bytes_and_encodes_every_other() {
 }
 
 #[test]
+fn the_loopback_route_stands_under_the_feature_that_the_tests_name_with_its_marker() {
+    assert!(cfg!(feature = "loopback"));
+    assert_eq!(
+        super::LOOPBACK_MARKER,
+        "halvo-connect-loopback-route-of-tests"
+    );
+    let manifest = include_str!("../../Cargo.toml");
+    assert!(manifest.contains("[features]\nloopback = []\n"));
+    assert!(manifest.contains("halvo-connect = { path = \".\", features = [\"loopback\"] }"));
+}
+
+#[test]
 fn http_needs_the_loopback_route() {
     let http = origin("http", 18090);
     assert_eq!(

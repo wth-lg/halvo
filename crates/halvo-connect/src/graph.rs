@@ -21,8 +21,28 @@ pub enum Route {
     System,
     /// The test configuration of A11.2: the client maps the origin's host name to 127.0.0.1 at the origin's port
     /// and looks no name up. Only this route takes an `http` origin, and it takes no host that the URL parser reads
-    /// as an IP address.
+    /// as an IP address. It stands only under the cargo feature `loopback`, which the crate's own tests turn on and
+    /// no packaged build names (CP-109 (l)); a build with it holds [`LOOPBACK_MARKER`].
+    #[cfg(feature = "loopback")]
     Loopback,
+}
+
+/// The marker text of the loopback route: it stands in every binary that can take the route, so that a check of a
+/// packaged binary finds a build with the feature `loopback` by it.
+#[cfg(feature = "loopback")]
+pub static LOOPBACK_MARKER: &str = "halvo-connect-loopback-route-of-tests";
+
+impl Route {
+    fn is_loopback(self) -> bool {
+        match self {
+            Route::System => false,
+            #[cfg(feature = "loopback")]
+            Route::Loopback => {
+                std::hint::black_box(LOOPBACK_MARKER.as_ptr());
+                true
+            }
+        }
+    }
 }
 
 /// The Graph-shaped adapter of A11.2 for one origin, the faces of mail and calendar under `/v1.0/me/`. It holds
@@ -79,16 +99,16 @@ impl Graph {
     /// when the TLS configuration or the client cannot be built.
     pub fn new(origin: &WebOrigin, route: Route, timeout: Duration) -> Result<Graph, BuildError> {
         let url = Url::parse(origin.as_str()).map_err(|_| BuildError::Client)?;
-        if url.scheme() != "https" && route != Route::Loopback {
+        let loopback = route.is_loopback();
+        if url.scheme() != "https" && !loopback {
             return Err(BuildError::Cleartext);
         }
-        let mapped = match route {
-            Route::System => None,
-            Route::Loopback => {
-                let host = url.domain().ok_or(BuildError::Address)?;
-                let port = url.port_or_known_default().ok_or(BuildError::Client)?;
-                Some((host, SocketAddr::from((Ipv4Addr::LOCALHOST, port))))
-            }
+        let mapped = if loopback {
+            let host = url.domain().ok_or(BuildError::Address)?;
+            let port = url.port_or_known_default().ok_or(BuildError::Client)?;
+            Some((host, SocketAddr::from((Ipv4Addr::LOCALHOST, port))))
+        } else {
+            None
         };
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         let verifier = rustls_platform_verifier::Verifier::new(provider.clone())

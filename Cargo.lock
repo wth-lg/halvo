@@ -1645,6 +1645,7 @@ dependencies = [
 name = "halvo-connect"
 version = "0.0.0"
 dependencies = [
+ "halvo-connect",
  "halvo-schema",
  "reqwest",
  "rustls",
