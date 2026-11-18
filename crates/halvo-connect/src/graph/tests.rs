@@ -117,7 +117,7 @@ fn segment_keeps_unreserved_bytes_and_encodes_every_other() {
 
 #[test]
 fn the_loopback_route_stands_under_the_feature_that_the_tests_name_with_its_marker() {
-    assert!(cfg!(feature = "loopback"));
+    const { assert!(cfg!(feature = "loopback")) };
     assert_eq!(
         super::LOOPBACK_MARKER,
         "halvo-connect-loopback-route-of-tests"

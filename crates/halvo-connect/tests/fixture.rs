@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use common::fixture::Fixture;
 use common::seed::Seed;
 use halvo_connect::{Calendar, CallError, Effect, Mail, NotMade, RunDay, Token};
+use halvo_schema::executable::names::YesNo;
+use halvo_schema::record::Instant;
 use serde_json::{json, Value};
 
 const BODY: &str = "Thank you, noted.";
@@ -17,12 +19,20 @@ fn today() -> RunDay {
 }
 
 fn cleanup_ids(seed: &Seed) -> Vec<String> {
-    seed.end("cleanup")
+    let mut ids: Vec<String> = seed
+        .end("cleanup")
         .as_array()
         .expect("end.cleanup")
         .iter()
         .map(|id| id.as_str().expect("an id").to_owned())
-        .collect()
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn sorted(mut ids: Vec<String>) -> Vec<String> {
+    ids.sort();
+    ids
 }
 
 fn requests(fixture: &Fixture) -> Value {
@@ -89,10 +99,85 @@ fn mail_list() {
             "seed {n}: the body of the first message"
         );
         assert!(
-            requests(&fixture) == counts(1, 0),
-            "seed {n}: one GET and no state change"
+            requests(&fixture) == counts(2, 0),
+            "seed {n}: one GET for each sender and no state change"
+        );
+        let left = messages.counts();
+        assert!(
+            (
+                left.reply_to_other,
+                left.before_start,
+                left.no_key,
+                left.not_to_account
+            ) == (1, 0, 0, 0),
+            "seed {n}: the message whose reply-to is its sender in another letter case"
+        );
+        assert!(
+            (
+                left.incomplete,
+                left.cut,
+                left.more_pages,
+                left.earlier_page
+            ) == (0, YesNo::No, YesNo::No, 0),
+            "seed {n}: no other count and no fact"
         );
     }
+}
+
+#[test]
+fn the_message_from_before_the_start_is_left_out_by_the_filter_and_the_rule() {
+    let fixture = Fixture::start();
+    let graph = fixture.graph("mail");
+    let early = Instant(0);
+    for n in 1..=3 {
+        fixture.reset(n, &[]);
+        let seed = Seed::load(n);
+        let before = format!("s{n}-msg-06");
+        let now: Vec<String> = graph
+            .mail_list(&seed.token(), &seed.rule())
+            .expect("mail_list answers")
+            .iter()
+            .map(|m| m.id().to_owned())
+            .collect();
+        assert!(
+            !now.contains(&before),
+            "seed {n}: left out from the start on"
+        );
+        let all: Vec<String> = graph
+            .mail_list(&seed.token(), &seed.rule_from(early))
+            .expect("mail_list answers")
+            .iter()
+            .map(|m| m.id().to_owned())
+            .collect();
+        assert!(
+            all.contains(&before),
+            "seed {n}: selected from an earlier start"
+        );
+    }
+}
+
+#[test]
+fn a_busy_service_answers_429_with_its_seconds_and_a_throttled_delete_is_not_made() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let seed = Seed::load(1);
+    let token = seed.token();
+    fixture.throttle(30);
+    assert_eq!(
+        fixture.graph("mail").mail_list(&token, &seed.rule()).err(),
+        Some(CallError::Status(429, Some(30)))
+    );
+    let calendar = fixture.graph("calendar");
+    let events = calendar
+        .calendar_list(&token, today())
+        .expect("calendar_list answers");
+    fixture.throttle(7);
+    let error = calendar
+        .calendar_delete(&token, events.into_deletes().next().expect("an event"))
+        .expect_err("a 429");
+    assert_eq!(error, CallError::Status(429, Some(7)));
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::Throttled));
+    assert!(fixture.state()["calendar"]["deleted"] == json!([]));
 }
 
 #[test]
@@ -144,7 +229,7 @@ fn mail_draft_reply() {
         );
         assert!(state["mail"]["sent"] == json!([]), "seed {n}: nothing sent");
         assert!(
-            state["requests"] == counts(5, 4),
+            state["requests"] == counts(6, 4),
             "seed {n}: createReply and PATCH once per message"
         );
     }
@@ -174,21 +259,24 @@ fn mail_send() {
         );
         assert!(state["mail"]["drafts"] == 0, "seed {n}: no draft left");
         assert!(
-            state["requests"] == counts(7, 6),
+            state["requests"] == counts(8, 6),
             "seed {n}: one send per draft"
         );
         let again = graph
             .mail_list(&token, &seed.rule())
             .expect("mail_list answers");
-        assert!(again.is_empty(), "seed {n}: the answered messages are read");
+        assert!(
+            again.len() == 2,
+            "seed {n}: a send leaves the read flag as it was"
+        );
         fixture.advance();
         let later = graph
             .mail_list(&token, &seed.rule())
             .expect("mail_list answers");
         let ids: Vec<_> = later.iter().map(|m| m.id()).collect();
         assert!(
-            ids == [seed.later("message/id")],
-            "seed {n}: the later message alone"
+            ids.contains(&seed.later("message/id")) && ids.len() == 3,
+            "seed {n}: the later message beside the two"
         );
     }
 }
@@ -205,8 +293,8 @@ fn calendar_list() {
             .expect("calendar_list answers");
         let ids: Vec<_> = events.iter().map(|e| e.id().to_owned()).collect();
         assert!(
-            ids == cleanup_ids(&seed),
-            "seed {n}: the events that the clean-up rule selects"
+            sorted(ids) == cleanup_ids(&seed),
+            "seed {n}: the events that the clean-up rule selects, in any order"
         );
         assert!(
             events
@@ -215,8 +303,22 @@ fn calendar_list() {
             "seed {n}: each subject"
         );
         assert!(
-            requests(&fixture) == counts(1, 0),
-            "seed {n}: one GET and no state change"
+            requests(&fixture) == counts(3, 0),
+            "seed {n}: three pages of two events and no state change"
+        );
+        let left = events.counts();
+        assert!(
+            (
+                left.organized,
+                left.no_key,
+                left.incomplete,
+                left.earlier_page
+            ) == (1, 0, 0, 0),
+            "seed {n}: the cancelled event that the person organized"
+        );
+        assert!(
+            (left.cut, left.more_pages) == (YesNo::No, YesNo::No),
+            "seed {n}: no fact"
         );
     }
 }
@@ -238,12 +340,18 @@ fn calendar_delete() {
                 .expect("calendar_delete answers");
         }
         let state = fixture.state();
+        let deleted: Vec<String> = state["calendar"]["deleted"]
+            .as_array()
+            .expect("deleted")
+            .iter()
+            .map(|id| id.as_str().expect("an id").to_owned())
+            .collect();
         assert!(
-            state["calendar"]["deleted"] == *seed.end("cleanup"),
-            "seed {n}: calendar.deleted equals end.cleanup"
+            sorted(deleted) == cleanup_ids(&seed),
+            "seed {n}: calendar.deleted holds the ids of end.cleanup"
         );
         assert!(
-            state["requests"] == counts(3, 2),
+            state["requests"] == counts(5, 2),
             "seed {n}: one DELETE per event"
         );
         let again = graph

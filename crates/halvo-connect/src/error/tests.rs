@@ -26,7 +26,9 @@ fn effect_of_each_error() {
         (CallError::Status(503, None), Effect::Unknown),
         (CallError::NoAnswer, Effect::Unknown),
         (CallError::Answer(AnswerFault::Form), Effect::Unknown),
-        (CallError::Answer(AnswerFault::Paged), Effect::Unknown),
+        (CallError::Answer(AnswerFault::Link), Effect::Unknown),
+        (CallError::Answer(AnswerFault::Page), Effect::Unknown),
+        (CallError::Answer(AnswerFault::Draft), Effect::Unknown),
         (CallError::Answer(AnswerFault::Repeated), Effect::Unknown),
         (CallError::Answer(AnswerFault::Id), Effect::Unknown),
         (CallError::Answer(AnswerFault::Item), Effect::Unknown),
@@ -106,8 +108,16 @@ fn texts() {
             "the answer is not of the form of the face",
         ),
         (
-            CallError::Answer(AnswerFault::Paged),
-            "the answer goes on in another page",
+            CallError::Answer(AnswerFault::Link),
+            "the answer links to a page of another place",
+        ),
+        (
+            CallError::Answer(AnswerFault::Page),
+            "the answer holds more items than the page size",
+        ),
+        (
+            CallError::Answer(AnswerFault::Draft),
+            "the answer of createReply is not a draft",
         ),
         (
             CallError::Answer(AnswerFault::Repeated),

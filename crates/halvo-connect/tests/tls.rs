@@ -106,6 +106,7 @@ fn a_certificate_that_the_system_does_not_trust_ends_the_call_before_any_request
         let rule = ReplyRule::new(
             "me@home.test".to_owned(),
             reply_senders("ann@people.test").expect("a sender"),
+            halvo_schema::record::Instant(0),
         );
         let began = Instant::now();
         let error = graph

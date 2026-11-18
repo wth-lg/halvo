@@ -1,12 +1,15 @@
 use std::num::NonZeroUsize;
 
+use halvo_schema::executable::names::YesNo;
+use halvo_schema::record::Instant;
 use serde_json::{json, Value};
 
-use super::{kept, Draft, DraftToSend, Drafts, Message, Messages, ReplyRule, Senders};
-use crate::error::{AnswerFault, CallError};
+use super::{
+    verdict, Draft, DraftToSend, Drafts, MailCounts, Message, Messages, ReplyRule, Senders, Verdict,
+};
 use crate::{reply_senders, same_address, SendersError};
 
-const FORM: Result<Vec<String>, CallError> = Err(CallError::Answer(AnswerFault::Form));
+const NOV_18_2026_10_00: i64 = 1_794_996_000;
 
 fn senders(slot: &str) -> Senders {
     reply_senders(slot).expect("senders that the reader takes")
@@ -16,7 +19,20 @@ fn rule() -> ReplyRule {
     ReplyRule::new(
         "me@home.test".to_owned(),
         senders("ann@people.test, Bob@People.test"),
+        Instant(NOV_18_2026_10_00 * 1_000_000_000 + 999_999_999),
     )
+}
+
+fn kind(item: &Value) -> &'static str {
+    match verdict(item, &rule()) {
+        Verdict::Kept(_) => "kept",
+        Verdict::Other => "other",
+        Verdict::NoKey => "no_key",
+        Verdict::BeforeStart => "before_start",
+        Verdict::NotToAccount => "not_to_account",
+        Verdict::Incomplete => "incomplete",
+        Verdict::ReplyToOther => "reply_to_other",
+    }
 }
 
 fn message(id: &str, is_read: bool, from: &str, to: &[&str]) -> Value {
@@ -28,11 +44,10 @@ fn message(id: &str, is_read: bool, from: &str, to: &[&str]) -> Value {
         "from": {"emailAddress": {"address": from}},
         "toRecipients": to.iter().map(|a| json!({"emailAddress": {"address": a}})).collect::<Vec<_>>(),
         "body": {"content": format!("b-{id}")},
+        "replyTo": [],
+        "receivedDateTime": "2026-11-18T10:00:00Z",
+        "isReadReceiptRequested": false,
     })
-}
-
-fn ids(answer: &Value) -> Result<Vec<String>, CallError> {
-    kept(answer, &rule()).map(|list| list.kept.into_iter().map(|m| m.id).collect())
 }
 
 #[test]
@@ -84,7 +99,7 @@ fn two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too() {
         match reply_senders(a) {
             Ok(listed) => {
                 as_sender += 1;
-                let rule = ReplyRule::new("me@home.test".to_owned(), listed);
+                let rule = ReplyRule::new("me@home.test".to_owned(), listed, Instant(0));
                 assert_eq!(
                     rule.selects(false, b, &["me@home.test".to_owned()]),
                     same,
@@ -93,7 +108,7 @@ fn two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too() {
             }
             Err(fault) => assert_eq!(fault, SendersError::NotAscii(NonZeroUsize::MIN), "{a}"),
         }
-        let as_account = ReplyRule::new(a.to_owned(), senders("ann@people.test"));
+        let as_account = ReplyRule::new(a.to_owned(), senders("ann@people.test"), Instant(0));
         assert_eq!(
             as_account.selects(false, "ann@people.test", &[b.to_owned()]),
             same,
@@ -104,78 +119,129 @@ fn two_addresses_are_one_without_regard_to_ascii_case_alone_in_the_rule_too() {
 }
 
 #[test]
-fn a_list_keeps_the_selected_messages_in_the_order_of_the_answer() {
-    let answer = json!({"value": [
-        message("m1", false, "bob@people.test", &["me@home.test"]),
-        message("m2", true, "ann@people.test", &["me@home.test"]),
-        message("m3", false, "ann@people.test", &["x@home.test"]),
-        message("m4", false, "ann@people.test", &["x@home.test", "me@home.test"]),
-        message("m5", false, "eve@people.test", &["me@home.test"]),
-    ]});
-    assert_eq!(ids(&answer), Ok(vec!["m1".to_owned(), "m4".to_owned()]));
-    let list = kept(&answer, &rule()).expect("a list");
-    assert_eq!(list.listed, ["m1", "m2", "m3", "m4", "m5"]);
-    let first = &list.kept[0];
+fn the_filter_names_the_sender_quoted_and_the_start_cut_to_its_whole_second() {
+    let rule = rule();
     assert_eq!(
-        (
-            first.conversation(),
-            first.subject(),
-            first.sender(),
-            first.body()
-        ),
-        ("c-m1", "s-m1", "bob@people.test", "b-m1")
+        rule.chain("o'neil@people.test"),
+        "/v1.0/me/mailFolders/inbox/messages?$filter=isRead%20eq%20false%20and%20from%2FemailAddress%2Faddress%20eq%20%27o%27%27neil%40people.test%27%20and%20receivedDateTime%20ge%202026-11-18T10%3A00%3A00Z&$top=25&$select=id%2CisRead%2Cfrom%2CtoRecipients%2CreplyTo%2CreceivedDateTime%2CconversationId%2Csubject%2Cbody%2CisReadReceiptRequested"
     );
-    assert_eq!(ids(&json!({"value": []})), Ok(Vec::new()));
+    let before_1970 = ReplyRule::new("me@home.test".to_owned(), senders("a@b"), Instant(-1));
+    assert!(before_1970
+        .chain("a@b")
+        .contains("ge%201969-12-31T23%3A59%3A59Z"));
 }
 
 #[test]
-fn a_paged_list_is_refused() {
-    let answer = json!({
-        "value": [message("m1", false, "ann@people.test", &["me@home.test"])],
-        "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skip=10",
-    });
-    assert_eq!(ids(&answer), Err(CallError::Answer(AnswerFault::Paged)));
-}
-
-#[test]
-fn a_repeated_id_is_refused_also_outside_the_rule() {
-    let answer = json!({"value": [
-        message("m1", true, "eve@people.test", &["me@home.test"]),
-        message("m2", false, "ann@people.test", &["me@home.test"]),
-        message("m1", true, "eve@people.test", &["me@home.test"]),
-    ]});
-    assert_eq!(ids(&answer), Err(CallError::Answer(AnswerFault::Repeated)));
-}
-
-#[test]
-fn an_id_that_a_path_would_lose_is_refused() {
-    for id in ["", ".", ".."] {
-        let answer = json!({"value": [message(id, true, "eve@people.test", &[])]});
-        assert_eq!(
-            ids(&answer),
-            Err(CallError::Answer(AnswerFault::Id)),
-            "{id}"
+fn every_byte_that_the_rule_for_a_sender_takes_is_quoted_and_encoded() {
+    let rule = rule();
+    for byte in 0x21u8..0x7f {
+        let sender = format!("a{}b@people.test", char::from(byte));
+        if reply_senders(&sender).is_err() {
+            continue;
+        }
+        let chain = rule.chain(&sender);
+        let query = chain.split_once('?').expect("a query").1;
+        assert_eq!(query.matches('&').count(), 2, "{sender}");
+        assert!(
+            query
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"$=&%-._~".contains(&b)),
+            "{sender}"
         );
     }
-    let answer = json!({"value": [message("...", false, "ann@people.test", &["me@home.test"])]});
-    assert_eq!(ids(&answer), Ok(vec!["...".to_owned()]));
 }
 
 #[test]
-fn each_key_of_the_face_is_needed() {
+fn the_rule_selects_from_the_start_second_on_and_counts_an_earlier_or_unreadable_time() {
+    let at = |time: &str| {
+        let mut item = message("m1", false, "ann@people.test", &["me@home.test"]);
+        item["receivedDateTime"] = json!(time);
+        kind(&item)
+    };
+    assert_eq!(at("2026-11-18T10:00:00Z"), "kept");
+    assert_eq!(at("2026-11-18T10:00:00.9999999Z"), "kept");
+    assert_eq!(at("2026-11-18T10:00:01Z"), "kept");
+    assert_eq!(at("2026-11-18T09:59:59.9999999Z"), "before_start");
+    assert_eq!(at("2025-11-18T10:00:00Z"), "before_start");
+    for unreadable in [
+        "2026-11-18T10:00:00",
+        "2026-11-18T10:00:00+00:00",
+        "2026-11-18 10:00:00Z",
+        "2026-11-18T10:00:60Z",
+        "2026-11-18T10:00:00ZZ",
+        "",
+    ] {
+        assert_eq!(at(unreadable), "no_key", "{unreadable}");
+    }
+    let mut none = message("m1", false, "ann@people.test", &["me@home.test"]);
+    none.as_object_mut()
+        .expect("an object")
+        .remove("receivedDateTime");
+    assert_eq!(kind(&none), "no_key");
+    none["receivedDateTime"] = json!(null);
+    assert_eq!(kind(&none), "no_key");
+}
+
+#[test]
+fn a_message_stands_in_the_first_count_that_fits() {
+    let plain = || message("m1", false, "ann@people.test", &["me@home.test"]);
+    assert_eq!(kind(&plain()), "kept");
+    assert_eq!(
+        kind(&message("m1", true, "ann@people.test", &["me@home.test"])),
+        "other"
+    );
+    assert_eq!(
+        kind(&message("m1", false, "eve@people.test", &["me@home.test"])),
+        "other"
+    );
+    assert_eq!(
+        kind(&message("m1", false, "ann@people.test", &["x@home.test"])),
+        "not_to_account"
+    );
+    let mut early_elsewhere = message("m1", false, "ann@people.test", &["x@home.test"]);
+    early_elsewhere["receivedDateTime"] = json!("2026-01-01T00:00:00Z");
+    assert_eq!(kind(&early_elsewhere), "before_start");
+    let mut early_unread_other = message("m1", true, "ann@people.test", &["me@home.test"]);
+    early_unread_other["receivedDateTime"] = json!("2026-01-01T00:00:00Z");
+    assert_eq!(kind(&early_unread_other), "other");
+    for pointer in [
+        "/conversationId",
+        "/body/content",
+        "/isReadReceiptRequested",
+    ] {
+        let mut item = plain();
+        let (parent, key) = pointer.rsplit_once('/').expect("a pointer");
+        let target = if parent.is_empty() {
+            &mut item
+        } else {
+            item.pointer_mut(parent).expect("the parent")
+        };
+        target.as_object_mut().expect("an object").remove(key);
+        assert_eq!(kind(&item), "incomplete", "{pointer}");
+        item["replyTo"] = json!([{"emailAddress": {"address": "eve@people.test"}}]);
+        assert_eq!(kind(&item), "incomplete", "{pointer} before reply_to_other");
+    }
+    let mut odd_subject = plain();
+    odd_subject["subject"] = json!(["s"]);
+    assert_eq!(kind(&odd_subject), "incomplete");
+    let mut elsewhere_and_other = message("m1", false, "ann@people.test", &["x@home.test"]);
+    elsewhere_and_other["replyTo"] = json!([{"emailAddress": {"address": "eve@people.test"}}]);
+    assert_eq!(kind(&elsewhere_and_other), "not_to_account");
+}
+
+#[test]
+fn an_item_without_an_id_or_a_key_that_the_rule_reads_counts_in_no_key() {
     let whole = message("m1", false, "ann@people.test", &["me@home.test"]);
     for pointer in [
         "/id",
-        "/conversationId",
-        "/subject",
         "/isRead",
         "/from",
         "/from/emailAddress",
         "/from/emailAddress/address",
         "/toRecipients",
         "/toRecipients/0/emailAddress/address",
-        "/body",
-        "/body/content",
+        "/replyTo",
+        "/receivedDateTime",
     ] {
         let mut item = whole.clone();
         let (parent, key) = pointer.rsplit_once('/').expect("a pointer");
@@ -189,25 +255,102 @@ fn each_key_of_the_face_is_needed() {
             .expect("an object")
             .remove(key)
             .expect("the key");
-        assert_eq!(ids(&json!({"value": [item]})), FORM, "{pointer}");
+        assert_eq!(kind(&item), "no_key", "{pointer}");
     }
     for (pointer, value) in [
+        ("/id", json!(1)),
         ("/isRead", json!("false")),
-        ("/subject", json!(null)),
         ("/toRecipients", json!({})),
+        ("/replyTo", json!(null)),
+        ("/replyTo", json!([{"emailAddress": {}}])),
     ] {
         let mut item = whole.clone();
         *item.pointer_mut(pointer).expect("the key") = value;
-        assert_eq!(ids(&json!({"value": [item]})), FORM, "{pointer}");
+        assert_eq!(kind(&item), "no_key", "{pointer}");
     }
-    for answer in [
-        json!([]),
-        json!({}),
-        json!({"value": {}}),
-        json!({"value": null}),
-    ] {
-        assert_eq!(ids(&answer), FORM);
+    let mut read = message("m1", true, "eve@people.test", &["me@home.test"]);
+    read.as_object_mut().expect("an object").remove("replyTo");
+    assert_eq!(kind(&read), "no_key", "the keys count before the rule");
+}
+
+#[test]
+fn a_subject_that_is_null_or_missing_reads_as_empty() {
+    let mut item = message("m1", false, "ann@people.test", &["me@home.test"]);
+    item["subject"] = json!(null);
+    let Verdict::Kept(kept) = verdict(&item, &rule()) else {
+        panic!("kept");
+    };
+    assert_eq!(kept.subject(), "");
+    item.as_object_mut().expect("an object").remove("subject");
+    assert_eq!(kind(&item), "kept");
+}
+
+#[test]
+fn a_reply_to_is_held_against_the_sender_byte_for_byte() {
+    let rows = [
+        (json!([]), "kept"),
+        (
+            json!([{"emailAddress": {"address": "Ann@people.test"}}]),
+            "kept",
+        ),
+        (
+            json!([{"emailAddress": {"address": "ann@people.test"}}]),
+            "reply_to_other",
+        ),
+        (
+            json!([{"emailAddress": {"address": "Ann@People.test"}}]),
+            "reply_to_other",
+        ),
+        (
+            json!([{"emailAddress": {"address": "Ann@people.test "}}]),
+            "reply_to_other",
+        ),
+        (
+            json!([{"emailAddress": {"address": "eve@people.test"}}]),
+            "reply_to_other",
+        ),
+        (
+            json!([
+                {"emailAddress": {"address": "Ann@people.test"}},
+                {"emailAddress": {"address": "eve@people.test"}}
+            ]),
+            "reply_to_other",
+        ),
+        (
+            json!([{"emailAddress": {"address": "Ann@people.test", "name": "Eve"}}]),
+            "kept",
+        ),
+    ];
+    for (reply_to, want) in rows {
+        let mut item = message("m1", false, "Ann@people.test", &["me@home.test"]);
+        item["replyTo"] = reply_to.clone();
+        assert_eq!(kind(&item), want, "{reply_to}");
     }
+}
+
+#[test]
+fn a_kept_message_holds_what_the_provider_gave() {
+    let mut item = message(
+        "m1",
+        false,
+        "Bob@people.test",
+        &["x@home.test", "ME@HOME.test"],
+    );
+    item["isReadReceiptRequested"] = json!(true);
+    let Verdict::Kept(kept) = verdict(&item, &rule()) else {
+        panic!("kept");
+    };
+    assert_eq!(
+        (
+            kept.id(),
+            kept.conversation(),
+            kept.subject(),
+            kept.sender(),
+            kept.body(),
+            kept.asks_receipt()
+        ),
+        ("m1", "c-m1", "s-m1", "Bob@people.test", "b-m1", true)
+    );
 }
 
 #[test]
@@ -218,6 +361,7 @@ fn debug_prints_no_value() {
         subject: "s1".to_owned(),
         sender: "ann@people.test".to_owned(),
         body: "b1".to_owned(),
+        receipt: false,
     };
     let draft = Draft {
         id: "d1".to_owned(),
@@ -233,6 +377,16 @@ fn debug_prints_no_value() {
             Messages {
                 kept: vec![message],
                 listed: vec!["m1".to_owned()],
+                counts: MailCounts {
+                    before_start: 0,
+                    cut: YesNo::No,
+                    no_key: 0,
+                    not_to_account: 0,
+                    incomplete: 0,
+                    reply_to_other: 0,
+                    more_pages: YesNo::No,
+                    earlier_page: 0,
+                },
             }
         ),
         "Messages { len: 1 }"

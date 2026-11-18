@@ -26,10 +26,15 @@ pub enum CallError {
 pub enum AnswerFault {
     /// The body is not JSON of the form that the operation reads.
     Form,
-    /// The list goes on in another page (`@odata.nextLink`), which no operation requests.
-    Paged,
-    /// Two items of the list have the same id.
+    /// A link to a next page (`@odata.nextLink`) is not of the request's scheme, host and port, or its path names
+    /// another collection; the token is never sent to it.
+    Link,
+    /// A page holds more items than the page size that the request asked for.
+    Page,
+    /// Two items of one page have the same id.
     Repeated,
+    /// The answer of createReply is not a draft: it does not carry `isDraft` true.
+    Draft,
     /// An id is empty, `.` or `..`.
     Id,
     /// The answer names another item than the one that the request addressed.
@@ -95,8 +100,10 @@ impl fmt::Display for CallError {
             CallError::NoAnswer => f.write_str("no whole answer came within the time limit"),
             CallError::Answer(fault) => f.write_str(match fault {
                 AnswerFault::Form => "the answer is not of the form of the face",
-                AnswerFault::Paged => "the answer goes on in another page",
+                AnswerFault::Link => "the answer links to a page of another place",
+                AnswerFault::Page => "the answer holds more items than the page size",
                 AnswerFault::Repeated => "the answer holds one id twice",
+                AnswerFault::Draft => "the answer of createReply is not a draft",
                 AnswerFault::Id => "the answer holds an id that is empty, . or ..",
                 AnswerFault::Item => "the answer names another item than the request",
                 AnswerFault::Size => "the answer is longer than 33554432 bytes",

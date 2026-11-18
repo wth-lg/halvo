@@ -104,6 +104,10 @@ impl Fixture {
         self.control("POST", "/advance");
     }
 
+    pub fn throttle(&self, seconds: u32) {
+        self.control("POST", &format!("/throttle?seconds={seconds}"));
+    }
+
     pub fn state(&self) -> Value {
         self.control("GET", "/state")
     }

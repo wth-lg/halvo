@@ -160,6 +160,34 @@ impl Graph {
         self.send(token, method, path, None, success).map(drop)
     }
 
+    pub(crate) fn url(&self, path: &str) -> Result<Url, CallError> {
+        Url::parse(&format!("{}{path}", self.origin)).map_err(|_| CallError::NotSent)
+    }
+
+    pub(crate) fn page(&self, token: &Token, url: &Url) -> Result<Value, CallError> {
+        let response = self.send_url(token, Method::GET, url.clone(), None, 200)?;
+        let bytes = read_bounded(response)?;
+        serde_json::from_slice(&bytes).map_err(|_| FORM)
+    }
+
+    pub(crate) fn next(&self, link: &str, collection: Collection) -> Result<Url, CallError> {
+        let fault = CallError::Answer(AnswerFault::Link);
+        let url = Url::parse(link).map_err(|_| fault)?;
+        let origin = Url::parse(&self.origin).map_err(|_| fault)?;
+        let same = url.scheme() == origin.scheme()
+            && url.host_str() == origin.host_str()
+            && url.port_or_known_default() == origin.port_or_known_default()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.fragment().is_none()
+            && collection.takes(url.path());
+        if same {
+            Ok(url)
+        } else {
+            Err(fault)
+        }
+    }
+
     fn send(
         &self,
         token: &Token,
@@ -168,10 +196,22 @@ impl Graph {
         body: Option<&Value>,
         success: u16,
     ) -> Result<Response, CallError> {
+        self.send_url(token, method, self.url(path)?, body, success)
+    }
+
+    fn send_url(
+        &self,
+        token: &Token,
+        method: Method,
+        url: Url,
+        body: Option<&Value>,
+        success: u16,
+    ) -> Result<Response, CallError> {
         let mut request = self
             .client
-            .request(method, format!("{}{path}", self.origin))
+            .request(method, url)
             .bearer_auth(token.value())
+            .header("Prefer", PREFER)
             .timeout(self.timeout);
         if let Some(body) = body {
             request = request
@@ -191,6 +231,29 @@ impl Graph {
             status @ (429 | 500..=599) => Err(CallError::Status(status, retry_after(&response))),
             status => Err(CallError::Status(status, None)),
         }
+    }
+}
+
+const PREFER: &str = "IdType=\"ImmutableId\"";
+
+#[derive(Clone, Copy)]
+pub(crate) enum Collection {
+    Inbox,
+    CalendarView,
+}
+
+impl Collection {
+    fn takes(self, path: &str) -> bool {
+        let spellings: &[&str] = match self {
+            Collection::Inbox => &[
+                "/v1.0/me/mailFolders/inbox/messages",
+                "/v1.0/me/mailFolders('inbox')/messages",
+            ],
+            Collection::CalendarView => &["/v1.0/me/calendarView"],
+        };
+        spellings
+            .iter()
+            .any(|spelling| spelling.eq_ignore_ascii_case(path))
     }
 }
 
