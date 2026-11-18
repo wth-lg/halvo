@@ -94,6 +94,9 @@ def full(cp):
     return parts
 
 
+BELOW_CLASSES = (202, 218, 220, 222, 233)
+
+
 def decomposed(cp):
     f = full(cp)
     if f == [cp]:
@@ -101,26 +104,32 @@ def decomposed(cp):
     k = sum(1 for x in f if u.category(chr(x)).startswith("M"))
     if not k:
         return None
-    return (k, "true" if not u.category(chr(f[0])).startswith("M") else "false")
+    below = sum(1 for x in f if u.combining(chr(x)) in BELOW_CLASSES)
+    return (k, "true" if not u.category(chr(f[0])).startswith("M") else "false", below)
 
 
 out += [
     "",
     "/// The code points whose canonical decomposition in Unicode 13.0.0 holds marks of the",
     "/// general category M: each range with the count of those marks and whether a character that",
-    "/// is no mark starts the decomposition.",
-    "const DECOMPOSED: &[(u32, u32, u8, bool)] = &[",
+    "/// is no mark starts the decomposition, and the count of its marks of a below class.",
+    "const DECOMPOSED: &[(u32, u32, u8, bool, u8)] = &[",
 ]
 start = None
 for cp in range(0x110000 + 1):
     d = decomposed(cp) if cp < 0x110000 else None
     if start is not None and (d != start[1] or cp != prev + 1):
-        out.append("    (0x%04X, 0x%04X, %d, %s)," % (start[0], prev, start[1][0], start[1][1]))
+        out.append("    (0x%04X, 0x%04X, %d, %s, %d)," % (start[0], prev, start[1][0], start[1][1], start[1][2]))
         start = None
     if d is not None and start is None:
         start = (cp, d)
     prev = cp
 out.append("];")
+out += table(
+    "/// The code points of the canonical combining classes 202, 218, 220, 222 and 233 (marks below) of Unicode 13.0.0.",
+    "BELOW",
+    lambda c: u.combining(c) in BELOW_CLASSES,
+)
 sys.stdout.write("\n".join(out[1:]) + "\n")
 "#;
 
@@ -946,7 +955,7 @@ fn rd131_every_mark_of_category_m_counts_and_more_than_three_in_a_row_are_refuse
             ],
         )
     };
-    for code in [0x301, 0x316, 0x489, 0x93E] {
+    for code in [0x301, 0x302, 0x489, 0x93E] {
         let m = c(code).to_string();
         assert!(
             admits(&native(&format!("Re{}", m.repeat(3))), &table),
@@ -1279,12 +1288,12 @@ fn rd137_m1_marks_count_on_the_canonical_decomposition() {
         !admits(&signed_by("Ann \u{1eb6}\u{316}\u{316}"), &table),
         "a deciding value"
     );
-    for value in ["R\u{1eb6}\u{316}", "Nguy\u{1ec5}n", "\u{1eb6}"] {
+    for value in ["R\u{1eb6}\u{301}", "Nguy\u{1ec5}n", "\u{1eb6}"] {
         assert!(admits(&sign_and_send(value), &table), "{value:?}");
     }
     assert!(admits(&signed_by("Nguy\u{1ec5}n \u{1eb6}"), &table));
-    assert!(!composed("x\u{1eb6}\u{316}\u{316}", 40));
-    assert!(composed("x\u{1eb6}\u{316}", 40));
+    assert!(!composed("x\u{1eb6}\u{301}\u{301}", 40));
+    assert!(composed("x\u{1eb6}\u{301}", 40));
 }
 
 #[test]
@@ -1320,4 +1329,44 @@ fn rd137_m2_a_mark_with_no_base_before_it_is_refused_at_the_raise() {
         effect(1, Class::Sign, fields_of(Class::Sign)),
         effect(2, Class::Send, sent),
     ]);
+}
+
+#[test]
+fn rd137_m3_one_mark_of_a_below_class_in_a_row() {
+    let table = Table::new();
+    assert_eq!(chars::MOST_BELOW, 1);
+    for code in [0x316, 0x323, 0x328, 0x331, 0x347, 0x353, 0x359, 0x35C] {
+        assert!(chars::below(c(code)), "U+{code:04X}");
+        let m = c(code).to_string();
+        assert!(
+            admits(&sign_and_send(&format!("gy{m}")), &table),
+            "U+{code:04X} x1"
+        );
+        assert!(
+            !admits(&sign_and_send(&format!("gy{}", m.repeat(2))), &table),
+            "U+{code:04X} x2"
+        );
+        assert!(composed(&format!("gy{m}"), 40), "U+{code:04X} x1 deciding");
+        assert!(
+            !composed(&format!("gy{}", m.repeat(2)), 40),
+            "U+{code:04X} x2 deciding"
+        );
+    }
+    for code in [0x301, 0x302, 0x489, 0x93C, 0x650, 0x93E] {
+        assert!(!chars::below(c(code)), "U+{code:04X}");
+    }
+    assert_eq!(
+        chars::below_in_a_row("\u{1ea1}\u{316}"),
+        2,
+        "a with dot below, then a mark below"
+    );
+    assert!(!admits(&sign_and_send("R\u{1ea1}\u{316}"), &table));
+    assert!(
+        admits(&sign_and_send("y\u{316}\u{301}\u{301}"), &table),
+        "one below, two above"
+    );
+    assert!(
+        admits(&signed_by("Vi\u{1ec7}t \u{1eb9}\u{301}"), &table),
+        "Vietnamese and Yoruba"
+    );
 }

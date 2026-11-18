@@ -1,4 +1,6 @@
-use super::chars::{columns, composed, marks_in_a_row, no_form, orphan_mark, MOST_MARKS};
+use super::chars::{
+    below_in_a_row, columns, composed, marks_in_a_row, no_form, orphan_mark, MOST_BELOW, MOST_MARKS,
+};
 use super::drive::Held;
 use super::key::{say, Key};
 use super::presenter::request_presenter;
@@ -423,8 +425,9 @@ pub fn admits(ask: &ConfirmAsk, table: &Table) -> bool {
 /// value, its pieces joined with nothing; a field with no value is its label alone; an empty
 /// line stands between two fields. `malformed` for a field whose source text is empty, a line
 /// that holds a character with no visible form (`chars::no_form`), more than
-/// `chars::MOST_MARKS` marks in a row on its canonical decomposition (ruling RD-131 item 1,
-/// ruling RD-137 M1), a mark with no base before it (ruling RD-137 M2) or more than
+/// `chars::MOST_MARKS` marks or more than `chars::MOST_BELOW` marks of a below class in a row on
+/// its canonical decomposition (ruling RD-131 item 1, ruling RD-137 M1 and M3), a mark with no
+/// base before it (ruling RD-137 M2) or more than
 /// `CARD_COLUMNS` columns, and more than `CARD_LINES` lines.
 pub fn native_lines(fields: &[Field]) -> Result<Vec<String>, Cause> {
     let mut lines = Vec::new();
@@ -442,6 +445,7 @@ pub fn native_lines(fields: &[Field]) -> Result<Vec<String>, Cause> {
         };
         if line.chars().any(no_form)
             || marks_in_a_row(&line) > MOST_MARKS
+            || below_in_a_row(&line) > MOST_BELOW
             || orphan_mark(&line)
             || columns(&line) > CARD_COLUMNS
         {
