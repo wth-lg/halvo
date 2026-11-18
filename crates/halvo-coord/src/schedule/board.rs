@@ -240,6 +240,16 @@ impl<C> Board<C> {
         }
     }
 
+    /// Forgets the defers of every run that stands on the board after a tick that did not
+    /// return, whose defer may or may not have been acknowledged, so that each such run's
+    /// `run_ended` writes both keys null, which says not known, and no lower bound stands as a
+    /// count (I7.1; rulings RD-80 4.1, RD-86 items 1 and 2, RD-122).
+    pub(crate) fn defers_not_known(&mut self) {
+        let runs = &self.runs;
+        self.defers
+            .retain(|(run, _)| !runs.iter().any(|r| &r.run == run));
+    }
+
     /// What this life saw of the run's defers, or none where it did not see the run whole.
     pub(crate) fn defers(&self, run: &RunId) -> Option<Defers> {
         self.defers.iter().find(|(r, _)| r == run).map(|(_, d)| *d)

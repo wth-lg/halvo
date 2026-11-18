@@ -8202,6 +8202,19 @@ fn armed_confirmation() -> (Coordinator<Both>, RunId, ItemId) {
     (c, run, item)
 }
 
+fn ended_in_store(c: &Coordinator<Both>, run: &RunId, outcome: Outcome) {
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome,
+            unknown: 0,
+        },
+    );
+    c.tick();
+}
+
 fn same_state(a: &Snapshot, b: &Snapshot) -> bool {
     a.rows == b.rows && a.items == b.items && a.note == b.note
 }
@@ -8363,4 +8376,35 @@ fn rd80_a_first_tick_that_panics_leaves_the_stand_in() {
     assert!(s.rows.is_empty() && s.items.is_empty());
     assert_eq!(s.note, Some(text("note.no_service")));
     assert_eq!(c.control(&agent(0), Action::RunNow), Err(Cause::NoService));
+}
+
+#[test]
+fn rd122_a_run_that_stood_through_a_tick_that_did_not_return_ends_with_its_defers_not_known() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.tick();
+    tick_that_panics(&c);
+    c.tick();
+    c.ports().ports.end_runner(&run);
+    c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    assert!(events(&c).contains(&What::RunEnded {
+        run: run.clone(),
+        cause: RunEnd::Completed,
+        defers: None
+    }));
+    ended_in_store(&c, &run, Outcome::Completed);
+    let next = start(&c, 0);
+    c.tick();
+    c.ports().ports.end_runner(&next);
+    c.on_run(&next, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    assert!(
+        events(&c).contains(&What::RunEnded {
+            run: next,
+            cause: RunEnd::Completed,
+            defers: SEEN_WHOLE
+        }),
+        "a run that started after the mark went is seen whole"
+    );
 }

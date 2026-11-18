@@ -82,11 +82,13 @@ struct State<C> {
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
 /// until the first publish after such a move, which raises `seq` also when nothing differs;
 /// `tick` from a tick that did not return until a tick returns, while every publish carries the
-/// note `note.out_of_date`.
+/// note `note.out_of_date`; `defers` from such a tick until the next move forgets the defers of
+/// the runs on the board (ruling RD-122).
 #[derive(Clone, Copy, Default)]
 struct Mark {
     unpublished: bool,
     tick: bool,
+    defers: bool,
 }
 
 /// How a call takes the coordinator's lock: a tick, another move, or a call that reads or
@@ -128,6 +130,7 @@ impl<P: Owner + Page> Drop for Entered<'_, P> {
         self.st.mark.unpublished = true;
         if self.entry == Entry::Tick {
             self.st.mark.tick = true;
+            self.st.mark.defers = true;
         }
         let _ = self.ports.changed();
     }
@@ -317,14 +320,18 @@ where
         &self.ports
     }
 
-    /// Takes the lock for a call; the first call after a move that did not return publishes
-    /// first, before its own work (ruling RD-80 3.4, 4.2).
+    /// Takes the lock for a call. A move first takes up what a move that did not return left;
+    /// then the first call after such a move publishes, before its own work (ruling RD-80 3.4,
+    /// 4.2).
     fn enter(&self, entry: Entry) -> Entered<'_, P> {
         let mut st = Entered {
             st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
             ports: &self.ports,
             entry,
         };
+        if entry != Entry::Read {
+            self.take_up(&mut st);
+        }
         if st.mark.unpublished {
             self.publish(&mut st);
         }
@@ -333,6 +340,17 @@ where
 
     fn lock(&self) -> Entered<'_, P> {
         self.enter(Entry::Read)
+    }
+
+    /// What a move takes up first after a move that did not return: after a tick, the defers of
+    /// the runs on the board are not known (ruling RD-122).
+    fn take_up(&self, st: &mut State<Cfg<P>>) {
+        if st.mark.defers {
+            st.mark.defers = false;
+            if let Some(board) = st.board.as_mut() {
+                board.defers_not_known();
+            }
+        }
     }
 
     /// One tick (I5.9): the recovery of I5.8 at the first, the creation move of I5.5, the run
