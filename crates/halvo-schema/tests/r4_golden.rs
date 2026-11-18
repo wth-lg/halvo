@@ -352,12 +352,21 @@ fn written_equals_committed(name: &str, lines: &[String]) {
     let held = leaf(&format!("r4-golden-{}", file.replace('.', "-")));
     let out = held.path().join(&file);
     std::fs::write(&out, &text).unwrap();
+    let built = std::fs::read(&out).unwrap();
     let committed = std::fs::read(committed_path(name)).unwrap_or_default();
-    if committed != text.as_bytes() {
-        held.keep();
+    if committed != built {
+        let committed = String::from_utf8_lossy(&committed);
+        let built = String::from_utf8_lossy(&built);
+        let line = committed
+            .lines()
+            .zip(built.lines())
+            .position(|(a, b)| a != b)
+            .unwrap_or_else(|| committed.lines().count().min(built.lines().count()));
         panic!(
-            "{name} differs from what the writers write, which stands at {}",
-            out.display()
+            "{name} differs from what the writers write, first at line {}: the committed file holds {:?} and the writers write {:?}",
+            line + 1,
+            committed.lines().nth(line).unwrap_or_default(),
+            built.lines().nth(line).unwrap_or_default()
         );
     }
 }
@@ -504,12 +513,6 @@ fn leaf(word: &str) -> Leaf {
     }
 }
 
-impl Leaf {
-    fn keep(self) {
-        std::mem::forget(self);
-    }
-}
-
 #[test]
 fn leaf_two_calls_give_two_paths() {
     let first = leaf("r4-golden-leaf");
@@ -564,50 +567,30 @@ fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
 }
 
 #[test]
-fn leaf_of_a_file_that_differs_stands_after_the_failure() {
-    let caught = std::panic::catch_unwind(|| {
-        written_equals_committed("no-such-golden-file", &["x".to_owned()])
+fn leaf_of_a_file_that_differs_is_gone_after_the_failure() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("differ") {
+        leaf_child(
+            "leaf_of_a_file_that_differs_is_gone_after_the_failure",
+            "differ",
+            false,
+        );
+        return;
+    }
+    let mut message = String::new();
+    let left = entries_added_by(|| {
+        let caught = std::panic::catch_unwind(|| {
+            written_equals_committed("no-such-golden-file", &["x".to_owned()])
+        });
+        message = *caught
+            .err()
+            .and_then(|payload| payload.downcast::<String>().ok())
+            .expect("a failure with a message");
     });
-    let message = caught
-        .err()
-        .and_then(|payload| payload.downcast::<String>().ok())
-        .expect("a failure with a message");
-    let out = kept_path(&message).unwrap_or_else(|| panic!("no kept leaf in: {message}"));
-    let leaf = out.parent().unwrap().to_path_buf();
-    let held = Leaf(leaf.clone());
-    assert!(out.is_file(), "{message}");
-    drop(held);
-    assert!(!leaf.exists(), "{}", leaf.display());
-}
-
-fn kept_path(message: &str) -> Option<PathBuf> {
-    let (_, shown) = message.split_once("which stands at ")?;
-    let out = PathBuf::from(shown);
-    let leaf = out.parent()?;
-    let named = leaf.file_name()?.to_str()?.starts_with("r4-golden-");
-    (named && leaf.parent()? == Path::new(env!("CARGO_TARGET_TMPDIR"))).then_some(out)
-}
-
-#[test]
-fn leaf_kept_path_reads_only_a_leaf_of_the_comparison() {
-    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    let leaf = tmp.join("r4-golden-x-1-2-0");
-    let shown = |path: &Path| {
-        format!(
-            "x differs from what the writers write, which stands at {}",
-            path.display()
-        )
-    };
-    assert_eq!(kept_path(&shown(&leaf.join("x"))), Some(leaf.join("x")));
-    let refused = format!("{}: File exists (os error 17)", leaf.display());
-    assert_eq!(kept_path(&refused), None);
-    assert_eq!(kept_path(&shown(&tmp.join("x"))), None);
-    assert_eq!(
-        kept_path(&shown(&tmp.join("r4-export-names-1-2-0").join("x"))),
-        None
+    assert!(left.is_empty(), "{left:?}: {message}");
+    assert!(
+        message.starts_with("no-such-golden-file differs") && message.contains("first at line 1"),
+        "{message}"
     );
-    let nested = leaf.join("r4-golden-y-1-2-0").join("x");
-    assert_eq!(kept_path(&shown(&nested)), None);
 }
 
 const LEAF_CHILD: &str = "HALVO_LEAF_CHILD";
@@ -668,22 +651,26 @@ fn leaf_whose_path_is_gone_drops_without_a_panic() {
     assert!(dropped.is_ok());
 }
 
-fn names_comparison_left() -> Vec<String> {
-    let own = format!("r4-golden-names-txt-{}-", std::process::id());
+fn entries_added_by(work: impl FnOnce()) -> Vec<String> {
+    let own = format!("-{}-", std::process::id());
     let listed = || -> Vec<String> {
         std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
             .unwrap()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|name| name.starts_with(&own))
+            .filter(|name| name.contains(&own))
             .collect()
     };
     let before = listed();
-    let lines: Vec<String> = committed("names.txt").lines().map(str::to_owned).collect();
-    written_equals_committed("names.txt", &lines);
+    work();
     listed()
         .into_iter()
         .filter(|name| !before.contains(name))
         .collect()
+}
+
+fn names_comparison_left() -> Vec<String> {
+    let lines: Vec<String> = committed("names.txt").lines().map(str::to_owned).collect();
+    entries_added_by(|| written_equals_committed("names.txt", &lines))
 }
 
 #[test]

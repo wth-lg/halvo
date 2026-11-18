@@ -43,30 +43,32 @@ fn written(name: &str, text: &str) -> Leaf {
     held
 }
 
-impl Leaf {
-    fn keep(self) {
-        std::mem::forget(self);
-    }
+fn first_difference(committed: &[u8], built: &[u8]) -> String {
+    let committed = String::from_utf8_lossy(committed);
+    let built = String::from_utf8_lossy(built);
+    let line = committed
+        .lines()
+        .zip(built.lines())
+        .position(|(a, b)| a != b)
+        .unwrap_or_else(|| committed.lines().count().min(built.lines().count()));
+    format!(
+        "first at line {}: the committed file holds {:?} and the test wrote {:?}",
+        line + 1,
+        committed.lines().nth(line).unwrap_or_default(),
+        built.lines().nth(line).unwrap_or_default()
+    )
 }
 
 fn write_and_compare(name: &str, text: &str) {
     let held = written(name, text);
-    let written = held.path().join(name);
+    let built = std::fs::read(held.path().join(name)).unwrap();
     let path = golden(name);
     let before = std::fs::read(&path).unwrap_or_default();
-    if before != text.as_bytes() {
-        let before = String::from_utf8_lossy(&before);
-        let line = before
-            .lines()
-            .zip(text.lines())
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| before.lines().count().min(text.lines().count()));
-        held.keep();
+    if before != built {
         panic!(
-            "{} differs from the file that the test wrote, {}, first at line {}",
+            "{} differs from the file that the test wrote, {}",
             path.display(),
-            written.display(),
-            line + 1
+            first_difference(&before, &built)
         );
     }
 }
@@ -940,47 +942,48 @@ fn written_two_calls_give_two_directories_with_the_file_and_each_is_gone_after_i
     }
 }
 
-#[test]
-fn write_and_compare_of_a_file_that_differs_keeps_the_written_file_under_the_target_directory() {
-    let caught = std::panic::catch_unwind(|| write_and_compare("no-such-golden-file", "x\n"));
-    let message = caught
-        .err()
-        .and_then(|payload| payload.downcast::<String>().ok())
-        .expect("a failure with a message");
-    let (_, shown) = message
-        .split_once("the file that the test wrote, ")
-        .unwrap_or_else(|| panic!("{message}"));
-    let (shown, _) = shown.split_once(", first at line ").unwrap();
-    let out = PathBuf::from(shown);
-    let kept = out.parent().unwrap().to_path_buf();
-    assert_eq!(
-        kept.parent(),
-        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
-        "{message}"
-    );
-    let name = kept.file_name().unwrap().to_str().unwrap();
-    assert!(name.starts_with("golden-no-such-golden-file-"), "{message}");
-    let held = Leaf(kept.clone());
-    assert_eq!(std::fs::read_to_string(&out).unwrap(), "x\n");
-    drop(held);
-    assert!(!kept.exists(), "{}", kept.display());
-}
-
-fn names_compare_left() -> Vec<String> {
-    let own = format!("golden-names-txt-{}-", std::process::id());
+fn entries_added_by(work: impl FnOnce()) -> Vec<String> {
+    let own = format!("-{}-", std::process::id());
     let listed = || -> Vec<String> {
         std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
             .unwrap()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-            .filter(|name| name.starts_with(&own))
+            .filter(|name| name.contains(&own))
             .collect()
     };
     let before = listed();
-    write_and_compare("names.txt", &committed("names.txt"));
+    work();
     listed()
         .into_iter()
         .filter(|name| !before.contains(name))
         .collect()
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_differs_leaves_no_directory_and_names_the_first_line_that_differs(
+) {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("differ") {
+        leaf_child(
+            "write_and_compare_of_a_file_that_differs_leaves_no_directory_and_names_the_first_line_that_differs",
+            "differ",
+            false,
+        );
+        return;
+    }
+    let mut message = String::new();
+    let left = entries_added_by(|| {
+        let caught = std::panic::catch_unwind(|| write_and_compare("no-such-golden-file", "x\n"));
+        message = *caught
+            .err()
+            .and_then(|payload| payload.downcast::<String>().ok())
+            .expect("a failure with a message");
+    });
+    assert!(left.is_empty(), "{left:?}: {message}");
+    assert!(message.contains("first at line 1"), "{message}");
+}
+
+fn names_compare_left() -> Vec<String> {
+    entries_added_by(|| write_and_compare("names.txt", &committed("names.txt")))
 }
 
 #[test]
