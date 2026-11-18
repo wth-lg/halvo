@@ -538,6 +538,7 @@ struct Walk {
     repeated: usize,
     skipped: usize,
     top_purged_at_the_mark: usize,
+    second_store_states: usize,
     deepest: usize,
 }
 
@@ -581,6 +582,9 @@ fn walk() -> Walk {
         walk.states += 1;
         walk.invariant_reads += 1;
         walk.deepest = walk.deepest.max(depth[at]);
+        if state.capture > 0 {
+            walk.second_store_states += 1;
+        }
         if let Some(fault) = state.violation() {
             fail(&parent, at, None, fault, &state);
         }
@@ -648,13 +652,15 @@ fn no_window_row_names_a_shredded_ordinal_at_any_step_or_crash_of_commit_purge_a
     println!(
         "crash model coverage: {} purges between a batch's read and its commit, {} delete-alls between a batch's \
          read and its commit, {} records dropped for a purged ordinal, {} batches sent again and answered \
-         repeated, {} episodes skipped for a stored summary, {} purges of the ordinal {TOP} with the mark at it",
+         repeated, {} episodes skipped for a stored summary, {} purges of the ordinal {TOP} with the mark at it, {} states after a \
+         delete-all made the capture store again",
         walk.purges_between_read_and_commit,
         walk.delete_alls_between_read_and_commit,
         walk.dropped_for_a_shredded_ordinal,
         walk.repeated,
         walk.skipped,
-        walk.top_purged_at_the_mark
+        walk.top_purged_at_the_mark,
+        walk.second_store_states
     );
     assert!(BATCHES.iter().all(|batch| batch.len() == RECORDS_PER_BATCH));
     assert_eq!(walk.invariant_reads, walk.states);
@@ -665,4 +671,5 @@ fn no_window_row_names_a_shredded_ordinal_at_any_step_or_crash_of_commit_purge_a
     assert!(walk.repeated > 0);
     assert!(walk.skipped > 0);
     assert!(walk.top_purged_at_the_mark > 0);
+    assert!(walk.second_store_states > 0);
 }
