@@ -1889,47 +1889,63 @@ mod burst_rounds {
 
     #[test]
     #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
-    fn the_long_form_fails_two_rounds_of_five_that_the_time_rule_decided_with_their_freed_at_ms() {
+    fn both_forms_take_one_round_of_five_that_the_time_rule_decided_and_print_its_count() {
         let burst = burst_of(&[
+            Some(swap_rule()),
             Some(swap_rule()),
             Some(time_rule(1564)),
             Some(swap_rule()),
-            Some(time_rule(1601)),
             Some(swap_rule()),
         ]);
-        let verdict = burst.verdict(Form::Long);
-        assert!(
-            verdict.as_ref().is_err_and(|why| why.contains(
-                "rounds_decided_by_the_time_rule=2 freed_at_ms_of_those_rounds=1564,1601"
-            )),
-            "{verdict:?}"
+        assert_eq!(
+            burst.fields(),
+            "rounds_decided_by_the_time_rule=1 freed_at_ms_of_those_rounds=1564"
         );
+        for form in [Form::Short, Form::Long] {
+            assert_eq!(burst.verdict(form), Ok(()), "{form:?}");
+        }
     }
 
     #[test]
     #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
-    fn the_long_form_takes_one_round_of_five_that_the_time_rule_decided() {
+    fn both_forms_fail_two_rounds_of_five_that_the_time_rule_decided_with_their_freed_at_ms() {
         let burst = burst_of(&[
             Some(swap_rule()),
-            Some(swap_rule()),
-            Some(time_rule(1564)),
-            Some(swap_rule()),
-            Some(swap_rule()),
-        ]);
-        assert_eq!(burst.verdict(Form::Long), Ok(()));
-    }
-
-    #[test]
-    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
-    fn the_short_form_takes_two_rounds_of_five_that_the_time_rule_decided() {
-        let burst = burst_of(&[
             Some(time_rule(1564)),
             Some(swap_rule()),
             Some(time_rule(1601)),
             Some(swap_rule()),
-            Some(swap_rule()),
         ]);
-        assert_eq!(burst.verdict(Form::Short), Ok(()));
+        for form in [Form::Short, Form::Long] {
+            let verdict = burst.verdict(form);
+            assert!(
+                verdict.as_ref().is_err_and(|why| why.contains(
+                    "rounds_decided_by_the_time_rule=2 freed_at_ms_of_those_rounds=1564,1601"
+                )),
+                "{form:?}: {verdict:?}"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn both_forms_fail_five_rounds_of_five_that_the_time_rule_decided() {
+        let burst = burst_of(&[
+            Some(time_rule(1501)),
+            Some(time_rule(1502)),
+            Some(time_rule(1503)),
+            Some(time_rule(1504)),
+            Some(time_rule(1505)),
+        ]);
+        for form in [Form::Short, Form::Long] {
+            let verdict = burst.verdict(form);
+            assert!(
+                verdict.as_ref().is_err_and(|why| why.contains(
+                    "rounds_decided_by_the_time_rule=5 freed_at_ms_of_those_rounds=1501,1502,1503,1504,1505"
+                )),
+                "{form:?}: {verdict:?}"
+            );
+        }
     }
 
     #[test]
