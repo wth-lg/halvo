@@ -5662,6 +5662,14 @@ mod tests {
         fn capture_off_with_a_late_barrier(
             answers_at: Option<Duration>,
         ) -> (Vec<String>, Duration) {
+            capture_off_of_kind_with_a_late_barrier(StopKind::Pause, answers_at)
+        }
+
+        /// [`capture_off_with_a_late_barrier`] for a stop of `kind`.
+        fn capture_off_of_kind_with_a_late_barrier(
+            kind: StopKind,
+            answers_at: Option<Duration>,
+        ) -> (Vec<String>, Duration) {
             let mut f = fixture_on_owner(Factory::new(), ModelStore::new());
             let calls = f.supervisor.factory().calls.clone();
             f.start(&two());
@@ -5678,9 +5686,7 @@ mod tests {
                 }
             }));
             let link = f.link.take().unwrap();
-            let outcome = f
-                .supervisor
-                .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+            let outcome = f.supervisor.stop_for_capture_off(&link, kind, &mut |_| {});
             assert_eq!(outcome, Some(CaptureOff::Stopped));
             (after_the_starts(&calls), f.now.get() - from)
         }
@@ -5701,14 +5707,15 @@ mod tests {
         }
 
         /// N7 (a): an owner that never answers the barrier still lets the stops
-        /// begin, once BARRIER_WAIT has passed.
+        /// begin, once BARRIER_WAIT has passed: 5 s, written as a literal so that
+        /// a change of the constant fails the case (ruling DM-26 F3's v25).
         #[test]
         fn a_barrier_that_is_never_answered_lets_the_stops_begin_after_its_wait() {
             let (taken, at) = capture_off_with_a_late_barrier(None);
             println!("dm25 n7 never at_ms={} calls={taken:?}", at.as_millis());
             assert_eq!(taken, ["stop input", "stop foreground"]);
             assert!(
-                at >= BARRIER_WAIT && at < BARRIER_WAIT + Duration::from_millis(500),
+                at >= Duration::from_millis(5_000) && at < Duration::from_millis(5_500),
                 "the stops began {at:?} after the Pause"
             );
         }
@@ -6135,6 +6142,576 @@ mod tests {
             );
             assert_eq!(ending.statuses(), [exit::SOURCE_NOT_STOPPED]);
             assert_eq!(outcome.status, exit::SOURCE_NOT_STOPPED);
+        }
+
+        /// Ruling DM-26 F2 item 1 and F3's v35 and v05, pr-review-58's case
+        /// cap-case: with the screen source in play (bound 6,250 ms) the entry's
+        /// first arm reads 19,250 ms ahead, the cap, written as a literal: 24,250
+        /// without the cap (v35), 19,900 with the constant moved (v05).
+        #[test]
+        fn an_entry_with_the_screen_source_in_play_arms_at_most_the_entry_deadline() {
+            let (peek, reads): (Peek, Reads) = Default::default();
+            let mut f = fixture_on_owner(
+                reading_stops(&peek, &reads, Err(timeout())),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            f.start(&[SourceName::Input, SourceName::Screen]);
+            f.tick();
+            assert!(
+                f.supervisor.sources.holds(SourceName::Screen),
+                "no screen source runs"
+            );
+            let link = f.link.take().unwrap();
+            let _ = f
+                .supervisor
+                .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+            let first = reads
+                .borrow()
+                .first()
+                .copied()
+                .expect("no source was stopped");
+            let at_stop = ahead(first.0, first.1);
+            println!("dm26 f2-1 cap at_stop={at_stop:?}");
+            assert!(
+                matches!(at_stop, Some((ms, 5)) if ms <= 19_250 && ms + 1_000 >= 19_250),
+                "the first arm read {at_stop:?}, not 19,250 ms ahead"
+            );
+        }
+
+        /// Ruling DM-26 F2 item 2: a lost grant whose stop answers within its
+        /// bound takes its arm back: nothing armed after the tick, and no ending
+        /// call by the deadline plus 500 ms.
+        #[test]
+        fn a_lost_grant_whose_stops_answer_in_bound_takes_its_arm_back() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let (mut f, answers, _) = probed(fixture_on_owner(
+                input_stop(Duration::ZERO, Ok(()), &peek, &seen),
+                ModelStore::new(),
+            ));
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            f.start(&two());
+            f.tick();
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            let began = Instant::now();
+            let tick = f.later(PROBE_INTERVAL);
+            let seen = seen.borrow().clone();
+            println!(
+                "dm26 f2-2 lost grant in bound tick={tick:?} seen={seen:?} armed={:?}",
+                f.supervisor.watchdog_armed()
+            );
+            assert_eq!(tick, None);
+            assert_eq!(
+                seen,
+                [Some(exit::SOURCE_NOT_STOPPED)],
+                "the stop ran unarmed"
+            );
+            assert_eq!(f.supervisor.watchdog_armed(), None, "the arm stayed");
+            let after = Duration::from_millis(ENTRY_DEADLINE_MS + 500);
+            std::thread::sleep(after.saturating_sub(began.elapsed()));
+            assert!(
+                ending.statuses().is_empty(),
+                "an ending call came after the lost grant's stop answered in bound: {:?}",
+                ending.since(began)
+            );
+        }
+
+        /// Ruling DM-26 F2 item 4, pr-review-58's case tests/07: a late Ok (1.5 s,
+        /// bound 1.25 s) in a stop for capture off moves the deadline to
+        /// SHUTDOWN_BUDGET_MS after the moment the bound passed, which with the
+        /// entry's own arm reads about ENTRY_DEADLINE_MS after the call; counted
+        /// from the answer less the whole call, it would read 18,000 ms.
+        #[test]
+        fn a_late_ok_moves_the_deadline_to_the_budget_after_its_bound_passed() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let mut f = fixture_on_owner(
+                input_stop(Duration::from_millis(1_500), Ok(()), &peek, &seen),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            f.start(&two());
+            f.tick();
+            let link = f.link.take().unwrap();
+            let began = Instant::now();
+            let outcome = f
+                .supervisor
+                .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+            let armed = f
+                .supervisor
+                .watchdog
+                .as_ref()
+                .and_then(Watchdog::armed_until)
+                .map(|(deadline, status)| {
+                    (
+                        deadline.saturating_duration_since(began).as_millis(),
+                        status,
+                    )
+                });
+            println!("dm26 f2-4 outcome={outcome:?} armed(ms_after_call,status)={armed:?}");
+            assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+            let entry = u128::from(ENTRY_DEADLINE_MS);
+            assert!(
+                matches!(armed, Some((ms, 5)) if ms + 50 >= entry && ms <= entry + 1_000),
+                "the deadline after a late Ok read {armed:?}, not about {entry} ms after the call"
+            );
+        }
+
+        /// Ruling DM-26 F2 item 5 and F3's v11: a lost grant inside an arm that
+        /// another site made 30 s ahead arms nothing of its own (the guard), so
+        /// no earlier arm hides the move. Its input stop answers Ok 2,500 ms after
+        /// the call, past the bound of 1,250 ms: the arm moves to 18,000 ms after
+        /// the moment the bound passed, 19,250 ms after the call. Counted from the
+        /// answer (v11, or the move without its subtraction), it would read
+        /// 20,500 ms.
+        #[test]
+        fn a_late_stop_of_a_lost_grant_moves_the_arm_from_the_moment_its_bound_passed() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let (mut f, answers, _) = probed(fixture_on_owner(
+                input_stop(Duration::from_millis(2_500), Ok(()), &peek, &seen),
+                ModelStore::new(),
+            ));
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            f.start(&two());
+            f.tick();
+            let watchdog = f.supervisor.watchdog.clone().expect("a watchdog");
+            watchdog.arm(Duration::from_secs(30), exit::TIMED_RUN_SOURCE_FAILED);
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            let began = Instant::now();
+            let tick = f.later(PROBE_INTERVAL);
+            let armed = watchdog.armed_until().map(|(deadline, status)| {
+                (
+                    deadline.saturating_duration_since(began).as_millis(),
+                    status,
+                )
+            });
+            watchdog.disarm();
+            println!("dm26 f2-5 tick={tick:?} armed(ms_after_call,status)={armed:?}");
+            assert_eq!(tick, Some(Ending::SourceNotStopped));
+            assert!(
+                matches!(armed, Some((ms, 5)) if (19_150..=19_600).contains(&ms)),
+                "the move after a stop that answered 2,500 ms after its call read {armed:?}, not 19,250 ms after the call"
+            );
+        }
+
+        /// Ruling DM-26 F2 item 6: input answers Timeout at its first stop and
+        /// again at the second ask: both records name it once, with one error.
+        #[test]
+        fn a_source_that_fails_twice_is_named_once_in_the_records() {
+            let (_f, _recorder, records, outcome) = capture_off_case(
+                Factory::adjusting(|source| {
+                    if source.name == SourceName::Input {
+                        source.stop = Err(timeout());
+                    }
+                }),
+                Some(Err(timeout())),
+            );
+            let records = records.lock().unwrap().clone();
+            println!(
+                "dm26 f2-6 outcome={outcome:?} records={:?}",
+                records.iter().map(EndRecord::text).collect::<Vec<_>>()
+            );
+            assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+            assert_eq!(records.len(), 2);
+            for record in &records {
+                assert_eq!(
+                    record.not_stopped,
+                    [(SourceName::Input, "timeout".to_owned())]
+                );
+                assert_eq!(record.errors.len(), 1, "{:?}", record.errors);
+            }
+        }
+
+        /// The sources of a timed run that record each arm of the watchdog and
+        /// let go `let_go`; `flag_after_window` sets the stop flag as the window
+        /// ends, as a signal that comes after it would.
+        #[derive(Default)]
+        struct ArmRecorder {
+            arms: Vec<i32>,
+            disarms: usize,
+            let_go: Vec<SourceName>,
+            flag_after_window: bool,
+        }
+
+        impl RunSources for ArmRecorder {
+            fn start(
+                &mut self,
+                _ctx: &SourceContext,
+                _wanted: &[SourceName],
+                _hold_after: Option<Duration>,
+            ) -> Vec<FailedSource> {
+                Vec::new()
+            }
+
+            fn wait(&mut self, _window: Duration, _stop: &AtomicBool) -> bool {
+                false
+            }
+
+            fn supervise(
+                &mut self,
+                _window: Duration,
+                stop: &AtomicBool,
+                _owner: &dyn OwnerLink,
+            ) -> bool {
+                if self.flag_after_window {
+                    stop.store(true, Ordering::SeqCst);
+                }
+                false
+            }
+
+            fn stop(&mut self) -> Vec<FailedSource> {
+                Vec::new()
+            }
+
+            fn figures(&self) -> SourceCounters {
+                SourceCounters::default()
+            }
+
+            fn hold_refusal(&self) -> Option<DaemonError> {
+                None
+            }
+
+            fn arm_watchdog(&mut self, status: i32) {
+                self.arms.push(status);
+            }
+
+            fn disarm_watchdog(&mut self) {
+                self.disarms += 1;
+            }
+
+            fn let_go(&self) -> Vec<SourceName> {
+                self.let_go.clone()
+            }
+        }
+
+        /// A store whose maintenance panics, so that the owner thread ends
+        /// before it answers ClosePause.
+        struct EndsAtOnce(ModelStore);
+
+        impl MaintainStore for EndsAtOnce {
+            fn expire_due(
+                &mut self,
+                _now: std::time::SystemTime,
+                _max: usize,
+            ) -> Result<Pass, MaintFault> {
+                panic!("the store ends the owner thread at its first call");
+            }
+
+            fn evict_to(&mut self, _bound: ByteBound, _max: usize) -> Result<Pass, MaintFault> {
+                panic!("the store ends the owner thread at its first call");
+            }
+
+            fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+                panic!("the store ends the owner thread at its first call");
+            }
+        }
+
+        impl CaptureStore for EndsAtOnce {
+            fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+                panic!("the store ends the owner thread at its first call");
+            }
+
+            fn volume_free_bytes(&self) -> io::Result<u64> {
+                self.0.volume_free_bytes()
+            }
+        }
+
+        /// Ruling DM-26 F2 item 7: a timed run that returns Err with a source let
+        /// go arms the watchdog with 1, the status of the binary's error arm.
+        #[test]
+        fn a_timed_run_that_fails_with_a_source_let_go_arms_with_1() {
+            let mut sources = ArmRecorder {
+                let_go: vec![SourceName::Input],
+                ..ArmRecorder::default()
+            };
+            let quiet = std::panic::take_hook();
+            std::panic::set_hook(Box::new(|_| {}));
+            let answer = run_timed(
+                &run_of(1),
+                &mut sources,
+                EndsAtOnce(ModelStore::new()),
+                crate::daemon::maintenance::SystemClocks::new(),
+                &AtomicBool::new(false),
+                SETTLE_BOUND,
+            );
+            std::panic::set_hook(quiet);
+            println!(
+                "dm26 f2-7 answer={:?} arms={:?} disarms={}",
+                answer
+                    .as_ref()
+                    .map(|outcome| outcome.status)
+                    .map_err(ToString::to_string),
+                sources.arms,
+                sources.disarms
+            );
+            assert!(answer.is_err(), "the run did not fail");
+            assert_eq!(sources.arms.last(), Some(&exit::ERROR));
+            assert_eq!(sources.disarms, 0);
+        }
+
+        /// Ruling DM-26 F2 item 8: an Ok that answers 1,260 ms after the call,
+        /// 10 ms past the bound of 1,250 ms, reads not stopped. A late wake of
+        /// this Mac only makes the answer later, so the head reads Ended(5)
+        /// however late it wakes. A bound moved 200 ms later (1,450 ms) reads
+        /// it Stopped, unless the wake comes later than 1,450 ms, when that
+        /// copy reads Ended(5) too and the case lets it go.
+        #[test]
+        fn an_ok_10_ms_past_the_bound_reads_not_stopped() {
+            let run = capture_off_with_input_stop(Duration::from_millis(1_260), Ok(()));
+            println!(
+                "dm26 f2-8 outcome={:?} endings={:?}",
+                run.outcome,
+                run.endings()
+            );
+            assert_eq!(
+                run.outcome,
+                Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED))
+            );
+        }
+
+        /// A lost grant of the input source, with the watchdog armed beforehand
+        /// for 10 s with 3; the input stop sleeps `real` and answers Ok. Gives the
+        /// arm before, the arm after, the arms the stop saw and the endings.
+        fn lost_grant_while_armed(real: Duration) -> LostGrantWhileArmed {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let (mut f, answers, _) = probed(fixture_on_owner(
+                input_stop(real, Ok(()), &peek, &seen),
+                ModelStore::new(),
+            ));
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::Granted));
+            f.start(&two());
+            f.tick();
+            let watchdog = f.supervisor.watchdog.clone().expect("a watchdog");
+            watchdog.arm(Duration::from_secs(10), exit::TIMED_RUN_SOURCE_FAILED);
+            let before = watchdog.armed_until();
+            answers
+                .borrow_mut()
+                .push_back(input_monitoring(GrantState::NotGranted));
+            let _ = f.later(PROBE_INTERVAL);
+            let after = watchdog.armed_until();
+            let seen = seen.borrow().clone();
+            let statuses = ending.statuses();
+            println!(
+                "dm26 f2-9 real={real:?} before={:?} after={:?} seen={seen:?} endings={statuses:?}",
+                before.map(|(_, s)| s),
+                after.map(|(at, s)| (
+                    before.map(|(b, _)| at.saturating_duration_since(b).as_millis()),
+                    s
+                ))
+            );
+            watchdog.disarm();
+            (before, after, seen, statuses)
+        }
+
+        /// What [`lost_grant_while_armed`] gives.
+        type LostGrantWhileArmed = (
+            Option<(Instant, i32)>,
+            Option<(Instant, i32)>,
+            Vec<Option<i32>>,
+            Vec<i32>,
+        );
+
+        /// Ruling DM-26 F2 item 9, pr-review-58's case contract/10: a lost grant
+        /// inside an arm that it did not make neither moves nor takes back that
+        /// arm when its stop answers in time.
+        #[test]
+        fn a_lost_grant_whose_stop_answers_in_time_keeps_the_earlier_arm() {
+            let (before, after, seen, statuses) = lost_grant_while_armed(Duration::ZERO);
+            assert_eq!(seen, [Some(exit::TIMED_RUN_SOURCE_FAILED)]);
+            assert_eq!(
+                after, before,
+                "the lost grant moved or took back an arm it did not make"
+            );
+            assert!(statuses.is_empty());
+        }
+
+        /// pr-review-58's case contract/10, its other side: a late stop there
+        /// ends with 5 no later than the earlier arm.
+        #[test]
+        fn a_lost_grant_whose_stop_answers_late_ends_with_5_no_later_than_the_earlier_arm() {
+            let (before, after, _, statuses) = lost_grant_while_armed(Duration::from_millis(1_500));
+            assert_eq!(statuses, [exit::SOURCE_NOT_STOPPED]);
+            let (Some((earlier, _)), Some((deadline, status))) = (before, after) else {
+                panic!("the arm was taken back: before={before:?} after={after:?}");
+            };
+            assert_eq!(status, exit::SOURCE_NOT_STOPPED);
+            assert!(
+                deadline <= earlier,
+                "the late stop moved the deadline later"
+            );
+        }
+
+        /// Ruling DM-26 F2 item 10: a lapse and step 1 of delete-all, like a
+        /// Pause, ask no source before the owner's answer to the barrier.
+        #[test]
+        fn a_lapse_and_delete_all_ask_no_source_before_the_barrier_is_answered() {
+            for kind in [StopKind::Lapse, StopKind::DeleteAll] {
+                let (taken, at) = capture_off_of_kind_with_a_late_barrier(
+                    kind,
+                    Some(Duration::from_millis(1_500)),
+                );
+                println!(
+                    "dm26 f2-10 kind={kind:?} at_ms={} calls={taken:?}",
+                    at.as_millis()
+                );
+                let first_stop = taken.iter().position(|call| call.starts_with("stop "));
+                let first_pass = taken.iter().position(|call| call.starts_with("owner pass"));
+                assert!(
+                    matches!((first_pass, first_stop), (Some(pass), Some(stop)) if pass < stop),
+                    "{kind:?}: the first source was asked to stop before the owner answered the barrier: {taken:?}"
+                );
+            }
+        }
+
+        /// Ruling DM-26 F2 item 11: the capture-off routine skips its second ask
+        /// once the deadline leaves no room for the source's bound. The input
+        /// stop takes 19 s of the injected clock and answers Timeout; it is asked
+        /// once, and the routine ends by the deadline.
+        #[test]
+        fn the_capture_off_routine_skips_a_second_ask_past_its_deadline() {
+            let clock: Rc<RefCell<Option<Rc<Cell<Duration>>>>> = Rc::default();
+            let blocked = clock.clone();
+            let mut f = fixture_on_owner(
+                Factory::adjusting(move |source| {
+                    if source.name == SourceName::Input {
+                        let blocked = blocked.clone();
+                        let hook: Hook = Box::new(move |_| {
+                            if let Some(now) = blocked.borrow().as_ref() {
+                                now.set(now.get() + Duration::from_secs(19));
+                            }
+                        });
+                        source.on_stop = Some(hook);
+                        source.stop = Err(timeout());
+                    }
+                }),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *clock.borrow_mut() = Some(f.now.clone());
+            f.start(&two());
+            f.tick();
+            let link = f.link.take().unwrap();
+            let from = f.now.get();
+            let outcome = f
+                .supervisor
+                .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+            let took = f.now.get() - from;
+            let stops = f.supervisor.factory().calls.of("stop input");
+            println!(
+                "dm26 f2-11 outcome={outcome:?} took_ms={} stops={stops:?}",
+                took.as_millis()
+            );
+            assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+            assert_eq!(
+                stops.len(),
+                1,
+                "the routine asked input again past its deadline"
+            );
+            assert!(took <= Duration::from_millis(ENTRY_DEADLINE_MS), "{took:?}");
+        }
+
+        /// Ruling DM-26 F2 item 12: a source that died in the slice of a signal,
+        /// whose stop still answers Ok, is named in the run's list: the health is
+        /// read on wait_on's stop flag.
+        #[test]
+        fn a_source_that_died_in_the_slice_of_a_signal_and_stops_ok_is_named() {
+            let mut f = fixture(Factory::new());
+            assert!(f.start(&two()).is_empty());
+            assert!(f.tick().is_none());
+            f.supervisor
+                .factory()
+                .health_of(SourceName::Foreground)
+                .set(SourceState::Failed {
+                    reason: HealthReason::ThreadEnded,
+                    error: CaptureError::ThreadEnded,
+                });
+            assert!(f
+                .supervisor
+                .wait_on(Duration::from_secs(1), &AtomicBool::new(true), None));
+            let failed = RunSources::stop(&mut f.supervisor);
+            println!(
+                "dm26 f2-12 failed={:?}",
+                failed.iter().map(|e| e.name).collect::<Vec<_>>()
+            );
+            assert!(
+                failed.iter().any(|entry| entry.name == "foreground"),
+                "a source that died in the slice of the signal is named nowhere: {failed:?}"
+            );
+        }
+
+        /// Ruling DM-26 F2 item 13: a stop flag set as the window ends, where
+        /// the wait itself was not ended by it, arms the watchdog with 2.
+        #[test]
+        fn a_stop_flag_set_after_the_window_arms_with_2() {
+            let mut sources = ArmRecorder {
+                flag_after_window: true,
+                ..ArmRecorder::default()
+            };
+            let outcome = run_timed(
+                &run_of(1),
+                &mut sources,
+                ModelStore::new(),
+                crate::daemon::maintenance::SystemClocks::new(),
+                &AtomicBool::new(false),
+                SETTLE_BOUND,
+            )
+            .unwrap();
+            println!(
+                "dm26 f2-13 status={} arms={:?} disarms={}",
+                outcome.status, sources.arms, sources.disarms
+            );
+            assert_eq!(sources.arms.first(), Some(&exit::TIMED_RUN_INTERRUPTED));
+            assert_eq!(outcome.status, exit::TIMED_RUN_INTERRUPTED);
+        }
+
+        /// Ruling DM-26 F3's v30: the supervisor's wait turns the loop in ticks
+        /// of 100 ms on the injected clock, read in milliseconds.
+        #[test]
+        fn the_supervisors_wait_turns_the_loop_in_ticks_of_100_ms() {
+            let mut f = fixture(Factory::new());
+            let turns: Rc<RefCell<Vec<Duration>>> = Rc::default();
+            let read = turns.clone();
+            f.supervisor.main_loop().hook = Some(Box::new(move |at| read.borrow_mut().push(at)));
+            let from = f.now.get();
+            assert!(!f.supervisor.wait_on(
+                Duration::from_millis(500),
+                &AtomicBool::new(false),
+                None
+            ));
+            let steps: Vec<u128> = turns
+                .borrow()
+                .iter()
+                .scan(from, |last, at| {
+                    let step = at.saturating_sub(*last).as_millis();
+                    *last = *at;
+                    Some(step)
+                })
+                .collect();
+            println!("dm26 f3-v30 steps_ms={steps:?}");
+            assert_eq!(steps, [100, 100, 100, 100, 100]);
         }
     }
 }
