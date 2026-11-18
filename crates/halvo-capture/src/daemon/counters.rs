@@ -162,6 +162,10 @@ pub struct Snapshot {
     pub last_flush_at: Option<SystemTime>,
     pub last_expiry_at: Option<SystemTime>,
     pub last_eviction_at: Option<SystemTime>,
+    /// Whether the owner holds its batch after SET_ASIDES_BEFORE_STOP batches
+    /// set aside in a row, until a write is acknowledged. A Refused or Sealed
+    /// give-up inside the hold reports DrainHealthy and leaves this true.
+    pub drain_hold: bool,
 }
 
 impl Snapshot {
@@ -289,8 +293,9 @@ impl Counters {
         self.last_eviction_at = Some(at);
     }
 
-    /// The snapshot with `pending` events held in the batch and the spill.
-    pub fn snapshot(&self, pending: u64) -> Snapshot {
+    /// The snapshot with `pending` events held in the batch and the spill,
+    /// and the owner's hold as `drain_hold`.
+    pub fn snapshot(&self, pending: u64, drain_hold: bool) -> Snapshot {
         let read = |count: &Arc<AtomicU64>| count.load(Ordering::Relaxed);
         Snapshot {
             received: self.received,
@@ -313,6 +318,7 @@ impl Counters {
             last_flush_at: self.last_flush_at,
             last_expiry_at: self.last_expiry_at,
             last_eviction_at: self.last_eviction_at,
+            drain_hold,
         }
     }
 }
@@ -337,7 +343,7 @@ mod tests {
                 counters.received(EntryKind::of(kind));
             }
         }
-        let snapshot = counters.snapshot(0);
+        let snapshot = counters.snapshot(0, false);
         for (n, kind) in Modality::ALL.into_iter().enumerate() {
             assert_eq!(snapshot.received(kind), n as u64 + 1, "{kind:?}");
         }
@@ -359,7 +365,7 @@ mod tests {
             .tallies()
             .tap_disabled_user_input()
             .fetch_add(4, Ordering::Relaxed);
-        let snapshot = counters.snapshot(0);
+        let snapshot = counters.snapshot(0, false);
         assert_eq!(snapshot.secure_input_keystrokes, 2);
         assert_eq!(snapshot.tap_disabled_timeout, 3);
         assert_eq!(snapshot.tap_disabled_user_input, 4);
