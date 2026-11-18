@@ -1252,6 +1252,10 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
         }
     }
 
+    fn disarm_watchdog(&mut self) {
+        self.disarm();
+    }
+
     fn let_go(&self) -> Vec<SourceName> {
         self.sources
             .states()
@@ -2700,12 +2704,16 @@ mod tests {
         }
     }
 
+    /// The end of a timed run's cut stop path: SHUTDOWN_BUDGET_MS less the
+    /// margin before the watchdog's deadline (ruling DM-25 N2 (a)).
+    const CUT: u64 = SHUTDOWN_BUDGET_MS - crate::daemon::STOP_PATH_MARGIN_MS;
+
     /// The stop path of a timed run on the injected clock with every source
     /// at its stop deadline (input 1 s, foreground 1 s, screen 6 s), a drain
     /// wait that runs most of its 2 s while the store is closed, a settle whose
     /// writes fail for its whole 5 s, and a Shutdown whose write waits: the
-    /// parts would take about 1.9 + 8 + 5 + 5 s, and the whole path ends
-    /// inside SHUTDOWN_BUDGET_MS.
+    /// parts would take about 1.9 + 8 + 5 + 5 s, and the whole path ends at
+    /// its cut, SHUTDOWN_BUDGET_MS less STOP_PATH_MARGIN_MS.
     #[test]
     fn the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget() {
         let mode = Arc::new(std::sync::atomic::AtomicU8::new(CLOSED));
@@ -2789,11 +2797,11 @@ mod tests {
             outcome.loss
         );
         assert!(
-            path <= Duration::from_millis(SHUTDOWN_BUDGET_MS) + Duration::from_millis(50),
+            path <= Duration::from_millis(CUT) + Duration::from_millis(50),
             "the stop path took {path:?} on the injected clock"
         );
         assert!(
-            path >= Duration::from_millis(SHUTDOWN_BUDGET_MS) - Duration::from_millis(500),
+            path >= Duration::from_millis(CUT) - Duration::from_millis(500),
             "the stop path took {path:?}: the waits did not reach the budget"
         );
     }
@@ -3437,8 +3445,8 @@ mod tests {
     /// A pause answered late (the store closed through the drain wait and
     /// most of the pause, then failing), every source at its stop deadline
     /// and a settle whose writes fail: the settle is cut to what is left of
-    /// SHUTDOWN_BUDGET_MS, where its own part would take the path to about
-    /// 19.8 s.
+    /// SHUTDOWN_BUDGET_MS less STOP_PATH_MARGIN_MS, where its own part would
+    /// take the path to about 19.8 s.
     #[test]
     fn the_settle_after_a_late_pause_is_cut_to_the_budget() {
         let mode = Arc::new(std::sync::atomic::AtomicU8::new(CLOSED));
@@ -3501,11 +3509,11 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::ERROR);
         assert!(
-            path <= Duration::from_millis(SHUTDOWN_BUDGET_MS) + Duration::from_millis(50),
+            path <= Duration::from_millis(CUT) + Duration::from_millis(50),
             "the stop path took {path:?} on the injected clock"
         );
         assert!(
-            path >= Duration::from_millis(SHUTDOWN_BUDGET_MS) - Duration::from_millis(500),
+            path >= Duration::from_millis(CUT) - Duration::from_millis(500),
             "the stop path took {path:?}"
         );
     }

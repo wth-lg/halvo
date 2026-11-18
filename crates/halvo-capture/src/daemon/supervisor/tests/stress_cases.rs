@@ -383,3 +383,254 @@ fn an_overrunning_stop_does_not_carry_the_entry_past_its_deadline() {
     assert_eq!(ending.statuses(), [exit::SOURCE_NOT_STOPPED]);
     assert_eq!(outcome.status, exit::SOURCE_NOT_STOPPED);
 }
+
+/// A main loop on the real clock: `now` is the time since it was made and a
+/// turn sleeps its whole wait, so that the stop path's clock and the
+/// watchdog's clock are one.
+struct RealClock {
+    began: Instant,
+    hook: Box<dyn FnMut(Duration)>,
+}
+
+impl MainLoop for RealClock {
+    fn turn(&mut self, wait: Duration) {
+        std::thread::sleep(wait);
+        let at = self.began.elapsed();
+        (self.hook)(at);
+    }
+
+    fn now(&self) -> Duration {
+        self.began.elapsed()
+    }
+}
+
+/// What a timed run at its limits left: its answer, the moment it returned,
+/// its ending and the store's gate.
+struct TimedAtLimits {
+    outcome: crate::daemon::RunOutcome,
+    returned: Instant,
+    ending: Stamped,
+    supervisor: Supervisor<Factory, RealClock>,
+    gate: Arc<std::sync::atomic::AtomicU8>,
+}
+
+impl TimedAtLimits {
+    /// The calls of the ending as their status and the microseconds after
+    /// the return, negative before it.
+    fn after_return(&self) -> Vec<(i32, i128)> {
+        self.ending
+            .ended
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .map(|(status, at)| {
+                let after = if *at >= self.returned {
+                    i128::try_from(at.duration_since(self.returned).as_micros()).unwrap_or(0)
+                } else {
+                    -i128::try_from(self.returned.duration_since(*at).as_micros()).unwrap_or(0)
+                };
+                (*status, after)
+            })
+            .collect()
+    }
+}
+
+/// The scenario of the three adversaries' timed-run cases (A1-F1c, A2-3,
+/// A3-4) on one real clock: the store is closed for most of the drain wait,
+/// its writes fail through the settle and wait at the Shutdown, and each
+/// source answers Ok at its stop deadline (input 1 s, foreground 1 s,
+/// screen 6 s), so that no source is let go and the stop path reaches its
+/// cut. The run's own answer is status 1 with its loss line.
+fn timed_run_at_its_limits() -> TimedAtLimits {
+    let mode = Arc::new(std::sync::atomic::AtomicU8::new(CLOSED));
+    let gate = mode.clone();
+    let main_loop = RealClock {
+        began: Instant::now(),
+        hook: Box::new(move |at| {
+            if at >= Duration::from_millis(2_900) && at < Duration::from_secs(9) {
+                gate.store(OPEN, Ordering::SeqCst);
+            }
+            if at >= Duration::from_millis(15_500) {
+                gate.store(CLOSED, Ordering::SeqCst);
+            }
+        }),
+    };
+    let deadlines = [
+        (SourceName::Input, Duration::from_secs(1)),
+        (SourceName::Foreground, Duration::from_secs(1)),
+        (SourceName::Screen, Duration::from_secs(6)),
+    ];
+    let stop_mode = mode.clone();
+    let factory = Factory::adjusting(move |source| {
+        if source.name == SourceName::Foreground {
+            source.script = (0..600).map(|_| foreground_now()).collect();
+        }
+        let deadline = deadlines
+            .iter()
+            .find(|(name, _)| *name == source.name)
+            .map_or(Duration::ZERO, |(_, deadline)| *deadline);
+        let mode = stop_mode.clone();
+        let hook: Hook = Box::new(move |_| {
+            mode.store(FAILING, Ordering::SeqCst);
+            std::thread::sleep(deadline);
+        });
+        source.on_stop = Some(hook);
+        source.stop = Ok(());
+    });
+    let ending = Stamped::default();
+    let mut supervisor =
+        Supervisor::new(Platform::Macos, factory, main_loop).with_ending(Arc::new(ending.clone()));
+    let mut run = run_of(1);
+    run.switches = crate::daemon::SwitchFlags(vec![(crate::floor::Switch::ScreenActivity, true)]);
+    let store = GateStore {
+        inner: ModelStore::new(),
+        mode: mode.clone(),
+    };
+    let outcome = run_timed(
+        &run,
+        &mut supervisor,
+        store,
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    )
+    .unwrap();
+    TimedAtLimits {
+        outcome,
+        returned: Instant::now(),
+        ending,
+        supervisor,
+        gate: mode,
+    }
+}
+
+/// Asserts that no ending call came by 500 ms after the run returned, the
+/// item's words for each of the three cases (ruling DM-25 N2 (b)).
+fn no_call_by_500_ms_after_the_return(run: &TimedAtLimits, case: &str) {
+    let wait = Duration::from_millis(500).saturating_sub(run.returned.elapsed());
+    std::thread::sleep(wait);
+    run.gate.store(OPEN, Ordering::SeqCst);
+    let calls = run.after_return();
+    println!(
+        "dm25 n2 {case} status={} loss={:?} let_go={:?} calls(status,us_after_return)={calls:?}",
+        run.outcome.status,
+        run.outcome.loss.as_ref().map(|loss| loss.cause),
+        run.outcome.let_go
+    );
+    assert!(run.outcome.let_go.is_empty(), "a source was let go");
+    assert!(
+        calls.is_empty(),
+        "{case}: an ending call came by 500 ms after run_timed returned with status {}: {calls:?}",
+        run.outcome.status
+    );
+}
+
+/// N2 and the verifier's kept item 3: A1-F1c.
+#[test]
+fn adv1_f1c_on_one_clock_with_every_source_stopped_no_ending_call_follows_the_return() {
+    let run = timed_run_at_its_limits();
+    no_call_by_500_ms_after_the_return(&run, "a1-f1c");
+}
+
+/// N2: A2-3, whose assertion was that no call came before the loss line;
+/// the item asks for no call by 500 ms after the return, the supervisor
+/// dropped and the answer written as the binary writes it.
+#[test]
+fn adv2_no_ending_call_follows_a_timed_run_whose_stop_path_reaches_its_cut() {
+    let mut run = timed_run_at_its_limits();
+    let supervisor = std::mem::replace(
+        &mut run.supervisor,
+        Supervisor::new(
+            Platform::Macos,
+            Factory::new(),
+            RealClock {
+                began: Instant::now(),
+                hook: Box::new(|_| {}),
+            },
+        ),
+    );
+    drop(supervisor);
+    let mut report = Vec::new();
+    let mut err = Out::default();
+    let answered = crate::daemon::outcome_answer(&run.outcome, &mut report, &mut err);
+    assert_eq!(answered, run.outcome.status);
+    no_call_by_500_ms_after_the_return(&run, "a2-3");
+}
+
+/// N2: A3-4, whose assertion was that no call came before the return; the
+/// item asks for no call by 500 ms after it.
+#[test]
+fn adv3_no_ending_call_follows_a_timed_run_whose_cut_stop_path_reaches_the_budget() {
+    let run = timed_run_at_its_limits();
+    no_call_by_500_ms_after_the_return(&run, "a3-4");
+}
+
+/// N2 (c) and A2's finder timed 2: a timed run whose window ends with a
+/// grant restart arms the watchdog with its own status, 4, which each stop
+/// of its stop path reads.
+#[test]
+fn a_timed_run_ended_by_a_grant_restart_arms_the_watchdog_with_4() {
+    let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+    let (stop_peek, stop_seen) = (peek.clone(), seen.clone());
+    let factory = Factory::adjusting(move |source| {
+        let (peek, seen) = (stop_peek.clone(), stop_seen.clone());
+        let hook: Hook = Box::new(move |_| {
+            seen.borrow_mut()
+                .push(peek.borrow().as_ref().and_then(Watchdog::armed));
+        });
+        source.on_stop = Some(hook);
+    });
+    let answers: Answers = Rc::default();
+    answers
+        .borrow_mut()
+        .push_back(input_monitoring(GrantState::NotDetermined));
+    answers
+        .borrow_mut()
+        .push_back(input_monitoring(GrantState::Granted));
+    let main_loop = TestLoop {
+        now: Rc::default(),
+        harness: None,
+        real: Duration::from_millis(1),
+        hook: None,
+    };
+    let ending = Stamped::default();
+    let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop)
+        .with_ending(Arc::new(ending.clone()))
+        .with_probe(Box::new(FakeProbe {
+            answers: answers.clone(),
+            asked: Rc::default(),
+        }));
+    *peek.borrow_mut() = supervisor.watchdog.clone();
+    supervisor.set_client_polls(true);
+    let outcome = run_timed(
+        &run_of(10),
+        &mut supervisor,
+        ModelStore::new(),
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    )
+    .unwrap();
+    let seen = seen.borrow().clone();
+    println!(
+        "dm25 n2 grant-restart status={} seen={seen:?} armed_after={:?}",
+        outcome.status,
+        supervisor.watchdog_armed()
+    );
+    assert!(
+        RunSources::restart_asked(&supervisor),
+        "the probe did not end the window with a restart"
+    );
+    assert_eq!(outcome.status, exit::RESTART, "{:?}", outcome.loss);
+    assert!(!seen.is_empty(), "no source was stopped");
+    assert!(
+        seen.iter().all(|armed| *armed == Some(exit::RESTART)),
+        "the stop path ran under an arm other than the run's own status 4: {seen:?}"
+    );
+    assert_eq!(
+        supervisor.watchdog_armed(),
+        None,
+        "the arm stayed after the return"
+    );
+    assert!(ending.statuses().is_empty());
+}

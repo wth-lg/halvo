@@ -858,10 +858,15 @@ pub trait RunSources {
     }
 
     /// Arms the watchdog of the run, if the sources keep one, to end the
-    /// process with `status` once SHUTDOWN_BUDGET_MS has passed.
+    /// process with `status` once SHUTDOWN_BUDGET_MS has passed; when it is
+    /// armed already, the earlier deadline stays and `status` replaces the
+    /// armed one.
     fn arm_watchdog(&mut self, status: i32) {
         let _ = status;
     }
+
+    /// Takes back the arm of the run's watchdog, if the sources keep one.
+    fn disarm_watchdog(&mut self) {}
 
     /// The sources whose stop answered neither Ok nor ThreadEnded and that
     /// are let go without a wait.
@@ -934,10 +939,24 @@ fn waits_of<'a, P: RunSources>(sources: &'a mut P, real: &'a mut RealWaits) -> &
     }
 }
 
-/// What is left of the stop path's budget, SHUTDOWN_BUDGET_MS from `start`.
+/// The margin by which a timed run's stop path ends before its watchdog's
+/// deadline, SHUTDOWN_BUDGET_MS (18,000 ms) after the end of the window: the
+/// settle and the Shutdown are cut to 17,000 ms, and the margin is the time
+/// that `run_timed` has to join the owner, build its answer and take the arm
+/// back, or carry the run's own status in it, before the watchdog's call
+/// (ruling DM-25 N2). The deadline stays at 18,000 ms, under STOP_WAIT_MS;
+/// the gate's kill of a timed child comes at its seconds plus
+/// child_deadline_extra_s (25 s, docs/baseline/r1-gate-bounds.txt), counted
+/// from the child's start, so the margin moves no end past it.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub const STOP_PATH_MARGIN_MS: u64 = 1_000;
+
+/// What is left of the stop path's budget, SHUTDOWN_BUDGET_MS less
+/// [`STOP_PATH_MARGIN_MS`] from `start`.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 fn left_of(start: Duration, waits: &dyn Waits) -> Duration {
-    (start + Duration::from_millis(supervisor::SHUTDOWN_BUDGET_MS)).saturating_sub(waits.clock())
+    (start + Duration::from_millis(supervisor::SHUTDOWN_BUDGET_MS - STOP_PATH_MARGIN_MS))
+        .saturating_sub(waits.clock())
 }
 
 impl TimedRun {
@@ -961,10 +980,45 @@ impl TimedRun {
 /// `StopBounds::of(settle_bound)`; the settle and the Shutdown, which follow
 /// the sources' stops, are cut to what is left of SHUTDOWN_BUDGET_MS counted
 /// from the end of the window, so that the waits and the stops together end
-/// inside it (the drain wait and the pause begin with 16 s or more left). An
-/// owner that gives no answer is not joined.
+/// inside it (the drain wait and the pause begin with 16 s or more left),
+/// [`STOP_PATH_MARGIN_MS`] before the watchdog's deadline. An owner that
+/// gives no answer is not joined.
+///
+/// The watchdog is armed at the end of the window with 4 for a grant
+/// restart, 2 after a signal, else 3. When the run returns with no source
+/// let go, the arm is taken back, so that no ending call follows the run's
+/// own answer (ruling DM-25 N2). When a source is let go, the arm stays at
+/// its deadline and carries the run's own status (1 for an error): between
+/// the return and `finish_run`'s line and ending call, that arm alone guards
+/// the run, through the drop of the sources, the report and the loss line.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(
+    run: &TimedRun,
+    sources: &mut P,
+    store: S,
+    clocks: C,
+    stop: &std::sync::atomic::AtomicBool,
+    settle_bound: Duration,
+) -> Result<RunOutcome, DaemonError>
+where
+    P: RunSources,
+    S: port::CaptureStore + Send + 'static,
+    C: maintenance::Clocks + 'static,
+{
+    let answer = run_timed_steps(run, sources, store, clocks, stop, settle_bound);
+    if sources.let_go().is_empty() {
+        sources.disarm_watchdog();
+    } else {
+        sources.arm_watchdog(match &answer {
+            Ok(outcome) => outcome.status,
+            Err(_) => halvo_control::exit::ERROR,
+        });
+    }
+    answer
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn run_timed_steps<P, S, C>(
     run: &TimedRun,
     sources: &mut P,
     store: S,
@@ -1013,13 +1067,13 @@ where
     let mut failed = sources.start(&ctx, &wanted, run.hold_after());
     drop(ctx);
     let signalled = sources.supervise(run.window, stop, &owner);
-    sources.arm_watchdog(
-        if signalled || stop.load(std::sync::atomic::Ordering::SeqCst) {
-            exit::TIMED_RUN_INTERRUPTED
-        } else {
-            exit::TIMED_RUN_SOURCE_FAILED
-        },
-    );
+    sources.arm_watchdog(if sources.restart_asked() {
+        exit::RESTART
+    } else if signalled || stop.load(std::sync::atomic::Ordering::SeqCst) {
+        exit::TIMED_RUN_INTERRUPTED
+    } else {
+        exit::TIMED_RUN_SOURCE_FAILED
+    });
     let mut real = RealWaits;
     let started = waits_of(sources, &mut real).clock();
     let counts = handle.counts();
