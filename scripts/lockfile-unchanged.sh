@@ -12,11 +12,12 @@ argument. It reads the checkout at GITHUB_WORKSPACE and fails when HEAD is
 not GITHUB_SHA, when a tracked file changed, when a file stands that no
 tracked .gitignore ignores, when an index flag is set on a tracked file,
 when an ignore line of an untracked file or of git's own settings hides a
-file, or when git reports an ignored file or directory whose name is that
-of a store file of the capture store's layout, whichever rule ignores it.
-On the macos job a change of a file's mode counts; on the windows job it
-is not seen. A store file inside a directory that an ignore rule ignores
-whole, such as target/, is not seen.
+file, when git reports an ignored file or directory whose name is that of
+a store file of the capture store's layout in any case of its letters,
+whichever rule ignores it, or when a read of git fails. On the macos job a
+change of a file's mode counts; on the windows job it is not seen. A store
+file inside a directory that an ignore rule ignores whole, such as target/,
+is not seen.
 
 --self-test runs the cases of this script in throwaway repositories under
 TMPDIR and prints PASS or FAIL.
@@ -25,7 +26,8 @@ EOF
 }
 
 is_store_name() {
-  case $1 in
+  folded=$(printf '%s' "$1" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz')
+  case $folded in
     store.db*|store.key|create.pending|writer.lock|daemon.lock|daemon-state.json|delete-all.intent|*.seg) return 0 ;;
   esac
   return 1
@@ -42,25 +44,40 @@ inspect() {
     fi
     git --no-replace-objects --git-dir="$tree/.git" --work-tree="$tree" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default "$@"
   }
-  head=$(in_checkout rev-parse HEAD)
+  unreadable() {
+    printf 'git cannot read the checkout (%s), so this step cannot tell what a step or a check changed.\n' "$1"
+    return 1
+  }
+  reads=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || { printf 'a temporary directory cannot be made\n'; return 1; }
+  head=$(in_checkout rev-parse HEAD) || { unreadable 'rev-parse HEAD'; return 1; }
   if [ "$head" != "$want" ]; then
     printf 'HEAD is not the commit of this run: a step or a check moved HEAD of the checkout.\n'
     return 1
   fi
-  changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none)
-  untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore)
-  flagged=$(in_checkout ls-files -v | awk '!/^H /')
-  hidden=$(in_checkout status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
-    source=$(in_checkout check-ignore -v --no-index -- "$entry") || { printf '%s\n' "$entry"; continue; }
-    in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || printf '%s\n' "$entry"
-  done)
-  stored=$(in_checkout status --porcelain -z --ignored --untracked-files=normal | LC_ALL=C tr '\0' '\n' | sed -n 's/^!! //p' | while IFS= read -r entry; do
+  changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none) || { unreadable status; return 1; }
+  untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore) || { unreadable 'ls-files --others'; return 1; }
+  in_checkout ls-files -v >"$reads/flags" || { unreadable 'ls-files -v'; return 1; }
+  flagged=$(awk '!/^H /' "$reads/flags")
+  in_checkout status --porcelain -z --ignored=matching --untracked-files=normal >"$reads/ignored" || { unreadable 'status --ignored'; return 1; }
+  LC_ALL=C tr '\0' '\n' <"$reads/ignored" | sed -n 's/^!! //p' >"$reads/entries"
+  hidden=
+  stored=
+  while IFS= read -r entry; do
+    if printf "%s\0" "$entry" | in_checkout check-ignore -z -v --stdin --no-index >"$reads/source"; then
+      source=$(LC_ALL=C tr '\0' '\n' <"$reads/source" | sed -n 1p)
+      in_checkout ls-files --error-unmatch -- "$source" >/dev/null 2>&1 || hidden="$hidden$entry
+"
+    else
+      hidden="$hidden$entry
+"
+    fi
     entry_name=${entry%/}
     entry_name=${entry_name##*/}
     if is_store_name "$entry_name"; then
-      printf '%s\n' "$entry"
+      stored="$stored$entry
+"
     fi
-  done)
+  done <"$reads/entries"
   if [ -n "$changed$untracked$flagged$hidden$stored" ]; then
     printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" "$stored" | sed '/^$/d'
     printf 'A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, hid them by an index flag, or left a file named like a store file of the capture store, which no ignore rule makes right. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes.\n'
@@ -98,7 +115,7 @@ self_test() {
   git -C "$template" init -q || exit 2
   git -C "$template" config core.autocrlf false
   printf 'line 1\n' >"$template/tracked.txt"
-  printf '%s\n' '/target/' '/store.db*' '/store.key' '/create.pending' '/writer.lock' '/daemon.lock' '/daemon-state.json' '/delete-all.intent' '/*.seg' >"$template/.gitignore"
+  printf '%s\n' '/target/' '*.log' '/store.db*' '/store.key' '/create.pending' '/writer.lock' '/daemon.lock' '/daemon-state.json' '/delete-all.intent' '/*.seg' >"$template/.gitignore"
   quoted_dir=$(printf 'n\303\251sted')
   mkdir "$template/nested" "$template/$quoted_dir" || exit 2
   printf 'store.key\n' >"$template/nested/.gitignore"
@@ -157,6 +174,10 @@ self_test() {
   fresh; printf 'store.key\n' >"$tree/.git/info/exclude"; mkdir "$tree/deep"; : >"$tree/deep/store.key"; run_case store-key-ignored-by-info-exclude FAIL macos
   fresh; : >"$tree/nested/store.key"; run_case store-key-in-a-subdirectory-ignored-by-a-tracked-rule FAIL macos
   fresh; : >"$tree/$quoted_dir/store.key"; run_case store-key-in-a-directory-whose-name-git-quotes FAIL windows
+  fresh; : >"$tree/Store.Key"; run_case store-name-in-another-case FAIL macos
+  fresh; mkdir "$tree/newdir"; : >"$tree/newdir/build.log"; run_case new-directory-of-files-that-a-tracked-rule-ignores PASS macos
+  fresh; : >"$tree/$quoted_dir/build.log"; run_case ignored-file-in-a-directory-whose-name-git-quotes PASS windows
+  fresh; printf 'line 2\n' >>"$tree/tracked.txt"; : >"$tree/new.txt"; printf 'not an index\n' >"$tree/.git/index"; run_case index-that-git-cannot-read FAIL macos
 
   fresh
   printf 'line 2\n' >>"$tree/tracked.txt"
