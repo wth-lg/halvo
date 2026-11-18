@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -14,124 +17,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Lockfile unchanged
-        shell: bash
-        run: |
-          for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
-            unset "$name"
-          done
-          in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default -c core.fileMode=true "$@"
-          }
-          head=$(in_checkout rev-parse HEAD)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
-            exit 1
-          fi
-          changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none)
-          untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore)
-          flagged=$(in_checkout ls-files -v | awk '!/^H /')
-          hidden=$(in_checkout status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
-            source=$(in_checkout check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
-            in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
-          done)
-          if [ -n "$changed$untracked$flagged$hidden" ]; then
-            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
-            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
-            exit 1
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 120
@@ -160,14 +45,25 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r4-layout 20-r4-core 30-r4-formal 45-r4-words 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-r4-layout 20-r4-core 30-r4-formal 45-r4-words 15-r3-test-dirs
+      - name: Loop (u24i, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( out=$(cargo test -p halvo-coord --locked --test run_check -- --exact the_memory_owner_gives_the_reply_rows_of_one_run_and_refuses_as_the_store_does a_reply_row_is_not_known_in_the_state_unknown_and_when_its_reader_could_not_read_it a_tick_raises_the_check_of_a_record_of_0_that_the_roster_key_names_and_starts_nothing a_roster_read_that_does_not_answer_starts_nothing_and_the_check_stands_at_the_next_read recovery_takes_the_roster_key_and_raises_the_check_of_a_record_of_0 an_entry_of_an_older_run_raises_no_check_and_the_facts_keep_none_of_it the_creations_facts_take_the_roster_key_of_the_newest_run for_email_a_reply_row_unknown_beside_a_record_of_0_raises_the_check_and_starts_nothing for_email_a_reply_row_that_its_reader_could_not_read_raises_the_check for_email_rows_that_are_all_known_hold_nothing_and_the_start_goes for_email_a_start_in_a_move_whose_reply_read_did_not_answer_is_refused_with_nothing_stored the_reply_read_is_asked_for_email_alone the_reply_read_is_asked_at_each_tick_while_the_card_is_open_and_not_after_the_answer the_check_card_keeps_both_choices_while_the_reply_read_does_not_answer recovery_reads_the_reply_rows_and_raises_the_check_of_an_email_agent recovery_whose_reply_read_does_not_answer_raises_nothing_and_starts_nothing no_reply_read_while_the_store_has_not_ended_the_newest_run an_agent_set_aside_whose_reply_read_does_not_answer_is_not_started_by_the_tick_that_reads_it_again the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record review_went_through_is_taken_after_a_recovery_whose_reply_read_does_not_answer review_try_again_is_taken_after_a_recovery_and_a_tick_whose_reply_reads_fail review_a_read_that_answers_after_the_card_was_raised_ends_no_hold_and_the_card_takes_a_choice review_a_tick_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read review_an_end_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read review_a_start_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read review_a_card_of_an_earlier_life_keeps_its_hold_when_recoverys_reply_read_does_not_answer review_went_through_is_taken_after_a_second_life_and_a_tick_whose_reply_reads_fail review_a_card_raised_for_an_unreadable_row_survives_a_second_life_whose_reply_read_fails review_an_agent_set_aside_with_an_open_card_keeps_its_hold_when_the_tick_reads_it_again a_tick_whose_roster_read_fails_raises_nothing_from_the_key_entries_of_an_earlier_read 2>&1); grep -q 'test result: ok. 30 passed; 0 failed' <<<"$out" && out=$(cargo test -p halvo-coord --locked --test schedule_holds -- --exact check_stands_for_a_record_of_0_whose_run_the_roster_key_names an_entry_of_an_older_run_alone_gives_no_check take_unknown_keeps_the_entries_of_the_newest_run_alone check_stands_for_a_reply_row_that_is_not_known_and_after_a_raised_card_until_the_answer 2>&1); grep -q 'test result: ok. 4 passed; 0 failed' <<<"$out" && out=$(cargo test -p halvo-coord --locked --test run_recover -- --exact refusal_interrupted_no_retry_holds_the_check_from_the_roster_key_that_end_run_leaves 2>&1); grep -q 'test result: ok. 1 passed; 0 failed' <<<"$out" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop u24i: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
