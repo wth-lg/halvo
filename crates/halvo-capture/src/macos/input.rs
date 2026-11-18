@@ -1886,12 +1886,18 @@ impl CaptureSource for InputSource {
         answer
     }
 
-    /// The state of the tap thread and the counters. A named limit (ruling
-    /// MA-30 M8): while the notice thread watches nothing (no Accessibility
-    /// grant, nothing in front, a registration refused) or has ended, the
-    /// source reads running and guards as macos-2b did; health says nothing of
-    /// the notice. A drop by doubt does not read as impaired. The figure
-    /// max_lag_ms has no writer on a Mac and reads 0.
+    /// The state of the tap thread and the counters. A named limit (rulings
+    /// MA-30 M8, MA-31 N8): while the notice thread watches nothing and no
+    /// doubt stands (no Accessibility grant, nothing in front, a registration
+    /// refused with an answer) or has ended, the source reads running and
+    /// guards as macos-2b did; while a doubt stands it drops every held key at
+    /// each reading and every key that arrives, more than macos-2b did, and
+    /// still reads running. Health says nothing of the notice or the doubt: a
+    /// drop by doubt does not read as impaired. A late key-up, or another
+    /// reading event, whose reading finds a new mark or a standing doubt
+    /// leaves the stalled flag unset, because the mark's drop takes the held
+    /// keys first; with no mark it sets it. The figure max_lag_ms has no
+    /// writer on a Mac and reads 0.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
@@ -3522,6 +3528,37 @@ mod tests {
             "a reading that began in time and ended past the gap bound"
         );
         assert!(outcomes[1].0 .2, "the gap stalls the source");
+    }
+
+    #[test]
+    fn a_late_key_up_whose_reading_finds_a_new_mark_or_a_doubt_leaves_the_stalled_flag_unset() {
+        let mut stalled = Vec::new();
+        for under in ["no mark", "a new mark", "a standing doubt"] {
+            let held = held(1_000);
+            key_down(&held.ctx);
+            advance(1);
+            match under {
+                "a new mark" => mark_now(&held.ctx),
+                "a standing doubt" => held.ctx.notices.set_doubt(true),
+                _ => {}
+            }
+            on_tap_event(
+                &held.ctx,
+                timed(
+                    CGEventType::KeyUp,
+                    Timing::Late {
+                        lag: Duration::from_millis(40),
+                    },
+                ),
+            );
+            assert_eq!(held_now(&held.ctx), 0, "{under}: the held key is dropped");
+            stalled.push(held.counters.stalled());
+        }
+        assert_eq!(
+            stalled,
+            [true, false, false],
+            "the late key-up stalls the source with no mark alone"
+        );
     }
 
     #[test]
