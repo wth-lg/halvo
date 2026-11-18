@@ -172,6 +172,7 @@ self_test() {
   fresh; : >"$tree/nested/store.key"; run_case store-key-in-a-subdirectory-ignored-by-a-tracked-rule FAIL macos
   fresh; : >"$tree/$quoted_dir/store.key"; run_case store-key-in-a-directory-whose-name-git-quotes FAIL windows
   fresh; : >"$tree/Store.Key"; run_case store-name-in-another-case FAIL macos
+  fresh; : >"$tree/build.log"; : >"$tree/store.key"; run_case store-key-after-another-ignored-file FAIL macos
   fresh; mkdir "$tree/newdir"; : >"$tree/newdir/build.log"; run_case new-directory-of-files-that-a-tracked-rule-ignores FAIL macos
   fresh; : >"$tree/$quoted_dir/build.log"; run_case ignored-file-in-a-directory-whose-name-git-quotes FAIL windows
   fresh; mkdir -p "$tree/nested/writer.lock"; : >"$tree/nested/writer.lock/build.log"; run_case store-named-directory-holding-an-ignored-file FAIL macos
