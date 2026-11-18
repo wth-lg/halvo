@@ -99,7 +99,11 @@ self_test() {
   git -C "$template" config core.autocrlf false
   printf 'line 1\n' >"$template/tracked.txt"
   printf '%s\n' '/target/' '/store.db*' '/store.key' '/create.pending' '/writer.lock' '/daemon.lock' '/daemon-state.json' '/delete-all.intent' '/*.seg' >"$template/.gitignore"
-  git -C "$template" add tracked.txt .gitignore || exit 2
+  quoted_dir=$(printf 'n\303\251sted')
+  mkdir "$template/nested" "$template/$quoted_dir" || exit 2
+  printf 'store.key\n' >"$template/nested/.gitignore"
+  printf 'store.key\n' >"$template/$quoted_dir/.gitignore"
+  git -C "$template" add tracked.txt .gitignore nested/.gitignore "$quoted_dir/.gitignore" || exit 2
   base=$(commit_tree "$template") || exit 2
   git -C "$template" update-ref HEAD "$base" || exit 2
   case_count=0
@@ -151,6 +155,8 @@ self_test() {
   fresh; : >"$tree/store.key"; run_case store-key-ignored-by-a-tracked-rule-on-windows FAIL windows
   fresh; mkdir "$tree/store.db.d"; : >"$tree/store.db.d/x"; run_case directory-named-like-a-store-file FAIL macos
   fresh; printf 'store.key\n' >"$tree/.git/info/exclude"; mkdir "$tree/deep"; : >"$tree/deep/store.key"; run_case store-key-ignored-by-info-exclude FAIL macos
+  fresh; : >"$tree/nested/store.key"; run_case store-key-in-a-subdirectory-ignored-by-a-tracked-rule FAIL macos
+  fresh; : >"$tree/$quoted_dir/store.key"; run_case store-key-in-a-directory-whose-name-git-quotes FAIL windows
 
   fresh
   printf 'line 2\n' >>"$tree/tracked.txt"
@@ -184,13 +190,32 @@ self_test() {
   printf 'line 2\n' >>"$tree/tracked.txt"
   armed_case file-system-monitor-hook-hides-a-change FAIL macos
 
+  same_size_change() {
+    touch -t 202001010000 "$tree/tracked.txt"
+    git -C "$tree" update-index -q --refresh
+    sleep 1
+    printf 'line 9\n' >"$tree/tracked.txt"
+    touch -t 202001010000 "$tree/tracked.txt"
+    git -C "$tree" config "$1" "$2"
+    if git -C "$tree" -c core.trustctime=true -c core.checkStat=default diff --quiet; then
+      skipped="$skipped $3"
+      printf 'case %s/%s skipped: on this system a write leaves the change time of a file as it was\n' "$name" "$3"
+    else
+      armed_case "$3" FAIL "$4"
+    fi
+  }
+  fresh; same_size_change core.trustctime false same-size-change-with-trustctime-off-in-git-settings macos
+  fresh; same_size_change core.checkStat minimal same-size-change-with-checkstat-minimal-in-git-settings windows
+
   fresh
+  git -C "$tree" config core.fileMode false
   chmod +x "$tree/tracked.txt"
   if git -C "$tree" -c core.fileMode=true diff --quiet; then
     skipped="$skipped mode-change"
     printf 'case %s/mode-change skipped: this system keeps no mode bit that git reads\n' "$name"
   else
-    run_case mode-change-counts-on-macos FAIL macos
+    armed_case mode-change-counts-on-macos FAIL macos
+    run_case mode-change-is-not-seen-on-windows PASS windows
   fi
 
   if [ -n "$wrong" ]; then
