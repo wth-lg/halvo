@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,54 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-r3-layout 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-r3-layout 15-r3-test-dirs
+      - name: Loop (verdict-self-test, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( py=python3; command -v python3 >/dev/null 2>&1 || py=python; "$py" -I tools/r3-trials/drive/verdict.py --self-test | grep -q 'PASS self-test: verdict.py (30 bad blocks refused; of the importer.s cases 492 refused at its detail, 103 taken)' ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop verdict-self-test: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: verdict.py self-test and check
+        shell: bash
+        run: |
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          "$py" --version
+          "$py" -I tools/r3-trials/drive/verdict.py --self-test
+          "$py" -I tools/r3-trials/drive/verdict.py --check
+          left=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')
+          echo "verdict.py: tracked files that differ from HEAD after the self-test and the check: $left"
+          test "$left" = 0
+      - name: verdict.py control c29, --write with the system's line ends
+        shell: bash
+        run: |
+          set +e
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          copy=tools/r3-trials/drive/verdict_c29.py
+          sed 's/"w", encoding="utf-8", newline="")/"w", encoding="utf-8")/' tools/r3-trials/drive/verdict.py >"$copy"
+          left_in_copy=$(grep -c 'newline=""' "$copy")
+          if [ "$left_in_copy" = 0 ]; then changed=1; else changed=0; fi
+          "$py" -I "$copy" --self-test >"$RUNNER_TEMP/c29.log" 2>&1
+          code=$?
+          "$py" -I -c "import os; os.remove('$copy')"
+          caught=$(grep -c '^self-test: main() --write, the file it wrote' "$RUNNER_TEMP/c29.log")
+          echo "c29: copy changed=$changed exit=$code caught=$caught os=$RUNNER_OS"
+          tail -n 3 "$RUNNER_TEMP/c29.log"
+          if [ "$RUNNER_OS" = Windows ]; then want="1 1"; else want="0 0"; fi
+          [ "$changed" = 1 ] && [ "$code $caught" = "$want" ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +190,54 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r3-layout 15-r3-test-dirs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-r3-layout 15-r3-test-dirs
+      - name: Loop (verdict-self-test, 200 rounds)
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( py=python3; command -v python3 >/dev/null 2>&1 || py=python; "$py" -I tools/r3-trials/drive/verdict.py --self-test | grep -q 'PASS self-test: verdict.py (30 bad blocks refused; of the importer.s cases 492 refused at its detail, 103 taken)' ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop verdict-self-test: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: verdict.py self-test and check
+        shell: bash
+        run: |
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          "$py" --version
+          "$py" -I tools/r3-trials/drive/verdict.py --self-test
+          "$py" -I tools/r3-trials/drive/verdict.py --check
+          left=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')
+          echo "verdict.py: tracked files that differ from HEAD after the self-test and the check: $left"
+          test "$left" = 0
+      - name: verdict.py control c29, --write with the system's line ends
+        shell: bash
+        run: |
+          set +e
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          copy=tools/r3-trials/drive/verdict_c29.py
+          sed 's/"w", encoding="utf-8", newline="")/"w", encoding="utf-8")/' tools/r3-trials/drive/verdict.py >"$copy"
+          left_in_copy=$(grep -c 'newline=""' "$copy")
+          if [ "$left_in_copy" = 0 ]; then changed=1; else changed=0; fi
+          "$py" -I "$copy" --self-test >"$RUNNER_TEMP/c29.log" 2>&1
+          code=$?
+          "$py" -I -c "import os; os.remove('$copy')"
+          caught=$(grep -c '^self-test: main() --write, the file it wrote' "$RUNNER_TEMP/c29.log")
+          echo "c29: copy changed=$changed exit=$code caught=$caught os=$RUNNER_OS"
+          tail -n 3 "$RUNNER_TEMP/c29.log"
+          if [ "$RUNNER_OS" = Windows ]; then want="1 1"; else want="0 0"; fi
+          [ "$changed" = 1 ] && [ "$code $caught" = "$want" ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
