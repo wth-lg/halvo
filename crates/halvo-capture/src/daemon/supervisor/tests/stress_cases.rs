@@ -1406,3 +1406,117 @@ fn adv1_f4_the_final_record_of_a_timeout_then_ok_names_the_source() {
         );
     }
 }
+
+/// A stop for capture off whose owner runs its passes only from
+/// `answers_at` after the Pause, `None` for never: the calls after the
+/// starts, and the loop's time at the end.
+fn capture_off_with_a_late_barrier(answers_at: Option<Duration>) -> (Vec<String>, Duration) {
+    let mut f = fixture_on_owner(Factory::new(), ModelStore::new());
+    let calls = f.supervisor.factory().calls.clone();
+    f.start(&two());
+    f.tick();
+    let harness = f.link.as_ref().unwrap().harness.clone();
+    let passes = calls.clone();
+    let from = f.now.get();
+    let main_loop = f.supervisor.main_loop();
+    main_loop.harness = None;
+    main_loop.hook = Some(Box::new(move |at| {
+        if answers_at.is_some_and(|answers_at| at >= from + answers_at) {
+            harness.borrow_mut().owner.pass(Duration::ZERO);
+            passes.push(format!("owner pass at {} ms", (at - from).as_millis()));
+        }
+    }));
+    let link = f.link.take().unwrap();
+    let outcome = f
+        .supervisor
+        .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+    assert_eq!(outcome, Some(CaptureOff::Stopped));
+    (after_the_starts(&calls), f.now.get() - from)
+}
+
+/// N7 (a) and A1-F6 (the verifier's kept item 8): the owner answers the
+/// barrier 1.5 s after the Pause, past FIRST_SETTLE; no source is asked to
+/// stop before that answer.
+#[test]
+fn adv1_f6_the_capture_off_stop_asks_no_source_before_the_barrier_is_answered() {
+    let (taken, at) = capture_off_with_a_late_barrier(Some(Duration::from_millis(1_500)));
+    println!("dm25 n7 a1-f6 at_ms={} calls={taken:?}", at.as_millis());
+    let first_stop = taken.iter().position(|call| call.starts_with("stop "));
+    let first_pass = taken.iter().position(|call| call.starts_with("owner pass"));
+    assert!(
+        matches!((first_pass, first_stop), (Some(pass), Some(stop)) if pass < stop),
+        "the first source was asked to stop before the owner answered the barrier: {taken:?}"
+    );
+}
+
+/// N7 (a): an owner that never answers the barrier still lets the stops
+/// begin, once BARRIER_WAIT has passed.
+#[test]
+fn a_barrier_that_is_never_answered_lets_the_stops_begin_after_its_wait() {
+    let (taken, at) = capture_off_with_a_late_barrier(None);
+    println!("dm25 n7 never at_ms={} calls={taken:?}", at.as_millis());
+    assert_eq!(taken, ["stop input", "stop foreground"]);
+    assert!(
+        at >= BARRIER_WAIT && at < BARRIER_WAIT + Duration::from_millis(500),
+        "the stops began {at:?} after the Pause"
+    );
+}
+
+/// N7 (b) and A2-5 (kept item 8, the lost grant): the watchdog's call comes
+/// at most SHUTDOWN_BUDGET_MS after the first answer that is not a stop,
+/// while the routine's second ask blocks 19.5 s on the real clock. Each turn
+/// of the loop sleeps its whole wait, so that the barrier's wait is real.
+#[test]
+fn adv2_the_lost_grant_arms_the_watchdog_at_its_first_answer() {
+    let start = Instant::now();
+    let first_answer: Rc<Cell<Option<Instant>>> = Rc::default();
+    let asked: Rc<Cell<u32>> = Rc::default();
+    let (first, count) = (first_answer.clone(), asked.clone());
+    let (mut f, answers, _) = probed(fixture_on_owner(
+        Factory::adjusting(move |source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+                let (first, count) = (first.clone(), count.clone());
+                let hook: Hook = Box::new(move |_| {
+                    count.set(count.get() + 1);
+                    if count.get() == 1 {
+                        first.set(Some(Instant::now()));
+                    } else {
+                        std::thread::sleep(Duration::from_millis(19_500));
+                    }
+                });
+                source.on_stop = Some(hook);
+            }
+        }),
+        ModelStore::new(),
+    ));
+    let ending = Stamped::default();
+    ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+    answers
+        .borrow_mut()
+        .push_back(input_monitoring(GrantState::Granted));
+    f.start(&two());
+    f.tick();
+    f.link.as_ref().unwrap().emit(2);
+    answers
+        .borrow_mut()
+        .push_back(input_monitoring(GrantState::NotGranted));
+    f.supervisor.main_loop().harness = None;
+    f.supervisor.main_loop().real = Duration::from_secs(3_600);
+    f.now.set(f.now.get() + PROBE_INTERVAL);
+    let link = f.link.take().unwrap();
+    let tick = f.supervisor.tick(Some(&link));
+    let from = first_answer
+        .get()
+        .expect("the input source was not stopped");
+    let calls = ending.since(from);
+    println!(
+        "dm25 n7 a2-lost-grant tick={tick:?} took_ms={} calls(status,ms_after_first_answer)={calls:?}",
+        start.elapsed().as_millis()
+    );
+    let by = u128::from(SHUTDOWN_BUDGET_MS) + WAKE;
+    assert!(
+        matches!(calls.first(), Some((status, at)) if *status == exit::SOURCE_NOT_STOPPED && *at <= by),
+        "the first ending call came {calls:?} after the first answer that is not a stop, past {by} ms"
+    );
+}

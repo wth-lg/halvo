@@ -51,6 +51,16 @@ pub const FIRST_SETTLE: Duration = Duration::from_secs(1);
 /// The final settle of the shutdown entry.
 pub const FINAL_SETTLE: Duration = Duration::from_secs(5);
 
+/// The longest that a stop for capture off, or the end routine of a lost
+/// grant, waits for the owner's acknowledgement of its barrier before it
+/// asks a source to stop: the final settle's bound, the longest wait for the
+/// owner's answer anywhere in the routine, so that an owner inside a long
+/// store call answers before the stops and a source parked behind it is not
+/// taken for one that does not stop (ruling DM-25 N7 (a)). FIRST_SETTLE
+/// (1 s) bounded it before; an owner that never answers still lets the
+/// stops begin once this has passed.
+pub const BARRIER_WAIT: Duration = FINAL_SETTLE;
+
 /// The first wait before a failed source is started again.
 pub const RESTART_FIRST: Duration = Duration::from_secs(1);
 
@@ -791,19 +801,23 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         None
     }
 
-    /// A stop for capture off (Pause, a lapsed lease, step 1 of delete-all; daemon-3 calls it): the
-    /// watchdog is armed with status 5 for the longest stop bound in play plus SHUTDOWN_BUDGET_MS,
-    /// at most [`ENTRY_DEADLINE_MS`]; then the owner's barrier, then each source in the stop order
-    /// until the first answer that is not a stop, a stop past its bound included (ruling DM-25 N1).
-    /// When every source stops the arm is taken back and the process stays up. At the first answer
-    /// that is not a stop the arm moves to SHUTDOWN_BUDGET_MS after that answer, or after the
-    /// moment that a late stop's bound passed, the earlier deadline kept, and the end routine runs:
-    /// `reply` gets the Board, the first record is written, the owner settles, every source still
-    /// held is asked once more when its stop bound fits before the deadline, the owner settles
-    /// again, the final record is written and the ending call is made with status 5 (ruling PL-3
-    /// parts (2) to (4)). The settles are cut to what is left before the deadline, and the watchdog
-    /// ends the process with 5 only when the routine has not. It runs once: a second trigger
-    /// answers `None`.
+    /// A stop for capture off (Pause, a lapsed lease, step 1 of delete-all;
+    /// daemon-3 calls it): the owner's barrier, waited for at most
+    /// BARRIER_WAIT; then the watchdog is armed with status 5 for the longest
+    /// stop bound in play plus SHUTDOWN_BUDGET_MS, at most
+    /// [`ENTRY_DEADLINE_MS`]; then each source in the stop order until the
+    /// first answer that is not a stop, a stop past its bound included (ruling
+    /// DM-25 N1). When every source stops the arm is taken back and the process
+    /// stays up. At the first answer that is not a stop the arm moves to
+    /// SHUTDOWN_BUDGET_MS after that answer, or after the moment that a late
+    /// stop's bound passed, the earlier deadline kept, and the end routine
+    /// runs: `reply` gets the Board, the first record is written, the owner
+    /// settles, every source still held is asked once more when its stop bound
+    /// fits before the deadline, the owner settles again, the final record is
+    /// written and the ending call is made with status 5 (ruling PL-3 parts (2)
+    /// to (4)). The settles are cut to what is left before the deadline, and
+    /// the watchdog ends the process with 5 only when the routine has not. It
+    /// runs once: a second trigger answers `None`.
     pub fn stop_for_capture_off(
         &mut self,
         owner: &dyn OwnerLink,
@@ -813,11 +827,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if self.entered {
             return None;
         }
-        let in_play = self.held(stop_order(self.platform));
-        self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
         if kind != StopKind::LostGrant {
             self.barrier(owner);
         }
+        let in_play = self.held(stop_order(self.platform));
+        self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
         self.backoff.clear();
         let mut unstopped = false;
         for name in stop_order(self.platform) {
@@ -927,9 +941,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
     }
 
+    /// The owner's barrier: OpenPause, and a wait for its acknowledgement of
+    /// at most [`BARRIER_WAIT`], so that no source is asked to stop, and no
+    /// deadline starts, before the owner has answered (ruling PL-3 part (2);
+    /// ruling DM-25 N7 (a)).
     fn barrier(&mut self, owner: &dyn OwnerLink) {
         if let Ok(pending) = owner.ask(Command::OpenPause) {
-            let _ = self.answer_within(&pending, FIRST_SETTLE);
+            let _ = self.answer_within(&pending, BARRIER_WAIT);
         }
     }
 
