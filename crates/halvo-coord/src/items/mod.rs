@@ -4,6 +4,7 @@
 //! the setup flow (`setup_step`), as pure functions, and `drive`, which carries out their
 //! decisions through the ports.
 
+pub mod chars;
 mod compose;
 mod confirm;
 pub mod drive;
