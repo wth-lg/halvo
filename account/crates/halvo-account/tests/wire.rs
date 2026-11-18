@@ -184,6 +184,23 @@ fn each_command_sends_its_route_with_the_stored_sign_in_and_only_the_listed_head
 }
 
 #[test]
+fn the_binary_prints_the_line_and_the_sentence_of_closing_for_status() {
+    let (ran, seen, _) = exchange(&["status"], Some(&kept()), 200, r#"{"result":"closing"}"#);
+    assert_eq!(
+        (seen.method.as_str(), seen.target.as_str()),
+        ("GET", "/v1/subscription")
+    );
+    assert_eq!(
+        (ran.code, ran.stdout.as_str(), ran.stderr.as_str()),
+        (
+            0,
+            "result=closing\n",
+            "halvo-account: the backend answered that the account is closing: its delete has begun and the backend has not yet heard from the provider that its plan is ended; the backend sees to the end of the plan and finishes the delete by itself, nothing is asked of you, and when that happens is not known\n"
+        )
+    );
+}
+
+#[test]
 fn delete_removes_the_stored_sign_in_after_the_backend_deleted_the_account() {
     let dir = scratch("delete").join("store");
     keep_sign_in(&dir, &kept());

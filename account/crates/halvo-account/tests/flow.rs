@@ -1012,6 +1012,47 @@ fn status_reports_each_result_of_the_route() {
     }
 }
 
+const CLOSING: &str = r#"{"result":"closing"}"#;
+
+const CLOSING_NOTE: &str = "the backend answered that the account is closing: its delete has begun and the backend has not yet heard from the provider that its plan is ended; the backend sees to the end of the plan and finishes the delete by itself, nothing is asked of you, and when that happens is not known";
+
+#[test]
+fn status_reads_closing_and_prints_its_line_and_its_sentence() {
+    let held = sign_in(3);
+    let world = World::holding(&held).answering(200, CLOSING);
+    let outcome = world.run(&["status"]);
+    assert_eq!(
+        (outcome.code(), outcome.line(), outcome.note()),
+        (0, "result=closing".to_string(), CLOSING_NOTE)
+    );
+    assert_eq!(world.log(), ["read", "send"]);
+    assert_eq!(world.stored(), Some(held.to_secret().expose().to_vec()));
+}
+
+#[test]
+fn status_that_goes_from_cancelled_back_to_closing_prints_closing_again() {
+    let held = sign_in(4);
+    let world = World::holding(&held)
+        .answering(200, r#"{"result":"closing"}"#)
+        .answering(200, r#"{"result":"cancelled"}"#)
+        .answering(200, CLOSING);
+    let lines: Vec<(u8, String, &str)> = (0..3)
+        .map(|_| {
+            let outcome = world.run(&["status"]);
+            (outcome.code(), outcome.line(), outcome.note())
+        })
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            (0, "result=closing".to_string(), CLOSING_NOTE),
+            (0, "result=cancelled".to_string(), "the backend answered"),
+            (0, "result=closing".to_string(), CLOSING_NOTE),
+        ]
+    );
+    assert_eq!(world.stored(), Some(held.to_secret().expose().to_vec()));
+}
+
 #[test]
 fn cap_and_set_cap_report_the_cap_with_what_is_spent_and_held_and_the_period_end() {
     let body = r#"{"result":"cap","cap":{"amount":5,"period":"month"},"spend":{"spent":1,"held":2,"period_end":1767225600000}}"#;
