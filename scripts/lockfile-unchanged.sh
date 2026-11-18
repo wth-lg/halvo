@@ -58,19 +58,15 @@ inspect() {
   untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore) || { unreadable 'ls-files --others'; return 1; }
   in_checkout ls-files -v >"$reads/flags" || { unreadable 'ls-files -v'; return 1; }
   flagged=$(awk '!/^H /' "$reads/flags")
-  in_checkout status --porcelain -z --ignored=matching --untracked-files=normal >"$reads/ignored" || { unreadable 'status --ignored'; return 1; }
-  LC_ALL=C tr '\0' '\n' <"$reads/ignored" | sed -n 's/^!! //p' >"$reads/entries"
-  hidden=
+  in_checkout status --porcelain --ignored --untracked-files=normal >"$reads/ignored-quoted" || { unreadable 'status --ignored'; return 1; }
+  hidden=$(LC_ALL=C sed -n 's/^!! //p' "$reads/ignored-quoted" | while IFS= read -r entry; do
+    source=$(in_checkout check-ignore -v --no-index -- "$entry") || { printf '%s\n' "$entry"; continue; }
+    in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || printf '%s\n' "$entry"
+  done)
+  in_checkout status --porcelain -z --ignored=matching --untracked-files=normal >"$reads/ignored" || { unreadable 'status --ignored=matching'; return 1; }
+  LC_ALL=C tr '\n\0' '\001\n' <"$reads/ignored" | LC_ALL=C sed -n 's/^!! //p' >"$reads/entries"
   stored=
   while IFS= read -r entry; do
-    if printf "%s\0" "$entry" | in_checkout check-ignore -z -v --stdin --no-index >"$reads/source"; then
-      source=$(LC_ALL=C tr '\0' '\n' <"$reads/source" | sed -n 1p)
-      in_checkout ls-files --error-unmatch -- "$source" >/dev/null 2>&1 || hidden="$hidden$entry
-"
-    else
-      hidden="$hidden$entry
-"
-    fi
     entry_name=${entry%/}
     entry_name=${entry_name##*/}
     if is_store_name "$entry_name"; then
@@ -78,6 +74,7 @@ inspect() {
 "
     fi
   done <"$reads/entries"
+  stored=$(printf '%s' "$stored" | LC_ALL=C tr '\001' '?')
   if [ -n "$changed$untracked$flagged$hidden$stored" ]; then
     printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" "$stored" | sed '/^$/d'
     printf 'A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, hid them by an index flag, or left a file named like a store file of the capture store, which no ignore rule makes right. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes.\n'
