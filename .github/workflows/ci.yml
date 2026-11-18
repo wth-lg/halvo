@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,61 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 50-r5-drift 55-r5-routine 20-r5-rule 60-r5-privacy 25-r3-run-record
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 50-r5-drift 55-r5-routine 20-r5-rule 60-r5-privacy 25-r3-run-record
+      - name: U2.2b rounds of the new tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/u22b"
+          cargo test --locked -p halvo-learn-gate --no-run >"$RUNNER_TEMP/u22b/no-run.txt" 2>&1
+          echo "u22b loop no-run exit=$?"
+          unit=$(sed -n 's/.*Executable unittests src.main\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u22b/no-run.txt" | tail -n 1 | tr '\\' '/')
+          drift=$(sed -n 's/.*Executable tests.drift_cli\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u22b/no-run.txt" | tail -n 1 | tr '\\' '/')
+          delete=$(sed -n 's/.*Executable tests.delete_cli\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u22b/no-run.txt" | tail -n 1 | tr '\\' '/')
+          echo "u22b loop binaries unit=${unit:+found} drift=${drift:+found} delete=${delete:+found}"
+          bad=0
+          rounds() {
+            ok=0
+            i=0
+            start=$(date -u +%s)
+            while [ "$i" -lt "$2" ]; do
+              i=$((i + 1))
+              out=$("$1" --exact "$3" 2>&1 </dev/null)
+              if grep -q '^test result: ok\. 1 passed; 0 failed' <<<"$out"; then
+                ok=$((ok + 1))
+              fi
+            done
+            echo "u22b loop name=$3 rounds=$2 passed=$ok seconds=$(($(date -u +%s) - start))"
+            [ "$ok" -eq "$2" ] || bad=1
+          }
+          rounds "$unit" 200 tests::derived::derived_a_learned_edit_is_read_back_and_served_after_the_host_and_the_store_restart
+          rounds "$unit" 200 tests::derived::derived_list_refinements_goes_to_the_handlers_in_front_and_lists_the_learned_edit
+          rounds "$unit" 200 tests::derived::derived_the_store_s_files_hold_neither_the_sqlite_header_nor_a_learned_label
+          rounds "$unit" 200 tests::derived::derived_the_store_opens_again_with_its_key_and_refuses_another_key
+          rounds "$unit" 200 tests::derived::derived_the_handlers_in_front_take_every_op_of_the_agent_store_and_list_refinements
+          rounds "$unit" 200 tests::derived::derived_the_key_holds_four_words_of_its_own_and_another_state_gives_another_key
+          rounds "$unit" 200 tests::derived::derived_the_delete_reads_as_stored_the_workflow_that_it_names_alone
+          rounds "$unit" 200 tests::derived::derived_a_run_started_before_a_restart_is_served_the_compiled_steps_after_it
+          rounds "$unit" 200 tests::derived::memory_a_run_started_before_a_restart_is_served_the_compiled_steps_after_it
+          rounds "$unit" 20 tests::routine::routine_derived_gives_the_trains_figures_in_both_streams_and_opens_the_store_on_every_day
+          rounds "$unit" 200 tests::routine::routine_derived_report_plays_the_first_five_trains_each_on_a_derived_store_of_its_own
+          rounds "$unit" 20 tests::routine::routine_derived_compares_the_figures_of_every_day_to_day_730
+          rounds "$unit" 200 tests::routine::routine_refuses_a_wrong_call_with_usage
+          rounds "$delete" 200 delete_workflow_on_the_derived_store_takes_its_rows_by_the_decision_and_leaves_the_other_served
+          rounds "$delete" 200 delete_all_on_the_derived_store_is_not_run
+          rounds "$delete" 200 delete_refuses_wrong_calls
+          rounds "$drift" 20 drift_on_the_derived_store_prints_the_memory_store_s_lines_in_every_arm_and_leaves_no_file
+          rounds "$drift" 200 every_wrong_call_is_refused_with_usage
+          echo "u22b loop result bad=$bad"
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +197,61 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-r5-drift 55-r5-routine 20-r5-rule 60-r5-privacy 25-r3-run-record
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-r5-drift 55-r5-routine 20-r5-rule 60-r5-privacy 25-r3-run-record
+      - name: U2.2b rounds of the new tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/u22b"
+          cargo test --locked -p halvo-learn-gate --no-run >"$RUNNER_TEMP/u22b/no-run.txt" 2>&1
+          echo "u22b loop no-run exit=$?"
+          unit=$(sed -n 's/.*Executable unittests src.main\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u22b/no-run.txt" | tail -n 1 | tr '\\' '/')
+          drift=$(sed -n 's/.*Executable tests.drift_cli\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u22b/no-run.txt" | tail -n 1 | tr '\\' '/')
+          delete=$(sed -n 's/.*Executable tests.delete_cli\.rs (\(.*\))$/\1/p' "$RUNNER_TEMP/u22b/no-run.txt" | tail -n 1 | tr '\\' '/')
+          echo "u22b loop binaries unit=${unit:+found} drift=${drift:+found} delete=${delete:+found}"
+          bad=0
+          rounds() {
+            ok=0
+            i=0
+            start=$(date -u +%s)
+            while [ "$i" -lt "$2" ]; do
+              i=$((i + 1))
+              out=$("$1" --exact "$3" 2>&1 </dev/null)
+              if grep -q '^test result: ok\. 1 passed; 0 failed' <<<"$out"; then
+                ok=$((ok + 1))
+              fi
+            done
+            echo "u22b loop name=$3 rounds=$2 passed=$ok seconds=$(($(date -u +%s) - start))"
+            [ "$ok" -eq "$2" ] || bad=1
+          }
+          rounds "$unit" 200 tests::derived::derived_a_learned_edit_is_read_back_and_served_after_the_host_and_the_store_restart
+          rounds "$unit" 200 tests::derived::derived_list_refinements_goes_to_the_handlers_in_front_and_lists_the_learned_edit
+          rounds "$unit" 200 tests::derived::derived_the_store_s_files_hold_neither_the_sqlite_header_nor_a_learned_label
+          rounds "$unit" 200 tests::derived::derived_the_store_opens_again_with_its_key_and_refuses_another_key
+          rounds "$unit" 200 tests::derived::derived_the_handlers_in_front_take_every_op_of_the_agent_store_and_list_refinements
+          rounds "$unit" 200 tests::derived::derived_the_key_holds_four_words_of_its_own_and_another_state_gives_another_key
+          rounds "$unit" 200 tests::derived::derived_the_delete_reads_as_stored_the_workflow_that_it_names_alone
+          rounds "$unit" 200 tests::derived::derived_a_run_started_before_a_restart_is_served_the_compiled_steps_after_it
+          rounds "$unit" 200 tests::derived::memory_a_run_started_before_a_restart_is_served_the_compiled_steps_after_it
+          rounds "$unit" 20 tests::routine::routine_derived_gives_the_trains_figures_in_both_streams_and_opens_the_store_on_every_day
+          rounds "$unit" 200 tests::routine::routine_derived_report_plays_the_first_five_trains_each_on_a_derived_store_of_its_own
+          rounds "$unit" 20 tests::routine::routine_derived_compares_the_figures_of_every_day_to_day_730
+          rounds "$unit" 200 tests::routine::routine_refuses_a_wrong_call_with_usage
+          rounds "$delete" 200 delete_workflow_on_the_derived_store_takes_its_rows_by_the_decision_and_leaves_the_other_served
+          rounds "$delete" 200 delete_all_on_the_derived_store_is_not_run
+          rounds "$delete" 200 delete_refuses_wrong_calls
+          rounds "$drift" 20 drift_on_the_derived_store_prints_the_memory_store_s_lines_in_every_arm_and_leaves_no_file
+          rounds "$drift" 200 every_wrong_call_is_refused_with_usage
+          echo "u22b loop result bad=$bad"
+          exit "$bad"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
