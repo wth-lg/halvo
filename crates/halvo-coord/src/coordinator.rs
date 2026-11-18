@@ -1,8 +1,9 @@
 use crate::guard::{self, EffectRecord, Policy, Refusal, Table};
 use crate::items::drive::{self as items, Held, HeldBind, Ledger, SetupDone};
 use crate::items::{
-    compose_check, compose_link_account, compose_plain, params, raise_confirm, raise_step,
-    ConfirmAnswer, ConfirmMove, Plain, Raise, Setup, SetupInput, SetupParam, Source,
+    admits, compose_check, compose_link_account, compose_plain, native_card, params, raise_confirm,
+    raise_step, ConfirmAnswer, ConfirmMove, NativeCard, Plain, Raise, Setup, SetupInput,
+    SetupParam, Source,
 };
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::roster::{self, Placed};
@@ -572,8 +573,9 @@ where
     }
 
     /// A run's event (I5.10): `hello`; a request, which raises its item through `raise_confirm`
-    /// with the guard's table of this life for a confirm request (ruling IG-32), and through
-    /// `raise_step` for any other, and moves the run to `waiting`; the second step of a `sign_in`
+    /// with the guard's table of this life for a confirm request (ruling IG-32), which also ends
+    /// the run with `kind` where `items::admits` refuses the request (ruling RD-90 item 6), and
+    /// through `raise_step` for any other, and moves the run to `waiting`; the second step of a `sign_in`
     /// item (`Bind`); and the runner's end, before which the run's open item lapses with
     /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
     /// with that cause and is answered `state`.
@@ -627,7 +629,16 @@ where
             RunEvent::Confirm(_) | RunEvent::Handback(_) | RunEvent::Bind(_) | RunEvent::Other => {
                 let facts = &board.members[i].facts;
                 let raise = match event {
-                    RunEvent::Confirm(ask) => raise_confirm(facts, &st.table, ask, &self.limits),
+                    RunEvent::Confirm(ask) => {
+                        match raise_confirm(facts, &st.table, ask, &self.limits) {
+                            Raise::Run(_) | Raise::End(RunEnd::Budget)
+                                if !admits(ask, &st.table) =>
+                            {
+                                Raise::End(RunEnd::Kind)
+                            }
+                            other => other,
+                        }
+                    }
                     _ => raise_step(facts, Source::of(event).ok_or(Cause::State)?, &self.limits),
                 };
                 if matches!(raise, Raise::Run(_) | Raise::End(RunEnd::Budget)) {
@@ -1412,6 +1423,21 @@ where
             Presenter::Native => Ok(()),
             Presenter::Page => Err(Cause::Presenter),
         }
+    }
+
+    /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
+    /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
+    /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
+    /// is no held confirmation, an item of another kind and no item among them, and the causes of
+    /// `items::native_card` otherwise.
+    pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
+        let st = self.lock();
+        let h = st
+            .held
+            .iter()
+            .find(|h| h.item() == item)
+            .ok_or(Cause::UnknownItem)?;
+        native_card(h)
     }
 
     /// The page's report that it opened the page confirmation `item` at the step mark `step`
