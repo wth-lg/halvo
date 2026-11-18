@@ -1,0 +1,14 @@
+{
+  "args": ["--seeds", "", "--settings", "25", "--job-seconds", "20"],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25: the job ran past its bound of 20 s (--job-seconds)"
+  ],
+  "edits": [
+    {
+      "file": "test-kit/fake-meter/rerun/property.ts",
+      "find": "export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> {\n  let sequences = 0;",
+      "replace": "export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> {\n  while (searchCase.scenario.commands.length > 0) {}\n  let sequences = 0;"
+    }
+  ]
+}

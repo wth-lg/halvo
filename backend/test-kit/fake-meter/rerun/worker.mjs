@@ -1,3 +1,32 @@
+import { Worker } from "node:worker_threads";
+
+const PARENT_POLL_MS = 500;
+const WATCHDOG = `
+const { workerData } = require("node:worker_threads");
+const { writeSync } = require("node:fs");
+function gone() {
+  if (process.ppid !== workerData.parent) return true;
+  try {
+    process.kill(workerData.parent, 0);
+    return false;
+  } catch (error) {
+    return error.code === "ESRCH";
+  }
+}
+function endSelf() {
+  process.kill(process.pid, "SIGKILL");
+}
+setInterval(() => {
+  if (!gone()) return;
+  try {
+    writeSync(2, "check 55 worker " + process.pid + ": its parent " + workerData.parent + " is gone; the worker ends itself\\n");
+  } finally {
+    endSelf();
+  }
+}, workerData.pollMs);
+`;
+new Worker(WATCHDOG, { eval: true, workerData: { parent: process.ppid, pollMs: PARENT_POLL_MS } }).unref();
+
 const sqlite = process.getBuiltinModule("node:sqlite");
 const prepare = sqlite.DatabaseSync.prototype.prepare;
 const prepared = new WeakMap();
@@ -69,14 +98,18 @@ async function run(job) {
   return { ...result, seconds: (performance.now() - started) / 1000 };
 }
 
+function memory() {
+  return { resident: process.memoryUsage().rss, peak: process.resourceUsage().maxRSS * 1024 };
+}
+
 process.on("message", (job) => {
   if (job.kind === "exit") {
     process.disconnect();
     return;
   }
   run(job).then(
-    (result) => process.send({ id: job.id, result }),
-    (error) => process.send({ id: job.id, error: `${error?.name ?? "Error"}: ${String(error?.message ?? error).split("\n")[0]}` }),
+    (result) => process.send({ id: job.id, result, memory: memory() }),
+    (error) => process.send({ id: job.id, error: `${error?.name ?? "Error"}: ${String(error?.message ?? error).split("\n")[0]}`, memory: memory() }),
   );
 });
 process.on("disconnect", () => process.exit(0));
