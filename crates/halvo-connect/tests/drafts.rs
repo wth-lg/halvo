@@ -2,7 +2,8 @@ mod common;
 
 use common::stub::Stub;
 use halvo_connect::{
-    reply_senders, AnswerFault, CallError, DraftFailure, Drafted, Mail, ReplyRule, Token, Unsent,
+    reply_senders, AnswerFault, CallError, DraftFailure, Drafted, Mail, Marked, ReplyRule, Token,
+    Unsent,
 };
 use halvo_schema::record::Instant;
 use serde_json::{json, Value};
@@ -15,6 +16,7 @@ fn token() -> Token {
 
 fn message(id: &str) -> Value {
     json!({
+        "isReadReceiptRequested": id.ends_with('r'),
         "id": id,
         "conversationId": format!("c-{id}"),
         "subject": format!("s-{id}"),
@@ -23,7 +25,6 @@ fn message(id: &str) -> Value {
         "toRecipients": [{"emailAddress": {"address": "me@home.test"}}],
         "replyTo": [],
         "receivedDateTime": "2026-11-18T10:00:00Z",
-        "isReadReceiptRequested": false,
         "body": {"content": format!("b-{id}")},
     })
 }
@@ -324,4 +325,113 @@ fn a_failed_create_reply_leaves_its_message_unreached() {
     assert_eq!(failure.unreached(), ["m1", "m2"]);
     assert_eq!(format!("{failure:?}"), "DraftFailure { error: Status(503, None), finished: 0, unsent: 0, unfinished: false, unreached: 2 }");
     assert_eq!(failure.to_string(), "the provider answered the status 503");
+}
+
+fn send(draft: &str) -> (String, u16, String) {
+    (
+        format!("POST /v1.0/me/messages/{draft}/send"),
+        202,
+        String::new(),
+    )
+}
+
+fn marked(message: &str, read: bool) -> (String, u16, String) {
+    (
+        format!("PATCH /v1.0/me/messages/{message}"),
+        200,
+        json!({"id": message, "isRead": read}).to_string(),
+    )
+}
+
+fn send_and_mark(stub: &Stub) -> Vec<Result<Marked, CallError>> {
+    let graph = stub.graph("mail");
+    let drafted = reply(stub).expect("the call answers");
+    drafted
+        .into_drafts()
+        .into_sends()
+        .map(|handle| {
+            let sent = graph
+                .mail_send(&token(), handle)
+                .expect("mail_send answers");
+            graph.mail_mark_read(&token(), sent)
+        })
+        .collect()
+}
+
+#[test]
+fn after_a_send_one_patch_of_is_read_marks_its_message_and_none_for_a_read_receipt() {
+    let stub = routes(
+        &["m1", "m2r"],
+        vec![
+            create("m1", 201, created("d1")),
+            patch("d1", 200, draft("d1", "m1")),
+            create("m2r", 201, created("d2")),
+            patch("d2", 200, draft("d2", "m2r")),
+            send("d1"),
+            send("d2"),
+            marked("m1", true),
+            marked("m2r", true),
+        ],
+    );
+    assert_eq!(
+        send_and_mark(&stub),
+        [Ok(Marked::Read), Ok(Marked::ReceiptAsked)]
+    );
+    let seen = stub.seen();
+    let tail: Vec<_> = seen[seen.len() - 3..]
+        .iter()
+        .map(|seen| (seen.method.as_str(), seen.path.as_str(), seen.body.clone()))
+        .collect();
+    assert_eq!(
+        tail,
+        [
+            ("POST", "/v1.0/me/messages/d1/send", None),
+            (
+                "PATCH",
+                "/v1.0/me/messages/m1",
+                Some(json!({"isRead": true}))
+            ),
+            ("POST", "/v1.0/me/messages/d2/send", None),
+        ]
+    );
+}
+
+#[test]
+fn a_mark_whose_answer_names_another_message_or_no_read_flag_fails() {
+    for (answer, error) in [
+        (
+            json!({"id": "m9", "isRead": true}),
+            CallError::Answer(AnswerFault::Item),
+        ),
+        (
+            json!({"id": "m1", "isRead": false}),
+            CallError::Answer(AnswerFault::Form),
+        ),
+        (json!({"id": "m1"}), CallError::Answer(AnswerFault::Form)),
+    ] {
+        let stub = routes(
+            &["m1"],
+            vec![
+                create("m1", 201, created("d1")),
+                patch("d1", 200, draft("d1", "m1")),
+                send("d1"),
+                (
+                    "PATCH /v1.0/me/messages/m1".to_owned(),
+                    200,
+                    answer.to_string(),
+                ),
+            ],
+        );
+        assert_eq!(send_and_mark(&stub), [Err(error)], "{answer}");
+    }
+    let stub = routes(
+        &["m1"],
+        vec![
+            create("m1", 201, created("d1")),
+            patch("d1", 200, draft("d1", "m1")),
+            send("d1"),
+            ("PATCH /v1.0/me/messages/m1".to_owned(), 429, String::new()),
+        ],
+    );
+    assert_eq!(send_and_mark(&stub), [Err(CallError::Status(429, None))]);
 }

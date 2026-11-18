@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::fixture::Fixture;
 use common::seed::Seed;
-use halvo_connect::{Calendar, CallError, Effect, Mail, NotMade, RunDay, Token};
+use halvo_connect::{Calendar, CallError, Effect, Mail, Marked, NotMade, RunDay, Token};
 use halvo_schema::executable::names::YesNo;
 use halvo_schema::record::Instant;
 use serde_json::{json, Value};
@@ -251,9 +251,10 @@ fn mail_send() {
             .mail_draft_reply(&token, messages, BODY)
             .expect("mail_draft_reply answers")
             .into_drafts();
-        for draft in drafts.into_sends() {
-            graph.mail_send(&token, draft).expect("mail_send answers");
-        }
+        let sent: Vec<_> = drafts
+            .into_sends()
+            .map(|draft| graph.mail_send(&token, draft).expect("mail_send answers"))
+            .collect();
         let state = fixture.state();
         assert!(
             state["mail"]["sent"] == *seed.end("reply"),
@@ -264,12 +265,38 @@ fn mail_send() {
             state["requests"] == counts(8, 6),
             "seed {n}: one send per draft"
         );
-        let again = graph
+        let unmarked = graph
             .mail_list(&token, &seed.rule())
             .expect("mail_list answers");
         assert!(
-            again.len() == 2,
+            unmarked.len() == 2,
             "seed {n}: a send leaves the read flag as it was"
+        );
+        let marks: Vec<_> = sent
+            .into_iter()
+            .map(|sent| {
+                graph
+                    .mail_mark_read(&token, sent)
+                    .expect("the mark answers")
+            })
+            .collect();
+        assert!(
+            marks == [Marked::Read, Marked::ReceiptAsked],
+            "seed {n}: the first message is marked and the second asks for a read receipt"
+        );
+        assert!(
+            requests(&fixture) == counts(11, 7),
+            "seed {n}: one PATCH of isRead"
+        );
+        let again: Vec<_> = graph
+            .mail_list(&token, &seed.rule())
+            .expect("mail_list answers")
+            .iter()
+            .map(|m| m.id().to_owned())
+            .collect();
+        assert!(
+            again == [format!("s{n}-msg-02")],
+            "seed {n}: the message that asks for a read receipt stays unread"
         );
         fixture.advance();
         let later = graph
@@ -277,8 +304,8 @@ fn mail_send() {
             .expect("mail_list answers");
         let ids: Vec<_> = later.iter().map(|m| m.id()).collect();
         assert!(
-            ids.contains(&seed.later("message/id")) && ids.len() == 3,
-            "seed {n}: the later message beside the two"
+            ids.contains(&seed.later("message/id")) && ids.len() == 2,
+            "seed {n}: the later message beside the unmarked one"
         );
     }
 }

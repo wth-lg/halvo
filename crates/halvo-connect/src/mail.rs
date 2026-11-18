@@ -73,7 +73,59 @@ pub trait Mail {
     ///     let _ = graph.mail_send(token, draft);
     /// }
     /// ```
-    fn mail_send(&self, token: &Token, draft: DraftToSend) -> Result<(), CallError>;
+    fn mail_send(&self, token: &Token, draft: DraftToSend) -> Result<Sent, CallError>;
+
+    /// The mark of CP-109 (f), a sixth row of A11.2's table and no part of the send's effect: after the commit of
+    /// the send that gave `sent` is stored, one PATCH of the key `isRead` to true on the message that the draft
+    /// answered, whose answer must name that message and carry `isRead` true (`Answer(Item)`, `Answer(Form)`).
+    /// It sends no request for a message that asks for a read receipt and answers `ReceiptAsked`. It takes the
+    /// handle that one answered send gives, so a message is marked at most once for a send:
+    ///
+    /// ```compile_fail
+    /// use halvo_connect::{Graph, Mail, Sent, Token};
+    /// fn twice(graph: &Graph, token: &Token, sent: Sent) {
+    ///     let _ = graph.mail_mark_read(token, sent);
+    ///     let _ = graph.mail_mark_read(token, sent);
+    /// }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// fn make() -> halvo_connect::Sent {
+    ///     halvo_connect::Sent { message: "m1".to_owned(), receipt: false }
+    /// }
+    /// ```
+    ///
+    /// ```
+    /// use halvo_connect::{Graph, Mail, Sent, Token};
+    /// fn once(graph: &Graph, token: &Token, sent: Sent) {
+    ///     let _ = graph.mail_mark_read(token, sent);
+    /// }
+    /// ```
+    fn mail_mark_read(&self, token: &Token, sent: Sent) -> Result<Marked, CallError>;
+}
+
+/// What a send that the provider answered with its success status leaves for the mark: the id of the message that
+/// the draft answered and whether that message asks for a read receipt. Only `mail_send` makes one, and it has no
+/// `Clone`. `Debug` prints none of its text.
+pub struct Sent {
+    message: String,
+    receipt: bool,
+}
+
+impl Sent {
+    /// The provider's id of the message that the sent draft answered.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+/// What `mail_mark_read` did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Marked {
+    /// The provider answered the PATCH: the message is read.
+    Read,
+    /// The message asks for a read receipt, so no request was sent and it stays unread.
+    ReceiptAsked,
 }
 
 /// The reply rule of A1.2: the account's address, the senders of the slot `reply_senders` and the agent's start
@@ -249,6 +301,7 @@ pub struct Draft {
     message: String,
     to: Vec<String>,
     subject: String,
+    receipt: bool,
 }
 
 impl Draft {
@@ -566,13 +619,37 @@ impl Mail for Graph {
         })
     }
 
-    fn mail_send(&self, token: &Token, draft: DraftToSend) -> Result<(), CallError> {
+    fn mail_send(&self, token: &Token, draft: DraftToSend) -> Result<Sent, CallError> {
         self.effect(
             token,
             Method::POST,
             &format!("/v1.0/me/messages/{}/send", segment(&draft.0.id)),
             202,
-        )
+        )?;
+        Ok(Sent {
+            message: draft.0.message,
+            receipt: draft.0.receipt,
+        })
+    }
+
+    fn mail_mark_read(&self, token: &Token, sent: Sent) -> Result<Marked, CallError> {
+        if sent.receipt {
+            return Ok(Marked::ReceiptAsked);
+        }
+        let answer = self.json(
+            token,
+            Method::PATCH,
+            &format!("/v1.0/me/messages/{}", segment(&sent.message)),
+            Some(&json!({"isRead": true})),
+            200,
+        )?;
+        if answer::id(&answer)? != sent.message {
+            return Err(CallError::Answer(AnswerFault::Item));
+        }
+        if answer.get("isRead").and_then(Value::as_bool) != Some(true) {
+            return Err(FORM);
+        }
+        Ok(Marked::Read)
     }
 }
 
@@ -657,6 +734,7 @@ fn patched_draft(patched: &Value, id: String, message: &Message) -> Result<Made,
             message: message.id.clone(),
             to,
             subject,
+            receipt: message.receipt,
         }),
     })
 }
@@ -795,6 +873,12 @@ impl fmt::Debug for UnsentDraft {
         f.debug_struct("UnsentDraft")
             .field("why", &self.why)
             .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Sent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Sent").finish_non_exhaustive()
     }
 }
 

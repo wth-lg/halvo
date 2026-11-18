@@ -19,7 +19,7 @@ pub use error::{AnswerFault, BuildError, CallError, Effect, NotMade};
 pub use graph::LOOPBACK_MARKER;
 pub use graph::{Graph, Route};
 pub use mail::{
-    Draft, DraftFailure, DraftToSend, Drafted, Drafts, Mail, MailCounts, Message, Messages,
-    ReplyRule, Unfinished, Unsent, UnsentDraft,
+    Draft, DraftFailure, DraftToSend, Drafted, Drafts, Mail, MailCounts, Marked, Message, Messages,
+    ReplyRule, Sent, Unfinished, Unsent, UnsentDraft,
 };
 pub use token::{Token, TokenError};

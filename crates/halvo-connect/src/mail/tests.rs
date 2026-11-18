@@ -368,6 +368,7 @@ fn debug_prints_no_value() {
         message: "m1".to_owned(),
         to: vec!["ann@people.test".to_owned()],
         subject: "s1".to_owned(),
+        receipt: false,
     };
     assert_eq!(format!("{:?}", rule()), "ReplyRule { senders: 2, .. }");
     assert_eq!(format!("{message:?}"), "Message { .. }");
