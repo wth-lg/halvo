@@ -1623,7 +1623,6 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
 
 mod burst_rounds {
     use crate::seam::Rule;
-    use crate::stall::Form;
 
     /// The keys that a counted round of the burst recorded, by kind.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1674,7 +1673,10 @@ mod burst_rounds {
         }
     }
 
-    const LONG_FORM_TIME_RULE_ROUNDS: usize = 1;
+    /// The rounds of one browser's burst, in the short and the long form alike.
+    pub(super) const ROUNDS: u32 = 5;
+
+    const TIME_RULE_ROUNDS_TAKEN: usize = 1;
 
     /// The rounds of one browser's burst: the freed_at_ms of each counted round
     /// that the time rule decided, and each counted round that failed.
@@ -1714,15 +1716,15 @@ mod burst_rounds {
             )
         }
 
-        /// Fails on a counted round that failed, and in the long form on more
+        /// Fails on a counted round that failed, and in both forms on more
         /// than one round that the time rule decided.
-        pub(super) fn verdict(&self, form: Form) -> Result<(), String> {
+        pub(super) fn verdict(&self) -> Result<(), String> {
             if !self.failures.is_empty() {
                 return Err(self.failures.join("; "));
             }
-            if form == Form::Long && self.freed_at_ms.len() > LONG_FORM_TIME_RULE_ROUNDS {
+            if self.freed_at_ms.len() > TIME_RULE_ROUNDS_TAKEN {
                 return Err(format!(
-                    "the long form takes at most {LONG_FORM_TIME_RULE_ROUNDS} round of the burst's five \
+                    "the burst takes at most {TIME_RULE_ROUNDS_TAKEN} round of its {ROUNDS} \
                      that the time rule decided: {}",
                     self.fields()
                 ));
@@ -1901,9 +1903,7 @@ mod burst_rounds {
             burst.fields(),
             "rounds_decided_by_the_time_rule=1 freed_at_ms_of_those_rounds=1564"
         );
-        for form in [Form::Short, Form::Long] {
-            assert_eq!(burst.verdict(form), Ok(()), "{form:?}");
-        }
+        assert_eq!(burst.verdict(), Ok(()));
     }
 
     #[test]
@@ -1916,15 +1916,13 @@ mod burst_rounds {
             Some(time_rule(1601)),
             Some(swap_rule()),
         ]);
-        for form in [Form::Short, Form::Long] {
-            let verdict = burst.verdict(form);
-            assert!(
-                verdict.as_ref().is_err_and(|why| why.contains(
-                    "rounds_decided_by_the_time_rule=2 freed_at_ms_of_those_rounds=1564,1601"
-                )),
-                "{form:?}: {verdict:?}"
-            );
-        }
+        let verdict = burst.verdict();
+        assert!(
+            verdict.as_ref().is_err_and(|why| why.contains(
+                "rounds_decided_by_the_time_rule=2 freed_at_ms_of_those_rounds=1564,1601"
+            )),
+            "{verdict:?}"
+        );
     }
 
     #[test]
@@ -1937,15 +1935,26 @@ mod burst_rounds {
             Some(time_rule(1504)),
             Some(time_rule(1505)),
         ]);
-        for form in [Form::Short, Form::Long] {
-            let verdict = burst.verdict(form);
-            assert!(
-                verdict.as_ref().is_err_and(|why| why.contains(
-                    "rounds_decided_by_the_time_rule=5 freed_at_ms_of_those_rounds=1501,1502,1503,1504,1505"
-                )),
-                "{form:?}: {verdict:?}"
-            );
+        let verdict = burst.verdict();
+        assert!(
+            verdict.as_ref().is_err_and(|why| why.contains(
+                "rounds_decided_by_the_time_rule=5 freed_at_ms_of_those_rounds=1501,1502,1503,1504,1505"
+            )),
+            "{verdict:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn the_burst_of_a_browser_runs_five_rounds_in_both_forms() {
+        assert_eq!(ROUNDS, 5);
+        let mut burst = Burst::default();
+        for round in 0..ROUNDS {
+            burst.take(round, Some(&time_rule(1500 + i64::from(round))));
         }
+        assert!(burst.verdict().is_err_and(|why| why.contains(
+            "at most 1 round of its 5 that the time rule decided: rounds_decided_by_the_time_rule=5 "
+        )));
     }
 
     #[test]
@@ -1965,15 +1974,13 @@ mod burst_rounds {
             Some(recorded),
             Some(swap_rule()),
         ]);
-        for form in [Form::Short, Form::Long] {
-            let verdict = burst.verdict(form);
-            assert!(
-                verdict
-                    .as_ref()
-                    .is_err_and(|why| why.starts_with("round 3: ")),
-                "{form:?}: {verdict:?}"
-            );
-        }
+        let verdict = burst.verdict();
+        assert!(
+            verdict
+                .as_ref()
+                .is_err_and(|why| why.starts_with("round 3: ")),
+            "{verdict:?}"
+        );
     }
 }
 
@@ -1998,7 +2005,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
         let mut closed_before_the_step = 0;
         let mut waited_for_the_type = 0;
         let mut tally = burst_rounds::Burst::default();
-        for round in 0..5 {
+        for round in 0..burst_rounds::ROUNDS {
             let _ = seam::take_marks();
             let gate_before_the_step = keyboard.source.field_state();
             closed_before_the_step += u32::from(gate_before_the_step != Some(FieldState::Clear));
@@ -2125,7 +2132,7 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                 tally.fields()
             ),
         );
-        if let Err(why) = tally.verdict(super::stall::form()) {
+        if let Err(why) = tally.verdict() {
             panic!("{why}");
         }
         out.store(recorded, Ordering::SeqCst);
