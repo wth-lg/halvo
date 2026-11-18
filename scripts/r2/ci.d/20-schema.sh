@@ -224,6 +224,11 @@ check() {
       LC_ALL=$fixture_locale
       export LC_ALL
     fi
+    if [ -n "${fixture_lang:-}" ]; then
+      unset LC_ALL
+      LANG=$fixture_lang
+      export LANG
+    fi
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CALLS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF STUB_TR STUB_REAL_TR
     TMPDIR=$work/tmp/$1 sh "$self" 2>&1
   )
@@ -247,6 +252,7 @@ check() {
   STUB_DIFF=
   STUB_TR=
   fixture_locale=
+  fixture_lang=
   STUB_CORE_LOG=$work/core.log
   STUB_SCHEMA_LOG=$work/schema.log
   STUB_CORE_EXIT=0
@@ -736,6 +742,16 @@ $later_line
   check a-byte-that-is-no-utf-8-under-a-utf-8-locale FAIL "FAIL $name ($bytes)"
   tr_locales=$(cat "$work/tr-locales") || self_fail "the record of the stub tr cannot be read"
   note the-list-is-read-by-tr-under-lc-all-c-in-a-utf-8-locale C "$tr_locales"
+  repo=$work/not-utf-8-lang
+  make_repo "$repo" golden "$list"
+  printf 'halvo-schema tests/locked_files.rs each_lib_rs_holds_its_form\377\n' >>"$repo/$required" ||
+    self_fail "the fixture list with a byte that is no UTF-8 cannot be written"
+  fixture_lang=en_US.UTF-8
+  : >"$work/tr-locales-lang" || self_fail "the record of the stub tr cannot be made"
+  STUB_TR=$work/tr-locales-lang
+  check a-byte-that-is-no-utf-8-with-lc-all-unset-under-a-utf-8-lang FAIL "FAIL $name ($bytes)"
+  tr_locales=$(cat "$work/tr-locales-lang") || self_fail "the record of the stub tr cannot be read"
+  note the-list-is-read-by-tr-under-lc-all-c-with-lc-all-unset C "$tr_locales"
   repo=$work/package-first
   make_repo "$repo" golden "$core_line
 halvo-schemx tests/locked_files.rs never_checked_anywhere
