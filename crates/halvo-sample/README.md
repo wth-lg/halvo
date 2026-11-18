@@ -110,7 +110,12 @@ name, from 1. No name below the argument is printed, because a file's name may b
   number in byte order of the paths given, from 1, and equal paths keep the order given. The
   checker's lines `password SITE_DATA <n> page <k>`, `card SITE_DATA <n> page <k>` and
   `missing SITE_DATA <n> <category> parameter <k>` name the file the same way, a page by its
-  place in the file's `pages` and a parameter by its place in `parameters`, from 1.
+  place in the file's `pages` and a parameter by its place in `parameters`, from 1. The checker
+  refuses a site file larger than 262,144 bytes with `REFUSED too-large: SITE_DATA <n>` and exit
+  2 before it reads any file: the rule check of tools/fixture-server/sites.mjs spreads a value
+  list into one call, which throws a RangeError from about 125,000 values on Node 26, and a list
+  under the bound holds at most 65,536 values. The fixture server reads files through the same
+  rule check and has no such bound.
 - A `script` refusal of `build` for the `sites` or the negative rule names the stream by the
   place of its stream line, `SCRIPT <n>:<line>: sites` or `SCRIPT <n>:<line>: negative`, and the
   `output` refusal of `split` names the `--out` argument alone.

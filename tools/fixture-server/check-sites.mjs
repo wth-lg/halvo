@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { CATEGORIES, fileNumber, loadSites, readArgs, references } from './sites.mjs';
 
 function refuse(cause, detail) {
@@ -23,8 +23,19 @@ function readRows(path) {
   return rows;
 }
 
+const SIZE_MAX = 262_144;
+
 const args = readArgs(process.argv.slice(2), '--parameters', () => true);
 if (args === null) refuse('usage', USAGE);
+for (const [i, path] of args.files.entries()) {
+  let size = 0;
+  try {
+    size = statSync(path).size;
+  } catch {
+    continue;
+  }
+  if (size > SIZE_MAX) refuse('too-large', `SITE_DATA ${fileNumber(args.files, i)}`);
+}
 const loaded = loadSites(args.files);
 if (loaded.refused !== undefined) refuse('site-data', `SITE_DATA ${loaded.number}`);
 const rows = args.value === null ? null : readRows(args.value);

@@ -83,3 +83,4 @@ all sites.test.mjs site data: every fixture of this file stands in the shared li
 all sites.test.mjs site data: this file reads site data only through its wrappers
 all check-sites.test.mjs checker: the password, card and missing lines name a site file, a page and a parameter by number, never by name
 all check-sites.test.mjs arguments: the checker and the server refuse an argument that is no UTF-8 with usage, before they read a file
+all check-sites.test.mjs checker: a site file of about 1,500,000 values is refused with too-large and no RangeError, and one under the bound is checked

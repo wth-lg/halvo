@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -109,4 +109,27 @@ test('arguments: the checker and the server refuse an argument that is no UTF-8 
     assert.equal(run.stdout, '');
     assert.match(run.stderr, /^REFUSED usage: [^\n]*\n$/);
   }
+});
+
+/** A shop whose first parameter holds `n` values, written compact. */
+function wide(n) {
+  const site = marked();
+  site.values[`${MARKER}_item`] = Array.from({ length: n }, (_, i) => `v${i}`);
+  return site;
+}
+
+test('checker: a site file of about 1,500,000 values is refused with too-large and no RangeError, and one under the bound is checked', () => {
+  const dir = mkdtempSync(join(ROOT.dir, 'wide-'));
+  const other = put(dir, 'a-news.json', news());
+  const big = put(dir, 'b-shop.json', wide(1_500_000));
+  const run = runChecker([other, big]);
+  assert.equal(run.status, 2, run.stderr);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, 'REFUSED too-large: SITE_DATA 2\n');
+  const under = put(dir, 'c-shop.json', wide(29_000));
+  assert.ok(statSync(under).size <= 262_144 && statSync(under).size > 200_000, String(statSync(under).size));
+  const checked = runChecker([under]);
+  assert.equal(checked.stderr, '');
+  assert.equal(checked.status, 0);
+  assert.match(checked.stdout, /^password SITE_DATA 1 page 1$/m);
 });
