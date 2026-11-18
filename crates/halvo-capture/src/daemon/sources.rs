@@ -266,9 +266,11 @@ impl RunningSources {
 
     /// Stops the source of `name`; `None` when its entry holds none. A stop
     /// ends the source and its mark; any other answer keeps it held, marked
-    /// `unstopped`, failed with reason timeout or os_error. A stop that
-    /// answers after [`stop_bound`], read on the real clock around the call,
-    /// answers a timeout of stage [`PAST_BOUND`] in its place: the
+    /// `unstopped`, failed with reason timeout or os_error. A stop (Ok or
+    /// ThreadEnded) that answers after [`stop_bound`], read on the real clock
+    /// around the call, answers a timeout of stage [`PAST_BOUND`] in its
+    /// place; a late error keeps its own error, so that the arm after it
+    /// counts from its answer and not from the moment its bound passed. The
     /// supervisor's own clock of ruling PL-3 is the real one, as the main
     /// run loop's is, and a test loop's injected clock does not move while a
     /// call blocks.

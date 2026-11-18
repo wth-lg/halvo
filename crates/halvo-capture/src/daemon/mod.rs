@@ -896,9 +896,11 @@ pub trait RunSources {
 }
 
 /// The end of a timed run in which a source did not stop: the line that says
-/// so on `err`, then the ending call with `status`, so that no path returns
-/// from `main` with a source let go (ruling PL-3 part (4)). A run whose
-/// sources all stopped ends nothing here.
+/// so on `err`, then the ending call with `status`, so that the answer of a
+/// run that let a source go does not return from `main` (ruling PL-3 part
+/// (4)). A run whose sources all stopped ends nothing here. A run that
+/// returns Err never reaches it: the binary's error arm returns from `main`,
+/// and the watchdog, armed with 1 for a source let go, is its only end.
 pub fn finish_run(
     outcome: &RunOutcome,
     status: i32,

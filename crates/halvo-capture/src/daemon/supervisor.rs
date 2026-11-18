@@ -808,7 +808,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// A stop for capture off (Pause, a lapsed lease, step 1 of delete-all;
     /// daemon-3 calls it): the owner's barrier, waited for at most
-    /// BARRIER_WAIT; then the watchdog is armed with status 5 for the longest
+    /// BARRIER_WAIT, for every kind but LostGrant, whose barrier the end
+    /// routine draws after the first answer that is not a stop; then the
+    /// watchdog is armed with status 5 for the longest
     /// stop bound in play plus SHUTDOWN_BUDGET_MS, at most
     /// [`ENTRY_DEADLINE_MS`]; then each source in the stop order until the
     /// first answer that is not a stop, a stop past its bound included (ruling
