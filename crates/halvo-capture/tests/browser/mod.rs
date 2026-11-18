@@ -1621,6 +1621,127 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
     total.load(Ordering::SeqCst)
 }
 
+mod burst_rounds {
+    use crate::seam::Rule;
+
+    /// The keys that a counted round of the burst recorded, by kind.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub(super) struct Records {
+        pub(super) letters: usize,
+        pub(super) tabs: usize,
+        pub(super) other: usize,
+        pub(super) keystroke_events: usize,
+    }
+
+    /// What the verdict of a counted round of the burst reads.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) struct Counted {
+        pub(super) first_letter_rule: Option<Rule>,
+        pub(super) records: Records,
+        pub(super) freed_at_ms: i64,
+    }
+
+    /// How a counted round of the burst that passed was decided.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) enum Decided {
+        ByARuleOfTheSwap,
+        ByTheTimeRule { freed_at_ms: i64 },
+    }
+
+    /// The verdict of one counted round of the burst.
+    pub(super) fn decided(round: &Counted) -> Result<Decided, String> {
+        match round.first_letter_rule {
+            None | Some(Rule::NotClearedInTime) => Err(format!(
+                "the burst's first letter was decided by {:?} and not by a rule of the swap's case",
+                round.first_letter_rule
+            )),
+            Some(_) => Ok(Decided::ByARuleOfTheSwap),
+        }
+    }
+
+    fn counted(first_letter_rule: Option<Rule>, records: Records) -> Counted {
+        Counted {
+            first_letter_rule,
+            records,
+            freed_at_ms: 1564,
+        }
+    }
+
+    fn fails_whatever_the_rule(records: Records) {
+        for rule in [
+            None,
+            Some(Rule::NotClearedInTime),
+            Some(Rule::MarkAfterTheKey),
+        ] {
+            let verdict = decided(&counted(rule, records));
+            assert!(
+                verdict.is_err(),
+                "a round that recorded {records:?} passed under {rule:?}: {verdict:?}"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_that_the_time_rule_decided_with_nothing_recorded_passes() {
+        assert_eq!(
+            decided(&counted(Some(Rule::NotClearedInTime), Records::default())),
+            Ok(Decided::ByTheTimeRule { freed_at_ms: 1564 })
+        );
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_that_a_rule_of_the_swap_decided_with_nothing_recorded_passes() {
+        assert_eq!(
+            decided(&counted(Some(Rule::MarkAfterTheKey), Records::default())),
+            Ok(Decided::ByARuleOfTheSwap)
+        );
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_whose_first_letter_no_rule_decided_fails() {
+        assert!(decided(&counted(None, Records::default())).is_err());
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_with_a_recorded_letter_fails_whatever_the_rule() {
+        fails_whatever_the_rule(Records {
+            letters: 1,
+            ..Records::default()
+        });
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_with_a_recorded_tab_fails_whatever_the_rule() {
+        fails_whatever_the_rule(Records {
+            tabs: 1,
+            ..Records::default()
+        });
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_with_another_recorded_key_fails_whatever_the_rule() {
+        fails_whatever_the_rule(Records {
+            other: 1,
+            ..Records::default()
+        });
+    }
+
+    #[test]
+    #[ignore = "a made-up round of the burst: 52-windows-browser runs it by its exact name"]
+    fn a_counted_round_with_a_keystroke_event_fails_whatever_the_rule() {
+        fails_whatever_the_rule(Records {
+            keystroke_events: 1,
+            ..Records::default()
+        });
+    }
+}
+
 pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
     let total = Arc::new(AtomicI64::new(0));
     let out = Arc::clone(&total);
@@ -1742,14 +1863,18 @@ pub(super) fn burst_phase(test: &'static str, name: &'static str) -> i64 {
                 ),
             );
             if r.counted {
-                assert!(
-                    !matches!(
-                        r.keys.first_letter_rule,
-                        None | Some(seam::Rule::NotClearedInTime)
-                    ),
-                    "round {round}: the burst's first letter was decided by {:?} and not by a rule of the swap's case",
-                    r.keys.first_letter_rule
-                );
+                if let Err(why) = burst_rounds::decided(&burst_rounds::Counted {
+                    first_letter_rule: r.keys.first_letter_rule,
+                    records: burst_rounds::Records {
+                        letters: r.keys.letters,
+                        tabs: r.keys.tabs,
+                        other: r.keys.other,
+                        keystroke_events: r.sink,
+                    },
+                    freed_at_ms: r.page.freed_at,
+                }) {
+                    panic!("round {round}: {why}");
+                }
             }
         }
         let _ = keyboard.stop();
