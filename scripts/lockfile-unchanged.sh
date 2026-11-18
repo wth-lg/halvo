@@ -14,10 +14,18 @@ tracked .gitignore ignores, when an index flag is set on a tracked file,
 when an ignore line of an untracked file or of git's own settings hides a
 file, when git reports an ignored file or directory whose name is that of
 a store file of the capture store's layout in any case of its letters,
-whichever rule ignores it, or when a read of git fails. On the macos job a
-change of a file's mode counts; on the windows job it is not seen. A store
-file inside a directory that an ignore rule ignores whole, such as target/,
-is not seen.
+whichever rule ignores it, a name that holds a line feed read whole, or
+when a read of git fails. An ignored entry whose rule the step cannot match
+to a tracked .gitignore fails, as it did in the old body of the step: a new
+directory whose files a tracked rule ignores, a name that git quotes, a
+file whose rule file sits in a directory named with a colon. On the macos
+job a change of a file's mode counts; on the windows job it is not seen. A
+store file inside a directory that an ignore rule ignores whole, such as
+target/, is not seen, and neither is a file hidden by an untracked
+.gitignore in a directory whose name holds a glob character, when that name
+read as a pattern matches a tracked .gitignore (s*/ beside a tracked
+subdir/.gitignore), or a colon, when the part of the path before the first
+colon names a tracked path (x:y/ beside a tracked x/).
 
 --self-test runs the cases of this script in throwaway repositories under
 TMPDIR and prints PASS or FAIL.
