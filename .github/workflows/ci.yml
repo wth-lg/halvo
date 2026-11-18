@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,49 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r5-rule 10-r5-layout
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r5-rule 10-r5-layout
+      - name: Loop (U2.8 tests, 200 rounds each)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          out=$(cargo test --locked -p halvo-learn-store --lib --no-run 2>&1)
+          bin=$(sed -n 's/^ *Executable unittests src[\/\\]lib.rs (\(.*\))$/\1/p' <<<"$out" | head -n 1)
+          bin=${bin//\\//}
+          if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+            echo "loop: the test binary of halvo-learn-store was not found"
+            tail -n 20 <<<"$out"
+            exit 1
+          fi
+          names=$("$bin" --list tests::own_load:: 2>/dev/null | sed -n 's/^\(tests::own_load::[a-z0-9_]*\): test$/\1/p')
+          count=$(grep -c . <<<"$names")
+          echo "loop: tests of tests::own_load listed: $count (expected 20)"
+          bad=0
+          [ "$count" -eq 20 ] || bad=1
+          for t in $names tests::ruled::g4_a_store_fault_in_the_sweep_at_a_start_returns_the_agent_stores_reply_and_a_repeat_stores_nothing
+          do
+            pass=0
+            for n in $(seq 1 200); do
+              r=$("$bin" --exact "$t" 2>&1)
+              if grep -q '^test result: ok\. 1 passed; 0 failed' <<<"$r"; then
+                pass=$((pass + 1))
+              elif [ "$pass" -lt 3 ]; then
+                echo "round $n of $t failed:"
+                tail -n 20 <<<"$r"
+              fi
+            done
+            echo "loop $t: passed $pass of 200"
+            [ "$pass" -eq 200 ] || bad=1
+          done
+          echo "loop U2.8: $([ "$bad" -eq 0 ] && echo all passed || echo FAILED)"
+          exit "$bad"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +185,49 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r5-rule 10-r5-layout
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r5-rule 10-r5-layout
+      - name: Loop (U2.8 tests, 200 rounds each)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          out=$(cargo test --locked -p halvo-learn-store --lib --no-run 2>&1)
+          bin=$(sed -n 's/^ *Executable unittests src[\/\\]lib.rs (\(.*\))$/\1/p' <<<"$out" | head -n 1)
+          bin=${bin//\\//}
+          if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+            echo "loop: the test binary of halvo-learn-store was not found"
+            tail -n 20 <<<"$out"
+            exit 1
+          fi
+          names=$("$bin" --list tests::own_load:: 2>/dev/null | sed -n 's/^\(tests::own_load::[a-z0-9_]*\): test$/\1/p')
+          count=$(grep -c . <<<"$names")
+          echo "loop: tests of tests::own_load listed: $count (expected 20)"
+          bad=0
+          [ "$count" -eq 20 ] || bad=1
+          for t in $names tests::ruled::g4_a_store_fault_in_the_sweep_at_a_start_returns_the_agent_stores_reply_and_a_repeat_stores_nothing
+          do
+            pass=0
+            for n in $(seq 1 200); do
+              r=$("$bin" --exact "$t" 2>&1)
+              if grep -q '^test result: ok\. 1 passed; 0 failed' <<<"$r"; then
+                pass=$((pass + 1))
+              elif [ "$pass" -lt 3 ]; then
+                echo "round $n of $t failed:"
+                tail -n 20 <<<"$r"
+              fi
+            done
+            echo "loop $t: passed $pass of 200"
+            [ "$pass" -eq 200 ] || bad=1
+          done
+          echo "loop U2.8: $([ "$bad" -eq 0 ] && echo all passed || echo FAILED)"
+          exit "$bad"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
