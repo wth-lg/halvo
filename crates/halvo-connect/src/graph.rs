@@ -258,7 +258,11 @@ impl Collection {
 }
 
 fn retry_after(response: &Response) -> Option<u32> {
-    let value = response.headers().get(RETRY_AFTER)?.as_bytes();
+    let mut lines = response.headers().get_all(RETRY_AFTER).iter();
+    let value = lines.next()?.as_bytes();
+    if lines.next().is_some() {
+        return None;
+    }
     if value.is_empty() || !value.iter().all(u8::is_ascii_digit) {
         return None;
     }

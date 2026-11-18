@@ -315,6 +315,21 @@ fn an_answer_429_or_5xx_carries_the_seconds_of_retry_after_and_no_other_does() {
 }
 
 #[test]
+fn an_answer_with_two_retry_after_lines_carries_no_seconds() {
+    for header in [
+        "Retry-After: 5\r\nRetry-After: 600",
+        "Retry-After: 5\r\nRetry-After: 5",
+    ] {
+        let (port, seen) = listen(answer_with("429 Too Many Requests", header, "{}"));
+        let error = graph(port, LIMIT)
+            .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
+            .expect_err("a 429");
+        assert!(seen.recv_timeout(LIMIT).is_ok());
+        assert_eq!(error, CallError::Status(429, None), "{header}");
+    }
+}
+
+#[test]
 fn a_send_answered_429_is_throttled_with_its_seconds_and_unknown_after_a_5xx() {
     let (port, _seen) = listen(answer_with("429 Too Many Requests", "Retry-After: 9", "{}"));
     let error = graph(port, LIMIT)
