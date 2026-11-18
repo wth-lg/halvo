@@ -360,6 +360,8 @@ self_test() {
   mode_case PASS line-as-stamped
   printf 'line: %s\n' "$stamped" | sed 's/plan=whole/plan=bounded/' >"$scratch/line-of-a-bounded-plan.txt"
   mode_case FAIL line-of-a-bounded-plan
+  : >"$scratch/line-empty.txt"
+  mode_case FAIL line-empty
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

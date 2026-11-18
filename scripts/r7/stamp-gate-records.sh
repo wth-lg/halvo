@@ -62,7 +62,7 @@ stub_repo() {
   cat >"$dir/backend/scripts/gate.sh" <<'EOF'
 cat "$STAMP_STUB_GATE"
 EOF
-  printf 'const how = process.env.STAMP_STUB_MEMORY;\nif (how === "pass") console.log("PASS metering-memory: setting=25 rounds=4");\nif (how === "fail") console.log("FAIL metering-memory: setting=25 rounds=4; first failure: 484 of 484 databases live on");\nprocess.exit(how === "pass" || how === "silent" ? 0 : 1);\n' >"$dir/backend/test-kit/fake-meter/rerun/check.mjs"
+  printf 'const how = process.env.STAMP_STUB_MEMORY;\nif (how === "pass" || how === "pass-exit-1") console.log("PASS metering-memory: setting=25 rounds=4");\nif (how === "fail") console.log("FAIL metering-memory: setting=25 rounds=4; first failure: 484 of 484 databases live on");\nprocess.exit(how === "pass" || how === "silent" ? 0 : 1);\n' >"$dir/backend/test-kit/fake-meter/rerun/check.mjs"
   printf 'm\n' >"$dir/formal/r7-ledger/m.tla"
   cp "$records_check" "$dir/scripts/r7/ci.d/22-r7-backend-records.sh" || exit 2
   git -C "$dir" add -A . || exit 2
@@ -104,6 +104,7 @@ self_test() {
   stamp_case stamped whole-plan-and-memory-passes "$stamped" pass
   stamp_case refused memory-self-check-fails "$stamped" fail
   stamp_case refused memory-self-check-prints-no-pass-line "$stamped" silent
+  stamp_case refused memory-self-check-passes-and-exits-1 "$stamped" pass-exit-1
   stamp_case refused metering-plan-bounded "$(printf '%s\n' "$stamped" | sed 's/plan=whole/plan=bounded/')" pass
   stamp_case refused metering-orderings-one-short "$(printf '%s\n' "$stamped" | sed 's/orderings=100000 of 100000/orderings=99999 of 100000/')" pass
   stamp_case refused metering-fail-line "$(printf '%s\n' "$stamped" | sed 's/^PASS/FAIL/')" pass

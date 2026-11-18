@@ -237,6 +237,12 @@ stand_in_check() {
   printf 'import { appendFileSync } from "node:fs";\nif (process.argv.includes("--memory-self-check")) {\n  appendFileSync("src/x.ts", "const changed = 1;\\n");\n  console.log("PASS metering-memory: stand-in");\n}\n' >"$dir/backend/$check"
 }
 
+stand_in_check_that_passes_and_exits_1() {
+  dir=$scratch/$1
+  mkdir -p "$dir/backend/test-kit/fake-meter/rerun" || exit 2
+  printf 'console.log("PASS metering-memory: stand-in");\nprocess.exit(1);\n' >"$dir/backend/$check"
+}
+
 self_test() {
   { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 || {
     printf 'FAIL self-test:%s (the self-test and the self-test of scripts/r7/stamp-gate-records.sh commit in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n' "$name"
@@ -284,6 +290,17 @@ self_test() {
   git -C "$scratch/stamp-self-test-fails" add -A . || exit 2
   git -C "$scratch/stamp-self-test-fails" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m 'A stamp script whose self-test fails' >/dev/null || exit 2
   expect FAIL stamp-self-test-fails "$scratch/stamp-self-test-fails" "$scratch/stamp-self-test-fails/backend" stamp
+
+  fixture_repo text-not-at-head-in-another-check 'const one = 1;' '{ "edits": [] }'
+  mkdir -p "$scratch/text-not-at-head-in-another-check/backend/gate/fixtures/subscription" || exit 2
+  printf '{ "edits": [{ "file": "src/x.ts", "find": "const three = 3;", "replace": "const three = 4;" }] }\n' >"$scratch/text-not-at-head-in-another-check/backend/gate/fixtures/subscription/bad-three.json"
+  git -C "$scratch/text-not-at-head-in-another-check" add -A . || exit 2
+  git -C "$scratch/text-not-at-head-in-another-check" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m 'A bad fixture of another check' >/dev/null || exit 2
+  expect FAIL text-not-at-head-in-another-check "$scratch/text-not-at-head-in-another-check" "$scratch/text-not-at-head-in-another-check/backend" ""
+
+  fixture_repo memory-passes-and-exits-1 'const one = 1;' '{ "edits": [] }'
+  stand_in_check_that_passes_and_exits_1 memory-passes-and-exits-1
+  expect FAIL memory-passes-and-exits-1 "$scratch/memory-passes-and-exits-1" "$scratch/memory-passes-and-exits-1/backend" memory
 
   fixture_repo check-writes-a-tracked-file 'const one = 1;' '{ "edits": [] }'
   stand_in_check check-writes-a-tracked-file
