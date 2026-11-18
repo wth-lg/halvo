@@ -61,6 +61,7 @@ impl EndCall for ExitNow {
 /// deadline. A second arm keeps the earlier of the two deadlines and carries
 /// its own status, the later reading of how the run ends; a disarm takes the
 /// arm back, and a later arm counts again.
+#[derive(Clone)]
 pub struct Watchdog {
     state: Arc<Armed>,
 }

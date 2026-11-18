@@ -20,7 +20,9 @@ use super::owner::{
 };
 use super::permissions::{ProbeRunner, Probed};
 use super::report::FailedSource;
-use super::sources::{is_a_stop, stop_order, RunningSources, SourceFactory};
+use super::sources::{
+    is_a_stop, past_bound, stop_bound, stop_order, RunningSources, SourceFactory,
+};
 use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -31,6 +33,17 @@ use crate::source::{
 pub const SHUTDOWN_BUDGET_MS: u64 = 18_000;
 
 const _: () = assert!(SHUTDOWN_BUDGET_MS < halvo_control::STOP_WAIT_MS);
+
+/// The latest deadline of an entry's watchdog, counted from its arm before
+/// the entry's first stop (ruling DM-25 N1): the longest stop bound in play
+/// plus SHUTDOWN_BUDGET_MS, held under STOP_WAIT_MS. The bound of every
+/// source but the screen source is 1,250 ms (its deadline of 1 s plus the
+/// slack of 250 ms), which gives 19,250 ms; the screen source's 6,250 ms
+/// would give 24,250 ms, past the 20,000 ms that `ctl stop` and the gate's
+/// stop_deadline_s wait, so this cap holds every entry at 19,250 ms.
+pub const ENTRY_DEADLINE_MS: u64 = SHUTDOWN_BUDGET_MS + 1_250;
+
+const _: () = assert!(ENTRY_DEADLINE_MS < halvo_control::STOP_WAIT_MS);
 
 /// The first settle of the shutdown entry.
 pub const FIRST_SETTLE: Duration = Duration::from_secs(1);
@@ -363,6 +376,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     end_call: Option<Arc<dyn EndCall>>,
     watchdog: Option<Watchdog>,
     marker: Option<Box<dyn Marker>>,
+    ends_by: Option<Duration>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -391,6 +405,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             end_call: None,
             watchdog: None,
             marker: None,
+            ends_by: None,
         }
     }
 
@@ -724,6 +739,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .copied()
             .filter(|name| self.wanted.contains(name) && self.missing_permission(*name))
             .collect();
+        let in_play = self.held(&names);
+        let armed = owner.is_some()
+            && !in_play.is_empty()
+            && self.ends_by.is_none()
+            && self.watchdog_armed().is_none();
+        if armed {
+            self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
+        }
         for name in names {
             self.backoff.retain(|backoff| backoff.name != name);
             let error = CaptureError::Os {
@@ -731,10 +754,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 domain: "tcc",
                 code: 0,
             };
-            if self.sources.holds(name) {
-                let answer = self.sources.stop_one(name);
-                if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
+            if let Some(answer) = self.sources.stop_one(name) {
+                if !is_a_stop(&answer) {
                     if let Some(owner) = owner {
+                        self.arm_unstopped(name, &answer);
                         self.end_after_unstopped(owner, StopKind::LostGrant, &mut |_| {});
                         return Some(Ending::SourceNotStopped);
                     }
@@ -750,19 +773,25 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             );
             self.board.record_failure(name, error);
         }
+        if armed {
+            self.disarm();
+        }
         None
     }
 
-    /// A stop for capture off (Pause, a lapsed lease, step 1 of delete-all;
-    /// daemon-3 calls it): the owner's barrier, then each source in the stop
-    /// order until the first answer that is not a stop. When every source
-    /// stops the process stays up. At the first answer that is not a stop the
-    /// end routine runs: the watchdog is armed for SHUTDOWN_BUDGET_MS with
-    /// status 5, `reply` gets the Board, the first record is written, the
-    /// owner settles, every source still held is asked once more, the owner
-    /// settles again, the final record is written and the ending call is made
-    /// with status 5 (ruling PL-3 parts (2) to (4)). It runs once: a second
-    /// trigger answers `None`.
+    /// A stop for capture off (Pause, a lapsed lease, step 1 of delete-all; daemon-3 calls it): the
+    /// watchdog is armed with status 5 for the longest stop bound in play plus SHUTDOWN_BUDGET_MS,
+    /// at most [`ENTRY_DEADLINE_MS`]; then the owner's barrier, then each source in the stop order
+    /// until the first answer that is not a stop, a stop past its bound included (ruling DM-25 N1).
+    /// When every source stops the arm is taken back and the process stays up. At the first answer
+    /// that is not a stop the arm moves to SHUTDOWN_BUDGET_MS after that answer, or after the
+    /// moment that a late stop's bound passed, the earlier deadline kept, and the end routine runs:
+    /// `reply` gets the Board, the first record is written, the owner settles, every source still
+    /// held is asked once more when its stop bound fits before the deadline, the owner settles
+    /// again, the final record is written and the ending call is made with status 5 (ruling PL-3
+    /// parts (2) to (4)). The settles are cut to what is left before the deadline, and the watchdog
+    /// ends the process with 5 only when the routine has not. It runs once: a second trigger
+    /// answers `None`.
     pub fn stop_for_capture_off(
         &mut self,
         owner: &dyn OwnerLink,
@@ -772,23 +801,92 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if self.entered {
             return None;
         }
+        let in_play = self.held(stop_order(self.platform));
+        self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
         if kind != StopKind::LostGrant {
             self.barrier(owner);
         }
         self.backoff.clear();
         let mut unstopped = false;
         for name in stop_order(self.platform) {
-            let answer = self.sources.stop_one(*name);
-            if answer.as_ref().is_some_and(|answer| !is_a_stop(answer)) {
+            let Some(answer) = self.sources.stop_one(*name) else {
+                continue;
+            };
+            if !is_a_stop(&answer) {
+                self.arm_unstopped(*name, &answer);
                 unstopped = true;
                 break;
             }
         }
         self.publish();
         if !unstopped {
+            self.disarm();
             return Some(CaptureOff::Stopped);
         }
         Some(self.end_after_unstopped(owner, kind, reply))
+    }
+
+    /// The sources of `names` that the supervisor holds.
+    fn held(&self, names: &[SourceName]) -> Vec<SourceName> {
+        names
+            .iter()
+            .copied()
+            .filter(|name| self.sources.holds(*name))
+            .collect()
+    }
+
+    /// Arms the end routine's watchdog before an entry's first stop, with
+    /// `status`: the longest stop bound of `in_play` plus SHUTDOWN_BUDGET_MS,
+    /// at most [`ENTRY_DEADLINE_MS`] (ruling DM-25 N1 (a)).
+    fn arm_entry(&mut self, in_play: &[SourceName], status: i32) {
+        let longest = in_play
+            .iter()
+            .map(|name| stop_bound(*name))
+            .max()
+            .unwrap_or_default();
+        let after = (longest + Duration::from_millis(SHUTDOWN_BUDGET_MS))
+            .min(Duration::from_millis(ENTRY_DEADLINE_MS));
+        self.arm_until(after, status);
+    }
+
+    /// Moves the arm, with status 5, to SHUTDOWN_BUDGET_MS after the moment
+    /// that the stop of `name` gave `answer`, an answer that is not a stop, or
+    /// for a stop that answered after its bound, after the moment that its
+    /// bound passed. The earlier deadline stays.
+    fn arm_unstopped(&mut self, name: SourceName, answer: &Result<(), CaptureError>) {
+        let since = past_bound(name, answer).unwrap_or_default();
+        self.arm_until(
+            Duration::from_millis(SHUTDOWN_BUDGET_MS).saturating_sub(since),
+            exit::SOURCE_NOT_STOPPED,
+        );
+    }
+
+    /// Arms the watchdog for `after` with `status` and keeps the same
+    /// deadline on the main loop's clock, to which the end routine cuts its
+    /// waits; the earlier deadline stays.
+    fn arm_until(&mut self, after: Duration, status: i32) {
+        let until = self.main_loop.now() + after;
+        self.ends_by = Some(self.ends_by.map_or(until, |earlier| earlier.min(until)));
+        if let Some(watchdog) = &self.watchdog {
+            watchdog.arm(after, status);
+        }
+    }
+
+    /// Takes back the arm of an entry whose every stop answered within its
+    /// bound.
+    fn disarm(&mut self) {
+        self.ends_by = None;
+        if let Some(watchdog) = &self.watchdog {
+            watchdog.disarm();
+        }
+    }
+
+    /// `bound`, cut to what is left before the entry's deadline.
+    fn before_the_deadline(&self, bound: Duration) -> Duration {
+        match self.ends_by {
+            Some(until) => bound.min(until.saturating_sub(self.main_loop.now())),
+            None => bound,
+        }
     }
 
     fn barrier(&mut self, owner: &dyn OwnerLink) {
@@ -807,25 +905,18 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if kind == StopKind::LostGrant {
             self.barrier(owner);
         }
-        if let Some(watchdog) = &self.watchdog {
-            watchdog.arm(
-                Duration::from_millis(SHUTDOWN_BUDGET_MS),
-                exit::SOURCE_NOT_STOPPED,
-            );
-        }
         self.publish();
         self.board.capture = Capture::Stopped;
         reply(&self.board);
         let first = owner.snapshot();
         self.write_record(kind, false, &first);
         if let Ok(pending) = owner.ask(Command::Settle) {
-            let _ = self.answer_within(&pending, FIRST_SETTLE);
+            let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
         }
-        let _ = self.stop_every_source();
-        let last = owner
-            .ask(Command::Settle)
-            .ok()
-            .and_then(|pending| self.answer_within(&pending, FINAL_SETTLE));
+        let _ = self.stop_sources(true);
+        let last = owner.ask(Command::Settle).ok().and_then(|pending| {
+            self.answer_within(&pending, self.before_the_deadline(FINAL_SETTLE))
+        });
         let settled = match last {
             Some(Answer::Settled(snapshot)) => snapshot,
             _ => owner.snapshot(),
@@ -898,12 +989,31 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// secure-input line of an input source with a hold plan is written the
     /// moment that its stop answers anything but a stop (ruling MA-9 part (5)).
     pub fn stop_every_source(&mut self) -> Vec<(SourceName, Result<(), CaptureError>)> {
+        self.stop_sources(false)
+    }
+
+    /// Stops the sources as [`Supervisor::stop_every_source`] does; with
+    /// `within_deadline`, the end routine's second ask, a source whose stop
+    /// bound does not fit in what is left before the entry's deadline is not
+    /// asked, so that the routine reaches its last record and its ending
+    /// call before the watchdog would.
+    fn stop_sources(
+        &mut self,
+        within_deadline: bool,
+    ) -> Vec<(SourceName, Result<(), CaptureError>)> {
         self.backoff.clear();
         let mut answers = Vec::new();
         for name in stop_order(self.platform) {
+            let bound = stop_bound(*name);
+            if within_deadline && self.before_the_deadline(bound) < bound {
+                continue;
+            }
             let Some(answer) = self.sources.stop_one(*name) else {
                 continue;
             };
+            if self.ends_by.is_some() && !is_a_stop(&answer) {
+                self.arm_unstopped(*name, &answer);
+            }
             if *name == SourceName::Input
                 && !is_a_stop(&answer)
                 && self.factory.holds_secure_input()
@@ -952,31 +1062,47 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
     }
 
-    /// The shutdown entry: the owner settles the open batch (at most 1 s), the
-    /// sources stop in the stop order, and the owner settles once more (at
-    /// most 5 s). It runs once: a second trigger answers `None`. The status is
-    /// 1 when the drain still fails at the last settle, when the last settle
-    /// gets no answer or when the life lost events between the two settles,
-    /// else `status`.
+    /// The shutdown entry: the watchdog is armed with `status` for the
+    /// longest stop bound in play plus SHUTDOWN_BUDGET_MS, at most
+    /// [`ENTRY_DEADLINE_MS`]; the owner settles the open batch (at most 1 s),
+    /// the sources stop in the stop order, and the owner settles once more
+    /// (at most 5 s). It runs once: a second trigger answers `None`. At the
+    /// first answer that is not a stop, a stop past its bound included, the
+    /// arm moves to SHUTDOWN_BUDGET_MS after it with status 5, the earlier
+    /// deadline kept; the owner settles, every source still held is asked
+    /// once more when its stop bound fits before the deadline, the last
+    /// settle follows, each cut to what is left before
+    /// the deadline, and the entry makes the ending call with 5 and answers
+    /// 5 (ruling DM-25 N1 (c)). Otherwise the arm is taken back, and the
+    /// status is 1 when the drain still fails at the last settle, when the
+    /// last settle gets no answer or when the life lost events between the
+    /// two settles, else `status`.
     pub fn shutdown_entry(&mut self, owner: &dyn OwnerLink, status: i32) -> Option<EntryOutcome> {
         if self.entered {
             return None;
         }
         self.entered = true;
         let started = self.main_loop.now();
-        let first = owner
-            .ask(Command::Settle)
-            .ok()
-            .and_then(|pending| self.answer_within(&pending, FIRST_SETTLE));
+        let in_play = self.held(stop_order(self.platform));
+        self.arm_entry(&in_play, status);
+        let first = owner.ask(Command::Settle).ok().and_then(|pending| {
+            self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE))
+        });
         let before = match first {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
             _ => None,
         };
         let stops = self.stop_every_source();
-        let last = owner
-            .ask(Command::Settle)
-            .ok()
-            .and_then(|pending| self.answer_within(&pending, FINAL_SETTLE));
+        let unstopped = stops.iter().any(|(_, answer)| !is_a_stop(answer));
+        if unstopped {
+            if let Ok(pending) = owner.ask(Command::Settle) {
+                let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
+            }
+            let _ = self.stop_sources(true);
+        }
+        let last = owner.ask(Command::Settle).ok().and_then(|pending| {
+            self.answer_within(&pending, self.before_the_deadline(FINAL_SETTLE))
+        });
         let settled = match last {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
             _ => None,
@@ -986,7 +1112,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             (Some(before), Some(after)) => after.events_lost > before.events_lost,
             _ => false,
         };
-        let status = if settled.is_none() || failing || lost_more {
+        let status = if unstopped {
+            exit::SOURCE_NOT_STOPPED
+        } else if settled.is_none() || failing || lost_more {
             exit::ERROR
         } else {
             status
@@ -996,6 +1124,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             let reports: Vec<Report> = owner.reports().try_iter().collect();
             let line = super::loss_line(&last, last.events_lost + last.events_pending, &reports);
             let _ = writeln!(self.err, "{line}");
+        }
+        if unstopped {
+            if let Some(end_call) = &self.end_call {
+                end_call.end(exit::SOURCE_NOT_STOPPED);
+            }
+        } else {
+            self.disarm();
         }
         Some(EntryOutcome {
             status,
@@ -1731,9 +1866,11 @@ mod tests {
             Factory::adjusting(move |source| {
                 if source.name == SourceName::Input {
                     let (seen, blocked, watched) = (seen.clone(), blocked.clone(), watched.clone());
+                    // Ruling DM-25 N1 (c): the entry now asks a source that did
+                    // not stop once more; only the first stop blocks.
                     let hook: Hook = Box::new(move |_| {
-                        seen.set(Some(watched.write_calls().len()));
-                        if let Some(now) = blocked.borrow().as_ref() {
+                        if let Some(now) = blocked.borrow_mut().take() {
+                            seen.set(Some(watched.write_calls().len()));
                             now.set(now.get() + Duration::from_secs(10));
                         }
                     });
@@ -1769,7 +1906,9 @@ mod tests {
             outcome.took
         );
         assert!(outcome.took >= Duration::from_secs(10));
-        assert_eq!(outcome.status, exit::CLEAN);
+        // Ruling DM-25 N1 (c): a stop that answers Timeout turns the entry's
+        // status into 5, where it answered the status that it was given.
+        assert_eq!(outcome.status, exit::SOURCE_NOT_STOPPED);
         assert_eq!(outcome.settled.map(|s| s.events_persisted), Some(3));
         assert_eq!(f.supervisor.factory().calls.of("stop ")[0], "stop input");
         assert!(matches!(
@@ -3007,15 +3146,6 @@ mod tests {
     }
 
     #[test]
-    fn a_stop_for_capture_off_whose_sources_all_stop_ends_nothing() {
-        let (f, recorder, records, outcome) = capture_off_case(Factory::new(), None);
-        assert_eq!(outcome, Some(CaptureOff::Stopped));
-        assert!(recorder.statuses().is_empty());
-        assert!(records.lock().unwrap().is_empty());
-        assert_eq!(f.supervisor.watchdog_armed(), None);
-    }
-
-    #[test]
     fn a_lost_grant_whose_stop_does_not_stop_ends_the_process_with_5() {
         let (mut f, answers, _) = probed(fixture_on_owner(
             Factory::adjusting(|source| {
@@ -3973,4 +4103,6 @@ mod tests {
             );
         }
     }
+
+    mod stress_cases;
 }

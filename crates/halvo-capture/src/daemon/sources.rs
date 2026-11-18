@@ -1,6 +1,8 @@
 //! The sources of a run: which start, in which order they stop, and the set
 //! of running sources that the supervisor holds.
 
+use std::time::{Duration, Instant};
+
 use halvo_control::proto::{Platform, SourceName};
 
 use crate::floor::{Switch, Switches};
@@ -41,6 +43,60 @@ pub const fn stop_order(platform: Platform) -> &'static [SourceName] {
     match platform {
         Platform::Macos => &MACOS_STOP_ORDER,
         Platform::Windows => &WINDOWS_STOP_ORDER,
+    }
+}
+
+/// The time that a stop's answer gets past its source's deadline before it
+/// reads as not stopped (ruling PL-3: "no return at its deadline plus
+/// 250 ms").
+pub const STOP_SLACK: Duration = Duration::from_millis(250);
+
+/// The deadline that the source contract gives the stop of each source but
+/// the screen source, on both systems: macos::input's and
+/// macos::foreground's, and windows' INPUT_STOP_DEADLINE.
+pub const STOP_DEADLINE: Duration = Duration::from_millis(1_000);
+
+/// The deadline that the source contract gives the screen source's stop on
+/// both systems: macos::screen's and windows' SCREEN_STOP_DEADLINE.
+pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
+
+#[cfg(target_os = "macos")]
+const _: () = assert!(
+    crate::macos::screen::SCREEN_STOP_DEADLINE.as_millis() == SCREEN_STOP_DEADLINE.as_millis()
+        && crate::macos::input::INPUT_STOP_DEADLINE.as_millis() == STOP_DEADLINE.as_millis()
+        && crate::macos::foreground::FOREGROUND_STOP_DEADLINE.as_millis()
+            == STOP_DEADLINE.as_millis()
+);
+
+#[cfg(windows)]
+const _: () = assert!(
+    crate::windows::SCREEN_STOP_DEADLINE.as_millis() == SCREEN_STOP_DEADLINE.as_millis()
+        && crate::windows::INPUT_STOP_DEADLINE.as_millis() == STOP_DEADLINE.as_millis()
+);
+
+/// The bound of the stop of `name`: its contract deadline plus
+/// [`STOP_SLACK`]. An answer later than this, on the real clock around the
+/// call, is not a stop (ruling DM-25 N1).
+pub fn stop_bound(name: SourceName) -> Duration {
+    let deadline = match name {
+        SourceName::Screen => SCREEN_STOP_DEADLINE,
+        _ => STOP_DEADLINE,
+    };
+    deadline + STOP_SLACK
+}
+
+/// The stage of the timeout that a stop gives when it answered after its
+/// bound; its `ms` is the time that the call took.
+pub const PAST_BOUND: &str = "stop_past_bound";
+
+/// The time by which the stop of `name` that gave `answer` ran past its
+/// bound, when `answer` is the timeout of a stop that answered late.
+pub fn past_bound(name: SourceName, answer: &Result<(), CaptureError>) -> Option<Duration> {
+    match answer {
+        Err(CaptureError::Timeout { stage, ms }) if *stage == PAST_BOUND => {
+            Some(Duration::from_millis(*ms).saturating_sub(stop_bound(name)))
+        }
+        _ => None,
     }
 }
 
@@ -210,11 +266,26 @@ impl RunningSources {
 
     /// Stops the source of `name`; `None` when its entry holds none. A stop
     /// ends the source and its mark; any other answer keeps it held, marked
-    /// `unstopped`, failed with reason timeout or os_error.
+    /// `unstopped`, failed with reason timeout or os_error. A stop that
+    /// answers after [`stop_bound`], read on the real clock around the call,
+    /// answers a timeout of stage [`PAST_BOUND`] in its place: the
+    /// supervisor's own clock of ruling PL-3 is the real one, as the main
+    /// run loop's is, and a test loop's injected clock does not move while a
+    /// call blocks.
     pub fn stop_one(&mut self, name: SourceName) -> Option<Result<(), CaptureError>> {
         let entry = self.entry_mut(name)?;
         let source = entry.source.as_mut()?;
+        let called = Instant::now();
         let answer = source.shutdown();
+        let took = called.elapsed();
+        let answer = if is_a_stop(&answer) && took > stop_bound(name) {
+            Err(CaptureError::Timeout {
+                stage: PAST_BOUND,
+                ms: u64::try_from(took.as_millis()).unwrap_or(u64::MAX),
+            })
+        } else {
+            answer
+        };
         if is_a_stop(&answer) {
             entry.source = None;
             entry.unstopped = false;
