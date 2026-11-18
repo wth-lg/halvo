@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The check removes the built learn-gate at its two names under the build directory, builds it with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, takes the one of the two names that then exists (none or both is the cause build) and runs that file directly; learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; no cargo command or binary of the check changes the tree; and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr.
+# rule: The check removes the built learn-gate at its two names under the build directory, builds it with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, takes the one of the two names that then exists (none or both is the cause build) and runs that file directly; learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, alone on standard output and with exit 0, and the build's own refusal line (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF) prints derived=not-run and fails the check with the cause derived; before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; no cargo command or binary of the check changes the tree; and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -158,7 +158,7 @@ judge() {
   elif [ "$memory_exit" -ne 0 ] || [ "$memory_line" != "$want_memory" ]; then
     cause=result
   elif [ "$derived_line" = derived=not-run ]; then
-    :
+    cause=derived
   elif wrote_at_0_or_1 "$derived_exit" "$1/derived.err"; then
     cause=stderr
   elif [ "$derived_exit" -ne 0 ] || [ "$derived_line" != "$want_derived" ]; then
@@ -291,7 +291,7 @@ old_gate() {
 printf '%s\n' "$*" >>"$TREE_DIR/old.calls"
 case $* in
   routine) printf 'routine trains=135 plays=270 same=270 result=ok\n' ;;
-  *) printf 'REFUSED store: the derived store is not in this build\n' >&2; exit 2 ;;
+  *) printf 'routine trains=5 plays=10 same=10 store=derived result=ok\n' ;;
 esac
 EOF
 }
@@ -305,7 +305,7 @@ if [ "$TREE_CHANGE_AT" = gate ]; then
 fi
 case $* in
   routine) printf 'routine trains=135 plays=270 same=270 result=ok\n' ;;
-  *) printf 'REFUSED store: the derived store is not in this build\n' >&2; exit 2 ;;
+  *) printf 'routine trains=5 plays=10 same=10 store=derived result=ok\n' ;;
 esac
 EOF
 }
@@ -440,13 +440,13 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=25
-  passing_fixtures=2
+  failing_fixtures=26
+  passing_fixtures=1
   wrong=
   rejected=0
   passed=0
-  self_case good "" "$ok" 0 "" "$store_refusal" 2
   self_case good-derived "" "$ok" 0 "$want_derived$nl" "" 0
+  self_case derived-not-run derived "$ok" 0 "" "$store_refusal" 2
   self_case one-train-differs result "routine trains=135 plays=270 same=268 result=miss$nl" 1 "" "$store_refusal" 2
   self_case one-play-differs result "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2
   self_case miss-read-as-ok result "routine trains=135 plays=270 same=269 result=ok$nl" 0 "" "$store_refusal" 2
