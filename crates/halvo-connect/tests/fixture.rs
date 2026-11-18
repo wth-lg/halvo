@@ -4,7 +4,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::fixture::Fixture;
 use common::seed::Seed;
-use halvo_connect::{Calendar, CallError, Effect, Mail, Marked, NotMade, RunDay, Token};
+use halvo_connect::{
+    AnswerFault, Calendar, CallError, Effect, Mail, Marked, NotMade, RunDay, Token, Unsent,
+};
 use halvo_schema::executable::names::YesNo;
 use halvo_schema::record::Instant;
 use serde_json::{json, Value};
@@ -178,6 +180,98 @@ fn a_busy_service_answers_429_with_its_seconds_and_a_throttled_delete_is_not_mad
     assert_eq!(error, CallError::Status(429, Some(7)));
     assert_eq!(error.effect(), Effect::NotMade(NotMade::Throttled));
     assert!(fixture.state()["calendar"]["deleted"] == json!([]));
+}
+
+#[test]
+fn each_draft_that_a_variant_of_the_fixture_makes_is_held_back_or_fails_the_call() {
+    let fixture = Fixture::start();
+    let graph = fixture.graph("mail");
+    let seed = Seed::load(1);
+    let token = seed.token();
+    for (variant, why) in [
+        ("draft_no_recipient", Unsent::Recipients),
+        ("draft_two_recipients", Unsent::Recipients),
+        ("draft_copy", Unsent::Copy),
+        ("draft_blind_copy", Unsent::Copy),
+        ("draft_other_conversation", Unsent::Conversation),
+        ("draft_not_yet", Unsent::NotDraft),
+    ] {
+        fixture.reset(1, &[variant]);
+        let messages = graph
+            .mail_list(&token, &seed.rule())
+            .expect("mail_list answers");
+        let drafted = graph
+            .mail_draft_reply(&token, messages, BODY)
+            .expect("mail_draft_reply answers");
+        let whys: Vec<_> = drafted.unsent().iter().map(|u| u.why()).collect();
+        assert!(
+            whys == [why, why],
+            "{variant}: both drafts unsent for one reason"
+        );
+        assert!(drafted.drafts().is_empty(), "{variant}: no send handle");
+        let held = if why == Unsent::NotDraft { 0 } else { 2 };
+        assert!(
+            drafted.held_recipient() == held,
+            "{variant}: held_recipient"
+        );
+        assert!(
+            fixture.state()["mail"]["drafts"] == 2,
+            "{variant}: the drafts stay"
+        );
+    }
+    for (variant, fault) in [
+        ("reply_not_draft", AnswerFault::Draft),
+        ("reply_listed_id", AnswerFault::Repeated),
+    ] {
+        fixture.reset(1, &[variant]);
+        let messages = graph
+            .mail_list(&token, &seed.rule())
+            .expect("mail_list answers");
+        let failure = graph
+            .mail_draft_reply(&token, messages, BODY)
+            .expect_err("the call fails");
+        assert!(
+            failure.error() == CallError::Answer(fault),
+            "{variant}: the cause"
+        );
+        assert!(failure.unfinished().is_none(), "{variant}: no PATCH");
+        assert!(
+            failure.unreached().len() == 2,
+            "{variant}: both messages unreached"
+        );
+        assert!(
+            requests(&fixture)["state_changing"] == 1,
+            "{variant}: no request after the createReply names its id"
+        );
+    }
+}
+
+#[test]
+fn under_no_reply_the_send_is_held_recorded_and_unknown() {
+    let fixture = Fixture::start();
+    let graph = fixture.graph_within("mail", std::time::Duration::from_millis(1_500));
+    fixture.reset(1, &["no_reply"]);
+    let seed = Seed::load(1);
+    let token = seed.token();
+    let messages = graph
+        .mail_list(&token, &seed.rule())
+        .expect("mail_list answers");
+    let drafts = graph
+        .mail_draft_reply(&token, messages, BODY)
+        .expect("createReply and PATCH are answered")
+        .into_drafts();
+    let mut sends = drafts.into_sends();
+    let error = graph
+        .mail_send(&token, sends.next().expect("a draft"))
+        .expect_err("no answer");
+    assert_eq!(error, CallError::NoAnswer);
+    assert_eq!(error.effect(), Effect::Unknown);
+    assert!(fixture.state()["mail"]["sent"]
+        .as_array()
+        .is_some_and(|sent| sent.len() == 1));
+    graph
+        .mail_send(&token, sends.next().expect("a draft"))
+        .expect("the second send is answered");
 }
 
 #[test]

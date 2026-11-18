@@ -16,7 +16,18 @@ export const VARIANTS = [
   'no_reply',
   'amount_changes',
   'slow_charge',
+  'draft_no_recipient',
+  'draft_two_recipients',
+  'draft_copy',
+  'draft_blind_copy',
+  'draft_other_conversation',
+  'draft_not_yet',
+  'reply_not_draft',
+  'reply_listed_id',
 ];
+
+// The address that a variant of the drafts adds beside the sender.
+export const OTHER_ADDRESS = 'someone.else@people.agent.test';
 
 export const SEEDS = [1, 2, 3];
 
@@ -365,7 +376,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   function respond(ctx, status, headers, body) {
     if (status === 401 && ctx.counted) fx.st.requests.unauthorized += 1;
-    if (ctx.counted && ctx.changing && has('no_reply') && !fx.withheld) {
+    if (ctx.records && has('no_reply') && !fx.withheld) {
       fx.withheld = true;
     } else {
       ctx.res.writeHead(status, { 'Cache-Control': 'no-store', ...headers });
@@ -545,6 +556,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const instrument = f.get('instrument');
       if (!instruments.includes(instrument)) return html(ctx, 400, page.frame(kind, token, amountOf(t), instruments, opts()));
       fx.tokens.delete(token);
+      ctx.records = true;
       if (kind === 'bill') {
         fx.st.utility.payments.push({ account: d.utility.account, amount: amountOf(t), payee: d.utility.payee, instrument });
       } else {
@@ -648,7 +660,15 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
         body: { content: typeof body.comment === 'string' ? body.comment : '' },
       };
       if ('message' in body && !setDraftKeys({ draft }, body.message)) return graphError(ctx, 400, 'ErrorInvalidRequest');
-      fx.drafts.set(draft.id, { draft, inReplyTo: original.id });
+      const other = { emailAddress: { address: OTHER_ADDRESS } };
+      if (has('draft_no_recipient')) draft.toRecipients = [];
+      if (has('draft_two_recipients')) draft.toRecipients.push(clone(other));
+      if (has('draft_copy')) draft.ccRecipients = [clone(other)];
+      if (has('draft_blind_copy')) draft.bccRecipients = [clone(other)];
+      if (has('draft_other_conversation')) draft.conversationId = `${original.conversationId}-other`;
+      if (has('reply_not_draft')) draft.isDraft = false;
+      if (has('reply_listed_id')) return json(ctx, 201, { ...draft, id: original.id });
+      fx.drafts.set(draft.id, { draft, inReplyTo: original.id, patches: 0 });
       return json(ctx, 201, draft);
     }
     if (method === 'PATCH' && !m[2]) {
@@ -664,12 +684,16 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const entry = fx.drafts.get(id);
       if (!entry) return graphError(ctx, 404, 'ErrorItemNotFound');
       if (!setDraftKeys(entry, jsonBody(ctx))) return graphError(ctx, 400, 'ErrorInvalidRequest');
-      return json(ctx, 200, entry.draft);
+      entry.patches += 1;
+      const answer = clone(entry.draft);
+      if (has('draft_not_yet') && entry.patches === 1) answer.isDraft = false;
+      return json(ctx, 200, answer);
     }
     if (method === 'POST' && m[2] === '/send') {
       const entry = fx.drafts.get(id);
       if (!entry) return graphError(ctx, 404, 'ErrorItemNotFound');
       fx.drafts.delete(id);
+      ctx.records = true;
       fx.st.mail.sent.push({
         to: entry.draft.toRecipients.map((r) => r.emailAddress.address).join(','),
         conversation: entry.draft.conversationId,
@@ -702,6 +726,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const i = fx.events.findIndex((e) => e.json.id === id);
       if (i < 0) return graphError(ctx, 404, 'ErrorItemNotFound');
       fx.events.splice(i, 1);
+      ctx.records = true;
       fx.st.calendar.deleted.push(id);
       return respond(ctx, 204, {}, '');
     }
@@ -778,6 +803,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       method: req.method === 'HEAD' ? 'GET' : req.method,
       counted: host !== HOSTS.control,
       changing: !READ_ONLY.has(req.method),
+      records: false,
       carried: null,
       body: Buffer.alloc(0),
     };

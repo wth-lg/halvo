@@ -184,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 204;
-const CASES_WINDOWS = 202;
+const CASES_UNIX = 212;
+const CASES_WINDOWS = 210;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1627,25 +1627,81 @@ async function protocolCases(env) {
     }
   });
 
-  const replyPath = `/v1.0/me/messages/${encodeURIComponent(answered.id)}/createReply`;
-  const replyOnce = () => unanswered(env.port, 'POST', 'mail.agent.test', replyPath, { headers: mailJson, body: '{}' });
-
-  await run('no-reply-holds-the-first-state-changing-request', async (c) => {
+  await run('no-reply-holds-the-first-request-that-records-an-effect', async (c) => {
     await env.reset(1, ['no_reply']);
     c.ok((await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth })).status === 200, 'read_answered');
-    r = await replyOnce();
-    c.ok(!r.replied, 'first_state_changing_unanswered_within_2000ms');
+    const first = await createReply({});
+    c.ok(first.id !== 'none', 'create_reply_answered');
+    c.ok((await patch(first.id, { body: { content: 'Thank you, noted.' } })).status === 200, 'patch_answered');
+    r = await unanswered(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(first.id)}/send`, { headers: auth, body: '' });
+    c.ok(!r.replied, 'send_unanswered_within_2000ms');
     st = await env.state();
-    c.ok(st.mail.drafts === 1 && st.requests.state_changing === 1, 'first_state_changing_recorded');
-    r = await replyOnce();
-    c.ok(r.replied && r.status === 201, 'second_state_changing_answered');
-    c.ok((await env.state()).mail.drafts === 2, 'second_recorded');
+    c.ok(st.mail.sent.length === 1 && st.mail.sent[0].in_reply_to === answered.id, 'held_send_recorded');
+    const second = await createReply({});
+    c.ok((await sendDraft(second.id)).status === 202 && (await env.state()).mail.sent.length === 2, 'second_send_answered');
     await http(env.port, 'POST', CONTROL, '/reset');
-    r = await replyOnce();
-    c.ok(!r.replied && (await env.state()).mail.drafts === 1, 'held_again_after_each_reset');
+    const third = await createReply({});
+    r = await unanswered(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(third.id)}/send`, { headers: auth, body: '' });
+    c.ok(!r.replied && (await env.state()).mail.sent.length === 1, 'held_again_after_each_reset');
     await env.reset(1, []);
-    r = await replyOnce();
-    c.ok(r.replied && r.status === 201, 'answered_without_the_variant');
+    const fourth = await createReply({});
+    c.ok((await sendDraft(fourth.id)).status === 202, 'answered_without_the_variant');
+  });
+
+  const other = [{ emailAddress: { address: 'someone.else@people.agent.test' } }];
+  const sender = [{ emailAddress: { address: answered.from.emailAddress.address } }];
+  for (const [variant, want] of [
+    ['draft_no_recipient', { toRecipients: [] }],
+    ['draft_two_recipients', { toRecipients: [...sender, ...other] }],
+    ['draft_copy', { ccRecipients: other }],
+    ['draft_blind_copy', { bccRecipients: other }],
+    ['draft_other_conversation', { conversationId: `${answered.conversationId}-other` }],
+  ]) {
+    await run(`variant-${variant}`, async (c) => {
+      await env.reset(1, [variant]);
+      draft = await createReply({});
+      const base = { toRecipients: sender, ccRecipients: [], bccRecipients: [], conversationId: answered.conversationId, isDraft: true };
+      const expected = { ...base, ...want };
+      const keys = Object.keys(base);
+      c.ok(keys.every((k) => equal(draft[k], expected[k])), 'create_reply_answer');
+      r = await patch(draft.id, { body: { content: 'Thank you, noted.' } });
+      const patched = r.status === 200 ? JSON.parse(r.text) : {};
+      c.ok(keys.every((k) => equal(patched[k], expected[k])), 'patch_answer');
+      await env.reset(1, []);
+      draft = await createReply({});
+      c.ok(keys.every((k) => equal(draft[k], base[k])), 'reset_without_the_variant');
+    });
+  }
+
+  await run('variant-draft_not_yet', async (c) => {
+    await env.reset(1, ['draft_not_yet']);
+    draft = await createReply({});
+    c.ok(draft.isDraft === true, 'create_reply_answer');
+    const flag = async () => {
+      const res = await patch(draft.id, { body: { content: 'Thank you, noted.' } });
+      return res.status === 200 ? JSON.parse(res.text).isDraft : null;
+    };
+    c.ok((await flag()) === false, 'first_patch_not_a_draft');
+    c.ok((await flag()) === true && (await flag()) === true, 'later_patches_a_draft');
+    const second = await createReply({});
+    draft = second;
+    c.ok((await flag()) === false, 'once_for_each_draft');
+  });
+
+  await run('variant-reply_not_draft', async (c) => {
+    await env.reset(1, ['reply_not_draft']);
+    draft = await createReply({});
+    c.ok(draft.isDraft === false && draft.id.startsWith('draft-'), 'create_reply_answer');
+    c.ok((await env.state()).mail.drafts === 1, 'the_item_is_made');
+  });
+
+  await run('variant-reply_listed_id', async (c) => {
+    await env.reset(1, ['reply_listed_id']);
+    draft = await createReply({});
+    c.ok(draft.id === answered.id && draft.isDraft === true, 'create_reply_answers_the_listed_id');
+    st = await env.state();
+    c.ok(st.mail.drafts === 0 && st.requests.state_changing === 1, 'no_draft_is_made');
+    c.ok((await patch(draft.id, { body: { content: 'x' } })).status === 400, 'that_id_is_no_draft');
   });
 
   for (const [site, kind, page, amountOf] of [
