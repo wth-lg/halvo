@@ -9821,3 +9821,32 @@ fn rd133_with_no_read_in_this_life_a_switch_off_under_a_failing_clock_waits_as_i
     let life = next_life(&c, |_| {});
     assert_ne!(row_line(&life.snapshot(), 1), text("line.off.person"));
 }
+
+/// A Switch off after a tick, or after a start whose only read is the drive's stamp, stores its
+/// `hold_set` at that move's read, not at an older one, and never later than the press (ruling
+/// RD-133, answer (b); the coordinator's word on `Report::read`).
+#[test]
+fn rd133_a_switch_off_after_a_tick_stores_its_hold_at_that_ticks_read() {
+    for last in ["tick", "start"] {
+        let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+        let read_at = T0 + 3_000;
+        c.ports().ports.set_clock(read_at, DAY);
+        if last == "tick" {
+            c.tick();
+        } else {
+            let _ = start(&c, 0);
+        }
+        let press = T0 + 9_000;
+        c.ports().ports.set_clock(press, DAY);
+        clock_fails(&c);
+        assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()), "{last}");
+        let holds = person_holds(&c, 1);
+        assert_eq!(holds.len(), 1, "{last}: stored at once");
+        assert_eq!(holds[0].at, at_of(read_at), "{last}: at that move's read");
+        assert!(
+            holds[0].at <= at_of(press),
+            "{last}: never later than the press"
+        );
+        clock_answers(&c);
+    }
+}
