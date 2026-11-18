@@ -49,21 +49,25 @@ fn a_refused_log_line_does_not_keep_the_effect_unknown_handback_from_opening() {
         "precondition: the edit left with its releasing row and the commit row was refused: {}",
         seen.stderr
     );
-    if seen.finish().is_some() {
-        assert_eq!(
-            seen.handbacks(),
-            [HandbackReason::EffectUnknown],
-            "a finish went out while the effect was releasing and no effect_unknown handback came before it; tags {:?}",
-            seen.tags()
-        );
-        let tags = seen.tags();
-        let handback_at = tags.iter().position(|t| *t == "handback");
-        let done_at = tags.iter().position(|t| *t == "done");
-        assert!(
-            handback_at.is_some() && handback_at < done_at,
-            "the handback must come before done: {tags:?}"
-        );
-    }
+    assert!(
+        seen.finish().is_some(),
+        "the run stores its finish: tags {:?} {}",
+        seen.tags(),
+        seen.stderr
+    );
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::EffectUnknown],
+        "a finish went out while the effect was releasing and no effect_unknown handback came before it; tags {:?}",
+        seen.tags()
+    );
+    let tags = seen.tags();
+    let handback_at = tags.iter().position(|t| *t == "handback");
+    let done_at = tags.iter().position(|t| *t == "done");
+    assert!(
+        handback_at.is_some() && handback_at < done_at,
+        "the handback must come before done: {tags:?}"
+    );
 }
 
 /// A6.4: a releasing effect is handed back with effect_unknown before finish, even when the store refuses the log
@@ -187,15 +191,19 @@ fn a_begin_that_met_a_fault_and_then_a_refusal_is_handed_back_unknown() {
         seen.stderr
     );
     assert_eq!(files.workbook_bytes(), before, "nothing may leave");
-    if seen.finish().is_some() {
-        assert_eq!(
-            seen.handbacks(),
-            [HandbackReason::EffectUnknown],
-            "a begin that met a fault may be stored, so it must be handed back effect_unknown before finish"
-        );
-        assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
-        assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
-    }
+    assert!(
+        seen.finish().is_some(),
+        "the run stores its finish: tags {:?} {}",
+        seen.tags(),
+        seen.stderr
+    );
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::EffectUnknown],
+        "a begin that met a fault may be stored, so it must be handed back effect_unknown before finish"
+    );
+    assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
 }
 
 /// While the runner waits for the reply to the `load` of its edit step, the supervisor sends `cancel` and then the
