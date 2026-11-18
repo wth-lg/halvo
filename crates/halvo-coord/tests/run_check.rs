@@ -517,8 +517,6 @@ fn review_life_2() {
     );
 }
 
-/// Stores `what` as the owner's next event of agent `n`, as a log of the coordinator whose
-/// acknowledgement was lost.
 fn stored_unacknowledged(w: &World, n: usize, what: What) {
     let last = w
         .ports
@@ -683,12 +681,8 @@ fn a_read_whose_later_events_raise_and_close_an_item_takes_up_no_item() {
     assert_eq!(check_items(&w, 0), 1);
 }
 
-/// The end of the local day `DAY` in the zone of `world`.
 const END_OF_LOCAL_DAY: u64 = T0 + 6_400_000;
 
-/// The `item_raised` row of a check that a start raises, with the clock from 8 ms before local
-/// midnight to 3 ms after it and moving on 1 ms at each read, carries the local day of its `at`
-/// (I7.1).
 #[test]
 fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     let mut days = Vec::new();
@@ -721,10 +715,6 @@ fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
 
-/// The rows of the moves that go through the run drive and so through its clock wrapper `Watch`
-/// (src/run/drive.rs): a start, a tick and a switch-off, with the clock from 8 ms before local
-/// midnight to 3 ms after it and moving on 1 ms at each read. Every row carries the memory
-/// clock's day of its `at` (I7.1; ruling RD-69 E1).
 #[test]
 fn rows_through_the_run_drive_carry_the_day_of_their_at_across_midnight() {
     let mut days = Vec::new();
@@ -2291,8 +2281,6 @@ fn a_reply_row_is_not_known_in_the_state_unknown_and_when_its_reader_could_not_r
     assert!(ReplyRow::Unreadable.not_known());
 }
 
-/// The store ends the run with a record of 0 while the roster's key `unknown` of the agent's
-/// entry names an effect of it, as the agent store's `end_run` does with a `releasing` effect.
 fn ended_with_key(w: &World, n: usize, run: &RunId) {
     w.store_end(n, run, Outcome::Failed, 0);
     let mut agents = w.ports.agents.borrow_mut();
@@ -2441,8 +2429,6 @@ fn the_creations_facts_take_the_roster_key_of_the_newest_run() {
     assert!(holds(facts).contains(&Hold::Check));
 }
 
-/// Makes the agent `n` of the world an agent of the category `email` whose one parameter has its
-/// slot, in the owner's list, the roster and the board.
 fn to_mail(w: &mut World, n: usize) {
     let text = support::config_text(n, false)
         .replace("calendar_cleanup", "email")
@@ -2481,7 +2467,6 @@ fn reads(w: &World) -> usize {
     w.ports.reply_reads.borrow().len()
 }
 
-/// An `email` agent whose newest run the store ended with a record of 0 and no key entry.
 fn mail_ended(w: &mut World, n: usize) -> RunId {
     to_mail(w, n);
     let run = ended_unknown(w, n);
@@ -2763,4 +2748,277 @@ fn the_creation_reads_the_reply_rows_of_an_email_agent_with_a_record() {
         Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
     );
     assert!(holds(facts).contains(&Hold::Check));
+}
+
+#[test]
+fn review_went_through_is_taken_after_a_recovery_whose_reply_read_does_not_answer() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(
+        holds_check_item(&w, 0),
+        "the card is open in the first life"
+    );
+    w.ports.new_life();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::WentThrough),
+        Ok(Answer::Ok),
+        "went_through stays a choice of the card across a recovery whose reply read did not answer"
+    );
+    assert!(w.ports.events.borrow().iter().any(|e| matches!(
+        &e.what,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check { run: r, answer: a },
+        } if *r == run && *a == CheckAnswer::WentThrough
+    )));
+}
+
+#[test]
+fn review_try_again_is_taken_after_a_recovery_and_a_tick_whose_reply_reads_fail() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.new_life();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert!(!starts(&w.calls()), "the tick starts nothing");
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert!(press.report.answer.is_err(), "Run now starts nothing");
+    assert!(!starts(&w.calls()));
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::TryAgain),
+        Ok(Answer::Ok),
+        "try_again stays a choice after a recovery and a tick whose reply reads did not answer"
+    );
+    assert!(!holds(w.facts(0)).contains(&Hold::Check));
+}
+
+#[test]
+fn review_a_read_that_answers_after_the_card_was_raised_ends_no_hold_and_the_card_takes_a_choice() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.ports.replies.borrow_mut().clear();
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Committed));
+    w.set_clock(T0 + 4000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        holds_check_item(&w, 0),
+        "the open card is not closed by a read"
+    );
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::TryAgain),
+        Ok(Answer::Ok),
+        "the open card keeps try_again after the read fails and comes back"
+    );
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+}
+
+#[test]
+fn review_a_tick_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(
+        w.facts(0).replies,
+        Replies::Rows(vec![ReplyRow::Read(ReplyState::Unknown)])
+    );
+    assert!(holds(w.facts(0)).contains(&Hold::Check));
+    assert_eq!(check_items(&w, 0), 0, "the schedule's tick raises no check");
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let tick = w.act(Act::Tick);
+    assert!(
+        tick.checked.is_empty(),
+        "a roster read that did not answer raises nothing"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    assert!(!holds_check_item(&w, 0));
+    assert!(w.calls().is_empty(), "nothing stored and nothing started");
+    w.ports.clear_refusals();
+}
+
+#[test]
+fn review_an_end_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read() {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(check_items(&w, 0), 0);
+    let other = w.act(Act::Start { agent: agent(1) }).report.run.unwrap();
+    assert_eq!(
+        check_items(&w, 0),
+        0,
+        "a start of agent 1 reads no check of agent 0"
+    );
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let done = w.act(Act::End {
+        run: other,
+        outcome: None,
+    });
+    assert!(
+        !done.checked.contains(&agent(0)),
+        "an end whose roster read did not answer raises no check from an earlier move's rows"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    w.ports.clear_refusals();
+}
+
+#[test]
+fn review_a_start_whose_roster_read_fails_raises_nothing_from_an_earlier_reply_read() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    let _ = schedule_drive(&w.ports, &mut w.board, &w.limits, Move::Tick);
+    assert_eq!(check_items(&w, 0), 0);
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 3000, DAY);
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert!(press.report.answer.is_err());
+    assert!(
+        press.checked.is_empty(),
+        "a roster read that did not answer raises nothing"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    assert!(w.calls().is_empty(), "nothing stored and nothing started");
+    w.ports.clear_refusals();
+}
+
+#[test]
+fn review_a_card_of_an_earlier_life_keeps_its_hold_when_recoverys_reply_read_does_not_answer() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "the hold of the earlier life still stands after recovery"
+    );
+    assert!(
+        holds_check_item(&w, 0),
+        "the card is still open after recovery"
+    );
+}
+
+#[test]
+fn review_went_through_is_taken_after_a_second_life_and_a_tick_whose_reply_reads_fail() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        answer(&mut w, 0, CheckAnswer::WentThrough),
+        Ok(Answer::Ok),
+        "the card keeps went_through while the reply read does not answer"
+    );
+    assert!(w.ports.events.borrow().iter().any(|e| matches!(
+        &e.what,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check { run: r, .. },
+        } if *r == run
+    )));
+}
+
+#[test]
+fn review_a_card_raised_for_an_unreadable_row_survives_a_second_life_whose_reply_read_fails() {
+    let mut w = world(&[MANUAL]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Unreadable);
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    w.set_clock(T0 + 3000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        holds_check_item(&w, 0),
+        "the card stays open across the second life"
+    );
+    assert!(holds(w.facts(0)).contains(&Hold::Check), "the hold stands");
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Err(Cause::Hold),
+        "Run now meets the standing hold"
+    );
+    assert_eq!(answer(&mut w, 0, CheckAnswer::TryAgain), Ok(Answer::Ok));
+}
+
+#[test]
+fn review_an_agent_set_aside_with_an_open_card_keeps_its_hold_when_the_tick_reads_it_again() {
+    let mut w = world(&[SLOTTED]);
+    let run = mail_ended(&mut w, 0);
+    reply_row(&w, &run, ReplyRow::Read(ReplyState::Unknown));
+    w.set_clock(T0 + 2000, DAY);
+    assert_eq!(w.act(Act::Tick).checked, vec![agent(0)]);
+    assert!(holds_check_item(&w, 0));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("internal"));
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    let life = recover(&w.ports, &w.limits).unwrap();
+    w.board = life.board;
+    w.table = Table::new();
+    assert!(w.board.aside(&agent(0)));
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Replies, PortError::NoService);
+    w.forget();
+    w.set_clock(T0 + 2 * 86_400_000, DAY + 2);
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)));
+    assert!(!starts(&w.calls()), "the tick starts nothing");
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Check),
+        "a read that did not answer ends no hold that stands"
+    );
+    assert!(holds_check_item(&w, 0), "the card is open for the person");
 }

@@ -28,7 +28,7 @@ pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
 /// among them. It asks `Owner::replies` for the newest run where the agent store has ended that
 /// run and no `hold_cleared` of the cause `check` names it, and for no other agent or category;
 /// the facts take the rows, or `Replies::NoAnswer` for a read that did not answer. While such a
-/// read leaves the hold `check` unstood, the run counts as not ended by the store in that move,
+/// read leaves the hold `check` not standing, the run counts as not ended by the store in that move,
 /// so that no start passes and the row says that the agent waits for its last run to be closed
 /// (I5.5 step 3); a read that did not answer ends no hold that stands.
 pub(crate) fn read_replies<P, C>(ports: &P, facts: &mut Facts<C>)

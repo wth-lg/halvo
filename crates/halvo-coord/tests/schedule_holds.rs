@@ -2,8 +2,8 @@ use halvo_coord::mem::Config;
 use halvo_coord::schedule::{current_slot, finished, holds, next_slot, slot_due, slot_open, Hold};
 use halvo_coord::types::{
     AgentId, Category, CheckAnswer, Class, Cleared, Doing, EffectId, Event, Facts, FullWorkflow,
-    HoldSetCause, ItemId, Limits, Name, Outcome, OwnItem, OwnItemKind, PastRun, Replies, ReplyRow,
-    ReplyState, RunEnd, RunId, Trigger, Unknown, What, WorkflowId, WorkflowState, WorkflowTrigger,
+    HoldSetCause, ItemId, Limits, Name, Outcome, PastRun, Raised, Replies, ReplyRow, ReplyState,
+    RunEnd, RunId, Trigger, Unknown, What, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use std::num::NonZeroU32;
 
@@ -500,15 +500,26 @@ fn take_unknown_keeps_the_entries_of_the_newest_run_alone() {
 }
 
 #[test]
-fn check_stands_for_a_reply_row_that_is_not_known_and_a_read_that_did_not_answer_ends_no_open_check(
-) {
-    let own_check = Doing::Idle(Some(OwnItem {
-        item: ItemId::parse(&format!("{:032x}", 0x77)).unwrap(),
-        kind: OwnItemKind::Check,
-    }));
+fn check_stands_for_a_reply_row_that_is_not_known_and_after_a_raised_card_until_the_answer() {
+    let raised = |seq: u32, what: What| Event {
+        workflow: WorkflowId::parse(FLOW).unwrap(),
+        agent: AgentId::parse(AGENT).unwrap(),
+        seq: NonZeroU32::new(seq).unwrap(),
+        day: 103,
+        at: 0,
+        what,
+    };
     let mut f = facts(Category::Email, "graph_mail", vec![]);
     f.slots = names(&["reply_senders"]);
     f.runs = vec![past(2, 103, Outcome::Failed, 0)];
+    f.events = vec![raised(
+        1,
+        What::RunStarted {
+            run: run(2),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    )];
     f.replies = Replies::Rows(vec![ReplyRow::Read(ReplyState::Committed)]);
     assert_eq!(holds(&f), Vec::<Hold>::new());
     f.replies = Replies::Rows(vec![
@@ -520,17 +531,53 @@ fn check_stands_for_a_reply_row_that_is_not_known_and_a_read_that_did_not_answer
     assert_eq!(holds(&f), vec![Hold::Check]);
     f.replies = Replies::NoAnswer;
     assert_eq!(holds(&f), Vec::<Hold>::new(), "nothing known holds nothing");
-    f.doing = own_check.clone();
-    assert_eq!(holds(&f), vec![Hold::Check], "the open card's hold stands");
+    f.events.push(raised(
+        2,
+        What::ItemRaised {
+            item: ItemId::parse(&format!("{:032x}", 0x77)).unwrap(),
+            raised: Raised::Check(Some(run(2))),
+        },
+    ));
+    assert_eq!(holds(&f), Vec::<Hold>::new(), "a run's own check item");
+    f.events.push(raised(
+        3,
+        What::ItemRaised {
+            item: ItemId::parse(&format!("{:032x}", 0x78)).unwrap(),
+            raised: Raised::Check(None),
+        },
+    ));
+    assert_eq!(
+        holds(&f),
+        vec![Hold::Check],
+        "the raised card's hold stands"
+    );
+    f.replies = Replies::Rows(vec![ReplyRow::Read(ReplyState::Committed)]);
+    assert_eq!(
+        holds(&f),
+        vec![Hold::Check],
+        "a later read that answers too"
+    );
     f.replies = Replies::NotAsked;
-    assert_eq!(holds(&f), Vec::<Hold>::new());
+    assert_eq!(holds(&f), Vec::<Hold>::new(), "no read, no such clause");
     f.replies = Replies::NoAnswer;
-    f.doing = Doing::Idle(Some(OwnItem {
-        item: ItemId::parse(&format!("{:032x}", 0x78)).unwrap(),
-        kind: OwnItemKind::Ready,
-    }));
-    assert_eq!(holds(&f), Vec::<Hold>::new(), "another kind of item");
-    f.doing = own_check;
+    f.events.push(raised(
+        4,
+        cleared(Cleared::Check {
+            run: run(2),
+            answer: CheckAnswer::TryAgain,
+        }),
+    ));
+    assert_eq!(holds(&f), Vec::<Hold>::new(), "until the answer");
+    let started = f.events[0].clone();
+    let card = f.events[2].clone();
+    f.events = vec![card, started];
+    assert_eq!(
+        holds(&f),
+        Vec::<Hold>::new(),
+        "a card raised before the newest run started is another run's"
+    );
+    f.events.reverse();
+    assert_eq!(holds(&f), vec![Hold::Check]);
     f.store_ended = false;
     assert_eq!(holds(&f), Vec::<Hold>::new());
 }

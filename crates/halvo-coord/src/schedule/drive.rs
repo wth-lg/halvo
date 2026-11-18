@@ -209,7 +209,18 @@ fn fresh<P: Owner<Config = C>, C: ConfigView + Clone>(
     board: &mut Board<C>,
     only: Option<usize>,
 ) -> Result<(), PortError> {
-    let agents = cx.ports.agents()?;
+    let agents = match cx.ports.agents() {
+        Ok(agents) => agents,
+        Err(e) => {
+            for (k, m) in board.members.iter_mut().enumerate() {
+                if only.is_none_or(|i| i == k) {
+                    m.facts.unknown.clear();
+                    m.facts.replies = crate::types::Replies::NotAsked;
+                }
+            }
+            return Err(e);
+        }
+    };
     let history = cx.limits.history_runs as usize;
     for (k, m) in board.members.iter_mut().enumerate() {
         if only.is_none_or(|i| i == k) {
