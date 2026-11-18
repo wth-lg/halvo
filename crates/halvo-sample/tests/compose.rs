@@ -718,6 +718,27 @@ fn compose_late_n_writes_late_keys_in_that_stream_alone_and_its_built_stream_hol
             assert_eq!(l, p, "{f}");
         }
     }
+    let (mut one_key, mut noise_keys) = (0, 0);
+    for f in ["s003.jsonl", "s003.marked.jsonl"] {
+        let text = fs::read_to_string(dir.join("late").join(f)).expect("late");
+        for l in text.lines() {
+            let line = halvo_sample::script::parse_line(l.as_bytes()).expect("a line");
+            let items: Vec<(&halvo_sample::script::Item, bool)> = match &line {
+                halvo_sample::script::Line::Episode(e) => {
+                    e.ranges.iter().map(|i| (i, false)).collect()
+                }
+                halvo_sample::script::Line::Noise(n) => vec![(&n.item, true)],
+                _ => Vec::new(),
+            };
+            for (i, noise) in items {
+                let want = (i.keys > 0).then_some(30_000);
+                assert_eq!(i.late, want, "{l}");
+                one_key += usize::from(i.keys == 1);
+                noise_keys += usize::from(noise && i.keys > 0);
+            }
+        }
+    }
+    assert!(one_key > 0 && noise_keys > 0, "{one_key} {noise_keys}");
     let body = dir.join("body");
     let o = run(&[
         "build",

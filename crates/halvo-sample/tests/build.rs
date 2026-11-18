@@ -249,6 +249,24 @@ fn a_tier_build_names_a_refused_stream_by_its_line_and_never_by_its_id() {
         &s(&dir.join("ok-b.jsonl")),
     ]);
     assert_eq!(o.code, 0, "{}", o.stderr);
+    write(&dir.join("other.jsonl"), &tier_script("unseen", true));
+    let (a, b) = script("seen", true);
+    write(&dir.join("second-a.jsonl"), &a);
+    write(&dir.join("second-b.jsonl"), &b);
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-unseen",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("second-out")),
+        &s(&dir.join("other.jsonl")),
+        &s(&dir.join("second-a.jsonl")),
+        &s(&dir.join("second-b.jsonl")),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 3:3: sites\n");
 }
 
 /// An argument that is no UTF-8: a byte 0xFF on Unix, a lone surrogate on Windows.

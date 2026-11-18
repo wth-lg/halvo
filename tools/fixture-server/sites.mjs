@@ -43,7 +43,7 @@ export function isPort(value) {
  * so an argument that holds U+FFFD or a lone surrogate is refused, a path with a written U+FFFD among them.
  */
 export function readArgs(argv, flag, accepts) {
-  if (argv.some((arg) => !arg.isWellFormed() || arg.includes('�'))) return null;
+  if (argv.some((arg) => !arg.isWellFormed() || arg.includes('\uFFFD'))) return null;
   let value = null;
   const files = [];
   for (let i = 0; i < argv.length; i += 1) {

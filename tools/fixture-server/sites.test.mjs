@@ -583,7 +583,7 @@ test('arguments: one optional flag with a value, then one or more files', () => 
   for (const argv of [[], ['--parameters'], ['--parameters', 'r.md'], ['--port', '1', 'a.json'], ['--parameters', 'r.md', '--parameters', 'r.md', 'a.json'], ['-', '--x']]) {
     assert.equal(readArgs(argv, '--parameters', any), null, argv.join(' '));
   }
-  for (const argv of [['a\uD800.json'], ['a�.json'], ['--parameters', 'r\uDC00.md', 'a.json'], ['a.json', 'b�']]) {
+  for (const argv of [['a\uD800.json'], ['a\uFFFD.json'], ['--parameters', 'r\uDC00.md', 'a.json'], ['a.json', 'b\uFFFD']]) {
     assert.equal(readArgs(argv, '--parameters', any), null, JSON.stringify(argv));
   }
   assert.deepEqual(readArgs(['\u{1F600}.json'], '--parameters', any), { value: null, files: ['\u{1F600}.json'] });
