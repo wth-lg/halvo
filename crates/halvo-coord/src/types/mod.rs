@@ -24,7 +24,8 @@ pub use event::{
     SignInAnswer, Slot, What,
 };
 pub use facts::{
-    Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, ReplyRow, ReplyState, RunItem, RunItemKind,
+    Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, Replies, ReplyRow, ReplyState, RunItem,
+    RunItemKind,
 };
 pub use ids::{
     hex, AgentId, ApprovalId, Digest, EffectId, ItemId, Name, Origin, RunId, WorkflowId,

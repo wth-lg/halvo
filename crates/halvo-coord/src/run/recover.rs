@@ -1,4 +1,4 @@
-use super::check::raise_checks;
+use super::check::{raise_checks, read_replies};
 use crate::items::drive::{class_of, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs, Stamp};
 use crate::schedule::{item_closed, resync, seq_refusal, Board, Ended, Member, Owed, Owing};
@@ -393,10 +393,12 @@ where
                 unknown: Vec::new(),
                 events: f.events,
                 store_ended,
+                replies: crate::types::Replies::NotAsked,
                 today: day,
                 doing: Doing::Idle(None),
             };
             facts.take_unknown(&f.agent.unknown);
+            read_replies(ports, &mut facts);
             Member {
                 facts,
                 session: f.agent.session,

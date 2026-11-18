@@ -2,8 +2,8 @@ use halvo_coord::mem::Config;
 use halvo_coord::schedule::{current_slot, finished, holds, next_slot, slot_due, slot_open, Hold};
 use halvo_coord::types::{
     AgentId, Category, CheckAnswer, Class, Cleared, Doing, EffectId, Event, Facts, FullWorkflow,
-    HoldSetCause, Limits, Name, Outcome, PastRun, RunEnd, RunId, Trigger, Unknown, What,
-    WorkflowId, WorkflowState, WorkflowTrigger,
+    HoldSetCause, ItemId, Limits, Name, Outcome, OwnItem, OwnItemKind, PastRun, Replies, ReplyRow,
+    ReplyState, RunEnd, RunId, Trigger, Unknown, What, WorkflowId, WorkflowState, WorkflowTrigger,
 };
 use std::num::NonZeroU32;
 
@@ -59,6 +59,7 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         runs: vec![],
         events,
         store_ended: true,
+        replies: halvo_coord::types::Replies::NotAsked,
         unknown: Vec::new(),
         today: 107,
         doing: Doing::Idle(None),
@@ -496,4 +497,40 @@ fn take_unknown_keeps_the_entries_of_the_newest_run_alone() {
     f.runs.clear();
     f.take_unknown(&[effect_of(2)]);
     assert_eq!(f.unknown, Vec::<Unknown>::new(), "no run, no entry");
+}
+
+#[test]
+fn check_stands_for_a_reply_row_that_is_not_known_and_a_read_that_did_not_answer_ends_no_open_check(
+) {
+    let own_check = Doing::Idle(Some(OwnItem {
+        item: ItemId::parse(&format!("{:032x}", 0x77)).unwrap(),
+        kind: OwnItemKind::Check,
+    }));
+    let mut f = facts(Category::Email, "graph_mail", vec![]);
+    f.slots = names(&["reply_senders"]);
+    f.runs = vec![past(2, 103, Outcome::Failed, 0)];
+    f.replies = Replies::Rows(vec![ReplyRow::Read(ReplyState::Committed)]);
+    assert_eq!(holds(&f), Vec::<Hold>::new());
+    f.replies = Replies::Rows(vec![
+        ReplyRow::Read(ReplyState::Committed),
+        ReplyRow::Read(ReplyState::Unknown),
+    ]);
+    assert_eq!(holds(&f), vec![Hold::Check]);
+    f.replies = Replies::Rows(vec![ReplyRow::Unreadable]);
+    assert_eq!(holds(&f), vec![Hold::Check]);
+    f.replies = Replies::NoAnswer;
+    assert_eq!(holds(&f), Vec::<Hold>::new(), "nothing known holds nothing");
+    f.doing = own_check.clone();
+    assert_eq!(holds(&f), vec![Hold::Check], "the open card's hold stands");
+    f.replies = Replies::NotAsked;
+    assert_eq!(holds(&f), Vec::<Hold>::new());
+    f.replies = Replies::NoAnswer;
+    f.doing = Doing::Idle(Some(OwnItem {
+        item: ItemId::parse(&format!("{:032x}", 0x78)).unwrap(),
+        kind: OwnItemKind::Ready,
+    }));
+    assert_eq!(holds(&f), Vec::<Hold>::new(), "another kind of item");
+    f.doing = own_check;
+    f.store_ended = false;
+    assert_eq!(holds(&f), Vec::<Hold>::new());
 }

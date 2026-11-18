@@ -1361,6 +1361,7 @@ impl Conf {
             runs: Vec::new(),
             events: self.raised.clone(),
             store_ended: true,
+            replies: halvo_coord::types::Replies::NotAsked,
             unknown: Vec::new(),
             today: DAY,
             doing,

@@ -26,6 +26,9 @@ pub struct Facts<C> {
     /// coordinator reads it from the owner for each start, through `Owner::agents` (I5.1, I5.5
     /// step 3, ruling XB-2).
     pub store_ended: bool,
+    /// The move's read of the `agent_reply` rows of the newest run, asked for an agent of the
+    /// category `email` alone (I5.1, I5.4; rulings RD-67 3.3, RD-81 8.4).
+    pub replies: Replies,
     /// The day of the coordinator's `Clock` (I5.9).
     pub today: u32,
     /// Its run state and its open item.
@@ -230,6 +233,26 @@ pub enum ReplyRow {
     /// A row that the port's reader could not read, such as one in a state that it does not
     /// know; the read keeps it and answers the other rows (ruling RD-81 8.4).
     Unreadable,
+}
+
+/// What one move learned of the `agent_reply` rows of an agent's newest run (I5.1; ruling RD-81
+/// 8.4). No answer is kept from one move to the next (ruling XB-9).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Replies {
+    /// Not asked in the move: the agent is not of the category `email`, the agent store has not
+    /// ended its newest run, or a `hold_cleared` of the cause `check` names that run.
+    NotAsked,
+    /// Asked, and the read did not answer.
+    NoAnswer,
+    /// The rows that the read answered.
+    Rows(Vec<ReplyRow>),
+}
+
+impl Replies {
+    /// Whether the read answered with a row that leaves the fate of its reply not known.
+    pub fn not_known(&self) -> bool {
+        matches!(self, Replies::Rows(rows) if rows.iter().any(|r| r.not_known()))
+    }
 }
 
 impl ReplyRow {

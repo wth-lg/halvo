@@ -626,6 +626,7 @@ fn build(state: State) -> Vec<Built> {
             runs: history,
             events,
             store_ended: !matches!(doing, Doing::Live(_)),
+            replies: crate::types::Replies::NotAsked,
             unknown: Vec::new(),
             today: TODAY,
             doing,
