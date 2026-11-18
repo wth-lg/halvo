@@ -3,9 +3,10 @@ use std::path::Path;
 use halvo_schema::learning::names::Mark;
 
 use crate::cli::Cause;
+use crate::derived::{process_key, DerivedHost};
 use crate::routine::{
-    line, newest, play, play_all, read_sample, report, report_with, run, threads, Event, Failure,
-    Played, Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
+    line, newest, play, play_all, play_derived_to, read_sample, report, report_with, run, threads,
+    Event, Failure, Played, Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
 };
 
 fn sample() -> Vec<Train> {
@@ -267,12 +268,11 @@ fn routine_report_refuses_a_sample_of_another_number_of_trains_with_case() {
 }
 
 #[test]
-fn routine_refuses_the_derived_store_with_store_and_a_wrong_call_with_usage() {
+fn routine_refuses_a_wrong_call_with_usage() {
     let call = |args: &[&str]| {
         let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
         run(&args).expect_err("a refusal").cause
     };
-    assert_eq!(call(&["--store", "derived"]), Cause::Store);
     for wrong in [
         &["--store", "disk"][..],
         &["--store"],
@@ -281,6 +281,42 @@ fn routine_refuses_the_derived_store_with_store_and_a_wrong_call_with_usage() {
         &["--store", "derived", "x"],
     ] {
         assert_eq!(call(wrong), Cause::Usage, "{wrong:?}");
+    }
+}
+
+fn derived_dir(name: &str) -> std::path::PathBuf {
+    let exe = std::env::current_exe().expect("the test binary");
+    let root = exe
+        .ancestors()
+        .nth(3)
+        .expect("the target directory")
+        .join("tmp")
+        .join("r5-derived-routine");
+    halvo_test_dir::make(&root, name).expect("a test directory")
+}
+
+#[test]
+fn routine_derived_gives_the_trains_figures_in_both_streams_and_opens_the_store_on_every_day() {
+    let train = sample().remove(0);
+    let last = 130;
+    assert!(train.days.contains(&36) && !train.days.contains(&last));
+    assert!(train.days.iter().any(|d| (REPLAY_FROM..last).contains(d)));
+    for stream in Stream::BOTH {
+        let host = DerivedHost::new(derived_dir("both-streams"), process_key(), 1);
+        let (played, mut host) =
+            play_derived_to(&train, stream, host, last).expect("a play on the derived store");
+        assert_eq!(played.differs_on, None, "{stream:?}");
+        let early = train.days.iter().filter(|d| **d < REPLAY_FROM).count() as u32;
+        let all = train.days.iter().filter(|d| **d <= last).count() as u32;
+        match stream {
+            Stream::Summaries => assert_eq!((played.summaries, played.runs), (all, 0)),
+            Stream::Replay => assert_eq!((played.summaries, played.runs), (early, all - early)),
+        }
+        assert_eq!(
+            host.expire().expect("the store's expiry on the last day"),
+            0,
+            "the open of day {last} removed every row past its bound, the summary of day 36 among them ({stream:?})"
+        );
     }
 }
 

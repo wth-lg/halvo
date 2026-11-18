@@ -75,17 +75,6 @@ impl StoreName {
             StoreName::Derived => "derived",
         }
     }
-
-    /// The memory store, or the refusal `store` for the derived store, which this build does not hold (L10.1).
-    pub fn memory_only(self) -> Result<(), Refusal> {
-        match self {
-            StoreName::Memory => Ok(()),
-            StoreName::Derived => Err(Refusal::new(
-                Cause::Store,
-                "the derived store is not in this build",
-            )),
-        }
-    }
 }
 
 /// The flags of a command after its name: each `--name value` pair or bare `--name`, in the order given.

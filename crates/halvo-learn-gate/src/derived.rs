@@ -591,6 +591,19 @@ impl DerivedHost {
         }
     }
 
+    /// The host with `LearnStep` after the recurrence step.
+    pub fn with_step(mut self) -> DerivedHost {
+        self.step = true;
+        self
+    }
+
+    /// The host that makes a workflow from a summary of `day`, with its clock on that day, and then opens the store
+    /// again on the clock's day, whose expiry removes that summary where `day` lies more than two days after it.
+    pub fn with_seed_day(mut self, day: u32) -> DerivedHost {
+        self.seed_day = Some(day);
+        self
+    }
+
     fn host(&self) -> Host {
         let channel = Rc::new(Channel::default());
         let mut host = Host::new(
@@ -645,6 +658,15 @@ impl DerivedHost {
     pub fn reopen(&mut self) -> Result<(), String> {
         self.store = None;
         self.open()
+    }
+
+    /// The store's expiry on the clock's day, as every open runs it (`Store::expire`): the number of rows that it
+    /// removed.
+    #[cfg(test)]
+    pub fn expire(&mut self) -> Result<u64, String> {
+        self.store()?
+            .expire()
+            .map_err(|e| format!("the expiry fails: {e}"))
     }
 
     fn request_id(&mut self) -> RequestId {
