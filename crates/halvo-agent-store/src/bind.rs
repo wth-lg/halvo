@@ -76,6 +76,16 @@ pub(crate) fn start_row(
     }))
 }
 
+pub(crate) fn held_start_row(
+    host: &dyn Host,
+    run: &RunId,
+    agent: &AgentId,
+) -> Result<bool, ErrorName> {
+    Ok(rows::logs(host.rows())?
+        .iter()
+        .any(|l| l.event == LogEvent::StartAccepted && &l.run == run && &l.agent == agent))
+}
+
 pub(crate) fn own_run(
     host: &dyn Host,
     now: Now,

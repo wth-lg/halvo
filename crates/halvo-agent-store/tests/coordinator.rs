@@ -356,3 +356,154 @@ fn a_dismissed_workflow_has_no_agent() {
     assert_eq!(set_state(&mut store, 1, "active"), Err(declared("binding")));
     assert_eq!(start(&mut store, 1, "compile"), Err(declared("binding")));
 }
+
+fn start_row_of(a: u32, at_nanos: i64) -> serde_json::Value {
+    json!({"v": 1, "workflow": wf(1), "agent": agent(a), "day": TODAY, "at": at_nanos})
+}
+
+fn start_rows_of_kind(store: &MemoryStore) -> Vec<serde_json::Value> {
+    rows(store, "agent_start")
+        .iter()
+        .map(|r| serde_json::from_str(r).expect("a stored start row"))
+        .collect()
+}
+
+fn load_start(store: &mut MemoryStore, a: u32, r: u32) -> Option<serde_json::Value> {
+    let body = json!({"op": "load", "agent": agent(a), "run": run(r)});
+    match runner(store, body) {
+        Ok(halvo_schema::executable::RunnerReply::Load(reply)) => reply
+            .start
+            .map(|s| serde_json::from_str(&s.to_json().expect("text")).expect("json")),
+        other => panic!("a reply of load, not {other:?}"),
+    }
+}
+
+#[test]
+fn create_agent_stores_the_start_row_in_the_commit_of_the_preset_from_the_request_s_clock() {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", None));
+    let mut host = Stopper::new(&mut store, None);
+    let body = json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1)});
+    assert_eq!(
+        halvo_agent_store::coordinator(&mut host, NOW, body.to_string().as_bytes()),
+        Ok(rev(1))
+    );
+    assert_eq!(host.commits, 1);
+    assert_eq!(configs(&store).len(), 1);
+    assert_eq!(start_rows_of_kind(&store), [start_row_of(1, NOW.at.0)]);
+}
+
+#[test]
+fn a_repeated_create_agent_stores_the_start_row_only_when_none_stands() {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", None));
+    create(&mut store, 1, 1).expect("create_agent");
+    let later = at(NOW.at.0 + 60_000_000_000);
+    let body = json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1)});
+    assert_eq!(coordinator_at(&mut store, later, body.clone()), Ok(rev(1)));
+    assert_eq!(start_rows_of_kind(&store), [start_row_of(1, NOW.at.0)]);
+
+    let mut bare = unattended_sender();
+    assert!(start_rows_of_kind(&bare).is_empty());
+    assert_eq!(coordinator_at(&mut bare, later, body.clone()), Ok(rev(1)));
+    assert_eq!(start_rows_of_kind(&bare), [start_row_of(1, later.at.0)]);
+    assert_eq!(coordinator(&mut bare, body), Ok(rev(1)));
+    assert_eq!(start_rows_of_kind(&bare), [start_row_of(1, later.at.0)]);
+}
+
+#[test]
+fn a_configuration_stored_later_does_not_move_the_start_row_and_load_answers_it() {
+    let mut store = store_with("email");
+    assert_eq!(
+        load_start(&mut store, 1, 1),
+        Some(start_row_of(1, NOW.at.0))
+    );
+    let mut config = configs(&store).pop().expect("a config");
+    config.rev = std::num::NonZeroU32::new(2).expect("2");
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_config",
+            json: config.to_json().expect("the config's JSON"),
+        }])
+        .expect("a later config");
+    let later = at(NOW.at.0 + 60_000_000_000);
+    let body = json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1)});
+    assert_eq!(coordinator_at(&mut store, later, body), Ok(rev(1)));
+    assert_eq!(start_rows_of_kind(&store), [start_row_of(1, NOW.at.0)]);
+    assert_eq!(
+        load_start(&mut store, 1, 1),
+        Some(start_row_of(1, NOW.at.0))
+    );
+}
+
+#[test]
+fn load_answers_start_null_where_no_start_row_of_the_agent_stands() {
+    let mut store = unattended_sender();
+    assert_eq!(load_start(&mut store, 1, 1), None);
+}
+
+#[test]
+fn create_agent_after_a_stop_behind_its_commit_and_sent_again_with_a_new_agent_id() {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", None));
+    let mut host = Stopper::new(&mut store, Some(1));
+    let body = json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1)});
+    assert_eq!(
+        halvo_agent_store::coordinator(&mut host, NOW, body.to_string().as_bytes()),
+        Err(ErrorName::Internal)
+    );
+    assert_eq!(configs(&store).len(), 1);
+    assert_eq!(start_rows_of_kind(&store), [start_row_of(1, NOW.at.0)]);
+    assert_eq!(state_of(&store, 1), (WorkflowState::Approved, None));
+
+    assert_eq!(create(&mut store, 1, 2), Ok(rev(1)));
+    assert_eq!(
+        state_of(&store, 1),
+        (WorkflowState::Approved, Some(agent(2)))
+    );
+    assert_eq!(configs(&store).len(), 2);
+    assert_eq!(start_rows_of_kind(&store).len(), 2);
+    assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Err(declared("binding")));
+    let load_first = json!({"op": "load", "agent": agent(1), "run": run(1)});
+    assert_eq!(runner(&mut store, load_first), Err(declared("binding")));
+    assert_eq!(start_at(&mut store, NOW, 1, 2, 2), Ok(accepted()));
+    for kind in halvo_agent_store::AGENT_KINDS.iter().map(|(k, _)| *k) {
+        for row in rows(&store, kind) {
+            let value: serde_json::Value = serde_json::from_str(&row).expect("a row");
+            assert_eq!(value["workflow"], json!(wf(1)), "{kind}: {row}");
+        }
+    }
+}
+
+fn log_at(store: &mut MemoryStore, now: halvo_agent_store::Now) -> Result<(), ErrorName> {
+    let day = store.day(now.at);
+    let line = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(1), "seq": 2, "day": day,
+        "at": now.at.0, "event": "step_ok", "step": 1, "cause": null, "model": null, "ms": null,
+        "tokens_in": null, "tokens_out": null,
+    });
+    runner_at(
+        store,
+        now,
+        json!({"op": "log", "agent": agent(1), "run": run(1), "records": [line]}),
+    )
+    .map(|_| ())
+}
+
+#[test]
+fn a_start_run_whose_start_row_lies_past_the_log_s_bound_does_not_open_the_run_again() {
+    for days in [-3, 93] {
+        let mut store = unstarted("email");
+        assert_eq!(start_at(&mut store, NOW, 1, 1, 1), Ok(accepted()));
+        let then = at(NOW.at.0 + days * NANOS_PER_DAY);
+        assert_eq!(log_at(&mut store, then), Err(declared("binding")), "{days}");
+        assert_eq!(
+            start_at(&mut store, then, 1, 1, 1),
+            Ok(accepted()),
+            "{days}"
+        );
+        assert_eq!(start_rows(&store).len(), 1, "{days}");
+        assert_eq!(log_at(&mut store, then), Err(declared("binding")), "{days}");
+        assert_eq!(log_at(&mut store, NOW), Ok(()), "{days}");
+    }
+}

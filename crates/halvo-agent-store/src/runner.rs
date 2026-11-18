@@ -6,7 +6,7 @@ use halvo_schema::executable::body::{
     Load, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutLog,
     PutPlaybook, PutSession, SessionReply, StepsReply, Stored, STEPS_PER_REQUEST_MAX,
 };
-use halvo_schema::executable::names::LogEvent;
+use halvo_schema::executable::names::{Cause, LogEvent};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     AgentPlaybook, AgentSession, ExecutableStep, RunnerCall, RunnerReply, WebOrigin,
@@ -16,7 +16,7 @@ use halvo_schema::{AgentId, ErrorName, RowRead};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, checkpoint, day, effect, end};
+use crate::{bind, checkpoint, day, effect, end, reply};
 
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
@@ -32,14 +32,16 @@ use crate::{bind, checkpoint, day, effect, end};
 ///
 /// - `load`: the stored configuration; the newest playbook number with its count of stored steps; the newest
 ///   revision of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of`
-///   are all stored, with `of` as its count of parts.
+///   are all stored, with `of` as its count of parts; the agent's start row of the configuration's workflow, the
+///   earliest by `at` where more than one is stored, or null where none is.
 /// - `load_steps`: `playbook` where no step of that playbook number is stored; else at most 16 stored steps from
 ///   the one numbered `from`, in order and with no gap.
 /// - `load_session`: `binding` where the part is not stored.
 /// - `put_playbook`: `playbook` unless the number is the newest stored number or the next one (1 for the first),
 ///   for a first step after a gap in the steps of that number, and for a step whose number and `n` hold another
-///   stored step; `class` where `check_playbook` refuses the steps of that number that would be held. It stores
-///   each step that is not stored and answers the count of the body's steps.
+///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
+///   cause `workbook`, a write to a file that is not the slot `workbook` (CP-218 (c)), and `class` for any other
+///   cause. It stores each step that is not stored and answers the count of the body's steps.
 /// - `put_session`: `binding` where the place of the part (origin, revision, part) holds a part with another `of`
 ///   or other data; else it stores the part, with the request's day, unless it is stored, and answers 1.
 /// - `log`: `effect` for a body with a record of the event `start_accepted` or of `seq` 1, the start row's place;
@@ -57,13 +59,16 @@ use crate::{bind, checkpoint, day, effect, end};
 ///   move other than `rebind` keeps the digest and the kept fields of the last row. `effect_step` takes the effect
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
 ///   the row's state. A `releasing` or `committed` row holds the approval of the effect's last `approved` row, or
-///   none where the effect has no `approved` row, else `effect` (CP-132 (a)).
+///   none where the effect has no `approved` row, else `effect` (CP-132 (a)). A `releasing` row is refused with
+///   `effect` when `decide` for the agent's newest stored configuration and the effect's class, with the checkpoint
+///   of its first row, gives `refuse` (CP-143 (4) (ii)).
 /// - `checkpoint`: a row equal to the checkpoint's newest row (its run and workbook) in every key but `day` and
 ///   `at` is answered as the first and stores nothing; else `effect` unless the row is a `planned` first row of the
-///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy; `length` for
-///   the `planned` first row of a new path when the run's checkpoints with it, each in its widest listed form, would
-///   not fit one page of `list_checkpoints`, so that one run's checkpoints always fit a page (CP-205 C2). The store's
-///   crate reads the row with the schema's strict reader and stores the text of its writer.
+///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy and an `at`
+///   not before that row's (CP-205 (b)); `length` for the `planned` first row of a new path when the run's
+///   checkpoints with it, each in its widest listed form, would not fit one page of `list_checkpoints`, so that one
+///   run's checkpoints always fit a page (CP-205 C2). The store's crate reads the row with the schema's strict
+///   reader and stores the text of its writer.
 /// - Every row that a body stores is held to the day rule (CP-122): a row that holds `at` (`effect`, `log`) is
 ///   refused with `day` unless its `day` is `Host::day` of its `at`, and every row of a bounded kind, the record of
 ///   `finish` among them, is refused with `day` when its day is after the day of the request's instant or already
@@ -76,7 +81,26 @@ use crate::{bind, checkpoint, day, effect, end};
 ///   them. Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
 ///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
-///   instant.
+///   instant; and for each message whose newest reply row of its agent names the run and is `begun`, a reply row
+///   `unknown` with the next seq, the request's day and instant, and the rest of that row.
+/// - `reply_row`: a row equal to the newest row of the message of the body's agent (by `seq`) in every key but
+///   `day` and `at` is a repeat, answered as the first, `{"stored":1}`, before the run's end is read. Else `effect`
+///   for a row of an ended run and for a row that the closed order of A7.4 does not allow: a first row is
+///   `drafted` with seq 1 and no effect; a later row has the next seq and follows the newest row as `begun` with
+///   its draft or as `lost` after `drafted`; as `withheld` with its draft and run after a `drafted` row that is
+///   the first row or follows `lost`; as `drafted` with a draft that no row of the message holds and no effect
+///   after `lost`; as `committed` or `unknown` with its draft, run and effect after `begun`; as `drafted` after
+///   `begun` with its draft and effect only when that effect's newest row of the row's run is `not_made`, a state
+///   that the schema does not hold before U1.8 (b); nothing follows `committed`, `unknown` or `withheld`. Then
+///   `effect` for a `begun` row while another agent's newest row of the message is `begun`, `committed` or
+///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row. A named
+///   limit: a clock set back more than two days past the day of a run's end record leaves that record out of the
+///   read, so a `begun` row of the ended run is stored and stays `begun` (CP-227).
+/// - `load_replies`: for each id asked, in the order asked, the newest row of the body's agent; in `blocked` each
+///   id for which another agent's newest row, over every agent's rows, is `begun`, `committed` or `unknown`, and
+///   in `blocked_withheld` each other id for which another agent's newest row is `withheld`; no row and no key of
+///   another agent. `internal` for a reply that does not answer the body or that its writer refuses, so that no
+///   reply holds fewer rows than the store has for the ids asked.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
         RunnerCall::Load(b) => load(&*host, now, &b),
@@ -88,7 +112,8 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::Log(b) => put_log(host, now, &b),
         RunnerCall::Finish(b) => end::finish(host, now, &b),
         RunnerCall::Checkpoint(b) => checkpoint::put(host, now, &b),
-        RunnerCall::ReplyRow(_) | RunnerCall::LoadReplies(_) => Err(ErrorName::Malformed),
+        RunnerCall::ReplyRow(b) => reply::put(host, now, &b),
+        RunnerCall::LoadReplies(b) => reply::load(&*host, now, &b),
     }
 }
 
@@ -162,7 +187,7 @@ fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
         playbook,
         bindings,
         sessions,
-        start: None,
+        start: rows::start_of(host.rows(), &b.agent)?.filter(|s| s.workflow == workflow.id),
     }))
 }
 
@@ -267,7 +292,10 @@ fn put_playbook(host: &mut dyn Host, now: Now, b: &PutPlaybook) -> Result<Runner
         }
     }
     steps.sort_by_key(|s| s.n);
-    check_playbook(config.category, &steps).map_err(|_| Own::Class)?;
+    check_playbook(config.category, &steps).map_err(|refusal| match refusal.cause() {
+        Cause::Workbook => Own::Playbook,
+        _ => Own::Class,
+    })?;
     let records = new
         .into_iter()
         .map(|step| {

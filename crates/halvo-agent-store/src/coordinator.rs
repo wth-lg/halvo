@@ -6,8 +6,8 @@ use halvo_schema::executable::body::{
 };
 use halvo_schema::executable::names::{AgentState, LogEvent, Mode};
 use halvo_schema::executable::text::V1;
-use halvo_schema::executable::{AgentLog, CoordinatorCall, CoordinatorReply, Runtime};
-use halvo_schema::{Category, ErrorName, TypedRecord, Workflow, WorkflowState};
+use halvo_schema::executable::{AgentLog, AgentStart, CoordinatorCall, CoordinatorReply, Runtime};
+use halvo_schema::{Category, ErrorName, Workflow, WorkflowState};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
@@ -21,20 +21,25 @@ use crate::{bind, bindings, checkpoint, day, end};
 /// that fits:
 ///
 /// - `create_agent`: `no_workflow`; `state` for a workflow that is `proposed` or `dismissed`; `binding` when the
-///   workflow's agent is another agent or the agent's configuration is stored for another workflow. It stores the
-///   preset of the workflow's category as revision 1 unless the agent's configuration is stored, makes the state
-///   call (`approved`, the agent) unless the workflow's agent is this agent, and answers `{"rev":1}`.
+///   workflow's agent is another agent or the agent's configuration is stored for another workflow. In one commit
+///   it stores the preset of the workflow's category as revision 1 unless the agent's configuration is stored, and
+///   the agent's start row (`agent_start`) with the request's instant and day unless one of the agent is stored; a
+///   later configuration never moves that row (CP-143 (2)). Then it makes the state call (`approved`, the agent)
+///   unless the workflow's agent is this agent, and answers `{"rev":1}`.
 /// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
 ///   configuration of the agent is stored; `playbook` for `active` while
 ///   the agent's runtime is `web` and no playbook step of the agent is stored; then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
 ///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
-///   names another agent; `effect` for a run whose `agent_run` record is stored. Where the run's start row of the
-///   agent stands, from 93 days back to two days ahead of the request's day, it stores nothing; else it stores the
-///   start row, one `agent_log`
-///   row with the event `start_accepted`, `seq` 1, no step, cause, model or figure, and the request's instant and
-///   day. It answers `{"ok":"yes"}` (CP-135 (5)).
+///   names another agent; `effect` for a run whose `agent_run` record is stored. Where a start row of the run and
+///   the agent is among the rows that the store hands out, also one past the bound of `agent_log` that the runner
+///   bodies no longer count, it stores nothing, so it does not open such a run again on a host whose read still
+///   hands out that start row (CP-205 (b)); else it stores the start row, one `agent_log` row with the event
+///   `start_accepted`, `seq` 1, no step, cause, model or figure, and the request's instant and day. It answers
+///   `{"ok":"yes"}` (CP-135 (5)). A named limit, of the class of the effects' clock limit: on a machine whose clock
+///   moves by days, a read that no longer hands out the start row (a clock read three days back or 93 days on) lets
+///   `start_run` store a new start row and open the run again (CP-227).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
 ///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
 ///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
@@ -65,7 +70,7 @@ pub fn coordinator(
     body: &[u8],
 ) -> Result<CoordinatorReply, ErrorName> {
     match CoordinatorCall::parse(body).map_err(refused)? {
-        CoordinatorCall::CreateAgent(b) => create_agent(host, &b),
+        CoordinatorCall::CreateAgent(b) => create_agent(host, now, &b),
         CoordinatorCall::SetBindings(b) => bindings::set_bindings(host, &b),
         CoordinatorCall::SetState(b) => set_state(host, &b),
         CoordinatorCall::StartRun(b) => start_run(host, now, &b),
@@ -76,7 +81,11 @@ pub fn coordinator(
     }
 }
 
-fn create_agent(host: &mut dyn Host, b: &CreateAgent) -> Result<CoordinatorReply, ErrorName> {
+fn create_agent(
+    host: &mut dyn Host,
+    now: Now,
+    b: &CreateAgent,
+) -> Result<CoordinatorReply, ErrorName> {
     let w = match bind::stored(&*host, &b.workflow)? {
         Workflow::Full(w) if w.state != WorkflowState::Proposed => w,
         _ => return Err(ErrorName::State),
@@ -89,6 +98,7 @@ fn create_agent(host: &mut dyn Host, b: &CreateAgent) -> Result<CoordinatorReply
     if mine.clone().any(|c| c.workflow != b.workflow) {
         return Err(Own::Binding.into());
     }
+    let mut records = Vec::new();
     if mine.peek().is_none() {
         let config = preset(
             Category::from(w.category),
@@ -97,11 +107,20 @@ fn create_agent(host: &mut dyn Host, b: &CreateAgent) -> Result<CoordinatorReply
         )
         .ok_or(Own::Config)?;
         validate(&config).map_err(|_| Own::Config)?;
-        let json = config.to_json().map_err(refused)?;
-        host.commit(vec![TypedRecord {
-            kind: rows::AGENT_CONFIG,
-            json,
-        }])?;
+        records.push(record(rows::AGENT_CONFIG, config.to_json())?);
+    }
+    if rows::start_of(host.rows(), &b.agent)?.is_none() {
+        let start = AgentStart {
+            v: V1,
+            workflow: b.workflow.clone(),
+            agent: b.agent.clone(),
+            day: day::of(&*host, now),
+            at: now.at,
+        };
+        records.push(record(rows::AGENT_START, start.to_json())?);
+    }
+    if !records.is_empty() {
+        day::commit(host, now, records)?;
     }
     if w.agent.is_none() {
         host.set_state(&b.workflow, AgentState::Approved, Some(&b.agent))?;
@@ -137,7 +156,7 @@ fn start_run(host: &mut dyn Host, now: Now, b: &StartRun) -> Result<CoordinatorR
     }
     bind::no_other_agent(&*host, &b.run, &b.agent)?;
     bind::open_run(&*host, &b.run)?;
-    if bind::start_row(&*host, now, &b.run, &b.agent)?.is_none() {
+    if !bind::held_start_row(&*host, &b.run, &b.agent)? {
         let row = AgentLog {
             v: V1,
             workflow: b.workflow.clone(),

@@ -822,3 +822,15 @@ fn a_run_filled_to_its_bound_with_short_paths_and_made_at_the_widest_bytes_lists
         assert!(!page.checkpoints.is_empty());
     }
 }
+
+#[test]
+fn a_made_row_dated_before_its_planned_row_is_refused_and_stores_nothing() {
+    let mut store = spreadsheet();
+    assert_eq!(put_checkpoint(&mut store, planned(1, 1)), Ok(stored(1)));
+    let mut early = made(1, 1);
+    early["at"] = json!(ROW_AT - 1);
+    assert_eq!(put_checkpoint(&mut store, early), Err(declared("effect")));
+    assert_eq!(checkpoints(&store).len(), 1);
+    assert_eq!(put_checkpoint(&mut store, made(1, 1)), Ok(stored(1)));
+    assert_eq!(checkpoints(&store).len(), 2);
+}
