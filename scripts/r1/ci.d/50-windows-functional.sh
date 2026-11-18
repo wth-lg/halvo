@@ -1032,7 +1032,14 @@ case $kind in
     ;;
   time-rule)
     printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=0 freed_at_ms_of_those_rounds=-\r\n' "$test"
-    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=1 freed_at_ms_of_those_rounds=1564\r\n' "$test"
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=1\r\n' "$test"
+    printf 'phase=burst rounds_decided_by_the_time_rule=7\r\n'
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
+  time-rule-break)
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=1 freed_at_ms_of_those_rounds=1564\n' "$test"
+    printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\n' "$test"
     printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
     exit 0
     ;;
@@ -1259,7 +1266,7 @@ self_test() {
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
   if [ "$group" = browser ]; then
     set_of_fixtures=browser_fixtures
-    failing_fixtures=8
+    failing_fixtures=9
   else
     set_of_fixtures=fixtures
   fi
@@ -1378,10 +1385,14 @@ browser_fixtures() {
   check a-page-test-log-that-breaks-the-prints-rule FAIL "c1_raw_input|pass${nl}browser::a_page_test|rule-break${nl}known_defect::a_held_swap|defect|W3-7-Q2i" \
     "prints-rule browser::a_page_test line=3 length=" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" \
     "FAIL 52-windows-browser (the logs of 1 tests hold 1 lines that break the prints rule" "!hunter2-typed-text"
-  expected="c1_raw_input${nl}browser::a_page_test group=browser"
-  check the-wf-line-carries-the-last-count-of-rounds-that-the-time-rule-decided PASS "c1_raw_input|pass${nl}browser::a_page_test|time-rule" \
+  expected="c1_raw_input${nl}browser::a_page_test group=browser${nl}browser::b_page_test group=browser"
+  check the-wf-line-carries-the-last-count-of-rounds-that-the-time-rule-decided PASS "c1_raw_input|pass${nl}browser::a_page_test|time-rule${nl}browser::b_page_test|pass" \
     "${nl}WF browser::a_page_test result=pass rounds_decided_by_the_time_rule=1${nl}" \
-    "@WF browser::a_page_test result=pass rounds_decided_by_the_time_rule=1${nl}" "${nl}PASS 52-windows-browser"
+    "@WF browser::a_page_test result=pass rounds_decided_by_the_time_rule=1${nl}" \
+    "${nl}WF browser::b_page_test result=pass${nl}" "${nl}PASS 52-windows-browser"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser"
+  check a-log-that-the-prints-rule-refused-is-not-read-for-the-count FAIL "c1_raw_input|pass${nl}browser::a_page_test|time-rule-break" \
+    "${nl}WF browser::a_page_test result=FAIL${nl}" "!hunter2-typed-text"
   expected="c1_raw_input${nl}browser::a_page_test group=browser"
   check a-failed-test-s-wf-line-carries-its-count-of-rounds-that-the-time-rule-decided FAIL "c1_raw_input|pass${nl}browser::a_page_test|time-rule-fail" \
     "${nl}WF browser::a_page_test result=FAIL rounds_decided_by_the_time_rule=2${nl}" \
