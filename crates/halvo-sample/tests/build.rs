@@ -1067,3 +1067,387 @@ fn a_late_key_moves_the_last_keystroke_of_its_item_alone_and_seq_rises_across_th
     );
     assert_eq!(one.last().map(|r| r.2.as_str()), Some("keystroke"));
 }
+
+/// The lines after the header of a script whose stream, step, episode and task ids, its site and its titles hold
+/// the marker qzmq: the stream on line 2, the steps on lines 3 and 4, the episode on line 5. `fault` replaces one
+/// text of it.
+fn marked_body(fault: (&str, &str)) -> String {
+    let lines = [
+        r#"{"line":"stream","stream":"qzmq-s1","sites":"seen"}"#.to_owned(),
+        common::step_line("qzmq-pa", "qzmq-site.test", "Bills qzmq", false),
+        common::step_line("qzmq-pw", "qzmq-site.test", "Sign in qzmq", true),
+        common::episode(
+            "qzmq-s1",
+            "qzmq-e1",
+            "qzmq-t1",
+            "email",
+            "one_off",
+            1,
+            &[
+                common::item("qzmq-pw", 0, 10 * SEC, 0, 1, 1),
+                common::item("qzmq-pa", 10 * SEC, 40 * SEC, 2, 1, 1),
+            ],
+        ),
+    ];
+    let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
+    assert_eq!(text.matches(fault.0).count(), 1, "{}", fault.0);
+    text.replacen(fault.0, fault.1, 1)
+}
+
+const NO_FAULT: (&str, &str) = (
+    r#""stream":"qzmq-s1","sites""#,
+    r#""stream":"qzmq-s1","sites""#,
+);
+
+#[test]
+fn over_a_marked_script_every_script_refusal_of_build_names_the_argument_number_line_and_rule_alone(
+) {
+    let dir = scratch("marked-rules");
+    let unused = format!(
+        "{}\n{}",
+        r#"{"line":"stream","stream":"qzmq-s1","sites":"seen"}"#,
+        common::step_line("qzmq-unused", "qzmq-site.test", "Unused qzmq", false)
+    );
+    let long = format!(r#""titles":["Bills qzmq{}"]"#, "x".repeat(1_020));
+    let cases: Vec<(&str, &str, &str, u32)> = vec![
+        ("S2", r#""episode":"qzmq-e1""#, r#""episode":"QZMQ-e1""#, 5),
+        (
+            "S3",
+            r#"{"step":"qzmq-pa","title":0"#,
+            r#"{"step":"qzmq-none","title":0"#,
+            5,
+        ),
+        (
+            "S4",
+            r#""start":10000000000,"end":40000000000"#,
+            r#""start":40000000000,"end":40000000000"#,
+            5,
+        ),
+        (
+            "S7",
+            r#""start":0,"end":10000000000,"keys":0"#,
+            r#""start":0,"end":10000000000,"keys":1"#,
+            5,
+        ),
+        ("S8", r#""titles":["Bills qzmq"]"#, &long, 3),
+        (
+            "S10",
+            r#"{"line":"stream","stream":"qzmq-s1","sites":"seen"}"#,
+            &unused,
+            3,
+        ),
+        (
+            "S12",
+            r#""titles":["Bills qzmq"],"paths":["/p"]"#,
+            r#""titles":["Bills qzmq"],"paths":["/p","/q"]"#,
+            3,
+        ),
+        (
+            "S13",
+            r#""keys":2,"clicks":1,"scrolls":1"#,
+            r#""keys":20,"clicks":20,"scrolls":1"#,
+            5,
+        ),
+        (
+            "S14",
+            r#""start":10000000000,"end":40000000000"#,
+            r#""start":10000000001,"end":40000000000"#,
+            5,
+        ),
+        (
+            "S15",
+            r#""keys":2,"clicks":1,"scrolls":1"#,
+            r#""keys":2,"clicks":1,"scrolls":1,"qzmq":1"#,
+            5,
+        ),
+        (
+            "S16",
+            r#""keys":2,"clicks":1,"scrolls":1"#,
+            r#""keys":2,"clicks":1,"scrolls":1,"late":999"#,
+            5,
+        ),
+    ];
+    for (rule, from, to, line) in cases {
+        let z = dir.join(format!("z-{rule}.jsonl"));
+        let a = dir.join(format!("a-{rule}.jsonl"));
+        write(&z, &format!("{HEADER}\n"));
+        write(&a, &format!("{HEADER}\n{}", marked_body((from, to))));
+        let out = dir.join(format!("out-{rule}"));
+        let o = run(&["build", "--seed", "1", "--out", &s(&out), &s(&z), &s(&a)]);
+        refused(&o, "script");
+        assert_eq!(
+            o.stderr,
+            format!("REFUSED script: SCRIPT 2:{line}: {rule}\n"),
+            "{rule}"
+        );
+        assert!(!out.exists(), "{rule}");
+    }
+    let canary = HEADER.replace(r#""canaries":[]"#, r#""canaries":["qzmq-site.test"]"#);
+    write(
+        &dir.join("s9.jsonl"),
+        &format!("{canary}\n{}", marked_body(NO_FAULT)),
+    );
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-s9")),
+        &s(&dir.join("s9.jsonl")),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:5: S9\n");
+    write(&dir.join("s1-a.jsonl"), &format!("{HEADER}\n"));
+    write(
+        &dir.join("s1-b.jsonl"),
+        &format!("{canary}\n{}", marked_body(NO_FAULT)),
+    );
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-s1")),
+        &s(&dir.join("s1-a.jsonl")),
+        &s(&dir.join("s1-b.jsonl")),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2:1: S1\n");
+    write(&dir.join("no-header.jsonl"), &marked_body(NO_FAULT));
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-nh")),
+        &s(&dir.join("no-header.jsonl")),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:1: S1\n");
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-ur")),
+        &s(&dir.join("z-S2.jsonl")),
+        &s(&dir.join("qzmq-missing.jsonl")),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 2: not a script file\n");
+    write(&dir.join("qzmq-empty.jsonl"), "");
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-empty")),
+        &s(&dir.join("qzmq-empty.jsonl")),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:1: S1\n");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let closed = dir.join("qzmq-closed.jsonl");
+        write(&closed, &format!("{HEADER}\n{}", marked_body(NO_FAULT)));
+        fs::set_permissions(&closed, fs::Permissions::from_mode(0o000)).expect("chmod");
+        let o = run(&[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join("out-closed")),
+            &s(&dir.join("z-S2.jsonl")),
+            &s(&closed),
+        ]);
+        fs::set_permissions(&closed, fs::Permissions::from_mode(0o644)).expect("chmod");
+        refused(&o, "script");
+        assert_eq!(o.stderr, "REFUSED script: SCRIPT 2\n");
+    }
+}
+
+#[test]
+fn over_a_marked_tier_build_prints_counts_a_hash_and_arguments_and_no_id_name_or_title() {
+    let dir = scratch("marked-tier");
+    let check = dir.join("check.jsonl");
+    write(
+        &check,
+        &format!(
+            "{HEADER}\n{}",
+            marked_body((r#""sites":"seen""#, r#""sites":"check""#))
+        ),
+    );
+    let layers = dir.join("layers.jsonl");
+    write(&layers, "{\"step\":\"qzmq-pa\",\"source\":\"qzmq\"}\n");
+    let out = dir.join("t");
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-check",
+        "--layer-records",
+        &s(&layers),
+        "--seed",
+        "4",
+        "--out",
+        &s(&out),
+        &s(&check),
+    ]);
+    refused(&o, "layer-records");
+    assert_eq!(o.stderr, format!("REFUSED layer-records: {}\n", s(&layers)));
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-dev",
+        "--seed",
+        "4",
+        "--out",
+        &s(&out),
+        &s(&check),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:2: sites\n");
+    let seen = dir.join("seen.jsonl");
+    write(&seen, &format!("{HEADER}\n{}", marked_body(NO_FAULT)));
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-dev",
+        "--seed",
+        "4",
+        "--out",
+        &s(&out),
+        &s(&seen),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert!(o.stderr.is_empty());
+    let lines: Vec<&str> = o.stdout.lines().collect();
+    assert_eq!(lines.len(), 4, "{}", o.stdout);
+    assert!(lines[0].starts_with("counts streams=1 "));
+    assert!(lines[1].starts_with("rates "));
+    assert!(lines[2].starts_with("masks "));
+    assert!(lines[3].starts_with("manifest "));
+    assert!(
+        !o.stdout.contains("qzmq") && !o.stdout.contains("Bills"),
+        "{}",
+        o.stdout
+    );
+    assert!(out.join("streams/gen-dev-qzmq-s1").is_dir());
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-dev",
+        "--seed",
+        "4",
+        "--out",
+        &s(&out),
+        &s(&seen),
+    ]);
+    refused(&o, "exists");
+    assert_eq!(o.stderr, format!("REFUSED exists: {}\n", s(&out)));
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-qzmq",
+        "--seed",
+        "4",
+        "--out",
+        &s(&dir.join("u")),
+        &s(&seen),
+    ]);
+    refused(&o, "usage");
+    assert_eq!(o.stderr, "REFUSED usage: --tier\n");
+}
+
+fn one_stream_script(day: u32, items: &[String]) -> String {
+    let lines = [
+        HEADER.to_owned(),
+        r#"{"line":"stream","stream":"s1","sites":"seen"}"#.to_owned(),
+        common::step_line("pa", "alpha-one.test", "Bills - Alpha", false),
+        common::step_line("pb", "alpha-one.test", "Pay - Alpha", false),
+        common::step_line("pc", "alpha-one.test", "Done - Alpha", false),
+        common::episode("s1", "e1", "t1", "email", "one_off", day, items),
+    ];
+    lines.iter().map(|l| format!("{l}\n")).collect()
+}
+
+fn late(item: String) -> String {
+    item.replace("\"scrolls\":0}", "\"scrolls\":0,\"late\":30000}")
+}
+
+#[test]
+fn two_late_keystrokes_within_each_others_lateness_keep_the_order_of_their_instants() {
+    let dir = scratch("late-two");
+    let script = one_stream_script(
+        1,
+        &[
+            late(common::item("pa", 0, 3 * SEC, 1, 0, 0)),
+            late(common::item("pb", 3 * SEC, 6 * SEC, 1, 0, 0)),
+            common::item("pc", 6 * SEC, 60 * SEC, 0, 50, 50),
+        ],
+    );
+    write(&dir.join("s.jsonl"), &script);
+    let o = run(&[
+        "build",
+        "--seed",
+        "3",
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("s.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let r = records(&dir.join("out/streams/s1/day-001.jsonl"));
+    let keys: Vec<usize> = (0..r.len()).filter(|k| r[*k].2 == "keystroke").collect();
+    assert_eq!(keys.len(), 2);
+    let (k1, k2) = (keys[0], keys[1]);
+    assert!(r[k1].0 < r[k2].0, "the earlier instant stands first");
+    for k in [k1, k2] {
+        let bound = r[k].0 + 30_000_000_000;
+        assert!(r[..k].iter().all(|x| x.0 <= bound), "{k}");
+        assert!(
+            r[k + 1..]
+                .iter()
+                .enumerate()
+                .all(|(j, x)| k + 1 + j == k2 || x.0 > bound),
+            "{k}"
+        );
+        assert!(r[..k].iter().any(|x| x.0 > r[k].0), "{k} moved");
+    }
+    let seqs: Vec<u64> = r.iter().map(|x| x.1).collect();
+    assert_eq!(seqs, (0..r.len() as u64).collect::<Vec<_>>());
+}
+
+#[test]
+fn active_seconds_reads_the_last_line_of_a_day_file_also_when_a_late_keystroke_ends_it() {
+    let dir = scratch("late-active");
+    let day = 86_400 * SEC;
+    let script = one_stream_script(
+        1,
+        &[
+            common::item("pb", day - 60 * SEC, day - 40 * SEC, 0, 0, 0),
+            common::item("pc", day - 40 * SEC, day - 10 * SEC, 0, 0, 0),
+            late(common::item("pa", day - 10 * SEC, day, 1, 8, 0)),
+        ],
+    );
+    write(&dir.join("s.jsonl"), &script);
+    let o = run(&[
+        "build",
+        "--seed",
+        "3",
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("s.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let r = records(&dir.join("out/streams/s1/day-001.jsonl"));
+    let last = r.last().expect("a record");
+    assert_eq!(last.2, "keystroke");
+    let latest = r.iter().map(|x| x.0).max().expect("a record");
+    assert!(latest > last.0, "the file ends out of the order of instant");
+    let active = (last.0 - r[0].0) / SEC;
+    assert!(
+        o.stdout.contains(&format!(" active_seconds={active}\n")),
+        "{active}: {}",
+        o.stdout
+    );
+}

@@ -150,3 +150,43 @@ test('checker: a site file of about 1,500,000 values is refused with too-large a
   assert.equal(statSync(over).size, 262_145);
   assert.equal(runChecker([over]).stderr, 'REFUSED too-large: SITE_DATA 1\n');
 });
+
+test('checker: over site files whose names, ids and parameters hold the marker, every line it prints holds numbers, fixed words and arguments alone', () => {
+  const dir = mkdtempSync(join(ROOT.dir, 'lines-'));
+  const shop = put(dir, `${MARKER}-shop.json`, marked());
+  const twice = marked();
+  twice.pages[3].page = twice.pages[2].page;
+  const broken = put(dir, `${MARKER}-twice.json`, twice);
+  const big = put(dir, `${MARKER}-big.json`, wide(40_000));
+  const gone = join(dir, `${MARKER}-gone.json`);
+  const rows = join(dir, 'rows.md');
+  const runs = [
+    [[shop], 0, null],
+    [[shop, broken], 2, 'REFUSED site-data: SITE_DATA 2\n'],
+    [[shop, big], 2, 'REFUSED too-large: SITE_DATA 1\n'],
+    [[gone], 2, 'REFUSED site-data: SITE_DATA 1\n'],
+    [['--parameters', rows, shop], 2, `REFUSED parameters: ${rows}\n`],
+    [[], 2, null],
+  ];
+  const forms = [
+    /^checked files=\d+$/,
+    /^services [a-z_]+ \d+$/,
+    /^(password|card) SITE_DATA \d+ page \d+$/,
+    /^parameters names=\d+ missing=\d+$/,
+    /^missing SITE_DATA \d+ [a-z_]+ parameter \d+$/,
+  ];
+  for (const [args, status, stderr] of runs) {
+    const run = runChecker(args);
+    assert.equal(run.status, status, `${args.length} ${run.stderr}`);
+    assert.doesNotMatch(run.stdout + run.stderr, new RegExp(MARKER));
+    if (stderr !== null) assert.equal(run.stderr, stderr);
+    if (status === 0) {
+      for (const line of run.stdout.trimEnd().split('\n')) {
+        assert.ok(forms.some((form) => form.test(line)), line);
+      }
+    } else {
+      assert.equal(run.stdout, '');
+      assert.match(run.stderr, /^REFUSED [a-z-]+: [^\n]*\n$/);
+    }
+  }
+});

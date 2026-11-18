@@ -44,9 +44,10 @@ order, `build` draws:
 `build` then sorts the records of the stream by instant. At one instant the order is
 `run_mark`, `foreground_app`, `window_title`, `keystroke`, click, scroll. Then each late
 keystroke moves, in the order of its own instant: the last keystroke record of an item with
-`late`, the keystroke with the latest second, goes right after the last record of its day
-whose instant is at most its own plus `late` milliseconds. It keeps its instant and its
-class. For each record in that order `build` draws two words, w1 and w2, for the record's id.
+`late`, the keystroke with the latest second, goes right after the last record of its own
+day file, late records placed before it included, whose instant is at most its own plus
+`late` milliseconds. Where that sum passes midnight it is the last record of its day file;
+it never moves into another day file. It keeps its instant and its class. For each record in that order `build` draws two words, w1 and w2, for the record's id.
 So a script without `late` draws and writes what it did before the key existed. The id is a
 UUID of version 7:
 
@@ -62,7 +63,8 @@ that `build` writes: a record that cannot be made takes no number.
 `build` takes script files whose names end in `.jsonl` and do not start with a dot. It refuses
 any other SCRIPT argument with `script`, a directory or a symbolic link among them, so a
 caller that passes every entry of a scripts directory skips no file. `build` and `split` name a
-script file in a refusal by its place among the arguments, `SCRIPT <n>` from 1, never by its name.
+script file in a refusal by its argument number, `SCRIPT <n>` from 1 in the order given, with
+`:<line>: <rule>` for a broken rule, never by its name; the detail holds no id, title or site.
 
 ## The script manifest and `check-labels`
 
@@ -74,8 +76,9 @@ generated rule, while the step's mark is true. A range of such an episode whose 
 false fails with `FAIL seed` under both rules.
 
 No line of `check-labels` prints a stream, episode or step id, because the author of a sealed
-tier writes them. A stream is printed as `s<n>`: n is its place among the entries of
-`streams/`, directories and links alike, in byte order of name, from 1. An episode is printed
+tier writes them. A stream is printed as `s<n>`: n is its entry number, its place among the
+entries of `streams/` that are directories or symbolic links, in byte order of name, from 1;
+a plain file is not counted. An episode is printed
 as `l<n>`: n is the line of its first episode row in that stream's `labels.jsonl`, or the line
 of the range row itself where no episode row of the stream holds the episode. The step of a
 `range`, `seed`, `unmarked` or `keys` line is `l<n>` of its range row. The step of an

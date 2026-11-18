@@ -1002,3 +1002,67 @@ fn a_range_whose_episode_has_no_episode_row_in_its_stream_names_its_own_row_for_
         o.stdout
     );
 }
+
+#[test]
+fn every_failing_range_of_one_episode_names_the_episode_row_and_its_own_range_row() {
+    let dir = copy_golden("episode-of-two-ranges");
+    edit_labels(
+        &dir,
+        r#""step":"g-cart-basket","start":1767430830000000000,"#,
+        r#""step":"g-cart-basket","start":1767430831000000000,"#,
+    );
+    edit_labels(
+        &dir,
+        r#""step":"g-cart-pay","start":1767430875000000000,"#,
+        r#""step":"g-cart-pay","start":1767430876000000000,"#,
+    );
+    let o = run(&["check-labels", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let ranges: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.starts_with("FAIL range"))
+        .collect();
+    assert_eq!(
+        ranges,
+        vec![
+            "FAIL range s1 l1 l3 1767430831000000000 1767430875000000000 titles=0 own=0",
+            "FAIL range s1 l1 l4 1767430876000000000 1767430915000000000 titles=0 own=0",
+        ],
+        "{}",
+        o.stdout
+    );
+}
+
+#[test]
+fn s_n_counts_the_directories_and_links_of_streams_and_no_plain_file() {
+    let dir = copy_golden("stream-places");
+    edit_labels(
+        &dir,
+        r#""step":"g-cart-basket","start":1767430830000000000,"#,
+        r#""step":"g-cart-basket","start":1767430831000000000,"#,
+    );
+    write(&dir.join("streams/a-note"), "a plain file\n");
+    link_dir(&dir.join("streams/golden"), &dir.join("streams/b-link"));
+    let target = dir.join("script-manifest.jsonl");
+    let file_link = dir.join("streams/c-file-link");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&target, &file_link).expect("link");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(&target, &file_link).expect("link");
+    let o = run(&["check-labels", &s(&dir)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    let fails: Vec<&str> = o.stdout.lines().filter(|l| l.starts_with("FAIL")).collect();
+    assert_eq!(
+        fails,
+        vec![
+            "FAIL link s1",
+            "FAIL link s2",
+            "FAIL outside s3 1767430830000000000 l3",
+            "FAIL range s3 l1 l3 1767430831000000000 1767430875000000000 titles=0 own=0",
+        ],
+        "{}",
+        o.stdout
+    );
+    assert!(o.stdout.contains("checked streams=1 "), "{}", o.stdout);
+}
