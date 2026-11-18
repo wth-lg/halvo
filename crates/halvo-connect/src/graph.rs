@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use halvo_schema::executable::WebOrigin;
 use reqwest::blocking::{Client, Response};
-use reqwest::header::CONTENT_TYPE;
+use reqwest::header::{CONTENT_TYPE, RETRY_AFTER};
 use reqwest::{redirect, retry, Method, Url};
 use serde_json::Value;
 
@@ -168,9 +168,18 @@ impl Graph {
         match response.status().as_u16() {
             status if status == success => Ok(response),
             401 => Err(CallError::Unauthorized),
-            status => Err(CallError::Status(status)),
+            status @ (429 | 500..=599) => Err(CallError::Status(status, retry_after(&response))),
+            status => Err(CallError::Status(status, None)),
         }
     }
+}
+
+fn retry_after(response: &Response) -> Option<u32> {
+    let value = response.headers().get(RETRY_AFTER)?.as_bytes();
+    if value.is_empty() || !value.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    std::str::from_utf8(value).ok()?.parse().ok()
 }
 
 impl fmt::Debug for Graph {

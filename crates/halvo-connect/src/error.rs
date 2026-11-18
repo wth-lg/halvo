@@ -9,8 +9,11 @@ pub enum CallError {
     Unauthorized,
     /// The provider answered this status, which is neither 401 nor the success status that Microsoft Graph
     /// documents for the request and the fixture answers: 200 for a GET and for the PATCH, 201 for createReply,
-    /// 202 for send, 204 for DELETE. Another 2xx is such a status too. No redirect is followed.
-    Status(u16),
+    /// 202 for send, 204 for DELETE. Another 2xx is such a status too. No redirect is followed. For a 429 and a 5xx
+    /// it carries the seconds of the answer's `Retry-After` when that header is a whole number of seconds, written in
+    /// ASCII digits alone, that a `u32` holds; for every other status, and for any other form of the header, none.
+    /// The adapter never waits and never sends a request again.
+    Status(u16, Option<u32>),
     /// The request left and its answer did not arrive whole: the adapter's time limit, counted from the start of
     /// the request to the end of the answer's body, ran out, or the connection ended before the body did.
     NoAnswer,
@@ -77,8 +80,8 @@ impl CallError {
         match self {
             CallError::NotSent => Effect::NotMade(NotMade::NotSent),
             CallError::Unauthorized => Effect::NotMade(NotMade::Unauthorized),
-            CallError::Status(429) => Effect::NotMade(NotMade::Throttled),
-            CallError::Status(_) | CallError::NoAnswer | CallError::Answer(_) => Effect::Unknown,
+            CallError::Status(429, _) => Effect::NotMade(NotMade::Throttled),
+            CallError::Status(..) | CallError::NoAnswer | CallError::Answer(_) => Effect::Unknown,
         }
     }
 }
@@ -88,7 +91,7 @@ impl fmt::Display for CallError {
         match self {
             CallError::NotSent => f.write_str("the request did not leave"),
             CallError::Unauthorized => f.write_str("the provider answered 401"),
-            CallError::Status(status) => write!(f, "the provider answered the status {status}"),
+            CallError::Status(status, _) => write!(f, "the provider answered the status {status}"),
             CallError::NoAnswer => f.write_str("no whole answer came within the time limit"),
             CallError::Answer(fault) => f.write_str(match fault {
                 AnswerFault::Form => "the answer is not of the form of the face",

@@ -8,19 +8,22 @@ fn effect_of_each_error() {
             CallError::Unauthorized,
             Effect::NotMade(NotMade::Unauthorized),
         ),
-        (CallError::Status(429), Effect::NotMade(NotMade::Throttled)),
-        (CallError::Status(400), Effect::Unknown),
-        (CallError::Status(403), Effect::Unknown),
-        (CallError::Status(404), Effect::Unknown),
-        (CallError::Status(409), Effect::Unknown),
-        (CallError::Status(428), Effect::Unknown),
-        (CallError::Status(430), Effect::Unknown),
-        (CallError::Status(499), Effect::Unknown),
-        (CallError::Status(100), Effect::Unknown),
-        (CallError::Status(302), Effect::Unknown),
-        (CallError::Status(399), Effect::Unknown),
-        (CallError::Status(500), Effect::Unknown),
-        (CallError::Status(503), Effect::Unknown),
+        (
+            CallError::Status(429, None),
+            Effect::NotMade(NotMade::Throttled),
+        ),
+        (CallError::Status(400, None), Effect::Unknown),
+        (CallError::Status(403, None), Effect::Unknown),
+        (CallError::Status(404, None), Effect::Unknown),
+        (CallError::Status(409, None), Effect::Unknown),
+        (CallError::Status(428, None), Effect::Unknown),
+        (CallError::Status(430, None), Effect::Unknown),
+        (CallError::Status(499, None), Effect::Unknown),
+        (CallError::Status(100, None), Effect::Unknown),
+        (CallError::Status(302, None), Effect::Unknown),
+        (CallError::Status(399, None), Effect::Unknown),
+        (CallError::Status(500, None), Effect::Unknown),
+        (CallError::Status(503, None), Effect::Unknown),
         (CallError::NoAnswer, Effect::Unknown),
         (CallError::Answer(AnswerFault::Form), Effect::Unknown),
         (CallError::Answer(AnswerFault::Paged), Effect::Unknown),
@@ -42,7 +45,11 @@ fn of_the_answered_statuses_only_429_makes_nothing() {
         } else {
             Effect::Unknown
         };
-        assert_eq!(CallError::Status(status).effect(), expected, "{status}");
+        assert_eq!(
+            CallError::Status(status, None).effect(),
+            expected,
+            "{status}"
+        );
     }
 }
 
@@ -65,7 +72,7 @@ fn an_answer_401_is_not_made_as_unauthorized() {
 #[test]
 fn an_answer_429_is_not_made_as_throttled() {
     assert_eq!(
-        CallError::Status(429).effect(),
+        CallError::Status(429, None).effect(),
         Effect::NotMade(NotMade::Throttled)
     );
 }
@@ -74,7 +81,7 @@ fn an_answer_429_is_not_made_as_throttled() {
 fn every_other_answered_status_stays_unknown() {
     for status in (0..=u16::MAX).filter(|status| *status != 429) {
         assert_eq!(
-            CallError::Status(status).effect(),
+            CallError::Status(status, None).effect(),
             Effect::Unknown,
             "{status}"
         );
@@ -87,7 +94,7 @@ fn texts() {
         (CallError::NotSent, "the request did not leave"),
         (CallError::Unauthorized, "the provider answered 401"),
         (
-            CallError::Status(503),
+            CallError::Status(503, None),
             "the provider answered the status 503",
         ),
         (

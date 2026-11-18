@@ -177,7 +177,7 @@ fn draft_reply_stops_at_the_first_error() {
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     assert_eq!(
         graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
-        Some(CallError::Status(503))
+        Some(CallError::Status(503, None))
     );
     let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});
     assert_eq!(
@@ -415,7 +415,7 @@ fn each_request_takes_its_own_success_status_alone() {
             .expect("mail_draft_reply answers");
         let handle = drafts.into_sends().next().expect("a draft");
         let error = graph.mail_send(&token(), handle).expect_err("not 202");
-        assert_eq!(error, CallError::Status(send));
+        assert_eq!(error, CallError::Status(send, None));
         assert_eq!(error.effect(), Effect::Unknown, "send answered {send}");
     }
     for (create, patch, status) in [(200, 200, 200), (201, 204, 204)] {
@@ -426,7 +426,7 @@ fn each_request_takes_its_own_success_status_alone() {
             .expect("mail_list answers");
         assert_eq!(
             graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
-            Some(CallError::Status(status)),
+            Some(CallError::Status(status, None)),
             "createReply answered {create}, the PATCH {patch}"
         );
     }
@@ -450,7 +450,7 @@ fn each_request_takes_its_own_success_status_alone() {
         let error = graph
             .calendar_delete(&token(), handle)
             .expect_err("not 204");
-        assert_eq!(error, CallError::Status(delete));
+        assert_eq!(error, CallError::Status(delete, None));
         assert_eq!(error.effect(), Effect::Unknown, "DELETE answered {delete}");
     }
 }
