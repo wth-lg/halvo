@@ -221,6 +221,111 @@ impl Call {
 ///     request.body = Some(b"{}".to_vec());
 /// }
 /// ```
+///
+/// It implements no `Default`, so no request is made that `build` did not check:
+///
+/// ```compile_fail,E0277
+/// fn made_by_default<T: Default>() {}
+/// made_by_default::<halvo_wire::request::Request>();
+/// ```
+///
+/// It implements neither `From` nor `TryFrom` for any type that the example lists, a call or its
+/// parts, a cap, a cap body, a route, or a body's bytes, headers or text; the example compiles
+/// when either is added for any one of them, since `TryFrom` holds wherever `From` does:
+///
+/// ```compile_fail,E0308
+/// use halvo_wire::request::{AccountId, Call, Credential, Request, Route};
+/// use halvo_wire::types::{Cap, CapBody};
+/// use std::marker::PhantomData;
+/// struct Added;
+/// struct NotAdded;
+/// impl NotAdded { fn or<B>(self, other: B) -> B { other } }
+/// impl Added { fn or<B>(self, _: B) -> Added { Added } }
+/// struct Bound<T>(PhantomData<T>);
+/// macro_rules! holds {
+///     ($($bound:tt)+) => {{
+///         trait Lacks { fn found(&self) -> NotAdded { NotAdded } }
+///         impl<T> Lacks for Bound<T> {}
+///         trait Holds { fn found(&self) -> Added { Added } }
+///         impl<T: $($bound)+> Holds for &Bound<T> {}
+///         (&&Bound::<Request>(PhantomData)).found()
+///     }};
+/// }
+/// let added: Added = NotAdded
+///     .or(holds!(TryFrom<Call>))
+///     .or(holds!(TryFrom<&'static Call>))
+///     .or(holds!(TryFrom<(Call, AccountId, Credential)>))
+///     .or(holds!(TryFrom<(&'static Call, &'static AccountId, &'static Credential)>))
+///     .or(holds!(TryFrom<Cap>))
+///     .or(holds!(TryFrom<CapBody>))
+///     .or(holds!(TryFrom<Route>))
+///     .or(holds!(TryFrom<&'static Route>))
+///     .or(holds!(TryFrom<Vec<u8>>))
+///     .or(holds!(TryFrom<&'static [u8]>))
+///     .or(holds!(TryFrom<Box<[u8]>>))
+///     .or(holds!(TryFrom<Option<Vec<u8>>>))
+///     .or(holds!(TryFrom<Vec<(&'static str, String)>>))
+///     .or(holds!(TryFrom<String>))
+///     .or(holds!(TryFrom<&'static str>))
+///     .or(holds!(TryFrom<serde_json::Value>));
+/// ```
+///
+/// It implements no `Deserialize`, so no request is read from bytes that `build` did not check:
+///
+/// ```compile_fail,E0277
+/// fn made_by_deserialize<T: serde::Deserialize<'static>>() {}
+/// made_by_deserialize::<halvo_wire::request::Request>();
+/// ```
+///
+/// It has no method of the names that the example lists, which would take `&mut self` or
+/// `mut self`, and implements none of the standard traits that it lists, whose methods take
+/// `&mut self`, so a built request is not changed; the example compiles when any one of them is
+/// added:
+///
+/// ```compile_fail,E0308
+/// use halvo_wire::request::Request;
+/// use std::marker::PhantomData;
+/// struct Missing;
+/// struct Added;
+/// struct NotAdded;
+/// impl NotAdded { fn or<B>(self, other: B) -> B { other } }
+/// impl Added { fn or<B>(self, _: B) -> Added { Added } }
+/// struct Probe<F>(F);
+/// trait Fell { fn found(&self) -> NotAdded { NotAdded } }
+/// impl<F: Fn(Missing) -> Missing> Fell for &Probe<F> {}
+/// trait Found { fn found(&self) -> Added { Added } }
+/// impl<F> Found for Probe<F> {}
+/// macro_rules! named {
+///     ($($name:ident),*) => {{
+///         trait Fallback { $(fn $name(_: Missing) -> Missing { Missing })* }
+///         impl Fallback for Request {}
+///         NotAdded $(.or((&&Probe(Request::$name)).found()))*
+///     }};
+/// }
+/// struct Bound<T>(PhantomData<T>);
+/// macro_rules! holds {
+///     ($($bound:tt)+) => {{
+///         trait Lacks { fn found(&self) -> NotAdded { NotAdded } }
+///         impl<T> Lacks for Bound<T> {}
+///         trait Holds { fn found(&self) -> Added { Added } }
+///         impl<T: $($bound)+> Holds for &Bound<T> {}
+///         (&&Bound::<Request>(PhantomData)).found()
+///     }};
+/// }
+/// let added: Added = named!(set_method, set_path, set_headers, set_header, push_header,
+///     insert_header, set_body, headers_mut, body_mut, take_body, with_header, with_body)
+///     .or(holds!(std::ops::DerefMut))
+///     .or(holds!(std::ops::IndexMut<usize>))
+///     .or(holds!(AsMut<Vec<u8>>))
+///     .or(holds!(AsMut<[u8]>))
+///     .or(holds!(AsMut<Option<Vec<u8>>>))
+///     .or(holds!(AsMut<Vec<(&'static str, String)>>))
+///     .or(holds!(Extend<u8>))
+///     .or(holds!(Extend<(&'static str, String)>))
+///     .or(holds!(std::io::Write))
+///     .or(holds!(std::fmt::Write))
+///     .or(holds!(Iterator));
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     method: &'static str,
