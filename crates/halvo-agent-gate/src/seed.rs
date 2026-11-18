@@ -1,7 +1,8 @@
 use std::fmt;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 use halvo_schema::executable::body::{AddOrigin, CreateAgent, SetBindings};
+use halvo_schema::executable::frame::FRAME_JSON_MAX;
 use halvo_schema::executable::names::Way;
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::{
@@ -68,9 +69,12 @@ pub struct Binding {
 /// Why `join_senders` refuses a list of addresses for the slot `reply_senders` (the coordinator's ruling CP-112).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SendersRefused {
-    /// An address holds a comma, which separates the addresses of the slot's one text, so that the joined text
-    /// would read as other addresses than the list holds.
-    Comma,
+    /// The address of this entry, counted from 1, the first that holds a comma, which separates the addresses of
+    /// the slot's one text, so that the joined text would read as other addresses than the list holds.
+    Comma(NonZeroUsize),
+    /// The joined text is longer than one frame can carry: the `set_bindings` body that holds it as its one slot is
+    /// longer than `FRAME_JSON_MAX` (65,536) bytes.
+    Long,
     /// The reader of the slot, `halvo_schema::executable::reply_senders`, refuses the joined text with this error;
     /// its number is the place of the address in the list, counted from 1, and an empty list answers `Empty(1)`.
     Read(SendersError),
@@ -139,13 +143,28 @@ pub struct Prepared {
 /// The one text of the slot `reply_senders` from a list of addresses (CP-112): the senders that the slot's one
 /// reader, `halvo_schema::executable::reply_senders`, reads from the addresses joined by a comma and a space, joined
 /// again in the same way, so that the text bound is the text that the reader reads back to those senders. It
-/// refuses an address that holds a comma, and then whatever the reader refuses, with the reader's error (CP-203).
+/// refuses an address that holds a comma, then whatever the reader refuses, with the reader's error (CP-203), and
+/// then a joined text that no frame can carry (CP-208).
 pub fn join_senders(addresses: &[String]) -> Result<String, SendersRefused> {
-    if addresses.iter().any(|address| address.contains(',')) {
-        return Err(SendersRefused::Comma);
+    if let Some(entry) = addresses.iter().position(|address| address.contains(',')) {
+        return Err(SendersRefused::Comma(
+            NonZeroUsize::MIN.saturating_add(entry),
+        ));
     }
     let senders = reply_senders(&addresses.join(SENDER_SEPARATOR)).map_err(SendersRefused::Read)?;
-    Ok(senders.iter().collect::<Vec<_>>().join(SENDER_SEPARATOR))
+    let text = senders.iter().collect::<Vec<_>>().join(SENDER_SEPARATOR);
+    let body = CoordinatorCall::SetBindings(SetBindings {
+        workflow: WorkflowId::from_random([0; 16]),
+        agent: AgentId::from_random([0; 16]),
+        slots: vec![Slot {
+            name: Name::parse(REPLY_SENDERS).map_err(|_| SendersRefused::Long)?,
+            value: OwnValue::new(&text),
+        }],
+    });
+    match body.to_json() {
+        Ok(json) if json.len() <= FRAME_JSON_MAX => Ok(text),
+        _ => Err(SendersRefused::Long),
+    }
 }
 
 /// Reads the binding of `task` from a seed file (docs/r3/fixtures.md) for a fixture that listens on `port`: each

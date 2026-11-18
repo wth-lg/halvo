@@ -189,7 +189,7 @@ fn join_senders_refuses_what_a_reader_of_the_slot_refuses() {
     );
     assert_eq!(
         join_senders(&list(&["a@x.test", "b,c@y.test"])),
-        Err(SendersRefused::Comma)
+        Err(SendersRefused::Comma(at(2)))
     );
     assert_eq!(
         join_senders(&list(&["a@x.test", ""])),
@@ -246,7 +246,7 @@ fn seed_binding_refuses_a_seed_that_does_not_bind() {
                 json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": ["a,b@x.test"]}]}),
             ),
             SeedTask::Reply,
-            SeedRefused::Senders(SendersRefused::Comma),
+            SeedRefused::Senders(SendersRefused::Comma(at(1))),
         ),
         (
             with_binding(
@@ -665,15 +665,19 @@ fn seed_binding_binds_no_reply_senders_that_the_reader_refuses() {
 
 #[test]
 fn join_senders_refuses_a_comma_in_any_entry_also_where_its_pieces_are_addresses() {
-    let rows: &[&[&str]] = &[
-        &["a@x.test, b@x.test"],
-        &["a@x.test, b@x.test", "c@x.test"],
-        &["c@x.test", "a@x.test,b@x.test", "d@x.test"],
-        &["c@x.test", "a@x.test, b@x.test"],
+    let rows: &[(&[&str], usize)] = &[
+        (&["a@x.test, b@x.test"], 1),
+        (&["a@x.test, b@x.test", "c@x.test"], 1),
+        (&["c@x.test", "a@x.test,b@x.test", "d@x.test"], 2),
+        (&["c@x.test", "a@x.test, b@x.test"], 2),
     ];
-    for items in rows {
+    for (items, entry) in rows {
         let list = senders_list(items);
-        assert_eq!(join_senders(&list), Err(SendersRefused::Comma), "{list:?}");
+        assert_eq!(
+            join_senders(&list),
+            Err(SendersRefused::Comma(at(*entry))),
+            "{list:?}"
+        );
     }
 }
 
@@ -720,8 +724,12 @@ fn join_senders_refuses_a_comma_and_takes_a_list_exactly_when_the_reader_takes_i
         let list = senders_list(items);
         let read = halvo_schema::executable::reply_senders(&list.join(", "));
         let joined = join_senders(&list);
-        if items.iter().any(|item| item.contains(',')) {
-            assert_eq!(joined, Err(SendersRefused::Comma), "{list:?}");
+        if let Some(entry) = items.iter().position(|item| item.contains(',')) {
+            assert_eq!(
+                joined,
+                Err(SendersRefused::Comma(at(entry + 1))),
+                "{list:?}"
+            );
             continue;
         }
         match read {
@@ -737,4 +745,76 @@ fn join_senders_refuses_a_comma_and_takes_a_list_exactly_when_the_reader_takes_i
             ),
         }
     }
+}
+
+#[test]
+fn join_senders_names_the_entry_that_holds_a_comma() {
+    let rows: [(&[&str], usize); 5] = [
+        (&["a,b@x.test"], 1),
+        (&["a@x.test, b@x.test"], 1),
+        (&["a@x.test", "b@x.test", "c,d@x.test", "e,f@x.test"], 3),
+        (&["", "a,b@x.test"], 2),
+        (&["Ann Berg", "a@x.test", ","], 3),
+    ];
+    for (items, entry) in rows {
+        assert_eq!(
+            join_senders(&senders_list(items)),
+            Err(SendersRefused::Comma(at(entry))),
+            "{items:?}"
+        );
+    }
+}
+
+fn senders_of(count: usize) -> Vec<String> {
+    (0..count)
+        .map(|n| {
+            let domain = format!("@p{n:03}.test");
+            format!("{}{domain}", "a".repeat(320 - domain.len()))
+        })
+        .collect()
+}
+
+fn set_bindings_bytes(text: &str) -> usize {
+    use halvo_schema::executable::body::SetBindings;
+    use halvo_schema::executable::record::Slot;
+    use halvo_schema::executable::{Name, OwnValue};
+    use halvo_schema::WorkflowId;
+    CoordinatorCall::SetBindings(SetBindings {
+        workflow: WorkflowId::from_random([7; 16]),
+        agent: AgentId::from_random([8; 16]),
+        slots: vec![Slot {
+            name: Name::parse("reply_senders").expect("a name"),
+            value: OwnValue::new(text),
+        }],
+    })
+    .to_json()
+    .expect("the body")
+    .len()
+}
+
+#[test]
+fn join_senders_refuses_a_list_that_no_frame_can_carry_with_a_cause_of_its_own() {
+    use halvo_schema::executable::frame::FRAME_JSON_MAX;
+    assert_eq!(join_senders(&senders_of(250)), Err(SendersRefused::Long));
+    let most = (1..250)
+        .take_while(|count| join_senders(&senders_of(*count)).is_ok())
+        .last()
+        .expect("a list that fits");
+    let text = join_senders(&senders_of(most)).expect("the longest list that fits");
+    assert!(set_bindings_bytes(&text) <= FRAME_JSON_MAX);
+    let over = senders_of(most + 1).join(", ");
+    assert!(set_bindings_bytes(&over) > FRAME_JSON_MAX);
+    assert_eq!(
+        join_senders(&senders_of(most + 1)),
+        Err(SendersRefused::Long)
+    );
+    assert_eq!(most, 202);
+    let seed = with_binding(
+        "reply",
+        json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": senders_of(250)}]}),
+    );
+    assert_eq!(
+        seed_binding(&seed, SeedTask::Reply, PORT).map(|_| ()),
+        Err(SeedRefused::Senders(SendersRefused::Long))
+    );
 }
