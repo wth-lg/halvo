@@ -1,7 +1,7 @@
 use halvo_schema::executable::body::{PutReplyRow, Stored};
 use halvo_schema::executable::names::{EffectState, ReplyState};
-use halvo_schema::executable::{AgentReply, ProviderId, RunnerReply};
-use halvo_schema::{AgentId, ErrorName};
+use halvo_schema::executable::{AgentReply, ProviderId, RunId, RunnerReply};
+use halvo_schema::{AgentId, ErrorName, TypedRecord};
 
 use crate::errors::Own;
 use crate::host::{Host, Now};
@@ -109,4 +109,27 @@ fn not_made(state: EffectState) -> bool {
         | EffectState::Committed
         | EffectState::Unknown => false,
     }
+}
+
+pub(crate) fn ended(host: &dyn Host, run: &RunId, now: Now) -> Result<Vec<TypedRecord>, ErrorName> {
+    let all = rows::replies(host.rows())?;
+    let mut out = Vec::new();
+    for row in all
+        .iter()
+        .filter(|r| &r.run == run && r.state == ReplyState::Begun)
+    {
+        let newest = of_message(&all, &row.agent, &row.message);
+        if newest.last() != Some(&row) {
+            continue;
+        }
+        let unknown = AgentReply {
+            seq: row.seq.checked_add(1).ok_or(Own::Length)?,
+            day: day::of(host, now),
+            at: now.at,
+            state: ReplyState::Unknown,
+            ..row.clone()
+        };
+        out.push(record(rows::AGENT_REPLY, unknown.to_json())?);
+    }
+    Ok(out)
 }

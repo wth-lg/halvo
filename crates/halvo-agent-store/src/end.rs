@@ -13,7 +13,7 @@ use crate::effect::rebinds;
 use crate::errors::Own;
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, day};
+use crate::{bind, day, reply};
 
 pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<RunnerReply, ErrorName> {
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
@@ -31,6 +31,7 @@ pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<Runner
             agrees(&*host, &b.record)?;
             let mut records = vec![record(rows::AGENT_RUN, b.record.to_json())?];
             records.extend(moves(&*host, &b.run, now)?);
+            records.extend(reply::ended(&*host, &b.run, now)?);
             day::commit(host, now, records)?;
         }
     }
@@ -116,6 +117,7 @@ pub(crate) fn end_run(
         };
         let mut records = vec![record(rows::AGENT_RUN, run.to_json())?];
         records.extend(moves(&*host, &b.run, now)?);
+        records.extend(reply::ended(&*host, &b.run, now)?);
         day::commit(host, now, records)?;
     }
     Ok(CoordinatorReply::Accepted(Accepted {}))

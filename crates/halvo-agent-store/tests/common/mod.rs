@@ -392,3 +392,63 @@ pub fn accepted() -> CoordinatorReply {
 pub fn rev(n: u32) -> CoordinatorReply {
     CoordinatorReply::parse(format!(r#"{{"rev":{n}}}"#).as_bytes()).expect("a rev reply")
 }
+
+/// A host over a memory store that counts the typed commits of one request and, with `stop_after` set to n, ends
+/// the request behind its n-th commit: that commit is stored and answers `internal`, and every later commit or state
+/// call stores nothing and answers `internal`, as a request whose process stops behind its store (S-69 (f)).
+pub struct Stopper<'a> {
+    pub store: &'a mut MemoryStore,
+    pub commits: u32,
+    pub stop_after: Option<u32>,
+    pub stopped: bool,
+}
+
+impl<'a> Stopper<'a> {
+    pub fn new(store: &'a mut MemoryStore, stop_after: Option<u32>) -> Stopper<'a> {
+        Stopper {
+            store,
+            commits: 0,
+            stop_after,
+            stopped: false,
+        }
+    }
+}
+
+impl Host for Stopper<'_> {
+    fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), ErrorName> {
+        if self.stopped {
+            return Err(ErrorName::Internal);
+        }
+        self.store.commit(records)?;
+        self.commits += 1;
+        if self.stop_after == Some(self.commits) {
+            self.stopped = true;
+            return Err(ErrorName::Internal);
+        }
+        Ok(())
+    }
+
+    fn set_state(
+        &mut self,
+        workflow: &WorkflowId,
+        state: halvo_schema::executable::names::AgentState,
+        agent: Option<&AgentId>,
+    ) -> Result<(), ErrorName> {
+        if self.stopped {
+            return Err(ErrorName::Internal);
+        }
+        self.store.set_state(workflow, state, agent)
+    }
+
+    fn rows(&self) -> &dyn RowRead {
+        self.store.rows()
+    }
+
+    fn workflow(&self, id: &WorkflowId) -> Option<halvo_schema::WorkflowItem> {
+        self.store.workflow(id)
+    }
+
+    fn day(&self, at: Instant) -> u32 {
+        self.store.day(at)
+    }
+}

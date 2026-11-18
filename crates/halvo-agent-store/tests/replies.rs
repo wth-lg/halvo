@@ -543,3 +543,163 @@ fn a_reply_row_is_held_to_the_day_of_its_at_and_to_the_clock() {
         reply(1, 1, 1, "m1", Some("d1"), None, "drafted"),
     );
 }
+
+fn ended_unknown(a: u32, r: u32, seq: u32, message: &str, draft: &str, effect_n: u32) -> Value {
+    let mut row = reply(a, r, seq, message, Some(draft), Some(effect_n), "unknown");
+    row["day"] = json!(TODAY);
+    row["at"] = json!(NOW.at.0);
+    row
+}
+
+fn as_value(row: &AgentReply) -> Value {
+    serde_json::from_str(&row.to_json().expect("the row's text")).expect("json")
+}
+
+fn begun_of_run_1(store: &mut MemoryStore) {
+    ok(store, reply(1, 1, 1, "m1", Some("d1"), None, "drafted"));
+    ok(store, reply(1, 1, 2, "m1", Some("d1"), Some(1), "begun"));
+}
+
+fn finish_body(r: u32) -> Value {
+    let record = run_record(r, Some("replay"), "failed");
+    json!({"op": "finish", "agent": agent(1), "run": run(r), "record": record})
+}
+
+#[test]
+fn finish_leaves_a_begun_row_of_its_run_unknown() {
+    let mut store = two_agents();
+    begun_of_run_1(&mut store);
+    assert_eq!(runner(&mut store, finish_body(1)), Ok(stored(1)));
+    let newest = newest(&store, 1, "m1").expect("a row");
+    assert_eq!(as_value(&newest), ended_unknown(1, 1, 3, "m1", "d1", 1));
+    assert_eq!(replies(&store).len(), 3);
+}
+
+#[test]
+fn end_run_leaves_a_begun_row_of_its_run_unknown() {
+    let mut store = two_agents();
+    begun_of_run_1(&mut store);
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let newest = newest(&store, 1, "m1").expect("a row");
+    assert_eq!(as_value(&newest), ended_unknown(1, 1, 3, "m1", "d1", 1));
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    assert_eq!(replies(&store).len(), 3);
+}
+
+#[test]
+fn a_run_s_end_leaves_every_other_row_as_it_stands() {
+    for end in ["finish", "end_run"] {
+        let mut store = two_agents();
+        start_at(&mut store, NOW, 1, 1, 3).expect("start_run");
+        ok(
+            &mut store,
+            reply(1, 1, 1, "m2", Some("d2"), None, "drafted"),
+        );
+        ok(
+            &mut store,
+            reply(1, 1, 1, "m3", Some("d3"), None, "drafted"),
+        );
+        ok(
+            &mut store,
+            reply(1, 1, 2, "m3", Some("d3"), None, "withheld"),
+        );
+        ok(
+            &mut store,
+            reply(1, 1, 1, "m4", Some("d4"), None, "drafted"),
+        );
+        ok(&mut store, reply(1, 1, 2, "m4", None, None, "lost"));
+        ok(
+            &mut store,
+            reply(1, 1, 1, "m5", Some("d5"), None, "drafted"),
+        );
+        ok(
+            &mut store,
+            reply(1, 1, 2, "m5", Some("d5"), Some(5), "begun"),
+        );
+        ok(
+            &mut store,
+            reply(1, 1, 3, "m5", Some("d5"), Some(5), "committed"),
+        );
+        ok(
+            &mut store,
+            reply(1, 3, 1, "m6", Some("d6"), None, "drafted"),
+        );
+        ok(
+            &mut store,
+            reply(1, 3, 2, "m6", Some("d6"), Some(6), "begun"),
+        );
+        ok(
+            &mut store,
+            reply(2, 2, 1, "m7", Some("d7"), None, "drafted"),
+        );
+        ok(
+            &mut store,
+            reply(2, 2, 2, "m7", Some("d7"), Some(7), "begun"),
+        );
+        let before = rows(&store, "agent_reply");
+        match end {
+            "finish" => assert_eq!(runner(&mut store, finish_body(1)), Ok(stored(1))),
+            _ => assert_eq!(end_run(&mut store, 1), Ok(accepted())),
+        }
+        assert_eq!(rows(&store, "agent_reply"), before, "{end}");
+    }
+}
+
+#[test]
+fn the_unknown_rows_of_a_run_s_end_are_in_the_one_commit_of_its_record() {
+    for end in ["finish", "end_run"] {
+        let mut store = two_agents();
+        begun_of_run_1(&mut store);
+        ok(
+            &mut store,
+            reply(1, 1, 1, "m2", Some("d2"), None, "drafted"),
+        );
+        ok(
+            &mut store,
+            reply(1, 1, 2, "m2", Some("d2"), Some(2), "begun"),
+        );
+        let mut host = Stopper::new(&mut store, Some(1));
+        let answer = match end {
+            "finish" => {
+                halvo_agent_store::runner(&mut host, NOW, finish_body(1).to_string().as_bytes())
+                    .map(|_| ())
+            }
+            _ => halvo_agent_store::coordinator(
+                &mut host,
+                NOW,
+                json!({"op": "end_run", "workflow": wf(1), "agent": agent(1), "run": run(1)})
+                    .to_string()
+                    .as_bytes(),
+            )
+            .map(|_| ()),
+        };
+        assert_eq!(answer, Err(ErrorName::Internal), "{end}");
+        assert_eq!(host.commits, 1, "{end}");
+        assert_eq!(rows(&store, "agent_run").len(), 1, "{end}");
+        assert_eq!(
+            newest(&store, 1, "m1").map(|r| r.state.as_str()),
+            Some("unknown"),
+            "{end}"
+        );
+        assert_eq!(
+            newest(&store, 1, "m2").map(|r| r.state.as_str()),
+            Some("unknown"),
+            "{end}"
+        );
+    }
+}
+
+#[test]
+fn after_a_run_s_end_its_reply_rows_are_refused() {
+    let mut store = two_agents();
+    begun_of_run_1(&mut store);
+    end_run(&mut store, 1).expect("end_run");
+    refused(
+        &mut store,
+        reply(1, 1, 3, "m1", Some("d1"), Some(1), "committed"),
+    );
+    refused(
+        &mut store,
+        reply(1, 1, 4, "m1", Some("d1"), Some(1), "committed"),
+    );
+}
