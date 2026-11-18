@@ -26,6 +26,20 @@
 //! cuts it. Each bound case prints its reading and its time to display, and one line counts them;
 //! a bound case that fails makes the target end with the status 1 after its end line.
 //!
+//! On macOS it then reads the ink of a line with stacked marks (ruling RD-131 item 1): for each
+//! case of `ink_cases` it shows a card of five lines twice, with the middle line plain and with
+//! its marks, draws the message's text field into a bitmap and finds the rows that hold ink. The
+//! line box is the plain line's ink centre plus and less half the line pitch, the pitch read from
+//! the first and the last line; the marked card's ink outside the first and the last line must lie
+//! inside that box. Each case prints its reading and one line counts them; a 64-mark line is the
+//! control and must read outside. These lines never change the status.
+//!
+//! Last, one bounded try reads the card at the largest text size (ruling RD-90 item 9): it sets
+//! the size with `defaults write` on macOS and with `reg add` of TextScaleFactor on Windows, runs
+//! this target again with `DIALOG_HOSTED_TEXT_SIZE` set, which shows the narrow bound card once
+//! and prints its reading, and sets the size back. It prints each command's status and output
+//! and never changes the status.
+//!
 //! Named limits (ruling RD-92 (3)): the macOS cases queue the alert through Tauri's mock
 //! runtime, whose `run_on_main_thread` sends a task to the mock loop on the main thread, and
 //! not through the Wry runtime that the app hands to `System::new`, so the product's path to
@@ -43,6 +57,9 @@ use halvo_coord::items::{ConfirmAnswer, CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Class, Field, FieldFrom, Limits};
 use halvo_coord_app::Card;
 use std::time::Duration;
+
+/// The variable that makes this target show the narrow bound card once and print its reading.
+const TEXT_SIZE: &str = "DIALOG_HOSTED_TEXT_SIZE";
 
 const OFF: &str = "hosted alone: not run on this machine";
 const BOUND: Duration = Duration::from_secs(10);
@@ -128,6 +145,203 @@ fn bound_cases() -> Vec<(&'static str, Card)> {
         .collect()
 }
 
+/// The ink cases: a name, the middle line plain and with its marks, and whether the case is the
+/// control, whose ink must leave the line box. Three marks in a row is the most that a native
+/// card holds (`chars::MOST_MARKS`).
+fn ink_cases() -> Vec<(&'static str, String, String, bool)> {
+    let subject = "Subject (From the site): Re";
+    let payee = "Pay to (You gave this): Anne";
+    let with = |base: &str, marks: &str| format!("{base}{marks}");
+    vec![
+        (
+            "above-0301x3",
+            subject.into(),
+            with(subject, &"\u{301}".repeat(3)),
+            false,
+        ),
+        (
+            "below-0316x3",
+            subject.into(),
+            with(subject, &"\u{316}".repeat(3)),
+            false,
+        ),
+        (
+            "enclosing-0489x3",
+            subject.into(),
+            with(subject, &"\u{489}".repeat(3)),
+            false,
+        ),
+        (
+            "deciding-3",
+            payee.into(),
+            with(payee, "\u{301}\u{316}\u{302}"),
+            false,
+        ),
+        (
+            "control-0301x64",
+            subject.into(),
+            with(subject, &"\u{301}".repeat(64)),
+            true,
+        ),
+    ]
+}
+
+/// A card of five lines: a plain line, an empty line, `middle`, an empty line and a plain line.
+#[cfg(target_os = "macos")]
+fn ink_card(middle: &str) -> Card {
+    let field = |label: &str| Field {
+        label: label.into(),
+        value: vec![],
+        from: FieldFrom::Site,
+        from_text: String::new(),
+    };
+    Card::new(
+        &[Class::Payment],
+        &[
+            field("Above: Halvo"),
+            field(""),
+            field(middle),
+            field(""),
+            field("Below: Halvo"),
+        ],
+    )
+    .expect("the words of payment")
+}
+
+/// The runs of rows that hold ink, as their first row and the row after their last.
+#[cfg(target_os = "macos")]
+fn ink_runs(rows: &[bool]) -> Vec<(usize, usize)> {
+    let mut runs = Vec::new();
+    let mut start = None;
+    for (y, ink) in rows.iter().enumerate() {
+        match (ink, start) {
+            (true, None) => start = Some(y),
+            (false, Some(a)) => {
+                runs.push((a, y));
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(a) = start {
+        runs.push((a, rows.len()));
+    }
+    runs
+}
+
+/// The line box of the plain card's middle line and the rows of the marked card's ink outside
+/// its first and last line: (box top, box bottom, ink top, ink bottom, inside).
+#[cfg(target_os = "macos")]
+fn ink_reading(plain: &[bool], marked: &[bool]) -> Result<(f64, f64, usize, usize, bool), String> {
+    let runs = ink_runs(plain);
+    if runs.len() != 3 {
+        return Err(format!(
+            "{} runs of ink in the plain card, not 3",
+            runs.len()
+        ));
+    }
+    let pitch = (runs[2].0 - runs[0].0) as f64 / 4.0;
+    let centre = (runs[1].0 + runs[1].1) as f64 / 2.0;
+    let (top, bottom) = (centre - pitch / 2.0, centre + pitch / 2.0);
+    let others =
+        |y: usize| (runs[0].0..runs[0].1).contains(&y) || (runs[2].0..runs[2].1).contains(&y);
+    let rows: Vec<usize> = (0..marked.len())
+        .filter(|y| marked[*y] && !others(*y))
+        .collect();
+    let (Some(&first), Some(&last)) = (rows.first(), rows.last()) else {
+        return Err("no ink of the middle line".to_owned());
+    };
+    let inside = first as f64 >= top && (last + 1) as f64 <= bottom;
+    Ok((top, bottom, first, last + 1, inside))
+}
+
+/// Prints the line that counts the ink cases.
+#[cfg(target_os = "macos")]
+fn ink_end(inside: usize, cases: usize, control_outside: bool) {
+    println!(
+        "dialog_hosted ink: cases inside their line box {inside} of {cases}, control outside {control_outside}"
+    );
+}
+
+/// The one bounded try of RD-90 item 9: sets the largest text size, runs this target again with
+/// `TEXT_SIZE` set and prints its bound reading, and sets the size back; it prints each
+/// command's status and output and never fails.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the hosted target sets the system's text size and runs itself again to read the card at it"
+)]
+fn text_size_try() {
+    let (set, back): (&[&str], &[&str]) = if cfg!(target_os = "macos") {
+        (
+            &["defaults", "write", "-g", "NSFontSize", "-int", "24"],
+            &["defaults", "delete", "-g", "NSFontSize"],
+        )
+    } else {
+        (
+            &[
+                "reg",
+                "add",
+                "HKCU\\Software\\Microsoft\\Accessibility",
+                "/v",
+                "TextScaleFactor",
+                "/t",
+                "REG_DWORD",
+                "/d",
+                "225",
+                "/f",
+            ],
+            &[
+                "reg",
+                "delete",
+                "HKCU\\Software\\Microsoft\\Accessibility",
+                "/v",
+                "TextScaleFactor",
+                "/f",
+            ],
+        )
+    };
+    let say = |what: &str, args: &[&str]| match std::process::Command::new(args[0])
+        .args(&args[1..])
+        .output()
+    {
+        Ok(out) => println!(
+            "dialog_hosted text size {what}: {} status={} output={:?}",
+            args.join(" "),
+            out.status,
+            String::from_utf8_lossy(&out.stdout).trim().to_owned()
+                + String::from_utf8_lossy(&out.stderr).trim()
+        ),
+        Err(e) => println!(
+            "dialog_hosted text size {what}: {} did not start: {e}",
+            args.join(" ")
+        ),
+    };
+    say("set", set);
+    match std::env::current_exe()
+        .and_then(|exe| std::process::Command::new(exe).env(TEXT_SIZE, "1").output())
+    {
+        Ok(out) => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let mut read = false;
+            for line in text
+                .lines()
+                .filter(|l| l.starts_with("dialog_hosted bound reading"))
+            {
+                println!("dialog_hosted text size reading: {line}");
+                read = true;
+            }
+            if !read {
+                println!(
+                    "dialog_hosted text size reading: none; the run again ended {}",
+                    out.status
+                );
+            }
+        }
+        Err(e) => println!("dialog_hosted text size reading: the run again did not start: {e}"),
+    }
+    say("back", back);
+}
+
 /// Prints the line that counts the bound cases and returns how many failed.
 fn bounds_end(failed: &[String], ran: usize, listed: usize) -> usize {
     println!(
@@ -191,8 +405,14 @@ fn main() {
             std::process::exit(1);
         }
     }
-    std::thread::spawn(|| {
-        std::thread::sleep(BOUND * (cases::LIST + BOUND_FILLS.len() as u32 + 3));
+    let once = std::env::var_os(TEXT_SIZE).is_some();
+    std::thread::spawn(move || {
+        let shows = if once {
+            1
+        } else {
+            cases::LIST + BOUND_FILLS.len() as u32 + 2 * ink_cases().len() as u32 + 4
+        };
+        std::thread::sleep(BOUND * (shows + 3));
         println!("dialog_hosted watchdog FAIL: the cases did not end in time");
         std::process::exit(1);
     });
@@ -202,7 +422,8 @@ fn main() {
 #[cfg(target_os = "macos")]
 mod cases {
     use super::{
-        arm, bound_cases, bounds_end, end, print, word, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL,
+        arm, bound_cases, bounds_end, end, ink_card, ink_cases, ink_end, ink_reading, print,
+        text_size_try, word, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL, TEXT_SIZE,
     };
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
@@ -246,6 +467,38 @@ mod cases {
         screen: NSRect,
         buttons: Vec<NSRect>,
         field: Option<(NSRect, NSRect, NSSize)>,
+        ink: Vec<bool>,
+    }
+
+    /// The rows of a bitmap of 8-bit samples that hold a pixel other than its top left pixel,
+    /// which is the field's background.
+    ///
+    /// # Safety
+    /// `rep` is an `NSBitmapImageRep` that lives for the call.
+    unsafe fn ink_rows(rep: *mut AnyObject) -> Vec<bool> {
+        let wide: isize = msg_send![rep, pixelsWide];
+        let high: isize = msg_send![rep, pixelsHigh];
+        let row: isize = msg_send![rep, bytesPerRow];
+        let per: isize = msg_send![rep, samplesPerPixel];
+        let bits: isize = msg_send![rep, bitsPerSample];
+        let data: *const u8 = msg_send![rep, bitmapData];
+        if data.is_null() || bits != 8 || per < 1 || wide < 1 || high < 1 || row < wide * per {
+            return Vec::new();
+        }
+        let (wide, high, row, per) = (wide as usize, high as usize, row as usize, per as usize);
+        let bytes = std::slice::from_raw_parts(data, row * high);
+        let background = &bytes[..per];
+        (0..high)
+            .map(|y| {
+                (0..wide).any(|x| {
+                    let at = y * row + x * per;
+                    bytes[at..at + per]
+                        .iter()
+                        .zip(background)
+                        .any(|(a, b)| a.abs_diff(*b) > 48)
+                })
+            })
+            .collect()
     }
 
     fn inside(a: NSRect, b: NSRect) -> bool {
@@ -323,6 +576,12 @@ mod cases {
                 );
                 let need: NSSize = msg_send![cell, cellSizeForBounds: tall];
                 g.field = Some((bounds, visible, need));
+                let rep: *mut AnyObject =
+                    msg_send![view, bitmapImageRepForCachingDisplayInRect: bounds];
+                if !rep.is_null() {
+                    let _: () = msg_send![view, cacheDisplayInRect: bounds, toBitmapImageRep: rep];
+                    g.ink = ink_rows(rep);
+                }
             }
         }
         let subviews: *mut AnyObject = msg_send![view, subviews];
@@ -384,6 +643,7 @@ mod cases {
                 screen: frame,
                 buttons: Vec::new(),
                 field: None,
+                ink: Vec::new(),
             };
             let content: *mut AnyObject = msg_send![window, contentView];
             gather(window, content, 0, &message, &mut g);
@@ -403,14 +663,13 @@ mod cases {
         }
     }
 
-    /// Shows `card` once, reads it as `measure` does and prints the reading; the failures of a
-    /// case.
-    fn bound_case<R: tauri::Runtime>(
+    /// Shows `card` once and reads it as `measure` does: the answer, the reading and the
+    /// milliseconds from the show to the report.
+    fn read_once<R: tauri::Runtime>(
         dialog: &System<R>,
-        name: &str,
         card: &Card,
         generation: usize,
-    ) -> Vec<String> {
+    ) -> (ConfirmAnswer, Option<Geometry>, String) {
         *MESSAGE.lock().unwrap_or_else(PoisonError::into_inner) = card.text();
         *MEASURED.lock().unwrap_or_else(PoisonError::into_inner) = None;
         *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
@@ -449,14 +708,26 @@ mod cases {
             .map_or("no report".to_owned(), |at| {
                 at.duration_since(shown).as_millis().to_string()
             });
-        let mut failures = Vec::new();
-        if answer != ConfirmAnswer::Reject {
-            failures.push(format!("the answer was {}, not reject", word(answer)));
-        }
         let read = MEASURED
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
+        (answer, read, to_report)
+    }
+
+    /// Shows `card` once, reads it as `measure` does and prints the reading; the failures of a
+    /// case.
+    fn bound_case<R: tauri::Runtime>(
+        dialog: &System<R>,
+        name: &str,
+        card: &Card,
+        generation: usize,
+    ) -> Vec<String> {
+        let (answer, read, to_report) = read_once(dialog, card, generation);
+        let mut failures = Vec::new();
+        if answer != ConfirmAnswer::Reject {
+            failures.push(format!("the answer was {}, not reject", word(answer)));
+        }
         match read {
             None => failures.push("the alert was never read".to_owned()),
             Some(g) => {
@@ -963,6 +1234,12 @@ mod cases {
         let handle = app.handle().clone();
         std::thread::spawn(move || {
             let dialog = System::new(handle);
+            if std::env::var_os(TEXT_SIZE).is_some() {
+                let (name, card) = bound_cases().swap_remove(0);
+                let failures = bound_case(&dialog, name, &card, 1);
+                println!("dialog_hosted text size case {name}: {failures:?}");
+                std::process::exit(0);
+            }
             let mut verdicts = Vec::new();
             for generation in 1..=CASES.len() {
                 let verdict = case(&dialog, &card, generation);
@@ -983,8 +1260,35 @@ mod cases {
                     failed.push(name.to_string());
                 }
             }
-            let bounds = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
-            end(&verdicts, CASES.len(), bounds);
+            let bounds_failed = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
+            let mut generation = CASES.len() + bounds.len();
+            let (mut inside, mut cases, mut control_outside) = (0, 0, false);
+            for (name, plain, marked, control) in ink_cases() {
+                generation += 2;
+                let (_, plain_read, _) = read_once(&dialog, &ink_card(&plain), generation - 1);
+                let (_, marked_read, _) = read_once(&dialog, &ink_card(&marked), generation);
+                let rows = |g: Option<Geometry>| g.map(|g| g.ink).unwrap_or_default();
+                match ink_reading(&rows(plain_read), &rows(marked_read)) {
+                    Ok((top, bottom, first, last, is_inside)) => {
+                        println!(
+                            "dialog_hosted ink reading {name}: box={top:.1}..{bottom:.1} ink={first}..{last} inside={is_inside}"
+                        );
+                        if control {
+                            control_outside = !is_inside;
+                        } else {
+                            cases += 1;
+                            inside += usize::from(is_inside);
+                        }
+                    }
+                    Err(why) => {
+                        println!("dialog_hosted ink reading {name}: no reading: {why}");
+                        cases += usize::from(!control);
+                    }
+                }
+            }
+            ink_end(inside, cases, control_outside);
+            text_size_try();
+            end(&verdicts, CASES.len(), bounds_failed);
         });
         app.run(|_, _| {});
     }
@@ -993,7 +1297,8 @@ mod cases {
 #[cfg(windows)]
 mod cases {
     use super::{
-        arm, bound_cases, bounds_end, end, print, word, Verdict, BOUND, BOUND_FILLS, MARGIN, SMALL,
+        arm, bound_cases, bounds_end, end, print, text_size_try, word, Verdict, BOUND, BOUND_FILLS,
+        MARGIN, SMALL, TEXT_SIZE,
     };
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
@@ -1268,6 +1573,12 @@ mod cases {
     pub fn run(card: Card) {
         let app = tauri::test::mock_app();
         let dialog = System::new(app.handle().clone());
+        if std::env::var_os(TEXT_SIZE).is_some() {
+            let (name, card) = bound_cases().swap_remove(0);
+            let failures = bound_case(&dialog, name, &card);
+            println!("dialog_hosted text size case {name}: {failures:?}");
+            std::process::exit(0);
+        }
         let mut verdicts = Vec::new();
         for each in CASES {
             let verdict = case(&dialog, &card, each);
@@ -1289,6 +1600,7 @@ mod cases {
             }
         }
         let bounds = bounds_end(&failed, bounds.len(), BOUND_FILLS.len());
+        text_size_try();
         end(&verdicts, CASES.len(), bounds);
     }
 }
