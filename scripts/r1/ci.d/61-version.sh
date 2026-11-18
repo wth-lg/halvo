@@ -543,7 +543,8 @@ crates/halvo-capture/Cargo.toml"
   measure_case measure-with-the-root-package-json-at-another-version FAIL
   git -C "$fix" update-index --add --cacheinfo "100644,$empty_blob,tools/new/Cargo.toml"
   measure_case measure-with-a-manifest-that-is-neither-read-nor-named FAIL
-  line_feed_case x backend/package.json measure-with-a-line-feed-before-a-path-under-the-wall
+  wall_side=$(left_manifests | sed -n 's/^wall //p' | sed -n 1p)
+  line_feed_case x "$wall_side/package.json" measure-with-a-line-feed-before-a-path-under-the-wall
   line_feed_case x account/stub/package.json measure-with-a-line-feed-before-a-named-path
   line_feed_case zz src-tauri/Cargo.toml measure-with-a-line-feed-before-a-member-manifest
 
