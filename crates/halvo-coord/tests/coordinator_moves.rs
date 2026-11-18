@@ -11475,3 +11475,37 @@ fn rd140_r2_a_switch_on_in_the_window_is_not_undone_by_the_stamp() {
         "a Switch on answered Ok must not be undone by the switch-off's stamp: on={on:?} line={line}"
     );
 }
+
+/// Verifier-54 Addition 3 case 8a in its Switch off form: agent 0's clockless Stop left an
+/// unstamped `item_lapsed`; agent 1's Switch off is the next move, and the store panics at that
+/// row in the move's take-up. Agent 1's Switch off still goes on: Ok, one cancel in that move,
+/// its hold stored, Run now refused (ruling RD-140 R1).
+#[test]
+fn rd140_r1_c08_a_switch_off_beside_another_agents_waiting_row_that_panics() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], limits);
+    let (_run0, _item) = allowed(&c);
+    let run1 = start(&c, 1);
+    c.ports().clock_fails.set(true);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().clock_fails.set(false);
+    let m = mark(&c);
+    c.ports().panics.set(Some("log_lapsed"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::SwitchOff)
+    }));
+    c.ports().panics.set(None);
+    assert_eq!(
+        (
+            pressed.ok(),
+            cancels_of(&c, m, &run1),
+            person_holds(&c, 1).len(),
+            c.control(&agent(1), Action::RunNow)
+        ),
+        (Some(Ok(())), 1, 1, Err(Cause::Hold)),
+        "(the press, cancels in the move, hold_set rows, Run now)"
+    );
+}
