@@ -394,6 +394,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     ends_by: Option<Duration>,
     hold_line_written: bool,
     unstopped_in_life: Vec<(SourceName, CaptureError)>,
+    owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -425,6 +426,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             ends_by: None,
             hold_line_written: false,
             unstopped_in_life: Vec::new(),
+            owner_gone_stops: None,
         }
     }
 
@@ -524,7 +526,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         if let Some(owner) = owner {
             if !owner.is_running() {
-                self.stop_every_source();
+                let answers = self.stop_every_source();
+                self.owner_gone_stops = Some(answers);
                 self.ending = Some(Ending::OwnerGone);
                 return self.ending;
             }
@@ -1258,9 +1261,15 @@ impl<F: SystemSources, L: MainLoop> RunSources for Supervisor<F, L> {
         self.wait_on(window, stop, Some(owner))
     }
 
+    /// The run's stop. After the owner's end, whose tick stopped every
+    /// source, the answers of that pass stand and no source is asked again
+    /// (ruling DM-25 N8).
     fn stop(&mut self) -> Vec<FailedSource> {
         self.entered = true;
-        let answers = self.stop_every_source();
+        let answers = match self.owner_gone_stops.take() {
+            Some(answers) => answers,
+            None => self.stop_every_source(),
+        };
         self.ctx = None;
         let started_failed: Vec<&str> = self
             .started_failed

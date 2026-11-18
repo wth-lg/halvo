@@ -1520,3 +1520,91 @@ fn adv2_the_lost_grant_arms_the_watchdog_at_its_first_answer() {
         "the first ending call came {calls:?} after the first answer that is not a stop, past {by} ms"
     );
 }
+
+/// A store whose every write panics, so that the owner thread ends.
+struct PanicStore(ModelStore);
+
+impl MaintainStore for PanicStore {
+    fn expire_due(&mut self, now: std::time::SystemTime, max: usize) -> Result<Pass, MaintFault> {
+        self.0.expire_due(now, max)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+        self.0.evict_to(bound, max)
+    }
+
+    fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+        self.0.usage()
+    }
+}
+
+impl CaptureStore for PanicStore {
+    fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        panic!("the store ends the owner thread");
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.0.volume_free_bytes()
+    }
+}
+
+/// N8 and A2-4 (the verifier's kept item 9): the owner ends inside the
+/// window and the input source, whose stop answers Timeout, is let go; it is
+/// asked to stop once.
+#[test]
+fn adv2f_a_source_let_go_when_the_owner_ends_is_not_shut_down_a_second_time() {
+    let now: Rc<Cell<Duration>> = Rc::default();
+    let first_stop: Rc<Cell<Option<Duration>>> = Rc::default();
+    let main_loop = TestLoop {
+        now: now.clone(),
+        harness: None,
+        real: Duration::from_millis(20),
+        hook: None,
+    };
+    let (clock, first) = (now.clone(), first_stop.clone());
+    let factory = Factory::adjusting(move |source| {
+        if source.name == SourceName::Foreground {
+            source.script = (0..600).map(|_| foreground_now()).collect();
+        }
+        if source.name == SourceName::Input {
+            source.stop = Err(timeout());
+            let (clock, first) = (clock.clone(), first.clone());
+            let hook: Hook = Box::new(move |_| {
+                if first.get().is_none() {
+                    first.set(Some(clock.get()));
+                }
+                clock.set(clock.get() + Duration::from_secs(1));
+            });
+            source.on_stop = Some(hook);
+        }
+    });
+    let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop);
+    let window = Duration::from_secs(30);
+    let quiet = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome = run_timed(
+        &run_of(30),
+        &mut supervisor,
+        PanicStore(ModelStore::new()),
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    );
+    std::panic::set_hook(quiet);
+    let outcome = outcome.unwrap();
+    let stops = supervisor.factory().calls.of("stop ");
+    println!("dm25 n8 let_go={:?} stops={stops:?}", outcome.let_go);
+    let stopped_at = first_stop
+        .get()
+        .expect("the input source was never stopped");
+    assert!(
+        stopped_at < window,
+        "the owner did not end inside the window (first stop at {stopped_at:?}); the case was not reached"
+    );
+    assert_eq!(outcome.let_go, ["input"]);
+    assert_eq!(
+        supervisor.factory().calls.of("stop input").len(),
+        1,
+        "a source let go when the owner ended was shut down again: {stops:?}"
+    );
+}
