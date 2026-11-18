@@ -111,6 +111,12 @@ impl Owner for Both {
         if lapses && self.panics.get() == Some("log_lapsed") {
             panic!("the port log panics at item_lapsed");
         }
+        let ends = events
+            .iter()
+            .any(|e| matches!(e.what, halvo_coord::types::What::RunEnded { .. }));
+        if ends && self.panics.get() == Some("log_ended") {
+            panic!("the port log panics at run_ended");
+        }
         let holds = events
             .iter()
             .any(|e| matches!(e.what, halvo_coord::types::What::HoldSet { .. }));

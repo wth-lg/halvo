@@ -268,6 +268,13 @@ fn unstamped_stops<C>(board: &Board<C>) -> bool {
         || board.dying.iter().any(|d| d.stopped == 0)
 }
 
+/// Runs one agent's part of a move's take-up and holds its unwind to it (rulings RD-138
+/// Addition 1, RD-140 R1): none where it panicked, so that the caller puts what it took back
+/// and marks the move, and the move's own Stop or Switch off still goes on.
+fn contain<R>(work: impl FnOnce() -> R) -> Option<R> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).ok()
+}
+
 fn live_unstopped_run<C>(board: &Board<C>, agent: &AgentId) -> Option<RunId> {
     board
         .runs
@@ -462,7 +469,16 @@ where
         self.noted(Some(stamp.now()));
         self.stamp_waiting(st, stamp);
         for (run, outcome) in std::mem::take(&mut st.ended) {
-            let _ = self.end_of_run(st, &run, outcome);
+            let owing = Self::owing_end(st, &run, outcome, stamp);
+            if contain(|| self.end_of_run(st, &run, outcome)).is_none() {
+                match (owing, st.board.as_mut()) {
+                    (Some(owed), Some(board)) if !board.runs.iter().any(|r| r.run == run) => {
+                        board.owed.push(owed);
+                    }
+                    _ => self.keep_end(st, &run, outcome),
+                }
+                self.held_panic(st);
+            }
         }
         self.offs_at_stamp(st, stamp);
         self.settle(st, stamp);
@@ -484,16 +500,30 @@ where
         for d in board.dying.iter_mut().filter(|d| d.stopped == 0) {
             d.stopped = stamp.now();
         }
+        let mut panicked = false;
         for (agent, l) in ledgers.iter_mut() {
             if !l.has_unstamped() {
                 continue;
             }
             l.stamp_unstamped(stamp);
-            let _ = items::flush(&self.ports, l, &self.limits);
-            if let Some(i) = index(board, agent) {
-                self.read_back(board, i);
-            }
+            let sent = contain(|| {
+                let _ = items::flush(&self.ports, l, &self.limits);
+                if let Some(i) = index(board, agent) {
+                    self.read_back(board, i);
+                }
+            });
+            panicked |= sent.is_none();
         }
+        if panicked {
+            self.held_panic(st);
+        }
+    }
+
+    /// What a panic held to one agent's work in a move leaves: the move is marked, so that the
+    /// next call publishes, and the bell rings, as for a move that did not return.
+    fn held_panic(&self, st: &mut State<Cfg<P>>) {
+        st.mark.unpublished = true;
+        let _ = self.ports.changed();
     }
 
     /// The switch-offs that waited for a read of the clock, after the runner's ends that the
@@ -508,8 +538,11 @@ where
         } = st;
         let Some(board) = board.as_mut() else { return };
         let waiting: Vec<AgentId> = std::mem::take(offs);
+        let mut panicked = false;
         for agent in waiting {
-            match self.off_at_stamp(board, ledgers, &agent, stamp) {
+            let rest = contain(|| self.off_at_stamp(board, ledgers, &agent, stamp));
+            panicked |= rest.is_none();
+            match rest.unwrap_or(OffRest::Owner) {
                 OffRest::Done => {}
                 OffRest::Clock => offs.push(agent),
                 OffRest::Owner => {
@@ -519,6 +552,9 @@ where
                     }
                 }
             }
+        }
+        if panicked {
+            self.held_panic(st);
         }
     }
 
@@ -629,12 +665,8 @@ where
     /// the person's Stop of its run, is not touched.
     fn settle(&self, st: &mut State<Cfg<P>>, stamp: crate::ports::Stamp) {
         for item in std::mem::take(&mut st.answering) {
-            let settled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.settle_item(st, stamp, item)
-            }));
-            if settled.is_err() {
-                st.mark.unpublished = true;
-                let _ = self.ports.changed();
+            if contain(|| self.settle_item(st, stamp, item)).is_none() {
+                self.held_panic(st);
             }
         }
     }
@@ -1389,25 +1421,64 @@ where
             st.ended.retain(|(r, _)| r != run);
         }
         if done.report.unstamped {
-            if !st.ended.iter().any(|(r, _)| r == run) {
-                st.ended.push((run.clone(), outcome));
-            }
-            let marked = st.board.as_mut().is_some_and(|board| {
-                board
-                    .runs
-                    .iter_mut()
-                    .find(|r| &r.run == run && r.stop.is_none())
-                    .is_some_and(|r| {
-                        let cause = outcome.map_or(crate::types::RunEnd::Interrupted, Into::into);
-                        r.stop = Some(schedule::Stop { at: 0, cause });
-                        true
-                    })
-            });
-            if marked {
-                st.marked.push(run.clone());
-            }
+            self.keep_end(st, run, outcome);
         }
         answered(&done.report)
+    }
+
+    /// The `run_ended` that a kept end makes at `stamp`, as a debt: where its store panics after
+    /// the run left the board, the board owes it and a later tick pays it, as for a store that
+    /// refused it (ruling RD-140 R1).
+    fn owing_end(
+        st: &State<Cfg<P>>,
+        run: &RunId,
+        outcome: Option<crate::types::Outcome>,
+        stamp: crate::ports::Stamp,
+    ) -> Option<schedule::Owed> {
+        let r = st.board.as_ref()?.runs.iter().find(|r| &r.run == run)?;
+        let ended = outcome.map_or(crate::types::RunEnd::Interrupted, Into::into);
+        let cause = match r.stop {
+            Some(stop) if !st.marked.contains(run) => stop.cause,
+            _ => ended,
+        };
+        Some(schedule::Owed {
+            agent: r.agent.clone(),
+            workflow: r.workflow.clone(),
+            what: schedule::Owing::RunEnded {
+                run: run.clone(),
+                cause,
+                day: stamp.day(),
+                at: stamp.at(),
+            },
+        })
+    }
+
+    /// Keeps a runner's end for the next read that answers, and, for a run that no stop reached,
+    /// puts a stop with the runner's own cause on the board, so that no Stop, switch-off or quit
+    /// stops a run that ended.
+    fn keep_end(
+        &self,
+        st: &mut State<Cfg<P>>,
+        run: &RunId,
+        outcome: Option<crate::types::Outcome>,
+    ) {
+        if !st.ended.iter().any(|(r, _)| r == run) {
+            st.ended.push((run.clone(), outcome));
+        }
+        let marked = st.board.as_mut().is_some_and(|board| {
+            board
+                .runs
+                .iter_mut()
+                .find(|r| &r.run == run && r.stop.is_none())
+                .is_some_and(|r| {
+                    let cause = outcome.map_or(crate::types::RunEnd::Interrupted, Into::into);
+                    r.stop = Some(schedule::Stop { at: 0, cause });
+                    true
+                })
+        });
+        if marked && !st.marked.contains(run) {
+            st.marked.push(run.clone());
+        }
     }
 
     fn close_run_item(

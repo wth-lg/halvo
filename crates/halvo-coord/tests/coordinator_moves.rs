@@ -11348,3 +11348,130 @@ fn rd138_m2_a_tick_that_reads_no_clock_keeps_the_mark_and_stop_goes_on() {
         );
     }
 }
+
+// ---- RD-140 (round 4) ----
+
+/// pr-review-38 Addition 2 case 8 (A2-B1): agent 0's clockless Stop left an unstamped
+/// `item_lapsed`; agent 1's Stop is the next move, and the store panics at that row in the
+/// move's take-up. Agent 1's Stop still goes on with its one cancel (ruling RD-140 R1).
+#[test]
+fn rd140_r1_c08_another_agents_waiting_row_panics_in_the_same_move() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], limits);
+    let (_run0, _item) = allowed(&c);
+    let run1 = start(&c, 1);
+    c.ports().clock_fails.set(true);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().clock_fails.set(false);
+    let m = mark(&c);
+    c.ports().panics.set(Some("log_lapsed"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::Stop)
+    }));
+    c.ports().panics.set(None);
+    let in_move = cancels_of(&c, m, &run1);
+    c.tick();
+    let after_tick = cancels_of(&c, m, &run1);
+    assert_eq!(
+        (pressed.is_ok(), in_move, after_tick),
+        (true, 1, 1),
+        "agent 1's Stop in the move whose take-up flushed agent 0's waiting row"
+    );
+}
+
+/// A panic in the rest of another agent's switch-off, which the move's take-up makes at the
+/// first read that answers, is held to that agent: this move's Stop goes on with its cancel,
+/// the other agent stays held off, and its hold is stored at a later move (ruling RD-140 R1).
+#[test]
+fn rd140_r1_a_panic_in_another_agents_switch_off_rest_does_not_lose_this_stop() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let _run1 = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.refuse(Method::Log, PortError::Busy);
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    c.ports().ports.clear_refusals();
+    clock_answers(&c);
+    let m = mark(&c);
+    c.ports().panics.set(Some("log_hold_set"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(0), Action::Stop)
+    }));
+    c.ports().panics.set(None);
+    assert_eq!(pressed.ok(), Some(Ok(())), "this move's Stop returns Ok");
+    assert_eq!(cancels_of(&c, m, &run0), 1, "with its one cancel");
+    assert_eq!(
+        c.control(&agent(1), Action::RunNow),
+        Err(Cause::Hold),
+        "agent 1 held off"
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(
+        person_holds(&c, 1).len(),
+        1,
+        "the hold is stored at a later move"
+    );
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.off.person"));
+}
+
+/// A panic in another agent's kept end, which the move's take-up makes at the first read that
+/// answers, is held to that end: this move's Stop goes on with its cancel, and the end is kept
+/// and made once at a later move with the runner's outcome (ruling RD-140 R1).
+#[test]
+fn rd140_r1_a_panic_in_another_agents_kept_end_does_not_lose_this_stop() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let run1 = start(&c, 1);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&run1);
+    let _ = c.on_run(&run1, RunEvent::Ended(Some(Outcome::Completed)));
+    clock_answers(&c);
+    let m = mark(&c);
+    c.ports().panics.set(Some("log_ended"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(0), Action::Stop)
+    }));
+    c.ports().panics.set(None);
+    assert_eq!(pressed.ok(), Some(Ok(())), "this move's Stop returns Ok");
+    assert_eq!(cancels_of(&c, m, &run0), 1, "with its one cancel");
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(
+        ends_of(&c, &run1),
+        vec![RunEnd::Completed],
+        "made once, as the runner said"
+    );
+    assert_eq!(cancels_of(&c, m, &run1), 0, "no cancel to the ended run");
+}
+
+/// pr-review-38 Addition 2's kill-s20 (A2-B2): while a switch-off waits for its stamp, a Switch
+/// on is refused, so the stamp does not undo a Switch on that answered Ok (ruling RD-140 R2).
+#[test]
+fn rd140_r2_a_switch_on_in_the_window_is_not_undone_by_the_stamp() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports().clock_fails.set(true);
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    c.ports().clock_fails.set(false);
+    c.ports().fail_read_at.set(Some(0));
+    let on = c.control(&agent(0), Action::SwitchOn);
+    c.ports().fail_read_at.set(None);
+    c.tick();
+    c.tick();
+    let line = row_line(&c.snapshot(), 0);
+    assert!(
+        !(on == Ok(()) && line == text("line.off.person")),
+        "a Switch on answered Ok must not be undone by the switch-off's stamp: on={on:?} line={line}"
+    );
+}
