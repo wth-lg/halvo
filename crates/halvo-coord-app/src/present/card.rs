@@ -1,3 +1,5 @@
+use halvo_coord::items::chars::columns;
+use halvo_coord::items::{CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Cause, Class, Field};
 use halvo_coord::words;
 
@@ -8,7 +10,8 @@ use halvo_coord::words;
 /// title, each of its lines and each control text holds no character of the closed list of
 /// `breaks` (the control characters, the line and paragraph separators and the marks that set the
 /// direction of text), when it has at most `LINES` lines, when its title, each line and each
-/// control text has at most `LINE_CHARS` characters, and when no control text holds the mark of an
+/// control text takes at most `LINE_COLUMNS` columns of display width, and when no control text
+/// holds the mark of an
 /// access key of the system that shows it (`&` on Windows, none on macOS); the presenter refuses
 /// to show a card that breaks that form, and nothing mends it (ruling RD-90 item 10).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,7 +109,7 @@ impl Card {
     /// Whether the card keeps the composed form on a system whose marks of an access key are
     /// `marks`.
     pub(crate) fn keeps(&self, marks: &[char]) -> bool {
-        let short = |text: &str| text.chars().count() <= LINE_CHARS;
+        let short = |text: &str| columns(text) <= LINE_COLUMNS;
         let plain = |text: &str| !text.chars().any(breaks);
         self.lines.len() <= LINES
             && [&self.title, &self.reject, &self.allow]
@@ -129,13 +132,16 @@ impl Card {
     }
 }
 
-/// The most lines that a card holds: a placeholder, not proven on a screen, until the proven
-/// bounds of U2.4l (ruling RD-90 items 7 and 9) replace it.
-pub const LINES: usize = 16;
+/// The most lines that a card holds, the empty line between two fields counted: the dialog's
+/// bound proven on a hosted screen of both systems, `halvo_coord::items::CARD_LINES` (ruling
+/// RD-90 items 7 and 9).
+pub const LINES: usize = CARD_LINES;
 
-/// The most characters that a card's title, one of its lines or one of its control texts holds:
-/// a placeholder, not proven on a screen, until the proven bounds of U2.4l replace it.
-pub const LINE_CHARS: usize = 120;
+/// The most columns that a card's title, one of its lines or one of its control texts takes,
+/// counted as display width by `halvo_coord::items::chars::columns` and not in characters, so
+/// that a wide character takes two and a combining mark none: the dialog's bound proven on a
+/// hosted screen of both systems, `halvo_coord::items::CARD_COLUMNS` (ruling RD-90 items 7 and 9).
+pub const LINE_COLUMNS: usize = CARD_COLUMNS;
 
 /// The marks of an access key in a control text of the task dialog of Windows.
 #[cfg(any(test, windows))]
