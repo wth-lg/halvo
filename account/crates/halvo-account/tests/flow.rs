@@ -1012,6 +1012,51 @@ fn status_reports_each_result_of_the_route() {
     }
 }
 
+fn source(path: &str) -> String {
+    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
+    std::fs::read_to_string(&file)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", file.display()))
+}
+
+fn block<'a>(text: &'a str, start: &str) -> &'a str {
+    let from = text.find(start).unwrap_or_else(|| panic!("no {start:?}"));
+    let rest = &text[from..];
+    let end = rest.find("\n}\n").expect("the block ends");
+    &rest[..end]
+}
+
+#[test]
+fn status_maps_each_result_of_the_generated_type_by_name_with_no_wildcard_arm() {
+    let types = source("../halvo-wire/src/types.rs");
+    let variants: Vec<&str> = block(&types, "pub enum StatusAnswerResult {")
+        .lines()
+        .skip(1)
+        .map(str::trim)
+        .filter(|line| !line.starts_with('#') && line.ends_with(','))
+        .map(|line| line.trim_end_matches(','))
+        .collect();
+    assert_eq!(variants.len(), 7, "{variants:?}");
+    let flow = source("src/flow.rs");
+    let status = block(&flow, "fn status(");
+    let arms: String = status.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(
+        !arms.contains("_=>"),
+        "a wildcard arm in status():\n{status}"
+    );
+    for variant in &variants {
+        let named = format!("StatusAnswerResult::{variant}");
+        assert_eq!(
+            status.matches(&named).count(),
+            1,
+            "{named} in status():\n{status}"
+        );
+    }
+    assert_eq!(
+        status.matches("StatusAnswerResult::").count(),
+        variants.len()
+    );
+}
+
 const CLOSING: &str = r#"{"result":"closing"}"#;
 
 const CLOSING_NOTE: &str = "the backend answered that the account is closing: its delete has begun and the backend has not yet heard from the provider that its plan is ended; the backend sees to the end of the plan and finishes the delete by itself, nothing is asked of you, and when that happens is not known";
