@@ -959,3 +959,24 @@ fn put_playbook_answers_a_write_to_a_file_that_is_not_the_slot_workbook_with_pla
         );
     }
 }
+
+#[test]
+fn a_repeat_of_a_stored_stopped_row_stores_nothing_and_is_answered_with_its_count() {
+    let mut store = store_with("utility_bill_payment");
+    let mut stopped = log_line(2);
+    stopped["event"] = json!("stopped");
+    stopped["cause"] = json!("no_start");
+    for _ in 0..3 {
+        assert_eq!(put_log(&mut store, vec![stopped.clone()]), Ok(stored(1)));
+        assert_eq!(rows(&store, "agent_log").len(), 2);
+    }
+    assert_eq!(
+        put_log(&mut store, vec![stopped.clone(), log_line(3)]),
+        Ok(stored(2))
+    );
+    assert_eq!(
+        put_log(&mut store, vec![stopped, log_line(3)]),
+        Ok(stored(2))
+    );
+    assert_eq!(rows(&store, "agent_log").len(), 3);
+}
