@@ -637,3 +637,94 @@ fn a_faulted_repeat_of_a_start_whose_commit_was_refused_keeps_the_run_lost_throu
         "the lost run makes no commit"
     );
 }
+
+fn held_under(w: &World, r: u32, n: u32, row: bool) -> bool {
+    w.handlers
+        .starts
+        .get(&id(r))
+        .is_some_and(|s| s.row == row && s.agent.as_str() == agent(n))
+}
+
+fn facts_under(w: &World, r: u32, n: u32) -> bool {
+    w.handlers
+        .facts
+        .get(&id(r))
+        .is_some_and(|f| f.agent.as_str() == agent(n))
+}
+
+fn two_agents_world() -> World {
+    let mut w = learned_world();
+    w.add_pair(2);
+    w.replay(3);
+    w.pair = 2;
+    w.replay(6);
+    w.pair = 1;
+    assert!(facts_under(&w, 3, 1) && facts_under(&w, 6, 2));
+    w
+}
+
+fn start_of_agent_2(r: u32) -> Value {
+    json!({"op": "start_run", "workflow": wf(2), "agent": agent(2), "run": run(r), "mode": "replay"})
+}
+
+#[test]
+fn a_store_fault_at_the_handlers_own_load_before_a_finish_drops_nothing_of_another_agents_run() {
+    let mut w = two_agents_world();
+    let body = finish_body(&w, 3);
+    let answer = runner_at(&mut w, 1, body);
+    assert!(matches!(answer, Ok(RunnerReply::Stored(_))), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(holds_nothing_of(&w, 3));
+    assert!(facts_under(&w, 6, 2) && held_under(&w, 6, 2, true));
+}
+
+#[test]
+fn a_store_fault_in_the_sweep_of_a_repeated_start_run_keeps_its_run_with_no_row_whichever_agents_load_faults(
+) {
+    for at in 2..=3 {
+        let mut w = two_agents_world();
+        let answer = coordinator_at(&mut w, at, start_of_agent_2(6));
+        assert!(accepted(&answer), "at {at}: {answer:?}");
+        assert!(left_out(&w), "at {at}");
+        assert!(!w.handlers.facts.contains_key(&id(6)), "at {at}");
+        assert!(held_under(&w, 6, 2, false), "at {at}");
+        assert!(
+            facts_under(&w, 3, 1) && held_under(&w, 3, 1, true),
+            "at {at}"
+        );
+    }
+}
+
+#[test]
+fn a_store_fault_at_another_agents_load_in_the_sweep_leaves_out_the_learning_of_a_new_start_run() {
+    let mut w = two_agents_world();
+    let answer = coordinator_at(&mut w, 2, start_of_agent_2(7));
+    assert!(accepted(&answer), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(
+        of_run(&w, 7).is_empty(),
+        "the lost run has no learn_run row"
+    );
+    assert!(!w.handlers.facts.contains_key(&id(7)));
+    assert!(held_under(&w, 7, 2, false));
+    assert!(facts_under(&w, 3, 1) && facts_under(&w, 6, 2));
+}
+
+#[test]
+fn a_store_fault_in_the_sweep_still_sends_the_load_of_another_agents_run_and_drops_it_when_refused()
+{
+    let mut w = two_agents_world();
+    w.host.agent.hidden_runs.push(run(6));
+    let answer = coordinator_at(&mut w, 2, start_body(7));
+    assert!(accepted(&answer), "{answer:?}");
+    assert!(left_out(&w));
+    assert!(
+        facts_under(&w, 3, 1),
+        "a fault at run 3's load says nothing of run 3"
+    );
+    assert!(
+        holds_nothing_of(&w, 6),
+        "agent 2's run 6, refused by the agent store, is dropped"
+    );
+    assert!(lost_start(&w, 7));
+}
