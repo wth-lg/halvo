@@ -319,3 +319,23 @@ fn a_store_fault_at_the_handlers_read_of_the_compiled_steps_before_a_finish_pass
     assert!(holds_nothing_of(&w, 3));
     assert_eq!(of_run(&w, 3).len(), 1);
 }
+
+#[test]
+fn a_finish_of_a_run_with_no_candidate_makes_one_own_load_and_no_read_of_the_compiled_steps() {
+    let mut w = learned_world();
+    w.replay(3);
+    w.log(3, &[(2, "step_ok", 2, None)]);
+    assert!(w.handlers.facts[&id(3)].candidates.is_empty());
+    let body = finish_body(&w, 3);
+    let mut host = FaultAt {
+        host: &mut w.host,
+        calls: 0,
+        at: 0,
+    };
+    let answer = w.handlers.runner(&mut host, body.to_string().as_bytes());
+    assert_eq!(
+        host.calls, 2,
+        "the own load and the finish that it passes on"
+    );
+    assert!(matches!(answer, Ok(RunnerReply::Stored(_))), "{answer:?}");
+}
