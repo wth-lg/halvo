@@ -1650,11 +1650,25 @@ mod burst_rounds {
 
     /// The verdict of one counted round of the burst.
     pub(super) fn decided(round: &Counted) -> Result<Decided, String> {
+        let r = round.records;
+        if [r.letters, r.tabs, r.other, r.keystroke_events]
+            .iter()
+            .any(|&count| count > 0)
+        {
+            return Err(format!(
+                "the burst recorded letters_recorded={} tabs_recorded={} other_recorded={} \
+                 keystroke_events={} with first_letter_rule={:?}",
+                r.letters, r.tabs, r.other, r.keystroke_events, round.first_letter_rule
+            ));
+        }
         match round.first_letter_rule {
-            None | Some(Rule::NotClearedInTime) => Err(format!(
+            None => Err(format!(
                 "the burst's first letter was decided by {:?} and not by a rule of the swap's case",
                 round.first_letter_rule
             )),
+            Some(Rule::NotClearedInTime) => Ok(Decided::ByTheTimeRule {
+                freed_at_ms: round.freed_at_ms,
+            }),
             Some(_) => Ok(Decided::ByARuleOfTheSwap),
         }
     }
