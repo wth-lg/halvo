@@ -93,7 +93,9 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   `begun` with its draft and effect only when that effect's newest row of the row's run is `not_made`, a state
 ///   that the schema does not hold before U1.8 (b); nothing follows `committed`, `unknown` or `withheld`. Then
 ///   `effect` for a `begun` row while another agent's newest row of the message is `begun`, `committed` or
-///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row.
+///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row. A named
+///   limit: a clock set back more than two days past the day of a run's end record leaves that record out of the
+///   read, so a `begun` row of the ended run is stored and stays `begun` (CP-227).
 /// - `load_replies`: for each id asked, in the order asked, the newest row of the body's agent; in `blocked` each
 ///   id for which another agent's newest row, over every agent's rows, is `begun`, `committed` or `unknown`, and
 ///   in `blocked_withheld` each other id for which another agent's newest row is `withheld`; no row and no key of

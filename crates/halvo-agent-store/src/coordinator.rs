@@ -34,9 +34,12 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
 ///   names another agent; `effect` for a run whose `agent_run` record is stored. Where a start row of the run and
 ///   the agent is among the rows that the store hands out, also one past the bound of `agent_log` that the runner
-///   bodies no longer count, it stores nothing, so it never opens such a run again (CP-205 (b)); else it stores the
-///   start row, one `agent_log` row with the event `start_accepted`, `seq` 1, no step, cause, model or figure, and
-///   the request's instant and day. It answers `{"ok":"yes"}` (CP-135 (5)).
+///   bodies no longer count, it stores nothing, so it does not open such a run again on a host whose read still
+///   hands out that start row (CP-205 (b)); else it stores the start row, one `agent_log` row with the event
+///   `start_accepted`, `seq` 1, no step, cause, model or figure, and the request's instant and day. It answers
+///   `{"ok":"yes"}` (CP-135 (5)). A named limit, of the class of the effects' clock limit: on a machine whose clock
+///   moves by days, a read that no longer hands out the start row (a clock read three days back or 93 days on) lets
+///   `start_run` store a new start row and open the run again (CP-227).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
 ///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
 ///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
