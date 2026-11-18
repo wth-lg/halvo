@@ -1215,7 +1215,6 @@ waits-not-driven-phase_one'
     'crates/other/src/hold.c:int hold(void) __asm__("_EnableSecureEventInput");\nint take(void) { return hold(); }\n' \
     'crates/other/src/hold.s:\t.globl _take\n_take:\n\tb _DisableSecureEventInput\n' \
     'crates/other/build.rs:fn main() {\n    println!("cargo:rustc-link-arg=-Wl,-alias,_EnableSecureEventInput,_halvo_hold");\n}\n' \
-    '.cargo/config.toml:[build]\nrustflags = ["-C", "link-arg=-Wl,-alias,_DisableSecureEventInput,_halvo_give"]\n' \
     'crates/other/src/hold.cxx:void hold() { EnableSecureEventInput(); }\n' \
     'crates/other/src/hold.hpp:inline void hold(void) { EnableSecureEventInput(); }\n' \
     'crates/other/src/hold.inc:extern "C" {\n    fn DisableSecureEventInput() -> i32;\n}\n' \
@@ -1232,6 +1231,11 @@ waits-not-driven-phase_one'
     printf 'none\n' >"$work/repo/$path" || exit 2
     git -C "$work/repo" add -A || exit 2
   done
+  printf '[build]\n%s%s = ["-C", "link-arg=-Wl,-alias,_DisableSecureEventInput,_halvo_give"]\n' rust flags >"$work/repo/.cargo/config.toml" || exit 2
+  git -C "$work/repo" add -A || exit 2
+  check carbon-outside-the-lock-in-a-cargo-config FAIL "$carbon_text.cargo/config.toml (" ''
+  printf 'none\n' >"$work/repo/.cargo/config.toml" || exit 2
+  git -C "$work/repo" add -A || exit 2
   printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
   printf 'enum Kind {\n    Key,\n    Reading,\n}\n\nstruct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\n#[cfg(all(debug_assertions, feature = "stall-seam"))]\n#[derive(Debug)]\npub enum RawEntry {\n    Reading {\n        value: Reading,\n    },\n}\n\nfn read() {\n    let reading = (self.secure)(state.session);\n    let step = Reading::Off;\n}\n\nfn handed(reading: Reading, at: Stamps) -> (Reading, Stamps) {\n    (reading, at)\n}\n\n#[cfg(all(test, debug_assertions))]\nmod tests {\n    thread_local! {\n        static ANSWER: Cell<Reading> = const { Cell::new(Reading::Off) };\n    }\n    struct Kept {\n        kept: Reading,\n    }\n}\n\n#[cfg(test)]\nmod more_tests {\n    static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
@@ -1252,16 +1256,16 @@ waits-not-driven-phase_one'
     'static-after-the-tests:#[cfg(test)]\nmod tests {\n    fn x() {}\n}\n\nstatic LAST_READING: Mutex<Option<Reading>> = Mutex::new(None);\n' \
     'module-under-cfg-any-test:#[cfg(any(test, target_os = "macos"))]\nmod live {\n    struct HoldState {\n        kept: Option<Reading>,\n    }\n}\n' \
     'module-under-cfg-not-test:#[cfg(not(test))]\nmod kept {\n    static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n}\n' \
-    'pub-in-path:pub(in crate::macos) struct HoldState {\n    kept: Option<Reading>,\n}\n' \
-    'attribute-on-the-item-line:#[derive(Default)] struct HoldState {\n    kept: Option<Reading>,\n}\n' \
-    'brace-on-the-next-line:struct HoldState\n{\n    kept: Option<Reading>,\n}\n' \
-    'tuple-struct-over-lines:struct LastReading(\n    Option<Reading>,\n);\n' \
+    'pub-in-path:pub(in crate::macos) struct HoldState {\n    kept: Reading,\n}\n' \
+    'attribute-on-the-item-line:#[derive(Default)] struct HoldState {\n    kept: Reading,\n}\n' \
+    'brace-on-the-next-line:struct HoldState\n{\n    kept: Reading,\n}\n' \
+    'tuple-struct-over-lines:struct LastReading(\n    Reading,\n);\n' \
     'split-field:struct HoldState {\n    kept: Cell<\n        Option<\n            Reading,\n        >,\n    >,\n}\n' \
     'generic-argument-of-a-parameter:struct Kept<R> {\n    last: Option<R>,\n}\n\nfn on_event(kept: &mut Kept<Reading>, reading: Reading) {\n    kept.last = Some(reading);\n}\n' \
     'generic-argument-of-a-return:struct TapContext<R> {\n    kept: std::cell::Cell<Option<R>>,\n}\n\nfn tap_context() -> TapContext<Reading> {\n    TapContext { kept: std::cell::Cell::new(None) }\n}\n' \
     'use-as-over-lines:use crate::secure_input_macos::{\n    Reading as State,\n};\n\nstruct HoldState {\n    kept: Option<State>,\n}\n' \
-    'thread-local-on-one-line:thread_local!(static LAST: Cell<Option<Reading>> = const { Cell::new(None) });\n' \
-    'macro-rules-body:macro_rules! kept {\n    () => {\n        Option<Reading>\n    };\n}\n\nstruct HoldState {\n    kept: kept!(),\n}\n'; do
+    'thread-local-on-one-line:thread_local!(static LAST: Reading = const { Reading::Off });\n' \
+    'macro-rules-body:macro_rules! kept {\n    () => {\n        Reading\n    };\n}\n\nstruct HoldState {\n    kept: kept!(),\n}\n'; do
     printf '%b' "${form#*:}" >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
     git -C "$work/repo" add crates || exit 2
     check "reading-kept-by-a-${form%%:*}" FAIL "crates/halvo-capture/src/macos/input.rs $reading_text" ''
