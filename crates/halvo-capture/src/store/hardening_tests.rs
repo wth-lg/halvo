@@ -10318,17 +10318,19 @@ fn st48_u3_no_form_of_the_answer_holds_the_name_of_a_folder_in_the_roots_folder(
     );
 }
 
-/// Ruling PR-30 PR9 (4): an open whose read-back of synchronous or of
-/// fullfsync differs from what it set is refused by that setting's name, and
-/// the open in which both read back as set opens with synchronous FULL and
-/// fullfsync on.
+/// Ruling PR-30 PR9 (4): an open whose read-back of synchronous (OFF, NORMAL
+/// or EXTRA in place of FULL) or of fullfsync differs from what it set is
+/// refused by that setting's name, and the open in which both read back as
+/// set opens with synchronous FULL and fullfsync on.
 #[test]
 fn an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name() {
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let mut answers = Vec::new();
     for (statement, name) in [
+        ("PRAGMA synchronous = OFF;", "synchronous"),
         ("PRAGMA synchronous = NORMAL;", "synchronous"),
+        ("PRAGMA synchronous = EXTRA;", "synchronous"),
         ("PRAGMA fullfsync = OFF;", "fullfsync"),
     ] {
         let opened = {

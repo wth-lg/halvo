@@ -27,6 +27,7 @@ static long plain_flushes = 0;
 static char paths[LOGGED][MAXPATHLEN];
 static char failing[MAXPATHLEN];
 static long failing_left = 0;
+static int failing_errno = EIO;
 
 static int counted(int fd, char *path) {
   const char *mark = getenv("R1_FLUSH_MARK");
@@ -52,7 +53,7 @@ int r1_fcntl(int fd, int cmd, ...) {
       full_flushes++;
       if (failing_left > 0 && ends_with(path, failing)) {
         failing_left--;
-        errno = EIO;
+        errno = failing_errno;
         return -1;
       }
     }
@@ -71,9 +72,10 @@ long r1_plain_flushes(void) { return plain_flushes; }
 const char *r1_full_flush_path(long at) {
   return at >= 0 && at < full_flushes && at < LOGGED ? paths[at] : "";
 }
-void r1_fail_full_flushes(long count, const char *end) {
+void r1_fail_full_flushes(long count, const char *end, int err) {
   strlcpy(failing, end, MAXPATHLEN);
   failing_left = count;
+  failing_errno = err;
 }
 
 INTERPOSE(r1_fcntl, fcntl);
@@ -86,7 +88,7 @@ const GROUP_KEY: &str = "R1_FLUSH_GROUP";
 
 type Count = unsafe extern "C" fn() -> libc::c_long;
 type PathAt = unsafe extern "C" fn(libc::c_long) -> *const libc::c_char;
-type FailNext = unsafe extern "C" fn(libc::c_long, *const libc::c_char);
+type FailNext = unsafe extern "C" fn(libc::c_long, *const libc::c_char, libc::c_int);
 
 /// The counter of the system's full-flush calls that the child's library
 /// puts in front of `fcntl`: every `fcntl(fd, F_FULLFSYNC)` on a file whose
@@ -150,8 +152,14 @@ impl Flushes {
     /// The next `count` full flushes of a file whose path ends in `end`
     /// answer EIO.
     fn fail_next(&self, count: usize, end: &str) {
+        self.fail_next_with(count, end, libc::EIO);
+    }
+
+    /// The next `count` full flushes of a file whose path ends in `end`
+    /// answer the error `errno`.
+    fn fail_next_with(&self, count: usize, end: &str, errno: libc::c_int) {
         let end = CString::new(end).unwrap();
-        unsafe { (self.fail_next)(count as libc::c_long, end.as_ptr()) }
+        unsafe { (self.fail_next)(count as libc::c_long, end.as_ptr(), errno) }
     }
 }
 
@@ -374,6 +382,70 @@ fn root_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
     }
 }
 
+fn zero_fill_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
+    for (at, case) in ["delete_all", "tail", "the custody's destroy"]
+        .into_iter()
+        .enumerate()
+    {
+        let name = format!("zero-fill-{at}");
+        let (store_dir, roots_dir, root_id) = a_store(top, &name);
+        let root_file = roots_dir.join(format!("{root_id}.root"));
+        let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+        let mut store = (case == "delete_all")
+            .then(|| open_over_file_root(&store_dir, &roots_dir, root_id).unwrap());
+        let mut call = || -> Result<Option<RootReading>, String> {
+            match case {
+                "delete_all" => {
+                    let answer = store.as_mut().unwrap().delete_all();
+                    match answer {
+                        Ok(report) => Ok(Some(report.root)),
+                        Err(e) => Err(format!("{:?}", reading_of(&Err(e)))),
+                    }
+                }
+                "tail" => {
+                    let answer = tail(&store_dir, &roots_dir);
+                    match answer {
+                        Ok(report) => Ok(Some(report.root)),
+                        Err(e) => Err(format!("{:?}", reading_of(&Err(e)))),
+                    }
+                }
+                _ => custody
+                    .destroy_root()
+                    .map(|()| None)
+                    .map_err(|e| format!("{e:?}")),
+            }
+        };
+        flushes.fail_next(8, &format!("{name}/roots/{root_id}.root"));
+        let (first, on, _) = step(
+            flushes,
+            &format!("{case} whose every full flush of the root file fails"),
+            &mut call,
+        );
+        flushes.fail_next(0, "-");
+        let stands_after_the_first = root_file.exists();
+        let (again, _, _) = step(flushes, &format!("{case} again"), &mut call);
+        let stands_after_again = root_file.exists();
+        println!(
+            "FULLFLUSH zero-fill never flushed: case={case} first={first:?} root_file_flushes={} root_file_stands={stands_after_the_first} again={again:?} root_file_stands_after_again={stands_after_again}",
+            count_of(&on, &format!("{name}/roots/{root_id}.root"))
+        );
+        let first_left = match case {
+            "the custody's destroy" => first.is_err(),
+            _ => first == Err(format!("{:?}", Some(RootReading::Left(Some(root_id))))),
+        };
+        let again_done = match case {
+            "delete_all" => again == Ok(Some(RootReading::Destroyed)),
+            "tail" => again.is_ok(),
+            _ => again == Ok(None),
+        };
+        if !first_left || !stands_after_the_first || !again_done || stands_after_again {
+            problems.push(format!(
+                "{case}: with every full flush of the root file failing it answered {first:?} and left the root file standing {stands_after_the_first}; with the flushes answered it answered {again:?} and left it standing {stands_after_again}"
+            ));
+        }
+    }
+}
+
 fn helper_write(dir: &Dir, temp: &str, target: &str) -> io::Result<()> {
     durable::write_durably(
         &OsFs,
@@ -440,9 +512,33 @@ fn helper_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
         "delete-all.intent whose directory's full flush fails",
         || helper_write(&dir, "delete-all.intent.tmp", "delete-all.intent"),
     );
-    if refused.is_ok() || on != ["helper/delete-all.intent.tmp", "helper"] {
+    let at_its_name = std::fs::read(held.join("delete-all.intent")).ok();
+    println!(
+        "FULLFLUSH directory refusal answer={refused:?} the_new_content_at_its_name={}",
+        at_its_name.as_deref() == Some(b"{\"version\":1}".as_slice())
+    );
+    if refused.is_ok()
+        || on != ["helper/delete-all.intent.tmp", "helper"]
+        || at_its_name.as_deref() != Some(b"{\"version\":1}".as_slice())
+    {
         problems.push(format!(
-            "a write whose directory's full flush failed answered {refused:?} with full flushes on {on:?}"
+            "a write whose directory's full flush failed answered {refused:?} with full flushes on {on:?}, and its name holds {at_its_name:?}"
+        ));
+    }
+    flushes.fail_next_with(1, "/daemon-state.json.tmp", libc::EINTR);
+    let (written, on, plain) = step(
+        flushes,
+        "daemon-state.json whose file's full flush a signal interrupts once",
+        || helper_write(&dir, "daemon-state.json.tmp", "daemon-state.json"),
+    );
+    let want = [
+        "helper/daemon-state.json.tmp",
+        "helper/daemon-state.json.tmp",
+        "helper",
+    ];
+    if written.is_err() || on != want || plain != 0 {
+        problems.push(format!(
+            "a write whose full flush a signal interrupted once answered {written:?} with full flushes on {on:?} and {plain} plain fsync, not on {want:?}"
         ));
     }
 }
@@ -468,6 +564,7 @@ fn full_flush_child_for_parent() {
         "commit" => commit_group(&top, &flushes, &mut problems),
         "checkpoint" => checkpoint_group(&top, &flushes, &mut problems),
         "root" => root_group(&top, &flushes, &mut problems),
+        "zero-fill" => zero_fill_group(&top, &flushes, &mut problems),
         other => panic!("no group {other}"),
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -570,4 +667,15 @@ fn the_truncating_checkpoint_of_an_expiry_flushes_the_database_before_the_files_
 fn the_root_steps_zero_fill_and_its_roots_folder_are_flushed_and_a_failed_folder_flush_reads_left()
 {
     run_child("root");
+}
+
+/// Ruling ST-50 Addition 1: the root step reads a root destroyed only when
+/// its zero-fill's full flush was answered. With every full flush of the
+/// root file failing, the handle's delete-all and the tail read the root left
+/// and answer that the delete is not finished, the custody's destroy answers
+/// an error, and the root file still stands at its name; with the flushes
+/// answered the next call destroys it.
+#[test]
+fn a_root_whose_zero_fill_is_never_flushed_reads_left_and_stays_at_its_name() {
+    run_child("zero-fill");
 }

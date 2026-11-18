@@ -2058,17 +2058,22 @@ fn row20_a_file_of_another_length_at_a_root_name_keeps_its_mode_and_its_bytes() 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MarkedAt {
     OthersPartial,
+    OthersPartialRootLength,
+    OthersPartialOneName,
     MarksOwnPartial,
     OthersRootName,
 }
 
 /// Ruling ST-49 (part (3) of the inbox entry of 2026-11-17T02:59:55Z, the
-/// verifier's case N3): a create.pending written by hand whose made mark
-/// records the identity of another party's file of 100 bytes and mode 0444,
-/// with a second name at a partial name of another id than the mark's. After
-/// the next open, after the tail and after the next create, each in its own
-/// case, that file keeps its mode and its bytes through its outside name, the
-/// partial name is gone and the tail reads no root destroyed. Controls: at a
+/// verifier's case N3; ruling ST-50, the review's B2): a create.pending
+/// written by hand whose made mark records the identity of another party's
+/// file of mode 0444 at a partial name of another id than the mark's, in
+/// every shape that the sweep meets there: 100 bytes with a second name
+/// outside, a root file's length with a second name outside, and a root
+/// file's length with that one name. After the next open, after the tail and
+/// after the next create, each in its own case, that file keeps its mode and
+/// its bytes, read through a handle kept from before the call, the partial
+/// name is gone and the tail reads no root destroyed. Controls: at a
 /// partial name of the mark's own id the file is still zero-filled through
 /// every name, at another id's root name a file of a root file's length still
 /// is (ruling ST-48), and on the handle's path the store's own root renamed
@@ -2078,6 +2083,8 @@ fn st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone() {
     let mut problems = Vec::new();
     for at in [
         MarkedAt::OthersPartial,
+        MarkedAt::OthersPartialRootLength,
+        MarkedAt::OthersPartialOneName,
         MarkedAt::MarksOwnPartial,
         MarkedAt::OthersRootName,
     ] {
@@ -2088,17 +2095,22 @@ fn st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone() {
             let other = RootId::fresh().unwrap();
             let (len, mode) = match at {
                 MarkedAt::OthersRootName => (32, 0o644),
+                MarkedAt::OthersPartialRootLength | MarkedAt::OthersPartialOneName => (32, 0o444),
                 _ => (100, 0o444),
             };
-            let (outside, bytes, kept) = st48_foreign_file(dir.path(), "outside", len, mode);
-            let inside = roots_dir.join(match at {
-                MarkedAt::OthersPartial => format!("{other}.0123456789abcdef.root.tmp"),
-                MarkedAt::MarksOwnPartial => {
-                    format!("{marked}.0123456789abcdef.root.tmp")
-                }
+            let inside_name = match at {
+                MarkedAt::MarksOwnPartial => format!("{marked}.0123456789abcdef.root.tmp"),
                 MarkedAt::OthersRootName => format!("{other}.root"),
-            });
-            std::fs::hard_link(&outside, &inside).unwrap();
+                _ => format!("{other}.0123456789abcdef.root.tmp"),
+            };
+            let inside = roots_dir.join(&inside_name);
+            let (outside, bytes, kept) = if at == MarkedAt::OthersPartialOneName {
+                st48_foreign_file(&roots_dir, &inside_name, len, mode)
+            } else {
+                let (outside, bytes, kept) = st48_foreign_file(dir.path(), "outside", len, mode);
+                std::fs::hard_link(&outside, &inside).unwrap();
+                (outside, bytes, kept)
+            };
             if reader != "the next open" {
                 std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
             }
@@ -2137,23 +2149,28 @@ fn st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone() {
                     false,
                 ),
             };
-            let mode_after = st48_mode(&outside);
+            let mode_after = {
+                use std::os::unix::fs::PermissionsExt;
+                kept.metadata().unwrap().permissions().mode() & 0o7777
+            };
             let now = st48_bytes_of(&kept);
             let inside_stands = std::fs::symlink_metadata(&inside).is_ok();
             println!(
-                "ST49 at={at:?} reader={reader} answer={answer} outside_mode={mode_after:o} outside_bytes_kept={} outside_zeroed={} inside_stands={inside_stands} root_read_destroyed={destroyed}",
+                "ST49 at={at:?} reader={reader} answer={answer} file_mode={mode_after:o} file_bytes_kept={} file_zeroed={} inside_stands={inside_stands} root_read_destroyed={destroyed}",
                 now == bytes,
                 now.iter().all(|&b| b == 0)
             );
             let wrong = match at {
-                MarkedAt::OthersPartial => {
+                MarkedAt::OthersPartial
+                | MarkedAt::OthersPartialRootLength
+                | MarkedAt::OthersPartialOneName => {
                     mode_after != mode || now != bytes || inside_stands || destroyed
                 }
                 _ => !now.iter().all(|&b| b == 0) || inside_stands,
             };
             if wrong {
                 problems.push(format!(
-                    "{at:?}, {reader}: outside mode {mode_after:o}, bytes kept {}, zeroed {}, the name in the roots folder stands {inside_stands}, root read destroyed {destroyed}",
+                    "{at:?}, {reader}: file mode {mode_after:o}, bytes kept {}, zeroed {}, the name in the roots folder stands {inside_stands}, root read destroyed {destroyed}",
                     now == bytes,
                     now.iter().all(|&b| b == 0)
                 ));

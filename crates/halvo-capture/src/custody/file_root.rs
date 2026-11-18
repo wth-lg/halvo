@@ -560,10 +560,10 @@ fn entry_name_for(name: &OsStr, id: RootId, by: NamedBy) -> EntryName {
 /// unless the handle kept at this call's own look holds a file of that
 /// identity and shows again what the read by name showed; then the file is
 /// zero-filled through that handle, which reaches every name of it, and the
-/// name is removed while it still leads to that file. `Gone` when the
-/// zero-fill went through, or when the count read through the kept handle
-/// after the removal of its one name is 0; `Absent` when no file of that
-/// identity stood at the name at the look.
+/// name is removed while it still leads to that file. `Gone` only when the
+/// zero-fill went through with its full flush answered; when it did not, the
+/// name is kept and a key may stay (ruling ST-50 Addition 1); `Absent` when
+/// no file of that identity stood at the name at the look.
 fn destroy_identified(
     dir: &Dir,
     name: &OsStr,
@@ -636,14 +636,7 @@ fn destroy_identified(
             Err(_) => EntryFate::ZeroedAndNamed,
         };
     }
-    match durable::file_link_count(&kept) {
-        Ok(1) if matches!(dir.names_file(name, &kept), Ok(true)) => match remove() {
-            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
-            Ok(()) => EntryFate::KeyMayStay(None),
-            Err(e) => EntryFate::KeyMayStay(Some(e)),
-        },
-        _ => EntryFate::KeyMayStay(None),
-    }
+    EntryFate::KeyMayStay(None)
 }
 
 /// Which name of a roots directory an entry stands at, for its destruction.
@@ -665,8 +658,8 @@ enum EntryName {
 /// What the destruction of one entry of a roots directory met and left.
 #[derive(Debug)]
 enum EntryFate {
-    /// This call met a file that can be the root's, zero-filled it through
-    /// its kept handle or read its count 0 after its own removal: the name is
+    /// This call met a file that can be the root's and zero-filled it through
+    /// its kept handle with the zero-fill's full flush answered: the name is
     /// gone, and no name of the file keeps the key.
     Gone,
     /// Nothing stood at the name at this call's own look (ruling ST-46 K1).
@@ -724,11 +717,9 @@ fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
 /// still leads to that file and the zero-fill go through the kept handle; a
 /// kept handle that cannot write zero-fills through a write open of the name
 /// that still leads to the same file. The zero-fill reaches every name of the
-/// file, and the name is removed. If the zero-fill still fails: with one name
-/// (the count read through the kept handle) the name is removed, and the
-/// entry is gone only when the count read through that handle after the
-/// removal is 0; with more than one name, or a count that cannot be read, the
-/// name is kept and a key may stay. When no open succeeds the name is kept
+/// file, and the name is removed. If the zero-fill or its full flush still
+/// fails, the name is kept and a key may stay, whatever the count of names
+/// (ruling ST-50 Addition 1). When no open succeeds the name is kept
 /// and a key may stay, and every later tail tries it and names it again
 /// (ruling ST-45 H2). Everything rests on what this call met at its own look,
 /// never on a listing (ruling ST-46 K1): a name that is absent at the look is
@@ -799,14 +790,7 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
             Err(_) => EntryFate::ZeroedAndNamed,
         };
     }
-    match durable::file_link_count(&kept) {
-        Ok(1) => match remove(dir) {
-            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
-            Ok(()) => EntryFate::KeyMayStay(None),
-            Err(e) => EntryFate::KeyMayStay(Some(e)),
-        },
-        _ => EntryFate::KeyMayStay(None),
-    }
+    EntryFate::KeyMayStay(None)
 }
 
 /// Zero-fills the file of the kept handle: through that handle, or, when it
@@ -1393,6 +1377,60 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Rulings ST-45 H4 and Addition 2 (b), ST-48 U1, ST-49 and ST-50 (the
+    /// review's B2): the write rule of each name for every count of names
+    /// and length, and the name that the step reads for a partial name on a
+    /// mark's walk and on the store's own; a partial name of another id than
+    /// the mark's lets no write whatever the file is.
+    #[test]
+    fn the_write_rule_of_each_name_for_every_count_of_names_and_length() {
+        let shapes = [(true, true), (true, false), (false, true), (false, false)];
+        let rules = [
+            (EntryName::Partial, [true, true, true, true]),
+            (
+                EntryName::PartialOfAnotherIdThanTheMarks,
+                [false, false, false, false],
+            ),
+            (EntryName::OwnRoot, [true, false, true, false]),
+            (EntryName::OtherRoot, [true, true, true, false]),
+            (EntryName::OtherName, [true, false, false, false]),
+        ];
+        let mut wrong = Vec::new();
+        for (at, want) in rules {
+            for ((one_name, root_len), want) in shapes.into_iter().zip(want) {
+                if written_through(at, one_name, root_len) != want {
+                    wrong.push(format!("{at:?} one_name={one_name} root_len={root_len}"));
+                }
+            }
+        }
+        let (mark, other) = (RootId::fresh().unwrap(), RootId::fresh().unwrap());
+        let partial_of = |id: RootId| OsString::from(format!("{id}.0123456789abcdef.root.tmp"));
+        let upper =
+            OsString::from(format!("{other}.0123456789ABCDEF.root.tmp").to_ascii_uppercase());
+        let names = [
+            (
+                partial_of(other),
+                NamedBy::AMark,
+                EntryName::PartialOfAnotherIdThanTheMarks,
+            ),
+            (
+                upper,
+                NamedBy::AMark,
+                EntryName::PartialOfAnotherIdThanTheMarks,
+            ),
+            (partial_of(mark), NamedBy::AMark, EntryName::Partial),
+            (partial_of(other), NamedBy::TheStore, EntryName::Partial),
+            (partial_of(mark), NamedBy::TheStore, EntryName::Partial),
+        ];
+        for (name, by, want) in names {
+            let read = entry_name_for(&name, mark, by);
+            if read != want {
+                wrong.push(format!("{name:?} by {by:?} reads {read:?}"));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
 
     struct XorProtector(u8);
 
