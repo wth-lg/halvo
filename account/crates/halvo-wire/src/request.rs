@@ -229,37 +229,45 @@ impl Call {
 /// made_by_default::<halvo_wire::request::Request>();
 /// ```
 ///
-/// It implements `From` for none of a call, the parts of a call, a cap, a cap body, a route, a
-/// body's bytes, a text or a JSON value; the example compiles when any one of them is added:
+/// It implements neither `From` nor `TryFrom` for any type that the example lists, a call or its
+/// parts, a cap, a cap body, a route, or a body's bytes, headers or text; the example compiles
+/// when either is added for any one of them, since `TryFrom` holds wherever `From` does:
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0308
 /// use halvo_wire::request::{AccountId, Call, Credential, Request, Route};
 /// use halvo_wire::types::{Cap, CapBody};
 /// use std::marker::PhantomData;
-/// struct Probe<T>(PhantomData<T>);
-/// trait ByCall { fn made(&self) {} }
-/// impl<T: From<Call>> ByCall for Probe<T> {}
-/// trait ByCallRef { fn made(&self) {} }
-/// impl<T: From<&'static Call>> ByCallRef for &Probe<T> {}
-/// trait ByCallParts { fn made(&self) {} }
-/// impl<T: From<(Call, AccountId, Credential)>> ByCallParts for &&Probe<T> {}
-/// trait ByCap { fn made(&self) {} }
-/// impl<T: From<Cap>> ByCap for &&&Probe<T> {}
-/// trait ByCapBody { fn made(&self) {} }
-/// impl<T: From<CapBody>> ByCapBody for &&&&Probe<T> {}
-/// trait ByRoute { fn made(&self) {} }
-/// impl<T: From<Route>> ByRoute for &&&&&Probe<T> {}
-/// trait ByBytes { fn made(&self) {} }
-/// impl<T: From<Vec<u8>>> ByBytes for &&&&&&Probe<T> {}
-/// trait ByByteSlice { fn made(&self) {} }
-/// impl<T: From<&'static [u8]>> ByByteSlice for &&&&&&&Probe<T> {}
-/// trait ByString { fn made(&self) {} }
-/// impl<T: From<String>> ByString for &&&&&&&&Probe<T> {}
-/// trait ByStr { fn made(&self) {} }
-/// impl<T: From<&'static str>> ByStr for &&&&&&&&&Probe<T> {}
-/// trait ByJson { fn made(&self) {} }
-/// impl<T: From<serde_json::Value>> ByJson for &&&&&&&&&&Probe<T> {}
-/// (&&&&&&&&&&&Probe::<Request>(PhantomData)).made();
+/// struct Added;
+/// struct NotAdded;
+/// impl NotAdded { fn or<B>(self, other: B) -> B { other } }
+/// impl Added { fn or<B>(self, _: B) -> Added { Added } }
+/// struct Bound<T>(PhantomData<T>);
+/// macro_rules! holds {
+///     ($($bound:tt)+) => {{
+///         trait Lacks { fn found(&self) -> NotAdded { NotAdded } }
+///         impl<T> Lacks for Bound<T> {}
+///         trait Holds { fn found(&self) -> Added { Added } }
+///         impl<T: $($bound)+> Holds for &Bound<T> {}
+///         (&&Bound::<Request>(PhantomData)).found()
+///     }};
+/// }
+/// let added: Added = NotAdded
+///     .or(holds!(TryFrom<Call>))
+///     .or(holds!(TryFrom<&'static Call>))
+///     .or(holds!(TryFrom<(Call, AccountId, Credential)>))
+///     .or(holds!(TryFrom<(&'static Call, &'static AccountId, &'static Credential)>))
+///     .or(holds!(TryFrom<Cap>))
+///     .or(holds!(TryFrom<CapBody>))
+///     .or(holds!(TryFrom<Route>))
+///     .or(holds!(TryFrom<&'static Route>))
+///     .or(holds!(TryFrom<Vec<u8>>))
+///     .or(holds!(TryFrom<&'static [u8]>))
+///     .or(holds!(TryFrom<Box<[u8]>>))
+///     .or(holds!(TryFrom<Option<Vec<u8>>>))
+///     .or(holds!(TryFrom<Vec<(&'static str, String)>>))
+///     .or(holds!(TryFrom<String>))
+///     .or(holds!(TryFrom<&'static str>))
+///     .or(holds!(TryFrom<serde_json::Value>));
 /// ```
 ///
 /// It implements no `Deserialize`, so no request is read from bytes that `build` did not check:
