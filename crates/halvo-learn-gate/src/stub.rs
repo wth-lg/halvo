@@ -326,7 +326,6 @@ impl<'c, H: PlayHost> Play<'c, H> {
         self.coordinator(
             json!({"op": "set_state", "workflow": workflow, "agent": agent, "state": "active"}),
         )?;
-        self.host.ended()?;
         if self.arm == Arm::None {
             self.host.keep_after_compile()?;
         }
