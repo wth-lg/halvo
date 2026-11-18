@@ -185,6 +185,37 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   files, and a review of the diff is the gate for any other way to put a stand-in in the place
   of the crate r3_web.
 
+## verdict.py and the importer
+
+`verdict.py --check` refuses every pair of files that `route-gate import` refuses, with the
+importer's detail, and may refuse more than the importer, never less (ruling CP-219 D3). Since
+U0.6c this holds for the count of the routing run's U0.2c too: within one model, machine, task
+and seed, five attempt lines for each counted `drive` line and none without one, and within one
+model, machine and seed, one `write` line for each counted `reply` line and none without one,
+each refused as `source` at the line that the importer names. A cell that ends `notrun` after
+its compile leaves its attempt lines with no `drive` line, so the importer refuses it and
+`--check` refuses it the same. The trial's verdict is final (`driver=none path=B writer=none`,
+ruling CP-179) and no cell runs again, so no rule of the trial changes for such a cell.
+
+`--check` is stricter than the importer in these forms, for every model and not only for the
+verdict's driver and writer:
+
+- a line whose first word is `drive` or `reply` has its keys in order with values of A13.6's
+  form, its machine read through its attempt lines, and it has its five attempt lines, or its
+  `write` line;
+- a `drive` line's `compile`, `replays_ok` and `recover` agree with its attempt lines, and its
+  `steps`, `wall_s` and `model_tokens` are the largest of its five attempt lines, `model_tokens`
+  as `tokens_in` plus `tokens_out`;
+- a `reply` line has `bodies` of at most 2, `bodies=2` exactly when its `write` line has
+  `pass=yes`, the `wall_s` of its `write` line, and `model_tokens` as that line's `tokens_in`
+  plus `tokens_out`;
+- the block's last line is the verdict line that the rule gives, else `--check` exits 1; the
+  importer does not compute the verdict.
+
+The self-test holds the importer's cases of `crates/halvo-route-gate/tests/import_rules.rs` as
+that file stands at d6fca8dc. No job of main's workflow runs `verdict.py`, so a later change of
+the importer is not seen here until it is carried into `verdict.py` and its self-test.
+
 ## How the cells of unit U0.6 ran
 
 On `hosted-win` every cell of the three candidates ran in one job of a scratch run, its cells

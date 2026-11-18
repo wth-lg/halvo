@@ -20,21 +20,27 @@ is the driver when it has bodies=2 on all six reply lines (seeds 1 to 3 on both 
 else none; under path B the writer is the first candidate with bodies=2 on all six, or none.
 
 --check   refuses the two files when `route-gate import` refuses them, naming the detail of
-          its refusal (the importer's rules, T5.4 with ruling SG-63, read as
-          crates/halvo-route-gate/src/import holds them), and exits 1 when the last line of
-          the block is not this verdict line.
+          its refusal (the importer's rules, T5.4 with ruling SG-63 and the count of U0.2c,
+          read as crates/halvo-route-gate/src/import holds them at d6fca8dc), and exits 1 when
+          the last line of the block is not this verdict line.
 --write   puts this verdict line in the block in place of its verdict line, at its end; it and
           the call with no argument refuse when the importer would refuse the file so written.
 --self-test runs the rule on fixtures of its own and the importer's cases of
-          crates/halvo-route-gate/tests/import_rules.rs, each with its detail.
+          crates/halvo-route-gate/tests/import_rules.rs at d6fca8dc, each with its detail.
 
 Exit 0: done and every check holds; 1: a check missed; 2: a refusal, one line
-"REFUSED <cause>: <detail>" on standard error, causes usage and source.
+"REFUSED <cause>: <detail>" on standard error, causes usage and source; 3: a crash of
+verdict.py itself, its traceback and one line "CRASH <exception>" on standard error.
 """
 
+import contextlib
+import hashlib
+import io
 import os
 import re
 import sys
+import tempfile
+import traceback
 
 MACHINES = ("mac", "hosted-win")
 SEEDS = ("1", "2", "3")
@@ -429,6 +435,50 @@ def import_said(driver, writer, said, attempts):
         raise ImportRefusal("driver:verdict")
 
 
+def import_counted(line):
+    """The cell of a counted line: ("drive", model, machine, task, seed) for a line whose first bytes are
+    `drive model=<token> machine=<m> task=<bill|order> seed=<n> `, ("reply", model, machine, seed) for
+    one whose first bytes are `reply model=<token> machine=<m> seed=<n> `; None for any other line.
+    The rest of the line is not read."""
+    for head, keys in ((b"drive ", ("model", "machine", "task", "seed")), (b"reply ", ("model", "machine", "seed"))):
+        if not line.startswith(head):
+            continue
+        words = line[len(head) :].decode("utf-8").split(" ", len(keys))
+        if len(words) != len(keys) + 1 or not all(w.startswith(k + "=") for w, k in zip(words, keys)):
+            return None
+        values = [w[len(k) + 1 :] for w, k in zip(words, keys)]
+        if not token_ok(values[0]) or values[1] not in MACHINES or values[-1] not in SEEDS:
+            return None
+        if head == b"drive " and values[2] not in TASKS:
+            return None
+        return (head.decode().strip(),) + tuple(values)
+    return None
+
+
+def import_count(keyed, counted):
+    """The count of U0.2c, for every model: five attempt lines for each counted drive line of a model,
+    machine, task and seed and none without one, one write line for each counted reply line of a
+    model, machine and seed and none without one. `keyed` holds the attempt lines and `counted` the
+    counted lines, each (number, key or cell) in file order. Of the cells that break the count, the
+    smallest number of a cell's first counted line, or of its first attempt line when it has none."""
+    cells = {}
+    for number, cell in counted:
+        tally = cells.setdefault(cell, [0, None, 0, None])
+        tally[0] += 1
+        tally[1] = number if tally[1] is None else tally[1]
+    for number, (task, kind, model, machine, seed, _) in keyed:
+        cell = ("reply", model, machine, seed) if kind == "write" else ("drive", model, machine, task, seed)
+        tally = cells.setdefault(cell, [0, None, 0, None])
+        tally[2] += 1
+        tally[3] = number if tally[3] is None else tally[3]
+    broken = [
+        first_line if first_line is not None else first_attempt
+        for cell, (lines, first_line, attempts, first_attempt) in cells.items()
+        if attempts != (len(RUNS) if cell[0] == "drive" else 1) * lines
+    ]
+    return min(broken) if broken else None
+
+
 def import_last(block, name):
     if block and not block[-1][1].startswith(b"verdict"):
         raise ImportRefusal("%s:%d" % (name, block[-1][0]))
@@ -439,8 +489,10 @@ def import_files(driver, cells):
     ruling SG-63) and raises ImportRefusal with the detail of its first refusal."""
     attempts = {}
     replays = []
+    keyed = []
     verdicts = []
     said = []
+    counted = []
     block = import_block(driver, "driver")
     for number, line in block:
         fault = ImportRefusal("driver:%d" % number)
@@ -454,6 +506,7 @@ def import_files(driver, cells):
             if key in attempts:
                 raise fault
             attempts[key] = passed
+            keyed.append((number, key))
             if key[1] == "replay":
                 replays.append((number, key))
         elif line.startswith(b"verdict"):
@@ -465,6 +518,9 @@ def import_files(driver, cells):
             raise fault
         elif line.startswith(b"drive model=") or line.startswith(b"reply model=") or import_limits(line) is not None:
             said.append((number, line))
+            cell = import_counted(line)
+            if cell is not None:
+                counted.append((number, cell))
     for number, key in replays:
         if key[5] > 1 and key[:5] + (key[5] - 1,) not in attempts:
             raise ImportRefusal("driver:%d" % number)
@@ -475,6 +531,9 @@ def import_files(driver, cells):
     if not import_holds(driver_model, writer, attempts):
         raise ImportRefusal("driver:verdict")
     import_said(driver_model, writer, said, attempts)
+    broken = import_count(keyed, counted)
+    if broken is not None:
+        raise ImportRefusal("driver:%d" % broken)
     bounds = set()
     block = import_block(cells, "cells")
     for number, line in block:
@@ -571,13 +630,28 @@ def verdict(order, drives, replies):
     return "verdict driver=%s path=%s writer=%s" % (driver or "none", path, writer or "none")
 
 
-IMP_ATTEMPT = "attempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6"
+IMP_WRITE = "attempt model=m_a machine=mac task=reply seed=1 kind=write i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6"
+IMP_REPLY = "reply model=m_a machine=mac seed=1 bodies=2 of=2 wall_s=10 model_tokens=11"
+IMP_ATTEMPT = IMP_WRITE + "\n" + IMP_REPLY
 IMP_VERDICT = "verdict driver=none path=B writer=none"
+COUNT_FAULT = "drive model=m_z machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=3 wall_s=10 model_tokens=11 typed_credential=0 effects_without_confirm=0"
 IMP_BOUND = "bound model=m_a machine=mac bound_bytes=100 fits=yes"
 IMP_CANDIDATES = "verdict candidates=-"
 LIMITS_BILL = "limits task=bill steps=9 wall_s=400 model_tokens=9000"
 LIMITS_ORDER = "limits task=order steps=9 wall_s=400 model_tokens=9000"
 LIMITS_REPLY = "limits task=reply wall_s=120 model_tokens=700"
+
+
+def with_value(text, key, value):
+    """`text` with the value of each word `key=...` of each of its lines set to `value`."""
+    return "\n".join(
+        " ".join(key + "=" + value if "=" in w and w.split("=", 1)[0] == key else w for w in line.split(" "))
+        for line in text.split("\n")
+    )
+
+
+def git_blob(data):
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
 
 
 def import_cases():
@@ -628,22 +702,40 @@ def import_cases():
         return "attempt model=%s machine=mac task=%s seed=%s kind=%s i=%s pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6" % (model, task, seed, kind, i)
 
     def attempt_with(key, value):
-        return " ".join(key + "=" + value if w.split("=", 1)[0] == key and "=" in w else w for w in IMP_ATTEMPT.split(" "))
+        return with_value(IMP_ATTEMPT, key, value)
 
     def changed(lines, n, old, new):
         out = list(lines)
         out[n] = out[n].replace(old, new, 1)
         return out
 
+    def drive_cell(model, machine, task, seed):
+        out = [
+            "attempt model=%s machine=%s task=%s seed=%s kind=%s i=%s pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6"
+            % (model, machine, task, seed, kind, i)
+            for kind, i in RUNS
+        ]
+        out.append(
+            "drive model=%s machine=%s task=%s seed=%s compile=ok replays_ok=3 of=3 recover=ok steps=3 wall_s=10 model_tokens=11 typed_credential=0 effects_without_confirm=0"
+            % (model, machine, task, seed)
+        )
+        return out
+
+    def reply_cell(model, machine, seed):
+        return [
+            "attempt model=%s machine=%s task=reply seed=%s kind=write i=1 pass=yes steps=0 wall_s=10 tokens_in=5 tokens_out=6" % (model, machine, seed),
+            "reply model=%s machine=%s seed=%s bodies=2 of=2 wall_s=10 model_tokens=11" % (model, machine, seed),
+        ]
+
     good_cells = doc("cells", block([IMP_BOUND, IMP_CANDIDATES]))
     good_driver = doc("driver", block([IMP_ATTEMPT, IMP_VERDICT]))
     for i in ("4294967295", "4294967296", "4294967297"):
         for kind in ("compile", "replay"):
-            run("an i of %s, %s" % (i, kind), [IMP_ATTEMPT, line_of("m_b", "bill", 1, kind, i), IMP_VERDICT], [IMP_BOUND], "driver:4")
+            run("an i of %s, %s" % (i, kind), [IMP_ATTEMPT, COUNT_FAULT, line_of("m_b", "bill", 1, kind, i), IMP_VERDICT], [IMP_BOUND], "driver:6")
     for name, driver, cells, want in [
-        ("an attempt line after the verdict", [IMP_VERDICT, IMP_ATTEMPT], [IMP_BOUND, IMP_CANDIDATES], "driver:4"),
-        ("a passed-over line after the verdict", [IMP_ATTEMPT, IMP_VERDICT, "limits task=bill steps=1 wall_s=1 model_tokens=1"], [IMP_BOUND, IMP_CANDIDATES], "driver:5"),
-        ("an empty line after the verdict", [IMP_ATTEMPT, IMP_VERDICT, ""], [IMP_BOUND, IMP_CANDIDATES], "driver:5"),
+        ("an attempt line after the verdict", [IMP_VERDICT, IMP_ATTEMPT], [IMP_BOUND, IMP_CANDIDATES], "driver:5"),
+        ("a passed-over line after the verdict", [IMP_ATTEMPT, IMP_VERDICT, "limits task=bill steps=1 wall_s=1 model_tokens=1"], [IMP_BOUND, IMP_CANDIDATES], "driver:6"),
+        ("an empty line after the verdict", [IMP_ATTEMPT, IMP_VERDICT, ""], [IMP_BOUND, IMP_CANDIDATES], "driver:6"),
         ("a bound line after the cells verdict", [IMP_ATTEMPT, IMP_VERDICT], [IMP_CANDIDATES, IMP_BOUND], "cells:4"),
         ("a cell line after the cells verdict", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND, IMP_CANDIDATES, "cell model=m_a machine=mac"], "cells:5"),
         ("no verdict line in the cells block", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND], "cells:3"),
@@ -655,8 +747,11 @@ def import_cases():
         files(name, doc("driver", block(driver)), doc("cells", block(cells)), want)
     passed_over = [
         "",
-        "drive model=m_a machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0",
-        "reply model=m_a machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1",
+        "drive model=m_a machine=mac task=bill seed=1",
+        "drive model=m_a",
+        " drive model=m_a machine=mac task=bill seed=1 compile=ok",
+        "reply model=m_a machine=mac seed=1",
+        "\treply model=m_a machine=mac seed=1 bodies=2",
         "prompt file=action.txt sha256=00",
         "cell model=m_a machine=mac",
         "hosted machine=hosted-win run=1 sha=00",
@@ -674,9 +769,14 @@ def import_cases():
         "Attempt model=m_a",
         "ATTEMPTED",
     ]
-    cells = passed_over + cells_only
+    counted = [
+        "drive model=m_b machine=mac task=bill seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=1 wall_s=1 model_tokens=1 typed_credential=0 effects_without_confirm=0",
+        "reply model=m_b machine=mac seed=1 bodies=2 of=2 wall_s=1 model_tokens=1",
+    ]
+    cells_of_counted = [line for line in drive_cell("m_b", "mac", "bill", 1) + reply_cell("m_b", "mac", 1) if line.startswith("attempt ")]
+    cells = passed_over + counted + cells_only
     cells.insert(5, IMP_BOUND)
-    run("lines that are not known", [IMP_ATTEMPT] + passed_over + driver_only + [IMP_VERDICT], cells, None)
+    run("lines that are not known", [IMP_ATTEMPT] + cells_of_counted + passed_over + counted + driver_only + [IMP_VERDICT], cells, None)
     run("an indented attempt line", [" " + IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND], "driver:3")
     run("an attempt line written Attempt", [IMP_ATTEMPT.replace("attempt", "Attempt", 1), IMP_VERDICT], [IMP_BOUND], "driver:3")
     for line in [
@@ -693,7 +793,7 @@ def import_cases():
         "VERDICT",
         " Verdicts",
     ]:
-        run("a driver line written another way: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:4")
+        run("a driver line written another way: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:5")
     for line in [
         " " + IMP_BOUND,
         "\t" + IMP_BOUND,
@@ -719,11 +819,11 @@ def import_cases():
         LIMITS_BILL.replace(" ", "  ", 1),
         "limits steps=9 task=order wall_s=400",
     ]:
-        run("a limits line of a driver beside no driver: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:4")
+        run("a limits line of a driver beside no driver: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:5")
     writer_only = writer_lines("m_w") + [LIMITS_REPLY, "verdict driver=none path=B writer=m_w"]
     run("a limits line of reply beside a writer", writer_only, [IMP_BOUND], None)
     run("a limits line of order beside a writer and no driver", writer_only[:3] + [LIMITS_ORDER] + writer_only[3:], [IMP_BOUND], "driver:6")
-    run("a limits line of reply beside no writer", [IMP_ATTEMPT, LIMITS_REPLY, IMP_VERDICT], [IMP_BOUND], "driver:4")
+    run("a limits line of reply beside no writer", [IMP_ATTEMPT, LIMITS_REPLY, IMP_VERDICT], [IMP_BOUND], "driver:5")
     driver_only = driver_lines("m_d") + [LIMITS_BILL, LIMITS_ORDER]
     run("limits lines of a driver beside it", driver_only + ["verdict driver=m_d path=A writer=none"], [IMP_BOUND], None)
     for line in [LIMITS_REPLY, " " + LIMITS_REPLY, LIMITS_REPLY.replace("limits", "Limits", 1), "LIMITS TASK=REPLY"]:
@@ -752,7 +852,7 @@ def import_cases():
     run("a limits line before a broken reply line", [LIMITS_BILL] + broken + [to_writer], [IMP_BOUND], "driver:3")
     run("a broken reply line before a limits line", broken + [LIMITS_BILL, to_writer], [IMP_BOUND], "driver:4")
     run("the set before a limits line", lines[1:] + [LIMITS_BILL, to_writer], [IMP_BOUND], "driver:verdict")
-    run("the last line before a limits line", [IMP_ATTEMPT, LIMITS_BILL, "", IMP_VERDICT, ""], [IMP_BOUND], "driver:7")
+    run("the last line before a limits line", [IMP_ATTEMPT, LIMITS_BILL, "", IMP_VERDICT, ""], [IMP_BOUND], "driver:8")
     no_reply = lines[:1] + lines[2:]
     run("a missing reply line of the writer", no_reply + [to_writer], [IMP_BOUND], "driver:verdict")
     run("a refused limits line before a missing reply line", no_reply + [LIMITS_BILL, to_writer], [IMP_BOUND], "driver:14")
@@ -779,8 +879,8 @@ def import_cases():
     run("an indented line before a broken attempt line", [IMP_ATTEMPT.replace("attempt", "Attempt", 1), attempt_with("pass", "maybe"), IMP_VERDICT], [IMP_BOUND], "driver:3")
     run("a line written another way before a gap", [line_of("m_b", "bill", 1, "replay", "2"), "\t" + IMP_VERDICT, IMP_VERDICT], [IMP_BOUND], "driver:4")
     run("a line written another way before the count of verdict lines", [IMP_VERDICT, IMP_VERDICT, " " + IMP_ATTEMPT, IMP_ATTEMPT], [IMP_BOUND], "driver:5")
-    run("the driver file before the cells file", [IMP_ATTEMPT, " verdict driver=m_a path=A writer=m_a", IMP_VERDICT], [" bound", IMP_BOUND], "driver:4")
-    run("a bound line in the driver block", [IMP_ATTEMPT, IMP_BOUND, IMP_VERDICT], [IMP_BOUND], "driver:4")
+    run("the driver file before the cells file", [IMP_ATTEMPT, " verdict driver=m_a path=A writer=m_a", IMP_VERDICT], [" bound", IMP_BOUND], "driver:5")
+    run("a bound line in the driver block", [IMP_ATTEMPT, IMP_BOUND, IMP_VERDICT], [IMP_BOUND], "driver:5")
     run("an attempt line in the cells block", [IMP_ATTEMPT, IMP_VERDICT], [IMP_ATTEMPT, IMP_BOUND], "cells:3")
     run("a driver's verdict line in the cells block", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND, IMP_VERDICT], "cells:4")
     for line in [
@@ -801,7 +901,7 @@ def import_cases():
         "bound",
         "bounds model=m_a",
     ]:
-        run("a driver line that starts with a known word: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:4")
+        run("a driver line that starts with a known word: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:5")
     for line in [
         "bound",
         "bounds model=m_a",
@@ -833,16 +933,16 @@ def import_cases():
     text_cases = [
         ("a carriage return outside the block", b"# d\r\n" + block([IMP_ATTEMPT, IMP_VERDICT]), "1"),
         ("a carriage return inside the block", b"# d\n" + block(["limits task=bill\r", IMP_ATTEMPT, IMP_VERDICT]), "3"),
-        ("no UTF-8 outside the block", b"# d\n" + block([IMP_ATTEMPT, IMP_VERDICT]) + b"note \xff\n", "6"),
+        ("no UTF-8 outside the block", b"# d\n" + block([IMP_ATTEMPT, IMP_VERDICT]) + b"note \xff\n", "7"),
         ("no UTF-8 inside the block", b"# d\n```\nnote \xc3\n" + ("%s\n%s\n```\n" % (IMP_ATTEMPT, IMP_VERDICT)).encode("utf-8"), "3"),
-        ("no LF after a line outside the block", b"# d\n" + block([IMP_ATTEMPT, IMP_VERDICT]) + b"text after the block", "6"),
-        ("no LF after the closing fence", ("# d\n```\n%s\n%s\n```" % (IMP_ATTEMPT, IMP_VERDICT)).encode("utf-8"), "5"),
+        ("no LF after a line outside the block", b"# d\n" + block([IMP_ATTEMPT, IMP_VERDICT]) + b"text after the block", "7"),
+        ("no LF after the closing fence", ("# d\n```\n%s\n%s\n```" % (IMP_ATTEMPT, IMP_VERDICT)).encode("utf-8"), "6"),
         ("a byte-order mark at the start", b"\xef\xbb\xbf# d\n" + block([IMP_ATTEMPT, IMP_VERDICT]), "1"),
         ("a byte-order mark before the opening fence", b"\xef\xbb\xbf" + block([IMP_ATTEMPT, IMP_VERDICT]), "1"),
     ]
     for name, data, line in text_cases:
         files("driver, " + name, data, good_cells, "driver:" + line)
-        swap = {IMP_ATTEMPT.encode(): IMP_BOUND.encode(), IMP_VERDICT.encode(): IMP_CANDIDATES.encode()}
+        swap = {IMP_WRITE.encode(): IMP_BOUND.encode(), IMP_VERDICT.encode(): IMP_CANDIDATES.encode()}
         files("cells, " + name, good_driver, b"\n".join(swap.get(piece, piece) for piece in data.split(b"\n")), "cells:" + line)
     files("an empty driver file", b"", good_cells, "driver:block")
     a, v = IMP_ATTEMPT, IMP_VERDICT
@@ -884,7 +984,7 @@ def import_cases():
         cells = text.replace(a, IMP_BOUND).replace(v, IMP_CANDIDATES)
         files("a cells file with no block of the form: %r" % cells, good_driver, cells.encode("utf-8"), "cells:block")
     files("a carriage return after the heading", ("# d\r\n```\n%s\n%s\n```\n" % (a, v)).encode("utf-8"), good_cells, "driver:1")
-    files("a carriage return after an attempt line", ("# d\n```\n%s\r\n%s\n```\n" % (a, v)).encode("utf-8"), good_cells, "driver:3")
+    files("a carriage return after an attempt line", ("# d\n```\n%s\r\n%s\n%s\n```\n" % (IMP_WRITE, IMP_REPLY, v)).encode("utf-8"), good_cells, "driver:3")
     files("a carriage return after the cells block", good_driver, ("# c\n```\nverdict candidates=-\n%s\n```\ntext\rmore\n" % IMP_BOUND).encode("utf-8"), "cells:6")
     files("a carriage return after both fences", ("# d\n```\r\n%s\n%s\n```\r\n" % (a, v)).encode("utf-8"), good_cells, "driver:2")
     wrong_values = [
@@ -906,39 +1006,49 @@ def import_cases():
     taken = PAIRS
     for task in ("bill", "order", "reply", "cleanup", "fill"):
         for kind in ("compile", "replay", "recover", "write"):
-            line = attempt_with("task", task).replace("kind=compile", "kind=" + kind)
-            run("the pair %s %s" % (task, kind), [line, IMP_VERDICT], [IMP_BOUND], None if (task, kind) in taken else "driver:3")
+            line = "attempt model=m_a machine=mac task=%s seed=1 kind=%s i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6" % (task, kind)
+            if (task, kind) in taken:
+                cell = reply_cell("m_a", "mac", 1) if task == "reply" else drive_cell("m_a", "mac", task, 1)
+                cell = [line if " pass=" in other and line.startswith(other.split(" pass=", 1)[0] + " ") else other for other in cell]
+                run("the pair %s %s" % (task, kind), cell + [IMP_VERDICT], [IMP_BOUND], None)
+            else:
+                run("the pair %s %s" % (task, kind), [COUNT_FAULT, line, IMP_VERDICT], [IMP_BOUND], "driver:4")
     for line in [
-        IMP_ATTEMPT.replace("model=", "modell="),
-        IMP_ATTEMPT.replace(" tokens_out=6", ""),
-        IMP_ATTEMPT + " extra=1",
-        IMP_ATTEMPT + " ",
-        IMP_ATTEMPT.replace("seed=1 ", "seed=1  "),
-        IMP_ATTEMPT.replace(" i=1", "\ti=1"),
-        IMP_ATTEMPT.replace("machine=mac task=bill", "task=bill machine=mac"),
-        IMP_ATTEMPT.replace("model=m_a", "model=m_a=b"),
-        IMP_ATTEMPT.replace("model=m_a", "model"),
-        IMP_ATTEMPT.replace("pass=yes", "pass=yes pass=yes"),
-        IMP_ATTEMPT.replace("tokens_out=6", "tokens_out=6 "),
+        IMP_WRITE.replace("model=", "modell="),
+        IMP_WRITE.replace(" tokens_out=6", ""),
+        IMP_WRITE + " extra=1",
+        IMP_WRITE + " ",
+        IMP_WRITE.replace("seed=1 ", "seed=1  "),
+        IMP_WRITE.replace(" i=1", "\ti=1"),
+        IMP_WRITE.replace("machine=mac task=reply", "task=reply machine=mac"),
+        IMP_WRITE.replace("model=m_a", "model=m_a=b"),
+        IMP_WRITE.replace("model=m_a", "model"),
+        IMP_WRITE.replace("pass=yes", "pass=yes pass=yes"),
+        IMP_WRITE.replace("tokens_out=6", "tokens_out=6\u00a0"),
         "attempt ",
         "attempt model=m_a",
-        "attempt  " + IMP_ATTEMPT[len("attempt ") :],
+        "attempt  model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6",
     ]:
-        run("an attempt line of another shape: %r" % line, [IMP_ATTEMPT, line, IMP_VERDICT], [IMP_BOUND], "driver:4")
+        run("an attempt line of another shape: %r" % line, [IMP_ATTEMPT, COUNT_FAULT, line, IMP_VERDICT], [IMP_BOUND], "driver:6")
     files(
         "an attempt line with a byte that is no UTF-8",
-        doc("driver", b"```\n" + IMP_ATTEMPT.replace("m_a", "m_\xff", 1).encode("latin-1") + b"\n" + IMP_VERDICT.encode() + b"\n```\n"),
+        doc(
+            "driver",
+            b"```\nattempt model=m_\xff machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6\n"
+            + IMP_VERDICT.encode()
+            + b"\n```\n",
+        ),
         good_cells,
         "driver:3",
     )
-    run("a second attempt line of one key after the verdict", [IMP_ATTEMPT, IMP_VERDICT, IMP_ATTEMPT.replace("pass=yes steps=3", "pass=no steps=4")], [IMP_BOUND], "driver:5")
-    run("a second attempt line of one key", [IMP_ATTEMPT, IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND], "driver:4")
-    for key, value in [("model", "m_b"), ("machine", "hosted-win"), ("task", "order"), ("seed", "2"), ("kind", "recover")]:
+    run("a second attempt line of one key after the verdict", [IMP_ATTEMPT, IMP_VERDICT, IMP_WRITE.replace("pass=yes steps=3", "pass=no steps=4")], [IMP_BOUND], "driver:6")
+    run("a second attempt line of one key", [IMP_ATTEMPT, IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND], "driver:5")
+    for key, value in [("model", "m_b"), ("machine", "hosted-win"), ("seed", "2")]:
         run("an attempt line of another %s" % key, [IMP_ATTEMPT, attempt_with(key, value), IMP_VERDICT], [IMP_BOUND], None)
-    replay = attempt_with("kind", "replay")
-    run("two replays", [replay, replay.replace(" i=1 ", " i=2 "), IMP_VERDICT], [IMP_BOUND], None)
+    for other in [drive_cell("m_b", "mac", "bill", 1), drive_cell("m_a", "hosted-win", "bill", 1), drive_cell("m_a", "mac", "order", 1), drive_cell("m_a", "mac", "bill", 2)]:
+        run("a cell beside one of another key: %s" % other[-1], drive_cell("m_a", "mac", "bill", 1) + other + [IMP_VERDICT], [IMP_BOUND], None)
     for task, kind, i in [("bill", "compile", "2"), ("order", "recover", "2"), ("reply", "write", "2"), ("bill", "replay", "4"), ("order", "replay", "7")]:
-        run("%s %s i=%s" % (task, kind, i), [IMP_ATTEMPT, line_of("m_b", task, 1, kind, i), IMP_VERDICT], [IMP_BOUND], "driver:4")
+        run("%s %s i=%s" % (task, kind, i), [IMP_ATTEMPT, COUNT_FAULT, line_of("m_b", task, 1, kind, i), IMP_VERDICT], [IMP_BOUND], "driver:6")
     for further in [line_of("m_d", "bill", 1, "replay", "4"), line_of("m_d", "order", 2, "compile", "2")]:
         run("a further line of the driver: %s" % further, [further] + driver_lines("m_d") + ["verdict driver=m_d path=A writer=none"], [IMP_BOUND], "driver:3")
     lines = driver_lines("m_d")
@@ -946,10 +1056,15 @@ def import_cases():
     for name, lines, want in [
         ("replay 1 and 3", [line_of("m_b", "bill", 1, "replay", "1"), line_of("m_b", "bill", 1, "replay", "3")], "driver:4"),
         ("replay 3 and 2", [line_of("m_b", "bill", 1, "replay", "3"), line_of("m_b", "bill", 1, "replay", "2")], "driver:4"),
-        ("replay 2 alone beside a seed 2", [line_of("m_b", "bill", 1, "replay", "2"), line_of("m_b", "bill", 2, "replay", "1"), line_of("m_b", "bill", 2, "replay", "3")], "driver:3"),
+        ("replay 2 alone beside a seed 2", [COUNT_FAULT, line_of("m_b", "bill", 1, "replay", "2"), line_of("m_b", "bill", 2, "replay", "1"), line_of("m_b", "bill", 2, "replay", "3")], "driver:4"),
         ("a gap in seed 2 before seed 1", [line_of("m_b", "bill", 2, "replay", "1"), line_of("m_b", "bill", 2, "replay", "3"), line_of("m_b", "bill", 1, "replay", "2")], "driver:4"),
-        ("a replay 2 of seed 3 alone", [IMP_ATTEMPT, line_of("m_b", "bill", 3, "replay", "2")], "driver:4"),
-        ("replays 3, 1, 2", [line_of("m_b", "bill", 1, "replay", "3"), line_of("m_b", "bill", 1, "replay", "1"), line_of("m_b", "bill", 1, "replay", "2")], None),
+        ("a replay 2 of seed 3 alone", [IMP_ATTEMPT, line_of("m_b", "bill", 3, "replay", "2")], "driver:5"),
+        (
+            "replays 3, 1, 2",
+            [line_of("m_b", "bill", 1, "replay", "3"), line_of("m_b", "bill", 1, "replay", "1"), line_of("m_b", "bill", 1, "replay", "2")]
+            + [drive_cell("m_b", "mac", "bill", 1)[n] for n in (0, 4, 5)],
+            None,
+        ),
     ]:
         run("a gap: " + name, lines + [IMP_VERDICT], [IMP_BOUND], want)
     full = driver_lines("m_d") + writer_lines("m_d")
@@ -963,12 +1078,157 @@ def import_cases():
     for named_verdict in ["verdict driver=m_x path=A writer=none", "verdict driver=none path=B writer=m_x"]:
         run("a verdict of a model with no lines: " + named_verdict, full + [named_verdict], [IMP_BOUND], "driver:verdict")
     run("a driver's set beside a writer none", full + ["verdict driver=m_d path=A writer=none"], [IMP_BOUND], None)
-    run("a writer with a compile line", writer_lines("m_w") + [line_of("m_w", "bill", 1, "compile", "1"), "verdict driver=none path=B writer=m_w"], [IMP_BOUND], None)
+    run("a writer with a bill compile line and no drive line", writer_lines("m_w") + [line_of("m_w", "bill", 1, "compile", "1"), "verdict driver=none path=B writer=m_w"], [IMP_BOUND], "driver:15")
     lines = driver_lines("m_d")
     for task in TASKS:
         for seed in SEEDS:
             lines.append(line_of("m_n", task, seed, "compile", "1"))
-    run("compile lines of a model that is neither driver nor writer", lines + ["verdict driver=m_d path=A writer=none"], [IMP_BOUND], None)
+    run("compile lines of a model that is neither driver nor writer", lines + ["verdict driver=m_d path=A writer=none"], [IMP_BOUND], "driver:75")
+    the_set = driver_lines("m_d") + writer_lines("m_d")
+    set_verdict = "verdict driver=m_d path=A writer=m_d"
+
+    def beside_set(name, other, want):
+        run("the count: " + name, the_set + other + [set_verdict], [IMP_BOUND], want)
+
+    def other_line(n):
+        return "driver:%d" % (len(the_set) + n + 3)
+
+    cell = drive_cell("m_c", "mac", "bill", 1)
+    short = cell[:3] + cell[4:]
+    beside_set("a drive line with four attempt lines", short, other_line(4))
+    beside_set("a drive line with four attempt lines and compile=banana", short[:-1] + [short[-1].replace("compile=ok", "compile=banana")], other_line(4))
+    beside_set("a whole cell whose drive line has compile=banana", cell[:-1] + [cell[-1].replace("compile=ok", "compile=banana")], None)
+    beside_set("a drive line with a sixth attempt line, a key twice", cell + [cell[2]], other_line(6))
+    cell = drive_cell("m_c", "hosted-win", "order", 2)
+    whole = drive_cell("m_e", "mac", "bill", 1)
+    for name, other, want in [
+        ("five attempt lines with no drive line", cell[:5], other_line(0)),
+        ("one recover line with no drive line", cell[4:5], other_line(0)),
+        ("five attempt lines with no drive line after a whole cell", whole + cell[:5], other_line(6)),
+        ("one recover line with no drive line after a whole cell", whole + cell[4:5], other_line(6)),
+    ]:
+        beside_set(name, other, want)
+    drive = drive_cell("m_c", "mac", "order", 3)[5]
+    beside_set("a drive line with no attempt line", [drive], other_line(0))
+    beside_set("a drive line with no attempt line after a whole cell", whole + [drive], other_line(6))
+    cell = drive_cell("m_c", "mac", "bill", 2)
+    beside_set("a whole cell and its drive line again", cell + [cell[5]], other_line(5))
+    beside_set("a drive line, then its whole cell", [cell[5]] + cell, other_line(0))
+    short_z = drive_cell("m_z", "hosted-win", "order", 3)
+    short_z = short_z[:3] + short_z[4:]
+    alone_b = [drive_cell("m_b", "mac", "bill", 1)[5]]
+    beside_set("two broken cells, the short one first", short_z + alone_b, other_line(4))
+    beside_set("two broken cells, the lone drive line first", alone_b + short_z, other_line(0))
+    write = reply_cell("m_c", "mac", 2)[0]
+    beside_set("a write line with no reply line", [write], other_line(0))
+    beside_set("a write line with no reply line after a whole cell", reply_cell("m_e", "mac", 2) + [write], other_line(2))
+    reply = reply_cell("m_c", "hosted-win", 3)[1]
+    beside_set("a reply line with no write line", [reply], other_line(0))
+    beside_set("a reply line with no write line after a whole cell", reply_cell("m_e", "hosted-win", 3) + [reply], other_line(2))
+    cell = drive_cell("m_c", "mac", "bill", 1)
+    for line in [
+        " " + cell[5],
+        "\t" + cell[5],
+        cell[5].replace("model=m_c machine=mac", "machine=mac model=m_c", 1),
+        cell[5].replace("task=bill seed=1", "seed=1 task=bill", 1),
+    ]:
+        beside_set("a drive line that is no counted line: %r" % line, [line] + cell[:5], other_line(1))
+    beside_set("a reply line after a space", [reply_cell("m_c", "mac", 1)[0], " " + reply_cell("m_c", "mac", 1)[1]], other_line(0))
+    for name, write, reply in [
+        ("seed", reply_cell("m_c", "mac", 1), reply_cell("m_c", "mac", 2)),
+        ("machine", reply_cell("m_c", "mac", 1), reply_cell("m_c", "hosted-win", 1)),
+        ("model", reply_cell("m_c", "mac", 1), reply_cell("m_e", "mac", 1)),
+    ]:
+        beside_set("a write line and a reply line of another %s" % name, [write[0], reply[1]], other_line(0))
+        beside_set("a reply line and a write line of another %s" % name, [reply[1], write[0]], other_line(0))
+    alone = drive_cell("m_c", "mac", "bill", 1)[5]
+    gapped = drive_cell("m_b", "mac", "bill", 1)
+    del gapped[2]
+    run("the count after a gap", [alone] + gapped + [IMP_VERDICT], [IMP_BOUND], "driver:6")
+    run("the count after the set", [alone] + the_set[1:] + [set_verdict], [IMP_BOUND], "driver:verdict")
+    run("the count after the verdict's lines", [alone] + changed(the_set, 5, "recover=ok", "recover=miss") + [set_verdict], [IMP_BOUND], "driver:9")
+    run("the count with the gap mended", [alone] + drive_cell("m_b", "mac", "bill", 1) + [IMP_VERDICT], [IMP_BOUND], "driver:3")
+    run("the count with the set and the verdict's lines mended", [alone] + the_set + [set_verdict], [IMP_BOUND], "driver:3")
+    run("the count before a bad cells file", [alone, IMP_VERDICT], [IMP_BOUND, "bound model=M machine=mac bound_bytes=1 fits=no"], "driver:3")
+    drive = drive_cell("m_c", "mac", "bill", 1)[5]
+    reply = reply_cell("m_c", "mac", 1)[1]
+    for line in [
+        drive.replace("task=bill", "task=reply", 1),
+        drive.replace("task=bill", "task=cleanup", 1),
+        drive.replace("task=bill", "task=gen", 1),
+        drive.replace("machine=mac", "machine=gen_a", 1),
+        drive.replace("seed=1", "seed=4", 1),
+        drive.replace("seed=1", "seed=01", 1),
+        drive.replace("seed=1", "seed1", 1),
+        drive.replace("machine=mac", "machine==mac", 1),
+        drive.replace("task=bill", "taskbill", 1),
+        reply.replace("seed=1", "seed==1", 1),
+        drive.replace("model=m_c", "model=synthetic", 1),
+        drive.replace("model=m_c", "model=none", 1),
+        drive.replace("model=m_c", "model=M_c", 1),
+        drive.replace("model=m_c ", "model=m_c  ", 1),
+        drive.split(" compile=")[0],
+        reply.replace("machine=mac", "machine=win", 1),
+        reply.replace("seed=1", "seed=0", 1),
+        reply.replace("model=m_c", "model=synthetic", 1),
+        reply.replace("reply model", "replies model", 1),
+        reply.replace("machine=mac", "machine=gen_a", 1),
+        drive.replace("seed=1", "sead=1", 1),
+        drive.replace("machine=mac", "machnie=mac", 1),
+        reply.replace("seed=1", "sead=1", 1),
+        drive.replace("seed=1", "seedx=1", 1),
+        drive.replace("machine=mac", "machines=mac", 1),
+        reply.replace("machine=mac", "machinex=mac", 1),
+        drive.replace("machine=mac", "MACHINE=mac", 1),
+        drive.replace("task=bill", "Task=bill", 1),
+        reply.replace("seed=1", "SEED=1", 1),
+        drive.replace(" machine=mac", "\tmachine=mac", 1),
+        drive.replace("seed=1 ", "seed=1\t", 1),
+        reply.replace(" seed=1", "\tseed=1", 1),
+        drive.replace("seed=1", "seed:1", 1),
+        drive.replace("machine=mac", "machine:mac", 1),
+        reply.replace("seed=1", "seed:1", 1),
+    ]:
+        beside_set("a line outside the counted form: %r" % line, [line], None)
+    cell = drive_cell("m_c", "mac", "bill", 1)
+    write = reply_cell("m_c", "mac", 1)[0]
+    drive_head = "drive model=m_c machine=mac task=bill seed=1 "
+    reply_head = "reply model=m_c machine=mac seed=1 "
+    beside_set("a drive line that ends at the space after its seed", cell[:5] + [drive_head], None)
+    beside_set("a drive line whose fifth word is not compile=", cell[:5] + [drive_head + "x=1"], None)
+    beside_set("a reply line that ends at the space after its seed", [write, reply_head], None)
+    beside_set("a reply line whose fourth word is not bodies=", [write, reply_head + "x=1"], None)
+    reply = reply_cell("m_c", "mac", 1)
+    other = drive_cell("m_e", "hosted-win", "order", 3)
+    for name, lines in [
+        ("the drive line first", [cell[5]] + cell[:5]),
+        ("the drive line just before the verdict line", cell[:5] + other + [cell[5]]),
+        ("two cells interleaved", [line for pair in zip(cell, other) for line in pair]),
+        ("the reply line before its write line", [reply[1], reply[0]]),
+        ("the reply line just before the verdict line", [reply[0]] + cell + [reply[1]]),
+    ]:
+        beside_set("lines of a cell apart: " + name, lines, None)
+    beside_set(
+        "a cell that ends notrun after its compile",
+        cell[:1] + ["notrun model=m_c machine=mac task=bill seed=1 cause=wall"],
+        other_line(0),
+    )
+    root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    golden = os.path.join(root, "crates", "halvo-route-gate", "tests", "data", "r3", "no_driver")
+    with open(os.path.join(golden, "driver.md"), "rb") as f:
+        text = f.read().decode("utf-8")
+    kept = [
+        line
+        for line in (piece[:-1] if piece.endswith("\r") else piece for piece in text.split("\n")[: -1 if text.endswith("\n") else None])
+        if not line.startswith("drive model=m_tiny ") and (not line.startswith("attempt model=m_tiny ") or " kind=recover " in line)
+    ]
+    driver = "\n".join(kept + [""]).encode("utf-8")
+    with open(os.path.join(golden, "model-cells.md"), "rb") as f:
+        golden_cells = f.read()
+    if git_blob(driver) == "1f9f96fd225b36f133c25375e12da93ad70e29ce":
+        files("the golden no_driver file as U0.2 wrote it", driver, golden_cells, "driver:7")
+    else:
+        files("the golden no_driver file as U0.2 wrote it, not found as such", driver, golden_cells, "not the blob 1f9f96fd")
     no_drive = full[:5] + full[6:]
     no_reply = full[:73] + full[74:]
     for name, lines, want in [
@@ -993,7 +1253,7 @@ def import_cases():
         ("a reply line twice", full + [full[73]], "driver:87"),
     ]:
         run("the verdict's lines: " + name, lines + [both], [IMP_BOUND], want)
-    others = driver_lines("m_d") + [
+    others = driver_lines("m_d") + drive_cell("m_x", "mac", "bill", 1)[:5] + drive_cell("m_dd", "mac", "bill", 1)[:5] + reply_cell("m_d", "mac", 1)[:1] + [
         "drive model=m_x machine=mac task=bill seed=1 compile=miss",
         "drive model=m_dd machine=mac task=bill seed=1 compile=miss",
         "reply model=m_d machine=mac seed=1 bodies=0 of=2",
@@ -1025,7 +1285,7 @@ def import_cases():
         "verdict driver=m_a path=A writer=m_b",
         "verdict driver=",
     ]:
-        run("a verdict line %r" % line, [IMP_ATTEMPT, line], [IMP_BOUND], "driver:4")
+        run("a verdict line %r" % line, [IMP_ATTEMPT, line], [IMP_BOUND], "driver:5")
     for line, lines in [
         ("verdict driver=m_d path=A writer=none", driver_lines("m_d")),
         ("verdict driver=m_d path=A writer=m_d", driver_lines("m_d") + writer_lines("m_d")),
@@ -1058,7 +1318,7 @@ def import_cases():
     ]:
         run("a bound line %r" % line, [IMP_ATTEMPT, IMP_VERDICT], [IMP_CANDIDATES, line], "cells:4")
     run("a second bound line of one model and machine", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND, "bound model=m_a machine=hosted-win bound_bytes=1 fits=no", "bound model=m_a machine=mac bound_bytes=7 fits=no"], "cells:5")
-    run("the driver file first", [IMP_ATTEMPT, attempt_with("seed", "9"), "verdict driver=x"], ["bound x"], "driver:4")
+    run("the driver file first", [IMP_ATTEMPT, attempt_with("seed", "9"), "verdict driver=x"], ["bound x"], "driver:5")
     run("the driver's verdict before the cells", [IMP_ATTEMPT], ["bound x"], "driver:verdict")
     run("the cells file in line order", [IMP_ATTEMPT, IMP_VERDICT], [IMP_BOUND, "bound x", "bound model=M machine=mac bound_bytes=1 fits=no"], "cells:4")
     files("an open driver block before cells with no block", ("# d\n```\n%s\n" % a).encode("utf-8"), b"no block\r\n", "driver:block")
@@ -1281,8 +1541,7 @@ def self_test():
     fields += [(k, v) for k in ("steps", "wall_s", "tokens_in", "tokens_out") for v in ("x", "01", "²", "18446744073709551616")]
     fields += [("pass", "maybe"), ("seed", "4"), ("model", "none"), ("i", "0")]
     for key, value in fields:
-        attempt = " ".join(key + "=" + value if w.split("=", 1)[0] == key and "=" in w else w for w in IMP_ATTEMPT.split(" "))
-        driver, cells_ok = before_verdict(attempt)
+        driver, cells_ok = before_verdict(with_value(IMP_ATTEMPT, key, value))
         expect("the attempt line before the verdict with %s=%r" % (key, value), import_refusal(driver, cells_ok), "driver:3")
     driver, cells_ok = before_verdict(IMP_ATTEMPT)
     expect("the attempt line before the verdict as it should be", import_refusal(driver, cells_ok), None)
@@ -1300,8 +1559,67 @@ def self_test():
         try:
             outcome(driver, cells_text, ["--check"])
             failures.append("importer case %s: --check did not refuse" % name)
-        except Refusal:
+        except Refusal as refusal:
+            said = (refusal.cause, refusal.detail)
+            if said != ("source", "route-gate import refuses the files at %s" % want):
+                failures.append("importer case %s: --check refused with %r, not at %s" % (name, said, want))
+                continue
             agreed += 1
+
+    def main_calls():
+        with tempfile.TemporaryDirectory() as root:
+            trials = os.path.join(root, "docs", "r3", "trials")
+            os.makedirs(trials)
+            path = os.path.join(trials, "driver.md")
+            with open(path, "wb") as f:
+                f.write(("t\n```text\n" + "\n".join(full("m_a") + [none]) + "\n```\n").encode("utf-8"))
+            with open(os.path.join(trials, "model-cells.md"), "wb") as f:
+                f.write(cells)
+            calls = []
+            for argv, at in ((["--check"], root), ([], root), (["--write"], root), (["--check"], root), (["--checks"], root), (["--check"], trials)):
+                printed = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(printed):
+                        calls.append((main(argv, at), printed.getvalue()))
+                except Refusal as refusal:
+                    calls.append((refusal.cause, printed.getvalue()))
+            with open(path, "rb") as f:
+                return calls, f.read()
+
+    try:
+        calls, written = main_calls()
+        expect("main() with its four calls and two refusals", calls, [
+            (1, "verdict check same=no\n"),
+            (0, "verdict driver=m_a path=A writer=m_a\n"),
+            (0, "verdict write verdict driver=m_a path=A writer=m_a\n"),
+            (0, "verdict check same=yes\n"),
+            ("usage", ""),
+            ("source", ""),
+        ])
+        expect("main() --write, the file it wrote", written, ("t\n```text\n" + "\n".join(full("m_a") + ["verdict driver=m_a path=A writer=m_a"]) + "\n```\n").encode("utf-8"))
+    except Exception as error:
+        failures.append("main() with a root of fixtures: %s: %s" % (type(error).__name__, error))
+
+    def crash(argv):
+        return [][len(argv)]
+
+    def refuse(argv):
+        raise Refusal("usage", "a stand-in refusal")
+
+    try:
+        exits = []
+        for call in (crash, refuse, lambda argv: 1, lambda argv: 0):
+            told = io.StringIO()
+            with contextlib.redirect_stderr(told):
+                exits.append((entry(["--check"], call), told.getvalue().splitlines()[-1:]))
+        expect("a crash exits 3, a refusal 2 and a call its own status", exits, [
+            (3, ["CRASH IndexError"]),
+            (2, ["REFUSED usage: a stand-in refusal"]),
+            (1, []),
+            (0, []),
+        ])
+    except Exception as error:
+        failures.append("entry() of the command line: %s: %s" % (type(error).__name__, error))
 
     if failures:
         for failure in failures:
@@ -1320,12 +1638,14 @@ def same_verdict(body, computed):
     return stated == [computed] and body[-1:] == [computed]
 
 
-def main(argv):
+def main(argv, root=None):
+    """The call of the command line, on the files under `root`, the checkout of this file when None."""
     if argv == ["--self-test"]:
         return self_test()
     if argv not in ([], ["--check"], ["--write"]):
         raise Refusal("usage", "verdict.py takes no argument, --check, --write or --self-test")
-    root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    if root is None:
+        root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 
     def read(path):
         try:
@@ -1348,9 +1668,20 @@ def main(argv):
     return 0
 
 
-if __name__ == "__main__":
+def entry(argv, call=main):
+    """The exit status of the command line: that of `call`; 2 after a refusal, with its line on
+    standard error; 3 after any other exception, a fault of verdict.py itself, with its traceback and
+    the line `CRASH <exception>` on standard error, so that no crash reads as 1, a verdict that differs."""
     try:
-        sys.exit(main(sys.argv[1:]))
+        return call(argv)
     except Refusal as refusal:
         sys.stderr.write("REFUSED %s: %s\n" % (refusal.cause, refusal.detail))
-        sys.exit(2)
+        return 2
+    except Exception as error:
+        traceback.print_exc()
+        sys.stderr.write("CRASH %s\n" % type(error).__name__)
+        return 3
+
+
+if __name__ == "__main__":
+    sys.exit(entry(sys.argv[1:]))
