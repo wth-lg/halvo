@@ -1940,3 +1940,338 @@ fn st48_u5_the_tail_opens_the_store_directory_from_the_data_directorys_handle() 
         "the tail left the store of the data directory that it opened"
     );
 }
+
+/// Where the root-step tests of store-3c put a file of another party in the
+/// roots folder: at a root name of another id, or at the root name that the
+/// call names (the store's own for the tail and the delete-all, the mark's own
+/// for a cleanup by a made mark).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Place {
+    AnotherIdsRootName,
+    TheNamedRootName,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Caller {
+    Tail,
+    DeleteAll,
+    TheOpensCleanup,
+}
+
+/// Runs `caller` on a fresh store of `dir` with the file at `outside` given a
+/// second name at `place` in the roots folder; for the open's cleanup the
+/// made mark records the identity of that file. Answers how the call ended.
+fn st3c_call_with_a_foreign_file(
+    dir: &Path,
+    outside: &Path,
+    place: Place,
+    caller: Caller,
+) -> String {
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir);
+    let marked = RootId::fresh().unwrap();
+    let named = match caller {
+        Caller::TheOpensCleanup => marked,
+        _ => root_id,
+    };
+    let mut store = (caller == Caller::DeleteAll)
+        .then(|| open_over_file_root(&store_dir, &roots_dir, root_id).unwrap());
+    let inside = match place {
+        Place::AnotherIdsRootName => roots_dir.join(format!("{}.root", RootId::fresh().unwrap())),
+        Place::TheNamedRootName => {
+            let own = roots_dir.join(format!("{named}.root"));
+            if own.exists() {
+                std::fs::rename(&own, roots_dir.join("the-root-aside")).unwrap();
+            }
+            own
+        }
+    };
+    std::fs::hard_link(outside, &inside).unwrap();
+    match caller {
+        Caller::Tail => answer_line(&tail(&store_dir, &roots_dir)),
+        Caller::DeleteAll => answer_line(&store.as_mut().unwrap().delete_all()),
+        Caller::TheOpensCleanup => {
+            write_made_mark(&store_dir, marked, Some(outside));
+            format!(
+                "{:?}",
+                open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+            )
+        }
+    }
+}
+
+/// The inbox entry of 2026-11-17T02:59:55Z (1), row 20 of
+/// reports/verifier-162.md: a file of another party of 100 bytes and mode 0444
+/// with a second name outside the roots folder, at a root name of another id
+/// and at the root name that the call names, keeps its mode and its bytes,
+/// read through its outside name, after the tail, after the handle's
+/// delete-all and after the open's cleanup by a made mark that records its
+/// identity: the step reads the count and the length by the name before it
+/// sets any mode. A file with one name, of a root file's length and of mode
+/// 0000, at a root name of another id is still zeroed and removed.
+#[test]
+fn row20_a_file_of_another_length_at_a_root_name_keeps_its_mode_and_its_bytes() {
+    let mut problems = Vec::new();
+    for place in [Place::AnotherIdsRootName, Place::TheNamedRootName] {
+        for caller in [Caller::Tail, Caller::DeleteAll, Caller::TheOpensCleanup] {
+            let dir = tempfile::tempdir().unwrap();
+            let (outside, bytes, reader) = st48_foreign_file(dir.path(), "outside", 100, 0o444);
+            let answer = st3c_call_with_a_foreign_file(dir.path(), &outside, place, caller);
+            let mode_after = st48_mode(&outside);
+            let bytes_kept = st48_bytes_of(&reader) == bytes;
+            println!(
+                "ROW20 place={place:?} caller={caller:?} answer={answer} outside_mode={mode_after:o} outside_bytes_kept={bytes_kept}"
+            );
+            if mode_after != 0o444 || !bytes_kept {
+                problems.push(format!(
+                    "{place:?}, {caller:?}: outside mode {mode_after:o}, bytes kept {bytes_kept}"
+                ));
+            }
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let single = roots_dir.join(format!("{}.root", RootId::fresh().unwrap()));
+    let (_, _, reader) = st48_foreign_file(
+        &roots_dir,
+        single.file_name().unwrap().to_str().unwrap(),
+        32,
+        0o000,
+    );
+    let answer = tail(&store_dir, &roots_dir);
+    let zeroed = st48_bytes_of(&reader).iter().all(|&b| b == 0);
+    println!(
+        "ROW20-SINGLE answer={} zeroed={zeroed} stands={}",
+        answer_line(&answer),
+        single.exists()
+    );
+    if !zeroed || single.exists() {
+        problems.push(format!(
+            "a single-name file of a root file's length and mode 0000 at another id's root name: zeroed {zeroed}, stands {}",
+            single.exists()
+        ));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Where the test of ruling ST-49 gives a file of another party a second name
+/// in the roots folder, and whether the mark's path writes through it there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MarkedAt {
+    OthersPartial,
+    OthersPartialRootLength,
+    OthersPartialOneName,
+    MarksOwnPartial,
+    OthersRootName,
+}
+
+/// Ruling ST-49 (part (3) of the inbox entry of 2026-11-17T02:59:55Z, the
+/// verifier's case N3; ruling ST-50, the review's B2): a create.pending
+/// written by hand whose made mark records the identity of another party's
+/// file of mode 0444 at a partial name of another id than the mark's, in
+/// every shape that the sweep meets there: 100 bytes with a second name
+/// outside, a root file's length with a second name outside, and a root
+/// file's length with that one name. After the next open, after the tail and
+/// after the next create, each in its own case, that file keeps its mode and
+/// its bytes, read through a handle kept from before the call, the partial
+/// name is gone and the tail reads no root destroyed. Controls: at a
+/// partial name of the mark's own id the file is still zero-filled through
+/// every name, at another id's root name a file of a root file's length still
+/// is (ruling ST-48), and on the handle's path the store's own root renamed
+/// to another id's partial name is still destroyed.
+#[test]
+fn st49_a_mark_writes_through_at_a_partial_name_of_its_own_id_alone() {
+    let mut problems = Vec::new();
+    for at in [
+        MarkedAt::OthersPartial,
+        MarkedAt::OthersPartialRootLength,
+        MarkedAt::OthersPartialOneName,
+        MarkedAt::MarksOwnPartial,
+        MarkedAt::OthersRootName,
+    ] {
+        for reader in ["the next open", "the tail", "the next create"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+            let marked = RootId::fresh().unwrap();
+            let other = RootId::fresh().unwrap();
+            let (len, mode) = match at {
+                MarkedAt::OthersRootName => (32, 0o644),
+                MarkedAt::OthersPartialRootLength | MarkedAt::OthersPartialOneName => (32, 0o444),
+                _ => (100, 0o444),
+            };
+            let inside_name = match at {
+                MarkedAt::MarksOwnPartial => format!("{marked}.0123456789abcdef.root.tmp"),
+                MarkedAt::OthersRootName => format!("{other}.root"),
+                _ => format!("{other}.0123456789abcdef.root.tmp"),
+            };
+            let inside = roots_dir.join(&inside_name);
+            let (outside, bytes, kept) = if at == MarkedAt::OthersPartialOneName {
+                st48_foreign_file(&roots_dir, &inside_name, len, mode)
+            } else {
+                let (outside, bytes, kept) = st48_foreign_file(dir.path(), "outside", len, mode);
+                std::fs::hard_link(&outside, &inside).unwrap();
+                (outside, bytes, kept)
+            };
+            if reader != "the next open" {
+                std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+            }
+            write_made_mark(&store_dir, marked, Some(&outside));
+            let (answer, destroyed) = match reader {
+                "the next open" => (
+                    format!(
+                        "{:?}",
+                        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+                    ),
+                    false,
+                ),
+                "the tail" => {
+                    let answer = tail(&store_dir, &roots_dir);
+                    let destroyed = match &answer {
+                        Ok(report) => report.root_destroyed(),
+                        Err(StoreError::DeleteIncomplete(report)) => report.root_destroyed(),
+                        Err(_) => false,
+                    };
+                    (answer_line(&answer), destroyed)
+                }
+                _ => (
+                    format!(
+                        "{:?}",
+                        EncryptedStore::create(
+                            &store_dir,
+                            Box::new(file_root_custody(
+                                &roots_dir,
+                                TestProtector::new(0x5a).0,
+                                RootId::fresh().unwrap(),
+                            )),
+                            DEFAULT_RETENTION,
+                        )
+                        .map(drop)
+                    ),
+                    false,
+                ),
+            };
+            let mode_after = {
+                use std::os::unix::fs::PermissionsExt;
+                kept.metadata().unwrap().permissions().mode() & 0o7777
+            };
+            let now = st48_bytes_of(&kept);
+            let inside_stands = std::fs::symlink_metadata(&inside).is_ok();
+            println!(
+                "ST49 at={at:?} reader={reader} answer={answer} file_mode={mode_after:o} file_bytes_kept={} file_zeroed={} inside_stands={inside_stands} root_read_destroyed={destroyed}",
+                now == bytes,
+                now.iter().all(|&b| b == 0)
+            );
+            let wrong = match at {
+                MarkedAt::OthersPartial
+                | MarkedAt::OthersPartialRootLength
+                | MarkedAt::OthersPartialOneName => {
+                    mode_after != mode || now != bytes || inside_stands || destroyed
+                }
+                _ => !now.iter().all(|&b| b == 0) || inside_stands,
+            };
+            if wrong {
+                problems.push(format!(
+                    "{at:?}, {reader}: file mode {mode_after:o}, bytes kept {}, zeroed {}, the name in the roots folder stands {inside_stands}, root read destroyed {destroyed}",
+                    now == bytes,
+                    now.iter().all(|&b| b == 0)
+                ));
+            }
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let partial = roots_dir.join(format!(
+        "{}.0123456789abcdef.root.tmp",
+        RootId::fresh().unwrap()
+    ));
+    std::fs::rename(roots_dir.join(format!("{root_id}.root")), &partial).unwrap();
+    let answer = store.delete_all();
+    println!(
+        "ST49-HANDLE answer={} partial_stands={}",
+        answer_line(&answer),
+        partial.exists()
+    );
+    if !matches!(&answer, Ok(report) if report.root == RootReading::Destroyed) || partial.exists() {
+        problems.push(format!(
+            "the handle's delete-all of its root renamed to another id's partial name answered {}",
+            answer_line(&answer)
+        ));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-50 (verifier-173's M29 and M30): the kept handle's own test
+/// before a write at a root name and at a partial name. A file of another
+/// identity put at the name between the read by name and the open, at
+/// another id's root name and at a partial name, is never written through;
+/// and at another id's root name a file of 100 bytes with one name that
+/// gains a second name in that window is not written through.
+#[test]
+fn st50_the_kept_handle_refuses_a_swapped_file_and_an_added_name_at_a_root_or_partial_name() {
+    let mut problems = Vec::new();
+    for case in [
+        "a file swapped in at another id's root name",
+        "a file swapped in at a partial name",
+        "a name added at another id's root name",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+        let other = RootId::fresh().unwrap();
+        let name = if case.ends_with("a partial name") {
+            format!("{other}.0123456789abcdef.root.tmp")
+        } else {
+            format!("{other}.root")
+        };
+        let inside = roots_dir.join(&name);
+        let swap = case.starts_with("a file swapped in");
+        std::fs::write(
+            &inside,
+            if swap {
+                vec![0x61u8; 32]
+            } else {
+                vec![0x62u8; 100]
+            },
+        )
+        .unwrap();
+        let (swapped_in, swapped_bytes, swapped_reader) =
+            st48_foreign_file(dir.path(), "swapped-in", 32, 0o644);
+        let second = dir.path().join("second-name");
+        let kept_bytes = std::fs::read(&inside).unwrap();
+        let (to, link) = (inside.clone(), second.clone());
+        let _seam = crate::custody::file_root::kept_open_seam::at(move |at| {
+            if at.to_str() != Some(name.as_str()) {
+                return;
+            }
+            if swap && swapped_in.exists() {
+                std::fs::rename(&swapped_in, &to).unwrap();
+            }
+            if !swap && !link.exists() {
+                std::fs::hard_link(&to, &link).unwrap();
+            }
+        });
+        let answer = tail(&store_dir, &roots_dir);
+        drop(_seam);
+        let kept = if swap {
+            st48_bytes_of(&swapped_reader) == swapped_bytes
+        } else {
+            std::fs::read(&second).ok() == Some(kept_bytes)
+        };
+        let acted = if swap {
+            !dir.path().join("swapped-in").exists()
+        } else {
+            second.exists()
+        };
+        println!(
+            "ST50-KEPT case={case} answer={} seam_acted={acted} the_other_files_bytes_kept={kept} name_stands={}",
+            answer_line(&answer),
+            inside.exists()
+        );
+        if !acted || !kept || inside.exists() {
+            problems.push(format!(
+                "{case}: the seam acted {acted}, the other file's bytes kept {kept}, the name stands {}",
+                inside.exists()
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
