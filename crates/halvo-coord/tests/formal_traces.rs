@@ -509,14 +509,13 @@ impl Sched {
                             self.table = self.table.stop(&run);
                             let _ = halvo_coord::ports::Runs::cancel(&self.ports, &run);
                         }
-                        Act::Stop {
-                            run,
-                            by: if a["cause"] == "lapsed" {
-                                StopBy::WaitLimit
-                            } else {
-                                StopBy::Person
-                            },
-                        }
+                        let by = match a["cause"].as_str() {
+                            Some("cancelled") => StopBy::Person,
+                            Some("lapsed") => StopBy::WaitLimit,
+                            Some("answer_lost") => StopBy::AnswerLost,
+                            other => panic!("{at}: no stop cause {other:?}"),
+                        };
+                        Act::Stop { run, by }
                     }
                 };
                 let done = self.act(act);
@@ -1480,7 +1479,12 @@ impl Conf {
                                     LapseCause::parse(a["cause"].as_str().unwrap()).unwrap();
                                 let lives =
                                     !matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded);
-                                if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
+                                if matches!(
+                                    cause,
+                                    LapseCause::WaitLimit
+                                        | LapseCause::Cancelled
+                                        | LapseCause::AnswerLost
+                                ) {
                                     self.table = self.table.stop(&self.run);
                                     self.state = "stopped";
                                     p.push(json!({"call": "cancel"}));
@@ -1490,7 +1494,10 @@ impl Conf {
                                     sent = entries(&d);
                                     p.push(json!({"call": "answer_confirm", "item": name, "answer": "reject"}));
                                 }
-                                if lives && matches!(conf.state(), ConfirmState::Answered(_)) {
+                                if lives
+                                    && cause != LapseCause::AnswerLost
+                                    && matches!(conf.state(), ConfirmState::Answered(_))
+                                {
                                     let d = self.mint(&conf, EffectAnswer::RejectOnce);
                                     sent = entries(&d);
                                 }
@@ -1828,4 +1835,36 @@ fn formal_traces_refuses_a_pair_whose_stamps_differ() {
     let refused = read_pair(SCHEDULE, &other);
     assert!(refused.is_err_and(|e| e.contains("two stamps")));
     assert!(read_pair(SCHEDULE, CONFIRM).is_ok());
+}
+
+const CONFIRM_MODEL: &str = include_str!("../../../formal/r4-coordinator/Confirm4.tla");
+const SCHEDULE_MODEL: &str = include_str!("../../../formal/r4-coordinator/Schedule.tla");
+
+/// The set that a line `<head>{"a", "b"}` of a model names, sorted.
+fn model_set<'a>(model: &'a str, head: &str) -> Vec<&'a str> {
+    let line = model
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with(head))
+        .unwrap_or_else(|| panic!("no line {head}"));
+    let set = line[head.len()..].trim_end().trim_end_matches('}');
+    let mut names: Vec<&str> = set.split(", ").map(|n| n.trim_matches('"')).collect();
+    names.sort_unstable();
+    names
+}
+
+#[test]
+fn formal_traces_the_models_take_the_codes_cause_answer_lost() {
+    let mut code: Vec<&str> = LapseCause::ALL.iter().map(|c| c.name()).collect();
+    code.sort_unstable();
+    assert_eq!(
+        model_set(CONFIRM_MODEL, "Causes == {"),
+        code,
+        "Confirm4's Causes are the causes of a lapse of a confirmation (ruling RD-84 item 5)"
+    );
+    assert_eq!(
+        model_set(SCHEDULE_MODEL, "/\\ StopCauses \\subseteq {"),
+        ["answer_lost", "cancelled", "lapsed"],
+        "Schedule's bound on the stop causes holds answer_lost (ruling RD-84 item 5)"
+    );
 }
