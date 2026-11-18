@@ -78,6 +78,7 @@ struct State<C> {
     sync: Sync,
     mark: Mark,
     answering: Option<ItemId>,
+    returned: bool,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -102,11 +103,13 @@ enum Entry {
 }
 
 /// The coordinator's state while a call holds its lock. A call that does not return leaves the
-/// mark and rings the bell as it unwinds, and runs nothing else there (ruling RD-80 4.2).
+/// mark and rings the bell as it unwinds, and runs nothing else there (ruling RD-80 4.2); a call
+/// made while another panic already unwinds its thread, and that returns, leaves none.
 struct Entered<'a, P: Owner + Page> {
     st: MutexGuard<'a, State<Cfg<P>>>,
     ports: &'a P,
     entry: Entry,
+    unwinding: bool,
 }
 
 impl<P: Owner + Page> std::ops::Deref for Entered<'_, P> {
@@ -125,7 +128,7 @@ impl<P: Owner + Page> std::ops::DerefMut for Entered<'_, P> {
 
 impl<P: Owner + Page> Drop for Entered<'_, P> {
     fn drop(&mut self) {
-        if !std::thread::panicking() {
+        if self.unwinding || !std::thread::panicking() {
             return;
         }
         self.st.mark.unpublished = true;
@@ -307,6 +310,7 @@ where
                 sync: Sync::new(),
                 mark: Mark::default(),
                 answering: None,
+                returned: false,
             }),
         }
     }
@@ -330,6 +334,7 @@ where
             st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
             ports: &self.ports,
             entry,
+            unwinding: std::thread::panicking(),
         };
         if entry != Entry::Read {
             self.take_up(&mut st);
@@ -342,6 +347,13 @@ where
 
     fn lock(&self) -> Entered<'_, P> {
         self.enter(Entry::Read)
+    }
+
+    /// Whether a move waits for the settle of RD-84, which could not read the clock: such a move
+    /// does none of its own work and answers `no_service`, so that no move takes the item before
+    /// it is settled, and the next move settles it.
+    fn waits(st: &State<Cfg<P>>) -> bool {
+        st.answering.is_some()
     }
 
     /// What a move takes up first after a move that did not return: after a tick, the defers of
@@ -362,7 +374,8 @@ where
     /// alone: at one read of the clock, the run stopped on the board with `answer_lost`, then the
     /// lapse with `answer_lost`, which stops the run in the guard's table, queues its row,
     /// sends `Runs::cancel` once and no decision, and then the row. Where the clock cannot be
-    /// read the next move settles it; an item that is no longer `answered` is not touched.
+    /// read the move waits (`waits`) and the next move settles it; an item that is no longer
+    /// `answered` is not touched.
     fn settle(&self, st: &mut State<Cfg<P>>) {
         if st.answering.is_none() {
             return;
@@ -415,6 +428,9 @@ where
     /// and dying tree at its grace with nothing stored and sends what the board owes.
     pub fn tick(&self) {
         let mut st = self.enter(Entry::Tick);
+        if Self::waits(&st) {
+            return;
+        }
         if st.quitting {
             let State { board, ledgers, .. } = &mut *st;
             if let Some(board) = board.as_mut() {
@@ -427,6 +443,7 @@ where
             self.finish_switch_offs_after_reads(&mut st, &before);
         }
         st.mark.tick = false;
+        st.returned = true;
         self.publish(&mut st);
     }
 
@@ -721,6 +738,9 @@ where
     /// with that cause and is answered `state`.
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
+        if Self::waits(&st) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let out = self.on_run_in(&mut st, run, &event);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1256,6 +1276,9 @@ where
     ) -> Result<(), Cause> {
         let now = self.ports.now().ok();
         let mut st = self.enter(Entry::Move);
+        if Self::waits(&st) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let by = AnsweredBy {
             step: Some(step),
@@ -1276,6 +1299,9 @@ where
         };
         let now = self.ports.now().ok();
         let mut st = self.enter(Entry::Move);
+        if Self::waits(&st) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let by = AnsweredBy {
             step: None,
@@ -1537,6 +1563,9 @@ where
         step: u32,
     ) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
+        if Self::waits(&st) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let out = self.setup(&mut st, item, SetupInput::Typed { param, text }, step);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1673,6 +1702,9 @@ where
     /// switch-off control lapses that item in the same way before its own move.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
+        if Self::waits(&st) {
+            return Err(Cause::NoService);
+        }
         let before = Self::agents_held_off(&st);
         let out = self.control_in(&mut st, agent, action);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -1862,7 +1894,11 @@ where
     /// whose setup body the owner ended, is `unknown_agent`, as for every control.
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
-        let board = st.board.as_ref().ok_or(Cause::NoService)?;
+        let board = st
+            .board
+            .as_ref()
+            .filter(|_| st.returned)
+            .ok_or(Cause::NoService)?;
         let shown = Self::shown(&st, board);
         let k = shown
             .iter()
@@ -1887,9 +1923,21 @@ where
         self.lock().sync.next(after)
     }
 
-    /// The reply of `agents_next` after `next_wait_s` with no change (I8.1).
+    /// The reply of `agents_next` after `next_wait_s` with no change (I8.1); the whole state
+    /// where this call is the one that publishes after a move that did not return (ruling
+    /// RD-80 4.2), so that the page takes the raised `seq` with its state.
     pub fn same(&self) -> Snapshot {
-        self.lock().sync.same()
+        let mut st = Entered {
+            st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
+            ports: &self.ports,
+            entry: Entry::Read,
+            unwinding: std::thread::panicking(),
+        };
+        if st.mark.unpublished {
+            self.publish(&mut st);
+            return st.sync.snapshot();
+        }
+        st.sync.same()
     }
 
     fn publish(&self, st: &mut State<Cfg<P>>) {
@@ -1922,7 +1970,7 @@ where
     }
 
     fn compose(&self, st: &State<Cfg<P>>) -> (Vec<Row>, Vec<Item>, Option<String>) {
-        let Some(board) = st.board.as_ref() else {
+        let Some(board) = st.board.as_ref().filter(|_| st.returned) else {
             return (
                 Vec::new(),
                 Vec::new(),

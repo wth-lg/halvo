@@ -8565,3 +8565,114 @@ fn rd84_a_stop_stored_failed_reads_back_as_the_stop_answer_lost_and_ends_failed(
         );
     }
 }
+
+fn due_life() -> Coordinator<Both> {
+    let due = support::A {
+        person: false,
+        slotted: true,
+    };
+    Coordinator::new(owner(&[due], Limits::PRODUCT), Limits::PRODUCT)
+}
+
+#[test]
+fn rd80_a_first_tick_that_panics_after_recovery_leaves_the_stand_in_and_no_card() {
+    let c = due_life();
+    let held = c.snapshot();
+    panicking(&c, "start", || c.tick());
+    let Next::Changed(s) = c.next(held.seq) else {
+        panic!("the waiting call takes a state");
+    };
+    assert!(s.rows.is_empty() && s.items.is_empty(), "{s:?}");
+    assert_eq!(s.note, Some(text("note.no_service")));
+    assert_eq!(c.card(&agent(0)), Err(Cause::NoService));
+    assert_eq!(c.control(&agent(0), Action::RunNow), Err(Cause::NoService));
+    c.tick();
+    let s = c.snapshot();
+    assert_eq!(
+        s.rows.len(),
+        1,
+        "the first tick that returns shows the rows"
+    );
+    assert_eq!(s.note, None);
+}
+
+#[test]
+fn rd80_a_tick_that_returns_while_another_panic_unwinds_sets_no_mark() {
+    struct TickOnDrop<'a>(&'a Coordinator<Both>);
+    impl Drop for TickOnDrop<'_> {
+        fn drop(&mut self) {
+            self.0.tick();
+        }
+    }
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let held = c.snapshot();
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _tick = TickOnDrop(&c);
+        panic!("a panic of the caller, outside the coordinator");
+    }));
+    assert!(out.is_err());
+    let s = c.snapshot();
+    assert_eq!(s.note, None, "the tick returned");
+    assert_eq!(s.seq, held.seq, "no move was lost and nothing differs");
+    assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()));
+}
+
+#[test]
+fn rd80_same_as_the_first_call_after_a_lost_tick_answers_the_state_with_the_note() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let held = c.snapshot();
+    tick_that_panics(&c);
+    let same = c.same();
+    assert_eq!(same.seq, held.seq + 1);
+    assert_eq!(same.note, Some(text("note.out_of_date")));
+    assert_eq!(
+        same.rows, held.rows,
+        "the whole state, not the empty lists of no change"
+    );
+    assert!(matches!(c.next(same.seq), Next::Same));
+}
+
+#[test]
+fn rd84_a_settle_whose_clock_fails_holds_the_moves_own_work_until_it_settles() {
+    for next in ["stop", "confirm"] {
+        let (c, run, item) = armed_confirmation();
+        let m = mark(&c);
+        panicking(&c, "answer_confirm_after_send", || {
+            c.answer(&item, Choice::Allow, None, 0)
+        });
+        let sent = decisions_since(&c, m).len();
+        c.ports().fail_read_at.set(Some(0));
+        let out = match next {
+            "stop" => c.control(&agent(0), Action::Stop),
+            _ => c.on_run(&run, ask_confirm(&run, 0)),
+        };
+        c.ports().fail_read_at.set(None);
+        assert_eq!(
+            out,
+            Err(Cause::NoService),
+            "{next}: the move waits for the settle"
+        );
+        assert_eq!(lost_lapses(&c, &item), 0, "{next}");
+        assert_eq!(cancels_of(&c, m, &run), 0, "{next}");
+        c.tick();
+        assert!(
+            !events(&c).iter().any(|w| matches!(
+                w,
+                What::ItemLapsed { item: i, lapsed: Lapsed::Confirm(LapseCause::Cancelled) } if i == &item
+            )),
+            "{next}: no lapse of the move's own"
+        );
+        assert_eq!(lost_lapses(&c, &item), 1, "{next}: one answer_lost");
+        assert_eq!(cancels_of(&c, m, &run), 1, "{next}: one cancel");
+        assert_eq!(decisions_since(&c, m).len(), sent, "{next}: no decision");
+        assert!(c.snapshot().items.is_empty(), "{next}: no second item");
+        c.ports().ports.end_runner(&run);
+        assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{next}");
+        assert!(
+            events(&c).iter().any(
+                |w| matches!(w, What::RunEnded { run: r, cause: RunEnd::Failed, .. } if r == &run)
+            ),
+            "{next}: the run ended failed"
+        );
+    }
+}
