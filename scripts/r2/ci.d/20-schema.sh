@@ -224,7 +224,7 @@ check() {
       LC_ALL=$fixture_locale
       export LC_ALL
     fi
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CALLS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CALLS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF STUB_TR STUB_REAL_TR
     TMPDIR=$work/tmp/$1 sh "$self" 2>&1
   )
   code=$?
@@ -245,6 +245,7 @@ check() {
   STUB_SIGNAL=
   STUB_HEAD=
   STUB_DIFF=
+  STUB_TR=
   fixture_locale=
   STUB_CORE_LOG=$work/core.log
   STUB_SCHEMA_LOG=$work/schema.log
@@ -353,6 +354,7 @@ self_test() {
   STUB_SIGNAL=
   STUB_HEAD=
   STUB_DIFF=
+  STUB_TR=
   names='accessibility_text
 active
 address_field'
@@ -453,6 +455,13 @@ case $* in
 esac
 EOF
   chmod +x "$work/bin/git" || self_fail "the stub git cannot be made executable"
+  STUB_REAL_TR=$(command -v tr) || self_fail "tr is not on the PATH"
+  cat >"$work/bin/tr" <<'EOF'
+#!/bin/sh
+[ -z "$STUB_TR" ] || printf '%s\n' "${LC_ALL-unset}" >>"$STUB_TR"
+exec "$STUB_REAL_TR" "$@"
+EOF
+  chmod +x "$work/bin/tr" || self_fail "the stub tr cannot be made executable"
   rejected=0
   wrong=
   STUB_CORE_EXIT=0
@@ -722,7 +731,11 @@ $later_line
   printf 'halvo-schema tests/locked_files.rs each_lib_rs_holds_its_form\377\n' >>"$repo/$required" ||
     self_fail "the fixture list with a byte that is no UTF-8 cannot be written"
   fixture_locale=en_US.UTF-8
+  : >"$work/tr-locales" || self_fail "the record of the stub tr cannot be made"
+  STUB_TR=$work/tr-locales
   check a-byte-that-is-no-utf-8-under-a-utf-8-locale FAIL "FAIL $name ($bytes)"
+  tr_locales=$(cat "$work/tr-locales") || self_fail "the record of the stub tr cannot be read"
+  note the-list-is-read-by-tr-under-lc-all-c-in-a-utf-8-locale C "$tr_locales"
   repo=$work/package-first
   make_repo "$repo" golden "$core_line
 halvo-schemx tests/locked_files.rs never_checked_anywhere
@@ -731,14 +744,18 @@ halvo-schema each_lib_rs_holds_its_form
   check the-first-fault-is-named-when-the-package-comes-first FAIL "FAIL $name (the line 2 of $required names the package halvo-schemx, which is neither halvo-schema-core nor halvo-schema)"
   repo=$work/third-package
   check a-third-package-is-refused-before-cargo FAIL "FAIL $name (the line 3 of $required names the package halvo-schemx, which is neither halvo-schema-core nor halvo-schema)"
-  note a-third-package-is-refused-with-no-call-of-cargo 0 "$(grep -c '' "$work/calls")"
+  calls=$(wc -l <"$work/calls") || self_fail "the calls of the stub cargo cannot be counted"
+  note a-third-package-is-refused-with-no-call-of-cargo 0 "$((calls))"
   repo=$work/cr-inside
   make_repo "$repo" golden "$core_line
 "
   printf 'halvo-sch\015ema tests/locked_files.rs each_lib_rs_holds_its_form\n' >>"$repo/$required" ||
     self_fail "the fixture list with a carriage return inside a line cannot be written"
   check a-carriage-return-inside-a-line FAIL "FAIL $name (the line 2 of $required holds a carriage return before its end)"
-  note a-refusal-prints-no-carriage-return 0 "$(printf '%s' "$out" | LC_ALL=C tr -cd '\015' | wc -c | tr -d ' ')"
+  printf '%s' "$out" >"$work/refusal.out" || self_fail "the output of the refusal cannot be written"
+  LC_ALL=C tr -cd '\015' <"$work/refusal.out" >"$work/refusal.cr" || self_fail "the carriage returns of the refusal cannot be read"
+  returns=$(wc -c <"$work/refusal.cr") || self_fail "the carriage returns of the refusal cannot be counted"
+  note a-refusal-prints-no-carriage-return 0 "$((returns))"
   repo=$work/tab-and-tilde
   make_repo "$repo" golden "$core_line
 "
