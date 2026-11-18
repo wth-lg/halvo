@@ -1016,6 +1016,7 @@ fn source(path: &str) -> String {
     let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
     std::fs::read_to_string(&file)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", file.display()))
+        .replace("\r\n", "\n")
 }
 
 fn block<'a>(text: &'a str, start: &str) -> &'a str {
