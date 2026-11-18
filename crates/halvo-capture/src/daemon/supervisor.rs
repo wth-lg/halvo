@@ -377,6 +377,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     watchdog: Option<Watchdog>,
     marker: Option<Box<dyn Marker>>,
     ends_by: Option<Duration>,
+    hold_line_written: bool,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -406,6 +407,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             watchdog: None,
             marker: None,
             ends_by: None,
+            hold_line_written: false,
         }
     }
 
@@ -756,6 +758,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             };
             if let Some(answer) = self.sources.stop_one(name) {
                 if !is_a_stop(&answer) {
+                    self.hold_stays_after(name, &answer);
                     if let Some(owner) = owner {
                         self.arm_unstopped(name, &answer);
                         self.end_after_unstopped(owner, StopKind::LostGrant, &mut |_| {});
@@ -814,6 +817,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             };
             if !is_a_stop(&answer) {
                 self.arm_unstopped(*name, &answer);
+                self.hold_stays_after(*name, &answer);
                 unstopped = true;
                 break;
             }
@@ -824,6 +828,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             return Some(CaptureOff::Stopped);
         }
         Some(self.end_after_unstopped(owner, kind, reply))
+    }
+
+    /// Writes MA-9's line the moment that the stop of an input source with a
+    /// hold plan answers anything but a stop, a stop past its bound included
+    /// (ruling MA-9 part (5); ruling DM-25 N3): at the first such answer of
+    /// the process, before the end routine's reply and first record. The
+    /// hold stays until the process ends, so a later answer writes it again
+    /// nowhere.
+    fn hold_stays_after(&mut self, name: SourceName, answer: &Result<(), CaptureError>) {
+        if name == SourceName::Input
+            && !is_a_stop(answer)
+            && self.factory.holds_secure_input()
+            && !self.hold_line_written
+        {
+            self.hold_line_written = true;
+            let _ = writeln!(self.err, "{}", hold_stays_line(std::process::id()));
+            let _ = self.err.flush();
+        }
     }
 
     /// The sources of `names` that the supervisor holds.
@@ -987,7 +1009,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// Stops every source in the stop order and returns each answer. The
     /// secure-input line of an input source with a hold plan is written the
-    /// moment that its stop answers anything but a stop (ruling MA-9 part (5)).
+    /// moment that its stop answers anything but a stop, once in the process
+    /// (ruling MA-9 part (5)).
     pub fn stop_every_source(&mut self) -> Vec<(SourceName, Result<(), CaptureError>)> {
         self.stop_sources(false)
     }
@@ -1014,13 +1037,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if self.ends_by.is_some() && !is_a_stop(&answer) {
                 self.arm_unstopped(*name, &answer);
             }
-            if *name == SourceName::Input
-                && !is_a_stop(&answer)
-                && self.factory.holds_secure_input()
-            {
-                let _ = writeln!(self.err, "{}", hold_stays_line(std::process::id()));
-                let _ = self.err.flush();
-            }
+            self.hold_stays_after(*name, &answer);
             answers.push((*name, answer));
         }
         self.publish();

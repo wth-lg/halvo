@@ -889,3 +889,161 @@ fn a_timed_run_with_a_source_let_go_keeps_an_arm_with_its_own_status() {
     assert_eq!(supervisor.watchdog_armed(), Some(outcome.status));
     assert!(ending.statuses().is_empty());
 }
+
+/// A writer that puts each line into the call log, so that its place among
+/// the stops, the reply and the records shows.
+struct Lines(crate::daemon::sources::tests::Calls);
+
+impl Write for Lines {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let text = String::from_utf8_lossy(bytes).trim_end().to_owned();
+        if text.starts_with("halvo-capture: secure input stays on") {
+            self.0.push("err <MA-9 line>".to_owned());
+        } else if !text.is_empty() {
+            self.0.push("err <other line>".to_owned());
+        }
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The sources of a run whose input source has a hold plan.
+struct Holds(Factory);
+
+impl SourceFactory for Holds {
+    fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
+        self.0.make(name)
+    }
+}
+
+impl SystemSources for Holds {
+    fn holds_secure_input(&self) -> bool {
+        true
+    }
+}
+
+/// A fixture whose input source holds secure input and answers Timeout at
+/// its first stop and `second` at the next ask, with a recorder, a marker
+/// and an error stream that write into the call log.
+fn holding_fixture(
+    second: Result<(), CaptureError>,
+) -> (
+    Fixture<Holds>,
+    crate::daemon::sources::tests::Calls,
+    Answers,
+) {
+    let mut f = fixture_on_owner(
+        Holds(Factory::adjusting(|source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+            }
+        })),
+        ModelStore::new(),
+    );
+    let calls = f.supervisor.factory().0.calls.clone();
+    let answers: Answers = Rc::default();
+    f.supervisor = std::mem::replace(
+        &mut f.supervisor,
+        Supervisor::new(Platform::Macos, Holds(Factory::new()), placeholder()),
+    )
+    .with_probe(Box::new(FakeProbe {
+        answers: answers.clone(),
+        asked: Rc::default(),
+    }))
+    .with_ending(Arc::new(Recorder {
+        ended: Arc::default(),
+        calls: Some(calls.clone()),
+    }))
+    .with_marker(Box::new(Records {
+        calls: calls.clone(),
+        records: Arc::default(),
+    }))
+    .with_err(Box::new(Lines(calls.clone())));
+    answers
+        .borrow_mut()
+        .push_back(input_monitoring(GrantState::Granted));
+    f.start(&two());
+    f.tick();
+    f.supervisor
+        .factory_mut()
+        .0
+        .on_second_stop(SourceName::Input, second);
+    (f, calls, answers)
+}
+
+/// The call log of a run, without the starts.
+fn after_the_starts(calls: &crate::daemon::sources::tests::Calls) -> Vec<String> {
+    calls
+        .taken()
+        .into_iter()
+        .filter(|call| !call.starts_with("begin "))
+        .collect()
+}
+
+/// A stop for capture off of a fixture of [`holding_fixture`].
+fn capture_off_with_hold(second: Result<(), CaptureError>) -> Vec<String> {
+    let (mut f, calls, _) = holding_fixture(second);
+    let link = f.link.take().unwrap();
+    let replies = calls.clone();
+    let _ = f
+        .supervisor
+        .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {
+            replies.push("reply".to_owned());
+        });
+    after_the_starts(&calls)
+}
+
+/// A lost grant of a fixture of [`holding_fixture`].
+fn lost_grant_with_hold(second: Result<(), CaptureError>) -> Vec<String> {
+    let (mut f, calls, answers) = holding_fixture(second);
+    answers
+        .borrow_mut()
+        .push_back(input_monitoring(GrantState::NotGranted));
+    assert_eq!(f.later(PROBE_INTERVAL), Some(Ending::SourceNotStopped));
+    after_the_starts(&calls)
+}
+
+/// Asserts that MA-9's line comes right after the first input stop, once.
+fn line_right_after_the_first_stop(case: &str, calls: &[String]) {
+    println!("dm25 n3 {case} calls={calls:?}");
+    let first_stop = calls.iter().position(|call| call == "stop input");
+    let line = calls.iter().position(|call| call == "err <MA-9 line>");
+    assert_eq!(
+        line,
+        first_stop.map(|at| at + 1),
+        "{case}: MA-9's line is not right after the first input stop: {calls:?}"
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| *call == "err <MA-9 line>")
+            .count(),
+        1,
+        "{case}: MA-9's line is written more than once: {calls:?}"
+    );
+}
+
+/// N3 and v24 (A2-1, A1-F3, A3-3) on a stop for capture off: the line
+/// follows the first input stop, before the reply and the first record,
+/// whether the second ask answers Timeout or Ok.
+#[test]
+fn the_ma9_line_of_a_stop_for_capture_off_comes_at_the_first_answer() {
+    line_right_after_the_first_stop(
+        "capture-off second=Timeout",
+        &capture_off_with_hold(Err(timeout())),
+    );
+    line_right_after_the_first_stop("capture-off second=Ok", &capture_off_with_hold(Ok(())));
+}
+
+/// N3 and A1-F3 on the lost grant: the same, on the stop of a lost grant.
+#[test]
+fn the_ma9_line_of_a_lost_grant_comes_at_the_first_answer() {
+    line_right_after_the_first_stop(
+        "lost-grant second=Timeout",
+        &lost_grant_with_hold(Err(timeout())),
+    );
+    line_right_after_the_first_stop("lost-grant second=Ok", &lost_grant_with_hold(Ok(())));
+}
