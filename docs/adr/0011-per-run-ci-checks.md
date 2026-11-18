@@ -33,14 +33,16 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 - A check is one file under its run's ci.d directory and needs no line of ci.yml.
   After gate-1 the writers of ci.yml are jobtime-1 and jobtime-4, in the order
   of contract C16 item 11, jobtime-9 by ruling PR-31 item 1 and jobtime-11 by
-  ruling JB-52, for the two `timeout-minutes` lines alone, release-1, release-2,
-  and gate-4 and gate-5 for the job timeout only.
+  ruling JB-52 and citime-w1 by ruling WS-9, for the two `timeout-minutes` lines
+  alone, release-1, release-2, and gate-4 and gate-5 for the job timeout only.
 - The job timeout was 30 minutes at this commit; jobtime-1 made it 60 (contract
   C16 item 11), jobtime-4 made it 90 (ruling JB-6), jobtime-9 made it 120
-  (ruling PR-31 item 1) and jobtime-11 made it 150 (ruling JB-52). Its value
-  lives in the bounds key `ci_job_timeout_min` of
-  docs/baseline/r1-gate-bounds.txt.
-- Each job's limit is 150 minutes since jobtime-11 (ruling JB-52), because the
+  (ruling PR-31 item 1), jobtime-11 made it 150 (ruling JB-52) and citime-w1
+  made it 180 (ruling WS-9). Its value lives in the bounds key
+  `ci_job_timeout_min` of docs/baseline/r1-gate-bounds.txt.
+- Each job's limit is 180 minutes since citime-w1 (ruling WS-9), because main's
+  push run 44373816491 at 68c80599 read 8,342 s in its windows job of 9,000 s.
+  It was 150 minutes from jobtime-11 (ruling JB-52), because the
   macos job stood within minutes of 7,200 s for five landings and one slow
   runner or one dropped and rerun job cost two hours each time. It was 120
   minutes from jobtime-9 (ruling PR-31 item 1), because a job that the limit
