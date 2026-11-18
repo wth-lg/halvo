@@ -2705,8 +2705,9 @@ mod tests {
     }
 
     /// The end of a timed run's cut stop path: SHUTDOWN_BUDGET_MS less the
-    /// margin before the watchdog's deadline (ruling DM-25 N2 (a)).
-    const CUT: u64 = SHUTDOWN_BUDGET_MS - crate::daemon::STOP_PATH_MARGIN_MS;
+    /// margin of 1,000 ms before the watchdog's deadline (ruling DM-25 N2
+    /// (a)), written out so that a change of the margin fails these cases.
+    const CUT: u64 = 17_000;
 
     /// The stop path of a timed run on the injected clock with every source
     /// at its stop deadline (input 1 s, foreground 1 s, screen 6 s), a drain

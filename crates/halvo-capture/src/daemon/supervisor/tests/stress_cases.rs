@@ -634,3 +634,258 @@ fn a_timed_run_ended_by_a_grant_restart_arms_the_watchdog_with_4() {
     );
     assert!(ending.statuses().is_empty());
 }
+
+/// What each stop of a source read of the watchdog: its deadline and status
+/// with the moment of the read.
+type Reads = Rc<RefCell<Vec<(Option<(Instant, i32)>, Instant)>>>;
+
+/// A factory whose every source's stop reads the watchdog into `reads` and
+/// answers `input` for the input source.
+fn reading_stops(peek: &Peek, reads: &Reads, input: Result<(), CaptureError>) -> Factory {
+    let (peek, reads) = (peek.clone(), reads.clone());
+    Factory::adjusting(move |source| {
+        let (peek, reads) = (peek.clone(), reads.clone());
+        let hook: Hook = Box::new(move |_| {
+            let armed = peek.borrow().as_ref().and_then(Watchdog::armed_until);
+            reads.borrow_mut().push((armed, Instant::now()));
+        });
+        source.on_stop = Some(hook);
+        if source.name == SourceName::Input {
+            source.stop = input.clone();
+        }
+    })
+}
+
+/// The milliseconds from `at` to the deadline of `armed`.
+fn ahead(armed: Option<(Instant, i32)>, at: Instant) -> Option<(u128, i32)> {
+    armed.map(|(deadline, status)| (deadline.saturating_duration_since(at).as_millis(), status))
+}
+
+/// N9 (a) at the capture-off site (m2): the arm before the first stop reads
+/// ENTRY_DEADLINE_MS ahead with 5, and the arm moved at a Timeout reads
+/// SHUTDOWN_BUDGET_MS after that answer. A deadline ten times longer at
+/// either arm fails it.
+#[test]
+fn the_capture_off_arms_read_their_deadlines() {
+    let (peek, reads): (Peek, Reads) = Default::default();
+    let mut f = fixture_on_owner(
+        reading_stops(&peek, &reads, Err(timeout())),
+        ModelStore::new(),
+    );
+    let ending = Stamped::default();
+    ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+    *peek.borrow_mut() = f.supervisor.watchdog.clone();
+    f.start(&two());
+    f.tick();
+    let link = f.link.take().unwrap();
+    let began = Instant::now();
+    let outcome = f
+        .supervisor
+        .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+    let returned = Instant::now();
+    let first = reads
+        .borrow()
+        .first()
+        .copied()
+        .expect("no source was stopped");
+    let at_stop = ahead(first.0, first.1);
+    let moved = ahead(
+        f.supervisor
+            .watchdog
+            .as_ref()
+            .and_then(Watchdog::armed_until),
+        first.1,
+    );
+    println!(
+        "dm25 n9 capture-off at_stop(ms_ahead,status)={at_stop:?} moved(ms_after_first_answer,status)={moved:?} took_ms={}",
+        returned.duration_since(began).as_millis()
+    );
+    assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
+    let entry = u128::from(ENTRY_DEADLINE_MS);
+    assert!(
+        matches!(at_stop, Some((ms, 5)) if ms <= entry && ms + 1_000 >= entry),
+        "the arm before the first stop read {at_stop:?}, not {entry} ms ahead with 5"
+    );
+    let budget = u128::from(SHUTDOWN_BUDGET_MS);
+    assert!(
+        matches!(moved, Some((ms, 5)) if ms <= budget + 50 && ms + 1_000 >= budget),
+        "the arm after the Timeout read {moved:?}, not {budget} ms after it with 5"
+    );
+}
+
+/// N9 (a) at the timed-run site (m3): each stop of the stop path reads the
+/// arm of the end of the window, SHUTDOWN_BUDGET_MS from that end with 3. A
+/// deadline ten times longer fails it.
+#[test]
+fn the_timed_run_arm_reads_its_deadline() {
+    let (peek, reads): (Peek, Reads) = Default::default();
+    let main_loop = TestLoop {
+        now: Rc::default(),
+        harness: None,
+        real: Duration::from_millis(1),
+        hook: None,
+    };
+    let ending = Stamped::default();
+    let mut supervisor = Supervisor::new(
+        Platform::Macos,
+        reading_stops(&peek, &reads, Ok(())),
+        main_loop,
+    )
+    .with_ending(Arc::new(ending.clone()));
+    *peek.borrow_mut() = supervisor.watchdog.clone();
+    let outcome = run_timed(
+        &run_of(1),
+        &mut supervisor,
+        ModelStore::new(),
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    )
+    .unwrap();
+    let read: Vec<Option<(u128, i32)>> = reads
+        .borrow()
+        .iter()
+        .map(|(armed, at)| ahead(*armed, *at))
+        .collect();
+    println!(
+        "dm25 n9 timed-run status={} at_stops(ms_ahead,status)={read:?}",
+        outcome.status
+    );
+    assert!(!read.is_empty(), "no source was stopped");
+    let budget = u128::from(SHUTDOWN_BUDGET_MS);
+    assert!(
+        read.iter()
+            .all(|armed| matches!(armed, Some((ms, 3)) if *ms <= budget && ms + 1_000 >= budget)),
+        "the stops read {read:?}, not an arm {budget} ms from the end of the window with 3"
+    );
+}
+
+/// A store whose first write goes to the model store and whose later writes
+/// panic, so that the owner ends after it persisted some events.
+struct PersistsThenPanics {
+    inner: ModelStore,
+    writes: usize,
+}
+
+impl MaintainStore for PersistsThenPanics {
+    fn expire_due(&mut self, now: std::time::SystemTime, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.expire_due(now, max)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max: usize) -> Result<Pass, MaintFault> {
+        self.inner.evict_to(bound, max)
+    }
+
+    fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl CaptureStore for PersistsThenPanics {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        self.writes += 1;
+        if self.writes > 1 {
+            panic!("the scripted store panics at its second write");
+        }
+        self.inner.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+/// N9 (b) (m1): an owner that persisted some events and then ended gives
+/// the owner-ended line with the events accepted less those persisted. The
+/// run emits 1,100 events, so that the owner writes its first full batch and
+/// ends at its second inside the window.
+#[test]
+fn an_owner_that_ended_after_some_writes_counts_only_the_events_not_persisted() {
+    let mut run = OneShot {
+        script: (0..1_100).map(|_| foreground_now()).collect(),
+        linger: Duration::from_millis(300),
+        at_stop: None,
+    };
+    let model = ModelStore::new();
+    let quiet = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome = run_timed(
+        &run_of(1),
+        &mut run,
+        PersistsThenPanics {
+            inner: model.clone(),
+            writes: 0,
+        },
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    );
+    std::panic::set_hook(quiet);
+    let outcome = outcome.unwrap();
+    let persisted = model.records().len();
+    let loss = outcome.loss.clone().expect("no loss line");
+    println!(
+        "dm25 n9 owner-ended persisted={persisted} line={:?}",
+        loss.line
+    );
+    assert!(
+        persisted > 0,
+        "the store persisted nothing before the owner ended"
+    );
+    assert_eq!(loss.cause, Some(LossCause::OwnerEnded));
+    assert_eq!(
+        loss.line,
+        format!(
+            "halvo-capture: owner ended; events accepted and not persisted={}",
+            1_100 - persisted
+        )
+    );
+}
+
+/// N2 (b): a timed run that returns with a source let go keeps its arm, and
+/// the arm carries the run's own status (here 1, for the drain's loss),
+/// where at a6d6752b it kept the 3 of the end of the window.
+#[test]
+fn a_timed_run_with_a_source_let_go_keeps_an_arm_with_its_own_status() {
+    let main_loop = TestLoop {
+        now: Rc::default(),
+        harness: None,
+        real: Duration::from_millis(1),
+        hook: None,
+    };
+    let ending = Stamped::default();
+    let mut supervisor = Supervisor::new(
+        Platform::Macos,
+        Factory::adjusting(|source| {
+            if source.name == SourceName::Foreground {
+                source.script = (0..10).map(|_| foreground_now()).collect();
+            }
+            if source.name == SourceName::Input {
+                source.stop = Err(timeout());
+            }
+        }),
+        main_loop,
+    )
+    .with_ending(Arc::new(ending.clone()));
+    let store = ModelStore::new();
+    store.fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+    let outcome = run_timed(
+        &run_of(1),
+        &mut supervisor,
+        store,
+        crate::daemon::maintenance::SystemClocks::new(),
+        &AtomicBool::new(false),
+        SETTLE_BOUND,
+    )
+    .unwrap();
+    println!(
+        "dm25 n2 let-go status={} let_go={:?} armed={:?}",
+        outcome.status,
+        outcome.let_go,
+        supervisor.watchdog_armed()
+    );
+    assert_eq!(outcome.let_go, ["input"]);
+    assert_eq!(outcome.status, exit::ERROR, "{:?}", outcome.loss);
+    assert_eq!(supervisor.watchdog_armed(), Some(outcome.status));
+    assert!(ending.statuses().is_empty());
+}
