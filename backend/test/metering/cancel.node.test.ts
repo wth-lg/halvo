@@ -116,3 +116,55 @@ describe("an account made in the state cancelled (unit 5.1, contract 3.4)", () =
     w.close();
   });
 });
+
+const LATE_END = START + 20 * MINUTE;
+const ONE_MINOR = 10_000;
+
+function lateStatedCancel() {
+  return subscriptionEvent({ eventId: "evt_late", providerTime: LATE_END, state: "cancelled", endedAt: LATE_END });
+}
+
+describe("a stated cancel whose event arrives after its own end, with the account active in between (contract 3.2, ruling P7-97 A1; pins of unit 5.9)", () => {
+  test("contract 3.2 case (i): an interval sealed before the event arrives keeps its end, its amount and its stamp, the last second of its slot after the stated end, with use from both sides of the end", async () => {
+    const w = await world();
+    expect((await w.use("r0", ONE_MINOR)).reserved).toMatchObject({ outcome: "admitted" });
+    await w.clock(START + 30 * MINUTE);
+    expect((await w.use("r1", ONE_MINOR)).reserved).toMatchObject({ outcome: "admitted" });
+    await w.clock(START + 65 * MINUTE);
+    const sealed = (await w.intervals()).map((row) => [row.start, row.end_at, row.amount, row.timestamp, row.outcome]);
+    await w.entries().webhookEvent(lateStatedCancel());
+    await w.clock(START + 3 * HOUR);
+    const after = (await w.intervals()).filter((row) => row.start === START).map((row) => [row.start, row.end_at, row.amount, row.timestamp, row.outcome]);
+    expect(sealed).toEqual([[START, START + HOUR, 2, (START + HOUR) / 1000 - 1, "acknowledged"]]);
+    expect(after).toEqual(sealed);
+    expect((START + HOUR) / 1000 - 1).toBeGreaterThanOrEqual(LATE_END / 1000);
+    expect(w.meter.recordedEvents(ACCOUNT).map((each) => [each.amountMinor, each.timestamp])).toEqual([[2, (START + HOUR) / 1000 - 1]]);
+    w.close();
+  });
+
+  test("contract 3.2 case (ii): an interval not sealed when the event arrives that starts after the stated end ends at its own start and is stamped with that start", async () => {
+    const w = await world();
+    await w.use("r0", ONE_MINOR);
+    await w.clock(START + 65 * MINUTE);
+    expect((await w.use("r1", ONE_MINOR)).reserved).toMatchObject({ outcome: "admitted" });
+    await w.clock(START + 70 * MINUTE);
+    await w.entries().webhookEvent(lateStatedCancel());
+    await w.clock(START + 3 * HOUR);
+    const second = (await w.intervals()).filter((row) => row.start === START + HOUR).map((row) => [row.start, row.end_at, row.amount, row.timestamp, row.outcome]);
+    expect(second).toEqual([[START + HOUR, START + HOUR, 1, (START + HOUR) / 1000, "acknowledged"]]);
+    w.close();
+  });
+
+  test("contract 3.2 case (iii): the interval not sealed when the event arrives that holds the stated end ends at the end, is stamped one second before it, and holds every hold admitted in it, those admitted after the end among them", async () => {
+    const w = await world();
+    await w.use("r0", ONE_MINOR);
+    await w.clock(START + 30 * MINUTE);
+    expect((await w.use("r1", ONE_MINOR)).reserved).toMatchObject({ outcome: "admitted" });
+    await w.entries().webhookEvent(lateStatedCancel());
+    await w.clock(START + 3 * HOUR);
+    const first = (await w.intervals()).filter((row) => row.start === START).map((row) => [row.start, row.end_at, row.amount, row.timestamp, row.outcome]);
+    expect(first).toEqual([[START, LATE_END, 2, LATE_END / 1000 - 1, "acknowledged"]]);
+    expect(w.meter.recordedEvents(ACCOUNT).map((each) => [each.amountMinor, each.timestamp])).toEqual([[2, LATE_END / 1000 - 1]]);
+    w.close();
+  });
+});
