@@ -8547,3 +8547,21 @@ fn rd84_a_move_that_returned_leaves_an_answer_to_its_own_rules() {
     assert_eq!(lost_lapses(&c, &item), 0);
     assert_eq!(cancels_of(&c, m, &run), 0);
 }
+
+#[test]
+fn rd84_a_stop_stored_failed_reads_back_as_the_stop_answer_lost_and_ends_failed() {
+    use halvo_coord::run::{run_step, Ending, Next, Phase, RunMove, StopCause};
+    let stop = halvo_coord::schedule::Stop {
+        at: T0,
+        cause: RunEnd::Failed,
+    };
+    let phase = Phase::of(&halvo_coord::types::Live::Stopping, Some(stop));
+    assert_eq!(phase, Phase::Stopping(StopCause::AnswerLost));
+    for ending in [Ending::Kill, Ending::Frame(None)] {
+        assert_eq!(
+            run_step(Some(&phase), RunMove::End(ending)),
+            Ok(Next::Ended(RunEnd::Failed)),
+            "run_step's end and the stored cause are one (ruling RD-9)"
+        );
+    }
+}
