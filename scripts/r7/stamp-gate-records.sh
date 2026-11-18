@@ -103,6 +103,7 @@ self_test() {
   stamp_case refused metering-plan-bounded "$(printf '%s\n' "$stamped" | sed 's/plan=whole/plan=bounded/')" pass
   stamp_case refused metering-orderings-one-short "$(printf '%s\n' "$stamped" | sed 's/orderings=100000 of 100000/orderings=99999 of 100000/')" pass
   stamp_case refused metering-fail-line "$(printf '%s\n' "$stamped" | sed 's/^PASS/FAIL/')" pass
+  stamp_case refused metering-plan-bounded-later "$stamped plan=bounded" pass
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:stamp-gate-records (wrong verdict in:%s)\n' "$wrong"
     exit 1

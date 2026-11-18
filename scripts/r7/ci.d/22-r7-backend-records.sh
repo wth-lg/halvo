@@ -18,11 +18,14 @@ metering_why() {
       if (index($0, "line: PASS metering: plan=whole ") != 1) { why = "it does not begin \"line: PASS metering: plan=whole \""; exit }
       n = split($0, w, " ")
       for (k = 1; k <= n; k++) {
+        if (index(w[k], "plan=") == 1) plans++
         split(w[k], pair, "=")
         if (!(pair[1] in want) || index(w[k], "=") == 0) continue
         seen[pair[1]]++
         got[pair[1]] = substr(w[k], length(pair[1]) + 2) " " w[k + 1] " " w[k + 2]
+        if (w[k + 3] == "of") got[pair[1]] = got[pair[1]] " of " w[k + 4]
       }
+      if (plans != 1) { why = "it states plan= " plans " times, and contract 9.8 states plan=whole once"; exit }
       for (t in want) {
         if (seen[t] != 1) { why = "it states " t "= " (seen[t] + 0) " times, and contract 9.8 states it once"; exit }
         if (got[t] != want[t] " of " want[t]) { why = "it reads " t "=" got[t] ", and contract 9.8 states " t "=" want[t] " of " want[t]; exit }
@@ -351,6 +354,8 @@ self_test() {
   metering_case FAIL metering-settings-left-out "$(printf '%s\n' "$stamped" | sed 's/ settings=41 of 41//')"
   metering_case FAIL metering-orderings-twice "$stamped orderings=100000 of 100000"
   metering_case FAIL metering-fail-line "$(printf '%s\n' "$stamped" | sed 's/^PASS/FAIL/')"
+  metering_case FAIL metering-plan-bounded-later "$stamped plan=bounded"
+  metering_case FAIL metering-orderings-of-a-larger-plan "$(printf '%s\n' "$stamped" | sed 's/orderings=100000 of 100000/orderings=100000 of 100000 of 500000/')"
   printf 'line: %s\nstamp: 2026-11-12T10:00:00Z\n' "$stamped" >"$scratch/line-as-stamped.txt"
   mode_case PASS line-as-stamped
   printf 'line: %s\n' "$stamped" | sed 's/plan=whole/plan=bounded/' >"$scratch/line-of-a-bounded-plan.txt"
