@@ -334,10 +334,44 @@ fn load_count() -> impl FnMut(&FromRunner) -> usize {
     }
 }
 
+/// Serves a fill run of seed `seed` with the link open and every frame answered, to its `done`, and names the frame
+/// that the runner wrote right after the answer to the `nth` frame (counted from 1) that `is` matches: the frame that
+/// a close on that answer can let out.
+fn next_after_an_open_run(seed: u8, n: u8, is: impl Fn(&FromRunner) -> bool, nth: usize) -> String {
+    let files = FillFiles::new("review-open", seed);
+    let seen = fill(n, &files).serve(|_, _| Act::Answer, LONG);
+    let names: Vec<String> = seen.frames.iter().map(support::named).collect();
+    assert_eq!(
+        seen.done(),
+        Some(Outcome::Completed),
+        "the open run ends completed: {names:?} {}",
+        seen.stderr
+    );
+    let at = seen
+        .frames
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| is(f))
+        .nth(nth - 1)
+        .map(|(at, _)| at)
+        .unwrap_or_else(|| panic!("the open run wrote that frame: {names:?}"));
+    names
+        .get(at + 1)
+        .cloned()
+        .unwrap_or_else(|| panic!("a frame after it: {names:?}"))
+}
+
 /// The close after the answer to the checkpoint's `made` row, the last request between the edit's load and its
-/// `propose` (A7.1, CP-98 (4)): at most the propose is on its way, and no replace follows.
+/// `propose` (A7.1, CP-98 (4)): a run with the link open shows that the frame after that answer is the propose, so
+/// that a request added between the two fails on every run (CP-225 N1); after the close at most the propose is on
+/// its way, and no replace follows.
 #[test]
 fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
+    assert_eq!(
+        next_after_an_open_run(1, 101, |f| is_checkpoint(f, CheckpointState::Made), 1),
+        "store effect Cleared",
+        "the propose is the frame after the made row's answer"
+    );
     let files = FillFiles::new("review-close-1", 1);
     let before = files.workbook_bytes();
     let sup = fill(101, &files);
