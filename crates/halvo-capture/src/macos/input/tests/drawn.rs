@@ -58,7 +58,7 @@ fn drawn_stamps() -> Monotonic {
         });
     }
     LAST_STAMP.with(|stamp| stamp.set(now));
-    Monotonic(now)
+    Monotonic::from_nanos(now)
 }
 
 fn drawn_uptime() -> Uptime {
@@ -66,7 +66,7 @@ fn drawn_uptime() -> Uptime {
         stall(NO_CLOSE_STEP_NS);
     }
     hook();
-    Uptime(UPTIME.with(Cell::get))
+    Uptime::from_nanos(UPTIME.with(Cell::get))
 }
 
 fn drawn_session() -> Session {
@@ -385,7 +385,7 @@ fn one_sequence(seed: u64, form: Form, tally: &mut Tally) {
     let entry_monotonic = drawn_stamps();
     let entry_uptime = drawn_uptime();
     if untimed_draw {
-        typed_uptime = entry_uptime.0 + 1;
+        typed_uptime = entry_uptime.nanos() + 1;
         log.push("an OS time after the entry".into());
     }
     on_tap_event(
@@ -393,7 +393,7 @@ fn one_sequence(seed: u64, form: Form, tally: &mut Tally) {
         TapEvent {
             etype: CGEventType::KeyDown,
             flags: 0,
-            os_time: Uptime(typed_uptime),
+            os_time: Uptime::from_nanos(typed_uptime),
             entry: Entry {
                 monotonic: entry_monotonic,
                 uptime: entry_uptime,
@@ -407,11 +407,11 @@ fn one_sequence(seed: u64, form: Form, tally: &mut Tally) {
     READ_WIDTH.with(|width| width.set(0));
     let (own_before, own_after, _) = READINGS.with(|readings| readings.borrow()[first_reading]);
     let true_lag = own_after.saturating_sub(typed_monotonic);
-    let untimed = typed_uptime == 0 || typed_uptime > entry_uptime.0;
+    let untimed = typed_uptime == 0 || typed_uptime > entry_uptime.nanos();
     let code_lag = if untimed {
         u64::MAX
     } else {
-        (entry_uptime.0 - typed_uptime) + own_after.saturating_sub(entry_monotonic.0)
+        (entry_uptime.nanos() - typed_uptime) + own_after.saturating_sub(entry_monotonic.nanos())
     };
     let held_after = held_now(ctx);
     let mut on_seen = own_reading != Reading::Off;
