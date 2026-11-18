@@ -212,15 +212,14 @@ self_test() {
     printf 'case %s/segment-name-under-a-wide-rule skipped: this system keeps no line feed in a file name\n' "$name"
   fi
   fresh
-  if mkdir "$tree/a:b" 2>/dev/null && printf '*.tmp\n' >"$tree/a:b/.gitignore" 2>/dev/null; then
-    git -C "$tree" add "a:b/.gitignore" || exit 2
+  if mkdir "$tree/a:b" 2>/dev/null && printf '*.tmp\n' >"$tree/a:b/.gitignore" 2>/dev/null && git -C "$tree" add "a:b/.gitignore" 2>/dev/null; then
     colon_head=$(commit_tree "$tree") || exit 2
     git -C "$tree" update-ref HEAD "$colon_head" || exit 2
     : >"$tree/a:b/x.tmp"
     run_case file-ignored-by-a-tracked-rule-in-a-directory-named-with-a-colon FAIL macos "$colon_head"
   else
     skipped="$skipped colon"
-    printf 'case %s/colon skipped: this system keeps no colon in a file name\n' "$name"
+    printf 'case %s/colon skipped: this system keeps no colon in a path that git takes\n' "$name"
   fi
   fresh; printf 'line 2\n' >>"$tree/tracked.txt"; : >"$tree/new.txt"; printf 'not an index\n' >"$tree/.git/index"; run_case index-that-git-cannot-read FAIL macos
 
