@@ -2748,8 +2748,7 @@ mod tests {
     /// the last whole line, and a write that cannot finish leaves the line before it as it was.
     #[test]
     fn g4_the_record_is_written_beside_and_renamed_whole() {
-        let dir = std::env::temp_dir().join(format!("halvo-guard-record-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = crate::child::scratch("guard-record");
         let path = dir.join("guard.record");
         let first = GuardAct {
             asked: 1,

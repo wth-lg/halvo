@@ -77,15 +77,13 @@ fn pipe_child_entry() {
     }
 }
 
+/// A new, empty directory of a test under the target directory's `tmp`, below which the fenced
+/// guard of the tests' starts admits a program (`cdp::tests::guard_entry`), made by
+/// `halvo_test_dir::make`.
 pub fn scratch(name: &str) -> PathBuf {
     let exe = std::env::current_exe().unwrap();
     let target = exe.ancestors().nth(3).unwrap().to_path_buf();
-    let dir = target
-        .join("tmp")
-        .join(format!("halvo-web-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+    halvo_test_dir::make(&target.join("tmp"), &format!("halvo-web-{name}")).unwrap()
 }
 
 pub fn report_args(out: &Path) -> Vec<std::ffi::OsString> {

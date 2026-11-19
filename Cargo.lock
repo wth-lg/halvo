@@ -1871,6 +1871,7 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "chromiumoxide",
+ "halvo-test-dir",
  "libc",
  "serde_json",
  "tokio",
