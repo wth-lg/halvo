@@ -2192,13 +2192,41 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
     own_not_run tmpdir-flagged-immutable-cannot-be-removed 'no chflags on this host'
   fi
   term_child='( trap ": >\"\$CI_D_REPO/child-got-term\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
-  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $term_child; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
+  limit_date='if [ "$1" = +%s ]; then
+  if [ -e clock-read-ready ]; then
+    echo 5
+  else
+    [ ! -e limit-ready ] || : >clock-read-ready
+    echo 0
+  fi
+  exit 0
+fi'
+  mkdir -p "$tmp/limit-clock" &&
+    cp "$tmp/slow-sleep/sleep" "$tmp/limit-clock/sleep" &&
+    printf '#!/bin/sh\n%s\nexec "%s" "$@"\n' "$limit_date" "$real_date" >"$tmp/limit-clock/date" &&
+    chmod +x "$tmp/limit-clock/date" || return 1
+  limit_child='on_term() { : >child-got-term; exit 0; }
+( trap on_term TERM; : >child-ready; sleep 60 & wait ) &
+printf "%s\n" "$!" >>pids
+trap "" TERM
+sleep 60 &
+printf "%s\n%s\n" "$$" "$!" >>pids
+n=0
+while [ ! -e child-ready ]; do
+  [ "$n" -lt 100 ] || exit 1
+  sleep 0.1
+  n=$((n + 1))
+done
+: >limit-ready
+wait
+printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $limit_child" &&
     add_script r1 20-b.sh "$good" "$pass_b"
   case_gone=1
   case_made=child-got-term
   case_limit=5
   case_max_s=40
-  case_path=$tmp/slow-sleep
+  case_path=$tmp/limit-clock
   case_first='FAIL 10-a (time limit 5 s)'
   case_then='PASS 20-b'
   own_case script-that-ignores-term-past-its-limit 1 'FAIL 10-a (time limit 5 s)' macos
