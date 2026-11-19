@@ -215,18 +215,120 @@ fn bytes_under(dir: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
     found
 }
 
+/// The labels that `delete` seeds into the rows of its two workflows (src/delete.rs MARKERS; an integration test cannot
+/// import the binary's items).
+const SEEDED_LABELS: [&str; 2] = ["Zq7-halvo-marker-learn-a", "Zq7-halvo-marker-learn-b"];
+
+/// A line of SQLCipher's own log as the library writes it to standard error on Windows when a key does not open a
+/// store: a date, a time with its fraction, ": ERROR CORE ", then the library's text in printable ASCII, and the line end.
+fn sqlcipher_log_line(line: &str) -> bool {
+    let Some(body) = line
+        .strip_suffix("\r\n")
+        .or_else(|| line.strip_suffix('\n'))
+    else {
+        return false;
+    };
+    let bytes = body.as_bytes();
+    let digits = |from: usize, to: usize| {
+        bytes
+            .get(from..to)
+            .is_some_and(|run| run.iter().all(u8::is_ascii_digit))
+    };
+    let stamp = bytes.len() > 20
+        && digits(0, 4)
+        && bytes[4] == b'-'
+        && digits(5, 7)
+        && bytes[7] == b'-'
+        && digits(8, 10)
+        && bytes[10] == b' '
+        && digits(11, 13)
+        && bytes[13] == b':'
+        && digits(14, 16)
+        && bytes[16] == b':'
+        && digits(17, 19)
+        && bytes[19] == b'.';
+    if !stamp {
+        return false;
+    }
+    let fraction = bytes[20..]
+        .iter()
+        .take_while(|b| b.is_ascii_digit())
+        .count();
+    fraction > 0
+        && body[20 + fraction..]
+            .strip_prefix(": ERROR CORE ")
+            .is_some_and(|text| {
+                !text.is_empty() && text.bytes().all(|b| (b' '..=b'~').contains(&b))
+            })
+}
+
+/// The longest run of hex digits in LINE: a key printed as hex would make one of 64.
+fn longest_hex_run(line: &str) -> usize {
+    line.split(|c: char| !c.is_ascii_hexdigit())
+        .map(str::len)
+        .max()
+        .unwrap_or(0)
+}
+
 #[test]
 fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_own_key() {
+    let seen_on_windows = [
+        "2026-11-19 18:54:08.555: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1\r\n",
+        "2026-11-19 18:54:08.557: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1\r\n",
+        "2026-11-19 18:54:08.557: ERROR CORE sqlcipher_codec_ctx_set_error: 1 lock=0\r\n",
+    ];
+    for line in seen_on_windows {
+        assert!(sqlcipher_log_line(line), "{line:?}");
+    }
+    for line in [
+        "2026-11-19 18:54:08: ERROR CORE a time without its fraction\r\n",
+        "2026-11-19 18:54:08.555: ERROR codec: no CORE\r\n",
+        "2026-11-19 18:54:08.555: ERROR CORE \r\n",
+        "2026-11-19 18:54:08.555: ERROR CORE no line end",
+        "x2026-11-19 18:54:08.555: ERROR CORE a byte before the date\r\n",
+        "2026-11-19 18:54:08.555: ERROR CORE a\ttab\r\n",
+        "REFUSED store: the derived store does not open\n",
+    ] {
+        assert!(!sqlcipher_log_line(line), "{line:?}");
+    }
+
     let dir = fresh("delete-two-commands");
     line_of(&derived_delete("workflow", &dir));
     let second = derived_delete("workflow", &dir);
     assert_eq!(second.status.code(), Some(2), "{second:?}");
     assert!(second.stdout.is_empty(), "{second:?}");
+    let err = String::from_utf8(second.stderr).expect("UTF-8");
+    let lines: Vec<&str> = err.split_inclusive('\n').collect();
+    let (last, before) = lines.split_last().expect("a line on standard error");
     assert_eq!(
-        String::from_utf8(second.stderr).expect("UTF-8"),
+        *last,
         "REFUSED store: the derived store does not open: the key does not open the derived database\n",
-        "each command makes a key of its own, so the second does not open the first one's store"
+        "each command makes a key of its own, so the second does not open the first one's store: {err:?}"
     );
+    let path = dir.to_str().expect("a path");
+    let name = dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("a name");
+    for line in before {
+        assert!(
+            sqlcipher_log_line(line),
+            "a line before the refusal that is not SQLCipher's own log: {line:?}"
+        );
+        assert!(!line.contains("REFUSED"), "{line:?}");
+        assert!(
+            !line.contains(path) && !line.contains(name) && !line.contains("derived.db"),
+            "a path in SQLCipher's log line: {line:?}"
+        );
+        assert!(
+            SEEDED_LABELS.iter().all(|label| !line.contains(label)),
+            "a seeded label in SQLCipher's log line: {line:?}"
+        );
+        assert!(
+            longest_hex_run(line) < 16,
+            "a run of hex digits as long as a key's in SQLCipher's log line: {line:?}"
+        );
+    }
 }
 
 #[test]
