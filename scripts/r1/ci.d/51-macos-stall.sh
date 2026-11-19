@@ -1459,6 +1459,8 @@ waits-not-driven-phase_one'
     "$held_store3c"'\n#[cfg_attr(test, path = "other.rs")]\nfn f() {}\n' "$held"
   held_case carbon-held-file-an-include-by-its-path-beside-include-str FAIL "$held: an include!, the word include in the code, at line 22" \
     "$held_store3c"'\nconst TEXT: &str = include_str!("x.txt");\nstd::include!("full_flush_more.rs");\n' "$held"
+  held_case carbon-held-file-a-module-after-a-char-literal-of-a-quote FAIL "$held: a module item, the word mod in the code, at line 22" \
+    "$held_store3c"'\nconst QUOTE: char = \0047"\0047;\nmod more;\n' "$held"
   held_case carbon-held-file-a-c-string-in-a-const FAIL "$held: a C string literal that does not begin r1_ at line 21" \
     "$held_store3c"'\nconst NAME: &CStr = c"getpid";\n' "$held"
   held_case carbon-held-file-a-raw-c-string FAIL "$held: a C string literal that does not begin r1_ at line 21" \
