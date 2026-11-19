@@ -1453,8 +1453,8 @@ waits-not-driven-phase_one'
   printf 'none\n' >"$work/repo/$held_parent" || exit 2
   held_case carbon-held-file-a-module-with-a-body-after-an-attribute FAIL "$held: a module item, the word mod in the code, at line 21" \
     "$held_store3c"'\n#[cfg(test)] pub(crate) mod inner {\n}\n' "$held"
-  held_case carbon-held-file-a-macro-rules FAIL "$held: a macro_rules!, the word macro_rules in the code, at line 21" \
-    "$held_store3c"'\nmacro_rules! nothing {\n    () => {};\n}\n' "$held"
+  held_case carbon-held-file-a-macro-rules FAIL "$held: a macro_rules!, the word macro_rules in the code, at line 22" \
+    "$held_store3c"'\n// a comment before the item\nmacro_rules! nothing {\n    () => {};\n}\n' "$held"
   held_case carbon-held-file-a-path-attribute-on-a-function FAIL "$held: a path attribute, the word path in an attribute, at line 21" \
     "$held_store3c"'\n#[cfg_attr(test, path = "other.rs")]\nfn f() {}\n' "$held"
   held_case carbon-held-file-an-include-by-its-path-beside-include-str FAIL "$held: an include!, the word include in the code, at line 22" \
@@ -1466,7 +1466,7 @@ waits-not-driven-phase_one'
   held_case carbon-held-file-a-raw-c-string-with-hashes FAIL "$held: a C string literal that does not begin r1_ at line 21" \
     "$held_store3c"'\nconst NAME: &CStr = cr#"getpid"#;\n' "$held"
   held_case carbon-held-file-the-same-letters-elsewhere PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" \
-    "$held_store3c"'\n// a mod, an include, a macro_rules and a path in a comment\nconst WORDS: &str = "mod include macro_rules #[path]";\nfn module_path_of(path: &str) -> &str {\n    let model = path;\n    model\n}\nconst SOURCE: &str = r#"\n#include <fcntl.h>\n"#;\nfn file() -> &\0047static str {\n    "counter.c"\n}\nconst A: &CStr = cr#"r1_a"#;\nconst B: &CStr = cr"r1_b";\n' "$held"
+    "$held_store3c"'\n// a mod, an include, a macro_rules and a path in a comment\nconst WORDS: &str = "mod include macro_rules #[path]";\nfn module_path_of(path: &str) -> &str {\n    let model = path;\n    model\n}\nconst SOURCE: &str = r#"\n#include <fcntl.h>\n"#;\nfn file() -> &\0047static str {\n    "counter.c"\n}\nconst A: &CStr = cr#"r1_a"#;\nconst B: &CStr = cr"r1_b";\nconst QUOTE: char = \0047"\0047;\nconst RAW: &str = r#"printf("mod %%s", "include");"#;\n' "$held"
   for form in 'pub' 'pub(crate)' 'pub(super)' 'pub(in crate::store)'; do
     held_case "carbon-held-file-fn-symbol-made-$(printf '%s' "$form" | tr -c 'a-z\n' '-')" FAIL "$held: fn symbol is not defined once, as the two lines that this check holds (defined 0 times)" \
       "$held_head$form"' fn symbol(name: &CStr) -> Option<*mut libc::c_void> {\n    let found = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };\n    (!found.is_null()).then_some(found)\n}\n\n'"$held_calls" "$held"
