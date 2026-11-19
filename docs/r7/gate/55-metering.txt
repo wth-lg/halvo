@@ -1,5 +1,5 @@
 line: PASS metering: plan=whole fake-checks=22 of 22 orderings=100000 of 100000 voided=101957 sequences=1188388 settings=41 of 41 expiry-on-time=passed stripe-mock-accepts=passed refusal-limit=passed send-limit=passed late-read=passed unexplained-total=passed retry-delay=passed
-stamp: 2026-11-17T13:47:20Z
-load: 7.19
-tree: ab1657d44db8549d5dd53e6d94a5f79f20715e98
+stamp: 2026-11-18T20:05:37Z
+load: 5.37
+tree: 23eefe24ce63336b59f8544b5491c0196a8dba36
 model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

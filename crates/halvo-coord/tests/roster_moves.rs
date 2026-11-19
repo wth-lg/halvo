@@ -133,14 +133,18 @@ fn ask_of(run: &RunId, n: usize, effects: &[(u32, &str)]) -> RunEvent {
                     class: Class::Send,
                     digest: Digest::parse(&d.repeat(32)).unwrap(),
                     digest_ok: true,
-                    fields: ["to", "subject", "body"]
-                        .iter()
-                        .map(|name| BoundField {
-                            name: Name::parse(name).unwrap(),
-                            from: BoundFrom::Extract,
-                            value: vec!["Ann Lee".into()],
-                        })
-                        .collect(),
+                    fields: [
+                        ("to", BoundFrom::Extract),
+                        ("subject", BoundFrom::Extract),
+                        ("body", BoundFrom::Model),
+                    ]
+                    .iter()
+                    .map(|(name, from)| BoundField {
+                        name: Name::parse(name).unwrap(),
+                        from: *from,
+                        value: vec!["Ann Lee".into()],
+                    })
+                    .collect(),
                     new_origin: None,
                 })
                 .collect(),

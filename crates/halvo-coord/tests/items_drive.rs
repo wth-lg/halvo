@@ -258,7 +258,7 @@ fn refusal_timer_allow() {
             }
         }
     }
-    assert_eq!(runs, 2 * 2 * 7 * 7 * 2);
+    assert_eq!(runs, 2 * 2 * 8 * 8 * 2);
 }
 
 /// Memory ports whose owner can store a body and then send no acknowledgement, and whose

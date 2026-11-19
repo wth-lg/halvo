@@ -73,6 +73,7 @@ pub struct Ledger {
     refused: bool,
     learnt: bool,
     dismissed: bool,
+    unstamped: Vec<What>,
 }
 
 impl Ledger {
@@ -94,6 +95,35 @@ impl Ledger {
             refused: false,
             dismissed: false,
             learnt: false,
+            unstamped: Vec::new(),
+        }
+    }
+
+    /// Whether a `hold_set` of the person waits for the owner's acknowledgement, so that a
+    /// switch-off that stored it at once does not store it again (ruling RD-133, answer (b)).
+    pub fn waits_with_a_persons_hold(&self) -> bool {
+        self.waiting.iter().any(|e| {
+            matches!(
+                e.what,
+                What::HoldSet {
+                    cause: crate::types::HoldSetCause::Person
+                }
+            )
+        })
+    }
+
+    /// Whether rows of a stop or a switch-off wait for a read of the clock that answers
+    /// (ruling RD-133 1).
+    pub fn has_unstamped(&self) -> bool {
+        !self.unstamped.is_empty()
+    }
+
+    /// Stamps the rows that waited for a read of the clock with `at`, the first read that
+    /// answered, and queues them after the waiting ones (ruling RD-133 1).
+    pub fn stamp_unstamped(&mut self, at: Stamp) {
+        let whats = std::mem::take(&mut self.unstamped);
+        if !whats.is_empty() {
+            queue_at(self, whats, at);
         }
     }
 
@@ -898,6 +928,40 @@ fn store_at<P: Owner + Clock>(
     flush(ports, ledger, limits)
 }
 
+/// Stores the `hold_set` of the person's Switch off, whose own read of the clock did not answer,
+/// at `at`, the last read of the clock that this life made, so that the agent stays off across a
+/// new life; its time and day may be older than the press (ruling RD-133 1, (b)).
+pub fn store_held_off<P: Owner + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    at: Stamp,
+) -> Result<(), PortError> {
+    let set = What::HoldSet {
+        cause: crate::types::HoldSetCause::Person,
+    };
+    store_at(ports, ledger, limits, vec![set], at)
+}
+
+/// Stores a lapse's row at one read of the clock; where no read answers, the row of a stop or
+/// a switch-off (`holds`) waits in the ledger for the next read that answers, and any other
+/// row is lost, a named limit (rulings RD-101 (g), RD-133 1).
+fn store_or_hold<P: Owner + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    row: What,
+    holds: bool,
+) {
+    match Stamp::read(ports) {
+        Ok(stamp) => {
+            let _ = store_at(ports, ledger, limits, vec![row], stamp);
+        }
+        Err(_) if holds => ledger.unstamped.push(row),
+        Err(_) => {}
+    }
+}
+
 fn queue_at(ledger: &mut Ledger, whats: Vec<What>, at: Stamp) {
     let whats: Vec<What> = whats
         .into_iter()
@@ -1367,7 +1431,9 @@ pub fn answer_reading<P: Owner + Runs + Clock>(
 /// tick hands on (`tick_at`) or else at a time read then, waiting in the ledger; second,
 /// `Runs::cancel` once; third, the decision, only where the cancel answered success or `ended`,
 /// so that the runner holds the cancel when the decision comes; fourth, the row to the owner. After a cancel that answered another error no decision
-/// is sent, and the kill of I5.7 ends the run.
+/// is sent, and the kill of I5.7 ends the run. A lapse with `answer_lost`, from `answered`
+/// alone, goes in the same order and sends no decision at all: the lapse rests on the cancel
+/// and on the kill at `cancel_grace_s` (ruling RD-84 item 2).
 ///
 /// Every other lapse first sends the decision, then lapses the item, takes its rows out of the
 /// guard's table and stores `item_lapsed`, and stops no run.
@@ -1380,6 +1446,20 @@ pub fn lapse<P: Owner + Runs + Clock>(
     limits: &Limits,
 ) -> Result<(), Cause> {
     lapse_stamped(ports, ledger, table, held, cause, limits, None)
+}
+
+/// `lapse` at `stamp`, the move's one read of the clock, which the caller also gives the stop
+/// of the run on the board (rulings RD-84 item 2, RD-101 item 1).
+pub fn lapse_at<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    cause: LapseCause,
+    limits: &Limits,
+    stamp: Stamp,
+) -> Result<(), Cause> {
+    lapse_stamped(ports, ledger, table, held, cause, limits, Some(stamp))
 }
 
 fn lapse_stamped<P: Owner + Runs + Clock>(
@@ -1400,11 +1480,15 @@ fn lapse_stamped<P: Owner + Runs + Clock>(
         item: held.item.clone(),
         lapsed: Lapsed::Confirm(cause),
     };
-    if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
+    if matches!(
+        cause,
+        LapseCause::WaitLimit | LapseCause::Cancelled | LapseCause::AnswerLost
+    ) {
         held.confirmation = next;
         *table = table.lapse(&held.item).stop(&run);
-        if let Some(stamp) = stamp.or_else(|| Stamp::read(ports).ok()) {
-            queue_at(ledger, vec![lapsed], stamp);
+        match stamp.or_else(|| Stamp::read(ports).ok()) {
+            Some(stamp) => queue_at(ledger, vec![lapsed], stamp),
+            None => ledger.unstamped.push(lapsed),
         }
         let cancelled = ports.cancel(&run);
         if decides
@@ -1474,7 +1558,7 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
         item: open.item.clone(),
         lapsed,
     };
-    let _ = store(ports, ledger, limits, vec![row]);
+    store_or_hold(ports, ledger, limits, row, cause == OtherLapse::Cancelled);
     if matches!(cause, OtherLapse::WaitLimit | OtherLapse::Cancelled) {
         *table = table.stop(run);
         let _ = ports.cancel(run);
@@ -1941,7 +2025,13 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
         item: held.item.clone(),
         lapsed: Lapsed::SignIn(cause),
     };
-    let _ = store(ports, ledger, limits, vec![lapsed]);
+    store_or_hold(
+        ports,
+        ledger,
+        limits,
+        lapsed,
+        cause == OtherLapse::Cancelled,
+    );
     if lives {
         let _ = ports.cancel(&run);
     }

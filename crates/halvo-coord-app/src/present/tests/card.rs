@@ -1,6 +1,7 @@
 use super::{field, pay, pay_fields};
-use crate::present::card::{breaks, LINES, LINE_CHARS, WINDOWS_MARKS};
+use crate::present::card::{breaks, LINES, LINE_COLUMNS, WINDOWS_MARKS};
 use crate::present::Card;
+use halvo_coord::items::{CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Cause, Class, FieldFrom};
 use halvo_coord::words;
 
@@ -255,8 +256,31 @@ fn an_access_key_mark_in_a_control_text_breaks_the_composed_form_where_the_syste
 }
 
 #[test]
-fn the_placeholder_bounds_are_16_lines_and_120_characters() {
-    assert_eq!((LINES, LINE_CHARS), (16, 120));
+fn the_bounds_are_the_cores_proven_bounds_counted_in_columns() {
+    assert_eq!((LINES, LINE_COLUMNS), (CARD_LINES, CARD_COLUMNS));
+    let fits = |line: &str| Card::of("Pay this?", &[line], "Don't pay", "Pay").whole();
+    assert!(
+        !fits(&"\u{4e00}".repeat(120)),
+        "120 wide characters take 240 columns"
+    );
+    assert!(fits(&"\u{4e00}".repeat(LINE_COLUMNS / 2)));
+    assert!(!fits(&"\u{4e00}".repeat(LINE_COLUMNS / 2 + 1)));
+    assert!(
+        fits(&"e\u{301}".repeat(61.min(LINE_COLUMNS))),
+        "61 letters that each carry a combining mark"
+    );
+    assert!(fits(&"e\u{301}".repeat(LINE_COLUMNS)));
+    assert!(!fits(&"e\u{301}".repeat(LINE_COLUMNS + 1)));
+    let wide = "\u{4e00}".repeat(LINE_COLUMNS / 2 + 1);
+    assert!(
+        !Card::of(&wide, &[], "Don't pay", "Pay").whole(),
+        "the title"
+    );
+    assert!(!Card::of("Pay this?", &[], &wide, "Pay").whole(), "reject");
+    assert!(
+        !Card::of("Pay this?", &[], "Don't pay", &wide).whole(),
+        "allow"
+    );
 }
 
 #[test]
@@ -264,9 +288,9 @@ fn a_card_over_its_bound_in_lines_or_in_characters_breaks_the_composed_form() {
     let line = "Pay to: City Power";
     assert!(Card::of("Pay this?", &vec![line; LINES], "Don't pay", "Pay").whole());
     assert!(!Card::of("Pay this?", &vec![line; LINES + 1], "Don't pay", "Pay").whole());
-    let full = "\u{e9}".repeat(LINE_CHARS);
-    let over = "\u{e9}".repeat(LINE_CHARS + 1);
-    let other = "e".repeat(LINE_CHARS);
+    let full = "\u{e9}".repeat(LINE_COLUMNS);
+    let over = "\u{e9}".repeat(LINE_COLUMNS + 1);
+    let other = "e".repeat(LINE_COLUMNS);
     assert!(
         Card::of(&full, &[&full], &full, &other).whole(),
         "each at its bound"

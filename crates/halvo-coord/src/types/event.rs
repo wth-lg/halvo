@@ -364,8 +364,9 @@ names! {
 }
 
 names! {
-    /// The `cause` of an `item_lapsed` row (I7.1): the six causes of I4.2 and `check`, which only
-    /// an item of another kind than `confirm` takes (ruling RD-35).
+    /// The `cause` of an `item_lapsed` row (I7.1): the seven causes of I4.2, `answer_lost` among
+    /// them (ruling RD-84), and `check`, which only an item of another kind than `confirm` takes
+    /// (ruling RD-35).
     ItemLapseCause {
         Digest = "digest",
         RunEnded = "run_ended",
@@ -373,6 +374,7 @@ names! {
         Cancelled = "cancelled",
         NoRecord = "no_record",
         AppEnded = "app_ended",
+        AnswerLost = "answer_lost",
         Check = "check",
     }
 }
@@ -387,6 +389,7 @@ impl ItemLapseCause {
             LapseCause::Cancelled => ItemLapseCause::Cancelled,
             LapseCause::NoRecord => ItemLapseCause::NoRecord,
             LapseCause::AppEnded => ItemLapseCause::AppEnded,
+            LapseCause::AnswerLost => ItemLapseCause::AnswerLost,
         }
     }
 }

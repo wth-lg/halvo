@@ -153,6 +153,7 @@ pub struct Board<C> {
     defers: Vec<(RunId, Defers)>,
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
+    queue_held: bool,
 }
 
 impl<C> Board<C> {
@@ -182,7 +183,20 @@ impl<C> Board<C> {
             defers: Vec::new(),
             unread: Vec::new(),
             dismissed: Vec::new(),
+            queue_held: false,
         }
+    }
+
+    /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
+    /// which keeps its starts and gives them no reply, and a tick still serves it (ruling RD-133
+    /// 3: a queued start waits while the mark of a tick that did not return stands).
+    pub fn hold_queue(&mut self, held: bool) {
+        self.queue_held = held;
+    }
+
+    /// Whether the queue is held, so that the end of a run serves none of it.
+    pub fn queue_held(&self) -> bool {
+        self.queue_held
     }
 
     /// Takes from the owner's list that a move read which workflows it shows dismissed (I7.2,
@@ -238,6 +252,27 @@ impl<C> Board<C> {
                 d.ticks_failed = d.ticks_failed.saturating_add(1);
             }
         }
+    }
+
+    /// Counts a tick that a settle or a stop waiting for the clock held, and that returned, for
+    /// each run on the board that no stop has reached: a run stopped while it waits counts the
+    /// held ticks only up to its stop (ruling RD-133 I7.1, Addition 1 item 7).
+    pub(crate) fn held_tick(&mut self) {
+        for (run, d) in &mut self.defers {
+            if self.runs.iter().any(|r| &r.run == run && r.stop.is_none()) {
+                d.ticks_failed = d.ticks_failed.saturating_add(1);
+            }
+        }
+    }
+
+    /// Forgets the defers of every run that stands on the board after a tick that did not
+    /// return, whose defer may or may not have been acknowledged, so that each such run's
+    /// `run_ended` writes both keys null, which says not known, and no lower bound stands as a
+    /// count (I7.1; rulings RD-80 4.1, RD-86 items 1 and 2, RD-122).
+    pub(crate) fn defers_not_known(&mut self) {
+        let runs = &self.runs;
+        self.defers
+            .retain(|(run, _)| !runs.iter().any(|r| &r.run == run));
     }
 
     /// What this life saw of the run's defers, or none where it did not see the run whole.

@@ -350,7 +350,7 @@ fn effect_answer_names_are_those_of_i5_10() {
 }
 
 #[test]
-fn lapse_cause_names_are_the_six_of_i4_2() {
+fn lapse_cause_names_are_the_seven_of_i4_2() {
     assert_eq!(
         names(LapseCause::ALL, LapseCause::name),
         [
@@ -360,6 +360,7 @@ fn lapse_cause_names_are_the_six_of_i4_2() {
             "cancelled",
             "no_record",
             "app_ended",
+            "answer_lost",
         ]
     );
 }
@@ -447,7 +448,7 @@ fn other_lapse_names_are_the_causes_of_an_item_of_another_kind_of_i7_1() {
 }
 
 #[test]
-fn item_lapse_cause_names_are_the_seven_causes_of_an_item_lapsed_row_of_i7_1() {
+fn item_lapse_cause_names_are_the_eight_causes_of_an_item_lapsed_row_of_i7_1() {
     assert_eq!(
         names(ItemLapseCause::ALL, ItemLapseCause::name),
         [
@@ -457,6 +458,7 @@ fn item_lapse_cause_names_are_the_seven_causes_of_an_item_lapsed_row_of_i7_1() {
             "cancelled",
             "no_record",
             "app_ended",
+            "answer_lost",
             "check",
         ]
     );

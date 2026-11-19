@@ -15,7 +15,7 @@ Answers == {"allow", "reject"}
 RecStates == {"approved", "releasing", "committed"}
 Table == {"run", "confirm"}
 NoApproval == -1
-Causes == {"digest", "run_ended", "wait_limit", "cancelled", "no_record", "app_ended"}
+Causes == {"digest", "run_ended", "wait_limit", "cancelled", "no_record", "app_ended", "answer_lost"}
 BindItems == 1..Binds
 Choices == {"allow", "decline"}
 BindCauses == {"wait_limit", "cancelled", "run_ended", "app_ended"}
@@ -136,8 +136,8 @@ Release(s, i) ==
                        [k |-> "item_released", item |-> i, entries |-> es]>>]
 
 LapseOk(it, cause) ==
-    \/ it.st \in {"shown", "armed"}
-    \/ it.st = "answered" /\ cause \in {"run_ended", "cancelled", "no_record", "app_ended"}
+    \/ it.st \in {"shown", "armed"} /\ cause # "answer_lost"
+    \/ it.st = "answered" /\ cause \in {"run_ended", "cancelled", "no_record", "app_ended", "answer_lost"}
     \/ it.st = "recorded" /\ cause \in {"run_ended", "app_ended"}
 
 Lapse(s, i, cause) ==
@@ -145,11 +145,12 @@ Lapse(s, i, cause) ==
     ELSE IF ~LapseOk(s.items[i], cause) THEN No(s, "state")
     ELSE LET it == s.items[i]
              gone == cause \in {"run_ended", "app_ended"}
-             stop == cause \in {"wait_limit", "cancelled"}
+             stop == cause \in {"wait_limit", "cancelled", "answer_lost"}
+             silent == gone \/ cause = "answer_lost"
              es == Entries(it.req, Mint(s, it.req), "reject_once")
          IN [r |-> "ok",
              st |-> [s EXCEPT !.items[i].st = "lapsed",
-                              !.nap = IF gone THEN @ ELSE @ + Cardinality(ReqEffects(it.req)),
+                              !.nap = IF silent THEN @ ELSE @ + Cardinality(ReqEffects(it.req)),
                               !.table = {t \in @ : t.row.item # i},
                               !.run = IF gone THEN "ended" ELSE IF stop THEN "stopped" ELSE @,
                               !.app = IF cause = "app_ended" THEN "ended" ELSE @],
@@ -158,7 +159,7 @@ Lapse(s, i, cause) ==
                       ELSE <<[k |-> "answer_confirm", item |-> i, answer |-> "reject", ids |-> Ids(Mint(s, it.req))]>>)
                      \o (IF it.st = "answered"
                          THEN <<[k |-> "unacked_rows", item |-> i, rows |-> Rows(i, ItemEntries(it))]>> ELSE <<>>)
-                     \o (IF gone THEN <<>> ELSE <<[k |-> "sent", item |-> i, via |-> "lapse", entries |-> es]>>)
+                     \o (IF silent THEN <<>> ELSE <<[k |-> "sent", item |-> i, via |-> "lapse", entries |-> es]>>)
                      \o <<[k |-> "item_lapsed", item |-> i, cause |-> cause]>>]
 
 Stop(s) ==
@@ -378,7 +379,7 @@ RECURSIVE HFold(_, _, _, _)
 HFold(g, out, i, mv) == IF i > Len(out) THEN g ELSE HFold(HEvent(g, out[i], mv), out, i + 1, mv)
 
 HAfter(g, mv) ==
-    CASE mv.m = "lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"}]
+    CASE mv.m = "lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled", "answer_lost"}]
       [] mv.m = "stop" -> [g EXCEPT !.stopped = TRUE]
       [] mv.m = "bind_lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"}]
       [] OTHER -> g
@@ -453,7 +454,7 @@ L3 == /\ \A c, d \in h.got : \A x \in c.entries : \A y \in d.entries :
 L4 == \A i \in Items : \A k \in 1..Len(h.moves[i]) :
         /\ h.moves[i][k].m \in {"release", "lapse"} => k = Len(h.moves[i])
         /\ (h.moves[i][k].m = "lapse" /\ \E j \in 1..(k - 1) : h.moves[i][j].m = "answer")
-              => h.moves[i][k].cause \in {"run_ended", "cancelled", "no_record", "app_ended"}
+              => h.moves[i][k].cause \in {"run_ended", "cancelled", "no_record", "app_ended", "answer_lost"}
         /\ (h.moves[i][k].m = "lapse" /\ \E j \in 1..(k - 1) : h.moves[i][j].m = "record")
               => h.moves[i][k].cause \in {"run_ended", "app_ended"}
 L5 == /\ \A d \in h.got : d.via = "release" =>
