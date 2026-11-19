@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 108 and 81: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside, the two layouts of a build script's out directory that the runner images of the windows job give, and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 111 and 81: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside, the two layouts of a build script's out directory that the runner images of the windows job give, and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -49,6 +49,8 @@ dep-info-name-with-a-tab dep-info-name-with-a-control-character
 failure-line-names-a-file-beside-the-out-directory failure-line-names-an-out-directory-not-named-out
 out-directory-in-the-new-layout out-directory-in-the-old-layout new-layout-of-a-package-with-a-hyphen
 failure-line-names-the-out-directory-as-the-dep-info-file-spells-it
+failure-line-hides-an-out-directory-outside-the-target failure-line-hides-an-out-directory-that-is-no-directory
+failure-line-names-a-dep-info-file-without-an-out-directory
 end-verdict-reads-the-drivers-job end-verdict-reads-the-cases-that-ran
 end-verdict-reads-the-cases-on-no-list end-verdict-reads-the-left-out-count'
 macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails clippy-fails
@@ -541,29 +543,51 @@ said() {
   fi
 }
 
+show() {
+  case $1/ in
+    "$target_real"/*) shown=$1 ;;
+    *) shown='outside the target' ;;
+  esac
+}
+
 explain_outside() {
   (
-    say_outside "the file made real: $2/$3"
-    say_outside "place_of: test -ef [$place_at] [$target]: yes"
+    if cd -P "$target" 2>/dev/null; then
+      target_real=$PWD
+    else
+      target_real=$nl
+    fi
+    show "$2/$3"
+    say_outside "the file made real: $shown"
+    show "$place_at"
+    say_outside "place_of: test -ef [$shown] [$target]: yes"
     case $named in
       *"$nl$1$tab"*)
         named_dir=${named#*"$nl$1$tab"}
         named_dir=${named_dir%%"$nl"*}
-        say_outside "the out directory as the dep-info file names it: ${named_dir#*"$tab"}"
+        named_raw=${named_dir#*"$tab"}
         named_dir=${named_dir%%"$tab"*}
-        say_outside "the out directory as this shell holds it: $named_dir"
         if cd -P "$named_dir" 2>/dev/null; then
           dir_real=$PWD
+          show "$dir_real"
+          if [ "$shown" = "$dir_real" ]; then
+            say_outside "the out directory as the dep-info file names it: $named_raw"
+            say_outside "the out directory as this shell holds it: $named_dir"
+          else
+            say_outside 'the out directory as the dep-info file names it: outside the target'
+            say_outside 'the out directory as this shell holds it: outside the target'
+          fi
           say_outside 'out_dir_of: cd -P into it: yes'
-          say_outside "the out directory made real: $dir_real"
+          say_outside "the out directory made real: $shown"
           answer=$(said [ "${dir_real##*/}" = out ])
           say_outside "out_dir_of: its last name is out: $answer"
           build=${dir_real%/*/*}
           for levels in two three; do
             answer=$(said [ "${build##*/}" = build ])
-            say_outside "out_dir_of: the name $levels levels above it is build: $answer ($build)"
+            say_outside "out_dir_of: the name $levels levels above it is build: $answer (${build##*/})"
             answer=$(said [ "${build%/*/*}" -ef "$target" ])
-            say_outside "out_dir_of: test -ef [${build%/*/*}] [$target]: $answer"
+            show "${build%/*/*}"
+            say_outside "out_dir_of: test -ef [$shown] [$target]: $answer"
             build=${build%/*}
           done
           hash=${dir_real%/*}
@@ -576,6 +600,7 @@ explain_outside() {
           esac
           say_outside "out_dir_of: the name two levels above it ends in - and such a hash: $answer (${package##*/})"
         else
+          say_outside 'the out directory as the dep-info file names it: not a directory that cd -P enters'
           say_outside 'out_dir_of: cd -P into it: no'
         fi
         ;;
@@ -586,13 +611,16 @@ explain_outside() {
         out=${outs#*"$nl$1$tab"}
         out=${out%%"$nl"*}
         say_outside 'an out directory was found for this dep-info file: yes'
-        say_outside "the out directory found: $out"
+        show "$out"
+        say_outside "the out directory found: $shown"
         inner=$2
         answer=no
         while :; do
           answer=$(said [ "$inner" -ef "$out" ])
-          say_outside "below: test -ef [$inner] [$out]: $answer"
+          show "$inner"
+          say_outside "below: test -ef [$shown] [$out]: $answer"
           [ "$answer" = no ] || break
+          [ ! "$inner" -ef "$target" ] || break
           case $inner in
             */*) inner=${inner%/*} ;;
             *) break ;;
@@ -1060,6 +1088,15 @@ write_crate() {
   : >"$1/src/lib.rs"
 }
 
+extra_dep_info() {
+  extra_target=$(cd "$fixture" && pwd)/target/account || return 1
+  mkdir -p "$fixture/target/account/debug/deps" "$fixture/target/account/${3%/*}" && : >"$fixture/target/account/$3" || return 1
+  {
+    printf '%s/debug/deps/extra-0.d: crates/halvo-wire/src/lib.rs %s/%s\n\ncrates/halvo-wire/src/lib.rs:\n%s/%s:\n' "$extra_target" "$extra_target" "$2" "$extra_target" "$2"
+    [ -z "$1" ] || printf '\n# env-dep:OUT_DIR=%s\n' "$1"
+  } >"$fixture/target/account/debug/deps/extra-0.d"
+}
+
 make_probe_fixture() {
   fixture=$work/$1
   mkdir "$fixture" "$fixture/account" "$fixture/outside" "$fixture/scripts" || return 1
@@ -1289,9 +1326,15 @@ run_case() {
       *) got="$got, without the line: $want_line" ;;
     esac
   done
+  for unwanted_text in $unwanted; do
+    case $out in
+      *"$unwanted_text"*) got="$got, with the text: $unwanted_text" ;;
+    esac
+  done
   set +f
   IFS=$held_ifs
   want_lines=
+  unwanted=
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case"
@@ -1352,6 +1395,7 @@ self_test() {
   rejected=0
   wrong=
   want_lines=
+  unwanted=
   write_stand_in "$work/stand-in" || fail 'cannot write the stand-in cygpath'
   calls_before="deny --version
 fetch --locked --offline --manifest-path account/Cargo.toml
@@ -1588,14 +1632,18 @@ EOF
   if runs_here failure-line-names-a-file-beside-the-out-directory && make_fixture failure-line-names-a-file-beside-the-out-directory &&
     mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" && t_real=$(cd -P "$fixture/target/account" && pwd) &&
     t_named=$(cd "$fixture" && pwd); then
-    want_lines="read outside account/: the file made real: $t_real/debug/build/halvo-wire-0/other.rs
+    want_lines="read outside account/: a file under target/account outside the out directory of its build script
+read outside account/: the file made real: $t_real/debug/build/halvo-wire-0/other.rs
 read outside account/: place_of: test -ef [$t_real] [$t_named/target/account]: yes
 read outside account/: out_dir_of: its last name is out: yes
 read outside account/: an out directory was found for this dep-info file: yes
 read outside account/: the out directory found: $t_real/debug/build/halvo-wire-0/out
 read outside account/: below: test -ef [$t_real/debug/build/halvo-wire-0] [$t_real/debug/build/halvo-wire-0/out]: no
 read outside account/: below: test -ef [$t_real/debug/build] [$t_real/debug/build/halvo-wire-0/out]: no
+read outside account/: below: test -ef [$t_real] [$t_real/debug/build/halvo-wire-0/out]: no
 read outside account/: below found the file's directory under the out directory: no"
+    unwanted="below: test -ef [${t_real%/*}]
+below: test -ef [outside the target]"
     run_case failure-line-names-a-file-beside-the-out-directory "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/halvo-wire-0/other.rs
   fi
   if runs_here failure-line-names-an-out-directory-not-named-out && make_fixture failure-line-names-an-out-directory-not-named-out &&
@@ -1604,11 +1652,12 @@ read outside account/: below found the file's directory under the out directory:
     want_lines="read outside account/: the file made real: $t_real/debug/build/halvo-wire-0/notout/bounds.rs
 read outside account/: the out directory as this shell holds it: $t_named/target/account/debug/build/halvo-wire-0/notout
 read outside account/: out_dir_of: cd -P into it: yes
+read outside account/: the out directory made real: $t_real/debug/build/halvo-wire-0/notout
 read outside account/: out_dir_of: its last name is out: no
-read outside account/: out_dir_of: the name two levels above it is build: yes ($t_real/debug/build)
+read outside account/: out_dir_of: the name two levels above it is build: yes (build)
 read outside account/: out_dir_of: test -ef [$t_real] [$t_named/target/account]: yes
-read outside account/: out_dir_of: the name three levels above it is build: no ($t_real/debug)
-read outside account/: out_dir_of: test -ef [${t_real%/*}] [$t_named/target/account]: no
+read outside account/: out_dir_of: the name three levels above it is build: no (debug)
+read outside account/: out_dir_of: test -ef [outside the target] [$t_named/target/account]: no
 read outside account/: out_dir_of: the name of the directory above it is a hash of 16 lower-case hex digits: no (halvo-wire-0)
 read outside account/: out_dir_of: the name two levels above it ends in - and such a hash: no (build)
 read outside account/: an out directory was found for this dep-info file: no"
@@ -1621,6 +1670,32 @@ read outside account/: an out directory was found for this dep-info file: no"
 read outside account/: the out directory as this shell holds it: $fixture/target/account/debug/build/halvo-wire-0/notout
 read outside account/: out_dir_of: its last name is out: no"
     run_case failure-line-names-the-out-directory-as-the-dep-info-file-spells-it "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/notout STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
+  fi
+  if runs_here failure-line-hides-an-out-directory-outside-the-target && make_fixture failure-line-hides-an-out-directory-outside-the-target &&
+    mkdir -p "$fixture/outside/debug/build/probe/c999a60d9992a792/out" &&
+    extra_dep_info "$fixture/outside/debug/build/probe/c999a60d9992a792/out" debug/build/probe-c999a60d9992a792/out/gen.rs debug/build/probe-c999a60d9992a792/out/gen.rs; then
+    want_lines="read outside account/: the out directory as the dep-info file names it: outside the target
+read outside account/: the out directory as this shell holds it: outside the target
+read outside account/: the out directory made real: outside the target
+read outside account/: out_dir_of: the name three levels above it is build: yes (build)
+read outside account/: an out directory was found for this dep-info file: no"
+    unwanted="outside/debug/build/probe"
+    run_case failure-line-hides-an-out-directory-outside-the-target "FAIL $name ($cause_source)" stub
+  fi
+  if runs_here failure-line-hides-an-out-directory-that-is-no-directory && make_fixture failure-line-hides-an-out-directory-that-is-no-directory &&
+    extra_dep_info fixture-only-env-value debug/build/probe-c999a60d9992a792/out/gen.rs debug/build/probe-c999a60d9992a792/out/gen.rs; then
+    want_lines="read outside account/: the out directory as the dep-info file names it: not a directory that cd -P enters
+read outside account/: out_dir_of: cd -P into it: no
+read outside account/: an out directory was found for this dep-info file: no"
+    unwanted="fixture-only-env-value"
+    run_case failure-line-hides-an-out-directory-that-is-no-directory "FAIL $name ($cause_source)" stub
+  fi
+  if runs_here failure-line-names-a-dep-info-file-without-an-out-directory && make_fixture failure-line-names-a-dep-info-file-without-an-out-directory &&
+    extra_dep_info '' debug/build/probe-c999a60d9992a792/out/gen.rs debug/build/probe-c999a60d9992a792/out/gen.rs; then
+    want_lines="read outside account/: a file under target/account outside the out directory of its build script
+read outside account/: the dep-info file names no out directory
+read outside account/: an out directory was found for this dep-info file: no"
+    run_case failure-line-names-a-dep-info-file-without-an-out-directory "FAIL $name ($cause_source)" stub
   fi
   stub_case out-directory-in-the-new-layout "PASS $name" stub STUB_OUT_DIR=debug/build/probe/c999a60d9992a792/out
   stub_case out-directory-in-the-old-layout "PASS $name" stub STUB_OUT_DIR=debug/build/probe-49f2e86ea4e02162/out
