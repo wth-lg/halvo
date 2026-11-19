@@ -682,6 +682,7 @@ mod cases {
                 }
             }
         });
+        let seen = before();
         let answer = dialog.show(card, arm(), &|| {
             REPORTS.fetch_add(1, Ordering::SeqCst);
             REPORT_AT
@@ -689,6 +690,7 @@ mod cases {
                 .unwrap_or_else(PoisonError::into_inner)
                 .get_or_insert_with(Instant::now);
         });
+        print_before(generation, seen);
         done.store(true, Ordering::SeqCst);
         let _ = poker.join();
         let to_report = REPORT_AT
@@ -1087,6 +1089,7 @@ mod cases {
                 }
             }
         });
+        let seen = before();
         let answer = dialog.show(card, arm(), &|| {
             REPORTS.fetch_add(1, Ordering::SeqCst);
             REPORT_AT
@@ -1094,6 +1097,7 @@ mod cases {
                 .unwrap_or_else(PoisonError::into_inner)
                 .get_or_insert_with(Instant::now);
         });
+        print_before(generation, seen);
         done.store(true, Ordering::SeqCst);
         let _ = poker.join();
         Verdict {
@@ -1217,11 +1221,33 @@ mod cases {
         }
     }
 
+    static RUN_CALLED: AtomicBool = AtomicBool::new(false);
+    static RUN_READY: AtomicBool = AtomicBool::new(false);
+    static THREAD_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
+    fn before() -> (bool, bool, u128) {
+        (
+            RUN_CALLED.load(Ordering::SeqCst),
+            RUN_READY.load(Ordering::SeqCst),
+            THREAD_AT
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .map_or(0, |at| at.elapsed().as_millis()),
+        )
+    }
+
+    fn print_before(generation: usize, (called, ready, since): (bool, bool, u128)) {
+        println!(
+            "dialog_hosted which-way before show {generation}: run_called_at_ask={called} run_ready_at_ask={ready} thread_start_to_ask_ms={since}"
+        );
+    }
+
     pub fn run(card: Card) {
         activate();
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
         std::thread::spawn(move || {
+            *THREAD_AT.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
             let dialog = System::new(handle);
             if std::env::var_os(TEXT_SIZE).is_some() {
                 let (name, card) = bound_cases().swap_remove(0);
@@ -1348,7 +1374,19 @@ mod cases {
             text_size_try();
             end(&verdicts, CASES.len(), bounds_failed + ink_failed);
         });
-        app.run(|_, _| {});
+        if let Some(ms) = std::env::var("HALVO_HOSTED_LATE_RUN_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+        {
+            println!("dialog_hosted forced form: the main thread holds its run call back {ms} ms");
+            std::thread::sleep(Duration::from_millis(ms));
+        }
+        RUN_CALLED.store(true, Ordering::SeqCst);
+        app.run(|_, event| {
+            if let tauri::RunEvent::Ready = event {
+                RUN_READY.store(true, Ordering::SeqCst);
+            }
+        });
     }
 }
 

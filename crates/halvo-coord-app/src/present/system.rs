@@ -109,6 +109,21 @@ pub enum Step {
 /// `reject` with no report; a channel that closes after the report and a response with no report
 /// before it answer `reject`.
 #[cfg(any(test, target_os = "macos"))]
+pub static WAY: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// Scratch which-way line: the word of the way that answered.
+#[cfg(any(test, target_os = "macos"))]
+pub fn way_word() -> &'static str {
+    match WAY.load(std::sync::atomic::Ordering::SeqCst) {
+        1 => "queue",
+        2 => "closed",
+        3 => "response",
+        4 => "reported",
+        _ => "none",
+    }
+}
+
+#[cfg(any(test, target_os = "macos"))]
 pub fn wait_alert<E>(
     queued: Result<(), E>,
     rx: &std::sync::mpsc::Receiver<Step>,
@@ -116,14 +131,23 @@ pub fn wait_alert<E>(
     reported: &dyn Fn(),
 ) -> ConfirmAnswer {
     if queued.is_err() {
+        WAY.store(1, std::sync::atomic::Ordering::SeqCst);
         return from_alert(None);
     }
     match rx.recv() {
         Ok(Step::Shown) => {
+            WAY.store(4, std::sync::atomic::Ordering::SeqCst);
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(on_screen));
             reported();
         }
-        _ => return from_alert(None),
+        Ok(Step::Response(_)) => {
+            WAY.store(3, std::sync::atomic::Ordering::SeqCst);
+            return from_alert(None);
+        }
+        Err(_) => {
+            WAY.store(2, std::sync::atomic::Ordering::SeqCst);
+            return from_alert(None);
+        }
     }
     match rx.recv() {
         Ok(Step::Response(response)) => from_alert(Some(response)),
@@ -330,7 +354,17 @@ mod macos {
         let title = card.title().to_owned();
         let text = card.text();
         let titles = controls(card).map(str::to_owned);
+        let asked = Instant::now();
+        super::WAY.store(0, std::sync::atomic::Ordering::SeqCst);
+        let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let on_main = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (ran_in, on_main_in) = (ran.clone(), on_main.clone());
         let queued = app.run_on_main_thread(move || {
+            ran_in.store(true, std::sync::atomic::Ordering::SeqCst);
+            on_main_in.store(
+                MainThreadMarker::new().is_some(),
+                std::sync::atomic::Ordering::SeqCst,
+            );
             let Some(mtm) = MainThreadMarker::new() else {
                 return;
             };
@@ -405,9 +439,17 @@ mod macos {
             drop(release);
             let _ = tx.send(Step::Response(response));
         });
-        wait_alert(queued, &rx, on_screen, &|| {
+        let answer = wait_alert(queued, &rx, on_screen, &|| {
             lock(&state).guard.reported(Instant::now())
-        })
+        });
+        println!(
+            "halvo which-way: way={} closure_ran={} on_main={} ask_to_answer_ms={}",
+            super::way_word(),
+            ran.load(std::sync::atomic::Ordering::SeqCst),
+            on_main.load(std::sync::atomic::Ordering::SeqCst),
+            asked.elapsed().as_millis()
+        );
+        answer
     }
 }
 

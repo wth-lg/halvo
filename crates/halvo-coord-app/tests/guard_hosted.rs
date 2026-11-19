@@ -1196,6 +1196,10 @@ mod cases {
         }
     }
 
+    static RUN_CALLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    static RUN_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    static THREAD_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
     pub fn run(card: Card) {
         activate();
         if let Some(mtm) = MainThreadMarker::new() {
@@ -1204,6 +1208,7 @@ mod cases {
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
         std::thread::spawn(move || {
+            *THREAD_AT.lock().unwrap_or_else(PoisonError::into_inner) = Some(Instant::now());
             let dialog = System::new(handle);
             let mut verdicts = Vec::new();
             let mut not_active = 0;
@@ -1217,7 +1222,19 @@ mod cases {
                 let verdict = case(&Mac, name, shows, &|| {
                     *NOTICE_BOTH.lock().unwrap_or_else(PoisonError::into_inner) = None;
                     SHOW.fetch_add(1, Ordering::SeqCst);
-                    dialog.show(&card, arm(), &|| on_screen(active_now(), visible_now()))
+                    let called = RUN_CALLED.load(Ordering::SeqCst);
+                    let ready = RUN_READY.load(Ordering::SeqCst);
+                    let since = THREAD_AT
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .map_or(0, |at| at.elapsed().as_millis());
+                    let answer =
+                        dialog.show(&card, arm(), &|| on_screen(active_now(), visible_now()));
+                    let (label, _) = now_in_show();
+                    println!(
+                        "guard_hosted which-way before {label}: run_called_at_ask={called} run_ready_at_ask={ready} thread_start_to_ask_ms={since}"
+                    );
+                    answer
                 });
                 print(&verdict);
                 verdicts.push(verdict);
@@ -1228,7 +1245,19 @@ mod cases {
             );
             end(&verdicts, CASES.len());
         });
-        app.run(|_, _| {});
+        if let Some(ms) = std::env::var("HALVO_HOSTED_LATE_RUN_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+        {
+            println!("guard_hosted forced form: the main thread holds its run call back {ms} ms");
+            std::thread::sleep(Duration::from_millis(ms));
+        }
+        RUN_CALLED.store(true, Ordering::SeqCst);
+        app.run(|_, event| {
+            if let tauri::RunEvent::Ready = event {
+                RUN_READY.store(true, Ordering::SeqCst);
+            }
+        });
     }
 }
 
