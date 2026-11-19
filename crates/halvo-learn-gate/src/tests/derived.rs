@@ -246,3 +246,128 @@ fn derived_the_store_opens_again_with_its_key_and_refuses_another_key() {
         "the derived store does not open: the key does not open the derived database"
     );
 }
+
+/// L4.4, failing_first line 5: a row of the family learn is read by the keyed read alone. A learn_edit row that the
+/// store keeps (check_record takes it) and LearnEdit::parse refuses (first > last), committed into workflow 1, stops
+/// workflow 1's list_refinements and reaches no read of workflow 2: its list answers and its run is served its learned
+/// locator.
+#[test]
+fn derived_a_learn_edit_row_that_one_workflow_refuses_reaches_no_read_of_another_workflow() {
+    use halvo_derived::{Handler, HandlerCx, Host, IdSource, Store, Takes};
+    use halvo_schema::kinds::registry;
+    use halvo_schema::request::decode;
+    use halvo_schema::{Decoded, ErrorName, RawRequest, RecurrenceStep, SummaryRead, TypedRecord};
+    use serde_json::value::RawValue;
+
+    struct NoProposal;
+    impl RecurrenceStep for NoProposal {
+        fn propose(&self, _: &dyn SummaryRead) -> Vec<halvo_schema::Proposal> {
+            Vec::new()
+        }
+    }
+    struct OnesIds;
+    impl IdSource for OnesIds {
+        fn fill(&mut self, bytes: &mut [u8]) {
+            bytes.fill(1);
+        }
+    }
+    struct PlantLearnEdit;
+    impl Handler for PlantLearnEdit {
+        fn handle(
+            &self,
+            request: &RawRequest,
+            cx: &mut HandlerCx<'_>,
+        ) -> Result<Box<RawValue>, ErrorName> {
+            let body: serde_json::Value =
+                serde_json::from_str(request.body().get()).map_err(|_| ErrorName::Malformed)?;
+            cx.commit(&[TypedRecord {
+                kind: "learn_edit",
+                json: body["row"].to_string(),
+            }])
+            .map_err(|_| ErrorName::Store)?;
+            RawValue::from_string("{\"ok\":\"yes\"}".to_owned()).map_err(|_| ErrorName::Internal)
+        }
+    }
+
+    let root = scratch("refused-row");
+    let key = process_key();
+    let cases = crate::delete::seed_cases();
+    let day = cases[1].occurrences[cases[1].occurrences.len() - 1].day;
+    let (first_workflow, second_workflow) = {
+        let host = DerivedHost::new(root.clone(), key.clone(), cases[0].occurrences[0].day);
+        let mut first = Play::with_host(&cases[0], Arm::Admit, 1, host);
+        play_all(&mut first, false).expect("workflow 1 plays on the derived store");
+        let first_workflow = first.workflow().to_owned();
+        let mut second = Play::with_host(&cases[1], Arm::Admit, 2, first.host);
+        play_all(&mut second, false).expect("workflow 2 plays on the derived store");
+        (first_workflow, second.workflow().to_owned())
+    };
+    {
+        let clock = crate::derived::Day::default();
+        clock.set(day);
+        let entries: Vec<&'static halvo_schema::KindEntry> = registry().collect();
+        let host = Host::new(Box::new(clock), Box::new(NoProposal)).handler(
+            "learn",
+            Takes::Coordinator(&["plant"]),
+            Box::new(PlantLearnEdit),
+        );
+        let mut store = Store::open(&root, &key, &entries, host, &mut OnesIds)
+            .expect("the store opens again with its key");
+        let refused_row = json!({
+            "v": 1, "workflow": first_workflow, "agent": id('4', 1),
+            "edit": "5c4b3a29180f7e6d5c4b3a29180f7e6d", "rev": 1, "base": 1, "n": 1,
+            "state": "provisional", "cause": null, "on": null, "runs": [id('5', 99)],
+            "first": day + 1, "last": day, "clean": 0,
+            "target": {"desc": "button \"bad\"", "locators": [{"by": "role", "value": "button", "name": "bad"}]}
+        });
+        let request = json!({
+            "v": 1, "id": "11111111111111111111111111111111", "request": "coordinator_write",
+            "body": {"op": "plant", "row": refused_row}
+        })
+        .to_string();
+        let Decoded::Raw(raw) = decode(request.as_bytes()).expect("the request decodes") else {
+            panic!("the request is not a raw request");
+        };
+        store
+            .handle(&raw)
+            .expect("the store keeps the row that LearnEdit::parse refuses");
+    }
+    let mut host = DerivedHost::new(root, key, day);
+    host.link(Arm::Admit);
+    let list = |workflow: &str, agent: u32| {
+        json!({"op": "list_refinements", "workflow": workflow, "agent": id('4', agent)}).to_string()
+    };
+    let first_list = host.coordinator_reply(&list(&first_workflow, 1));
+    assert!(
+        first_list.is_err(),
+        "workflow 1 reads its refused row: {first_list:?}"
+    );
+    let second_list = host
+        .coordinator_reply(&list(&second_workflow, 2))
+        .expect("workflow 2's list_refinements does not read workflow 1's refused row");
+    assert!(second_list.contains("target_kept"), "{second_list}");
+    let (agent, run) = (id('4', 2), id('5', 8802));
+    let body = |value: serde_json::Value| value.to_string().into_bytes();
+    host.coordinator(&body(json!({"op": "start_run", "workflow": second_workflow, "agent": agent, "run": run, "mode": "replay"})))
+        .expect("workflow 2's start_run");
+    let RunnerReply::Load(load) = host
+        .runner(&body(json!({"op": "load", "agent": agent, "run": run})))
+        .expect("workflow 2's load")
+    else {
+        panic!("a load answered with another reply");
+    };
+    let number = load.playbook.expect("a playbook").number.get();
+    let RunnerReply::Steps(steps) = host
+        .runner(&body(
+            json!({"op": "load_steps", "agent": agent, "run": run, "number": number, "from": 1}),
+        ))
+        .expect("workflow 2's load_steps")
+    else {
+        panic!("a load_steps answered with another reply");
+    };
+    assert_eq!(
+        first_role_name(&steps.steps).as_deref(),
+        Some(MARKERS[1]),
+        "workflow 2's run is served its learned locator"
+    );
+}
