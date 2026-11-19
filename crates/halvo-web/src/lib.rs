@@ -191,7 +191,7 @@ mod tests {
             .count();
         assert_eq!(
             (bins, fenced),
-            (2, 2),
+            (3, 3),
             "each program needs the feature test-fence"
         );
     }

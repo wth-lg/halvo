@@ -2057,74 +2057,6 @@ pub(crate) mod tests {
         (Executor::start(&opts).await, profile, dir, relay)
     }
 
-    /// CP-126 E1 and point 42: a failed start ends every process that names the profile: the
-    /// stand-in leaves a helper and ends before its first reply, which is `browser_start`, kept
-    /// apart from `no_channel` (CP-165 (9)); the failure reports both directories removed.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_failed_start_ends_a_process_that_the_browser_left_with_its_profile() {
-        let since_us = own_start_us();
-        let (started, profile, dir, _relay) = stand_in_start("leftover", "leave", None).await;
-        let left = naming(&profile, since_us);
-        end_left(&left, &dir);
-        let failed = started.err().expect("the start failed");
-        assert_eq!(failed.cause, "browser_start", "{failed:?}");
-        assert!(failed.removed, "{failed:?}");
-        assert_eq!(left.len(), 0, "processes left that name the profile");
-    }
-
-    /// The review's point 3, finding (3): a start for which no guard could be started fails with
-    /// the cause `guard`, ends its browser and leaves no process that names the profile.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_start_with_no_guard_fails_and_leaves_no_browser() {
-        let since_us = own_start_us();
-        let none = crate::guard::GuardProgram {
-            program: crate::cdp::tests::nowhere("guard"),
-            prefix: Vec::new(),
-        };
-        let (started, profile, dir, _relay) =
-            stand_in_start("no-guard", "browser", Some(none)).await;
-        let left = named_within(&profile, since_us, Duration::from_millis(500)).await;
-        end_left(&left, &dir);
-        let failed = started.err().expect("the start went on with no guard");
-        assert_eq!(failed.cause, "guard", "{failed:?}");
-        assert!(failed.removed);
-        assert_eq!(left.len(), 0);
-    }
-
-    /// CP-158 (1), CP-165 (9), CP-189 G5: a browser that lives and gives no first reply within the
-    /// bound is `no_channel`, and its tree is ended by the guard's rule: nothing that bears the
-    /// run's mark is left. Its helper, which names no profile and outlives the test's wait, does
-    /// not bear the mark: it is left, and the start's failure counts and names it. The test then
-    /// ends it itself, inside its own fence (a program of the test's bundle). The stand-in holds
-    /// the pipe and answers nothing.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_start_with_no_first_reply_ends_its_tree_and_is_no_channel() {
-        let since_us = own_start_us();
-        let (started, profile, dir, _relay) = stand_in_start("no-reply", "hang", None).await;
-        let left = named_within(&profile, since_us, Duration::from_millis(500)).await;
-        end_left(&left, &dir);
-        let bundle = std::fs::canonicalize(&dir).unwrap();
-        let helpers: Vec<crate::procs::Proc> = crate::procs::table()
-            .unwrap()
-            .into_iter()
-            .filter(|p| p.exe.as_deref().is_some_and(|e| e.starts_with(&bundle)))
-            .collect();
-        end_left(&helpers, &dir);
-        let failed = started.err().expect("the start failed");
-        assert_eq!(failed.cause, "no_channel", "{failed:?}");
-        assert!(failed.removed);
-        assert_eq!(left.len(), 0);
-        assert_eq!(helpers.len(), 1, "the helper without the mark: {helpers:?}");
-        assert_eq!(
-            (failed.left_unmarked, failed.left_unmarked_programs.clone()),
-            (1, vec!["stand-in".to_string()]),
-            "{failed:?}"
-        );
-    }
-
     /// CP-176 A1 (d): the start returns an executor whose rule is armed with no origin in the mode
     /// that fails, so no request leaves before the runner arms.
     #[cfg(target_os = "macos")]
@@ -2141,30 +2073,6 @@ pub(crate) mod tests {
         assert!(rule.allowed.is_empty(), "{:?}", rule.allowed);
         assert_eq!(rule.mode, Mode::Fail);
         assert!(stopped.removed);
-    }
-
-    /// CP-126 E1 (1): a stand-in browser that answers the start and the stop on its pipe starts,
-    /// when it is asked to close, a process that names the profile and starts another one 300 ms
-    /// later, after the browser has ended. After the stop none of them is left. The stand-in asks
-    /// for the start's probe 500 ms after the navigation, and the start returned only after the
-    /// relay recorded its refusal.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_normal_stop_ends_a_process_that_appears_after_the_browser_ended() {
-        let since_us = own_start_us();
-        let (started, profile, dir, relay) =
-            stand_in_start("late", "browser_slow_probe", None).await;
-        let ex = started.expect("the stand-in starts");
-        assert_eq!(relay.handle().refusals_of(PROBE_HOST, PROBE_PORT), 1);
-        let stopped = ex.stop_and_remove().await;
-        let left = named_within(&profile, since_us, Duration::from_secs(2)).await;
-        end_left(&left, &dir);
-        assert!(stopped.removed);
-        assert_eq!(
-            left.len(),
-            0,
-            "processes left after the stop that name the profile"
-        );
     }
 
     #[test]

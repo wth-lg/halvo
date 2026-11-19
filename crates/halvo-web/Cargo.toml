@@ -18,6 +18,11 @@ name = "web-rows"
 path = "src/bin/web-rows.rs"
 required-features = ["test-fence"]
 
+[[bin]]
+name = "web-standin"
+path = "src/bin/web-standin.rs"
+required-features = ["test-fence"]
+
 [features]
 test-fence = []
 
