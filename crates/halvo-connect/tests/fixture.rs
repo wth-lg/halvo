@@ -4,7 +4,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::fixture::Fixture;
 use common::seed::Seed;
-use halvo_connect::{Calendar, CallError, Effect, Mail, RunDay, Token};
+use halvo_connect::{
+    AnswerFault, Calendar, CallError, Effect, Mail, Marked, NotMade, RunDay, Token, Unsent,
+};
+use halvo_schema::executable::names::YesNo;
+use halvo_schema::record::Instant;
 use serde_json::{json, Value};
 
 const BODY: &str = "Thank you, noted.";
@@ -17,12 +21,20 @@ fn today() -> RunDay {
 }
 
 fn cleanup_ids(seed: &Seed) -> Vec<String> {
-    seed.end("cleanup")
+    let mut ids: Vec<String> = seed
+        .end("cleanup")
         .as_array()
         .expect("end.cleanup")
         .iter()
         .map(|id| id.as_str().expect("an id").to_owned())
-        .collect()
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn sorted(mut ids: Vec<String>) -> Vec<String> {
+    ids.sort();
+    ids
 }
 
 fn requests(fixture: &Fixture) -> Value {
@@ -89,10 +101,177 @@ fn mail_list() {
             "seed {n}: the body of the first message"
         );
         assert!(
-            requests(&fixture) == counts(1, 0),
-            "seed {n}: one GET and no state change"
+            requests(&fixture) == counts(2, 0),
+            "seed {n}: one GET for each sender and no state change"
+        );
+        let left = messages.counts();
+        assert!(
+            (
+                left.reply_to_other,
+                left.before_start,
+                left.no_key,
+                left.not_to_account
+            ) == (1, 0, 0, 0),
+            "seed {n}: the message whose reply-to is its sender in another letter case"
+        );
+        assert!(
+            (
+                left.incomplete,
+                left.cut,
+                left.more_pages,
+                left.earlier_page
+            ) == (0, YesNo::No, YesNo::No, 0),
+            "seed {n}: no other count and no fact"
         );
     }
+}
+
+#[test]
+fn the_message_from_before_the_start_is_left_out_by_the_filter_and_the_rule() {
+    let fixture = Fixture::start();
+    let graph = fixture.graph("mail");
+    let early = Instant(0);
+    for n in 1..=3 {
+        fixture.reset(n, &[]);
+        let seed = Seed::load(n);
+        let before = format!("s{n}-msg-06");
+        let now: Vec<String> = graph
+            .mail_list(&seed.token(), &seed.rule())
+            .expect("mail_list answers")
+            .iter()
+            .map(|m| m.id().to_owned())
+            .collect();
+        assert!(
+            !now.contains(&before),
+            "seed {n}: left out from the start on"
+        );
+        let all: Vec<String> = graph
+            .mail_list(&seed.token(), &seed.rule_from(early))
+            .expect("mail_list answers")
+            .iter()
+            .map(|m| m.id().to_owned())
+            .collect();
+        assert!(
+            all.contains(&before),
+            "seed {n}: selected from an earlier start"
+        );
+    }
+}
+
+#[test]
+fn a_busy_service_answers_429_with_its_seconds_and_a_throttled_delete_is_not_made() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let seed = Seed::load(1);
+    let token = seed.token();
+    fixture.throttle(30);
+    assert_eq!(
+        fixture.graph("mail").mail_list(&token, &seed.rule()).err(),
+        Some(CallError::Status(429, Some(30)))
+    );
+    let calendar = fixture.graph("calendar");
+    let events = calendar
+        .calendar_list(&token, today())
+        .expect("calendar_list answers");
+    fixture.throttle(7);
+    let error = calendar
+        .calendar_delete(&token, events.into_deletes().next().expect("an event"))
+        .expect_err("a 429");
+    assert_eq!(error, CallError::Status(429, Some(7)));
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::Throttled));
+    assert!(fixture.state()["calendar"]["deleted"] == json!([]));
+}
+
+#[test]
+fn each_draft_that_a_variant_of_the_fixture_makes_is_held_back_or_fails_the_call() {
+    let fixture = Fixture::start();
+    let graph = fixture.graph("mail");
+    let seed = Seed::load(1);
+    let token = seed.token();
+    for (variant, why) in [
+        ("draft_no_recipient", Unsent::Recipients),
+        ("draft_two_recipients", Unsent::Recipients),
+        ("draft_copy", Unsent::Copy),
+        ("draft_blind_copy", Unsent::Copy),
+        ("draft_other_conversation", Unsent::Conversation),
+        ("draft_not_yet", Unsent::NotDraft),
+    ] {
+        fixture.reset(1, &[variant]);
+        let messages = graph
+            .mail_list(&token, &seed.rule())
+            .expect("mail_list answers");
+        let drafted = graph
+            .mail_draft_reply(&token, messages, BODY)
+            .expect("mail_draft_reply answers");
+        let whys: Vec<_> = drafted.unsent().iter().map(|u| u.why()).collect();
+        assert!(
+            whys == [why, why],
+            "{variant}: both drafts unsent for one reason"
+        );
+        assert!(drafted.drafts().is_empty(), "{variant}: no send handle");
+        let held = if why == Unsent::NotDraft { 0 } else { 2 };
+        assert!(
+            drafted.held_recipient() == held,
+            "{variant}: held_recipient"
+        );
+        assert!(
+            fixture.state()["mail"]["drafts"] == 2,
+            "{variant}: the drafts stay"
+        );
+    }
+    for (variant, fault) in [
+        ("reply_not_draft", AnswerFault::Draft),
+        ("reply_listed_id", AnswerFault::Repeated),
+    ] {
+        fixture.reset(1, &[variant]);
+        let messages = graph
+            .mail_list(&token, &seed.rule())
+            .expect("mail_list answers");
+        let failure = graph
+            .mail_draft_reply(&token, messages, BODY)
+            .expect_err("the call fails");
+        assert!(
+            failure.error() == CallError::Answer(fault),
+            "{variant}: the cause"
+        );
+        assert!(failure.unfinished().is_none(), "{variant}: no PATCH");
+        assert!(
+            failure.unreached().len() == 2,
+            "{variant}: both messages unreached"
+        );
+        assert!(
+            requests(&fixture)["state_changing"] == 1,
+            "{variant}: no request after the createReply names its id"
+        );
+    }
+}
+
+#[test]
+fn under_no_reply_the_send_is_held_recorded_and_unknown() {
+    let fixture = Fixture::start();
+    let graph = fixture.graph_within("mail", std::time::Duration::from_millis(1_500));
+    fixture.reset(1, &["no_reply"]);
+    let seed = Seed::load(1);
+    let token = seed.token();
+    let messages = graph
+        .mail_list(&token, &seed.rule())
+        .expect("mail_list answers");
+    let drafts = graph
+        .mail_draft_reply(&token, messages, BODY)
+        .expect("createReply and PATCH are answered")
+        .into_drafts();
+    let mut sends = drafts.into_sends();
+    let error = graph
+        .mail_send(&token, sends.next().expect("a draft"))
+        .expect_err("no answer");
+    assert_eq!(error, CallError::NoAnswer);
+    assert_eq!(error.effect(), Effect::Unknown);
+    assert!(fixture.state()["mail"]["sent"]
+        .as_array()
+        .is_some_and(|sent| sent.len() == 1));
+    graph
+        .mail_send(&token, sends.next().expect("a draft"))
+        .expect("the second send is answered");
 }
 
 #[test]
@@ -118,7 +297,8 @@ fn mail_draft_reply() {
             .collect();
         let drafts = graph
             .mail_draft_reply(&token, messages, BODY)
-            .expect("mail_draft_reply answers");
+            .expect("mail_draft_reply answers")
+            .into_drafts();
         let got: Vec<_> = drafts
             .iter()
             .map(|d| {
@@ -144,7 +324,7 @@ fn mail_draft_reply() {
         );
         assert!(state["mail"]["sent"] == json!([]), "seed {n}: nothing sent");
         assert!(
-            state["requests"] == counts(5, 4),
+            state["requests"] == counts(6, 4),
             "seed {n}: createReply and PATCH once per message"
         );
     }
@@ -163,10 +343,12 @@ fn mail_send() {
             .expect("mail_list answers");
         let drafts = graph
             .mail_draft_reply(&token, messages, BODY)
-            .expect("mail_draft_reply answers");
-        for draft in drafts.into_sends() {
-            graph.mail_send(&token, draft).expect("mail_send answers");
-        }
+            .expect("mail_draft_reply answers")
+            .into_drafts();
+        let sent: Vec<_> = drafts
+            .into_sends()
+            .map(|draft| graph.mail_send(&token, draft).expect("mail_send answers"))
+            .collect();
         let state = fixture.state();
         assert!(
             state["mail"]["sent"] == *seed.end("reply"),
@@ -174,21 +356,50 @@ fn mail_send() {
         );
         assert!(state["mail"]["drafts"] == 0, "seed {n}: no draft left");
         assert!(
-            state["requests"] == counts(7, 6),
+            state["requests"] == counts(8, 6),
             "seed {n}: one send per draft"
         );
-        let again = graph
+        let unmarked = graph
             .mail_list(&token, &seed.rule())
             .expect("mail_list answers");
-        assert!(again.is_empty(), "seed {n}: the answered messages are read");
+        assert!(
+            unmarked.len() == 2,
+            "seed {n}: a send leaves the read flag as it was"
+        );
+        let marks: Vec<_> = sent
+            .into_iter()
+            .map(|sent| {
+                graph
+                    .mail_mark_read(&token, sent)
+                    .expect("the mark answers")
+            })
+            .collect();
+        assert!(
+            marks == [Marked::Read, Marked::ReceiptAsked],
+            "seed {n}: the first message is marked and the second asks for a read receipt"
+        );
+        assert!(
+            requests(&fixture) == counts(11, 7),
+            "seed {n}: one PATCH of isRead"
+        );
+        let again: Vec<_> = graph
+            .mail_list(&token, &seed.rule())
+            .expect("mail_list answers")
+            .iter()
+            .map(|m| m.id().to_owned())
+            .collect();
+        assert!(
+            again == [format!("s{n}-msg-02")],
+            "seed {n}: the message that asks for a read receipt stays unread"
+        );
         fixture.advance();
         let later = graph
             .mail_list(&token, &seed.rule())
             .expect("mail_list answers");
         let ids: Vec<_> = later.iter().map(|m| m.id()).collect();
         assert!(
-            ids == [seed.later("message/id")],
-            "seed {n}: the later message alone"
+            ids.contains(&seed.later("message/id")) && ids.len() == 2,
+            "seed {n}: the later message beside the unmarked one"
         );
     }
 }
@@ -205,8 +416,8 @@ fn calendar_list() {
             .expect("calendar_list answers");
         let ids: Vec<_> = events.iter().map(|e| e.id().to_owned()).collect();
         assert!(
-            ids == cleanup_ids(&seed),
-            "seed {n}: the events that the clean-up rule selects"
+            sorted(ids) == cleanup_ids(&seed),
+            "seed {n}: the events that the clean-up rule selects, in any order"
         );
         assert!(
             events
@@ -215,8 +426,22 @@ fn calendar_list() {
             "seed {n}: each subject"
         );
         assert!(
-            requests(&fixture) == counts(1, 0),
-            "seed {n}: one GET and no state change"
+            requests(&fixture) == counts(3, 0),
+            "seed {n}: three pages of two events and no state change"
+        );
+        let left = events.counts();
+        assert!(
+            (
+                left.organized,
+                left.no_key,
+                left.incomplete,
+                left.earlier_page
+            ) == (1, 0, 0, 0),
+            "seed {n}: the cancelled event that the person organized"
+        );
+        assert!(
+            (left.cut, left.more_pages) == (YesNo::No, YesNo::No),
+            "seed {n}: no fact"
         );
     }
 }
@@ -238,12 +463,18 @@ fn calendar_delete() {
                 .expect("calendar_delete answers");
         }
         let state = fixture.state();
+        let deleted: Vec<String> = state["calendar"]["deleted"]
+            .as_array()
+            .expect("deleted")
+            .iter()
+            .map(|id| id.as_str().expect("an id").to_owned())
+            .collect();
         assert!(
-            state["calendar"]["deleted"] == *seed.end("cleanup"),
-            "seed {n}: calendar.deleted equals end.cleanup"
+            sorted(deleted) == cleanup_ids(&seed),
+            "seed {n}: calendar.deleted holds the ids of end.cleanup"
         );
         assert!(
-            state["requests"] == counts(3, 2),
+            state["requests"] == counts(5, 2),
             "seed {n}: one DELETE per event"
         );
         let again = graph
@@ -281,7 +512,7 @@ fn unauthorized() {
     let error = mail
         .mail_draft_reply(&wrong, messages, BODY)
         .expect_err("a 401");
-    errors.push(error);
+    errors.push(error.error());
     assert!(fixture.state()["mail"]["drafts"] == 0, "no draft is made");
 
     let messages = mail
@@ -289,7 +520,8 @@ fn unauthorized() {
         .expect("mail_list answers");
     let drafts = mail
         .mail_draft_reply(&right, messages, BODY)
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     let mut sends = drafts.into_sends();
     let error = mail
         .mail_send(&wrong, sends.next().expect("a draft"))
@@ -319,7 +551,9 @@ fn unauthorized() {
         "each of the five operations answers Unauthorized"
     );
     assert!(
-        errors.iter().all(|e| e.effect() == Effect::NotMade),
+        errors
+            .iter()
+            .all(|e| e.effect() == Effect::NotMade(NotMade::Unauthorized)),
         "no effect is made"
     );
     assert!(
@@ -357,7 +591,8 @@ fn no_text_of_a_value_holds_the_token() {
     texts.extend(messages.iter().map(|m| format!("{m:?}")));
     let drafts = mail
         .mail_draft_reply(&token, messages, BODY)
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     texts.push(format!("{drafts:?}"));
     texts.extend(drafts.iter().map(|d| format!("{d:?}")));
     for draft in drafts.into_sends() {

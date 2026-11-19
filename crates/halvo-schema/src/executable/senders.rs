@@ -170,8 +170,8 @@ pub fn is_sender(text: &str) -> bool {
 
 /// Why the reader refused the slot `reply_senders`: the first fault, with the number of its piece counted from 1.
 /// No variant holds text of the slot. The numbers are for the set-up's answer alone and go into no row, log line
-/// or frame; `Display` prints none of them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// or frame; neither `Display` nor `Debug` prints one (CP-165 (5) (c)).
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SendersError {
     /// The piece is empty once the white space at its ends is trimmed.
     Empty(NonZeroUsize),
@@ -198,6 +198,17 @@ impl fmt::Display for SendersError {
             }
             SendersError::NotAnAddress(_) => "an entry of the list of senders is not an address",
             SendersError::Twice { .. } => "the list of senders names one address twice",
+        })
+    }
+}
+
+impl fmt::Debug for SendersError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            SendersError::Empty(_) => "Empty(..)",
+            SendersError::NotAscii(_) => "NotAscii(..)",
+            SendersError::NotAnAddress(_) => "NotAnAddress(..)",
+            SendersError::Twice { .. } => "Twice { .. }",
         })
     }
 }
