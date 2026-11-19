@@ -7,9 +7,9 @@ use halvo_schema::executable::body::{
     Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
     Finish, ListCheckpoints, ListOverlaps, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply,
     LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession,
-    MarkCheckpoint, PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession,
-    RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply,
-    StepsReply, Stored,
+    MarkCheckpoint, Overlap, OverlapsReply, PutCheckpoint, PutEffect, PutLog, PutPlaybook,
+    PutReplyRow, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
+    SetState, StartRun, StateReply, StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -998,6 +998,25 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
             next: None,
         }),
         CoordinatorReply::Stored(Stored { stored: 1 }),
+        CoordinatorReply::Overlaps(OverlapsReply {
+            overlaps: vec![
+                Overlap {
+                    workflow: WorkflowId::from_random([0x31; 16]),
+                    agent: AgentId::from_random([0x41; 16]),
+                    senders: vec![own("ann@people.test")],
+                },
+                Overlap {
+                    workflow: WorkflowId::from_random([0x32; 16]),
+                    agent: AgentId::from_random([0x42; 16]),
+                    senders: vec![own("ann@people.test"), own("bob@people.test")],
+                },
+            ],
+            more: YesNo::No,
+        }),
+        CoordinatorReply::Overlaps(OverlapsReply {
+            overlaps: vec![],
+            more: YesNo::No,
+        }),
     ]
 }
 

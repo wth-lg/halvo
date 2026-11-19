@@ -1,7 +1,14 @@
-use halvo_schema::executable::body::CoordinatorCall;
+use halvo_schema::executable::body::{
+    CoordinatorCall, CoordinatorReply, Overlap, OverlapsReply, CHECKPOINTS_REPLY_MAX, OVERLAPS_MAX,
+};
+use halvo_schema::executable::names::YesNo;
+use halvo_schema::executable::text::OwnText;
 use halvo_schema::executable::{Refusal, RefusalCause};
-use halvo_schema::request::{self, CoordinatorRole, CoordinatorWrite, Decoded};
-use halvo_schema::RequestId;
+use halvo_schema::request::{
+    self, write_reply, CoordinatorRole, CoordinatorWrite, Decoded, ReplyResult, REPLY_MAX,
+};
+use halvo_schema::{AgentId, RequestId, WorkflowId};
+use serde_json::value::RawValue;
 
 const W: &str = "30303030303030303030303030303030";
 const A: &str = "40404040404040404040404040404040";
@@ -133,4 +140,407 @@ fn the_body_list_overlaps_names_each_slot_once_and_holds_exactly_its_four_keys()
         "name_form",
         "name",
     );
+}
+
+fn other_workflow(n: usize) -> String {
+    format!("{:032x}", 0x1000 + n)
+}
+
+fn other_agent(n: usize) -> String {
+    format!("{:032x}", 0x2000 + n)
+}
+
+fn entry_of(workflow: &str, agent: &str, senders: &[&str]) -> String {
+    let senders: Vec<String> = senders.iter().map(|s| format!("\"{s}\"")).collect();
+    format!(
+        r#"{{"workflow":"{workflow}","agent":"{agent}","senders":[{}]}}"#,
+        senders.join(",")
+    )
+}
+
+fn entry(n: usize) -> String {
+    entry_of(&other_workflow(n), &other_agent(n), &["ann@people.test"])
+}
+
+fn reply_of(entries: &[String], more: &str) -> String {
+    format!(r#"{{"overlaps":[{}],"more":"{more}"}}"#, entries.join(","))
+}
+
+fn reply(count: usize, more: &str) -> String {
+    reply_of(&(0..count).map(entry).collect::<Vec<_>>(), more)
+}
+
+fn reads(text: &str) -> CoordinatorReply {
+    let reply = CoordinatorReply::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
+    assert_eq!(reply.to_json().unwrap(), text);
+    reply
+}
+
+fn list_call(slots: &str) -> CoordinatorCall {
+    CoordinatorCall::parse(body(slots).as_bytes()).unwrap()
+}
+
+#[test]
+fn a_reply_of_16_entries_reads_with_more_yes_and_with_more_no() {
+    let call = list_call("null");
+    for more in ["yes", "no"] {
+        let reply = reads(&reply(16, more));
+        assert!(reply.answers(&call), "{more}");
+    }
+}
+
+#[test]
+fn a_reply_of_fewer_entries_reads_with_more_no_and_each_entry_names_one_or_more_senders() {
+    let call = list_call(&format!("[{SENDERS}]"));
+    for count in [0, 1, 2, 15] {
+        assert!(reads(&reply(count, "no")).answers(&call), "{count}");
+    }
+    let entries = [
+        entry_of(
+            &other_workflow(1),
+            &other_agent(9),
+            &["bob@people.test", "ann@people.test"],
+        ),
+        entry_of(&other_workflow(2), &other_agent(3), &["ANN@People.Test"]),
+    ];
+    assert!(reads(&reply_of(&entries, "no")).answers(&call));
+}
+
+#[test]
+fn a_reply_of_17_entries_is_refused_with_more_yes_and_with_more_no() {
+    for more in ["yes", "no"] {
+        expect(
+            CoordinatorReply::parse(reply(17, more).as_bytes()),
+            "OverlapsReply",
+            "overlaps_max",
+            "overlaps",
+        );
+    }
+}
+
+#[test]
+fn a_reply_whose_entries_are_out_of_workflow_id_order_or_name_a_workflow_twice_is_refused() {
+    let mut swapped: Vec<String> = (0..16).map(entry).collect();
+    swapped.swap(14, 15);
+    let mut first_last: Vec<String> = (0..3).map(entry).collect();
+    first_last.rotate_left(1);
+    let twice = [
+        entry(4),
+        entry_of(&other_workflow(4), &other_agent(5), &["ann@people.test"]),
+    ];
+    for text in [
+        reply_of(&swapped, "yes"),
+        reply_of(&first_last, "no"),
+        reply_of(&twice, "no"),
+    ] {
+        expect(
+            CoordinatorReply::parse(text.as_bytes()),
+            "OverlapsReply",
+            "workflow_order",
+            "overlaps",
+        );
+    }
+}
+
+#[test]
+fn a_reply_that_names_an_agent_twice_is_refused() {
+    let entries = [
+        entry(1),
+        entry_of(&other_workflow(2), &other_agent(1), &["ann@people.test"]),
+    ];
+    expect(
+        CoordinatorReply::parse(reply_of(&entries, "no").as_bytes()),
+        "OverlapsReply",
+        "repeated_name",
+        "overlaps",
+    );
+}
+
+#[test]
+fn more_yes_with_fewer_than_16_entries_is_refused() {
+    for count in [0, 1, 15] {
+        expect(
+            CoordinatorReply::parse(reply(count, "yes").as_bytes()),
+            "OverlapsReply",
+            "more_short",
+            "more",
+        );
+    }
+}
+
+#[test]
+fn an_entry_is_refused_with_no_sender_with_a_text_that_is_no_sender_and_with_one_sender_twice() {
+    let one = |senders: &[&str]| {
+        reply_of(
+            &[entry_of(&other_workflow(1), &other_agent(1), senders)],
+            "no",
+        )
+    };
+    expect(
+        CoordinatorReply::parse(one(&[]).as_bytes()),
+        "Overlap",
+        "no_sender",
+        "senders",
+    );
+    let long = format!("{}@people.test", "a".repeat(309));
+    assert_eq!(long.len(), 321);
+    for text in [
+        "Ann Berg",
+        "ann@people.test, bob@people.test",
+        " ann@people.test",
+        "ann@people.test ",
+        "ann",
+        "@people.test",
+        "ann@",
+        "ann@people..test",
+        "ann@.people.test",
+        "ann@people.test.",
+        "ann<ann@people.test>",
+        long.as_str(),
+    ] {
+        expect(
+            CoordinatorReply::parse(one(&["bob@people.test", text]).as_bytes()),
+            "Overlap",
+            "not_a_sender",
+            "senders",
+        );
+    }
+    expect(
+        CoordinatorReply::parse(one(&["\u{e9}lan@people.test"]).as_bytes()),
+        "Overlap",
+        "not_a_sender",
+        "senders",
+    );
+    for pair in [
+        ["ann@people.test", "ann@people.test"],
+        ["ann@people.test", "ANN@people.TEST"],
+    ] {
+        expect(
+            CoordinatorReply::parse(one(&pair).as_bytes()),
+            "Overlap",
+            "sender_twice",
+            "senders",
+        );
+    }
+    let at_most = format!("{}@people.test", "a".repeat(308));
+    assert!(CoordinatorReply::parse(one(&[at_most.as_str()]).as_bytes()).is_ok());
+}
+
+#[test]
+fn a_reply_holds_exactly_its_two_keys_and_an_entry_its_three() {
+    let text = reply(1, "no");
+    expect(
+        CoordinatorReply::parse(swap(&text, r#","more":"no""#, "").as_bytes()),
+        "OverlapsReply",
+        "missing_key",
+        "more",
+    );
+    expect(
+        CoordinatorReply::parse(
+            swap(&text, r#""more":"no""#, r#""more":"no","next":null"#).as_bytes(),
+        ),
+        "OverlapsReply",
+        "unknown_key",
+        "-",
+    );
+    expect(
+        CoordinatorReply::parse(swap(&text, r#""more":"no""#, r#""more":"maybe""#).as_bytes()),
+        "YesNo",
+        "unknown_name",
+        "more",
+    );
+    expect(
+        CoordinatorReply::parse(
+            swap(&text, r#""overlaps":["#, r#""overlaps":{"a":"#)
+                .replace("}],", "}},")
+                .as_bytes(),
+        ),
+        "list",
+        "not_a_list",
+        "overlaps",
+    );
+    let workflow = format!(r#""workflow":"{}","#, other_workflow(0));
+    expect(
+        CoordinatorReply::parse(swap(&text, &workflow, "").as_bytes()),
+        "Overlap",
+        "missing_key",
+        "workflow",
+    );
+    expect(
+        CoordinatorReply::parse(
+            swap(&text, r#""senders":["#, r#""run":null,"senders":["#).as_bytes(),
+        ),
+        "Overlap",
+        "unknown_key",
+        "overlaps",
+    );
+    expect(
+        CoordinatorReply::parse(
+            swap(
+                &text,
+                r#""senders":["ann@people.test"]"#,
+                r#""senders":"ann@people.test""#,
+            )
+            .as_bytes(),
+        ),
+        "list",
+        "not_a_list",
+        "senders",
+    );
+}
+
+#[test]
+fn the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_agent() {
+    let calls = [
+        list_call("null"),
+        list_call(&format!("[{ACCOUNT},{SENDERS}]")),
+    ];
+    let set = CoordinatorCall::parse(
+        format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","slots":[{SENDERS}]}}"#)
+            .as_bytes(),
+    )
+    .unwrap();
+    let checkpoints = CoordinatorCall::parse(
+        br#"{"op":"list_checkpoints","workflow":null,"agent":null,"after":null}"#,
+    )
+    .unwrap();
+    let overlaps = reads(&reply(2, "no"));
+    for call in &calls {
+        assert!(overlaps.answers(call));
+    }
+    assert!(!overlaps.answers(&set) && !overlaps.answers(&checkpoints));
+    for other in [
+        r#"{"rev":1}"#,
+        r#"{"state":"active"}"#,
+        r#"{"ok":"yes"}"#,
+        r#"{"stored":1}"#,
+        r#"{"checkpoints":[],"next":null}"#,
+    ] {
+        let reply = CoordinatorReply::parse(other.as_bytes()).unwrap();
+        assert!(calls.iter().all(|call| !reply.answers(call)), "{other}");
+    }
+    let own_agent = [
+        entry(0),
+        entry_of(&other_workflow(1), A, &["ann@people.test"]),
+    ];
+    let own_workflow = [entry_of(W, &other_agent(1), &["ann@people.test"])];
+    for entries in [&own_agent[..], &own_workflow[..]] {
+        let reply = reads(&reply_of(entries, "no"));
+        assert!(calls.iter().all(|call| !reply.answers(call)));
+    }
+}
+
+fn sender(n: usize, pad: usize) -> String {
+    format!("s{n:06}{}@people.test", "x".repeat(pad))
+}
+
+fn reply_of_len(len: usize) -> String {
+    let senders = |count: usize, pad: usize| -> Vec<String> {
+        (0..count)
+            .map(|n| sender(n, if n + 1 == count { pad } else { 0 }))
+            .collect()
+    };
+    let build = |each: usize, last: usize, pad: usize| -> String {
+        let entries: Vec<String> = (0..16)
+            .map(|n| {
+                let list = if n == 15 {
+                    senders(last, pad)
+                } else {
+                    senders(each, 0)
+                };
+                let list: Vec<&str> = list.iter().map(String::as_str).collect();
+                entry_of(&other_workflow(n), &other_agent(n), &list)
+            })
+            .collect();
+        reply_of(&entries, "yes")
+    };
+    let each = (len / 16) / 22 - 8;
+    let mut last = each;
+    while build(each, last + 1, 0).len() <= len {
+        last += 1;
+    }
+    let pad = len - build(each, last, 0).len();
+    let text = build(each, last, pad);
+    assert_eq!(text.len(), len);
+    text
+}
+
+fn refused_by_the_bound(input: &[u8]) {
+    let refusal = CoordinatorReply::parse(input).unwrap_err();
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (RefusalCause::Length, "CoordinatorReply", "reply_bytes"),
+        "{} bytes",
+        input.len()
+    );
+}
+
+#[test]
+fn a_reply_at_the_bound_of_a_list_reply_reads_and_one_byte_more_is_refused_on_the_bytes_given() {
+    let exact = reply_of_len(CHECKPOINTS_REPLY_MAX);
+    assert!(reads(&exact).answers(&list_call("null")));
+    let raw = RawValue::from_string(exact.clone()).unwrap();
+    let id = RequestId::from_random([0x40; 16]);
+    let enveloped = write_reply(Some(&id), Ok(&ReplyResult::Raw(raw))).unwrap();
+    assert_eq!(enveloped.len(), REPLY_MAX);
+    assert!(serde_json::from_str::<CoordinatorReply>(&exact).is_ok());
+    let over = reply_of_len(CHECKPOINTS_REPLY_MAX + 1);
+    refused_by_the_bound(over.as_bytes());
+    let inside = exact.replacen(r#","more""#, r#", "more""#, 1);
+    for padded in [format!(" {exact}"), format!("{exact}\n"), inside.clone()] {
+        assert_eq!(padded.len(), CHECKPOINTS_REPLY_MAX + 1);
+        refused_by_the_bound(padded.as_bytes());
+    }
+    let through_serde = serde_json::from_str::<CoordinatorReply>(&inside).unwrap_err();
+    assert!(
+        through_serde
+            .to_string()
+            .contains("length: CoordinatorReply: -: reply_bytes"),
+        "{through_serde}"
+    );
+}
+
+fn refused_by_the_writer(result: Result<String, Refusal>) {
+    let refusal = result.expect_err("refused by the writer");
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (RefusalCause::Length, "OverlapsReply", "json_length")
+    );
+}
+
+#[test]
+fn the_writer_refuses_a_list_that_would_not_fit_its_bound_and_never_writes_it_cut() {
+    let exact = reply_of_len(CHECKPOINTS_REPLY_MAX);
+    let mut reply = OverlapsReply::parse(exact.as_bytes()).unwrap();
+    assert_eq!(reply.to_json().unwrap(), exact);
+    let last = reply.overlaps[15].senders.last_mut().unwrap();
+    *last = OwnText::parse(&format!("x{}", last.as_str())).unwrap();
+    assert!(reply.rules().is_ok());
+    refused_by_the_writer(reply.to_json());
+    refused_by_the_writer(CoordinatorReply::Overlaps(reply.clone()).to_json());
+    assert!(serde_json::to_string(&reply).is_err());
+    let senders: Vec<OwnText> = (0..800)
+        .map(|n| OwnText::parse(&sender(n, 0)).unwrap())
+        .collect();
+    let wide = OverlapsReply {
+        overlaps: (0..16)
+            .map(|n| Overlap {
+                workflow: WorkflowId::parse(&other_workflow(n)).unwrap(),
+                agent: AgentId::parse(&other_agent(n)).unwrap(),
+                senders: senders.clone(),
+            })
+            .collect(),
+        more: YesNo::No,
+    };
+    assert!(wide.rules().is_ok());
+    refused_by_the_writer(wide.to_json());
+    refused_by_the_writer(CoordinatorReply::Overlaps(wide).to_json());
+    for padded in [format!(" {exact}"), format!("{exact}\n")] {
+        let refusal = OverlapsReply::parse(padded.as_bytes()).unwrap_err();
+        assert_eq!(
+            (refusal.cause(), refusal.type_name(), refusal.rule()),
+            (RefusalCause::Length, "OverlapsReply", "reply_bytes")
+        );
+    }
+    assert_eq!(OVERLAPS_MAX, 16);
 }

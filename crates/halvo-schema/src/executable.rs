@@ -296,4 +296,7 @@ record::run_list! { names_with_run_list
     "next",
     "superseded",
     "list_overlaps",
+    "overlaps",
+    "senders",
+    "more",
 }
