@@ -8092,6 +8092,51 @@ fn rd122_a_refused_items_list_makes_the_record_stuck_and_an_acknowledged_flush_e
 }
 
 #[test]
+fn u24r_a_stuck_record_shows_the_record_line_on_its_row_with_stop_and_delete_alone() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    for k in 1..=2u64 {
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+        assert!(!c.record_stuck(&agent(0)), "tick {k}");
+        assert_ne!(
+            row_line(&c.snapshot(), 0),
+            text("line.problem.record"),
+            "tick {k}"
+        );
+    }
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    assert!(c.record_stuck(&agent(0)));
+    let s = c.snapshot();
+    let row = s.rows.iter().find(|r| r.agent == agent(0)).unwrap();
+    assert_eq!(row.line, text("line.problem.record"));
+    assert_eq!(row.status, Status::Problem);
+    let controls: Vec<halvo_coord::types::Control> =
+        row.controls.iter().map(|c| c.control).collect();
+    assert_eq!(
+        controls,
+        [
+            halvo_coord::types::Control::Stop,
+            halvo_coord::types::Control::Delete
+        ]
+    );
+    assert!(
+        s.items.iter().all(|i| i.agent() != &agent(0)),
+        "no item of the agent invites a press whose answer cannot be saved"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert!(!c.record_stuck(&agent(0)));
+    assert_ne!(row_line(&c.snapshot(), 0), text("line.problem.record"));
+}
+
+#[test]
 fn rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);

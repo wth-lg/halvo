@@ -2498,9 +2498,9 @@ where
         st.table = st.table.stored(record);
     }
 
-    /// Whether the agent's record is stuck on the board, as the line `line.problem.record` will
-    /// read it once the unit that lands second wires it into compose (I5.7; rulings RD-64 2.5,
-    /// RD-122 T1); false where there is no board or no such agent.
+    /// Whether the agent's record is stuck on the board, which gives its row the line
+    /// `line.problem.record` (I5.7, I1.3; rulings RD-64 2.5, RD-122 T1); false where there is no
+    /// board or no such agent.
     pub fn record_stuck(&self, agent: &AgentId) -> bool {
         let st = self.lock();
         st.board
@@ -2640,7 +2640,12 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status(*facts, &self.limits, held.map(|h| h.confirmation().state()));
+            let line = roster::status_of(
+                *facts,
+                &self.limits,
+                held.map(|h| h.confirmation().state()),
+                board.record_stuck(&facts.agent, &self.limits),
+            );
             let Ok(row) = roster::row(*facts, line, name) else {
                 continue;
             };

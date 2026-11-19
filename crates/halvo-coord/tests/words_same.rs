@@ -497,7 +497,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 28);
+    assert_eq!(keys.len(), 29);
 }
 
 #[test]

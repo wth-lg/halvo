@@ -214,9 +214,14 @@ pub fn controls<C: ConfigView>(facts: &Facts<C>) -> Vec<Control> {
     out
 }
 
-/// The row of an agent as the page gets it (I2.5), with its status line and its name.
+/// The row of an agent as the page gets it (I2.5), with its status line and its name. The row
+/// of `problem.record` offers Stop where a run is live, the delete, and no other control (I1.3;
+/// ruling RD-64 1.5, 1.7).
 pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Result<Row, Cause> {
     let status = line.status();
+    let offered = controls(facts)
+        .into_iter()
+        .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete));
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -230,8 +235,7 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
             &[],
         )?,
         next: next_slot(&facts.workflow, facts.today).map(words::day),
-        controls: controls(facts)
-            .into_iter()
+        controls: offered
             .map(|control| {
                 text(&format!("control.{}", control.name()), &[])
                     .map(|text| ControlText { control, text })

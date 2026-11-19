@@ -39,17 +39,15 @@ pub enum StatusLine {
     /// `all_set.stopped_early`: the last run had any other end.
     StoppedEarly,
     /// `problem.record`: the agent's record cannot be read or saved right now (I5.7, I5.8;
-    /// ruling RD-64 1.5, 2.5). Its words are U2.4d's, and `all` lists it once they stand.
+    /// ruling RD-64 1.5, 2.5), first of every row (I1.3).
     Record,
 }
 
 impl StatusLine {
     /// Every status line, in the order of I1.3.
     pub fn all() -> Vec<StatusLine> {
-        let mut all: Vec<StatusLine> = ItemKind::ALL
-            .iter()
-            .map(|k| StatusLine::NeedsYou(*k))
-            .collect();
+        let mut all = vec![StatusLine::Record];
+        all.extend(ItemKind::ALL.iter().map(|k| StatusLine::NeedsYou(*k)));
         all.extend([
             StatusLine::NotYet,
             StatusLine::Off,

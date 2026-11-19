@@ -295,3 +295,51 @@ fn rows_that_tie_in_group_and_name_stand_in_ascending_agent_id() {
         assert_eq!(agents, [1, 2, 3], "{line:?}");
     }
 }
+
+#[test]
+fn u24r_all_lists_the_record_line_once_and_first_in_the_order_of_i1_3() {
+    let all = StatusLine::all();
+    assert_eq!(all.first(), Some(&StatusLine::Record));
+    assert_eq!(all.iter().filter(|l| **l == StatusLine::Record).count(), 1);
+}
+
+#[test]
+fn u24r_the_record_row_offers_stop_where_a_run_is_live_the_delete_and_no_other_control() {
+    use halvo_coord::roster::row;
+    use halvo_coord::types::Control;
+    let controls = |f: &Facts<Config>| -> Vec<Control> {
+        row(f, StatusLine::Record, "A name")
+            .unwrap()
+            .controls
+            .iter()
+            .map(|c| c.control)
+            .collect()
+    };
+    let idle = utility();
+    assert_eq!(controls(&idle), [Control::Delete], "idle");
+    let mut off = utility();
+    push(
+        &mut off,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    );
+    assert_eq!(controls(&off), [Control::Delete], "switched off");
+    for live in [
+        Live::Starting,
+        Live::Working,
+        Live::Waiting(RunItem {
+            item: item(4),
+            kind: RunItemKind::Confirm,
+        }),
+        Live::Stopping,
+    ] {
+        let mut f = utility();
+        f.doing = Doing::Live(live.clone());
+        assert_eq!(controls(&f), [Control::Stop, Control::Delete], "{live:?}");
+    }
+    let mut queued = utility();
+    queued.doing = Doing::Queued(None);
+    assert_eq!(controls(&queued), [Control::Delete], "queued");
+}
