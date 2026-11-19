@@ -957,7 +957,7 @@ st_own_verdict() {
     elif [ "$st_v_k" != own ] || [ ! -s "$st_v_d/tally" ] || [ ! -f "$st_v_d/seen" ]; then
       [ -n "$st_v_why" ] || st_v_why='it ended without a verdict'
     else
-      { read -r st_v_r && read -r st_v_w; } <"$st_v_d/tally"
+      { read -r st_v_r && IFS= read -r st_v_w; } <"$st_v_d/tally"
       st_v_rej=$((st_v_rej + st_v_r))
       st_v_wrong="$st_v_wrong$st_v_w"
       [ -n "$st_v_d1" ] || st_v_d1=$st_v_d
@@ -1374,6 +1374,29 @@ own_reached() {
     *"$nl$1$nl"*) return 0 ;;
   esac
   return 1
+}
+
+own_verdict_case() {
+  case_name=$1
+  own_seen="$own_seen$nl$1"
+  if own_away; then
+    case_reset
+    return 0
+  fi
+  got_out=$(
+    record() {
+      printf 'record %s\n' "$2"
+    }
+    eval "st_kind_0=own st_state_0=\$3 st_dir_0=\$4 st_lim_0=1250 st_kind_1=own st_state_1=\$5 st_dir_1=\$6 st_lim_1=1250"
+    st_own_verdict 1
+  )
+  got=PASS
+  printf '%s\n' "$got_out" | grep -qxF -e "record $2" || got=line-missing
+  [ "$got" = PASS ] || printf '%s\n' "$got_out" | sed "s|^|case run-ci-d/$case_name saw: |"
+  printf 'case run-ci-d/%s want=PASS got=%s\n' "$case_name" "$got"
+  own_clock
+  [ "$got" = PASS ] || wrong="$wrong $case_name"
+  case_reset
 }
 
 own_list_case() {
@@ -2391,6 +2414,24 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '*\n' >"$fixture/$first_list"
   own_case first-list-line-with-a-glob-character-names-no-script 1 "FAIL run-ci-d ($first_list names *, which is no script)" macos --self-test 10-a
+  verdict_jobs=$(mktemp -d "$tmp/verdict-jobs.XXXXXX") && mkdir -p "$verdict_jobs/wrong-1" "$verdict_jobs/wrong-2" "$verdict_jobs/pass-1" "$verdict_jobs/pass-2" "$verdict_jobs/twice-2" "$verdict_jobs/no-counts-2" &&
+    printf '3\n a\n' >"$verdict_jobs/wrong-1/tally" && printf 'a\n' >"$verdict_jobs/wrong-1/seen" &&
+    printf 'case run-ci-d/a want=PASS got=exit-1\n' >"$verdict_jobs/wrong-1/out" &&
+    printf '4\n b\n' >"$verdict_jobs/wrong-2/tally" && printf 'a\nb\n' >"$verdict_jobs/wrong-2/seen" &&
+    printf 'case run-ci-d/b want=PASS got=exit-1\n' >"$verdict_jobs/wrong-2/out" &&
+    printf '3\n\n' >"$verdict_jobs/pass-1/tally" && printf 'a\n' >"$verdict_jobs/pass-1/seen" &&
+    printf 'case run-ci-d/a want=FAIL got=FAIL\n' >"$verdict_jobs/pass-1/out" &&
+    printf '4\n\n' >"$verdict_jobs/pass-2/tally" && printf 'a\nb\n' >"$verdict_jobs/pass-2/seen" &&
+    printf 'case run-ci-d/b want=FAIL got=FAIL\n' >"$verdict_jobs/pass-2/out" &&
+    printf '4\n\n' >"$verdict_jobs/twice-2/tally" && printf 'a\nb\n' >"$verdict_jobs/twice-2/seen" &&
+    printf 'case run-ci-d/a want=FAIL got=FAIL\ncase run-ci-d/b want=FAIL got=FAIL\n' >"$verdict_jobs/twice-2/out" &&
+    printf 'a\nb\n' >"$verdict_jobs/no-counts-2/seen" && printf 'case run-ci-d/b want=FAIL got=FAIL\n' >"$verdict_jobs/no-counts-2/out" ||
+    wrong="$wrong verdict-jobs-not-made"
+  own_verdict_case two-job-verdict-names-the-wrong-cases-of-both-jobs 'FAIL self-test:run-ci-d (wrong verdict in: a b)' "done" "$verdict_jobs/wrong-1" "done" "$verdict_jobs/wrong-2"
+  own_verdict_case two-job-verdict-sums-the-failing-fixtures-of-both-jobs 'PASS self-test:run-ci-d (7 failing fixtures rejected)' "done" "$verdict_jobs/pass-1" "done" "$verdict_jobs/pass-2"
+  own_verdict_case two-job-verdict-of-a-job-at-its-limit 'FAIL self-test:run-ci-d (time limit 1250 s)' "timeout" "$verdict_jobs/pass-1" "done" "$verdict_jobs/pass-2"
+  own_verdict_case two-job-verdict-of-a-job-without-its-counts 'FAIL self-test:run-ci-d (it ended without a verdict)' "done" "$verdict_jobs/pass-1" "done" "$verdict_jobs/no-counts-2"
+  own_verdict_case two-job-verdict-of-a-case-printed-in-both-jobs 'FAIL self-test:run-ci-d (wrong verdict in: own-cases-in-two-jobs-print-each-case-once-in-the-order-of-the-run)' "done" "$verdict_jobs/pass-1" "done" "$verdict_jobs/twice-2"
   if own_gate two-at-a-time; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
