@@ -47,6 +47,13 @@
 //!   (CP-186 T4 (b)) against `rows/hop-listener.mjs` on port M: the answer to the released request
 //!   is a 307 to the same address, and the hop is failed, so the listener counts one arrival.
 //!
+//! - `block_popup --browser PATH --kind chrome|edge --hop-port N`: the row of A13.7 through the
+//!   product's executor (CP-186 N2), against `rows/hop-listener.mjs` on port N: with the rule armed
+//!   in the mode that holds before the page opens, a click of `Save preferences` on `/popup`, whose
+//!   form has the target `_blank`, sends its POST from a new window; the executor returns it held,
+//!   from a frame other than the page's own, and fails it, and the listener counts no arrival of
+//!   it, while the row's own POST outside the browser is counted (the control).
+//!
 //! - `crash_one --browser PATH --port N --relay-port P`: one crash reading with the product's means
 //!   on a relay at port P, for the egress check of A13.3's third item to wrap (hosted runners
 //!   alone).
@@ -966,6 +973,136 @@ async fn hop_case(ex: &mut Executor, port: u16) -> Result<HopRead, &'static str>
     })
 }
 
+/// The listener's count of arrivals of POST /prefs.
+fn prefs_arrivals(port: u16) -> Option<i64> {
+    fixture_json(port, "GET", "/count")?["prefs"].as_i64()
+}
+
+/// What the row `block_popup` read: whether the window's POST was held, from another frame than
+/// the page's, and failed; the listener's count of it; and the count after the row's own POST.
+struct PopupRead {
+    held: bool,
+    other_window: bool,
+    failed: bool,
+    arrivals: i64,
+    control: i64,
+}
+
+async fn popup_steps(ex: &mut Executor, port: u16) -> Result<PopupRead, &'static str> {
+    use halvo_web::cdp::{Locator, Outcome};
+    fixture_json(port, "GET", "/reset").ok_or("listener")?;
+    let origin = format!("http://utility.agent.test:{port}");
+    ex.arm_rule(vec![origin.clone()], Mode::Hold)
+        .await
+        .map_err(|f| f.0)?;
+    ex.open(&format!("{origin}/popup")).await.map_err(|f| f.0)?;
+    let page = ex.main_frame().await.map_err(|f| f.0)?;
+    let paperless = ex
+        .resolve_one(
+            &[Locator::Role("checkbox", "Paperless billing".into())],
+            &[],
+        )
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&paperless).await.map_err(|f| f.0)?;
+    let save = ex
+        .resolve_one(&[Locator::Role("button", "Save preferences".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&save).await.map_err(|f| f.0)?;
+    let id = held(ex, "POST", "/prefs").await?;
+    let other_window = ex
+        .paused()
+        .iter()
+        .any(|h| h.id == id && h.origin == origin && h.frame != *page.inner());
+    ex.fail(id).await.map_err(|f| f.0)?;
+    tokio::time::sleep(Duration::from_millis(2_000)).await;
+    let failed = ex
+        .requests()
+        .iter()
+        .any(|r| r.id == Some(id) && r.outcome == Outcome::Failed);
+    let arrivals = prefs_arrivals(port).ok_or("count")?;
+    let _ = plain_post(port, "/prefs");
+    let control = prefs_arrivals(port).ok_or("count")?;
+    Ok(PopupRead {
+        held: true,
+        other_window,
+        failed,
+        arrivals,
+        control,
+    })
+}
+
+/// The row `block_popup` of A13.7 through the product's executor (CP-186 N2): the rule, armed
+/// before the page opens, holds a POST that leaves from a window that the page opened. ok when the
+/// executor returned it held from a frame other than the page's, failed it, the listener counted
+/// no arrival of it and counted the row's own POST, and the stop removed both directories.
+async fn block_popup(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--hop-port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "block-popup"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    if fixture_json(port, "GET", "/reset").is_none() {
+        println!("row block_popup machine={machine} browser={kind} result=notrun cause=listener");
+        return (0, 1);
+    }
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    relay
+        .handle()
+        .allow("utility.agent.test", port, halvo_web::relay::Entry::Listed);
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let mut ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row block_popup machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 1);
+        }
+    };
+    let steps = popup_steps(&mut ex, port).await;
+    let stopped = ex.stop_and_remove().await;
+    relay.stop();
+    let _ = std::fs::remove_dir(&dir);
+    let yes = |b: bool| if b { "yes" } else { "no" };
+    let (line, fine) = match steps {
+        Ok(r) => (
+            format!(
+                "held={} other_window={} failed={} arrivals={} control_arrivals={} removed={}",
+                yes(r.held),
+                yes(r.other_window),
+                yes(r.failed),
+                r.arrivals,
+                r.control,
+                yes(stopped.removed)
+            ),
+            r.held
+                && r.other_window
+                && r.failed
+                && r.arrivals == 0
+                && r.control == 1
+                && stopped.removed,
+        ),
+        Err(cause) => (format!("cause={cause}"), false),
+    };
+    println!(
+        "row block_popup machine={machine} browser={kind} {line} result={}",
+        if fine { "ok" } else { "miss" }
+    );
+    (usize::from(fine), 1)
+}
+
 /// The row of CP-176 A1 (f) through the product's executor, on the fixture's bill page with the
 /// variant `get_effect`, whose link `Pay bill` sends a state-changing `POST /track` by the page's
 /// own script: the first request stays held while a snapshot of the page is read; the page sends a
@@ -1861,6 +1998,7 @@ fn main() -> ExitCode {
         "block_frame_post" => runtime.block_on(block_frame_post(&argv)),
         "hold_release" => runtime.block_on(hold_release(&argv)),
         "ws_allowed" => runtime.block_on(ws_allowed(&argv)),
+        "block_popup" => runtime.block_on(block_popup(&argv)),
         "crash_one" => runtime.block_on(crash_one(&argv)),
         "handler_class" => runtime.block_on(handler_class_row(&argv)),
         _ => {
