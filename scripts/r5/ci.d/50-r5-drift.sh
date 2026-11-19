@@ -420,6 +420,9 @@ fi
 if [ "$play" = second ] && [ -e "$FX/second-play-store" ]; then
   word=$(cat "$FX/second-play-store")
 fi
+if [ "$set_name" = heldout ] && [ -e "$FX/heldout-lines-store" ]; then
+  word=$(cat "$FX/heldout-lines-store")
+fi
 if [ -e "$FX/first-line-store" ]; then
   sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out" |
     awk -v first="store=$(cat "$FX/first-line-store")" '$1 == "case" && !done { $6 = first; done = 1 } { print }'
@@ -773,6 +776,11 @@ self_test() {
   fixture derived-second-play-lines-name-the-memory-store
   : >"$FX/derived"
   printf 'memory\n' >"$FX/second-play-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-later-set-lines-name-the-memory-store heldout
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/heldout-lines-store" || broken
   check FAIL-store "FAIL $name (store)"
 
   fixture duplicate-store-token
