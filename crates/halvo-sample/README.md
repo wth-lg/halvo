@@ -142,6 +142,9 @@ name, from 1. No name below the argument is printed, because a file's name may b
   that is no UTF-8 with `usage` before it reads a file, and orders paths by their bytes as UTF-8
   text. Node hands such a byte on as U+FFFD, so the server and the checker also refuse a path
   whose name holds a written U+FFFD.
+- A panic of any command prints nothing of its own and ends as `REFUSED internal: the command
+  stopped at a fault of its own` with status 2; the site checker ends an uncaught error the same
+  way with `the checker stopped at a fault of its own`.
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.

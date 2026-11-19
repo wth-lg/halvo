@@ -6,6 +6,8 @@ function refuse(cause, detail) {
   process.exit(2);
 }
 
+process.on('uncaughtException', () => refuse('internal', 'the checker stopped at a fault of its own'));
+
 const USAGE = 'usage: node check-sites.mjs [--parameters FILE] SITE_DATA...';
 
 function readRows(path) {

@@ -204,8 +204,18 @@ fn utf8_args() -> Result<Vec<String>, Refusal> {
         .collect()
 }
 
+/// Runs the command. A panic prints no message of its own and ends as the refusal `internal` with status 2,
+/// because a panic message can hold a value that the command read (contracts.md C12.1).
 fn main() -> ExitCode {
-    match utf8_args().and_then(|args| run(&args)) {
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome = std::panic::catch_unwind(|| utf8_args().and_then(|args| run(&args)))
+        .unwrap_or_else(|_| {
+            Err(Refusal::new(
+                "internal",
+                "the command stopped at a fault of its own",
+            ))
+        });
+    match outcome {
         Ok((lines, pass)) => {
             let mut text = String::new();
             for l in lines {

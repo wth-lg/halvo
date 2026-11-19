@@ -1066,3 +1066,91 @@ fn s_n_counts_the_directories_and_links_of_streams_and_no_plain_file() {
     );
     assert!(o.stdout.contains("checked streams=1 "), "{}", o.stdout);
 }
+
+#[cfg(unix)]
+fn unreadable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o000)).expect("chmod");
+}
+
+#[cfg(unix)]
+fn readable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o644)).expect("chmod");
+}
+
+#[test]
+fn over_a_marked_tier_a_broken_or_unreadable_file_is_refused_by_dir_and_numbers_alone() {
+    let refusal = |dir: &Path, cause: &str, after: &str| {
+        let o = run(&["check-labels", &s(dir)]);
+        refused(&o, cause);
+        assert_eq!(o.stderr, format!("REFUSED {cause}: {}{after}\n", s(dir)));
+    };
+    let bad_utf8: &[u8] = &[b'q', b'z', b'm', b'q', 0xFF, b'\n'];
+    let dir = marked_golden("broken-labels-json");
+    fs::write(marked_labels(&dir), "qzmq is no json\n").expect("w");
+    refusal(&dir, "labels", " s2 l1");
+    let dir = marked_golden("broken-labels-utf8");
+    fs::write(marked_labels(&dir), bad_utf8).expect("w");
+    refusal(&dir, "labels", " s2");
+    let dir = marked_golden("broken-labels-dir");
+    let p = marked_labels(&dir);
+    fs::rename(&p, dir.join("streams/qzmq-b/labels.old")).expect("mv");
+    fs::create_dir_all(&p).expect("a directory");
+    refusal(&dir, "labels", " s2");
+    let dir = marked_golden("broken-day-json");
+    fs::write(
+        dir.join("streams/qzmq-b/day-003.jsonl"),
+        "qzmq is no json\n",
+    )
+    .expect("w");
+    refusal(&dir, "batches", " s2");
+    let dir = marked_golden("broken-day-utf8");
+    fs::write(dir.join("streams/qzmq-b/day-003.jsonl"), bad_utf8).expect("w");
+    refusal(&dir, "batches", " s2");
+    let dir = marked_golden("broken-sm-utf8");
+    fs::write(dir.join("script-manifest.jsonl"), bad_utf8).expect("w");
+    refusal(&dir, "script-manifest", "");
+    let dir = marked_golden("broken-manifest-utf8");
+    fs::write(dir.join("manifest.toml"), bad_utf8).expect("w");
+    refusal(&dir, "tier-manifest", "");
+    #[cfg(unix)]
+    {
+        let dir = marked_golden("unreadable-labels");
+        let p = marked_labels(&dir);
+        unreadable(&p);
+        let o = run(&["check-labels", &s(&dir)]);
+        readable(&p);
+        refused(&o, "labels");
+        assert_eq!(o.stderr, format!("REFUSED labels: {} s2\n", s(&dir)));
+        let dir = marked_golden("unreadable-day");
+        let p = dir.join("streams/qzmq-b/day-003.jsonl");
+        unreadable(&p);
+        let o = run(&["check-labels", &s(&dir)]);
+        readable(&p);
+        refused(&o, "batches");
+        assert_eq!(o.stderr, format!("REFUSED batches: {} s2\n", s(&dir)));
+    }
+    let dir = marked_golden("stream-name-no-utf8");
+    #[cfg(windows)]
+    let made = {
+        use std::os::windows::ffi::OsStringExt;
+        let wide: Vec<u16> = "qzmq-c".encode_utf16().chain([0xD800]).collect();
+        fs::create_dir(
+            dir.join("streams")
+                .join(std::ffi::OsString::from_wide(&wide)),
+        )
+        .is_ok()
+    };
+    #[cfg(unix)]
+    let made = {
+        use std::os::unix::ffi::OsStringExt;
+        let name = std::ffi::OsString::from_vec(vec![b'q', b'z', b'm', b'q', 0xFF]);
+        fs::create_dir(dir.join("streams").join(name)).is_ok()
+    };
+    #[cfg(windows)]
+    assert!(made, "Windows takes a name with a lone surrogate");
+    if made {
+        refusal(&dir, "batches", "");
+    }
+}

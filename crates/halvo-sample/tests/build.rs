@@ -1451,3 +1451,120 @@ fn active_seconds_reads_the_last_line_of_a_day_file_also_when_a_late_keystroke_e
         o.stdout
     );
 }
+
+#[test]
+fn over_a_marked_script_rules_s5_s6_and_a_file_of_no_json_or_no_utf8_are_refused_by_number_alone() {
+    let dir = scratch("marked-more");
+    let noise = r#"{"line":"noise","stream":"qzmq-s1","day":2,"item":{"step":"qzmq-pa","title":0,"start":0,"end":5000000000,"keys":0,"clicks":0,"scrolls":0}}"#;
+    let second = |task: &str, category: &str, kind: &str| {
+        common::episode(
+            "qzmq-s1",
+            "qzmq-e2",
+            task,
+            category,
+            kind,
+            3,
+            &[common::item("qzmq-pa", 0, 30 * SEC, 1, 0, 0)],
+        )
+    };
+    let cases: Vec<(&str, String, &str)> = vec![
+        (
+            "S6",
+            format!("{}{noise}\n", marked_body(NO_FAULT)),
+            "SCRIPT 1:6: S6",
+        ),
+        (
+            "S5",
+            format!(
+                "{}{}\n",
+                marked_body(NO_FAULT),
+                second("qzmq-t1", "ride_order", "one_off")
+            ),
+            "SCRIPT 1:6: S5",
+        ),
+    ];
+    for (rule, body, want) in cases {
+        let f = dir.join(format!("{rule}.jsonl"));
+        write(&f, &format!("{HEADER}\n{body}"));
+        let o = run(&[
+            "build",
+            "--seed",
+            "1",
+            "--out",
+            &s(&dir.join(format!("out-{rule}"))),
+            &s(&f),
+        ]);
+        refused(&o, "script");
+        assert_eq!(o.stderr, format!("REFUSED script: {want}\n"), "{rule}");
+    }
+    let f = dir.join("qzmq-nojson.jsonl");
+    write(&f, "qzmq is no json\n");
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-nojson")),
+        &s(&f),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:1: S15\n");
+    let f = dir.join("qzmq-noutf8.jsonl");
+    fs::write(&f, [b'q', b'z', b'm', b'q', 0xFF, b'\n']).expect("w");
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("out-noutf8")),
+        &s(&f),
+    ]);
+    refused(&o, "script");
+    assert_eq!(o.stderr, "REFUSED script: SCRIPT 1:1: S15\n");
+}
+
+#[test]
+fn a_later_keystroke_with_a_smaller_lateness_stands_right_after_an_earlier_late_one_that_it_reaches(
+) {
+    let dir = scratch("late-unequal");
+    let with_late = |item: String, ms: u64| {
+        item.replace("\"scrolls\":0}", &format!("\"scrolls\":0,\"late\":{ms}}}"))
+    };
+    let script = one_stream_script(
+        1,
+        &[
+            with_late(common::item("pa", 9 * SEC, 11 * SEC, 1, 0, 0), 30_000),
+            common::item("pc", 11 * SEC, 19 * SEC, 0, 7, 0),
+            with_late(common::item("pb", 19 * SEC, 21 * SEC, 1, 0, 0), 1_000),
+            common::item("pc", 21 * SEC, 60 * SEC, 0, 30, 0),
+        ],
+    );
+    write(&dir.join("s.jsonl"), &script);
+    let o = run(&[
+        "build",
+        "--seed",
+        "3",
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("s.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let r = records(&dir.join("out/streams/s1/day-001.jsonl"));
+    let keys: Vec<usize> = (0..r.len()).filter(|k| r[*k].2 == "keystroke").collect();
+    assert_eq!(keys.len(), 2);
+    let (a, b) = (keys[0], keys[1]);
+    assert_eq!((r[a].0, r[b].0), (10 * SEC + T, 20 * SEC + T));
+    assert_eq!(
+        b,
+        a + 1,
+        "the later keystroke stands right after the earlier one"
+    );
+    assert!(r[..a].iter().all(|x| x.0 <= 40 * SEC + T));
+    assert!(
+        r[..a].iter().any(|x| x.0 > 21 * SEC + T),
+        "it stands later than its own lateness"
+    );
+    assert!(r[b + 1..].iter().all(|x| x.0 > 40 * SEC + T));
+}
+
+const T: i64 = 1_767_225_600_000_000_000;

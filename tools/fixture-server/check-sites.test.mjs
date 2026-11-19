@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -189,4 +189,32 @@ test('checker: over site files whose names, ids and parameters hold the marker, 
       assert.match(run.stderr, /^REFUSED [a-z-]+: [^\n]*\n$/);
     }
   }
+});
+
+test('checker: a site file that is no JSON, no UTF-8, a directory or unreadable, and a fault of its own, print no name and no text of the file', () => {
+  const dir = mkdtempSync(join(ROOT.dir, 'broken-'));
+  const good = put(dir, `${MARKER}-good.json`, news());
+  const noJson = join(dir, `${MARKER}-nojson.json`);
+  writeFileSync(noJson, `${MARKER} is no json\n`);
+  const noUtf8 = join(dir, `${MARKER}-noutf8.json`);
+  writeFileSync(noUtf8, Buffer.from([0x71, 0x7a, 0x6d, 0x71, 0xff, 0x0a]));
+  const folder = join(dir, `${MARKER}-folder.json`);
+  mkdirSync(folder);
+  const cases = [[noJson, 2], [noUtf8, 2], [folder, 1]];
+  if (process.platform !== 'win32') {
+    const closed = put(dir, `${MARKER}-closed.json`, marked());
+    chmodSync(closed, 0o000);
+    cases.push([closed, 1]);
+  }
+  for (const [path, number] of cases) {
+    const run = runChecker([good, path]);
+    assert.equal(run.status, 2, path);
+    assert.equal(run.stdout, '');
+    assert.equal(run.stderr, `REFUSED site-data: SITE_DATA ${number}\n`, path);
+  }
+  const fault = `data:text/javascript,${encodeURIComponent(`Buffer.byteLength = () => { throw new TypeError('${MARKER} fault'); };`)}`;
+  const run = spawnSync(process.execPath, [`--import=${fault}`, CHECKER, good], { encoding: 'utf8' });
+  assert.equal(run.status, 2, run.stderr);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, 'REFUSED internal: the checker stopped at a fault of its own\n');
 });

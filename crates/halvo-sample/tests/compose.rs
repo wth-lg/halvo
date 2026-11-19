@@ -791,3 +791,45 @@ fn compose_late_n_writes_late_keys_in_that_stream_alone_and_its_built_stream_hol
     let text = fs::read_to_string(dir.join("late-last/s020.jsonl")).expect("s020");
     assert!(text.contains(",\"late\":30000}"));
 }
+
+#[test]
+fn a_panic_of_the_command_ends_as_the_refusal_internal_and_prints_nothing_it_read() {
+    let dir = scratch("panic");
+    let repo = common::repo();
+    let rates = fs::read_to_string(repo.join("fixtures/r2/scripts/rates.toml")).expect("rates");
+    let huge: String = rates
+        .lines()
+        .map(|l| {
+            if l.starts_with("streams = ") {
+                "streams = 9223372036854775806".to_owned()
+            } else if l.starts_with("browser = ") {
+                "browser = \"org.qzmq.Chromium\"".to_owned()
+            } else {
+                l.to_owned()
+            }
+        })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    assert!(huge.contains("9223372036854775806") && huge.contains("qzmq"));
+    write(&dir.join("rates.toml"), &huge);
+    let site = fs::read_dir(repo.join("tools/fixture-server/sites"))
+        .expect("the site files")
+        .map(|e| e.expect("entry").path())
+        .min()
+        .expect("a site file");
+    fs::copy(&site, dir.join("qzmq-site.json")).expect("copy");
+    let o = run(&[
+        "compose",
+        "--rates",
+        &s(&dir.join("rates.toml")),
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("qzmq-site.json")),
+    ]);
+    refused(&o, "internal");
+    assert_eq!(
+        o.stderr,
+        "REFUSED internal: the command stopped at a fault of its own\n"
+    );
+    assert!(!dir.join("out").exists());
+}
