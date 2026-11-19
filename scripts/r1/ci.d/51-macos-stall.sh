@@ -1463,6 +1463,21 @@ waits-not-driven-phase_one'
     "$held_store3c"'\nconst QUOTE: char = \0047"\0047;\nmod more;\n' "$held"
   held_case carbon-held-file-a-module-after-a-string-with-an-escaped-quote FAIL "$held: a module item, the word mod in the code, at line 22" \
     "$held_store3c"'\nconst TEXT: &str = "a \\" b";\nmod more;\n' "$held"
+  held_case carbon-held-file-p1-pub-crate-on-the-line-above-fn-symbol FAIL "$held: the word pub in the code, at line 8" \
+    "$held_head"'pub(crate)\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-p2-pub-and-a-comment-on-the-line-above-fn-symbol FAIL "$held: the word pub in the code, at line 8" \
+    "$held_head"'pub /* seen by all */\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-pub-above-an-attribute-line FAIL "$held: the word pub in the code, at line 8" \
+    "$held_head"'pub\n#[inline]\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-pub-in-a-path-over-two-lines FAIL "$held: the word pub in the code, at line 8" \
+    "$held_head"'pub(in crate::\nstore)\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-c01-a-module-after-a-bare-carriage-return FAIL "$held: a module item, the word mod in the code, at line 21" \
+    "$held_store3c"'\nmod\rfull_flush_more;\n' "$held"
+  held_case carbon-held-file-the-letters-of-pub-elsewhere PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" \
+    "$held_store3c"'\nfn publish() {}\n// pub in a comment\nconst P: &str = "pub";\nconst Q: &str = r#"pub fn"#;\n' "$held"
+  printf '%b' "$held_store3c" | awk '{ printf "%s\r\n", $0 }' >"$work/repo/$held" || exit 2
+  git -C "$work/repo" add -A || exit 2
+  check carbon-held-file-with-cr-lf-line-ends PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" ''
   held_case carbon-held-file-a-c-string-in-a-const FAIL "$held: a C string literal that does not begin r1_ at line 21" \
     "$held_store3c"'\nconst NAME: &CStr = c"getpid";\n' "$held"
   held_case carbon-held-file-a-raw-c-string FAIL "$held: a C string literal that does not begin r1_ at line 21" \
