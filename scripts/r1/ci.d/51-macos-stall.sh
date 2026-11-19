@@ -1467,8 +1467,9 @@ waits-not-driven-phase_one'
     "$held_store3c"'\nconst NAME: &CStr = cr#"getpid"#;\n' "$held"
   held_case carbon-held-file-the-same-letters-elsewhere PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" \
     "$held_store3c"'\n// a mod, an include, a macro_rules and a path in a comment\nconst WORDS: &str = "mod include macro_rules #[path]";\nfn module_path_of(path: &str) -> &str {\n    let model = path;\n    model\n}\nconst SOURCE: &str = r#"\n#include <fcntl.h>\n"#;\nfn file() -> &\0047static str {\n    "counter.c"\n}\nconst A: &CStr = cr#"r1_a"#;\nconst B: &CStr = cr"r1_b";\nconst QUOTE: char = \0047"\0047;\nconst RAW: &str = r#"printf("mod %%s", "include");"#;\n' "$held"
-  for form in 'pub' 'pub(crate)' 'pub(super)' 'pub(in crate::store)'; do
-    held_case "carbon-held-file-fn-symbol-made-$(printf '%s' "$form" | tr -c 'a-z\n' '-')" FAIL "$held: fn symbol is not defined once, as the two lines that this check holds (defined 0 times)" \
+  for pair in 'pub=pub' 'pub-crate=pub(crate)' 'pub-super=pub(super)' 'pub-in-crate-store=pub(in crate::store)'; do
+    form=${pair#*=}
+    held_case "carbon-held-file-fn-symbol-made-${pair%%=*}" FAIL "$held: fn symbol is not defined once, as the two lines that this check holds (defined 0 times)" \
       "$held_head$form"' fn symbol(name: &CStr) -> Option<*mut libc::c_void> {\n    let found = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };\n    (!found.is_null()).then_some(found)\n}\n\n'"$held_calls" "$held"
   done
   printf 'none\n' >"$work/repo/$held" || exit 2
