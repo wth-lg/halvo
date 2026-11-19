@@ -8205,6 +8205,60 @@ fn u24r_g_a_persons_run_now_is_not_held_by_the_stuck_count() {
     assert!(!c.record_stuck(&agent(0)));
 }
 
+fn is_run_end(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::RunEnded { .. })
+}
+
+#[test]
+fn u24r_each_record_that_the_board_counts_as_dropped_is_of_a_move_already_made() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("too_large"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    assert!(
+        c.snapshot().items.iter().any(|i| i.agent() == &agent(0)),
+        "the coordinator raised the item and the page shows it, though its row was refused"
+    );
+    assert_eq!(c.records_dropped(&agent(0)), None);
+    c.ports().ports.set_clock(T0 + 3 * 86_400_000, DAY + 3);
+    c.tick();
+    assert_eq!(
+        c.records_dropped(&agent(0)).map(|(n, event, _)| (n, event)),
+        Some((1, "item_raised".to_string()))
+    );
+    assert!(
+        !events(&c)
+            .iter()
+            .any(|w| matches!(w, What::ItemRaised { .. })),
+        "the owner never stored the raise that happened"
+    );
+
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_run_end, refused_name("too_large"));
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 0, "the run ended, though its row was refused");
+    assert_eq!(c.records_dropped(&agent(0)), None);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    assert_eq!(
+        c.records_dropped(&agent(0)).map(|(n, event, _)| (n, event)),
+        Some((1, "run_ended".to_string()))
+    );
+    assert!(
+        !events(&c)
+            .iter()
+            .any(|w| matches!(w, What::RunEnded { run: r, .. } if *r == run)),
+        "the owner never stored the end that happened"
+    );
+}
+
 fn dropped_lines(c: &Coordinator<Both>, n: usize) -> Vec<String> {
     c.card(&agent(n))
         .unwrap()
