@@ -1332,7 +1332,7 @@ waits-not-driven-phase_one'
     "$held_store3c"'\nfn other() -> Option<*mut libc::c_void> {\n    let look = symbol;\n    look(c"getpid")\n}\n' "$held"
   held_case carbon-held-file-a-second-fn-symbol-in-a-module FAIL "$held: a lookup by name outside fn symbol at line 24" \
     "$held_store3c"'\nmod inner {\n    use std::ffi::CStr;\n    fn symbol(name: &CStr) -> *mut libc::c_void {\n        unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) }\n    }\n}\n' "$held"
-  held_case carbon-held-file-a-module-in-another-file FAIL "$held: a module in another file is declared at line 21" \
+  held_case carbon-held-file-a-module-in-another-file FAIL "$held: a module item, the word mod in the code, at line 21" \
     "$held_store3c"'\nmod more;\n' "$held"
   held_case carbon-held-file-a-carbon-name FAIL "$carbon_text$held (" "$held_store3c"'\nfn hold() {\n    unsafe { EnableSecureEventInput() };\n}\n' "$held"
   held_case carbon-held-file-a-carbon-name-with-underscores FAIL "$carbon_text$held (" "$held_store3c"'\nconst NAME: &str = "__DisableSecureEventInput";\n' "$held"
@@ -1342,6 +1342,41 @@ waits-not-driven-phase_one'
   held_case carbon-a-lookup-in-another-file-of-the-store FAIL "${carbon_text}crates/halvo-capture/src/store/lookup.rs (" \
     'fn total() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"r1_full_flushes".as_ptr()) }\n}\n' crates/halvo-capture/src/store/lookup.rs
   printf 'none\n' >"$work/repo/crates/halvo-capture/src/store/lookup.rs" || exit 2
+  held_more=crates/halvo-capture/src/store/hardening_tests/full_flush_more.rs
+  held_parent=crates/halvo-capture/src/store/hardening_tests.rs
+  printf 'fn other() -> Option<*mut libc::c_void> {\n    super::symbol(c"getpid")\n}\n' >"$work/repo/$held_more" || exit 2
+  held_case carbon-held-file-b12-a-path-attribute-and-a-module-on-one-line FAIL "$held: a path attribute, the word path in an attribute, at line 21" \
+    "$held_store3c"'\n#[path = "full_flush_more.rs"] mod more;\n' "$held"
+  held_case carbon-held-file-b14-a-module-with-its-semicolon-on-the-next-line FAIL "$held: a module item, the word mod in the code, at line 21" \
+    "$held_store3c"'\nmod full_flush_more\n;\n' "$held"
+  printf 'fn other() -> Option<*mut libc::c_void> {\n    symbol(c"getpid")\n}\n' >"$work/repo/$held_more" || exit 2
+  held_case carbon-held-file-b13-an-include-of-another-file FAIL "$held: an include!, the word include in the code, at line 21" \
+    "$held_store3c"'\ninclude!("full_flush_more.rs");\n' "$held"
+  printf 'none\n' >"$work/repo/$held_more" || exit 2
+  printf 'macro_rules! lookup {\n    ($n:expr) => {\n        symbol($n)\n    };\n}\n' >"$work/repo/$held_parent" || exit 2
+  held_case carbon-held-file-b16-a-macro-of-the-parent-file-given-a-c-string FAIL "$held: a C string literal that does not begin r1_ at line 22" \
+    "$held_store3c"'\nfn other() -> Option<*mut libc::c_void> {\n    lookup!(c"getpid")\n}\n' "$held"
+  printf 'none\n' >"$work/repo/$held_parent" || exit 2
+  held_case carbon-held-file-a-module-with-a-body-after-an-attribute FAIL "$held: a module item, the word mod in the code, at line 21" \
+    "$held_store3c"'\n#[cfg(test)] pub(crate) mod inner {\n}\n' "$held"
+  held_case carbon-held-file-a-macro-rules FAIL "$held: a macro_rules!, the word macro_rules in the code, at line 21" \
+    "$held_store3c"'\nmacro_rules! nothing {\n    () => {};\n}\n' "$held"
+  held_case carbon-held-file-a-path-attribute-on-a-function FAIL "$held: a path attribute, the word path in an attribute, at line 21" \
+    "$held_store3c"'\n#[cfg_attr(test, path = "other.rs")]\nfn f() {}\n' "$held"
+  held_case carbon-held-file-an-include-by-its-path-beside-include-str FAIL "$held: an include!, the word include in the code, at line 22" \
+    "$held_store3c"'\nconst TEXT: &str = include_str!("x.txt");\nstd::include!("full_flush_more.rs");\n' "$held"
+  held_case carbon-held-file-a-c-string-in-a-const FAIL "$held: a C string literal that does not begin r1_ at line 21" \
+    "$held_store3c"'\nconst NAME: &CStr = c"getpid";\n' "$held"
+  held_case carbon-held-file-a-raw-c-string FAIL "$held: a C string literal that does not begin r1_ at line 21" \
+    "$held_store3c"'\nconst NAME: &CStr = cr"getpid";\n' "$held"
+  held_case carbon-held-file-a-raw-c-string-with-hashes FAIL "$held: a C string literal that does not begin r1_ at line 21" \
+    "$held_store3c"'\nconst NAME: &CStr = cr#"getpid"#;\n' "$held"
+  held_case carbon-held-file-the-same-letters-elsewhere PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" \
+    "$held_store3c"'\n// a mod, an include, a macro_rules and a path in a comment\nconst WORDS: &str = "mod include macro_rules #[path]";\nfn module_path_of(path: &str) -> &str {\n    let model = path;\n    model\n}\nconst SOURCE: &str = r#"\n#include <fcntl.h>\n"#;\nfn file() -> &\0047static str {\n    "counter.c"\n}\nconst A: &CStr = cr#"r1_a"#;\nconst B: &CStr = cr"r1_b";\n' "$held"
+  for form in 'pub' 'pub(crate)' 'pub(super)' 'pub(in crate::store)'; do
+    held_case "carbon-held-file-fn-symbol-made-$(printf '%s' "$form" | tr -c 'a-z\n' '-')" FAIL "$held: fn symbol is not defined once, as the two lines that this check holds (defined 0 times)" \
+      "$held_head$form"' fn symbol(name: &CStr) -> Option<*mut libc::c_void> {\n    let found = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };\n    (!found.is_null()).then_some(found)\n}\n\n'"$held_calls" "$held"
+  done
   printf 'none\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   mkdir -p "$work/rules-bin" || exit 2
