@@ -417,9 +417,15 @@ word=$store
 if [ -e "$FX/lines-store" ]; then
   word=$(cat "$FX/lines-store")
 fi
+if [ "$play" = second ] && [ -e "$FX/second-play-store" ]; then
+  word=$(cat "$FX/second-play-store")
+fi
 if [ -e "$FX/first-line-store" ]; then
   sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out" |
     awk -v first="store=$(cat "$FX/first-line-store")" '$1 == "case" && !done { $6 = first; done = 1 } { print }'
+elif [ -e "$FX/second-line-store" ]; then
+  sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out" |
+    awk -v second="store=$(cat "$FX/second-line-store")" '$1 == "case" { n++ } $1 == "case" && n == 2 { $6 = second } { print }'
 else
   sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out"
 fi
@@ -757,6 +763,16 @@ self_test() {
   printf 'memory\n' >"$FX/lines-store" || broken
   play_lines dev memory 2 "" miss >"$FX/dev-first.out" || broken
   printf '1\n' >"$FX/dev-first.code" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-second-case-line-names-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/second-line-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-second-play-lines-name-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/second-play-store" || broken
   check FAIL-store "FAIL $name (store)"
 
   fixture duplicate-store-token
