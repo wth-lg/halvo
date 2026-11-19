@@ -8136,6 +8136,75 @@ fn u24r_a_stuck_record_shows_the_record_line_on_its_row_with_stop_and_delete_alo
     assert_ne!(row_line(&c.snapshot(), 0), text("line.problem.record"));
 }
 
+fn is_run_start(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::RunStarted { .. })
+}
+
+#[test]
+fn u24r_g_after_an_acknowledged_stop_the_record_stays_stuck_until_the_next_tick_ends() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    for k in 1..=3u64 {
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+    }
+    assert!(c.record_stuck(&agent(0)));
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    assert!(
+        events(&c)
+            .iter()
+            .any(|w| matches!(w, What::ItemLapsed { .. })),
+        "the press's own store was acknowledged"
+    );
+    assert!(
+        c.record_stuck(&agent(0)),
+        "an acknowledged press does not end the count before the tick ends"
+    );
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.problem.record"));
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert!(!c.record_stuck(&agent(0)), "the next tick ends the count");
+    assert_ne!(row_line(&c.snapshot(), 0), text("line.problem.record"));
+}
+
+#[test]
+fn u24r_g_a_persons_run_now_is_not_held_by_the_stuck_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports()
+        .ports
+        .refuse_record(is_run_start, refused_name("store"));
+    for k in 1..=3u64 {
+        assert!(
+            c.control(&agent(0), Action::RunNow).is_err(),
+            "press {k}: the refused start starts nothing"
+        );
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+    }
+    assert!(started(&c).is_empty());
+    assert!(c.record_stuck(&agent(0)));
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.problem.record"));
+    c.ports().ports.clear_refusals();
+    assert_eq!(
+        c.control(&agent(0), Action::RunNow),
+        Ok(()),
+        "the stuck count does not hold a person's Run now"
+    );
+    assert_eq!(started(&c).len(), 1);
+    assert!(
+        c.record_stuck(&agent(0)),
+        "the start's own acknowledged store does not end the count before the tick ends"
+    );
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert!(!c.record_stuck(&agent(0)));
+}
+
 #[test]
 fn rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
