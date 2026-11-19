@@ -1480,6 +1480,39 @@ waits-not-driven-phase_one'
   printf '%b' "$held_store3c" | awk '{ printf "%s\r\n", $0 }' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check carbon-held-file-with-cr-lf-line-ends PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" ''
+  held_store3c_text="$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes"
+  held_case carbon-held-file-x04-fn-symbol-in-an-impl-of-a-trait FAIL "$held: fn symbol defined inside a brace of the code, at line 9" \
+    "$held_head"'impl R1Look for R1Reach {\n'"$held_symbol"'}\n\nfn loaded() -> Option<()> {\n    let total = R1Reach::symbol(c"r1_full_flushes")?;\n    Some(())\n}\n' "$held"
+  held_case carbon-held-file-fn-symbol-in-the-body-of-another-fn FAIL "$held: fn symbol defined inside a brace of the code, at line 9" \
+    "$held_head"'fn outer() {\n'"$held_symbol"'}\n'"$held_calls" "$held"
+  held_case carbon-held-file-braces-in-strings-chars-and-comments-above-fn-symbol PASS "$held_store3c_text" \
+    "$held_head"'const OPEN: &str = "{{{";\nconst ONE: char = \0047{\0047;\n// {\n/* { */\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-x01-no-mangle-on-fn-symbol FAIL "$held: an attribute other than #[test] at line 8" \
+    "$held_head"'#[no_mangle]\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-x02-export-name-on-fn-symbol FAIL "$held: an attribute other than #[test] at line 8" \
+    "$held_head"'#[export_name = "r1_lookup"]\n'"$held_symbol$held_calls" "$held"
+  held_case carbon-held-file-an-inner-attribute FAIL "$held: an attribute other than #[test] at line 21" \
+    "$held_store3c"'\n#![allow(dead_code)]\n' "$held"
+  held_case carbon-held-file-cfg-test-on-an-item FAIL "$held: an attribute other than #[test] at line 21" \
+    "$held_store3c"'\n#[cfg(test)]\nfn nothing() {}\n' "$held"
+  held_case carbon-held-file-an-attribute-over-two-lines FAIL "$held: an attribute other than #[test] at line 21" \
+    "$held_store3c"'\n#[cfg(\n    test\n)]\nfn nothing() {}\n' "$held"
+  held_case carbon-held-file-r03-a-path-attribute-split-by-a-bare-carriage-return FAIL "$held: an attribute other than #[test] at line 21" \
+    "$held_store3c"'\n#\r[path = "full_flush_more.rs"]\nfn nothing() {}\n' "$held"
+  held_case carbon-held-file-the-spellings-of-test-that-pass PASS "$held_store3c_text" \
+    "$held_store3c"'\n#[test]\nfn a() {}\n# [ test ]\nfn b() {}\n#[\ntest\n]\nfn c() {}\n#[test /* a comment */]\nfn d() {}\n' "$held"
+  held_named_text="a tracked Rust file other than $held names full_flush.rs"
+  printf 'mod full_flush_again {\n    include!("hardening_tests/full_flush.rs");\n    fn other() -> Option<*mut libc::c_void> {\n        symbol(c"getpid")\n    }\n}\n' >"$work/repo/$held_parent" || exit 2
+  held_case carbon-held-file-x03-the-parent-file-includes-the-held-file FAIL "$held_named_text" "$held_store3c" "$held"
+  printf 'none\n' >"$work/repo/$held_parent" || exit 2
+  printf '#[path = "../../halvo-capture/src/store/hardening_tests/full_flush.rs"]\nmod again;\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  held_case carbon-held-file-a-path-attribute-in-another-rust-file FAIL "$held_named_text" "$held_store3c" "$held"
+  printf 'include!("Hardening_Tests/Full_Flush.RS");\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  held_case carbon-held-file-named-in-another-letter-case FAIL "$held_named_text" "$held_store3c" "$held"
+  printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
+  printf 'The test of crates/halvo-capture/src/store/hardening_tests/full_flush.rs counts the flushes.\n' >"$work/repo/docs/notes.md" || exit 2
+  held_case carbon-held-file-named-in-a-file-that-is-no-rust-file PASS "$held_store3c_text" "$held_store3c" "$held"
+  printf 'none\n' >"$work/repo/docs/notes.md" || exit 2
   held_case carbon-held-file-a-c-string-in-a-const FAIL "$held: a C string literal that does not begin r1_ at line 21" \
     "$held_store3c"'\nconst NAME: &CStr = c"getpid";\n' "$held"
   held_case carbon-held-file-a-raw-c-string FAIL "$held: a C string literal that does not begin r1_ at line 21" \
