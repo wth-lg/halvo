@@ -1296,7 +1296,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in LEFT_OUT {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    for name in ["binding", "length"] {
+    for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
     assert_eq!(executable::KINDS.len(), 10);
@@ -1313,7 +1313,7 @@ fn the_committed_names_file_holds_the_names_of_this_file_and_none_left_out() {
         assert!(lines.contains(name), "{name}");
     }
     for name in [
-        "tier", "amount", "week", "month", "role", "binding", "length",
+        "tier", "amount", "week", "month", "role", "binding", "length", "overlap",
     ] {
         assert!(!lines.contains(name), "{name}");
     }
