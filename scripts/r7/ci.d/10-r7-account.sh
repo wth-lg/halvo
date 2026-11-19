@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 107 and 77: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside, the two layouts of a build script's out directory that the runner images of the windows job give, and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 107 and 81: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside, the two layouts of a build script's out directory that the runner images of the windows job give, and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -72,7 +72,8 @@ target-through-a-link link-as-account-target dep-info-link-in-a-source-directory
 dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name
 dep-info-letter-and-colon-directory directory-name-with-a-tab new-layout-of-a-package-named-build
 out-directory-four-levels-below-build new-layout-build-not-below-the-target new-layout-without-build
-file-beside-out-in-the-new-layout'
+file-beside-out-in-the-new-layout out-below-a-directory-of-an-old-layout-package
+out-through-dot-dot-below-an-old-layout-package out-below-deps-under-build hash-named-directory-in-an-old-layout-package'
 real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash directory-name-with-a-tab'
 real_builds_windows='includes-inside'
 
@@ -518,6 +519,12 @@ out_dir_of() {
   if [ "${build##*/}" = build ] && [ "${build%/*/*}" -ef "$target" ]; then
     return 0
   fi
+  hash=${out_real%/*}
+  package=${hash%/*}
+  lower_hex "${hash##*/}" 16 || return 1
+  case ${package##*/} in
+    *-*) ! lower_hex "${package##*-}" 16 || return 1 ;;
+  esac
   build=${build%/*}
   [ "${build##*/}" = build ] && [ "${build%/*/*}" -ef "$target" ]
 }
@@ -559,6 +566,15 @@ explain_outside() {
             say_outside "out_dir_of: test -ef [${build%/*/*}] [$target]: $answer"
             build=${build%/*}
           done
+          hash=${dir_real%/*}
+          package=${hash%/*}
+          answer=$(said lower_hex "${hash##*/}" 16)
+          say_outside "out_dir_of: the name of the directory above it is a hash of 16 lower-case hex digits: $answer (${hash##*/})"
+          answer=no
+          case ${package##*/} in
+            *-*) answer=$(said lower_hex "${package##*-}" 16) ;;
+          esac
+          say_outside "out_dir_of: the name two levels above it ends in - and such a hash: $answer (${package##*/})"
         else
           say_outside 'out_dir_of: cd -P into it: no'
         fi
@@ -1593,6 +1609,8 @@ read outside account/: out_dir_of: the name two levels above it is build: yes ($
 read outside account/: out_dir_of: test -ef [$t_real] [$t_named/target/account]: yes
 read outside account/: out_dir_of: the name three levels above it is build: no ($t_real/debug)
 read outside account/: out_dir_of: test -ef [${t_real%/*}] [$t_named/target/account]: no
+read outside account/: out_dir_of: the name of the directory above it is a hash of 16 lower-case hex digits: no (halvo-wire-0)
+read outside account/: out_dir_of: the name two levels above it ends in - and such a hash: no (build)
 read outside account/: an out directory was found for this dep-info file: no"
     run_case failure-line-names-an-out-directory-not-named-out "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/notout
   fi
@@ -1611,6 +1629,15 @@ read outside account/: out_dir_of: its last name is out: no"
   stub_case out-directory-four-levels-below-build "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/probe/c999a60d9992a792/x/out
   stub_case new-layout-build-not-below-the-target "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/extra/build/probe/c999a60d9992a792/out
   stub_case new-layout-without-build "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/notbuild/probe/c999a60d9992a792/out
+  stub_case out-below-a-directory-of-an-old-layout-package "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/sub/out
+  stub_case out-through-dot-dot-below-an-old-layout-package "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/out/../sub/out
+  stub_case out-below-deps-under-build "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/deps/halvo-wire-0/out
+  if runs_here hash-named-directory-in-an-old-layout-package && make_fixture hash-named-directory-in-an-old-layout-package; then
+    want_lines="read outside account/: out_dir_of: the name of the directory above it is a hash of 16 lower-case hex digits: yes (c999a60d9992a792)
+read outside account/: out_dir_of: the name two levels above it ends in - and such a hash: yes (halvo-wire-49f2e86ea4e02162)
+read outside account/: an out directory was found for this dep-info file: no"
+    run_case hash-named-directory-in-an-old-layout-package "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-49f2e86ea4e02162/c999a60d9992a792/out
+  fi
   stub_case file-beside-out-in-the-new-layout "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/probe/c999a60d9992a792/out STUB_TARGET_DEP=debug/build/probe/c999a60d9992a792/other.rs
   make_fixture tracked-file-under-the-target && mkdir -p "$fixture/target/account/debug/build/fake-0/out" &&
     cp "$fixture/outside/code.rs" "$fixture/target/account/debug/build/fake-0/out/code.rs" &&
