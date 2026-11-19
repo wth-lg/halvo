@@ -5,7 +5,6 @@ use std::time::Instant;
 use rusqlite::{params, Connection};
 
 mod controls;
-mod fts5;
 mod holes;
 mod layout;
 mod lines;

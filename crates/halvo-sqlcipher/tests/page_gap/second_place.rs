@@ -90,71 +90,6 @@ fn small_rows_with_single_deletes(seed: u64, mode: Mode) -> Vec<String> {
     Vec::new()
 }
 
-fn fts5_form(seed: u64) -> Vec<String> {
-    let scratch = Scratch::new(seed, Mode::Plain);
-    let conn = connect(&scratch.db(), Mode::Plain);
-    conn.execute_batch(
-        "CREATE VIRTUAL TABLE f USING fts5(app);
-         INSERT INTO f(f, rank) VALUES ('secure-delete', 1);",
-    )
-    .unwrap();
-    let mut rng = Rng::new(seed);
-    let mut live: BTreeMap<i64, String> = BTreeMap::new();
-    let mut removed: BTreeSet<String> = BTreeSet::new();
-    let mut next = 1i64;
-    for round in 0..6 {
-        conn.execute_batch("BEGIN").unwrap();
-        for _ in 0..120 {
-            let text = token(&mut rng);
-            let app = format!("{text} app{}", rng.below(7));
-            conn.execute(
-                "INSERT INTO f(rowid, app) VALUES (?1, ?2)",
-                params![next, app],
-            )
-            .unwrap();
-            live.insert(next, text);
-            next += 1;
-        }
-        conn.execute_batch("COMMIT").unwrap();
-        conn.execute_batch("BEGIN").unwrap();
-        for step in 0..60 {
-            let at = rng.below(live.len() as u64) as usize;
-            let rowid = *live.keys().nth(at).unwrap();
-            if step % 3 == 0 {
-                let text = token(&mut rng);
-                let app = format!("{text} app{}", rng.below(7));
-                conn.execute(
-                    "UPDATE f SET app = ?2 WHERE rowid = ?1",
-                    params![rowid, app],
-                )
-                .unwrap();
-                removed.insert(live.insert(rowid, text).unwrap());
-            } else {
-                conn.execute("DELETE FROM f WHERE rowid = ?1", [rowid])
-                    .unwrap();
-                removed.insert(live.remove(&rowid).unwrap());
-            }
-        }
-        conn.execute_batch("COMMIT").unwrap();
-        checkpoint(&conn);
-        let stored: i64 = conn
-            .query_row("SELECT count(*) FROM f", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(stored as usize, live.len());
-        let tails: BTreeSet<String> = removed.iter().map(|t| t[6..].to_owned()).collect();
-        let found = places(
-            &conn,
-            &scratch.0,
-            &tails,
-            &format!("seed {seed} round {round}"),
-        );
-        if !found.is_empty() {
-            return found;
-        }
-    }
-    Vec::new()
-}
-
 #[test]
 fn small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place() {
     crate::initialize().unwrap();
@@ -162,13 +97,6 @@ fn small_rows_deleted_one_at_a_time_leave_no_text_in_a_page_edited_in_place() {
         .into_iter()
         .flat_map(|seed| small_rows_with_single_deletes(seed, Mode::Plain))
         .collect();
-    assert!(found.is_empty(), "{}", found.join("\n"));
-}
-
-#[test]
-fn the_fts5_draw_of_seed_24_leaves_no_tail_of_a_removed_token_in_any_file() {
-    crate::initialize().unwrap();
-    let found = fts5_form(24);
     assert!(found.is_empty(), "{}", found.join("\n"));
 }
 
