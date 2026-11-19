@@ -430,37 +430,34 @@ fn the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_
     }
 }
 
-fn sender(n: usize, pad: usize) -> String {
-    format!("s{n:06}{}@people.test", "x".repeat(pad))
+const LONG_PAD: usize = 280;
+
+fn sender(first: char, n: usize, pad: usize) -> String {
+    format!("{first}{n:06}{}@people.test", "x".repeat(pad))
 }
 
 fn reply_of_len(len: usize) -> String {
-    let senders = |count: usize, pad: usize| -> Vec<String> {
-        (0..count)
-            .map(|n| sender(n, if n + 1 == count { pad } else { 0 }))
-            .collect()
-    };
-    let build = |each: usize, last: usize, pad: usize| -> String {
+    let build = |long: usize, short: usize, pad: usize| -> String {
         let entries: Vec<String> = (0..16)
             .map(|n| {
-                let list = if n == 15 {
-                    senders(last, pad)
-                } else {
-                    senders(each, 0)
-                };
+                let mut list: Vec<String> = (0..long).map(|i| sender('s', i, LONG_PAD)).collect();
+                if n == 15 {
+                    list.extend(
+                        (0..short).map(|i| sender('t', i, if i + 1 == short { pad } else { 0 })),
+                    );
+                }
                 let list: Vec<&str> = list.iter().map(String::as_str).collect();
                 entry_of(&other_workflow(n), &other_agent(n), &list)
             })
             .collect();
         reply_of(&entries, "yes")
     };
-    let each = (len / 16) / 22 - 8;
-    let mut last = each;
-    while build(each, last + 1, 0).len() <= len {
-        last += 1;
-    }
-    let pad = len - build(each, last, 0).len();
-    let text = build(each, last, pad);
+    assert_eq!(sender('s', 0, LONG_PAD).len(), 299);
+    let long = (len / 16) / (LONG_PAD + 22) - 1;
+    let short = (len - build(long, 0, 0).len()) / 22;
+    let pad = len - build(long, short, 0).len();
+    assert!(pad < 22, "{pad}");
+    let text = build(long, short, pad);
     assert_eq!(text.len(), len);
     text
 }
@@ -519,8 +516,8 @@ fn the_writer_refuses_a_list_that_would_not_fit_its_bound_and_never_writes_it_cu
     refused_by_the_writer(reply.to_json());
     refused_by_the_writer(CoordinatorReply::Overlaps(reply.clone()).to_json());
     assert!(serde_json::to_string(&reply).is_err());
-    let senders: Vec<OwnText> = (0..800)
-        .map(|n| OwnText::parse(&sender(n, 0)).unwrap())
+    let senders: Vec<OwnText> = (0..60)
+        .map(|n| OwnText::parse(&sender('s', n, LONG_PAD)).unwrap())
         .collect();
     let wide = OverlapsReply {
         overlaps: (0..16)
