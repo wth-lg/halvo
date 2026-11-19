@@ -525,21 +525,42 @@ st_track() {
 }
 
 st_own() {
+  st_oj_list='1 2'
+  [ -z "$nested_word" ] || st_oj_list=0
+  for st_oj in $st_oj_list; do
+    eval "st_kind_$st_n=own st_name_$st_n=run-ci-d st_lim_$st_n=$st_own_limit st_state_$st_n=waiting st_ojob_$st_n=$st_oj"
+    st_n=$((st_n + 1))
+  done
+}
+
+st_own_job() {
+  own_job=$1
+  own_out=$2
+  tmp=$3
+  own_self_test
+}
+
+st_own_start() {
+  eval "st_oj=\$st_ojob_$1"
   st_d=$tmp/self-test.run-ci-d
-  mkdir -p "$st_d" || {
-    note 'FAIL self-test:run-ci-d (its temporary directory cannot be made)'
-    return
+  st_o=$tmp
+  if [ "$st_oj" != 0 ]; then
+    st_d=$st_d.$st_oj
+    st_o=$st_d/tmp
+  fi
+  mkdir -p "$st_d" "$st_o" || {
+    st_drop "$1" 'FAIL self-test:run-ci-d (its temporary directory cannot be made)'
+    return 1
   }
+  eval "st_otmp_$1=\$st_o"
   (
     record() {
       printf '%s %s\n' "$1" "$2" >"$st_d/verdict"
     }
-    own_self_test
+    st_own_job "$st_oj" "$st_d" "$st_o"
     : >"$st_d/done"
   ) </dev/null >"$st_d/out" 2>"$st_d/err" &
-  eval "st_kind_$st_n=own st_name_$st_n=run-ci-d st_lim_$st_n=$st_own_limit"
-  st_n=$((st_n + 1))
-  st_track "$((st_n - 1))" "$!" "$st_d"
+  st_track "$1" "$!" "$st_d"
 }
 
 st_start() {
@@ -584,20 +605,62 @@ st_start() {
 }
 
 st_queue() {
-  st_q_file=$script_file
-  st_q_name=$script_name
-  st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$st_q_file")
+  st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$script_file")
   case $st_alone in
-    *" $st_q_name "*) st_q_solo=alone ;;
+    *" $script_name "*) st_q_solo=alone ;;
   esac
-  if [ -n "$st_q_solo" ]; then
-    st_wait_below 1
-  else
-    st_wait_below "$st_jobs"
-  fi
-  st_add "$st_q_file" "$st_q_name" "$script_lane" "$script_limit"
-  st_start "$((st_n - 1))" || return
-  [ -z "$st_q_solo" ] || st_wait_below 1
+  st_add "$script_file" "$script_name" "$script_lane" "$script_limit"
+  eval "st_solo_$((st_n - 1))=$st_q_solo"
+  st_poll
+  st_fill
+  st_flush
+}
+
+st_pick() {
+  st_pick_i=0
+  st_pick_alone=
+  while [ "$st_pick_i" -lt "$st_n" ]; do
+    eval "st_pk=\$st_kind_$st_pick_i:\$st_state_$st_pick_i"
+    [ "$st_pk" != own:waiting ] || return 0
+    st_pick_i=$((st_pick_i + 1))
+  done
+  for st_w in $st_firsts; do
+    st_pick_i=0
+    while [ "$st_pick_i" -lt "$st_n" ]; do
+      eval "st_pk=\$st_kind_$st_pick_i:\${st_name_$st_pick_i-}"
+      [ "$st_pk" != "script:$st_w" ] || break
+      st_pick_i=$((st_pick_i + 1))
+    done
+    if [ "$st_pick_i" -lt "$st_n" ]; then
+      eval "st_pk=\$st_state_$st_pick_i:\${st_solo_$st_pick_i-}"
+      [ "$st_pk" != waiting: ] || return 0
+    elif [ -z "$st_ready" ]; then
+      return 1
+    fi
+  done
+  st_pick_i=0
+  while [ "$st_pick_i" -lt "$st_n" ]; do
+    eval "st_pk=\$st_kind_$st_pick_i:\$st_state_$st_pick_i:\${st_solo_$st_pick_i-}"
+    case $st_pk in
+      script:waiting:) return 0 ;;
+      script:waiting:alone) [ -n "$st_pick_alone" ] || st_pick_alone=$st_pick_i ;;
+    esac
+    st_pick_i=$((st_pick_i + 1))
+  done
+  [ -n "$st_ready" ] && [ "$st_count" -eq 0 ] && [ -n "$st_pick_alone" ] || return 1
+  st_pick_i=$st_pick_alone
+}
+
+st_fill() {
+  while [ "$st_count" -lt "$st_jobs" ] && st_pick; do
+    eval "st_pk=\$st_kind_$st_pick_i"
+    if [ "$st_pk" = own ]; then
+      st_own_start "$st_pick_i" || continue
+    else
+      st_start "$st_pick_i" || continue
+    fi
+    st_count=$((st_count + 1))
+  done
 }
 
 st_pending() {
@@ -698,11 +761,18 @@ st_interrupt() {
       st_i=$((st_i + 1))
     done
   fi
-  printf '' >"$tmp/own-stopping"
-  for st_f in "$tmp/nested.pid" "$tmp/witness.pid"; do
-    st_sp=
-    [ ! -s "$st_f" ] || read -r st_sp <"$st_f"
-    [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+  st_i=0
+  while [ "$st_i" -lt "$st_n" ]; do
+    eval "st_o=\${st_otmp_$st_i-}"
+    if [ -n "$st_o" ]; then
+      printf '' >"$st_o/own-stopping"
+      for st_f in "$st_o/nested.pid" "$st_o/witness.pid"; do
+        st_sp=
+        [ ! -s "$st_f" ] || read -r st_sp <"$st_f"
+        [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+      done
+    fi
+    st_i=$((st_i + 1))
   done
   for st_g in $st_groups; do
     st_group TERM "$st_g"
@@ -753,12 +823,12 @@ st_stop() {
   if [ -n "$st_sp" ]; then
     st_end_group 0 "$st_sp"
   else
-    eval "st_k=\$st_kind_$1"
+    eval "st_k=\$st_kind_$1 st_o=\${st_otmp_$1-}"
     if [ "$st_k" = own ]; then
       st_own_stop=yes
-      printf '' >"$tmp/own-stopping"
+      printf '' >"$st_o/own-stopping"
       st_own_groups=
-      for st_f in "$tmp/nested.pid" "$tmp/witness.pid"; do
+      for st_f in "$st_o/nested.pid" "$st_o/witness.pid"; do
         st_sp=
         [ ! -s "$st_f" ] || read -r st_sp <"$st_f"
         [ -z "$st_sp" ] || st_own_groups="$st_own_groups $st_sp"
@@ -780,8 +850,8 @@ st_stop() {
   [ -e "$st_d/done" ] || kill -KILL "$st_p" 2>/dev/null
   wait "$st_p" 2>/dev/null
   if [ -n "$st_own_stop" ]; then
-    true >"$tmp/nested.pid"
-    true >"$tmp/witness.pid"
+    true >"$st_o/nested.pid"
+    true >"$st_o/witness.pid"
   fi
 }
 
@@ -832,14 +902,19 @@ st_print() {
   [ "$st_e" -eq 0 ] || head -c "$st_e" "$st_d/err" >&2
   eval "st_errsize_$1=\$st_e"
   if [ "$st_k" = own ]; then
-    st_vs=
-    st_vl=
-    [ ! -s "$st_d/verdict" ] || read -r st_vs st_vl <"$st_d/verdict"
-    case $st_x:$st_vs in
-      timeout:*) record FAIL "FAIL self-test:run-ci-d (time limit $st_lm s)" ;;
-      *:PASS | *:FAIL) record "$st_vs" "$st_vl" ;;
-      *) record FAIL 'FAIL self-test:run-ci-d (it ended without a verdict)' ;;
-    esac
+    eval "st_oj=\$st_ojob_$1"
+    if [ "$st_oj" = 0 ]; then
+      st_vs=
+      st_vl=
+      [ ! -s "$st_d/verdict" ] || read -r st_vs st_vl <"$st_d/verdict"
+      case $st_x:$st_vs in
+        timeout:*) record FAIL "FAIL self-test:run-ci-d (time limit $st_lm s)" ;;
+        *:PASS | *:FAIL) record "$st_vs" "$st_vl" ;;
+        *) record FAIL 'FAIL self-test:run-ci-d (it ended without a verdict)' ;;
+      esac
+    elif [ "$st_oj" = 2 ]; then
+      st_own_verdict "$1"
+    fi
     return
   fi
   code=
@@ -861,6 +936,64 @@ st_print() {
     while IFS= read -r st_line; do
       record FAIL "$st_line"
     done <"$tmp/after.$1"
+  fi
+}
+
+st_own_names() {
+  sed -n -e 's|^case run-ci-d/\([^ ]*\) want=.*|\1|p' -e 's|^case run-ci-d/\([^ ]*\) not-run (.*|\1|p' "$1"
+}
+
+st_own_verdict() {
+  eval "st_v_k=\$st_kind_$(($1 - 1))"
+  [ "$st_v_k" != note ] || return 0
+  st_v_why=
+  st_v_rej=0
+  st_v_wrong=
+  st_v_d1=
+  for st_v_i in "$(($1 - 1))" "$1"; do
+    eval "st_v_k=\$st_kind_$st_v_i st_v_x=\${st_state_$st_v_i-} st_v_d=\${st_dir_$st_v_i-} st_v_lm=\$st_lim_$st_v_i"
+    if [ "$st_v_x" = timeout ]; then
+      st_v_why="time limit $st_v_lm s"
+    elif [ "$st_v_k" != own ] || [ ! -s "$st_v_d/tally" ] || [ ! -f "$st_v_d/seen" ]; then
+      [ -n "$st_v_why" ] || st_v_why='it ended without a verdict'
+    else
+      { read -r st_v_r && IFS= read -r st_v_w; } <"$st_v_d/tally"
+      st_v_rej=$((st_v_rej + st_v_r))
+      st_v_wrong="$st_v_wrong$st_v_w"
+      [ -n "$st_v_d1" ] || st_v_d1=$st_v_d
+    fi
+  done
+  if [ -z "$st_v_why" ]; then
+    st_v_case=own-cases-in-two-jobs-print-each-case-once-in-the-order-of-the-run
+    st_v_n1=$(st_own_names "$st_v_d1/out")
+    st_v_n2=$(st_own_names "$st_v_d/out")
+    st_v_s1=$(cat "$st_v_d1/seen")
+    st_v_s2=$(cat "$st_v_d/seen")
+    st_v_twice=$(printf '%s\n' "$st_v_s2" | sort | uniq -d | sed -n 1p)
+    st_v_got=PASS
+    case $st_v_s2 in
+      "$st_v_s1$nl"*) ;;
+      *) st_v_got='job-2-walked-another-first-part' ;;
+    esac
+    if [ -n "$st_v_twice" ]; then
+      st_v_got=$st_v_twice-walked-twice
+    elif [ "$st_v_n1" != "$st_v_s1" ]; then
+      st_v_got='job-1-printed-other-cases-than-it-walked'
+    elif [ "$st_v_n1$nl$st_v_n2" != "$st_v_s2" ]; then
+      st_v_got='the-jobs-printed-other-cases-than-the-run-walked'
+    fi
+    printf 'case run-ci-d/%s want=PASS got=%s\n' "$st_v_case" "$st_v_got"
+    printf 'case run-ci-d/%s case-seconds=0\n' "$st_v_case"
+    [ "$st_v_got" = PASS ] || st_v_wrong="$st_v_wrong $st_v_case"
+  fi
+  if [ -n "$st_v_why" ]; then
+    record FAIL "FAIL self-test:run-ci-d ($st_v_why)"
+  elif [ -n "$st_v_wrong" ]; then
+    record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$st_v_wrong)"
+  elif [ "$st_v_rej" -eq 0 ]; then
+    record FAIL 'FAIL self-test:run-ci-d (0 failing fixtures rejected)'
+  else
+    record PASS "PASS self-test:run-ci-d ($st_v_rej failing fixtures rejected)"
   fi
 }
 
@@ -887,15 +1020,6 @@ st_flush() {
       st_print "$st_next"
     fi
     st_next=$((st_next + 1))
-  done
-}
-
-st_wait_below() {
-  while :; do
-    st_poll
-    st_flush
-    [ "$st_count" -ge "$1" ] || return 0
-    st_nap
   done
 }
 
@@ -968,9 +1092,17 @@ add_script() {
   fixture_added="${fixture_added}scripts/$1/ci.d/$2$nl"
 }
 
+own_away() {
+  [ "$own_job" != 0 ] && [ "$own_job" != "$own_part" ]
+}
+
 own_case() {
   case_name=$1
   own_seen="$own_seen$nl$1"
+  if own_away; then
+    case_reset
+    return 0
+  fi
   want_exit=$2
   want_line=$3
   shift 3
@@ -1178,6 +1310,10 @@ own_judge() {
 own_tree_case() {
   case_name=$1
   own_seen="$own_seen$nl$1"
+  if own_away; then
+    case_reset
+    return 0
+  fi
   want_line=$2
   tree_list=$(own_git -c core.quotePath=false ls-tree -r --name-only HEAD 2>/dev/null | grep -E '(^|/)ci\.d/[^/]+$')
   got_out=
@@ -1230,7 +1366,7 @@ own_gate() {
 own_not_run() {
   own_seen="$own_seen$nl$1"
   own_skipped="$own_skipped$nl$1"
-  [ -n "$nested_word" ] || printf 'case run-ci-d/%s not-run (%s)\n' "$1" "$2"
+  [ -n "$nested_word" ] || own_away || printf 'case run-ci-d/%s not-run (%s)\n' "$1" "$2"
 }
 
 own_reached() {
@@ -1240,9 +1376,36 @@ own_reached() {
   return 1
 }
 
+own_verdict_case() {
+  case_name=$1
+  own_seen="$own_seen$nl$1"
+  if own_away; then
+    case_reset
+    return 0
+  fi
+  got_out=$(
+    record() {
+      printf 'record %s\n' "$2"
+    }
+    eval "st_kind_0=own st_state_0=\$3 st_dir_0=\$4 st_lim_0=1250 st_kind_1=own st_state_1=\$5 st_dir_1=\$6 st_lim_1=1250"
+    st_own_verdict 1
+  )
+  got=PASS
+  printf '%s\n' "$got_out" | grep -qxF -e "record $2" || got=line-missing
+  [ "$got" = PASS ] || printf '%s\n' "$got_out" | sed "s|^|case run-ci-d/$case_name saw: |"
+  printf 'case run-ci-d/%s want=PASS got=%s\n' "$case_name" "$got"
+  own_clock
+  [ "$got" = PASS ] || wrong="$wrong $case_name"
+  case_reset
+}
+
 own_list_case() {
   case_name=$1
   own_seen="$own_seen$nl$1"
+  if own_away; then
+    case_reset
+    return 0
+  fi
   got=PASS
   own_list_n=0
   own_list_r=0
@@ -1321,8 +1484,16 @@ case_reset() {
   case_cargo_home=
 }
 
+own_finish() {
+  own_end=$(date +%s)
+  printf 'run-ci-d own cases, job %s of 2: %s cases, %s s\n' "$own_job" "$own_n" "$((own_end - own_start))"
+  printf '%s\n%s\n' "$rejected" "$wrong" >"$own_out/tally"
+  printf '%s\n' "${own_seen#"$nl"}" >"$own_out/seen"
+}
+
 # shellcheck disable=SC2016
 own_self_test() {
+  own_part=1
   own_n=0
   own_start=0
   [ -n "$nested_word" ] || own_start=$(date +%s)
@@ -1732,7 +1903,7 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   case_witness=yes
   own_case self-test-that-leaves-a-writer-of-the-checkout 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
   n=0
-  while [ ! -e "$fixture/rewritten" ] && [ "$n" -lt 100 ]; do
+  while ! own_away && [ ! -e "$fixture/rewritten" ] && [ "$n" -lt 100 ]; do
     sleep 0.1
     n=$((n + 1))
   done
@@ -2085,6 +2256,11 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   case_max_s=40
   case_witness=yes
   own_case own-cases-reach-their-limit-at-1250-s 1 'FAIL self-test:run-ci-d (time limit 1250 s)' macos --self-test run-ci-d
+  if [ "$own_job" = 1 ]; then
+    own_finish
+    return
+  fi
+  own_part=2
   new_repo && add_script r1 10-a.sh "$good$nl# limit: 1500" '[ "${1:-}" = --self-test ] || exit 3; : >"$CI_D_REPO/want-read.${0##*/}"; n=0; while [ ! -e "$CI_D_REPO/read-done.${0##*/}" ] && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
     printf '1200\n' >"$fixture/offset"
   case_path=$tmp/late-date
@@ -2207,6 +2383,60 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
     mkdir -p "$fixture/scripts/ci" && printf '10-a its self-test fails beside another one\r\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-a-carriage-return 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    add_script r1 20-b.sh "$good$nl# self-test: alone" "$prelude; for o in 10-a 30-c; do [ -e \"\$CI_D_REPO/end.\$o\" ] || { printf \"FAIL self-test:%s (%s had not ended when it started)\\n\" \"\$me\" \"\$o\"; exit 1; }; done; $alone; $ends; $passes" &&
+    add_script r1 30-c.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes"
+  case_jobs=2
+  own_case alone-self-test-starts-after-the-self-tests-on-both-sides-of-it 0 'ci.d macos self-test: 3 passed, 0 failed' macos --self-test 10-a 20-b 30-c
+  new_repo && add_script r1 10-a.sh "$good$nl# self-test: alone" "$prelude; [ -e \"\$CI_D_REPO/end.20-b\" ] || { printf \"FAIL self-test:%s (20-b had not ended when it started)\\n\" \"\$me\"; exit 1; }; printf \"line of %s\\n\" \"\$me\"; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; printf \"line of %s\\n\" \"\$me\"; $ends; $passes"
+  case_jobs=2
+  case_first="line of 10-a${nl}PASS self-test:10-a (1 failing fixtures rejected)${nl}seconds 10-a "
+  case_then="line of 20-b${nl}PASS self-test:20-b (1 failing fixtures rejected)${nl}seconds 20-b "
+  own_case output-of-an-alone-self-test-and-of-those-after-it-in-the-order-of-the-run 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  first_list=scripts/ci/self-test-first.txt
+  first_b="$prelude; [ -e \"\$CI_D_REPO/end.20-b\" ] || { printf \"FAIL self-test:%s (20-b had not ended when it started)\\n\" \"\$me\"; exit 1; }; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$first_b" && add_script r1 20-b.sh "$good" "$prelude; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '# the longest first\n\n20-b\n' >"$fixture/$first_list"
+  case_jobs=1
+  own_case name-of-the-first-list-starts-before-an-earlier-script 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$first_b" && add_script r1 20-b.sh "$good" "$prelude; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-b\r\n' >"$fixture/$first_list"
+  case_jobs=1
+  own_case first-list-line-with-a-carriage-return 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '99-gone\n' >"$fixture/$first_list"
+  own_case first-list-names-no-script 1 "FAIL run-ci-d ($first_list names 99-gone, which is no script)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    add_script r1 20-w.sh "# jobs: windows$nl# rule: A fixture rule." "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-w\n' >"$fixture/$first_list"
+  own_case first-list-names-a-script-of-the-other-job 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '*\n' >"$fixture/$first_list"
+  own_case first-list-line-with-a-glob-character-names-no-script 1 "FAIL run-ci-d ($first_list names *, which is no script)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    add_script r1 20-b.sh "$good$nl# self-test: alone" "$prelude; [ -e \"\$CI_D_REPO/end.10-a\" ] || { printf \"FAIL self-test:%s (10-a had not ended when it started)\\n\" \"\$me\"; exit 1; }; $alone; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-b\n' >"$fixture/$first_list"
+  case_jobs=2
+  own_case alone-name-of-the-first-list-runs-in-the-second-part 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  verdict_jobs=$(mktemp -d "$tmp/verdict-jobs.XXXXXX") && mkdir -p "$verdict_jobs/wrong-1" "$verdict_jobs/wrong-2" "$verdict_jobs/pass-1" "$verdict_jobs/pass-2" "$verdict_jobs/twice-2" "$verdict_jobs/no-counts-2" &&
+    printf '3\n a\n' >"$verdict_jobs/wrong-1/tally" && printf 'a\n' >"$verdict_jobs/wrong-1/seen" &&
+    printf 'case run-ci-d/a want=PASS got=exit-1\n' >"$verdict_jobs/wrong-1/out" &&
+    printf '4\n b\n' >"$verdict_jobs/wrong-2/tally" && printf 'a\nb\n' >"$verdict_jobs/wrong-2/seen" &&
+    printf 'case run-ci-d/b want=PASS got=exit-1\n' >"$verdict_jobs/wrong-2/out" &&
+    printf '3\n\n' >"$verdict_jobs/pass-1/tally" && printf 'a\n' >"$verdict_jobs/pass-1/seen" &&
+    printf 'case run-ci-d/a want=FAIL got=FAIL\n' >"$verdict_jobs/pass-1/out" &&
+    printf '4\n\n' >"$verdict_jobs/pass-2/tally" && printf 'a\nb\n' >"$verdict_jobs/pass-2/seen" &&
+    printf 'case run-ci-d/b want=FAIL got=FAIL\n' >"$verdict_jobs/pass-2/out" &&
+    printf '4\n\n' >"$verdict_jobs/twice-2/tally" && printf 'a\nb\n' >"$verdict_jobs/twice-2/seen" &&
+    printf 'case run-ci-d/a want=FAIL got=FAIL\ncase run-ci-d/b want=FAIL got=FAIL\n' >"$verdict_jobs/twice-2/out" &&
+    printf 'a\nb\n' >"$verdict_jobs/no-counts-2/seen" && printf 'case run-ci-d/b want=FAIL got=FAIL\n' >"$verdict_jobs/no-counts-2/out" ||
+    wrong="$wrong verdict-jobs-not-made"
+  own_verdict_case two-job-verdict-names-the-wrong-cases-of-both-jobs 'FAIL self-test:run-ci-d (wrong verdict in: a b)' "done" "$verdict_jobs/wrong-1" "done" "$verdict_jobs/wrong-2"
+  own_verdict_case two-job-verdict-sums-the-failing-fixtures-of-both-jobs 'PASS self-test:run-ci-d (7 failing fixtures rejected)' "done" "$verdict_jobs/pass-1" "done" "$verdict_jobs/pass-2"
+  own_verdict_case two-job-verdict-of-a-job-at-its-limit 'FAIL self-test:run-ci-d (time limit 1250 s)' "timeout" "$verdict_jobs/pass-1" "done" "$verdict_jobs/pass-2"
+  own_verdict_case two-job-verdict-of-a-job-without-its-counts 'FAIL self-test:run-ci-d (it ended without a verdict)' "done" "$verdict_jobs/pass-1" "done" "$verdict_jobs/no-counts-2"
+  own_verdict_case two-job-verdict-of-a-case-printed-in-both-jobs 'FAIL self-test:run-ci-d (wrong verdict in: own-cases-in-two-jobs-print-each-case-once-in-the-order-of-the-run)' "done" "$verdict_jobs/pass-1" "done" "$verdict_jobs/twice-2"
   if own_gate two-at-a-time; then
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
@@ -2782,15 +3012,7 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
 
   own_list_case lists-of-the-macos-alone-cases-and-of-the-windows-rules
-  own_end=$(date +%s)
-  printf 'run-ci-d own cases: %s cases, %s s\n' "$own_n" "$((own_end - own_start))"
-  if [ -n "$wrong" ]; then
-    record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
-  elif [ "$rejected" -eq 0 ]; then
-    record FAIL "FAIL self-test:run-ci-d (0 failing fixtures rejected)"
-  else
-    record PASS "PASS self-test:run-ci-d ($rejected failing fixtures rejected)"
-  fi
+  own_finish
 }
 
 st_n=0
@@ -2800,6 +3022,9 @@ st_count=0
 st_naps=0
 st_alone=' '
 st_list=$root/ci/self-test-alone.txt
+st_first_list=$root/ci/self-test-first.txt
+st_firsts=
+st_first_words=
 st_d=
 st_p=
 st_t=
@@ -2822,6 +3047,17 @@ st_f_td=
 st_td=
 st_lm=
 st_f_other=
+st_ready=
+st_v_k=
+st_v_x=
+st_v_d=
+st_v_lm=
+own_job=
+own_out=
+st_pick_i=
+st_pick_alone=
+st_o=
+st_oj=
 tree_to=
 cr=$(printf '\r')
 tab=$(printf '\t')
@@ -2876,6 +3112,26 @@ if [ "$mode" = self-test ]; then
       exit 1
     }
   fi
+  if [ -e "$st_first_list" ] || [ -L "$st_first_list" ]; then
+    { [ -f "$st_first_list" ] && [ -r "$st_first_list" ]; } || {
+      printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_first_list"
+      exit 1
+    }
+    while IFS= read -r st_line || [ -n "$st_line" ]; do
+      st_entry "$st_line"
+      case $st_word in
+        '' | '#'*) ;;
+        *[!a-z0-9-]*) st_first_words="$st_first_words$st_word$nl" ;;
+        *)
+          st_firsts="$st_firsts$st_word "
+          st_first_words="$st_first_words$st_word$nl"
+          ;;
+      esac
+    done <"$st_first_list" || {
+      printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_first_list"
+      exit 1
+    }
+  fi
 fi
 
 tree_start
@@ -2883,7 +3139,10 @@ ran=' '
 if [ "$mode" = self-test ]; then
   ran=' run-ci-d '
   case " $wanted " in
-    '  ' | *' run-ci-d '*) st_own ;;
+    '  ' | *' run-ci-d '*)
+      st_own
+      st_fill
+      ;;
   esac
 fi
 
@@ -2923,8 +3182,23 @@ if [ "$mode" = self-test ]; then
       esac
     done <"$st_list"
   fi
-  st_wait_below 1
-  st_flush
+  while IFS= read -r st_word; do
+    [ -n "$st_word" ] || continue
+    case $seen in
+      *" $st_word "*) ;;
+      *) note "FAIL run-ci-d ($st_first_list names $st_word, which is no script)" ;;
+    esac
+  done <<EOF
+$st_first_words
+EOF
+  st_ready=yes
+  while :; do
+    st_poll
+    st_fill
+    st_flush
+    [ "$st_running" != ' ' ] || break
+    st_nap
+  done
   wait
   st_groups=
   st_i=0
