@@ -658,3 +658,41 @@ fn a_next_link_with_a_password_and_no_user_fails_the_call_and_no_request_is_sent
     );
     assert_eq!(stub.seen(), [seen(ANN)]);
 }
+
+#[test]
+fn an_event_that_the_person_has_not_declined_is_not_kept_counted_or_deleted() {
+    let not_declined = |id: &str, response: &str| {
+        let mut item = event(id, false);
+        item["responseStatus"] = json!({"response": response});
+        item
+    };
+    let stub = Stub::start(vec![(
+        format!("GET {WINDOW}"),
+        200,
+        page(
+            vec![
+                not_declined("e1", "notResponded"),
+                not_declined("e2", "none"),
+                not_declined("e3", "tentativelyAccepted"),
+                not_declined("e4", "accepted"),
+            ],
+            None,
+        ),
+    )]);
+    let events = stub
+        .graph("calendar")
+        .calendar_list(&token(), RunDay::from_unix_seconds(NOV_12_2026))
+        .expect("calendar_list answers");
+    assert_eq!(events.len(), 0, "no event is kept");
+    assert_eq!(
+        events.counts(),
+        event_counts(YesNo::No, YesNo::No),
+        "none is counted"
+    );
+    assert_eq!(
+        events.into_deletes().count(),
+        0,
+        "no event can get a DELETE"
+    );
+    assert_eq!(stub.seen(), [seen(WINDOW)], "the GET alone");
+}
