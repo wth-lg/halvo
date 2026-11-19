@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,427 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-gate-self-test 16-shell-lint 21-tree-bans run-ci-d
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 15-gate-self-test 16-shell-lint 21-tree-bans
+      - name: Three driver cases, 200 rounds
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: standard-error-written-after-the-print script-that-ignores-term-past-its-limit groups-that-two-self-tests-left-are-ended-by-one-process
+        run: |
+          set -eu
+          root=$RUNNER_TEMP
+          if command -v cygpath >/dev/null 2>&1; then root=$(cygpath -u "$root"); fi
+          out=$(mktemp -d "$root/driver-files.XXXXXX")
+          cat >"$out/copy-driver.py" <<'END_FILE'
+          import re
+          import sys
+
+          FILTER_AT = '  own_seen="$own_seen$nl$1"\n  if own_away; then\n'
+          FILTER = ('  own_seen="$own_seen$nl$1"\n'
+                    '  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return 0 ;; esac; fi\n'
+                    '  if own_away; then\n')
+          GUARD = ('  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ] && [ -n "${next_case-}" ]; then '
+                   'case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n')
+          HELPERS = ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n')
+
+
+          def stop(line):
+              sys.stderr.write(line + "\n")
+              sys.exit(2)
+
+
+          def rows(path):
+              out = {}
+              with open(path, encoding="utf-8") as handle:
+                  for number, line in enumerate(handle.read().split("\n"), 1):
+                      if not line or line.startswith("#"):
+                          continue
+                      fields = line.split("\t")
+                      if len(fields) != 9:
+                          stop("%s line %d has %d fields, not 9" % (path, number, len(fields)))
+                      olds = [text.replace("<NL>", "\n") for text in fields[5].split("<AND>")]
+                      news = [text.replace("<NL>", "\n") for text in fields[6].split("<AND>")]
+                      if len(olds) != len(news):
+                          stop("%s line %d: %d old texts and %d new texts" % (path, number, len(olds), len(news)))
+                      out[fields[0]] = {"case": fields[1], "kind": fields[2], "k": fields[3], "lines": fields[4],
+                                        "pairs": list(zip(olds, news)), "source": fields[7], "word": fields[8]}
+              return out
+
+
+          def apply_row(text, row, name):
+              for old, new in row["pairs"]:
+                  count = text.count(old)
+                  if count != 1:
+                      stop("row %s: an old text stands %d times in the driver file, not once: %s" % (name, count, old[:70].replace("\n", " ")))
+                  text = text.replace(old, new)
+              return text
+
+
+          def add_filter(text):
+              count = text.count(FILTER_AT)
+              if count < 3:
+                  stop("the place of the filter stands %d times in the driver file, fewer than 3" % count)
+              return text.replace(FILTER_AT, FILTER), count
+
+
+          def add_fast(text):
+              lines = text.split("\n")
+              if lines.count("own_self_test() {") != 1:
+                  stop("the line own_self_test() { does not stand once")
+              start = lines.index("own_self_test() {")
+              end = next(i for i in range(start + 1, len(lines)) if lines[i] == "}")
+              own = []
+              for i in range(start + 1, end):
+                  match = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+                  if match:
+                      name = match.group(2).strip('"')
+                      own.append((i, len(match.group(1)) == 2 and "$" not in name, name))
+              if not own:
+                  stop("no own_case line in own_self_test")
+              inserts = {start + 1: "  fixture=$tmp/no-fixture\n  next_case=" + (own[0][2] if own[0][1] else "")}
+              for k, (i, literal, name) in enumerate(own):
+                  if len(lines[i]) - len(lines[i].lstrip(" ")) != 2:
+                      continue
+                  nxt = own[k + 1] if k + 1 < len(own) else None
+                  inserts[i + 1] = "  next_case=" + (nxt[2] if nxt and nxt[1] else "")
+              out = []
+              for i, line in enumerate(lines):
+                  if i in inserts:
+                      out.append(inserts[i])
+                  out.append(line)
+              text = "\n".join(out)
+              for head in HELPERS:
+                  if text.count(head) != 1:
+                      stop("the helper line %s stands %d times, not once" % (head.strip(), text.count(head)))
+                  text = text.replace(head, head + GUARD)
+              return text, len(inserts)
+
+
+          def main():
+              args = sys.argv[1:]
+              table = row_id = None
+              cut = fast = listing = False
+              rest = []
+              i = 0
+              while i < len(args):
+                  a = args[i]
+                  if a in ("--table", "--id"):
+                      if i + 1 >= len(args):
+                          stop("%s needs a value" % a)
+                      if a == "--table":
+                          table = args[i + 1]
+                      else:
+                          row_id = args[i + 1]
+                      i += 1
+                  elif a == "--cut":
+                      cut = True
+                  elif a == "--fast":
+                      fast = True
+                  elif a == "--list":
+                      listing = True
+                  elif a.startswith("-"):
+                      stop("unknown option %s" % a)
+                  else:
+                      rest.append(a)
+                  i += 1
+              if listing:
+                  if not table:
+                      stop("--list needs --table")
+                  for name, row in rows(table).items():
+                      print("\t".join([name, row["case"], row["kind"], "list K: " + row["k"], "base lines " + row["lines"], row["word"], row["source"]]))
+                  return
+              if len(rest) != 2 or (row_id and not table) or (cut and fast):
+                  stop(__doc__)
+              text = open(rest[0], encoding="utf-8").read()
+              said = []
+              if row_id:
+                  table_rows = rows(table)
+                  if row_id not in table_rows:
+                      stop("the table has no row %s" % row_id)
+                  text = apply_row(text, table_rows[row_id], row_id)
+                  said.append("row %s applied (%d texts)" % (row_id, len(table_rows[row_id]["pairs"])))
+              if fast:
+                  text, points = add_fast(text)
+                  said.append("%d skip points" % points)
+              if cut or fast:
+                  text, places = add_filter(text)
+                  said.append("filter at %d places" % places)
+              with open(rest[1], "w", encoding="utf-8", newline="\n") as handle:
+                  handle.write(text)
+              print("wrote %s: %s" % (rest[1], "; ".join(said) if said else "an unchanged copy"))
+
+
+          main()
+          END_FILE
+          cat >"$out/loop.sh" <<'END_FILE'
+          set -eu
+          job=$1
+          rounds=$2
+          batches=$3
+          tool=$4
+          root=$5
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          out=$(mktemp -d "$root/ci-loop.XXXXXX")
+          copy=$out/run-ci-d.loop.sh
+          driver=scripts/ci/run-ci-d.sh
+          if [ "$#" -eq 6 ]; then driver=$6; fi
+          "$py" -I "$tool" --fast "$driver" "$copy"
+          export OWN_ONLY
+          run_batch() {
+            n=$1
+            while [ "$n" -le "$rounds" ]; do
+              sh "$copy" "$job" --self-test run-ci-d >"$out/round-$n.log" 2>&1 || :
+              n=$((n + batches))
+            done
+          }
+          start=$(date +%s)
+          batch=1
+          while [ "$batch" -le "$batches" ]; do
+            run_batch "$batch" &
+            batch=$((batch + 1))
+          done
+          wait
+          end=$(date +%s)
+          echo "rounds=$rounds batches=$batches seconds=$((end - start))"
+          "$py" -I - "$out" "$rounds" <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          directory, rounds = Path(sys.argv[1]), int(sys.argv[2])
+          names = os.environ['OWN_ONLY'].split()
+          counts = dict.fromkeys(names, 0)
+          for i in range(1, rounds + 1):
+              data = (directory / f'round-{i}.log').read_text(encoding='utf-8', errors='replace')
+              for name in names:
+                  lines = [line for line in data.splitlines() if line.startswith(f'case run-ci-d/{name} want=')]
+                  verdict = re.fullmatch(r'case run-ci-d/\S+ want=(PASS|FAIL) got=\1', lines[0]) if len(lines) == 1 else None
+                  if verdict:
+                      counts[name] += 1
+                  else:
+                      print(f'round {i}: '+(' | '.join(lines) or f'case {name} missing'))
+          for name, count in counts.items():
+              print(f'case {name}: {count} of {rounds} as wanted')
+          sys.exit(0 if all(n == rounds for n in counts.values()) else 1)
+          PY
+          END_FILE
+          sh "$out/loop.sh" "${{ github.job }}" 200 8 "$out/copy-driver.py" "$root"
+
+      - name: Driver changed copies
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: standard-error-written-after-the-print script-that-ignores-term-past-its-limit groups-that-two-self-tests-left-are-ended-by-one-process
+        run: |
+          set -eu
+          root=$RUNNER_TEMP
+          if command -v cygpath >/dev/null 2>&1; then root=$(cygpath -u "$root"); fi
+          out=$(mktemp -d "$root/driver-files.XXXXXX")
+          cat >"$out/copy-driver.py" <<'END_FILE'
+          import re
+          import sys
+
+          FILTER_AT = '  own_seen="$own_seen$nl$1"\n  if own_away; then\n'
+          FILTER = ('  own_seen="$own_seen$nl$1"\n'
+                    '  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return 0 ;; esac; fi\n'
+                    '  if own_away; then\n')
+          GUARD = ('  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ] && [ -n "${next_case-}" ]; then '
+                   'case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n')
+          HELPERS = ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n')
+
+
+          def stop(line):
+              sys.stderr.write(line + "\n")
+              sys.exit(2)
+
+
+          def rows(path):
+              out = {}
+              with open(path, encoding="utf-8") as handle:
+                  for number, line in enumerate(handle.read().split("\n"), 1):
+                      if not line or line.startswith("#"):
+                          continue
+                      fields = line.split("\t")
+                      if len(fields) != 9:
+                          stop("%s line %d has %d fields, not 9" % (path, number, len(fields)))
+                      olds = [text.replace("<NL>", "\n") for text in fields[5].split("<AND>")]
+                      news = [text.replace("<NL>", "\n") for text in fields[6].split("<AND>")]
+                      if len(olds) != len(news):
+                          stop("%s line %d: %d old texts and %d new texts" % (path, number, len(olds), len(news)))
+                      out[fields[0]] = {"case": fields[1], "kind": fields[2], "k": fields[3], "lines": fields[4],
+                                        "pairs": list(zip(olds, news)), "source": fields[7], "word": fields[8]}
+              return out
+
+
+          def apply_row(text, row, name):
+              for old, new in row["pairs"]:
+                  count = text.count(old)
+                  if count != 1:
+                      stop("row %s: an old text stands %d times in the driver file, not once: %s" % (name, count, old[:70].replace("\n", " ")))
+                  text = text.replace(old, new)
+              return text
+
+
+          def add_filter(text):
+              count = text.count(FILTER_AT)
+              if count < 3:
+                  stop("the place of the filter stands %d times in the driver file, fewer than 3" % count)
+              return text.replace(FILTER_AT, FILTER), count
+
+
+          def add_fast(text):
+              lines = text.split("\n")
+              if lines.count("own_self_test() {") != 1:
+                  stop("the line own_self_test() { does not stand once")
+              start = lines.index("own_self_test() {")
+              end = next(i for i in range(start + 1, len(lines)) if lines[i] == "}")
+              own = []
+              for i in range(start + 1, end):
+                  match = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+                  if match:
+                      name = match.group(2).strip('"')
+                      own.append((i, len(match.group(1)) == 2 and "$" not in name, name))
+              if not own:
+                  stop("no own_case line in own_self_test")
+              inserts = {start + 1: "  fixture=$tmp/no-fixture\n  next_case=" + (own[0][2] if own[0][1] else "")}
+              for k, (i, literal, name) in enumerate(own):
+                  if len(lines[i]) - len(lines[i].lstrip(" ")) != 2:
+                      continue
+                  nxt = own[k + 1] if k + 1 < len(own) else None
+                  inserts[i + 1] = "  next_case=" + (nxt[2] if nxt and nxt[1] else "")
+              out = []
+              for i, line in enumerate(lines):
+                  if i in inserts:
+                      out.append(inserts[i])
+                  out.append(line)
+              text = "\n".join(out)
+              for head in HELPERS:
+                  if text.count(head) != 1:
+                      stop("the helper line %s stands %d times, not once" % (head.strip(), text.count(head)))
+                  text = text.replace(head, head + GUARD)
+              return text, len(inserts)
+
+
+          def main():
+              args = sys.argv[1:]
+              table = row_id = None
+              cut = fast = listing = False
+              rest = []
+              i = 0
+              while i < len(args):
+                  a = args[i]
+                  if a in ("--table", "--id"):
+                      if i + 1 >= len(args):
+                          stop("%s needs a value" % a)
+                      if a == "--table":
+                          table = args[i + 1]
+                      else:
+                          row_id = args[i + 1]
+                      i += 1
+                  elif a == "--cut":
+                      cut = True
+                  elif a == "--fast":
+                      fast = True
+                  elif a == "--list":
+                      listing = True
+                  elif a.startswith("-"):
+                      stop("unknown option %s" % a)
+                  else:
+                      rest.append(a)
+                  i += 1
+              if listing:
+                  if not table:
+                      stop("--list needs --table")
+                  for name, row in rows(table).items():
+                      print("\t".join([name, row["case"], row["kind"], "list K: " + row["k"], "base lines " + row["lines"], row["word"], row["source"]]))
+                  return
+              if len(rest) != 2 or (row_id and not table) or (cut and fast):
+                  stop(__doc__)
+              text = open(rest[0], encoding="utf-8").read()
+              said = []
+              if row_id:
+                  table_rows = rows(table)
+                  if row_id not in table_rows:
+                      stop("the table has no row %s" % row_id)
+                  text = apply_row(text, table_rows[row_id], row_id)
+                  said.append("row %s applied (%d texts)" % (row_id, len(table_rows[row_id]["pairs"])))
+              if fast:
+                  text, points = add_fast(text)
+                  said.append("%d skip points" % points)
+              if cut or fast:
+                  text, places = add_filter(text)
+                  said.append("filter at %d places" % places)
+              with open(rest[1], "w", encoding="utf-8", newline="\n") as handle:
+                  handle.write(text)
+              print("wrote %s: %s" % (rest[1], "; ".join(said) if said else "an unchanged copy"))
+
+
+          main()
+          END_FILE
+          cat >"$out/changed.sh" <<'END_FILE'
+          set -eu
+          job=$1
+          tool=$2
+          table=$3
+          root=$4
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          out=$(mktemp -d "$root/ci-changes.XXXXXX")
+          driver=scripts/ci/run-ci-d.sh
+          names=$OWN_ONLY
+          bad=0
+          run_copy() {
+            tag=$1
+            only=$2
+            copy=$out/$tag.sh
+            shift 2
+            "$py" -I "$tool" "$@" --cut "$driver" "$copy" || return 2
+            echo "$tag: env OWN_ONLY='$only' sh '$tag.sh' $job --self-test run-ci-d"
+            OWN_ONLY=$only sh "$copy" "$job" --self-test run-ci-d >"$out/$tag.log" 2>&1 || :
+            for name in $only; do
+              "$py" -I - "$out/$tag.log" "$tag" "$name" <<'PY' || bad=1
+          import re, sys
+          from pathlib import Path
+          log, tag, name = sys.argv[1:]
+          lines = [s for s in Path(log).read_text(encoding='utf-8',errors='replace').splitlines() if s.startswith(f'case run-ci-d/{name} want=')]
+          for line in lines:
+              print(tag, line)
+          if len(lines) != 1:
+              sys.exit(f'{tag} {name}: {len(lines)} verdict lines')
+          v = re.fullmatch(r'case run-ci-d/\S+ want=(PASS|FAIL) got=(\S+)', lines[0])
+          sys.exit(0 if v and ((v[1] == v[2]) == (tag == 'plain' or tag.startswith('F-'))) else 1)
+          PY
+            done
+          }
+          run_copy plain "$names"
+          while IFS="$(printf '\t')" read -r id name rest; do
+            run_copy "$id" "$name" --table "$table" --id "$id"
+          done <"$table"
+          exit "$bad"
+          END_FILE
+          cat >"$out/rows.tsv" <<'END_FILE'
+          G-R1	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	    [ "$st_k" != script ] || [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"<NL>    [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"<NL>	    [ "$st_k" != script ] || [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"<NL>    [ -z "$st_sp" ] || st_groups=$st_sp<NL>	-	-
+          G-R2	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	kill('TERM', map { -\$_ } @a) if \$t == \$p;	kill('TERM', map { -\$_ } @a) if \$t == \$p + 1000;	-	-
+          G-R3	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	  [ -z "$st_groups" ] || st_end_group 50 "$st_groups"<NL>	  for st_g in $st_groups; do st_end_group 50 "$st_g"; done<NL>	-	-
+          T-M09p	script-that-ignores-term-past-its-limit	-	-	-	kill('TERM', map { -\$_ } @a) if \$t == \$p;	kill('TERM', @a) if \$t == \$p;	-	-
+          T-M10p	script-that-ignores-term-past-its-limit	-	-	-	 kill('KILL', map { -\$_ } @a) if \$t == \$p + 50;		-	-
+          T-NOKILL	script-that-ignores-term-past-its-limit	-	-	-	 kill('KILL', map { -\$_ } @a) if \$t == \$p + 50;<AND>  [ -e "$st_d/done" ] || kill -KILL "$st_p" 2>/dev/null<NL>	<AND>  :<NL>	-	-
+          T-M12	script-that-ignores-term-past-its-limit	-	-	-	      RUN_CI_D_PID_FILE=$st_d/pid PATH=$script_path "$perl_cmd" -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &<NL>	      PATH=$script_path sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &<NL>	-	-
+          T-M42	script-that-ignores-term-past-its-limit	-	-	-	if (defined \$f) { open(my \$h, '>', \$f) or exit 127;	if (0) { open(my \$h, '>', \$f) or exit 127;	-	-
+          T-M29	script-that-ignores-term-past-its-limit	-	-	-	 kill('KILL', map { -\$_ } @a) if \$t == \$p + 50;	 kill('KILL', map { -\$_ } @a) if \$t == \$p;	-	-
+          E-J10	standard-error-written-after-the-print	-	-	-	      tail -c +"$((st_e + 1))" "$st_d/err" >&2<NL>	      :<NL>	-	-
+          E-HEAD	standard-error-written-after-the-print	-	-	-	      printf 'standard error of %s after it was printed:\n' "$st_nm" >&2<NL>	      :<NL>	-	-
+          F-ERR	standard-error-written-after-the-print	-	-	-	      st_print "$st_next"<NL>	      if [ -n "$nested_word" ] && [ "$st_next" = 0 ]; then ff_n=0; while [ ! -e "$repo/late-written" ] && [ "$ff_n" -lt 100 ]; do sleep 0.1; ff_n=$((ff_n + 1)); done; fi<NL>      st_print "$st_next"<NL>	-	-
+          F-TERM	script-that-ignores-term-past-its-limit	-	-	-	( trap on_term TERM; : >child-ready;	( sleep 6; trap on_term TERM; : >child-ready;	-	-
+          F-MEET	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	record_term() {<NL>      : >"term.$me"	record_term() {<NL>      if [ "$me" = 20-b ]; then w term.10-a || exit 1; sleep 4; fi<NL>      : >"term.$me"	-	-
+          END_FILE
+          sh "$out/changed.sh" "${{ github.job }}" "$out/copy-driver.py" "$out/rows.tsv" "$root"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +557,427 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 21-tree-bans run-ci-d
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 21-tree-bans
+      - name: Three driver cases, 200 rounds
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: standard-error-written-after-the-print script-that-ignores-term-past-its-limit groups-that-two-self-tests-left-are-ended-by-one-process
+        run: |
+          set -eu
+          root=$RUNNER_TEMP
+          if command -v cygpath >/dev/null 2>&1; then root=$(cygpath -u "$root"); fi
+          out=$(mktemp -d "$root/driver-files.XXXXXX")
+          cat >"$out/copy-driver.py" <<'END_FILE'
+          import re
+          import sys
+
+          FILTER_AT = '  own_seen="$own_seen$nl$1"\n  if own_away; then\n'
+          FILTER = ('  own_seen="$own_seen$nl$1"\n'
+                    '  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return 0 ;; esac; fi\n'
+                    '  if own_away; then\n')
+          GUARD = ('  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ] && [ -n "${next_case-}" ]; then '
+                   'case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n')
+          HELPERS = ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n')
+
+
+          def stop(line):
+              sys.stderr.write(line + "\n")
+              sys.exit(2)
+
+
+          def rows(path):
+              out = {}
+              with open(path, encoding="utf-8") as handle:
+                  for number, line in enumerate(handle.read().split("\n"), 1):
+                      if not line or line.startswith("#"):
+                          continue
+                      fields = line.split("\t")
+                      if len(fields) != 9:
+                          stop("%s line %d has %d fields, not 9" % (path, number, len(fields)))
+                      olds = [text.replace("<NL>", "\n") for text in fields[5].split("<AND>")]
+                      news = [text.replace("<NL>", "\n") for text in fields[6].split("<AND>")]
+                      if len(olds) != len(news):
+                          stop("%s line %d: %d old texts and %d new texts" % (path, number, len(olds), len(news)))
+                      out[fields[0]] = {"case": fields[1], "kind": fields[2], "k": fields[3], "lines": fields[4],
+                                        "pairs": list(zip(olds, news)), "source": fields[7], "word": fields[8]}
+              return out
+
+
+          def apply_row(text, row, name):
+              for old, new in row["pairs"]:
+                  count = text.count(old)
+                  if count != 1:
+                      stop("row %s: an old text stands %d times in the driver file, not once: %s" % (name, count, old[:70].replace("\n", " ")))
+                  text = text.replace(old, new)
+              return text
+
+
+          def add_filter(text):
+              count = text.count(FILTER_AT)
+              if count < 3:
+                  stop("the place of the filter stands %d times in the driver file, fewer than 3" % count)
+              return text.replace(FILTER_AT, FILTER), count
+
+
+          def add_fast(text):
+              lines = text.split("\n")
+              if lines.count("own_self_test() {") != 1:
+                  stop("the line own_self_test() { does not stand once")
+              start = lines.index("own_self_test() {")
+              end = next(i for i in range(start + 1, len(lines)) if lines[i] == "}")
+              own = []
+              for i in range(start + 1, end):
+                  match = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+                  if match:
+                      name = match.group(2).strip('"')
+                      own.append((i, len(match.group(1)) == 2 and "$" not in name, name))
+              if not own:
+                  stop("no own_case line in own_self_test")
+              inserts = {start + 1: "  fixture=$tmp/no-fixture\n  next_case=" + (own[0][2] if own[0][1] else "")}
+              for k, (i, literal, name) in enumerate(own):
+                  if len(lines[i]) - len(lines[i].lstrip(" ")) != 2:
+                      continue
+                  nxt = own[k + 1] if k + 1 < len(own) else None
+                  inserts[i + 1] = "  next_case=" + (nxt[2] if nxt and nxt[1] else "")
+              out = []
+              for i, line in enumerate(lines):
+                  if i in inserts:
+                      out.append(inserts[i])
+                  out.append(line)
+              text = "\n".join(out)
+              for head in HELPERS:
+                  if text.count(head) != 1:
+                      stop("the helper line %s stands %d times, not once" % (head.strip(), text.count(head)))
+                  text = text.replace(head, head + GUARD)
+              return text, len(inserts)
+
+
+          def main():
+              args = sys.argv[1:]
+              table = row_id = None
+              cut = fast = listing = False
+              rest = []
+              i = 0
+              while i < len(args):
+                  a = args[i]
+                  if a in ("--table", "--id"):
+                      if i + 1 >= len(args):
+                          stop("%s needs a value" % a)
+                      if a == "--table":
+                          table = args[i + 1]
+                      else:
+                          row_id = args[i + 1]
+                      i += 1
+                  elif a == "--cut":
+                      cut = True
+                  elif a == "--fast":
+                      fast = True
+                  elif a == "--list":
+                      listing = True
+                  elif a.startswith("-"):
+                      stop("unknown option %s" % a)
+                  else:
+                      rest.append(a)
+                  i += 1
+              if listing:
+                  if not table:
+                      stop("--list needs --table")
+                  for name, row in rows(table).items():
+                      print("\t".join([name, row["case"], row["kind"], "list K: " + row["k"], "base lines " + row["lines"], row["word"], row["source"]]))
+                  return
+              if len(rest) != 2 or (row_id and not table) or (cut and fast):
+                  stop(__doc__)
+              text = open(rest[0], encoding="utf-8").read()
+              said = []
+              if row_id:
+                  table_rows = rows(table)
+                  if row_id not in table_rows:
+                      stop("the table has no row %s" % row_id)
+                  text = apply_row(text, table_rows[row_id], row_id)
+                  said.append("row %s applied (%d texts)" % (row_id, len(table_rows[row_id]["pairs"])))
+              if fast:
+                  text, points = add_fast(text)
+                  said.append("%d skip points" % points)
+              if cut or fast:
+                  text, places = add_filter(text)
+                  said.append("filter at %d places" % places)
+              with open(rest[1], "w", encoding="utf-8", newline="\n") as handle:
+                  handle.write(text)
+              print("wrote %s: %s" % (rest[1], "; ".join(said) if said else "an unchanged copy"))
+
+
+          main()
+          END_FILE
+          cat >"$out/loop.sh" <<'END_FILE'
+          set -eu
+          job=$1
+          rounds=$2
+          batches=$3
+          tool=$4
+          root=$5
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          out=$(mktemp -d "$root/ci-loop.XXXXXX")
+          copy=$out/run-ci-d.loop.sh
+          driver=scripts/ci/run-ci-d.sh
+          if [ "$#" -eq 6 ]; then driver=$6; fi
+          "$py" -I "$tool" --fast "$driver" "$copy"
+          export OWN_ONLY
+          run_batch() {
+            n=$1
+            while [ "$n" -le "$rounds" ]; do
+              sh "$copy" "$job" --self-test run-ci-d >"$out/round-$n.log" 2>&1 || :
+              n=$((n + batches))
+            done
+          }
+          start=$(date +%s)
+          batch=1
+          while [ "$batch" -le "$batches" ]; do
+            run_batch "$batch" &
+            batch=$((batch + 1))
+          done
+          wait
+          end=$(date +%s)
+          echo "rounds=$rounds batches=$batches seconds=$((end - start))"
+          "$py" -I - "$out" "$rounds" <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          directory, rounds = Path(sys.argv[1]), int(sys.argv[2])
+          names = os.environ['OWN_ONLY'].split()
+          counts = dict.fromkeys(names, 0)
+          for i in range(1, rounds + 1):
+              data = (directory / f'round-{i}.log').read_text(encoding='utf-8', errors='replace')
+              for name in names:
+                  lines = [line for line in data.splitlines() if line.startswith(f'case run-ci-d/{name} want=')]
+                  verdict = re.fullmatch(r'case run-ci-d/\S+ want=(PASS|FAIL) got=\1', lines[0]) if len(lines) == 1 else None
+                  if verdict:
+                      counts[name] += 1
+                  else:
+                      print(f'round {i}: '+(' | '.join(lines) or f'case {name} missing'))
+          for name, count in counts.items():
+              print(f'case {name}: {count} of {rounds} as wanted')
+          sys.exit(0 if all(n == rounds for n in counts.values()) else 1)
+          PY
+          END_FILE
+          sh "$out/loop.sh" "${{ github.job }}" 200 8 "$out/copy-driver.py" "$root"
+
+      - name: Driver changed copies
+        if: always()
+        shell: bash
+        env:
+          OWN_ONLY: standard-error-written-after-the-print script-that-ignores-term-past-its-limit groups-that-two-self-tests-left-are-ended-by-one-process
+        run: |
+          set -eu
+          root=$RUNNER_TEMP
+          if command -v cygpath >/dev/null 2>&1; then root=$(cygpath -u "$root"); fi
+          out=$(mktemp -d "$root/driver-files.XXXXXX")
+          cat >"$out/copy-driver.py" <<'END_FILE'
+          import re
+          import sys
+
+          FILTER_AT = '  own_seen="$own_seen$nl$1"\n  if own_away; then\n'
+          FILTER = ('  own_seen="$own_seen$nl$1"\n'
+                    '  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ]; then case " $OWN_ONLY " in *" $1 "*) ;; *) case_reset; return 0 ;; esac; fi\n'
+                    '  if own_away; then\n')
+          GUARD = ('  if [ -z "$nested_word" ] && [ -n "${OWN_ONLY-}" ] && [ -n "${next_case-}" ]; then '
+                   'case " $OWN_ONLY " in *" $next_case "*) ;; *) return 0 ;; esac; fi\n')
+          HELPERS = ('new_repo() {\n', 'fixture_commit() {\n', 'track_file() {\n', 'add_script() {\n')
+
+
+          def stop(line):
+              sys.stderr.write(line + "\n")
+              sys.exit(2)
+
+
+          def rows(path):
+              out = {}
+              with open(path, encoding="utf-8") as handle:
+                  for number, line in enumerate(handle.read().split("\n"), 1):
+                      if not line or line.startswith("#"):
+                          continue
+                      fields = line.split("\t")
+                      if len(fields) != 9:
+                          stop("%s line %d has %d fields, not 9" % (path, number, len(fields)))
+                      olds = [text.replace("<NL>", "\n") for text in fields[5].split("<AND>")]
+                      news = [text.replace("<NL>", "\n") for text in fields[6].split("<AND>")]
+                      if len(olds) != len(news):
+                          stop("%s line %d: %d old texts and %d new texts" % (path, number, len(olds), len(news)))
+                      out[fields[0]] = {"case": fields[1], "kind": fields[2], "k": fields[3], "lines": fields[4],
+                                        "pairs": list(zip(olds, news)), "source": fields[7], "word": fields[8]}
+              return out
+
+
+          def apply_row(text, row, name):
+              for old, new in row["pairs"]:
+                  count = text.count(old)
+                  if count != 1:
+                      stop("row %s: an old text stands %d times in the driver file, not once: %s" % (name, count, old[:70].replace("\n", " ")))
+                  text = text.replace(old, new)
+              return text
+
+
+          def add_filter(text):
+              count = text.count(FILTER_AT)
+              if count < 3:
+                  stop("the place of the filter stands %d times in the driver file, fewer than 3" % count)
+              return text.replace(FILTER_AT, FILTER), count
+
+
+          def add_fast(text):
+              lines = text.split("\n")
+              if lines.count("own_self_test() {") != 1:
+                  stop("the line own_self_test() { does not stand once")
+              start = lines.index("own_self_test() {")
+              end = next(i for i in range(start + 1, len(lines)) if lines[i] == "}")
+              own = []
+              for i in range(start + 1, end):
+                  match = re.match(r'^( *)own_case ("[^"]*"|\S+) ', lines[i])
+                  if match:
+                      name = match.group(2).strip('"')
+                      own.append((i, len(match.group(1)) == 2 and "$" not in name, name))
+              if not own:
+                  stop("no own_case line in own_self_test")
+              inserts = {start + 1: "  fixture=$tmp/no-fixture\n  next_case=" + (own[0][2] if own[0][1] else "")}
+              for k, (i, literal, name) in enumerate(own):
+                  if len(lines[i]) - len(lines[i].lstrip(" ")) != 2:
+                      continue
+                  nxt = own[k + 1] if k + 1 < len(own) else None
+                  inserts[i + 1] = "  next_case=" + (nxt[2] if nxt and nxt[1] else "")
+              out = []
+              for i, line in enumerate(lines):
+                  if i in inserts:
+                      out.append(inserts[i])
+                  out.append(line)
+              text = "\n".join(out)
+              for head in HELPERS:
+                  if text.count(head) != 1:
+                      stop("the helper line %s stands %d times, not once" % (head.strip(), text.count(head)))
+                  text = text.replace(head, head + GUARD)
+              return text, len(inserts)
+
+
+          def main():
+              args = sys.argv[1:]
+              table = row_id = None
+              cut = fast = listing = False
+              rest = []
+              i = 0
+              while i < len(args):
+                  a = args[i]
+                  if a in ("--table", "--id"):
+                      if i + 1 >= len(args):
+                          stop("%s needs a value" % a)
+                      if a == "--table":
+                          table = args[i + 1]
+                      else:
+                          row_id = args[i + 1]
+                      i += 1
+                  elif a == "--cut":
+                      cut = True
+                  elif a == "--fast":
+                      fast = True
+                  elif a == "--list":
+                      listing = True
+                  elif a.startswith("-"):
+                      stop("unknown option %s" % a)
+                  else:
+                      rest.append(a)
+                  i += 1
+              if listing:
+                  if not table:
+                      stop("--list needs --table")
+                  for name, row in rows(table).items():
+                      print("\t".join([name, row["case"], row["kind"], "list K: " + row["k"], "base lines " + row["lines"], row["word"], row["source"]]))
+                  return
+              if len(rest) != 2 or (row_id and not table) or (cut and fast):
+                  stop(__doc__)
+              text = open(rest[0], encoding="utf-8").read()
+              said = []
+              if row_id:
+                  table_rows = rows(table)
+                  if row_id not in table_rows:
+                      stop("the table has no row %s" % row_id)
+                  text = apply_row(text, table_rows[row_id], row_id)
+                  said.append("row %s applied (%d texts)" % (row_id, len(table_rows[row_id]["pairs"])))
+              if fast:
+                  text, points = add_fast(text)
+                  said.append("%d skip points" % points)
+              if cut or fast:
+                  text, places = add_filter(text)
+                  said.append("filter at %d places" % places)
+              with open(rest[1], "w", encoding="utf-8", newline="\n") as handle:
+                  handle.write(text)
+              print("wrote %s: %s" % (rest[1], "; ".join(said) if said else "an unchanged copy"))
+
+
+          main()
+          END_FILE
+          cat >"$out/changed.sh" <<'END_FILE'
+          set -eu
+          job=$1
+          tool=$2
+          table=$3
+          root=$4
+          py=python3
+          python3 -c 1 >/dev/null 2>&1 || py=python
+          out=$(mktemp -d "$root/ci-changes.XXXXXX")
+          driver=scripts/ci/run-ci-d.sh
+          names=$OWN_ONLY
+          bad=0
+          run_copy() {
+            tag=$1
+            only=$2
+            copy=$out/$tag.sh
+            shift 2
+            "$py" -I "$tool" "$@" --cut "$driver" "$copy" || return 2
+            echo "$tag: env OWN_ONLY='$only' sh '$tag.sh' $job --self-test run-ci-d"
+            OWN_ONLY=$only sh "$copy" "$job" --self-test run-ci-d >"$out/$tag.log" 2>&1 || :
+            for name in $only; do
+              "$py" -I - "$out/$tag.log" "$tag" "$name" <<'PY' || bad=1
+          import re, sys
+          from pathlib import Path
+          log, tag, name = sys.argv[1:]
+          lines = [s for s in Path(log).read_text(encoding='utf-8',errors='replace').splitlines() if s.startswith(f'case run-ci-d/{name} want=')]
+          for line in lines:
+              print(tag, line)
+          if len(lines) != 1:
+              sys.exit(f'{tag} {name}: {len(lines)} verdict lines')
+          v = re.fullmatch(r'case run-ci-d/\S+ want=(PASS|FAIL) got=(\S+)', lines[0])
+          sys.exit(0 if v and ((v[1] == v[2]) == (tag == 'plain' or tag.startswith('F-'))) else 1)
+          PY
+            done
+          }
+          run_copy plain "$names"
+          while IFS="$(printf '\t')" read -r id name rest; do
+            run_copy "$id" "$name" --table "$table" --id "$id"
+          done <"$table"
+          exit "$bad"
+          END_FILE
+          cat >"$out/rows.tsv" <<'END_FILE'
+          G-R1	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	    [ "$st_k" != script ] || [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"<NL>    [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"<NL>	    [ "$st_k" != script ] || [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"<NL>    [ -z "$st_sp" ] || st_groups=$st_sp<NL>	-	-
+          G-R2	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	kill('TERM', map { -\$_ } @a) if \$t == \$p;	kill('TERM', map { -\$_ } @a) if \$t == \$p + 1000;	-	-
+          G-R3	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	  [ -z "$st_groups" ] || st_end_group 50 "$st_groups"<NL>	  for st_g in $st_groups; do st_end_group 50 "$st_g"; done<NL>	-	-
+          T-M09p	script-that-ignores-term-past-its-limit	-	-	-	kill('TERM', map { -\$_ } @a) if \$t == \$p;	kill('TERM', @a) if \$t == \$p;	-	-
+          T-M10p	script-that-ignores-term-past-its-limit	-	-	-	 kill('KILL', map { -\$_ } @a) if \$t == \$p + 50;		-	-
+          T-NOKILL	script-that-ignores-term-past-its-limit	-	-	-	 kill('KILL', map { -\$_ } @a) if \$t == \$p + 50;<AND>  [ -e "$st_d/done" ] || kill -KILL "$st_p" 2>/dev/null<NL>	<AND>  :<NL>	-	-
+          T-M12	script-that-ignores-term-past-its-limit	-	-	-	      RUN_CI_D_PID_FILE=$st_d/pid PATH=$script_path "$perl_cmd" -e "$st_perl" sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &<NL>	      PATH=$script_path sh "$st_q_file" ${st_q_arg:+"$st_q_arg"} </dev/null 2>"$st_d/err" &<NL>	-	-
+          T-M42	script-that-ignores-term-past-its-limit	-	-	-	if (defined \$f) { open(my \$h, '>', \$f) or exit 127;	if (0) { open(my \$h, '>', \$f) or exit 127;	-	-
+          T-M29	script-that-ignores-term-past-its-limit	-	-	-	 kill('KILL', map { -\$_ } @a) if \$t == \$p + 50;	 kill('KILL', map { -\$_ } @a) if \$t == \$p;	-	-
+          E-J10	standard-error-written-after-the-print	-	-	-	      tail -c +"$((st_e + 1))" "$st_d/err" >&2<NL>	      :<NL>	-	-
+          E-HEAD	standard-error-written-after-the-print	-	-	-	      printf 'standard error of %s after it was printed:\n' "$st_nm" >&2<NL>	      :<NL>	-	-
+          F-ERR	standard-error-written-after-the-print	-	-	-	      st_print "$st_next"<NL>	      if [ -n "$nested_word" ] && [ "$st_next" = 0 ]; then ff_n=0; while [ ! -e "$repo/late-written" ] && [ "$ff_n" -lt 100 ]; do sleep 0.1; ff_n=$((ff_n + 1)); done; fi<NL>      st_print "$st_next"<NL>	-	-
+          F-TERM	script-that-ignores-term-past-its-limit	-	-	-	( trap on_term TERM; : >child-ready;	( sleep 6; trap on_term TERM; : >child-ready;	-	-
+          F-MEET	groups-that-two-self-tests-left-are-ended-by-one-process	-	-	-	record_term() {<NL>      : >"term.$me"	record_term() {<NL>      if [ "$me" = 20-b ]; then w term.10-a || exit 1; sleep 4; fi<NL>      : >"term.$me"	-	-
+          END_FILE
+          sh "$out/changed.sh" "${{ github.job }}" "$out/copy-driver.py" "$out/rows.tsv" "$root"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
