@@ -2414,6 +2414,11 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '*\n' >"$fixture/$first_list"
   own_case first-list-line-with-a-glob-character-names-no-script 1 "FAIL run-ci-d ($first_list names *, which is no script)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    add_script r1 20-b.sh "$good$nl# self-test: alone" "$prelude; [ -e \"\$CI_D_REPO/end.10-a\" ] || { printf \"FAIL self-test:%s (10-a had not ended when it started)\\n\" \"\$me\"; exit 1; }; $alone; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '20-b\n' >"$fixture/$first_list"
+  case_jobs=2
+  own_case alone-name-of-the-first-list-runs-in-the-second-part 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
   verdict_jobs=$(mktemp -d "$tmp/verdict-jobs.XXXXXX") && mkdir -p "$verdict_jobs/wrong-1" "$verdict_jobs/wrong-2" "$verdict_jobs/pass-1" "$verdict_jobs/pass-2" "$verdict_jobs/twice-2" "$verdict_jobs/no-counts-2" &&
     printf '3\n a\n' >"$verdict_jobs/wrong-1/tally" && printf 'a\n' >"$verdict_jobs/wrong-1/seen" &&
     printf 'case run-ci-d/a want=PASS got=exit-1\n' >"$verdict_jobs/wrong-1/out" &&
