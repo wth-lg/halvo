@@ -64,11 +64,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.record",
-        "Halvo can't save this agent's history now, so it starts no tasks and can't take your answers. Stop works.",
+        "Halvo can't read or save this agent's notes, so it starts nothing and can't get your replies. Stop still works.",
     ),
     (
         "card.records_dropped",
-        "Since Halvo opened, {count} things in this agent's history went unsaved. They may still have happened; check before repeating them.",
+        "Since Halvo opened, {count} of this agent's steps or your answers went unsaved. They may have happened; check before repeating.",
     ),
     (
         "line.problem.sign_in_refused",

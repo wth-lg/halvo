@@ -443,9 +443,10 @@ fn fixed_texts_stand_word_for_word() {
     assert!(classes.contains(&"payment"));
 }
 
-/// The three texts of ruling RD-116 W1, the coordinator's word after two plain readings.
+/// The three texts of a stuck or unsaved record, written again from the plain readers' findings
+/// (U2.4r; rulings RD-116 W1, RD-118), `line.working.kill_stuck` with a text per system.
 #[test]
-fn rd116_w1_the_three_texts_stand_word_for_word() {
+fn u24r_the_three_texts_stand_word_for_word() {
     let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
     assert_eq!(
         t("line.working.kill_stuck_mac", &[]),
@@ -457,12 +458,21 @@ fn rd116_w1_the_three_texts_stand_word_for_word() {
     );
     assert_eq!(
         t("line.problem.record", &[]),
-        "Halvo can't save this agent's history now, so it starts no tasks and can't take your answers. Stop works."
+        "Halvo can't read or save this agent's notes, so it starts nothing and can't get your replies. Stop still works."
     );
     assert_eq!(
         t("card.records_dropped", &[("count", "3")]),
-        "Since Halvo opened, 3 things in this agent's history went unsaved. They may still have happened; check before repeating them."
+        "Since Halvo opened, 3 of this agent's steps or your answers went unsaved. They may have happened; check before repeating."
     );
+    for key in [
+        "line.working.kill_stuck_mac",
+        "line.working.kill_stuck_windows",
+        "line.problem.record",
+        "card.records_dropped",
+    ] {
+        let words = t(key, &[("count", "3")]).split_whitespace().count();
+        assert!(words <= 20, "{key}: {words} words");
+    }
 }
 
 /// The hold `failures` says what happened and its way out (ruling RD-81).
