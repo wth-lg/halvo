@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use halvo_agent_store::{Host, MemoryStore};
+use halvo_agent_store::{Host, MemoryStore, AGENT_KINDS};
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::names::LogEvent;
 use halvo_schema::executable::{AgentLog, CoordinatorReply};
@@ -506,4 +506,43 @@ fn a_start_run_whose_start_row_lies_past_the_log_s_bound_does_not_open_the_run_a
         assert_eq!(log_at(&mut store, then), Err(declared("binding")), "{days}");
         assert_eq!(log_at(&mut store, NOW), Ok(()), "{days}");
     }
+}
+
+#[test]
+fn list_overlaps_is_answered_malformed_and_stores_nothing_and_changes_no_state() {
+    let mut store = MemoryStore::new();
+    for n in [1, 2] {
+        store.put_workflow(workflow(&wf(n), "email", "approved", None));
+        assert_eq!(create(&mut store, n, n), Ok(rev(1)), "{n}");
+        let slots = json!([
+            {"name": "account_address", "value": ["me@mail.test"]},
+            {"name": "reply_senders", "value": ["ann@people.test"]}
+        ]);
+        assert_eq!(
+            coordinator(
+                &mut store,
+                json!({"op": "set_bindings", "workflow": wf(n), "agent": agent(n), "slots": slots}),
+            ),
+            Ok(rev(1)),
+            "{n}"
+        );
+    }
+    let held = |store: &MemoryStore| {
+        let rows: Vec<Vec<String>> = AGENT_KINDS
+            .iter()
+            .map(|(kind, _)| rows(store, kind))
+            .collect();
+        (rows, state_of(store, 1), state_of(store, 2))
+    };
+    let before = held(&store);
+    for slots in [
+        json!(null),
+        json!([]),
+        json!([{"name": "reply_senders", "value": ["ANN@people.test"]}]),
+    ] {
+        let body =
+            json!({"op": "list_overlaps", "workflow": wf(1), "agent": agent(1), "slots": slots});
+        assert_eq!(coordinator(&mut store, body), Err(ErrorName::Malformed));
+    }
+    assert_eq!(held(&store), before);
 }

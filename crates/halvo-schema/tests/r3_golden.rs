@@ -5,10 +5,11 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
-    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
-    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
-    PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
+    Finish, ListCheckpoints, ListOverlaps, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply,
+    LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession,
+    MarkCheckpoint, PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession,
+    RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply,
+    StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -907,6 +908,25 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             workbook: OwnValue::new("/data/books/bills.xlsx"),
             state: MarkState::Left,
             left: Some(LeftReason::NotFile),
+        }),
+        CoordinatorCall::ListOverlaps(ListOverlaps {
+            workflow: workflow(),
+            agent: agent(),
+            slots: None,
+        }),
+        CoordinatorCall::ListOverlaps(ListOverlaps {
+            workflow: workflow(),
+            agent: agent(),
+            slots: Some(vec![
+                Slot {
+                    name: name("account_address"),
+                    value: OwnValue::new("me@mail.test"),
+                },
+                Slot {
+                    name: name("reply_senders"),
+                    value: OwnValue::new("ann@people.test, bob@people.test"),
+                },
+            ]),
         }),
     ]
 }

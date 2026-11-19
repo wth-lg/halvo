@@ -728,6 +728,7 @@ op_enum! {
         AddOrigin(AddOrigin) = "add_origin",
         ListCheckpoints(ListCheckpoints) = "list_checkpoints",
         MarkCheckpoint(MarkCheckpoint) = "mark_checkpoint",
+        ListOverlaps(ListOverlaps) = "list_overlaps",
     }
 }
 
@@ -768,6 +769,23 @@ object_type! {
             return fail("left", "left_of_state");
         }
         Ok(())
+    }
+}
+
+object_type! {
+    /// `list_overlaps`: the read of the other live agents that overlap the agent's slots as they would stand with
+    /// `slots` merged by name into its newest revision of the bindings, as `set_bindings` merges them, or as they
+    /// stand when `slots` is null; each slot name stands once. It stores nothing and changes nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListOverlaps [op = "list_overlaps"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub slots: Option<Vec<Slot>> = "slots" => opt(list(Slot::from_raw)),
+    }
+    rules(b) {
+        b.slots
+            .as_deref()
+            .map_or(Ok(()), |slots| slot_names_once("ListOverlaps", slots))
     }
 }
 

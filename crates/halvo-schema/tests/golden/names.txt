@@ -187,6 +187,7 @@ limits
 link
 link_account
 list_checkpoints
+list_overlaps
 list_refinements
 load
 load_replies
