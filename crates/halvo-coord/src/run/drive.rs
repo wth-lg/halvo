@@ -13,7 +13,9 @@ use std::cell::RefCell;
 /// Who stops a live run with the move `stop` of the run drive: the person's stop control,
 /// which gives the cause `cancelled`, a lapse of the run's item with `wait_limit`, which gives
 /// `lapsed` (I5.6, I5.7), or the coordinator's answer to a request that ends the run with
-/// `kind` or `budget` (I3.1, I3.3, ruling IG-32). The switch-off control and a workflow that is
+/// `kind` or `budget` (I3.1, I3.3, ruling IG-32), or the settle of a confirmation that an
+/// answer's move left `answered`, which gives `answer_lost` (ruling RD-84). The switch-off
+/// control and a workflow that is
 /// gone stop a run through `Act::SwitchOff` and `Act::Tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopBy {
@@ -28,6 +30,8 @@ pub enum StopBy {
     Kind,
     /// A request after the run raised `items_per_run` items, which ends it with `budget` (I3.3).
     Budget,
+    /// The settle of a confirmation that an answer's move left `answered` (ruling RD-84).
+    AnswerLost,
 }
 
 impl StopBy {
@@ -38,8 +42,31 @@ impl StopBy {
             StopBy::WaitLimit => StopCause::Lapsed,
             StopBy::Kind => StopCause::Kind,
             StopBy::Budget => StopCause::Budget,
+            StopBy::AnswerLost => StopCause::AnswerLost,
         }
     }
+}
+
+/// A stop that no read of the clock answered (ruling RD-133 1): the run is stopped on the guard's
+/// table and the board at once, with the time 0 on the board, which is the record that the
+/// coordinator stamps at the next read that answers. It sends nothing: the coordinator writes the
+/// rest of the record and then sends the cancel (`send_cancel`), or the lapse of the run's open
+/// item sends it (ruling RD-138 (1)). Whether the board took a new stop.
+pub fn stop_unstamped<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, by: StopBy) -> bool {
+    *table = table.stop(run);
+    if board.runs.iter().any(|r| &r.run == run && r.stop.is_some()) {
+        return false;
+    }
+    stop_run(board, run, 0, by.cause().end());
+    true
+}
+
+/// Sends `Runs::cancel` for a run whose stop is already on the guard's table and the board, and
+/// whose record (its board stop at time 0 where no read of the clock answered, the switch-off's
+/// list and `hold_set`) the coordinator wrote first, so that a cancel that does not return loses
+/// none of it (ruling RD-138 (1)).
+pub fn send_cancel<P: Runs>(ports: &P, run: &RunId) {
+    let _ = ports.cancel(run);
 }
 
 /// A move that the run drive carries out on the ports, the board of the schedule and the
@@ -506,6 +533,9 @@ where
             ItemLapse::LapsedByQuit,
         );
         done.report.stopped.extend(stopped.report.stopped);
+        if stopped.report.read.is_some() {
+            done.report.read = stopped.report.read;
+        }
     }
     while let Some(waiting) = board.queue.pop() {
         if let Some(m) = board
@@ -627,7 +657,7 @@ where
     P: Runs + Clock + Owner,
 {
     let lapse = match by {
-        StopBy::Person | StopBy::WaitLimit => ItemLapse::MustHaveLapsed,
+        StopBy::Person | StopBy::WaitLimit | StopBy::AnswerLost => ItemLapse::MustHaveLapsed,
         StopBy::Kind | StopBy::Budget => ItemLapse::NoOpenItem,
     };
     stop_as(ports, board, table, run, by, lapse)
@@ -655,11 +685,7 @@ fn stop_as<P>(
 where
     P: Runs + Clock + Owner,
 {
-    let now = match ports.now() {
-        Ok(now) => now,
-        Err(PortError::Busy) => return answer(Some(Cause::Busy)),
-        Err(_) => return answer(Some(Cause::NoService)),
-    };
+    let now = ports.now().ok();
     let Some((_, phase)) = live(board, run) else {
         return answer(Some(Cause::State));
     };
@@ -674,11 +700,12 @@ where
     }
     let send = !table.is_stopped(run);
     *table = table.stop(run);
-    stop_run(board, run, now, by.cause().end());
+    stop_run(board, run, now.unwrap_or(0), by.cause().end());
     if send {
         let _ = ports.cancel(run);
     }
     let mut done = answer(None);
     done.report.stopped.push(run.clone());
+    done.report.read = now;
     done
 }

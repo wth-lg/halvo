@@ -40,6 +40,7 @@
 //! | `working` | `utility_bill_payment`: `working.working`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `working` |
 //! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start in the queue |
 //! | `no_service` | none | `note` the text of `note.no_service` |
+//! | `out_of_date` | `utility_bill_payment` as in `working` | `note` the text of `note.out_of_date`, the note while the mark of a tick that did not return stands (ruling RD-80 4.1, 4.3) |
 //! | `needs_confirm_mixed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` and one of the class `delete`, so it takes the mixed title and controls, and the fields of each effect follow its action line (ruling RD-10 (b), IG-4) |
 //! | `needs_confirm_changed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` whose newest released decision in the run is `allow_once`, so the line `confirm.changed` stands above its values (ruling RD-10 (b), IG-25) |
 //!
@@ -97,6 +98,7 @@ names! {
         NeedsSignInBind = "needs_sign_in_bind",
         NeedsConfirmMixed = "needs_confirm_mixed",
         NeedsConfirmChanged = "needs_confirm_changed",
+        OutOfDate = "out_of_date",
     }
 }
 
@@ -373,7 +375,7 @@ fn specs(state: State) -> Vec<Spec> {
             controls: vec![Control::SwitchOn, Control::Delete],
             ..email(StatusLine::Off)
         }],
-        State::Working => vec![Spec {
+        State::Working | State::OutOfDate => vec![Spec {
             live: Some(LivePhase::Working),
             controls: LIVE.to_vec(),
             ..utility(StatusLine::Working)
@@ -1067,7 +1069,11 @@ fn state_file(state: State) -> StateFile {
         (a.status, a.name.as_bytes(), &a.agent).cmp(&(b.status, b.name.as_bytes(), &b.agent))
     });
     let (rows, items): (Vec<Row>, Vec<Option<Item>>) = order.into_iter().unzip();
-    let note = (state == State::NoService).then(|| t("note.no_service"));
+    let note = match state {
+        State::NoService => Some(t("note.no_service")),
+        State::OutOfDate => Some(t("note.out_of_date")),
+        _ => None,
+    };
     let card = (state == State::Card).then(|| card(&built[0]));
     StateFile {
         snapshot: Snapshot {

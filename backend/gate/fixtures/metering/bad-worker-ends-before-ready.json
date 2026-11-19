@@ -1,0 +1,14 @@
+{
+  "args": ["--seeds", "", "--settings", "25"],
+  "line": [
+    "FAIL metering: ",
+    "first failure: a worker of check 55 ended with exit 3 before it was ready"
+  ],
+  "edits": [
+    {
+      "file": "test-kit/fake-meter/rerun/worker.mjs",
+      "find": "process.send({ ready: cases.length });",
+      "replace": "process.exit(3);"
+    }
+  ]
+}

@@ -93,7 +93,7 @@ LapseCands(s, i) ==
        ELSE IF x = "answered"
        THEN <<P(i, "wait_limit", FALSE), P(i, "cancelled", FALSE),
               P(i, "no_record", FALSE), P(i, "no_record", TRUE),
-              P(i, "run_ended", FALSE), P(i, "app_ended", FALSE)>>
+              P(i, "run_ended", FALSE), P(i, "app_ended", FALSE), P(i, "answer_lost", FALSE)>>
        ELSE IF x = "recorded"
        THEN <<P(i, "run_ended", FALSE), P(i, "app_ended", FALSE), P(i, "wait_limit", FALSE)>>
        ELSE <<P(i, "wait_limit", FALSE)>>

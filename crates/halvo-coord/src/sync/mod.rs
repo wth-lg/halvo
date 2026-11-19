@@ -1,6 +1,7 @@
 //! The state that the page receives (I8.1, I8.2): the whole state with this run's own count
-//! `seq`, which rises by one whenever the rows, the items or the note change, so that a
-//! snapshot and the changes that follow it give the state of a new snapshot.
+//! `seq`, which rises by one whenever the rows, the items or the note change, and at the first
+//! publish after a move that did not return, so that a snapshot and the changes that follow it
+//! give the state of a new snapshot.
 
 use crate::types::{Item, Row, Snapshot};
 
@@ -51,6 +52,16 @@ impl Sync {
         self.note = note;
         self.seq = self.seq.saturating_add(1);
         true
+    }
+
+    /// Takes the state of the first publish after a move that did not return; `seq` rises by one
+    /// also when the state equals the last, so that a page that holds a state from before that
+    /// move takes it again (ruling RD-80 3.4).
+    pub fn publish_again(&mut self, rows: Vec<Row>, items: Vec<Item>, note: Option<String>) {
+        self.rows = rows;
+        self.items = items;
+        self.note = note;
+        self.seq = self.seq.saturating_add(1);
     }
 
     /// The reply of `agents_snapshot`: the whole state.

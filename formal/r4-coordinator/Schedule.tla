@@ -23,7 +23,7 @@ ASSUME /\ NeedsPerson \subseteq Agents
        /\ OffAgents \subseteq Agents
        /\ Deletable \subseteq Agents
        /\ Frames \subseteq Outcomes
-       /\ StopCauses \subseteq {"cancelled", "lapsed"}
+       /\ StopCauses \subseteq {"cancelled", "lapsed", "answer_lost"}
        /\ Lefts \subseteq BOOLEAN
        /\ Lefts # {}
        /\ StoreWaits \in BOOLEAN
@@ -31,6 +31,8 @@ ASSUME /\ NeedsPerson \subseteq Agents
        /\ "ok" \in Ports
        /\ OffPorts \subseteq {"ok", "lost"}
        /\ "ok" \in OffPorts
+
+StopEnd(why) == IF why = "answer_lost" THEN "failed" ELSE why
 
 NoFacts == [open |-> [a \in Agents |-> 0], unknown |-> [a \in Agents |-> 0], offs |-> {}]
 NoMark == [run |-> 0, dead |-> FALSE, left |-> FALSE, sent |-> FALSE, by |-> "none"]
@@ -234,9 +236,9 @@ Kill(acc, due, port) ==
              call == <<[k |-> "kill", run |-> id]>>
          IN IF S = {} THEN Kill([acc EXCEPT !.out = @ \o call], due \ {id}, port)
             ELSE LET run == CHOOSE x \in S : TRUE
-                     e == EndRun(acc.st, run, run.why, port, FALSE, FALSE)
+                     e == EndRun(acc.st, run, StopEnd(run.why), port, FALSE, FALSE)
                  IN Kill([st |-> e.st,
-                          ended |-> Append(acc.ended, [run |-> run.id, cause |-> run.why, next |-> e.next]),
+                          ended |-> Append(acc.ended, [run |-> run.id, cause |-> StopEnd(run.why), next |-> e.next]),
                           out |-> acc.out \o call \o e.out],
                          due \ {id}, port)
 
@@ -366,7 +368,7 @@ RunStep(s, mv) ==
 End(s, mv) ==
     IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, out |-> <<>>]
     ELSE LET run == CHOOSE r \in s.runs : r.id = mv.run
-             cause == IF run.phase = "stopping" THEN run.why
+             cause == IF run.phase = "stopping" THEN StopEnd(run.why)
                       ELSE IF mv.frame # "none" THEN mv.frame
                       ELSE "interrupted"
              e == EndRun(s, run, cause, mv.port, mv.frame # "none", mv.frame = "effect_unknown")
@@ -506,7 +508,8 @@ HMove(g, mv) ==
       [] mv.m = "stop" -> HStopped(g, {mv.run}, mv.cause)
       [] OTHER -> g
 
-HOwes(r, cause) == [id |-> r.id, agent |-> r.agent, day |-> r.day, cause |-> cause]
+HOwes(r, cause) == [id |-> r.id, agent |-> r.agent, day |-> r.day,
+                    cause |-> IF cause = "answer_lost" THEN "failed" ELSE cause]
 
 HLeft(acc, S, reaped) ==
     [acc EXCEPT !.h.live = @ \ S,
