@@ -1512,6 +1512,8 @@ waits-not-driven-phase_one'
     "$held_head"'#[export_name = "r1_lookup"]\n'"$held_symbol$held_calls" "$held"
   held_case carbon-held-file-an-inner-attribute FAIL "$held: an attribute other than #[test] at line 21" \
     "$held_store3c"'\n#![allow(dead_code)]\n' "$held"
+  held_case carbon-held-file-an-inner-attribute-named-test FAIL "$held: an attribute other than #[test] at line 21" \
+    "$held_store3c"'\n#![test]\n' "$held"
   held_case carbon-held-file-cfg-test-on-an-item FAIL "$held: an attribute other than #[test] at line 21" \
     "$held_store3c"'\n#[cfg(test)]\nfn nothing() {}\n' "$held"
   held_case carbon-held-file-an-attribute-over-two-lines FAIL "$held: an attribute other than #[test] at line 21" \
