@@ -1236,6 +1236,46 @@ waits-not-driven-phase_one'
   check carbon-outside-the-lock-in-a-cargo-config FAIL "$carbon_text.cargo/config.toml (" ''
   printf 'none\n' >"$work/repo/.cargo/config.toml" || exit 2
   git -C "$work/repo" add -A || exit 2
+  held=crates/halvo-capture/src/store/hardening_tests/full_flush.rs
+  held_head='use std::ffi::CStr;\n\nconst INTERPOSER: &str = r#"\nlong r1_full_flushes(void) { return full_flushes; }\nINTERPOSE(r1_fcntl, fcntl);\n"#;\n\n'
+  held_symbol='fn symbol(name: &CStr) -> Option<*mut libc::c_void> {\n    let found = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };\n    (!found.is_null()).then_some(found)\n}\n\n'
+  held_calls='fn loaded() -> Option<()> {\n    let total = symbol(c"r1_full_flushes")?;\n    let plain = symbol(c"r1_plain_flushes")?;\n    let path_at = symbol(c"r1_full_flush_path")?;\n    let fail_next = symbol(c"r1_fail_full_flushes")?;\n    Some(())\n}\n'
+  held_store3c=$held_head$held_symbol$held_calls
+  mkdir -p "$work/repo/${held%/*}" || exit 2
+  held_case() {
+    printf '%b' "$4" >"$work/repo/$5" || exit 2
+    git -C "$work/repo" add -A || exit 2
+    check "$1" "$2" "$3" ''
+  }
+  held_case carbon-held-file-as-store-3c-has-it PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" "$held_store3c" "$held"
+  held_case carbon-held-file-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 15" \
+    "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let total = symbol(c"r1_full_flushes")?;\n    let pid = symbol(c"getpid")?;\n    Some(())\n}\n' "$held"
+  held_case carbon-held-file-lookup-by-a-variable FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 15" \
+    "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let name = c"r1_full_flushes";\n    let total = symbol(name)?;\n    Some(())\n}\n' "$held"
+  held_case carbon-held-file-lookup-by-a-name-built-at-run-time FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14" \
+    "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let total = symbol(&std::ffi::CString::new(format!("r1_{}", "full_flushes")).ok()?)?;\n    Some(())\n}\n' "$held"
+  held_case carbon-held-file-lookup-outside-fn-symbol FAIL "$held: a lookup by name outside fn symbol at line 22" \
+    "$held_store3c"'\nfn other() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"getpid".as_ptr()) }\n}\n' "$held"
+  held_case carbon-held-file-dlopen-in-fn-symbol FAIL "$held: fn symbol is not the two lines that this check holds, at line 9" \
+    "$held_head"'fn symbol(name: &CStr) -> Option<*mut libc::c_void> {\n    let found = unsafe { libc::dlopen(name.as_ptr(), 1) };\n    (!found.is_null()).then_some(found)\n}\n\n'"$held_calls" "$held"
+  held_case carbon-held-file-name-shadowed-in-fn-symbol FAIL "$held: fn symbol is not the two lines that this check holds, at line 9" \
+    "$held_head"'fn symbol(name: &CStr) -> Option<*mut libc::c_void> {\n    let name = c"getpid";\n    let found = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };\n    (!found.is_null()).then_some(found)\n}\n\n'"$held_calls" "$held"
+  held_case carbon-held-file-fn-symbol-as-a-value FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 22" \
+    "$held_store3c"'\nfn other() -> Option<*mut libc::c_void> {\n    let look = symbol;\n    look(c"getpid")\n}\n' "$held"
+  held_case carbon-held-file-a-second-fn-symbol-in-a-module FAIL "$held: a lookup by name outside fn symbol at line 24" \
+    "$held_store3c"'\nmod inner {\n    use std::ffi::CStr;\n    fn symbol(name: &CStr) -> *mut libc::c_void {\n        unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) }\n    }\n}\n' "$held"
+  held_case carbon-held-file-a-module-in-another-file FAIL "$held: a module in another file is declared at line 21" \
+    "$held_store3c"'\nmod more;\n' "$held"
+  held_case carbon-held-file-a-carbon-name FAIL "$carbon_text$held (" "$held_store3c"'\nfn hold() {\n    unsafe { EnableSecureEventInput() };\n}\n' "$held"
+  held_case carbon-held-file-a-carbon-name-with-underscores FAIL "$carbon_text$held (" "$held_store3c"'\nconst NAME: &str = "__DisableSecureEventInput";\n' "$held"
+  held_case carbon-held-file-a-link-name-that-is-no-plain-literal FAIL "$carbon_text$held (" \
+    "$held_store3c"'\nextern "C" {\n    #[link_name = concat!("r1_", "full_flushes")]\n    fn total() -> i64;\n}\n' "$held"
+  printf 'none\n' >"$work/repo/$held" || exit 2
+  held_case carbon-a-lookup-in-another-file-of-the-store FAIL "${carbon_text}crates/halvo-capture/src/store/lookup.rs (" \
+    'fn total() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"r1_full_flushes".as_ptr()) }\n}\n' crates/halvo-capture/src/store/lookup.rs
+  printf 'none\n' >"$work/repo/crates/halvo-capture/src/store/lookup.rs" || exit 2
+  printf 'none\n' >"$work/repo/$held" || exit 2
+  git -C "$work/repo" add -A || exit 2
   printf 'fn other() {}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
   printf 'struct Pair(\n    u8,\n    u8,\n);\n\nenum Kind {\n    Key,\n    Reading,\n}\n\nstruct TapSettings {\n    secure: fn(Session) -> Reading,\n}\n\n#[cfg(all(debug_assertions, feature = "stall-seam"))]\n#[derive(Debug)]\npub enum RawEntry {\n    Reading {\n        value: Reading,\n    },\n}\n\nfn read() {\n    let reading = (self.secure)(state.session);\n    let step = Reading::Off;\n}\n\nfn handed(reading: Reading, at: Stamps) -> (Reading, Stamps) {\n    (reading, at)\n}\n\n#[cfg(all(test, debug_assertions))]\nmod tests {\n    thread_local! {\n        static ANSWER: Cell<Reading> = const { Cell::new(Reading::Off) };\n    }\n    struct Kept {\n        kept: Reading,\n    }\n}\n\n#[cfg(test)]\nmod more_tests {\n    static LAST: Mutex<Option<Reading>> = Mutex::new(None);\n}\n' >"$work/repo/crates/halvo-capture/src/macos/input.rs" || exit 2
   git -C "$work/repo" add crates || exit 2
