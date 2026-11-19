@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Each of the 80 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there; the check fails before its first cargo command when a tracked file differs from HEAD (a changed or a staged file, the check's own file among them; one line counts them and names none, and the entries go to its artifacts directory) or carries an index flag (assumed unchanged or skipped, the check's own file or any other), and a file that git does not track is allowed before the run; it holds the list and the workspace's crates before its first test run, refuses a tree that one of its cargo commands changed (a tracked file, HEAD, an untracked file or an index flag), and counts a listed test marked built only under its own target and its whole path as libtest prints them, a test of a binary's unit tests under that binary's section alone; it does not hold code that runs in the job before its reads (a test binary, a tool earlier on the PATH, code before main in a test file, a target with its harness off), as the routing run's SG-30 says.
+# rule: Each of the 97 tests of the rule's closed list (contracts.md L3.9, L11.1) that its crate holds reads ok in cargo test --locked, every test marked built is there, and with --all every one of them is there; the check fails before its first cargo command when a tracked file differs from HEAD (a changed or a staged file, the check's own file among them; one line counts them and names none, and the entries go to its artifacts directory) or carries an index flag (assumed unchanged or skipped, the check's own file or any other), and a file that git does not track is allowed before the run; it holds the list and the workspace's crates before its first test run, refuses a tree that one of its cargo commands changed (a tracked file, HEAD, an untracked file or an index flag), and counts a listed test marked built only under its own target and its whole path as libtest prints them, a test of a binary's unit tests under that binary's section alone; it does not hold code that runs in the job before its reads (a test binary, a tool earlier on the PATH, code before main in a test file, a target with its harness off), as the routing run's SG-30 says.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -88,6 +88,23 @@ halvo-learn-store src/lib.rs tests::ends::a_counted_line_then_an_accepted_end_ru
 halvo-learn-store src/lib.rs tests::refinements::of_two_routine_rows_of_one_rev_list_refinements_takes_the_row_of_the_later_day_as_the_step_does built
 halvo-learn-store src/lib.rs tests::pins::a_compile_run_that_loads_has_its_run_row_at_rev_2_after_its_finish built
 halvo-learn-store src/lib.rs tests::kinds::a_start_run_of_a_held_run_under_another_agent_at_runs_held_max_drops_no_other_held_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_at_an_accepted_start_run_returns_the_agent_stores_reply_and_loses_the_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_drops_the_runs_facts_and_keeps_its_start_with_no_row built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_at_a_start_run_under_another_agent_drops_nothing_of_the_held_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_at_an_answered_load_steps_returns_the_compiled_steps_and_loses_the_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_before_a_finish_passes_it_on_and_commits_nothing built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_read_of_the_compiled_steps_before_a_finish_passes_it_on_and_commits_nothing built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_first_load_of_the_sweep_still_drops_a_later_held_run_whose_load_is_refused built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_of_a_start_run_that_arrives_again_keeps_a_start_held_with_no_facts_with_no_row built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_before_a_finish_that_the_agent_store_refuses_still_drops_the_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_second_page_of_the_compiled_steps_before_a_finish_passes_it_on_and_commits_nothing built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_in_the_sweep_at_a_first_compiles_start_run_lets_its_put_playbook_reach_the_agent_store built
+halvo-learn-store src/lib.rs tests::own_load::a_faulted_repeat_of_a_start_whose_commit_was_refused_keeps_the_run_lost_through_a_clean_repeat_and_its_finish built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_the_handlers_own_load_before_a_finish_drops_nothing_of_another_agents_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_in_the_sweep_of_a_repeated_start_run_keeps_its_run_with_no_row_whichever_agents_load_faults built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_another_agents_load_in_the_sweep_leaves_out_the_learning_of_a_new_start_run built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_in_the_sweep_still_sends_the_load_of_another_agents_run_and_drops_it_when_refused built
+halvo-learn-store src/lib.rs tests::own_load::a_store_fault_at_a_start_run_under_another_agent_leaves_a_start_held_with_no_facts_as_it_was built
 halvo-learn-gate src/main.rs learn_gate tests::routine::routine_reader_refuses_a_kind_that_is_not_the_kind_of_the_trains_number built
 halvo-learn-gate src/main.rs learn_gate tests::routine::routine_opens_the_store_and_the_batches_on_every_day_also_after_a_stop_trains_last_occurrence built
 halvo-learn-gate src/main.rs learn_gate tests::routine::routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message built
@@ -329,7 +346,7 @@ measure() {
     esac
   done
   total=$((ok + pending + miss))
-  [ "$total" -eq 80 ] || finish read
+  [ "$total" -eq 97 ] || finish read
   printf 'rule tests=%s ok=%s pending=%s miss=%s\n' "$total" "$ok" "$pending" "$miss"
   [ "$miss" -eq 0 ] || finish miss
   [ "$cargo_failed" = no ] || finish cargo
@@ -569,62 +586,62 @@ self_test() {
   all_crates='halvo-learn halvo-schema halvo-learn-store halvo-learn-gate'
 
   fixture unit-landed
-  check PASS 'rule tests=80 ok=77 pending=3 miss=0'
+  check PASS 'rule tests=97 ok=94 pending=3 miss=0'
 
   fixture failed-test
   fx_failed=refusal_no_source
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture ignored-test
   fx_ignored=edit_table
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture one-line-ok-one-failed
   fx_twice=routine_sample
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture built-test-line-missing
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_cross_workflow_source'
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture pin-test-line-missing
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit the_edit_kind_is_kept_of_origin_own_and_holds_the_fields_of_its_row_in_a_closed_table'
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture built-crate-absent
   fx_members='halvo-learn halvo-schema'
-  check FAIL-miss 'rule tests=80 ok=31 pending=3 miss=46'
+  check FAIL-miss 'rule tests=97 ok=31 pending=3 miss=63'
 
   fixture pending-test-failed
   fx_members=$all_crates
   fx_missing=
   fx_failed=refusal_step_writes_no_edit
-  check FAIL-miss 'rule tests=80 ok=79 pending=0 miss=1'
+  check FAIL-miss 'rule tests=97 ok=96 pending=0 miss=1'
 
   fixture all-with-one-test-line-missing
   fx_members=$all_crates
   fx_missing=refusal_step_writes_no_edit
   case_all=yes
-  check FAIL-pending 'rule tests=80 ok=79 pending=1 miss=0'
+  check FAIL-pending 'rule tests=97 ok=96 pending=1 miss=0'
 
   fixture all-present
   fx_members=$all_crates
   fx_missing=
   case_all=yes
-  check PASS 'rule tests=80 ok=80 pending=0 miss=0'
+  check PASS 'rule tests=97 ok=97 pending=0 miss=0'
 
   fixture one-test-line-missing-without-all
   fx_members=$all_crates
   fx_missing=refusal_step_writes_no_edit
-  check PASS 'rule tests=80 ok=79 pending=1 miss=0'
+  check PASS 'rule tests=97 ok=96 pending=1 miss=0'
 
   fixture build-fails
   fx_build=failed
-  check FAIL-miss 'rule tests=80 ok=0 pending=3 miss=77'
+  check FAIL-miss 'rule tests=97 ok=0 pending=3 miss=94'
 
   fixture other-test-fails
   fx_other=failed
-  check FAIL-cargo 'rule tests=80 ok=77 pending=3 miss=0'
+  check FAIL-cargo 'rule tests=97 ok=94 pending=3 miss=0'
 
   fixture metadata-fails
   fx_metadata=failed
@@ -632,28 +649,28 @@ self_test() {
 
   fixture module-path
   fx_prefix=tests::
-  check FAIL-miss 'rule tests=80 ok=0 pending=3 miss=77'
+  check FAIL-miss 'rule tests=97 ok=0 pending=3 miss=94'
 
   fixture shadow-in-another-module-of-the-target
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_class_change'
   fx_extra_crate=halvo-learn-store
   fx_extra_target=src/lib.rs
   fx_extra_path=tests::edges::refusal_class_change
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture shadow-in-another-target-of-the-crate
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_no_source'
   fx_extra_crate=halvo-learn
   fx_extra_target=tests/edges.rs
   fx_extra_path=refusal_no_source
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture listed-path-in-another-target
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit refusal_revoke_keeps_row'
   fx_extra_crate=halvo-learn-store
   fx_extra_target=tests/finish.rs
   fx_extra_path=tests::finish::refusal_revoke_keeps_row
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture built-line-without-its-target
   fx_list="$(closed_list | sed 's|^halvo-learn tests/refusals.rs refusal_no_source built$|halvo-learn refusal_no_source built|')"
@@ -661,21 +678,21 @@ self_test() {
 
   fixture binary-test-counted-under-its-own-section
   fx_failed=constants_match_targets
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture binary-path-under-a-library-section
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit constants_match_targets'
   fx_extra_crate=halvo-learn-gate
   fx_extra_target=src/lib.rs
   fx_extra_path=tests::targets::constants_match_targets
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture binary-path-under-another-binary
   fx_missing='refusal_delete_leaves_others refusal_delete_takes_revoked refusal_step_writes_no_edit constants_match_targets'
   fx_extra_crate=halvo-learn-gate
   fx_extra_target=src/main.rs:other_bin
   fx_extra_path=tests::targets::constants_match_targets
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture binary-line-first-then-library-and-pending-lines
   fx_list="$(closed_list | awk -v first='halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built' '
@@ -687,7 +704,7 @@ self_test() {
     }
     { print }
   ')"
-  check PASS 'rule tests=80 ok=78 pending=2 miss=0'
+  check PASS 'rule tests=97 ok=95 pending=2 miss=0'
 
   fixture binary-line-moved-before-the-pending-lines
   fx_list="$(closed_list | awk -v first='halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built' '
@@ -695,12 +712,12 @@ self_test() {
     $0 == "halvo-learn-gate refusal_delete_leaves_others pending" { print first }
     { print }
   ')"
-  check PASS 'rule tests=80 ok=77 pending=3 miss=0'
+  check PASS 'rule tests=97 ok=94 pending=3 miss=0'
 
   fixture library-test-listed-in-the-binary-form
   fx_list="$(closed_list | sed 's|^halvo-learn-store src/lib.rs tests::propose::refusal_page_text_instruction built$|halvo-learn-store src/main.rs halvo_learn_store tests::propose::refusal_page_text_instruction built|')"
   fx_as_library=refusal_page_text_instruction
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture binary-line-without-its-binary
   fx_list="$(closed_list | sed 's|^halvo-learn-gate src/main.rs learn_gate tests::targets::constants_match_targets built$|halvo-learn-gate src/main.rs tests::targets::constants_match_targets built|')"
@@ -708,32 +725,32 @@ self_test() {
 
   fixture longer-name
   fx_renamed=edit_table
-  check FAIL-miss 'rule tests=80 ok=76 pending=3 miss=1'
+  check FAIL-miss 'rule tests=97 ok=93 pending=3 miss=1'
 
   fixture longer-name-of-a-pending-test
   fx_members=$all_crates
   fx_missing=
   fx_renamed=refusal_step_writes_no_edit
-  check PASS 'rule tests=80 ok=79 pending=1 miss=0'
+  check PASS 'rule tests=97 ok=96 pending=1 miss=0'
 
   fixture longer-name-with-all
   fx_members=$all_crates
   fx_missing=
   fx_renamed=refusal_step_writes_no_edit
   case_all=yes
-  check FAIL-pending 'rule tests=80 ok=79 pending=1 miss=0'
+  check FAIL-pending 'rule tests=97 ok=96 pending=1 miss=0'
 
   fixture carriage-returns
   fx_crlf=yes
-  check PASS 'rule tests=80 ok=77 pending=3 miss=0'
+  check PASS 'rule tests=97 ok=94 pending=3 miss=0'
 
   fixture crate-absent
   fx_members=halvo-schema
-  check FAIL-miss 'rule tests=80 ok=17 pending=3 miss=60'
+  check FAIL-miss 'rule tests=97 ok=17 pending=3 miss=77'
 
   fixture untracked-file-before-the-run
   printf '? notes.txt\n' >"$work/status"
-  check PASS 'rule tests=80 ok=77 pending=3 miss=0'
+  check PASS 'rule tests=97 ok=94 pending=3 miss=0'
 
   fixture changed-file-before-the-run
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/ids.rs\n' >"$work/status"
@@ -819,7 +836,7 @@ self_test() {
   fixture metadata-file-rewritten-by-a-test
   fx_change_at=halvo-learn
   fx_change_file=metadata
-  check PASS 'rule tests=80 ok=77 pending=3 miss=0'
+  check PASS 'rule tests=97 ok=94 pending=3 miss=0'
 
   fixture git-unreadable
   fx_git=no
