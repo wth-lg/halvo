@@ -3004,12 +3004,13 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
     case_signal_min=4
     own_case "step-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every self-test that it started is ended)" macos --self-test 10-a 20-b
   done
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( set -- start.20-b; $late_wait; printf 'late detail of %s on stderr\\n' \"\$me\" >&2; : >\"\$CI_D_REPO/late-written\" ) >/dev/null & $passes" &&
-    add_script r1 20-b.sh "$good" "$prelude; $starts; set -- late-written; $late_wait; [ -e \"\$CI_D_REPO/late-written\" ] || exit 1; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( set -- start.30-c; $late_wait; [ -e \"\$CI_D_REPO/start.30-c\" ] || exit 1; printf 'late detail of %s on stderr\\n' \"\$me\" >&2; : >\"\$CI_D_REPO/late-written\" ) >/dev/null & $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $passes" &&
+    add_script r1 30-c.sh "$good" "$prelude; $starts; set -- late-written; $late_wait; [ -e \"\$CI_D_REPO/late-written\" ] || exit 1; $passes"
   case_jobs=1
   case_first="standard error of 10-a after it was printed:${nl}late detail of 10-a on stderr"
-  case_then='ci.d macos self-test: 2 passed, 0 failed'
-  own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
+  case_then='ci.d macos self-test: 3 passed, 0 failed'
+  own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b 30-c
 
   own_list_case lists-of-the-macos-alone-cases-and-of-the-windows-rules
   own_finish
