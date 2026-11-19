@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job's proof (the windows job runs 10-format alone)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +33,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,21 +73,73 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format
+      - name: r4-55 changed copies of lines that only a hosted run reaches
+        if: always()
+        timeout-minutes: 60
+        shell: bash
+        run: |
+          set +e
+          verdict() {
+            vt=$1; vw=$2; vc=$3; vo=$4
+            vn=7; [ "$vt" = dialog_hosted ] && vn=4
+            vcases=$(grep -c "^$vt case " "$vo")
+            vends=$(grep -c "^$vt end: " "$vo")
+            case $vw in
+              pass) grep -q "^$vt end: cases ran $vn of $vn, failed 0" "$vo" && [ "$vc" = 0 ] ;;
+              bound) grep -q "^$vt start FAIL: the test runtime's run loop gave no sign that it runs within 10 s" "$vo" && [ "$vc" = 1 ] && [ "$vcases" = 0 ] && [ "$vends" = 0 ] ;;
+              refusal) grep -q "^$vt start FAIL: HALVO_HOSTED_LATE_RUN_MS is set and is not" "$vo" && [ "$vc" = 1 ] && [ "$vcases" = 0 ] && [ "$vends" = 0 ] ;;
+              *) return 2 ;;
+            esac
+          }
+          row() {
+            id=$1; file=$2; target=$3; setting=$4; want=$5; change=$6
+            path=crates/halvo-coord-app/tests/$file
+            perl -0pi -e "$change" "$path"
+            if git diff --quiet -- "$path"; then echo "r455 row $id applied=no"; return; fi
+            echo "r455 row $id changed lines: $(git diff --numstat -- "$path" | cut -f1,2 | tr '\t' ' ')"
+            git diff -U0 -- "$path" | grep '^[-+] ' | sed "s/^/r455 row $id diff: /"
+            cargo test -p halvo-coord-app --locked --no-run --message-format=json --test "$target" > "$RUNNER_TEMP/r455-row.json" 2> "$RUNNER_TEMP/r455-row.err"
+            built=$?
+            exe=$(grep -o '"executable":"[^"]*"' "$RUNNER_TEMP/r455-row.json" | sed 's/"executable":"//; s/"$//' | grep "/deps/$target-" | head -1)
+            if [ "$built" != 0 ] || [ -z "$exe" ]; then
+              echo "r455 row $id applied=yes built=no: RED (does not compile)"
+              grep -m 3 '^error' "$RUNNER_TEMP/r455-row.err" | sed "s/^/r455 row $id: /"
+              git checkout -- "$path"
+              return
+            fi
+            if [ "$setting" = none ]; then
+              env -u HALVO_HOSTED_LATE_RUN_MS "$exe" > "$RUNNER_TEMP/r455-row.raw" 2>&1
+            else
+              env HALVO_HOSTED_LATE_RUN_MS="$setting" "$exe" > "$RUNNER_TEMP/r455-row.raw" 2>&1
+            fi
+            code=$?
+            tr -d '\r' < "$RUNNER_TEMP/r455-row.raw" > "$RUNNER_TEMP/r455-row.txt"
+            if verdict "$target" "$want" "$code" "$RUNNER_TEMP/r455-row.txt"; then word="GREEN (the change survived)"; else word="RED (the change is caught)"; fi
+            echo "r455 row $id applied=yes setting=$setting the head gives=$want exit=$code: $word"
+            grep -E "^$target (start|forced|end:|case .* FAIL|watchdog|reading .*no report)" "$RUNNER_TEMP/r455-row.txt" | head -12 | sed "s/^/r455 row $id: /"
+            git checkout -- "$path"
+          }
+          echo "r455 rows start; tracked files changed $(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+          for t in guard dialog; do
+            src=${t}_hosted.rs; tgt=${t}_hosted; p=$(printf %s "$t" | cut -c1 | tr gd GD)
+            row "$p"1-no-wait "$src" "$tgt" 2000 pass 's/\|bound\| runs\.recv_timeout\(bound\)\.is_ok\(\),/|bound| { let _ = (&runs, bound); true },/'
+            row "$p"2-no-sign "$src" "$tgt" none pass 's/let _ = ready\.send\(\(\)\);/let _ = &ready;/'
+            row "$p"3-ready-read-as-exit "$src" "$tgt" none pass 's/if let tauri::RunEvent::Ready = event \{/if let tauri::RunEvent::Exit = event {/'
+            row "$p"4-no-bound "$src" "$tgt" 2000 pass 's/(\|\| start\.elapsed\(\),\s+)super::activation::RUN_LOOP_BOUND,/${1}std::time::Duration::ZERO,/'
+            row "$p"5-cases-at-the-bound "$src" "$tgt" 12000 bound 's/(if !go \{\s+)std::process::exit\(1\);/${1}let _ = 1;/'
+            row "$p"6-no-case-after-the-sign "$src" "$tgt" none pass 's/if !go \{/if go {/'
+            row "$p"7-setting-not-read "$src" "$tgt" 12000 bound 's/late\(std::env::var_os\(super::activation::LATE\)\.as_deref\(\)\)/late(None)/'
+            row "$p"8-no-hold "$src" "$tgt" 12000 bound 's/std::thread::sleep\(late\);/let _ = late;/'
+            row "$p"9-refusal-goes-on "$src" "$tgt" abc refusal 's/(Err\(line\) => \{\s+println!\("[a-z_]+ \{line\}"\);\s+)std::process::exit\(1\);/${1}None/'
+          done
+          echo "r455 rows done; tracked files changed $(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -147,21 +190,13 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
