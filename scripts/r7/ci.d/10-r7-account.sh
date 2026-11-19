@@ -1616,10 +1616,9 @@ read outside account/: an out directory was found for this dep-info file: no"
   fi
   if runs_here failure-line-names-the-out-directory-as-the-dep-info-file-spells-it &&
     make_fixture failure-line-names-the-out-directory-as-the-dep-info-file-spells-it &&
-    mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/notout" && drive_target=$(windows_name "$fixture/target/account") &&
-    t_named=$(cd "$fixture" && pwd); then
+    mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/notout" && drive_target=$(windows_name "$fixture/target/account"); then
     want_lines="read outside account/: the out directory as the dep-info file names it: $drive_target/debug/build/halvo-wire-0/notout
-read outside account/: the out directory as this shell holds it: $t_named/target/account/debug/build/halvo-wire-0/notout
+read outside account/: the out directory as this shell holds it: $fixture/target/account/debug/build/halvo-wire-0/notout
 read outside account/: out_dir_of: its last name is out: no"
     run_case failure-line-names-the-out-directory-as-the-dep-info-file-spells-it "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/notout STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
   fi
