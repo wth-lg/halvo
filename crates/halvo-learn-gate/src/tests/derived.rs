@@ -371,3 +371,19 @@ fn derived_a_learn_edit_row_that_one_workflow_refuses_reaches_no_read_of_another
         "workflow 2's run is served its learned locator"
     );
 }
+
+/// failing_first line 3: a restart drops the derived store and opens it again from its files, so that a read after it
+/// comes from the files and not from rows that the old connection still holds.
+#[test]
+fn derived_a_restart_closes_the_store_and_opens_it_again() {
+    let mut host = DerivedHost::new(scratch("reopen"), process_key(), SEED_DAY);
+    host.learn_rows("learn_run")
+        .expect("a read, which opens the store");
+    let before = host.opens();
+    host.restart().expect("a restart");
+    assert_eq!(
+        host.opens(),
+        before + 1,
+        "a restart closes the store and opens it again"
+    );
+}
