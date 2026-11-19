@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -192,6 +193,28 @@ fn derived_delete(what: &str, dir: &Path) -> Output {
     ])
 }
 
+/// Every path under DIR, relative to it, with the bytes of each file (None for a directory).
+fn bytes_under(dir: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
+    let mut found = BTreeMap::new();
+    let mut open = vec![dir.to_path_buf()];
+    while let Some(at) = open.pop() {
+        for entry in std::fs::read_dir(&at).expect("a directory") {
+            let path = entry.expect("an entry").path();
+            let relative = path
+                .strip_prefix(dir)
+                .expect("a path under DIR")
+                .to_path_buf();
+            if path.is_dir() {
+                found.insert(relative, None);
+                open.push(path);
+            } else {
+                found.insert(relative, Some(std::fs::read(&path).expect("a file")));
+            }
+        }
+    }
+    found
+}
+
 #[test]
 fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_own_key() {
     let dir = fresh("delete-two-commands");
@@ -203,6 +226,37 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
         String::from_utf8(second.stderr).expect("UTF-8"),
         "REFUSED store: the derived store does not open: the key does not open the derived database\n",
         "each command makes a key of its own, so the second does not open the first one's store"
+    );
+}
+
+#[test]
+fn delete_all_on_the_derived_store_leaves_the_bytes_of_every_file_of_a_populated_directory() {
+    let dir = fresh("delete-all-populated");
+    line_of(&derived_delete("workflow", &dir));
+    std::fs::write(
+        dir.join("review-only-cell.txt"),
+        b"Indigo disposable test cell",
+    )
+    .expect("a file of known bytes");
+    let before = bytes_under(&dir);
+    assert!(
+        before.keys().any(|path| path.starts_with("derived")),
+        "the derived store's files stand under the directory: {:?}",
+        before.keys().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        line_of(&derived_delete("all", &dir)),
+        "delete what=all store=derived exit=- files_left=- result=not-run"
+    );
+    let after = bytes_under(&dir);
+    let changed: Vec<&PathBuf> = before
+        .keys()
+        .chain(after.keys().filter(|path| !before.contains_key(*path)))
+        .filter(|path| before.get(*path) != after.get(*path))
+        .collect();
+    assert!(
+        changed.is_empty(),
+        "delete --what all on the derived store changed the bytes of these paths, or added or removed them: {changed:?}"
     );
 }
 
