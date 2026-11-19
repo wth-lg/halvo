@@ -1855,9 +1855,14 @@ mod tests {
     }
 
     /// The routine's passes: it stops on a pass that finds none, counts what its first pass found,
-    /// and counts a table that cannot be read as one found.
+    /// and counts a table that cannot be read as one found. The two stand-ins take numbers that
+    /// are not this process's own, which `Mark::owns` never takes: with 7 and 8 the test failed
+    /// once on hosted Windows, where a process number is a multiple of 4 and this process had 8
+    /// (CP-226 item 4).
     #[test]
     fn the_routine_ends_on_an_empty_pass_and_counts_an_unread_table() {
+        let own = std::process::id();
+        let (a, b) = (own.wrapping_add(1), own.wrapping_add(2));
         let mark = Mark {
             profile: "/t/p".into(),
             since_us: 0,
@@ -1877,7 +1882,7 @@ mod tests {
             &|| {
                 reads.set(reads.get() + 1);
                 Ok(if reads.get() == 1 {
-                    vec![p(7), p(8)]
+                    vec![p(a), p(b)]
                 } else {
                     Vec::new()
                 })
@@ -1893,7 +1898,7 @@ mod tests {
             (ended.before, ended.after, ended.ended, ended.passes),
             (2, 0, 2, 2)
         );
-        assert_eq!(*killed.borrow(), vec![7, 8]);
+        assert_eq!(*killed.borrow(), vec![a, b]);
         let unread = end_runs_own_with(
             &mark,
             &|| Err(std::io::Error::other("no table")),
