@@ -536,3 +536,93 @@ fn a_draft_whose_conversation_differs_in_ascii_case_alone_is_held_back() {
     let whys: Vec<Unsent> = drafted.unsent().iter().map(|u| u.why()).collect();
     assert_eq!(whys, [Unsent::Conversation]);
 }
+
+#[test]
+fn a_draft_that_meets_two_reasons_is_held_for_the_first_of_the_closed_order() {
+    let other = json!([{"emailAddress": {"address": "eve@people.test"}}]);
+    let rows = [
+        (
+            json!({"toRecipients": other.clone(), "ccRecipients": other.clone()}),
+            Unsent::Recipient,
+        ),
+        (
+            json!({"toRecipients": other.clone(), "bccRecipients": other.clone()}),
+            Unsent::Recipient,
+        ),
+        (
+            json!({"ccRecipients": other.clone(), "conversationId": "c-other"}),
+            Unsent::Copy,
+        ),
+        (
+            json!({"toRecipients": other.clone(), "conversationId": "c-other"}),
+            Unsent::Recipient,
+        ),
+        (
+            json!({"toRecipients": [], "ccRecipients": other.clone()}),
+            Unsent::Recipients,
+        ),
+        (
+            json!({"isDraft": false, "toRecipients": other.clone(), "ccRecipients": other}),
+            Unsent::NotDraft,
+        ),
+    ];
+    for (keys, why) in rows {
+        let mut answer = draft("d1", "m1");
+        for (key, value) in keys.as_object().expect("an object") {
+            answer[key] = value.clone();
+        }
+        let stub = routes(
+            &["m1"],
+            vec![create("m1", 201, created("d1")), patch("d1", 200, answer)],
+        );
+        let drafted = reply(&stub).expect("the call answers");
+        let whys: Vec<Unsent> = drafted.unsent().iter().map(|u| u.why()).collect();
+        assert_eq!(whys, [why], "{keys}");
+    }
+}
+
+#[test]
+fn the_mark_encodes_every_byte_of_the_message_id_but_the_unreserved_ones() {
+    let id = "m-1._~/ ?#%+&=:@,;";
+    let encoded = "m-1._~%2F%20%3F%23%25%2B%26%3D%3A%40%2C%3B";
+    let stub = routes(
+        &[id],
+        vec![
+            create(encoded, 201, created("d3")),
+            patch("d3", 200, draft("d3", id)),
+            send("d3"),
+            (
+                format!("PATCH /v1.0/me/messages/{encoded}"),
+                200,
+                json!({"id": id, "isRead": true}).to_string(),
+            ),
+        ],
+    );
+    assert_eq!(send_and_mark(&stub), [Ok(Marked::Read)]);
+    let last = stub.seen().pop().expect("a request");
+    assert_eq!(
+        (last.method.as_str(), last.path),
+        ("PATCH", format!("/v1.0/me/messages/{encoded}")),
+        "/ space ? # % + & = : @ , ; each as %XX; - . _ ~ as they stand"
+    );
+}
+
+#[test]
+fn a_draft_whose_conversation_differs_by_white_space_at_an_end_is_held_back() {
+    for conversation in ["c-m1 ", " c-m1", "c-m1\t", "\nc-m1"] {
+        let mut answer = draft("d1", "m1");
+        answer["conversationId"] = json!(conversation);
+        let stub = routes(
+            &["m1"],
+            vec![create("m1", 201, created("d1")), patch("d1", 200, answer)],
+        );
+        let drafted = reply(&stub).expect("the call answers");
+        assert_eq!(
+            drafted.drafts().len(),
+            0,
+            "{conversation:?}: no send handle"
+        );
+        let whys: Vec<Unsent> = drafted.unsent().iter().map(|u| u.why()).collect();
+        assert_eq!(whys, [Unsent::Conversation], "{conversation:?}");
+    }
+}

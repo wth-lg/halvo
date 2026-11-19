@@ -152,3 +152,31 @@ fn texts() {
         "the loopback route maps a host name, and the host of this origin is an address"
     );
 }
+
+fn case_number(cause: NotMade) -> u8 {
+    match cause {
+        NotMade::NotSent => 0,
+        NotMade::Unauthorized => 1,
+        NotMade::Throttled => 2,
+    }
+}
+
+#[test]
+fn not_made_is_closed_at_its_three_cases_of_a11_2() {
+    let made: Vec<u8> = [
+        CallError::NotSent,
+        CallError::Unauthorized,
+        CallError::Status(429, None),
+    ]
+    .into_iter()
+    .filter_map(|error| match error.effect() {
+        Effect::NotMade(cause) => Some(case_number(cause)),
+        Effect::Unknown => None,
+    })
+    .collect();
+    assert_eq!(
+        made,
+        [0, 1, 2],
+        "each case once, and a fourth case does not compile"
+    );
+}
