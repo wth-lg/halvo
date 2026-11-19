@@ -210,28 +210,34 @@ broken() {
   exit 1
 }
 
-# self_case LABEL WANT_CAUSE MEMORY_LINES MEMORY_EXIT DERIVED_LINES DERIVED_ERR DERIVED_EXIT [MEMORY_ERR]: judges the
-# outputs that the fixture gate prints from these values, and records whether the cause is the one wanted.
+# self_case LABEL WANT_CAUSE WANT_DERIVED_LINE MEMORY_LINES MEMORY_EXIT DERIVED_LINES DERIVED_ERR DERIVED_EXIT
+# [MEMORY_ERR]: judges the outputs that the fixture gate prints from these values, and records whether the cause is
+# the one wanted and the second line that judge printed is byte for byte WANT_DERIVED_LINE and its LF (the derived
+# routine line, derived=not-run or derived=unreadable exit=<n>).
 self_case() {
   label=$1
   want=$2
   FIXTURE_DIR=$work/$label
   export FIXTURE_DIR
   mkdir -p "$FIXTURE_DIR" || broken
-  printf '%s' "${8:-}" >"$FIXTURE_DIR/fix-memory.err" || broken
-  printf '%s' "$3" >"$FIXTURE_DIR/fix-memory" || broken
-  printf '%s\n' "$4" >"$FIXTURE_DIR/fix-memory.exit" || broken
-  printf '%s' "$5" >"$FIXTURE_DIR/fix-derived" || broken
-  printf '%b' "$6" >"$FIXTURE_DIR/fix-derived.err" || broken
-  printf '%s\n' "$7" >"$FIXTURE_DIR/fix-derived.exit" || broken
+  printf '%s\n' "$3" >"$FIXTURE_DIR/shown.expected" || broken
+  printf '%s' "${9:-}" >"$FIXTURE_DIR/fix-memory.err" || broken
+  printf '%s' "$4" >"$FIXTURE_DIR/fix-memory" || broken
+  printf '%s\n' "$5" >"$FIXTURE_DIR/fix-memory.exit" || broken
+  printf '%s' "$6" >"$FIXTURE_DIR/fix-derived" || broken
+  printf '%b' "$7" >"$FIXTURE_DIR/fix-derived.err" || broken
+  printf '%s\n' "$8" >"$FIXTURE_DIR/fix-derived.exit" || broken
   play "$FIXTURE_DIR"
   judge "$FIXTURE_DIR" >"$FIXTURE_DIR/lines.txt"
   printed=$(awk 'END { print NR }' "$FIXTURE_DIR/lines.txt") || printed=0
   allowed=$(grep -Ec "$log_line" "$FIXTURE_DIR/lines.txt") || allowed=0
+  awk 'NR == 2' "$FIXTURE_DIR/lines.txt" >"$FIXTURE_DIR/shown.got" || broken
   if [ "$cause" != "$want" ]; then
     wrong="$wrong $label:${cause:-pass}"
   elif [ "$printed" -ne 2 ] || [ "$allowed" -ne 2 ]; then
     wrong="$wrong $label:log"
+  elif ! cmp -s "$FIXTURE_DIR/shown.expected" "$FIXTURE_DIR/shown.got"; then
+    wrong="$wrong $label:shown"
   elif [ -n "$want" ]; then
     rejected=$((rejected + 1))
   else
@@ -445,35 +451,35 @@ self_test() {
   wrong=
   rejected=0
   passed=0
-  self_case good-derived "" "$ok" 0 "$want_derived$nl" "" 0
-  self_case derived-not-run derived "$ok" 0 "" "$store_refusal" 2
-  self_case one-train-differs result "routine trains=135 plays=270 same=268 result=miss$nl" 1 "" "$store_refusal" 2
-  self_case one-play-differs result "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2
-  self_case miss-read-as-ok result "routine trains=135 plays=270 same=269 result=ok$nl" 0 "" "$store_refusal" 2
-  self_case trains-134-plays-270 result "routine trains=134 plays=270 same=270 result=ok$nl" 0 "" "$store_refusal" 2
-  self_case fewer-trains result "routine trains=134 plays=268 same=268 result=ok$nl" 0 "" "$store_refusal" 2
-  self_case ok-with-exit-1 result "$ok" 1 "" "$store_refusal" 2
-  self_case second-line result "$ok${ok}" 0 "" "$store_refusal" 2
-  self_case no-line result "" 0 "" "$store_refusal" 2
-  self_case line-with-a-path result "routine trains=135 path=/x/sample.jsonl result=ok$nl" 0 "" "$store_refusal" 2
-  self_case refused refused "" 2 "" "$store_refusal" 2
-  self_case derived-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "" 1
-  self_case derived-miss-read-as-ok derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=ok$nl" "" 0
-  self_case derived-ok-with-exit-1 derived "$ok" 0 "$want_derived$nl" "" 1
-  self_case derived-on-memory derived "$ok" 0 "routine trains=5 plays=10 same=10 store=memory result=ok$nl" "" 0
-  self_case derived-usage derived "$ok" 0 "" "REFUSED usage: an argument that the command does not take$nl" 2
-  self_case derived-store-other-detail derived "$ok" 0 "" "REFUSED store: train 3: the replay run of day 150 did not complete$nl" 2
-  self_case derived-store-second-line derived "$ok" 0 "" "a line before it$nl$store_refusal" 2
-  self_case derived-store-beside-a-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
-  self_case derived-store-status-1 stderr "$ok" 0 "" "$store_refusal" 1
-  self_case derived-store-nul-in-line derived "$ok" 0 "" 'REFUSED store: the derived store\0000 is not in this build\n' 2
-  self_case derived-store-no-final-lf derived "$ok" 0 "" "$not_built" 2
-  self_case memory-stderr-at-status-0 stderr "$ok" 0 "" "$store_refusal" 2 "$nl"
-  self_case memory-stderr-beside-derived stderr "$ok" 0 "$want_derived$nl" "" 0 "$nl"
-  self_case memory-stderr-at-status-1 stderr "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2 "x$nl"
-  self_case derived-stderr-at-status-0 stderr "$ok" 0 "$want_derived$nl" "x$nl" 0
-  self_case both-plays-fault stderr "routine trains=135 plays=270 same=269 result=miss$nl" 1 "$want_derived$nl" "x$nl" 1
-  self_case missing-derived-lf derived "$ok" 0 "$want_derived" "" 0
+  self_case good-derived "" "$want_derived" "$ok" 0 "$want_derived$nl" "" 0
+  self_case derived-not-run derived derived=not-run "$ok" 0 "" "$store_refusal" 2
+  self_case one-train-differs result derived=not-run "routine trains=135 plays=270 same=268 result=miss$nl" 1 "" "$store_refusal" 2
+  self_case one-play-differs result derived=not-run "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2
+  self_case miss-read-as-ok result derived=not-run "routine trains=135 plays=270 same=269 result=ok$nl" 0 "" "$store_refusal" 2
+  self_case trains-134-plays-270 result derived=not-run "routine trains=134 plays=270 same=270 result=ok$nl" 0 "" "$store_refusal" 2
+  self_case fewer-trains result derived=not-run "routine trains=134 plays=268 same=268 result=ok$nl" 0 "" "$store_refusal" 2
+  self_case ok-with-exit-1 result derived=not-run "$ok" 1 "" "$store_refusal" 2
+  self_case second-line result derived=not-run "$ok${ok}" 0 "" "$store_refusal" 2
+  self_case no-line result derived=not-run "" 0 "" "$store_refusal" 2
+  self_case line-with-a-path result derived=not-run "routine trains=135 path=/x/sample.jsonl result=ok$nl" 0 "" "$store_refusal" 2
+  self_case refused refused derived=not-run "" 2 "" "$store_refusal" 2
+  self_case derived-miss derived 'routine trains=5 plays=10 same=9 store=derived result=miss' "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "" 1
+  self_case derived-miss-read-as-ok derived 'routine trains=5 plays=10 same=9 store=derived result=ok' "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=ok$nl" "" 0
+  self_case derived-ok-with-exit-1 derived "$want_derived" "$ok" 0 "$want_derived$nl" "" 1
+  self_case derived-on-memory derived 'routine trains=5 plays=10 same=10 store=memory result=ok' "$ok" 0 "routine trains=5 plays=10 same=10 store=memory result=ok$nl" "" 0
+  self_case derived-usage derived 'derived=unreadable exit=2' "$ok" 0 "" "REFUSED usage: an argument that the command does not take$nl" 2
+  self_case derived-store-other-detail derived 'derived=unreadable exit=2' "$ok" 0 "" "REFUSED store: train 3: the replay run of day 150 did not complete$nl" 2
+  self_case derived-store-second-line derived 'derived=unreadable exit=2' "$ok" 0 "" "a line before it$nl$store_refusal" 2
+  self_case derived-store-beside-a-miss derived 'routine trains=5 plays=10 same=9 store=derived result=miss' "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
+  self_case derived-store-status-1 stderr 'derived=unreadable exit=1' "$ok" 0 "" "$store_refusal" 1
+  self_case derived-store-nul-in-line derived 'derived=unreadable exit=2' "$ok" 0 "" 'REFUSED store: the derived store\0000 is not in this build\n' 2
+  self_case derived-store-no-final-lf derived 'derived=unreadable exit=2' "$ok" 0 "" "$not_built" 2
+  self_case memory-stderr-at-status-0 stderr derived=not-run "$ok" 0 "" "$store_refusal" 2 "$nl"
+  self_case memory-stderr-beside-derived stderr "$want_derived" "$ok" 0 "$want_derived$nl" "" 0 "$nl"
+  self_case memory-stderr-at-status-1 stderr derived=not-run "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2 "x$nl"
+  self_case derived-stderr-at-status-0 stderr "$want_derived" "$ok" 0 "$want_derived$nl" "x$nl" 0
+  self_case both-plays-fault stderr "$want_derived" "routine trains=135 plays=270 same=269 result=miss$nl" 1 "$want_derived$nl" "x$nl" 1
+  self_case missing-derived-lf derived "$want_derived" "$ok" 0 "$want_derived" "" 0
   tree_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
