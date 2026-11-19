@@ -446,7 +446,7 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=28
+  failing_fixtures=29
   passing_fixtures=1
   wrong=
   rejected=0
@@ -479,6 +479,7 @@ self_test() {
   self_case memory-stderr-at-status-1 stderr derived=not-run "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2 "x$nl"
   self_case derived-stderr-at-status-0 stderr "$want_derived" "$ok" 0 "$want_derived$nl" "x$nl" 0
   self_case both-plays-fault stderr "$want_derived" "routine trains=135 plays=270 same=269 result=miss$nl" 1 "$want_derived$nl" "x$nl" 1
+  self_case both-plays-fault-at-status-0 stderr "$want_derived" "routine trains=135 plays=270 same=269 result=miss$nl" 1 "$want_derived$nl" "x$nl" 0
   self_case missing-derived-lf derived "$want_derived" "$ok" 0 "$want_derived" "" 0
   tree_cases
   if [ -n "$wrong" ]; then
