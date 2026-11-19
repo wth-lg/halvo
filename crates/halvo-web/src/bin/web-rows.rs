@@ -1321,10 +1321,70 @@ fn contexts(counts: &serde_json::Value, map: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The documents of the listener whose status is no redirect and no success (CP-186 point 9).
+const WS_STATUS_PAGES: [&str; 2] = ["status300", "status302"];
+
+/// What the row read of one page of `WS_STATUS_PAGES`: whether it ran (fetched), reported a failed
+/// WebSocket, its handshakes, and the executor's documents fulfilled with the policy's line and
+/// failed while it loaded.
+struct StatusRead {
+    ran: bool,
+    refused: bool,
+    handshakes: i64,
+    fulfilled: u64,
+    document_failed: u64,
+}
+
+/// Opens each page of `WS_STATUS_PAGES` and reads what the browser did with it (CP-186 point 9):
+/// a page that ran shows its own context among the fetches and the refusals of the listener, and a
+/// page that the executor failed ran nothing.
+async fn status_pages(ex: &mut Executor, port: u16) -> Vec<(&'static str, StatusRead)> {
+    let mut out = Vec::new();
+    for page in WS_STATUS_PAGES {
+        let before = ex.policy_counts();
+        let _ = ex
+            .open(&format!("http://utility.agent.test:{port}/{page}"))
+            .await;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut counts = serde_json::Value::Null;
+        while Instant::now() < deadline {
+            counts = fixture_json(port, "GET", "/count").unwrap_or(serde_json::Value::Null);
+            if contexts(&counts, "e").iter().any(|c| c == page) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        counts = fixture_json(port, "GET", "/count").unwrap_or(counts);
+        let after = ex.policy_counts();
+        let grew = |k: &str| {
+            after
+                .get(k)
+                .copied()
+                .unwrap_or(0)
+                .saturating_sub(before.get(k).copied().unwrap_or(0))
+        };
+        out.push((
+            page,
+            StatusRead {
+                ran: contexts(&counts, "f").iter().any(|c| c == page),
+                refused: contexts(&counts, "e").iter().any(|c| c == page),
+                handshakes: counts["ws"][page].as_i64().unwrap_or(0),
+                fulfilled: grew("fulfilled"),
+                document_failed: grew("document_failed"),
+            },
+        ));
+    }
+    out
+}
+
 /// The row of CP-176 A2 (c): the listener's page through the product's executor on the pipe, in
 /// the mode that fails, which lets the page's reads through. ok when the row's own handshake was
 /// counted, no handshake came from the browser, the page, its frame and its worker each fetched
-/// and reported a failed WebSocket, and the executor failed no document.
+/// and reported a failed WebSocket, and the executor failed no document. Then the two pages of a
+/// status that is no redirect and no success (CP-186 point 9), each with a line of its own that
+/// says whether the page ran and was refused or the executor failed it; such a line is ok when no
+/// handshake came from it and the page either ran and was refused or was failed and ran nothing.
 async fn ws_allowed(argv: &[String]) -> (usize, usize) {
     let (Some(browser), Some(kind), Some(port), Some(dir)) = (
         arg(argv, "--browser"),
@@ -1382,9 +1442,28 @@ async fn ws_allowed(argv: &[String]) -> (usize, usize) {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
     let policy = ex.policy_counts();
+    let status = if opened {
+        status_pages(&mut ex, port).await
+    } else {
+        Vec::new()
+    };
     let stopped = ex.stop_and_remove().await;
     relay.stop();
     let _ = std::fs::remove_dir(&dir);
+    let mut status_fine = status.len() == WS_STATUS_PAGES.len();
+    for (page, r) in &status {
+        let fine = r.handshakes == 0 && ((r.ran && r.refused) || (!r.ran && r.document_failed > 0));
+        status_fine &= fine;
+        println!(
+            "row ws_allowed machine={machine} browser={kind} case={page} ran={} refused={} handshakes={} fulfilled={} document_failed={} result={}",
+            if r.ran { "yes" } else { "no" },
+            if r.refused { "yes" } else { "no" },
+            r.handshakes,
+            r.fulfilled,
+            r.document_failed,
+            if fine { "ok" } else { "miss" }
+        );
+    }
     let handshakes: i64 = counts["ws"]
         .as_object()
         .map(|o| {
@@ -1434,7 +1513,7 @@ async fn ws_allowed(argv: &[String]) -> (usize, usize) {
         if stopped.removed { "yes" } else { "no" },
         if fine { "ok" } else { "miss" }
     );
-    (usize::from(fine), 1)
+    (usize::from(fine && status_fine), 1)
 }
 
 /// One crash reading with the product's means on a relay at `--relay-port`, which the egress check
