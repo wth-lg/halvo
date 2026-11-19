@@ -284,3 +284,71 @@ fn entry() {
     }
     std::process::exit(0);
 }
+
+/// The stand-in executor of the watch's test (CP-176 (e)): with `--watch-executor OUT` it starts
+/// this test binary as `watch_entry`, which watches this process from the system, and runs for up
+/// to 20 s; in a run of the tests it returns at once.
+#[test]
+fn watch_executor_entry() {
+    use crate::start::Start;
+    let args: Vec<String> = std::env::args().collect();
+    let Some(out) = args
+        .iter()
+        .position(|a| a == "--watch-executor")
+        .and_then(|i| args.get(i + 1))
+    else {
+        return;
+    };
+    let me = crate::procs::own().unwrap();
+    let _watcher = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(entry_args(
+            "child::watch_entry",
+            &[
+                "--watch".to_string(),
+                me.pid.to_string(),
+                me.started_us.to_string(),
+                out.clone(),
+            ],
+        ))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .start();
+    std::thread::sleep(std::time::Duration::from_secs(20));
+}
+
+/// The watcher of the watch's test: with `--watch PID STARTED OUT` it opens
+/// `procs::ExecutorWatch` of the executor PID begun at STARTED, writes into OUT its own number and
+/// creation time and whether the watch reads the executor running, then reads the watch every
+/// 10 ms and, once it reads the executor gone, writes `gone` and ends; it ends after 20 s in any
+/// case. In a run of the tests it returns at once.
+#[test]
+fn watch_entry() {
+    let args: Vec<String> = std::env::args().collect();
+    let Some(at) = args.iter().position(|a| a == "--watch") else {
+        return;
+    };
+    let num = |i: usize| args.get(at + i).and_then(|v| v.parse::<u64>().ok());
+    let (Some(pid), Some(started), Some(out)) = (num(1), num(2), args.get(at + 3)) else {
+        return;
+    };
+    let watch = crate::procs::ExecutorWatch::open(pid as u32, started);
+    let me = crate::procs::own().unwrap();
+    let mut text = format!(
+        "watcher pid={} started={} runs={}\n",
+        me.pid,
+        me.started_us,
+        if watch.runs() { "yes" } else { "no" }
+    );
+    let _ = std::fs::write(out, &text);
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < until {
+        if !watch.runs() {
+            text.push_str("gone\n");
+            let _ = std::fs::write(out, &text);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    std::process::exit(0);
+}

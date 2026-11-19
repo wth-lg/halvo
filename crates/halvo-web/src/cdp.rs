@@ -1839,6 +1839,7 @@ pub(crate) mod tests {
             )),
             _ => None,
         };
+        let watch = crate::procs::ExecutorWatch::open(num(3) as u32, num(4));
         let code = crate::guard::guard_loop(
             num(1) as u32,
             num(2),
@@ -1850,7 +1851,7 @@ pub(crate) mod tests {
                 read: &mut || crate::procs::table().ok(),
                 args: &crate::checks::command_args,
                 mark: mark.as_ref(),
-                own_name: None,
+                executor: &mut |_, _| watch.runs(),
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| std::thread::sleep(crate::guard::POLL),
                 end: &mut |p, force| {
