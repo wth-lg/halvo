@@ -39,9 +39,11 @@ export function isPort(value) {
  * Reads the arguments of a command that takes one optional flag with a value and one or more files; the flag may
  * stand before, between or after the files. Returns `{ value, files }`, with `value` null where the flag is absent,
  * or null for a usage error: an unknown flag, the flag twice or without a value, a value that `accepts` refuses,
- * or no file.
+ * no file, or an argument that is no UTF-8 (contracts.md C11.1). Node hands a byte that is no UTF-8 on as U+FFFD,
+ * so an argument that holds U+FFFD or a lone surrogate is refused, a path with a written U+FFFD among them.
  */
 export function readArgs(argv, flag, accepts) {
+  if (argv.some((arg) => !arg.isWellFormed() || arg.includes('\uFFFD'))) return null;
   let value = null;
   const files = [];
   for (let i = 0; i < argv.length; i += 1) {
