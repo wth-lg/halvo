@@ -14,7 +14,7 @@ use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
     OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status,
+    Status, System,
 };
 use crate::words;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -2638,7 +2638,7 @@ where
                     .runs
                     .iter()
                     .any(|r| r.agent == facts.agent && r.kill_refused);
-                if let Ok(row) = roster::gone_row(*facts, stuck, name) {
+                if let Ok(row) = roster::gone_row(*facts, stuck, System::HOST, name) {
                     placed.push((Placed { row, raised: None }, None));
                 }
                 continue;

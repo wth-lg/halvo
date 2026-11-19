@@ -9,7 +9,7 @@ use crate::types::{
     Answered, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
     Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
-    RunId, Runtime, StatusLine, Tier, What,
+    RunId, Runtime, StatusLine, System, Tier, What,
 };
 use crate::words;
 
@@ -245,11 +245,17 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
 }
 
 /// The row of an agent whose workflow a tick saw gone while its run lives (I5.7, ruling RD-54
-/// (g)): `working.stopping`, or `working.kill_stuck` where `stuck`, the run having outlived a
-/// kill that was refused, no control and no next day, since a gone workflow has no slot.
-pub fn gone_row<C: ConfigView>(facts: &Facts<C>, stuck: bool, name: &str) -> Result<Row, Cause> {
+/// (g)): `working.stopping`, or the `working.kill_stuck` line of `system` where `stuck`, the run
+/// having outlived a kill that was refused, no control and no next day, since a gone workflow
+/// has no slot.
+pub fn gone_row<C: ConfigView>(
+    facts: &Facts<C>,
+    stuck: bool,
+    system: System,
+    name: &str,
+) -> Result<Row, Cause> {
     let line = if stuck {
-        StatusLine::KillStuck
+        StatusLine::KillStuck(system)
     } else {
         StatusLine::Stopping
     };

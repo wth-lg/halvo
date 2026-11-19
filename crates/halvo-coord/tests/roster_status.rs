@@ -343,3 +343,49 @@ fn u24r_the_record_row_offers_stop_where_a_run_is_live_the_delete_and_no_other_c
     queued.doing = Doing::Queued(None);
     assert_eq!(controls(&queued), [Control::Delete], "queued");
 }
+
+#[test]
+fn u24r_kill_stuck_has_a_line_per_system_and_the_gone_row_takes_the_line_of_its_system() {
+    use halvo_coord::roster::gone_row;
+    use halvo_coord::types::System;
+    let words = |key: &str| halvo_coord::words::text(key, &[]).unwrap();
+    assert_eq!(System::ALL, [System::Mac, System::Windows]);
+    assert_eq!(
+        StatusLine::KillStuck(System::Mac).key(),
+        "line.working.kill_stuck_mac"
+    );
+    assert_eq!(
+        StatusLine::KillStuck(System::Windows).key(),
+        "line.working.kill_stuck_windows"
+    );
+    let mut f = utility();
+    f.doing = Doing::Live(Live::Stopping);
+    let mac = gone_row(&f, true, System::Mac, "A name").unwrap();
+    let windows = gone_row(&f, true, System::Windows, "A name").unwrap();
+    assert_eq!(mac.line, words("line.working.kill_stuck_mac"));
+    assert_eq!(windows.line, words("line.working.kill_stuck_windows"));
+    assert_ne!(mac.line, windows.line);
+    for system in System::ALL {
+        let row = gone_row(&f, false, system, "A name").unwrap();
+        assert_eq!(row.line, words("line.working.stopping"), "{system:?}");
+        assert!(row.controls.is_empty());
+    }
+    let all = StatusLine::all();
+    let at = |l: StatusLine| all.iter().position(|x| *x == l).unwrap();
+    assert_eq!(
+        at(StatusLine::KillStuck(System::Mac)),
+        at(StatusLine::Stopping) + 1
+    );
+    assert_eq!(
+        at(StatusLine::KillStuck(System::Windows)),
+        at(StatusLine::Stopping) + 2
+    );
+    assert_eq!(
+        System::HOST,
+        if cfg!(windows) {
+            System::Windows
+        } else {
+            System::Mac
+        }
+    );
+}

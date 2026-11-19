@@ -97,7 +97,8 @@ fn expected_keys() -> BTreeSet<String> {
         "working.starting",
         "working.working",
         "working.stopping",
-        "working.kill_stuck",
+        "working.kill_stuck_mac",
+        "working.kill_stuck_windows",
         "waiting_turn.queued",
         "waiting_turn.store",
         "problem.failed",
@@ -291,7 +292,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 252);
+    assert_eq!(seen.len(), 253);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -447,8 +448,12 @@ fn fixed_texts_stand_word_for_word() {
 fn rd116_w1_the_three_texts_stand_word_for_word() {
     let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
     assert_eq!(
-        t("line.working.kill_stuck", &[]),
-        "Part still runs, taking no step for you. Quit Halvo (Mac: app menu; Windows: icon by the clock), then reopen."
+        t("line.working.kill_stuck_mac", &[]),
+        "This agent did not fully stop. In the Halvo menu at the top, choose Quit Halvo, then open Halvo again."
+    );
+    assert_eq!(
+        t("line.working.kill_stuck_windows", &[]),
+        "This agent did not fully stop. Click Halvo's icon by the clock, choose Quit Halvo, then open Halvo again."
     );
     assert_eq!(
         t("line.problem.record", &[]),
@@ -497,7 +502,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 29);
+    assert_eq!(keys.len(), 30);
 }
 
 #[test]

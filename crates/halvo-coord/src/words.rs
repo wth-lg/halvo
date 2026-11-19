@@ -98,8 +98,12 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.working", "It is doing its task now."),
     ("line.working.stopping", "It is stopping."),
     (
-        "line.working.kill_stuck",
-        "Part still runs, taking no step for you. Quit Halvo (Mac: app menu; Windows: icon by the clock), then reopen.",
+        "line.working.kill_stuck_mac",
+        "This agent did not fully stop. In the Halvo menu at the top, choose Quit Halvo, then open Halvo again.",
+    ),
+    (
+        "line.working.kill_stuck_windows",
+        "This agent did not fully stop. Click Halvo's icon by the clock, choose Quit Halvo, then open Halvo again.",
     ),
     (
         "line.waiting_turn.queued",
