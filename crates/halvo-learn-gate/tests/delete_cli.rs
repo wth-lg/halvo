@@ -180,6 +180,32 @@ fn delete_all_on_the_derived_store_is_not_run() {
     );
 }
 
+fn derived_delete(what: &str, dir: &Path) -> Output {
+    gate(&[
+        "delete",
+        "--what",
+        what,
+        "--data-dir",
+        dir.to_str().expect("a path"),
+        "--store",
+        "derived",
+    ])
+}
+
+#[test]
+fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_own_key() {
+    let dir = fresh("delete-two-commands");
+    line_of(&derived_delete("workflow", &dir));
+    let second = derived_delete("workflow", &dir);
+    assert_eq!(second.status.code(), Some(2), "{second:?}");
+    assert!(second.stdout.is_empty(), "{second:?}");
+    assert_eq!(
+        String::from_utf8(second.stderr).expect("UTF-8"),
+        "REFUSED store: the derived store does not open: the key does not open the derived database\n",
+        "each command makes a key of its own, so the second does not open the first one's store"
+    );
+}
+
 #[test]
 fn delete_refuses_wrong_calls() {
     let dir = data_dir("delete-refusals");
