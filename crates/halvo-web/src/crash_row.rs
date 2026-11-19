@@ -409,6 +409,34 @@ fn place(name: &'static str, root: PathBuf, inside_profile: bool, system: bool) 
     }
 }
 
+/// The major versions of each browser (`chrome`, `edge`) at which the crash row was last read: the
+/// four cells of run 43484944398 with their controls, which stand in the place of a text of the
+/// browser for `--breakpad-dump-location` for these versions and no other (CP-165 (2) (d),
+/// CP-186 N3). A browser at another major version is read by the row again (`read_at`, the row
+/// `crash_major` of web-rows), and the list gains a version only with the run that read it there.
+pub const LAST_READ: [(&str, &[u32]); 2] = [("chrome", &[156, 157]), ("edge", &[156])];
+
+/// The major version in a browser's product text as `Browser.getVersion` gives it
+/// (`Chrome/157.0.7535.4`, `HeadlessChrome/156.0.1.2`, `Edg/156.0.3.1`): the digits from the last
+/// `/` up to the next `.`; none for any other text.
+pub fn major_of(product: &str) -> Option<u32> {
+    let (_, version) = product.rsplit_once('/')?;
+    let (major, _) = version.split_once('.')?;
+    if major.is_empty() || !major.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    major.parse().ok()
+}
+
+/// Whether the crash row was last read for a browser of `kind` at the major version `major`
+/// (`LAST_READ`): no for a new major and for a kind that the list does not hold, which the row
+/// reads again before a build reaches a person (CP-186 N3).
+pub fn read_at(kind: &str, major: u32) -> bool {
+    LAST_READ
+        .iter()
+        .any(|(k, majors)| *k == kind && majors.contains(&major))
+}
+
 /// The crash place of a browser of `kind` (`chrome` or `edge`) on this system, where its Crashpad
 /// database lies for the account's own browser.
 pub fn crash_place(kind: &str) -> Option<PathBuf> {
@@ -617,6 +645,31 @@ mod sys {
 
 #[cfg(test)]
 mod tests {
+    /// CP-186 N3, failing first: the major version is read from the product text, and a major
+    /// that the crash row's last readings do not hold reads no.
+    #[test]
+    fn n3_a_major_version_that_the_crash_row_did_not_read_is_no() {
+        assert_eq!(super::major_of("Chrome/157.0.7535.4"), Some(157));
+        assert_eq!(super::major_of("HeadlessChrome/156.0.1.2"), Some(156));
+        assert_eq!(super::major_of("Edg/156.0.3.1"), Some(156));
+        for text in [
+            "Chrome",
+            "Chrome/",
+            "Chrome/157",
+            "Chrome/x7.0",
+            "Chrome/.1",
+            "",
+        ] {
+            assert_eq!(super::major_of(text), None, "{text}");
+        }
+        assert!(super::read_at("chrome", 156));
+        assert!(super::read_at("chrome", 157));
+        assert!(super::read_at("edge", 156));
+        assert!(!super::read_at("chrome", 158));
+        assert!(!super::read_at("edge", 157));
+        assert!(!super::read_at("firefox", 156));
+    }
+
     use super::*;
 
     fn tree(name: &str) -> (PathBuf, Vec<Place>) {

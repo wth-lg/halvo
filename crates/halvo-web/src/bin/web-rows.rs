@@ -47,6 +47,10 @@
 //!   (CP-186 T4 (b)) against `rows/hop-listener.mjs` on port M: the answer to the released request
 //!   is a 307 to the same address, and the hop is failed, so the listener counts one arrival.
 //!
+//! - `crash_major --browser PATH --kind chrome|edge`: the check of CP-186 N3: the browser's major
+//!   version, read by the product's executor, against the versions of the crash row's last
+//!   readings (`crash_row::LAST_READ`); ok when the row was read at that version, miss with the
+//!   cause `new_major` when it was not, after which the row `crash` runs again.
 //! - `block_popup --browser PATH --kind chrome|edge --hop-port N`: the row of A13.7 through the
 //!   product's executor (CP-186 N2), against `rows/hop-listener.mjs` on port N: with the rule armed
 //!   in the mode that holds before the page opens, a click of `Save preferences` on `/popup`, whose
@@ -190,12 +194,8 @@ async fn crash_reading_at(
         .version()
         .await
         .ok()
-        .and_then(|v| {
-            v.rsplit('/')
-                .next()
-                .and_then(|x| x.split('.').next())
-                .map(str::to_string)
-        })
+        .and_then(|v| crash_row::major_of(&v))
+        .map(|m| m.to_string())
         .unwrap_or_else(|| "-".into());
     let _ = ex
         .arm_rule(
@@ -971,6 +971,67 @@ async fn hop_case(ex: &mut Executor, port: u16) -> Result<HopRead, &'static str>
         hop_failed,
         control,
     })
+}
+
+/// The check of CP-186 N3: the browser's major version against the crash row's last readings.
+async fn crash_major(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        scratch_of(argv, "crash-major"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let major = match Executor::start(&opts).await {
+        Ok(ex) => {
+            let major = ex
+                .version()
+                .await
+                .ok()
+                .and_then(|v| crash_row::major_of(&v));
+            let _ = ex.stop_and_remove().await;
+            major
+        }
+        Err(f) => {
+            println!(
+                "row crash_major machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            relay.stop();
+            let _ = std::fs::remove_dir(&dir);
+            return (0, 1);
+        }
+    };
+    relay.stop();
+    let _ = std::fs::remove_dir(&dir);
+    let read: Vec<String> = crash_row::LAST_READ
+        .iter()
+        .filter(|(k, _)| *k == kind)
+        .flat_map(|(_, m)| m.iter().map(u32::to_string))
+        .collect();
+    let read = if read.is_empty() {
+        "-".to_string()
+    } else {
+        read.join(",")
+    };
+    let (shown, fine, cause) = match major {
+        Some(m) if crash_row::read_at(&kind, m) => (m.to_string(), true, ""),
+        Some(m) => (m.to_string(), false, " cause=new_major"),
+        None => ("unread".to_string(), false, " cause=unread"),
+    };
+    println!(
+        "row crash_major machine={machine} browser={kind} major={shown} last_read={read} result={}{cause}",
+        if fine { "ok" } else { "miss" }
+    );
+    (usize::from(fine), 1)
 }
 
 /// The listener's count of arrivals of POST /prefs.
@@ -1999,6 +2060,7 @@ fn main() -> ExitCode {
         "hold_release" => runtime.block_on(hold_release(&argv)),
         "ws_allowed" => runtime.block_on(ws_allowed(&argv)),
         "block_popup" => runtime.block_on(block_popup(&argv)),
+        "crash_major" => runtime.block_on(crash_major(&argv)),
         "crash_one" => runtime.block_on(crash_one(&argv)),
         "handler_class" => runtime.block_on(handler_class_row(&argv)),
         _ => {
