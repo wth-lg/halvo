@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -92,14 +82,66 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r3-policy 15-r3-test-dirs 10-r3-layout
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r3-policy 15-r3-test-dirs 10-r3-layout
+      - name: Fixture self-test (scratch, U2.2b)
+        if: always()
+        shell: bash
+        run: node tools/fixture-server/variants/selftest.mjs
+      - name: r3-drive tests (scratch, U2.2b round 2)
+        if: always()
+        shell: bash
+        run: cargo test --locked --manifest-path tools/r3-trials/drive/Cargo.toml
+      - name: Loop of round 2's five new tests, 200 rounds (scratch, U2.2b)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=200
+          dir="$RUNNER_TEMP/u22b-loop"
+          mkdir -p "$dir"
+          exe() {
+            cargo test --locked "$@" --no-run 2>&1 | sed -n 's/.*Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1
+          }
+          pages=$(exe -p halvo-connect --test pages)
+          drafts=$(exe -p halvo-connect --test drafts)
+          lib=$(exe -p halvo-connect --lib)
+          echo "binaries: pages=[$pages] drafts=[$drafts] lib=[$lib]"
+          P="an_event_that_the_person_has_not_declined_is_not_kept_counted_or_deleted"
+          D="a_draft_that_meets_two_reasons_is_held_for_the_first_of_the_closed_order the_mark_encodes_every_byte_of_the_message_id_but_the_unreserved_ones a_draft_whose_conversation_differs_by_white_space_at_an_end_is_held_back"
+          L="error::tests::not_made_is_closed_at_its_three_cases_of_a11_2"
+          run_set() {
+            name=$1; bin=$2; names=$3
+            want=$(wc -w <<< "$names" | tr -d ' ')
+            passed=0
+            for round in $(seq 1 $rounds); do
+              out=$("$bin" --exact $names --test-threads 4 2>&1)
+              if [[ "$out" == *"test result: ok. $want passed; 0 failed;"* ]]; then
+                passed=$((passed + 1))
+              else
+                printf '%s\n' "$out" > "$dir/$name-$round.txt"
+              fi
+            done
+            echo "loop $name: tests=$want passed $passed of $rounds" > "$dir/$name.result"
+          }
+          ( run_set pages "$pages" "$P"; run_set lib "$lib" "$L" ) &
+          ( run_set drafts "$drafts" "$D" ) &
+          wait
+          fail=0
+          for name in pages lib drafts; do
+            line=$(cat "$dir/$name.result" 2>/dev/null)
+            echo "${line:-loop $name: no result}"
+            [[ "$line" == *"passed $rounds of $rounds" ]] || fail=1
+          done
+          for f in "$dir"/*.txt; do [ -e "$f" ] && { echo "== $f"; grep -E "^test .*FAILED|panicked|test result" "$f" | head -n 8; }; done
+          echo "loop: 5 new tests of round 2, $rounds rounds each, fail=$fail"
+          exit $fail
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -160,14 +202,66 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r3-policy 15-r3-test-dirs 10-r3-layout
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r3-policy 15-r3-test-dirs 10-r3-layout
+      - name: Fixture self-test (scratch, U2.2b)
+        if: always()
+        shell: bash
+        run: node tools/fixture-server/variants/selftest.mjs
+      - name: r3-drive tests (scratch, U2.2b round 2)
+        if: always()
+        shell: bash
+        run: cargo test --locked --manifest-path tools/r3-trials/drive/Cargo.toml
+      - name: Loop of round 2's five new tests, 200 rounds (scratch, U2.2b)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=200
+          dir="$RUNNER_TEMP/u22b-loop"
+          mkdir -p "$dir"
+          exe() {
+            cargo test --locked "$@" --no-run 2>&1 | sed -n 's/.*Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1
+          }
+          pages=$(exe -p halvo-connect --test pages)
+          drafts=$(exe -p halvo-connect --test drafts)
+          lib=$(exe -p halvo-connect --lib)
+          echo "binaries: pages=[$pages] drafts=[$drafts] lib=[$lib]"
+          P="an_event_that_the_person_has_not_declined_is_not_kept_counted_or_deleted"
+          D="a_draft_that_meets_two_reasons_is_held_for_the_first_of_the_closed_order the_mark_encodes_every_byte_of_the_message_id_but_the_unreserved_ones a_draft_whose_conversation_differs_by_white_space_at_an_end_is_held_back"
+          L="error::tests::not_made_is_closed_at_its_three_cases_of_a11_2"
+          run_set() {
+            name=$1; bin=$2; names=$3
+            want=$(wc -w <<< "$names" | tr -d ' ')
+            passed=0
+            for round in $(seq 1 $rounds); do
+              out=$("$bin" --exact $names --test-threads 4 2>&1)
+              if [[ "$out" == *"test result: ok. $want passed; 0 failed;"* ]]; then
+                passed=$((passed + 1))
+              else
+                printf '%s\n' "$out" > "$dir/$name-$round.txt"
+              fi
+            done
+            echo "loop $name: tests=$want passed $passed of $rounds" > "$dir/$name.result"
+          }
+          ( run_set pages "$pages" "$P"; run_set lib "$lib" "$L" ) &
+          ( run_set drafts "$drafts" "$D" ) &
+          wait
+          fail=0
+          for name in pages lib drafts; do
+            line=$(cat "$dir/$name.result" 2>/dev/null)
+            echo "${line:-loop $name: no result}"
+            [[ "$line" == *"passed $rounds of $rounds" ]] || fail=1
+          done
+          for f in "$dir"/*.txt; do [ -e "$f" ] && { echo "== $f"; grep -E "^test .*FAILED|panicked|test result" "$f" | head -n 8; }; done
+          echo "loop: 5 new tests of round 2, $rounds rounds each, fail=$fail"
+          exit $fail
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
