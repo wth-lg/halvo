@@ -2372,10 +2372,34 @@ printf "PASS 10-a\n"'
   case_jobs=2
   case_max_s=25
   own_case child-that-a-self-test-leaves-is-ended-at-the-end-of-the-step 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
-  ends_together='case $me in 10-a) other=20-b ;; *) other=10-a ;; esac; ( trap "t=\$CI_D_REPO/term; : >\"\$t.\$me\"; n=0; while [ ! -e \"\$t.\$other\" ] && [ \$n -lt 30 ]; do sleep 0.1; n=\$((n + 1)); done; [ ! -e \"\$t.\$other\" ] || : >\"\$CI_D_REPO/met.\$me\"; exit 0" TERM; sleep 60 & wait ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
+  group_call='if [ "$#" -eq 4 ] && [ "$1" = -e ] && [ "$3" = 50 ]; then
+  echo "group cleanup call"
+  (
+    set -f
+    set -- $4
+    [ "$#" -eq 2 ] && read -r a <group.10-a && read -r b <group.20-b &&
+      [ "$a" != "$b" ] && { [ "$1 $2" = "$a $b" ] || [ "$2 $1" = "$a $b" ]; }
+  ) || echo "group cleanup arguments differ"
+fi'
+  mkdir -p "$tmp/group-calls" &&
+    printf '#!/bin/sh\n%s\nexec "%s" "$@"\n' "$group_call" "$perl_bin" >"$tmp/group-calls/perl" &&
+    chmod +x "$tmp/group-calls/perl" || return 1
+  ends_together='
+    case $me in 10-a) other=20-b ;; *) other=10-a ;; esac
+    record_term() {
+      : >"term.$me"
+      [ ! -e "term.$other" ] || : >both-got-term
+    }
+    perl -e "print getpgrp(0), qq(\n)" >"group.$me" || exit 1
+    ( trap "record_term; exit 0" TERM; : >"ready.$me"; sleep 60 & wait ) >/dev/null 2>&1 &
+    printf "%s\n" "$!" >>pids
+    w "ready.$me" || exit 1'
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $ends_together; $passes" && add_script r1 20-b.sh "$good" "$prelude; $ends_together; $passes"
   case_jobs=2
-  case_made=met.10-a
+  case_made=both-got-term
+  case_once='group cleanup call'
+  case_absent='group cleanup arguments differ'
+  case_path=$tmp/group-calls
   case_max_s=40
   case_witness=yes
   own_case groups-that-two-self-tests-left-are-ended-by-one-process 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
