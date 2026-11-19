@@ -1068,7 +1068,12 @@ where
     /// through `raise_step` for any other, and moves the run to `waiting`; the second step of a `sign_in`
     /// item (`Bind`); and the runner's end, before which the run's open item lapses with
     /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
-    /// with that cause and is answered `state`.
+    /// with that cause and is answered `state`. A second step or a handback `account_link` whose
+    /// origin is `http` outside 127.0.0.0/8 is declined to the runner, with no item raised, only
+    /// where `raise_step` would raise an item or end the run with `budget`: after its state rule
+    /// (a run that is not `working` is refused with `state`) and its kind rule (a second request
+    /// while an item of the run is open ends the run with `kind` and raises nothing), and before
+    /// its budget rule; it never declines quietly (I1.4, ruling RD-116 R2).
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_run(&st, run) {
