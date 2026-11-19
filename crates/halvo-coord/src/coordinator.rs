@@ -2520,8 +2520,10 @@ where
 
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
-    /// rows the page shows (I2.3). An agent that has no row, whose workflow a tick saw gone or
-    /// whose setup body the owner ended, is `unknown_agent`, as for every control.
+    /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
+    /// `records_dropped` where the board took off a record of the agent in this life. An agent
+    /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
+    /// `unknown_agent`, as for every control.
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st
@@ -2540,7 +2542,12 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        roster::card(facts, &name, &history, &self.limits)
+        let mut card = roster::card(facts, &name, &history, &self.limits)?;
+        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
+        if let Some(line) = roster::dropped_line(count)? {
+            card.lines.insert(0, line);
+        }
+        Ok(card)
     }
 
     /// The reply of `agents_snapshot` (I8.1).

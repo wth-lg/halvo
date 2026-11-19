@@ -410,6 +410,19 @@ pub fn card<C: ConfigView>(
     })
 }
 
+/// The card's line of the agent's records taken off since Halvo opened, `card.records_dropped`
+/// with `{count}` (ruling RD-64 2.6), or none where `count` is 0.
+pub fn dropped_line(count: u32) -> Result<Option<CardLine>, Cause> {
+    if count == 0 {
+        return Ok(None);
+    }
+    let text = text("card.records_dropped", &[("count", &count.to_string())])?;
+    Ok(Some(CardLine {
+        key: LineKey::RecordsDropped,
+        text,
+    }))
+}
+
 /// When the agent's open item was raised, the instant of its `item_raised` event, which orders
 /// the group `needs_you` (I2.4); none with no open item or no such event.
 pub fn raised_at<C>(facts: &Facts<C>) -> Option<u64> {

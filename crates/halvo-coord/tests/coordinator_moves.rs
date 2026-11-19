@@ -8205,6 +8205,43 @@ fn u24r_g_a_persons_run_now_is_not_held_by_the_stuck_count() {
     assert!(!c.record_stuck(&agent(0)));
 }
 
+fn dropped_lines(c: &Coordinator<Both>, n: usize) -> Vec<String> {
+    c.card(&agent(n))
+        .unwrap()
+        .lines
+        .iter()
+        .filter(|l| l.key == halvo_coord::types::LineKey::RecordsDropped)
+        .map(|l| l.text.clone())
+        .collect()
+}
+
+#[test]
+fn u24r_the_card_shows_the_boards_dropped_count_first_and_nothing_without_one() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    assert!(dropped_lines(&c, 0).is_empty(), "nothing taken off yet");
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("too_large"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    c.ports().ports.set_clock(T0 + 3 * 86_400_000, DAY + 3);
+    c.tick();
+    let (count, _, _) = c.records_dropped(&agent(0)).unwrap();
+    assert_eq!(count, 1);
+    let card = c.card(&agent(0)).unwrap();
+    assert_eq!(
+        card.lines[0].key,
+        halvo_coord::types::LineKey::RecordsDropped
+    );
+    assert_eq!(
+        card.lines[0].text,
+        words::text("card.records_dropped", &[("count", &count.to_string())]).unwrap()
+    );
+    assert_eq!(dropped_lines(&c, 0).len(), 1, "one line");
+    assert_eq!(c.records_dropped(&agent(1)), None);
+    assert!(dropped_lines(&c, 1).is_empty(), "an agent with none");
+}
+
 #[test]
 fn rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
